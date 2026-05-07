@@ -151,7 +151,7 @@ export default function SelectKidClient({
                 accent={themeById.get(modal.kid.themeId)?.accent ?? "#6366f1"}
                 prompt={`Enter ${modal.kid.name}'s PIN`}
                 onCancel={() => setModal(null)}
-                onSuccess={() => router.push(`/kid/${modal.kid.id}/today`)}
+                onSuccess={() => { setModal(null); router.push(`/kid/${modal.kid.id}/today`); }}
               />
             ) : modal.kind === "parent-verify" ? (
               <PinPad
