@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import PinPad from "@/components/kid/PinPad";
 import { setParentPinDb } from "@/lib/actions/parent-settings";
 
@@ -13,16 +13,14 @@ export default function ParentPinGateClient({
   parentPin: string | null;
   children: React.ReactNode;
 }) {
-  const [unlocked, setUnlocked] = useState(false);
+  // Read sessionStorage synchronously in the lazy initializer so there's no
+  // useEffect re-render flash on every parent nav transition.
+  const [unlocked, setUnlocked] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(SESSION_KEY) === "1";
+  });
   const [currentPin, setCurrentPin] = useState(parentPin);
   const [isPending, startTransition] = useTransition();
-
-  // Restore unlock state from sessionStorage (same-tab navigation)
-  useEffect(() => {
-    if (sessionStorage.getItem(SESSION_KEY) === "1") {
-      setUnlocked(true);
-    }
-  }, []);
 
   const unlock = () => {
     sessionStorage.setItem(SESSION_KEY, "1");

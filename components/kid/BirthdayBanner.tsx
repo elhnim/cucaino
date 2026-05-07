@@ -85,21 +85,30 @@ export default function BirthdayBanner({
   );
 }
 
+const CONFETTI_COLORS = ["#f43f5e", "#f97316", "#fbbf24", "#22c55e", "#3b82f6", "#a855f7", "#ec4899"];
+
+// Pre-computed so positions don't randomise on every render
+const CONFETTI_PIECES = Array.from({ length: 30 }, (_, i) => ({
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  left: `${(i * 37 + 11) % 100}%`,
+  top: `${-10 - (i * 13) % 30}px`,
+  delay: `${((i * 0.07) % 0.5).toFixed(2)}s`,
+  duration: `${(1 + (i * 0.09) % 1.2).toFixed(2)}s`,
+}));
+
 function Confetti() {
-  const colors = ["#f43f5e", "#f97316", "#fbbf24", "#22c55e", "#3b82f6", "#a855f7", "#ec4899"];
-  const pieces = Array.from({ length: 40 });
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden z-10">
-      {pieces.map((_, i) => (
+      {CONFETTI_PIECES.map((p, i) => (
         <span
           key={i}
           className="confetti-piece"
           style={{
-            background: colors[i % colors.length],
-            left: `${Math.random() * 100}%`,
-            top: `${-10 - Math.random() * 30}px`,
-            animationDelay: `${Math.random() * 0.5}s`,
-            animationDuration: `${1 + Math.random() * 1.2}s`,
+            background: p.color,
+            left: p.left,
+            top: p.top,
+            animationDelay: p.delay,
+            animationDuration: p.duration,
           }}
         />
       ))}

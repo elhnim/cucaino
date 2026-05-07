@@ -34,33 +34,12 @@ export async function completeTask(
   });
   if (error) return { ok: false, error: error.message };
 
-  // Award points to kid
+  // Atomic point increments — avoids a read round-trip per completion
   if (pointsAwarded > 0) {
-    const { data: kid } = await supabase
-      .from("kids")
-      .select("points_balance")
-      .eq("id", kidId)
-      .single();
-    if (kid) {
-      await supabase
-        .from("kids")
-        .update({ points_balance: kid.points_balance + pointsAwarded })
-        .eq("id", kidId);
-    }
+    await supabase.rpc("increment_kid_points", { p_kid_id: kidId, p_amount: pointsAwarded });
   }
-
-  // Award family points
   if (familyPointsAwarded > 0) {
-    const { data: fam } = await supabase
-      .from("families")
-      .select("id, family_points_balance")
-      .maybeSingle();
-    if (fam) {
-      await supabase
-        .from("families")
-        .update({ family_points_balance: fam.family_points_balance + familyPointsAwarded })
-        .eq("id", fam.id);
-    }
+    await supabase.rpc("increment_family_points", { p_kid_id: kidId, p_amount: familyPointsAwarded });
   }
 
   revalidatePath(`/kid/${kidId}/today`);
@@ -90,19 +69,9 @@ export async function uncompleteTask(
     .eq("id", completion.id);
   if (error) return { ok: false, error: error.message };
 
-  // Deduct points
+  // Atomic deduction — clamped to 0 in the SQL function
   if (completion.points_awarded > 0) {
-    const { data: kid } = await supabase
-      .from("kids")
-      .select("points_balance")
-      .eq("id", kidId)
-      .single();
-    if (kid) {
-      await supabase
-        .from("kids")
-        .update({ points_balance: Math.max(0, kid.points_balance - completion.points_awarded) })
-        .eq("id", kidId);
-    }
+    await supabase.rpc("decrement_kid_points", { p_kid_id: kidId, p_amount: completion.points_awarded });
   }
 
   revalidatePath(`/kid/${kidId}/today`);
