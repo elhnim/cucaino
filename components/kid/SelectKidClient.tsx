@@ -160,7 +160,10 @@ export default function SelectKidClient({
                 accent="#4f46e5"
                 prompt="Enter parent PIN"
                 onCancel={() => setModal(null)}
-                onSuccess={() => router.push("/parent")}
+                onSuccess={() => {
+                  sessionStorage.setItem("parent-unlocked", "1");
+                  router.push("/parent");
+                }}
               />
             ) : (
               // force-set: kid has no PIN, prompt them to create one
