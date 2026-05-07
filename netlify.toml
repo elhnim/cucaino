@@ -1,5 +1,5 @@
 [build]
-  command = "npx cross-env NODE_OPTIONS=\"--max-http-header-size=32768\" next build --webpack"
+  command = "next build --webpack"
   publish = ".next"
 
 [build.environment]
