@@ -1,7 +1,7 @@
 import ParentPinClient from "@/components/parent/ParentPinClient";
 import { getParentPinFromDb } from "@/lib/data/stub";
 
-const commit = process.env.COMMIT_REF?.slice(0, 7) ?? process.env.NEXT_PUBLIC_COMMIT_REF?.slice(0, 7) ?? "dev";
+const commit = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
 const RELEASES: { date: string; notes: string[] }[] = [
   {
