@@ -104,12 +104,9 @@ export default function PinPad({
   const clear = () => setPin("");
 
   const headline =
-    prompt ??
-    (mode === "verify"
-      ? "Enter your PIN"
-      : stage === "first"
-        ? "Pick a 4-digit PIN"
-        : "Type it again to confirm");
+    mode === "set" && stage === "confirm"
+      ? "Type it again to confirm"
+      : prompt ?? (mode === "verify" ? "Enter your PIN" : "Pick a 4-digit PIN");
 
   return (
     <div className="bg-white rounded-3xl shadow-xl p-6 max-w-sm w-full">
