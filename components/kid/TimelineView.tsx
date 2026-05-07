@@ -9,7 +9,7 @@
  * No layout/page code needs to change.
  */
 
-import type { TaskCompletion } from "@/lib/domain/types";
+import type { Task, TaskCompletion } from "@/lib/domain/types";
 import type { SectionInput } from "@/lib/registry/section-registry";
 import SchoolBagSection from "@/components/kid/sections/SchoolBagSection";
 import TimeBlockSection from "@/components/kid/sections/TimeBlockSection";
@@ -20,11 +20,13 @@ export default function TimelineView({
   completions,
   accent,
   kidId,
+  addableTasks,
 }: {
   sections: SectionInput[];
   completions: TaskCompletion[];
   accent: string;
   kidId: string;
+  addableTasks: Task[];
 }) {
   const completedTaskIds = new Set(completions.map((c) => c.taskId));
 
@@ -53,7 +55,7 @@ export default function TimelineView({
             return null;
         }
       })}
-      <AddPersonalTaskModal kidId={kidId} accent={accent} />
+      <AddPersonalTaskModal kidId={kidId} accent={accent} addableTasks={addableTasks} />
     </div>
   );
 }

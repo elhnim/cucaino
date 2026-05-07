@@ -9,6 +9,7 @@ import {
   listCompletionsToday,
   listSchoolItemsForDay,
   listSchoolClasses,
+  listKidAddableTasks,
 } from "@/lib/data/stub";
 import {
   buildTodaySections,
@@ -30,12 +31,13 @@ export default async function TodayPage({
   const dow = isoWeekday(now);
   const tomorrowDow = ((dow % 7) + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
-  const [family, tasks, completions, tomorrowItems, todayClasses] = await Promise.all([
+  const [family, tasks, completions, tomorrowItems, todayClasses, addableTasks] = await Promise.all([
     getFamily(),
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
     listSchoolItemsForDay(kid.id, tomorrowDow),
     dow <= 5 ? listSchoolClasses(kid.id) : Promise.resolve([]),
+    listKidAddableTasks(),
   ]);
   const todaySchoolClasses = todayClasses.filter((c) => c.dayOfWeek === dow);
   const familyGoalCurrent = family?.familyPointsBalance ?? 0;
@@ -69,6 +71,7 @@ export default async function TodayPage({
         completions={completions}
         accent={theme.accent}
         kidId={kid.id}
+        addableTasks={addableTasks}
       />
     </KidShell>
   );

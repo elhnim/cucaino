@@ -19,15 +19,13 @@ type NavKey =
   | "feedback"
   | "settings";
 
-const NAV: { key: NavKey; label: string; href: string }[] = [
-  { key: "overview", label: "Home", href: "/parent" },
-  { key: "tasks", label: "Tasks", href: "/parent/tasks" },
-  { key: "rewards", label: "Rewards", href: "/parent/rewards" },
-  { key: "requests", label: "Requests", href: "/parent/requests" },
-  { key: "quizzes", label: "Quizzes", href: "/parent/quizzes" },
-  { key: "kids", label: "Kids", href: "/parent/kids" },
-  { key: "feedback", label: "Ideas", href: "/parent/feedback" },
-  { key: "settings", label: "Settings", href: "/parent/settings" },
+const NAV: { key: NavKey; label: string; icon: string; href: string }[] = [
+  { key: "overview", label: "Home", icon: "🏠", href: "/parent" },
+  { key: "tasks", label: "Tasks", icon: "✅", href: "/parent/tasks" },
+  { key: "rewards", label: "Rewards", icon: "🎁", href: "/parent/rewards" },
+  { key: "requests", label: "Requests", icon: "🔔", href: "/parent/requests" },
+  { key: "kids", label: "Kids", icon: "👧", href: "/parent/kids" },
+  { key: "settings", label: "Settings", icon: "⚙️", href: "/parent/settings" },
 ];
 
 export default function ParentShell({
@@ -81,7 +79,7 @@ export default function ParentShell({
             className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-full text-xs font-bold flex items-center gap-1"
             title="Switch to kid view"
           >
-            🔄 <span className="hidden sm:inline">Switch</span>
+            🔄 Kids view
           </Link>
           <form action={signOut}>
             <button
@@ -89,7 +87,7 @@ export default function ParentShell({
               className="bg-white/20 hover:bg-white/30 px-3 py-2 rounded-full text-xs font-bold flex items-center gap-1"
               title="Sign out"
             >
-              🚪 <span className="hidden sm:inline">Sign out</span>
+              🚪 Sign out
             </button>
           </form>
         </div>
@@ -97,18 +95,19 @@ export default function ParentShell({
 
       <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
 
-      <nav className="sticky bottom-0 bg-white border-t border-gray-200 px-1 py-2 grid grid-cols-8 gap-0 text-[11px]">
+      <nav className="sticky bottom-0 bg-white border-t border-gray-200 px-1 py-1 grid grid-cols-6 gap-0 text-[10px]">
         {NAV.map((item) => {
           const isActive = item.key === active;
           return (
             <Link
               key={item.key}
               href={item.href}
-              className={`text-center py-1.5 rounded-lg ${
-                isActive ? "text-indigo-700 font-bold bg-indigo-50" : "text-gray-500"
+              className={`flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-colors ${
+                isActive ? "text-indigo-700 font-bold bg-indigo-50" : "text-gray-500 hover:text-gray-700"
               }`}
             >
-              {item.label}
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span>{item.label}</span>
             </Link>
           );
         })}

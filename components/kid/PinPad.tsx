@@ -44,51 +44,55 @@ export default function PinPad({
   // 4-digit entry; this latch prevents re-runs while React unwinds.
   const submittedRef = useRef(false);
 
-  // Auto-submit when 4 digits entered
+  // Auto-submit when 4 digits entered — wait 150ms so the 4th dot renders first
   useEffect(() => {
     if (pin.length !== 4 || submittedRef.current) return;
-    if (mode === "verify" && expected) {
-      if (pin === expected) {
-        submittedRef.current = true;
-        setError(null);
-        setPin("");
-        onSuccessRef.current?.();
-      } else {
-        setError("Wrong PIN — try again");
-        setShake(true);
-        setTimeout(() => {
-          setPin("");
-          setShake(false);
-        }, 600);
-      }
-      return;
-    }
-    if (mode === "set") {
-      if (stage === "first") {
-        setFirstEntry(pin);
-        setPin("");
-        setStage("confirm");
-        setError(null);
-      } else {
-        if (pin === firstEntry) {
+    const timer = setTimeout(() => {
+      if (submittedRef.current) return;
+      if (mode === "verify" && expected) {
+        if (pin === expected) {
           submittedRef.current = true;
-          const finalPin = pin;
+          setError(null);
           setPin("");
-          setFirstEntry("");
-          setStage("first");
-          onSetRef.current?.(finalPin);
+          onSuccessRef.current?.();
         } else {
-          setError("PINs didn't match — start again");
+          setError("Wrong PIN — try again");
           setShake(true);
           setTimeout(() => {
             setPin("");
+            setShake(false);
+          }, 600);
+        }
+        return;
+      }
+      if (mode === "set") {
+        if (stage === "first") {
+          setFirstEntry(pin);
+          setPin("");
+          setStage("confirm");
+          setError(null);
+        } else {
+          if (pin === firstEntry) {
+            submittedRef.current = true;
+            const finalPin = pin;
+            setPin("");
             setFirstEntry("");
             setStage("first");
-            setShake(false);
-          }, 700);
+            onSetRef.current?.(finalPin);
+          } else {
+            setError("PINs didn't match — start again");
+            setShake(true);
+            setTimeout(() => {
+              setPin("");
+              setFirstEntry("");
+              setStage("first");
+              setShake(false);
+            }, 700);
+          }
         }
       }
-    }
+    }, 150);
+    return () => clearTimeout(timer);
   }, [pin, mode, expected, stage, firstEntry]);
 
   const tap = (digit: string) => {

@@ -33,7 +33,7 @@ export default function SelectKidClient({
     if (kid.pin) {
       setModal({ kind: "verify", kid });
     } else {
-      router.push(`/kid/${kid.id}/today`);
+      setModal({ kind: "force-set", kid });
     }
   };
 
@@ -186,6 +186,13 @@ export default function SelectKidClient({
                 {isPending ? (
                   <p className="text-center text-sm text-gray-500 mt-2">Saving…</p>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={() => router.push(`/kid/${modal.kid.id}/today`)}
+                  className="w-full mt-2 text-sm text-gray-400 hover:text-gray-600 font-bold py-2"
+                >
+                  Skip for now
+                </button>
               </div>
             )}
           </div>

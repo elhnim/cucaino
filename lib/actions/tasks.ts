@@ -22,6 +22,7 @@ export interface TaskFormData {
   defaultBpm: number | null;
   defaultTimeSignature: string | null;
   kidId: string | null;
+  kidCanAdd: boolean;
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -54,6 +55,7 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
     default_bpm: data.defaultBpm,
     default_time_signature: data.defaultTimeSignature,
     active: true,
+    kid_can_add: data.kidCanAdd,
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
@@ -86,6 +88,7 @@ export async function updateTask(
       packing_list: data.packingList,
       default_bpm: data.defaultBpm,
       default_time_signature: data.defaultTimeSignature,
+      kid_can_add: data.kidCanAdd,
     })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };

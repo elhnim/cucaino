@@ -76,6 +76,7 @@ export interface Task {
   defaultBpm: number | null;
   defaultTimeSignature: string | null;
   active: boolean;
+  kidCanAdd: boolean;
 }
 
 export interface TaskCompletion {

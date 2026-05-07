@@ -43,6 +43,7 @@ function defaultForm(task?: Task): TaskFormData {
     defaultBpm: task?.defaultBpm ?? null,
     defaultTimeSignature: task?.defaultTimeSignature ?? null,
     kidId: task?.kidId ?? null,
+    kidCanAdd: task?.kidCanAdd ?? false,
   };
 }
 
@@ -389,6 +390,20 @@ export default function TaskFormModal({
             />
             <label htmlFor="requires-completion" className="text-sm font-bold text-gray-700">
               Requires completion (uncheck for info-only activities)
+            </label>
+          </div>
+
+          {/* Kids can add */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="kid-can-add"
+              checked={form.kidCanAdd}
+              onChange={(e) => set("kidCanAdd", e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="kid-can-add" className="text-sm font-bold text-gray-700">
+              Kids can add this task themselves
             </label>
           </div>
 

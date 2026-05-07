@@ -60,6 +60,7 @@ type DbTaskRow = {
   default_bpm: number | null;
   default_time_signature: string | null;
   active: boolean;
+  kid_can_add: boolean;
 };
 
 // ----- Mappers -----
@@ -102,6 +103,7 @@ function mapTask(row: DbTaskRow): Task {
     defaultBpm: row.default_bpm,
     defaultTimeSignature: row.default_time_signature,
     active: row.active,
+    kidCanAdd: row.kid_can_add ?? false,
   };
 }
 
@@ -359,4 +361,16 @@ export async function getParentPinFromDb(): Promise<string | null> {
     .maybeSingle();
   if (error || !data) return null;
   return data.parent_pin ?? null;
+}
+
+export async function listKidAddableTasks(): Promise<Task[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("kid_can_add", true)
+    .eq("active", true)
+    .order("name");
+  if (error || !data) return [];
+  return (data as DbTaskRow[]).map(mapTask);
 }
