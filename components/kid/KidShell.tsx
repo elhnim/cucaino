@@ -106,17 +106,15 @@ export default function KidShell({
       {/* Birthday banner + override patcher (client) */}
       <KidOverridesApplier kid={kid} />
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
-
-      {/* Bottom nav */}
-      <nav className="sticky bottom-0 bg-white border-t-2 border-gray-100 p-2 md:p-3 flex justify-around">
+      {/* Top nav */}
+      <nav className="bg-white/80 backdrop-blur border-b-2 border-gray-100 px-2 py-1 flex justify-around">
         {NAV_ITEMS.map((item) => {
           const isActive = item.key === active;
           return (
             <Link
               key={item.key}
               href={item.href(kid.id)}
+              prefetch={false}
               className={`flex flex-col items-center px-2 py-1 rounded-lg transition-colors ${
                 isActive ? "font-bold" : "text-gray-500 hover:text-gray-700"
               }`}
@@ -128,6 +126,9 @@ export default function KidShell({
           );
         })}
       </nav>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
     </main>
   );
 }

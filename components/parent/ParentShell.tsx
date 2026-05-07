@@ -51,9 +51,7 @@ export default function ParentShell({
         <ParentHeaderActions pendingCount={pendingCount} />
       </header>
 
-      <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
-
-      <nav className="sticky bottom-0 bg-white border-t border-gray-200 px-1 py-1 grid grid-cols-6 gap-0 text-[10px]">
+      <nav className="bg-white border-b border-gray-200 px-1 py-1 grid grid-cols-6 gap-0 text-[10px]">
         {NAV.map((item) => {
           const isActive = item.path === pathname;
           return (
@@ -71,6 +69,8 @@ export default function ParentShell({
           );
         })}
       </nav>
+
+      <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
     </main>
   );
 }
