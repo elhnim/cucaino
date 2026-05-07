@@ -68,6 +68,7 @@ export default async function TodayPage({
         sections={sections}
         completions={completions}
         accent={theme.accent}
+        kidId={kid.id}
       />
     </KidShell>
   );

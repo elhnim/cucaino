@@ -57,6 +57,7 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
+  if (data.kidId) revalidatePath(`/kid/${data.kidId}/today`);
   return { ok: true };
 }
 

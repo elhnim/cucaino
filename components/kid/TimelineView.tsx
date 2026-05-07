@@ -13,15 +13,18 @@ import type { TaskCompletion } from "@/lib/domain/types";
 import type { SectionInput } from "@/lib/registry/section-registry";
 import SchoolBagSection from "@/components/kid/sections/SchoolBagSection";
 import TimeBlockSection from "@/components/kid/sections/TimeBlockSection";
+import AddPersonalTaskModal from "@/components/kid/AddPersonalTaskModal";
 
 export default function TimelineView({
   sections,
   completions,
   accent,
+  kidId,
 }: {
   sections: SectionInput[];
   completions: TaskCompletion[];
   accent: string;
+  kidId: string;
 }) {
   const completedTaskIds = new Set(completions.map((c) => c.taskId));
 
@@ -50,6 +53,7 @@ export default function TimelineView({
             return null;
         }
       })}
+      <AddPersonalTaskModal kidId={kidId} accent={accent} />
     </div>
   );
 }
