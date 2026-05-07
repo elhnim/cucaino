@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kids App — Interactive Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --liam: #f97316;
+    --mia: #ec4899;
+  }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }
+  .font-fun { font-family: 'Nunito', sans-serif; }
+  .kid-view { font-family: 'Nunito', sans-serif; }
+  .frame {
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px -15px rgba(0,0,0,0.2);
+    overflow: hidden;
+  }
+  .tablet-frame { width: 1024px; max-width: 100%; aspect-ratio: 4/3; }
+  .phone-frame { width: 380px; max-width: 100%; min-height: 720px; }
+  .nav-btn {
+    transition: all .15s;
+    border-bottom: 3px solid transparent;
+  }
+  .nav-btn.active { border-color: #6366f1; color: #4f46e5; font-weight: 700; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  @keyframes pulse-beat {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .beat-pulse { animation: pulse-beat 0.15s ease-out; }
+
+  @keyframes pop {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .pop { animation: pop 0.4s ease-out; }
+
+  @keyframes confetti-fall {
+    0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(300px) rotate(720deg); opacity: 0; }
+  }
+  .confetti-piece {
+    position: absolute;
+    width: 10px; height: 10px;
+    animation: confetti-fall 1.2s ease-in forwards;
+  }
+
+  .timeline-block.current {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-color: #f59e0b !important;
+    box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
+  }
+  .timeline-block.done { opacity: 0.6; }
+  .checkbox-done {
+    background: #22c55e !important;
+    border-color: #16a34a !important;
+  }
+
+  /* Make scroll area visible inside the tablet frame */
+  .scroll-area { overflow-y: auto; height: 100%; }
+  .scroll-area::-webkit-scrollbar { width: 8px; }
+  .scroll-area::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+<!-- Top nav -->
+<div class="max-w-6xl mx-auto mb-6">
+  <h1 class="text-2xl font-bold text-gray-800 mb-1">🦊🐼 Kids App — Interactive Mockup</h1>
+  <p class="text-sm text-gray-600 mb-4">Click through screens. The metronome is real (uses Web Audio API). Tap inside the device frames as if on a real tablet/phone.</p>
+  <div class="bg-white rounded-xl shadow p-2 flex flex-wrap gap-1 text-sm">
+    <button class="nav-btn px-4 py-2 rounded-lg active" data-screen="select">1. Select Kid</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="today">2. Today (Liam 🦊)</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="week">3. This Week 📅</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="music">4. Music + Metronome 🎵</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="rewards">5. Rewards</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="progress">6. My Progress</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="mia">7. Today (Mia 🐼) ✨</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="parent">8. Parent Dashboard</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="approve">9. Approve Rewards</button>
+    <button class="nav-btn px-4 py-2 rounded-lg" data-screen="tasks">10. Manage Tasks</button>
+  </div>
+</div>
+
+<div class="max-w-6xl mx-auto flex justify-center">
+
+<!-- ================= 1. SELECT KID ================= -->
+<div class="screen active" id="screen-select">
+  <div class="frame tablet-frame kid-view bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 p-12 flex flex-col">
+    <div class="text-center mb-12 mt-8">
+      <h1 class="text-5xl font-black text-indigo-900">Who's playing today? 👋</h1>
+      <p class="text-xl text-indigo-700 mt-3">Tap your face to start</p>
+    </div>
+    <div class="flex justify-center gap-12 flex-1 items-center">
+      <button onclick="goTo('today')" class="group bg-white rounded-3xl p-8 w-64 shadow-xl hover:scale-105 transition-transform">
+        <div class="w-32 h-32 rounded-full bg-orange-200 flex items-center justify-center text-7xl mx-auto mb-4 group-hover:rotate-12 transition-transform">🦊</div>
+        <div class="text-3xl font-black text-orange-600 text-center">Liam</div>
+        <div class="flex justify-center gap-3 mt-3 text-lg">
+          <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-bold">⭐ 240</span>
+          <span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full font-bold">🔥 4d</span>
+        </div>
+      </button>
+      <button onclick="goTo('mia')" class="group bg-white rounded-3xl p-8 w-64 shadow-xl hover:scale-105 transition-transform">
+        <div class="w-32 h-32 rounded-full bg-pink-200 flex items-center justify-center text-7xl mx-auto mb-4 group-hover:rotate-12 transition-transform">🐼</div>
+        <div class="text-3xl font-black text-pink-600 text-center">Mia</div>
+        <div class="flex justify-center gap-3 mt-3 text-lg">
+          <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-bold">⭐ 195</span>
+          <span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full font-bold">🔥 6d</span>
+        </div>
+      </button>
+    </div>
+    <div class="text-right">
+      <button onclick="goTo('parent')" class="text-sm text-gray-500 hover:text-gray-700 bg-white/60 px-4 py-2 rounded-full">🔒 Parent area</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 2. TODAY (LIAM) ================= -->
+<div class="screen" id="screen-today">
+  <div class="frame tablet-frame kid-view bg-gradient-to-br from-orange-50 to-amber-50">
+    <div class="scroll-area">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-orange-500 to-amber-500 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-full bg-white/30 flex items-center justify-center text-3xl">🦊</div>
+          <div>
+            <div class="text-2xl font-black">Hi, Liam!</div>
+            <div class="text-sm opacity-90">Thursday, 7 May</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="bg-white/20 backdrop-blur px-4 py-2 rounded-full font-bold text-xl">⭐ <span id="liam-points">240</span></span>
+          <span class="bg-white/20 backdrop-blur px-4 py-2 rounded-full font-bold">🔥 4 days</span>
+        </div>
+      </div>
+
+      <!-- Family goal -->
+      <div class="px-5 py-3 bg-purple-100 border-b-2 border-purple-200">
+        <div class="flex items-center justify-between text-sm">
+          <span class="font-bold text-purple-900">🎬 Family goal: Movie Night</span>
+          <span class="text-purple-700 font-bold">320 / 400</span>
+        </div>
+        <div class="bg-white rounded-full h-3 mt-2 overflow-hidden">
+          <div class="bg-gradient-to-r from-purple-500 to-pink-500 h-full" style="width: 80%"></div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="p-5 space-y-5">
+        <!-- SCHOOL BAG (top of morning, weekdays) -->
+        <div class="bg-gradient-to-br from-emerald-100 to-teal-100 border-2 border-emerald-400 rounded-2xl p-4 shadow-lg">
+          <div class="flex items-start gap-3">
+            <div class="text-4xl">🎒</div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div class="font-black text-lg text-emerald-900">School bag — pack these today</div>
+                  <div class="text-xs text-emerald-700 font-bold">Thursday checklist · 3 of 5 packed</div>
+                </div>
+                <button class="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold px-3 py-1.5 rounded-lg">Pack all ✓</button>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-1 text-sm">
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-emerald-600"><span class="line-through text-gray-500">🥪 Lunchbox</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-emerald-600"><span class="line-through text-gray-500">💧 Water bottle</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-emerald-600"><span class="line-through text-gray-500">🧢 Hat</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-emerald-600"><span class="font-bold">📚 Library book (return!)</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-emerald-600"><span class="font-bold">🎻 Violin</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MORNING -->
+        <div>
+          <div class="text-sm font-black text-gray-500 mb-2 flex items-center gap-2">
+            <span>🌅 MORNING</span>
+            <span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">2 of 2 done</span>
+          </div>
+          <div class="space-y-2">
+            <div class="timeline-block done bg-white border-2 border-gray-200 rounded-2xl p-4 flex items-center gap-4">
+              <div class="checkbox-done w-10 h-10 rounded-xl border-2 border-gray-300 flex items-center justify-center text-white font-black text-xl">✓</div>
+              <div class="text-3xl">🛏️</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg line-through">Make bed</div>
+                <div class="text-xs text-gray-500">7:30am · +5 ⭐</div>
+              </div>
+            </div>
+            <div class="timeline-block done bg-white border-2 border-gray-200 rounded-2xl p-4 flex items-center gap-4">
+              <div class="checkbox-done w-10 h-10 rounded-xl border-2 border-gray-300 flex items-center justify-center text-white font-black text-xl">✓</div>
+              <div class="text-3xl">🦷</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg line-through">Brush teeth</div>
+                <div class="text-xs text-gray-500">7:45am · +3 ⭐</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AFTER SCHOOL (activity) -->
+        <div>
+          <div class="text-sm font-black text-blue-700 mb-2 flex items-center gap-2">
+            <span>🎒 AFTER SCHOOL</span>
+            <span class="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">activity</span>
+          </div>
+          <div class="space-y-2">
+            <div class="timeline-block bg-white border-2 border-blue-300 rounded-2xl p-4 border-dashed">
+              <div class="flex items-start gap-4">
+                <div class="text-3xl mt-1">🏊</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <div class="font-bold text-lg">Swim training</div>
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">📍 Aquatic Centre</span>
+                  </div>
+                  <div class="text-xs text-gray-600 mt-1">3:30 – 4:30pm · +5 ⭐ for attending well</div>
+                  <!-- Packing list -->
+                  <div class="mt-3 bg-blue-50 rounded-xl p-3">
+                    <div class="text-xs font-black text-blue-900 mb-2">🎒 Pack your bag:</div>
+                    <div class="grid grid-cols-2 gap-1 text-sm">
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-blue-600"><span class="line-through text-gray-500">Swimsuit</span></label>
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-blue-600"><span class="line-through text-gray-500">Towel</span></label>
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-blue-600"><span>Goggles</span></label>
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-blue-600"><span>Water bottle</span></label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AFTERNOON (current) -->
+        <div>
+          <div class="text-sm font-black text-amber-700 mb-2 flex items-center gap-2">
+            <span>☀️ AFTERNOON</span>
+            <span class="text-xs font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full animate-pulse">← you are here</span>
+          </div>
+          <div class="space-y-2">
+            <div class="timeline-block current border-2 rounded-2xl p-4">
+              <div class="flex items-center gap-4">
+                <div onclick="goTo('music')" class="cursor-pointer w-10 h-10 rounded-xl border-2 border-amber-500 bg-white"></div>
+                <div class="text-3xl">🎹</div>
+                <div class="flex-1">
+                  <div class="font-bold text-lg">Piano practice</div>
+                  <div class="text-xs text-gray-700">5:00pm · 30 min · +15 ⭐</div>
+                </div>
+                <button onclick="goTo('music')" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2.5 rounded-xl shadow">▶ Start</button>
+              </div>
+            </div>
+            <div class="timeline-block bg-white border-2 border-gray-200 rounded-2xl p-4 flex items-center gap-4">
+              <button onclick="completeTask(this, 10)" class="w-10 h-10 rounded-xl border-2 border-gray-300 hover:border-green-500 hover:bg-green-50"></button>
+              <div class="text-3xl">🏃</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg">Free play / outdoor time</div>
+                <div class="text-xs text-gray-500">5:30pm · 30 min · +10 ⭐</div>
+              </div>
+              <button class="bg-blue-500 hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-xl text-sm">▶ Timer</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- EVENING -->
+        <div>
+          <div class="text-sm font-black text-gray-500 mb-2">🌙 EVENING</div>
+          <div class="space-y-2">
+            <div class="timeline-block bg-white border-2 border-gray-200 rounded-2xl p-4 flex items-center gap-4">
+              <button onclick="completeTask(this, 8)" class="w-10 h-10 rounded-xl border-2 border-gray-300 hover:border-green-500 hover:bg-green-50"></button>
+              <div class="text-3xl">🍽️</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg">Help with dinner</div>
+                <div class="text-xs text-gray-500">6:30pm · +8 ⭐</div>
+              </div>
+            </div>
+            <div class="timeline-block bg-white border-2 border-gray-200 rounded-2xl p-4 flex items-center gap-4">
+              <button onclick="completeTask(this, 5)" class="w-10 h-10 rounded-xl border-2 border-gray-300 hover:border-green-500 hover:bg-green-50"></button>
+              <div class="text-3xl">📖</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg">Read 15 minutes</div>
+                <div class="text-xs text-gray-500">7:30pm · +5 ⭐</div>
+              </div>
+            </div>
+
+            <!-- Bedtime: pack tomorrow's bag -->
+            <div class="bg-gradient-to-br from-indigo-100 to-purple-100 border-2 border-indigo-400 rounded-2xl p-4 mt-2">
+              <div class="flex items-start gap-3">
+                <div class="text-4xl">🌙</div>
+                <div class="flex-1">
+                  <div class="font-black text-lg text-indigo-900">Pack tomorrow's bag</div>
+                  <div class="text-xs text-indigo-700 font-bold">Friday — get sorted before bed!</div>
+                  <div class="mt-3 grid grid-cols-2 gap-1 text-sm">
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-indigo-600"><span>🥪 Lunchbox</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-indigo-600"><span>💧 Water bottle</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-indigo-600"><span>🧢 Hat</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-indigo-600"><span class="font-bold">⚽ Sports uniform</span></label>
+                    <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-indigo-600"><span class="font-bold">🎾 Racquet (after-school)</span></label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom nav -->
+      <div class="sticky bottom-0 bg-white border-t-2 border-gray-100 p-3 flex justify-around">
+        <button class="flex flex-col items-center text-orange-500 font-bold">
+          <span class="text-2xl">🏠</span><span class="text-xs">Today</span>
+        </button>
+        <button onclick="goTo('week')" class="flex flex-col items-center text-gray-500 hover:text-orange-500">
+          <span class="text-2xl">📅</span><span class="text-xs">Week</span>
+        </button>
+        <button onclick="goTo('rewards')" class="flex flex-col items-center text-gray-500 hover:text-orange-500">
+          <span class="text-2xl">🎁</span><span class="text-xs">Rewards</span>
+        </button>
+        <button onclick="goTo('progress')" class="flex flex-col items-center text-gray-500 hover:text-orange-500">
+          <span class="text-2xl">🏆</span><span class="text-xs">Progress</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= NEW: THIS WEEK ================= -->
+<div class="screen" id="screen-week">
+  <div class="frame tablet-frame kid-view bg-gradient-to-br from-orange-50 to-amber-50">
+    <div class="scroll-area">
+      <div class="bg-gradient-to-r from-orange-500 to-amber-500 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <button onclick="goTo('today')" class="bg-white/20 w-10 h-10 rounded-full font-bold">←</button>
+          <div>
+            <div class="text-2xl font-black">📅 This Week</div>
+            <div class="text-sm opacity-90">5–11 May · Liam's plan</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="bg-white/20 px-3 py-1.5 rounded-full font-bold text-sm">⭐ 240</span>
+        </div>
+      </div>
+
+      <div class="p-5">
+        <!-- Activity legend -->
+        <div class="flex gap-2 mb-4 text-xs flex-wrap">
+          <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-bold">🎒 Activity</span>
+          <span class="bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-bold">🎹 Music</span>
+          <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full font-bold">🏃 Exercise</span>
+          <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded-full font-bold">🛏 Routine</span>
+        </div>
+
+        <div class="space-y-2">
+          <!-- Mon -->
+          <div class="bg-white rounded-2xl p-4 shadow flex items-center gap-4 border-l-4 border-gray-300">
+            <div class="w-14 text-center">
+              <div class="text-xs font-bold text-gray-500">MON</div>
+              <div class="text-2xl font-black">5</div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-2">
+              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">🎾 Tennis 4–5pm</span>
+              <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full">🎹 Piano</span>
+              <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">routine</span>
+            </div>
+            <span class="text-green-600 font-bold text-xl">✓</span>
+          </div>
+          <!-- Tue -->
+          <div class="bg-white rounded-2xl p-4 shadow flex items-center gap-4 border-l-4 border-gray-300">
+            <div class="w-14 text-center">
+              <div class="text-xs font-bold text-gray-500">TUE</div>
+              <div class="text-2xl font-black">6</div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-2">
+              <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full">🎹 Piano</span>
+              <span class="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full">🏃 Exercise</span>
+              <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">routine</span>
+            </div>
+            <span class="text-green-600 font-bold text-xl">✓</span>
+          </div>
+          <!-- Wed -->
+          <div class="bg-white rounded-2xl p-4 shadow flex items-center gap-4 border-l-4 border-gray-300">
+            <div class="w-14 text-center">
+              <div class="text-xs font-bold text-gray-500">WED</div>
+              <div class="text-2xl font-black">7</div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-2">
+              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">💻 Coding club 7:30am</span>
+              <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full">🎹 Piano</span>
+              <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">routine</span>
+            </div>
+            <span class="text-green-600 font-bold text-xl">✓</span>
+          </div>
+          <!-- Thu (today) -->
+          <div onclick="goTo('today')" class="cursor-pointer bg-gradient-to-r from-amber-100 to-orange-100 rounded-2xl p-4 shadow-lg flex items-center gap-4 border-l-4 border-amber-500 ring-2 ring-amber-400">
+            <div class="w-14 text-center">
+              <div class="text-xs font-bold text-amber-700">TODAY</div>
+              <div class="text-2xl font-black text-amber-900">8</div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-2">
+              <span class="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded-full">🏊 Swim 3:30pm</span>
+              <span class="bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full">🎹 Piano 5pm</span>
+              <span class="bg-gray-200 text-gray-700 text-xs font-bold px-2 py-1 rounded-full">routine</span>
+            </div>
+            <span class="text-amber-700 font-bold">→</span>
+          </div>
+          <!-- Fri -->
+          <div class="bg-white rounded-2xl p-4 shadow flex items-center gap-4 border-l-4 border-gray-200 opacity-90">
+            <div class="w-14 text-center">
+              <div class="text-xs font-bold text-gray-500">FRI</div>
+              <div class="text-2xl font-black">9</div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-2">
+              <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded-full">🎾 Tennis 4–5pm</span>
+              <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded-full">🎹 Piano</span>
+              <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">routine</span>
+            </div>
+            <span class="text-gray-400">·</span>
+          </div>
+          <!-- Sat -->
+          <div class="bg-white rounded-2xl p-4 shadow flex items-center gap-4 border-l-4 border-gray-200 opacity-90">
+            <div class="w-14 text-center">
+              <div class="text-xs font-bold text-gray-500">SAT</div>
+              <div class="text-2xl font-black">10</div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-2">
+              <span class="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-1 rounded-full">🎬 Movie night?</span>
+              <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">weekend chores</span>
+            </div>
+            <span class="text-gray-400">·</span>
+          </div>
+          <!-- Sun -->
+          <div class="bg-white rounded-2xl p-4 shadow flex items-center gap-4 border-l-4 border-gray-200 opacity-90">
+            <div class="w-14 text-center">
+              <div class="text-xs font-bold text-gray-500">SUN</div>
+              <div class="text-2xl font-black">11</div>
+            </div>
+            <div class="flex-1 flex flex-wrap gap-2">
+              <span class="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded-full">free day 🎉</span>
+            </div>
+            <span class="text-gray-400">·</span>
+          </div>
+        </div>
+
+        <div class="mt-4 bg-amber-50 border-2 border-amber-200 rounded-xl p-3 text-sm text-amber-900">
+          💡 <strong>Heads up:</strong> Tomorrow's tennis at 4pm — pack your kit tonight!
+        </div>
+      </div>
+
+      <div class="sticky bottom-0 bg-white border-t-2 border-gray-100 p-3 flex justify-around">
+        <button onclick="goTo('today')" class="flex flex-col items-center text-gray-500"><span class="text-2xl">🏠</span><span class="text-xs">Today</span></button>
+        <button class="flex flex-col items-center text-orange-500 font-bold"><span class="text-2xl">📅</span><span class="text-xs">Week</span></button>
+        <button onclick="goTo('rewards')" class="flex flex-col items-center text-gray-500"><span class="text-2xl">🎁</span><span class="text-xs">Rewards</span></button>
+        <button onclick="goTo('progress')" class="flex flex-col items-center text-gray-500"><span class="text-2xl">🏆</span><span class="text-xs">Progress</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= NEW: MIA'S TODAY (Magical theme) ================= -->
+<div class="screen" id="screen-mia">
+  <div class="frame tablet-frame kid-view" style="background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 50%, #ccfbf1 100%);">
+    <div class="scroll-area">
+      <!-- Header — purple/pink magical theme -->
+      <div class="text-white p-5 flex items-center justify-between" style="background: linear-gradient(135deg, #c026d3 0%, #ec4899 60%, #14b8a6 100%);">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-full bg-white/30 flex items-center justify-center text-3xl relative">
+            🐼
+            <span class="absolute -top-1 -right-1 text-sm">✨</span>
+          </div>
+          <div>
+            <div class="text-2xl font-black flex items-center gap-1">Hi, Mia! <span class="text-lg">✨</span></div>
+            <div class="text-sm opacity-90">Thursday, 7 May · 🌸 Magical theme</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="bg-white/20 backdrop-blur px-4 py-2 rounded-full font-bold text-xl">⭐ 195</span>
+          <span class="bg-white/20 backdrop-blur px-4 py-2 rounded-full font-bold">🔥 6 days</span>
+        </div>
+      </div>
+
+      <!-- Family goal -->
+      <div class="px-5 py-3 border-b-2" style="background: linear-gradient(to right, #fae8ff, #fce7f3); border-color: #f5d0fe;">
+        <div class="flex items-center justify-between text-sm">
+          <span class="font-bold text-purple-900">🎬 Family goal: Movie Night</span>
+          <span class="text-purple-700 font-bold">320 / 400</span>
+        </div>
+        <div class="bg-white rounded-full h-3 mt-2 overflow-hidden">
+          <div class="h-full" style="width: 80%; background: linear-gradient(to right, #c026d3, #ec4899);"></div>
+        </div>
+      </div>
+
+      <!-- Theme picker hint -->
+      <div class="px-5 pt-3 -mb-2">
+        <div class="bg-white/70 backdrop-blur rounded-xl p-2 text-xs text-purple-900 flex items-center gap-2">
+          🎨 <span><strong>Mia's theme:</strong> Magical (💜 purple + 💗 pink + 🌿 mint, sparkle accents). Tap profile to change.</span>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="p-5 space-y-5">
+        <!-- SCHOOL BAG (Mia, themed magical) -->
+        <div class="rounded-2xl p-4 shadow-lg border-2" style="background: linear-gradient(135deg, #fdf4ff 0%, #fce7f3 100%); border-color:#c026d3;">
+          <div class="flex items-start gap-3">
+            <div class="text-4xl">🎒</div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div class="font-black text-lg" style="color:#86198f;">School bag — pack these today ✨</div>
+                  <div class="text-xs font-bold" style="color:#a21caf;">Thursday checklist · 4 of 5 packed</div>
+                </div>
+                <button class="text-white text-sm font-bold px-3 py-1.5 rounded-lg" style="background:#c026d3;">Pack all ✓</button>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-1 text-sm">
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-pink-500"><span class="line-through text-gray-500">🥪 Lunchbox</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-pink-500"><span class="line-through text-gray-500">💧 Water bottle</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-pink-500"><span class="line-through text-gray-500">🧢 Hat</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-pink-500"><span class="line-through text-gray-500">📚 Library bag</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-pink-500"><span class="font-bold">🎨 Art smock</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MORNING -->
+        <div>
+          <div class="text-sm font-black text-purple-500 mb-2 flex items-center gap-2">
+            <span>🌸 MORNING</span>
+            <span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full">2 of 2 done</span>
+          </div>
+          <div class="space-y-2">
+            <div class="timeline-block done bg-white border-2 border-purple-100 rounded-2xl p-4 flex items-center gap-4">
+              <div class="checkbox-done w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-xl" style="background:#a855f7;">✓</div>
+              <div class="text-3xl">🛏️</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg line-through">Make bed</div>
+                <div class="text-xs text-gray-500">7:30am · +5 ⭐</div>
+              </div>
+            </div>
+            <div class="timeline-block done bg-white border-2 border-purple-100 rounded-2xl p-4 flex items-center gap-4">
+              <div class="checkbox-done w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-xl" style="background:#a855f7;">✓</div>
+              <div class="text-3xl">🦷</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg line-through">Brush teeth</div>
+                <div class="text-xs text-gray-500">7:45am · +3 ⭐</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AFTER SCHOOL — Mia's activity (Ballet) -->
+        <div>
+          <div class="text-sm font-black text-pink-700 mb-2 flex items-center gap-2">
+            <span>🎒 AFTER SCHOOL</span>
+            <span class="text-xs font-bold bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">activity</span>
+          </div>
+          <div class="space-y-2">
+            <div class="timeline-block bg-white rounded-2xl p-4 border-2 border-dashed" style="border-color:#f9a8d4;">
+              <div class="flex items-start gap-4">
+                <div class="text-3xl mt-1">🩰</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <div class="font-bold text-lg">Ballet class</div>
+                    <span class="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold">📍 Sparkle Studio</span>
+                  </div>
+                  <div class="text-xs text-gray-600 mt-1">4:00 – 5:00pm · just a reminder ✨</div>
+                  <div class="mt-3 rounded-xl p-3" style="background: linear-gradient(135deg, #fdf4ff, #fce7f3);">
+                    <div class="text-xs font-black text-pink-900 mb-2">🎒 Pack your bag:</div>
+                    <div class="grid grid-cols-2 gap-1 text-sm">
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-pink-500"><span class="line-through text-gray-500">Leotard</span></label>
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 accent-pink-500"><span class="line-through text-gray-500">Tights</span></label>
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-pink-500"><span>Ballet shoes</span></label>
+                      <label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" class="w-4 h-4 accent-pink-500"><span>Hair tie</span></label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AFTERNOON (current — violin) -->
+        <div>
+          <div class="text-sm font-black text-pink-700 mb-2 flex items-center gap-2">
+            <span>☀️ AFTERNOON</span>
+            <span class="text-xs font-bold bg-pink-200 text-pink-900 px-2 py-0.5 rounded-full animate-pulse">← you are here ✨</span>
+          </div>
+          <div class="space-y-2">
+            <div class="timeline-block current border-2 rounded-2xl p-4" style="background: linear-gradient(135deg, #fae8ff 0%, #fce7f3 100%); border-color: #c026d3;">
+              <div class="flex items-center gap-4">
+                <div class="cursor-pointer w-10 h-10 rounded-xl border-2 bg-white" style="border-color:#c026d3;"></div>
+                <div class="text-3xl">🎻</div>
+                <div class="flex-1">
+                  <div class="font-bold text-lg">Violin practice</div>
+                  <div class="text-xs text-gray-700">5:30pm · 25 min · +15 ⭐</div>
+                </div>
+                <button class="text-white font-bold px-5 py-2.5 rounded-xl shadow" style="background: linear-gradient(135deg, #c026d3, #ec4899);">▶ Start</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- EVENING -->
+        <div>
+          <div class="text-sm font-black text-purple-500 mb-2">🌙 EVENING</div>
+          <div class="space-y-2">
+            <div class="timeline-block bg-white border-2 border-purple-100 rounded-2xl p-4 flex items-center gap-4">
+              <button class="w-10 h-10 rounded-xl border-2 border-purple-200 hover:border-purple-500 hover:bg-purple-50"></button>
+              <div class="text-3xl">🍽️</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg">Help with dinner</div>
+                <div class="text-xs text-gray-500">6:30pm · +8 ⭐</div>
+              </div>
+            </div>
+            <div class="timeline-block bg-white border-2 border-purple-100 rounded-2xl p-4 flex items-center gap-4">
+              <button class="w-10 h-10 rounded-xl border-2 border-purple-200 hover:border-purple-500 hover:bg-purple-50"></button>
+              <div class="text-3xl">📖</div>
+              <div class="flex-1">
+                <div class="font-bold text-lg">Read 15 minutes</div>
+                <div class="text-xs text-gray-500">7:30pm · +5 ⭐</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom nav -->
+      <div class="sticky bottom-0 bg-white border-t-2 border-pink-100 p-3 flex justify-around">
+        <button class="flex flex-col items-center font-bold" style="color:#c026d3;">
+          <span class="text-2xl">🏠</span><span class="text-xs">Today</span>
+        </button>
+        <button class="flex flex-col items-center text-gray-500">
+          <span class="text-2xl">📅</span><span class="text-xs">Week</span>
+        </button>
+        <button class="flex flex-col items-center text-gray-500">
+          <span class="text-2xl">🎁</span><span class="text-xs">Rewards</span>
+        </button>
+        <button class="flex flex-col items-center text-gray-500">
+          <span class="text-2xl">🏆</span><span class="text-xs">Progress</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 3. MUSIC + METRONOME ================= -->
+<div class="screen" id="screen-music">
+  <div class="frame tablet-frame kid-view bg-gradient-to-br from-amber-50 to-orange-50">
+    <div class="scroll-area">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="text-4xl">🎹</div>
+          <div>
+            <div class="text-2xl font-black">Piano practice</div>
+            <div class="text-sm opacity-90">30 minutes · +15 ⭐ when done</div>
+          </div>
+        </div>
+        <button onclick="goTo('today')" class="bg-white/20 backdrop-blur w-10 h-10 rounded-full font-bold text-xl">✕</button>
+      </div>
+
+      <div class="p-6 grid grid-cols-2 gap-6">
+        <!-- TIMER -->
+        <div class="bg-white rounded-3xl p-6 shadow-lg">
+          <div class="text-center text-sm font-bold text-gray-500 mb-2">⏱ PRACTICE TIMER</div>
+          <div class="relative mx-auto" style="width: 220px; height: 220px;">
+            <svg class="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" fill="none" stroke="#fde68a" stroke-width="6"/>
+              <circle id="timer-ring" cx="50" cy="50" r="45" fill="none" stroke="#f59e0b" stroke-width="6" stroke-linecap="round" stroke-dasharray="282.7" stroke-dashoffset="70" style="transition: stroke-dashoffset 1s linear;"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <div id="timer-display" class="text-5xl font-black text-amber-700">22:14</div>
+              <div class="text-sm text-gray-500">remaining</div>
+            </div>
+          </div>
+          <div class="flex gap-2 justify-center mt-4">
+            <button onclick="toggleTimer(this)" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-6 py-3 rounded-xl">▶ Start</button>
+            <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold px-4 py-3 rounded-xl">⏹ Stop</button>
+          </div>
+        </div>
+
+        <!-- METRONOME -->
+        <div class="bg-white rounded-3xl p-6 shadow-lg">
+          <div class="text-center text-sm font-bold text-gray-500 mb-2">🎵 METRONOME</div>
+
+          <!-- Beat dots -->
+          <div id="beat-dots" class="flex justify-center gap-3 my-4 h-12 items-center">
+            <!-- filled by JS -->
+          </div>
+
+          <!-- BPM -->
+          <div class="text-center mb-3">
+            <div class="text-xs text-gray-500 font-bold">TEMPO</div>
+            <div class="flex items-center justify-center gap-2">
+              <button onclick="bumpBpm(-5)" class="bg-gray-100 hover:bg-gray-200 w-10 h-10 rounded-full font-bold text-xl">−</button>
+              <div class="font-black text-3xl tabular-nums w-24">♩=<span id="bpm-display">80</span></div>
+              <button onclick="bumpBpm(5)" class="bg-gray-100 hover:bg-gray-200 w-10 h-10 rounded-full font-bold text-xl">+</button>
+            </div>
+            <input id="bpm-slider" type="range" min="40" max="240" value="80" class="w-full mt-2 accent-amber-500" oninput="setBpm(this.value)" />
+          </div>
+
+          <!-- Time signature -->
+          <div class="text-center mb-3">
+            <div class="text-xs text-gray-500 font-bold mb-1">TIME SIGNATURE</div>
+            <div class="flex justify-center gap-2">
+              <button class="ts-btn px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold" data-ts="2,4">2/4</button>
+              <button class="ts-btn px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold" data-ts="3,4">3/4</button>
+              <button class="ts-btn px-3 py-2 rounded-lg bg-amber-500 text-white font-bold active-ts" data-ts="4,4">4/4</button>
+              <button class="ts-btn px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold" data-ts="6,8">6/8</button>
+            </div>
+          </div>
+
+          <!-- Tap tempo + volume -->
+          <div class="flex gap-2 mb-3">
+            <button onclick="tapTempo()" class="flex-1 bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold py-2 rounded-lg text-sm">👆 Tap tempo</button>
+            <div class="flex-1 flex items-center gap-2">
+              <span class="text-sm">🔊</span>
+              <input id="vol-slider" type="range" min="0" max="100" value="60" class="flex-1 accent-amber-500" />
+            </div>
+          </div>
+
+          <!-- Start metronome -->
+          <button id="metro-toggle" onclick="toggleMetronome()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-3 rounded-xl text-lg">
+            ▶ Start metronome
+          </button>
+          <p class="text-xs text-gray-500 text-center mt-2">Click to enable sound (browser requires a tap to play audio)</p>
+        </div>
+      </div>
+
+      <!-- Tip -->
+      <div class="px-6 pb-4">
+        <div class="bg-blue-50 border-2 border-blue-200 rounded-2xl p-3 text-sm text-blue-900">
+          💡 <strong>Tip:</strong> Run the metronome on its own without the timer — practice scales for as long as you want!
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 4. REWARDS ================= -->
+<div class="screen" id="screen-rewards">
+  <div class="frame tablet-frame kid-view bg-gradient-to-br from-pink-50 to-purple-50">
+    <div class="scroll-area">
+      <div class="bg-gradient-to-r from-pink-500 to-purple-500 text-white p-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <button onclick="goTo('today')" class="bg-white/20 w-10 h-10 rounded-full font-bold">←</button>
+          <div>
+            <div class="text-2xl font-black">🎁 Rewards</div>
+            <div class="text-sm opacity-90">You have <strong>240 ⭐</strong> to spend</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-5">
+        <div class="text-sm font-bold text-gray-500 mb-2">JUST FOR YOU 🦊</div>
+        <div class="grid grid-cols-3 gap-3 mb-5">
+          <div class="bg-white rounded-2xl p-4 shadow border-2 border-transparent hover:border-pink-300 cursor-pointer">
+            <div class="text-5xl text-center mb-2">🍦</div>
+            <div class="font-black text-center">Ice cream</div>
+            <div class="text-center mt-1"><span class="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-sm font-bold">100 ⭐</span></div>
+            <button class="mt-3 w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 rounded-lg text-sm">Redeem</button>
+          </div>
+          <div class="bg-white rounded-2xl p-4 shadow border-2 border-transparent hover:border-pink-300 cursor-pointer">
+            <div class="text-5xl text-center mb-2">📱</div>
+            <div class="font-black text-center text-sm">Extra screen time</div>
+            <div class="text-center mt-1"><span class="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-sm font-bold">50 ⭐</span></div>
+            <button class="mt-3 w-full bg-pink-500 hover:bg-pink-600 text-white font-bold py-2 rounded-lg text-sm">Redeem</button>
+          </div>
+          <div class="bg-white rounded-2xl p-4 shadow opacity-50">
+            <div class="text-5xl text-center mb-2">🎮</div>
+            <div class="font-black text-center text-sm">New game</div>
+            <div class="text-center mt-1"><span class="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-sm font-bold">500 ⭐</span></div>
+            <div class="mt-3 w-full bg-gray-200 text-gray-500 font-bold py-2 rounded-lg text-center text-sm">Need 260 more</div>
+          </div>
+        </div>
+
+        <div class="text-sm font-bold text-gray-500 mb-2">FAMILY REWARDS 👨‍👩‍👧‍👦</div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl p-4 border-2 border-purple-300">
+            <div class="flex items-center gap-3">
+              <div class="text-5xl">🎬</div>
+              <div class="flex-1">
+                <div class="font-black">Movie night</div>
+                <div class="text-sm text-purple-700">Family progress</div>
+                <div class="bg-white rounded-full h-2 mt-1 overflow-hidden">
+                  <div class="bg-purple-500 h-full" style="width: 80%"></div>
+                </div>
+                <div class="text-xs mt-1 font-bold">320 / 400</div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gradient-to-br from-blue-100 to-cyan-100 rounded-2xl p-4 border-2 border-blue-300">
+            <div class="flex items-center gap-3">
+              <div class="text-5xl">🏖️</div>
+              <div class="flex-1">
+                <div class="font-black">Beach day</div>
+                <div class="text-sm text-blue-700">Family progress</div>
+                <div class="bg-white rounded-full h-2 mt-1 overflow-hidden">
+                  <div class="bg-blue-500 h-full" style="width: 32%"></div>
+                </div>
+                <div class="text-xs mt-1 font-bold">320 / 1000</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sticky bottom-0 bg-white border-t-2 border-gray-100 p-3 flex justify-around">
+        <button onclick="goTo('today')" class="flex flex-col items-center text-gray-500"><span class="text-2xl">🏠</span><span class="text-xs">Today</span></button>
+        <button class="flex flex-col items-center text-pink-500 font-bold"><span class="text-2xl">🎁</span><span class="text-xs">Rewards</span></button>
+        <button onclick="goTo('progress')" class="flex flex-col items-center text-gray-500"><span class="text-2xl">🏆</span><span class="text-xs">Progress</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 5. PROGRESS ================= -->
+<div class="screen" id="screen-progress">
+  <div class="frame tablet-frame kid-view bg-gradient-to-br from-yellow-50 to-orange-50">
+    <div class="scroll-area">
+      <div class="bg-gradient-to-r from-yellow-500 to-orange-500 text-white p-5 flex items-center gap-3">
+        <button onclick="goTo('today')" class="bg-white/20 w-10 h-10 rounded-full font-bold">←</button>
+        <div>
+          <div class="text-2xl font-black">🏆 My Progress</div>
+          <div class="text-sm opacity-90">Liam's stats</div>
+        </div>
+      </div>
+
+      <div class="p-5">
+        <!-- Stat tiles -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+          <div class="bg-white rounded-2xl p-4 text-center shadow">
+            <div class="text-4xl">🔥</div>
+            <div class="text-3xl font-black text-orange-600 mt-1">4</div>
+            <div class="text-xs text-gray-500 font-bold">DAY STREAK</div>
+            <div class="text-xs text-gray-400 mt-1">Best: 12 days</div>
+          </div>
+          <div class="bg-white rounded-2xl p-4 text-center shadow">
+            <div class="text-4xl">⭐</div>
+            <div class="text-3xl font-black text-yellow-600 mt-1">240</div>
+            <div class="text-xs text-gray-500 font-bold">POINTS</div>
+            <div class="text-xs text-gray-400 mt-1">Earned this week: 75</div>
+          </div>
+          <div class="bg-white rounded-2xl p-4 text-center shadow">
+            <div class="text-4xl">🎯</div>
+            <div class="text-3xl font-black text-green-600 mt-1">87%</div>
+            <div class="text-xs text-gray-500 font-bold">DONE THIS WEEK</div>
+            <div class="text-xs text-gray-400 mt-1">26 of 30 tasks</div>
+          </div>
+        </div>
+
+        <!-- Badges -->
+        <div class="text-sm font-bold text-gray-500 mb-2">🏅 BADGES</div>
+        <div class="grid grid-cols-5 gap-3 mb-5">
+          <div class="bg-white rounded-2xl p-3 text-center shadow"><div class="text-4xl">🌟</div><div class="text-xs font-bold mt-1">First star</div></div>
+          <div class="bg-white rounded-2xl p-3 text-center shadow"><div class="text-4xl">🔥</div><div class="text-xs font-bold mt-1">3-day streak</div></div>
+          <div class="bg-white rounded-2xl p-3 text-center shadow"><div class="text-4xl">🎹</div><div class="text-xs font-bold mt-1">Music maker</div></div>
+          <div class="bg-white rounded-2xl p-3 text-center shadow"><div class="text-4xl">🏃</div><div class="text-xs font-bold mt-1">Move it!</div></div>
+          <div class="bg-gray-100 rounded-2xl p-3 text-center opacity-40"><div class="text-4xl grayscale">🏆</div><div class="text-xs font-bold mt-1 text-gray-500">7-day streak</div></div>
+        </div>
+
+        <!-- This week chart -->
+        <div class="text-sm font-bold text-gray-500 mb-2">📊 THIS WEEK</div>
+        <div class="bg-white rounded-2xl p-4 shadow">
+          <div class="flex justify-between items-end gap-2 h-32">
+            <div class="flex-1 flex flex-col items-center"><div class="w-full bg-orange-300 rounded-t" style="height:80%"></div><div class="text-xs mt-1">Mon</div></div>
+            <div class="flex-1 flex flex-col items-center"><div class="w-full bg-orange-400 rounded-t" style="height:100%"></div><div class="text-xs mt-1">Tue</div></div>
+            <div class="flex-1 flex flex-col items-center"><div class="w-full bg-orange-300 rounded-t" style="height:75%"></div><div class="text-xs mt-1">Wed</div></div>
+            <div class="flex-1 flex flex-col items-center"><div class="w-full bg-orange-500 rounded-t" style="height:50%"></div><div class="text-xs mt-1 font-bold">Thu</div></div>
+            <div class="flex-1 flex flex-col items-center"><div class="w-full bg-gray-200 rounded-t" style="height:5%"></div><div class="text-xs mt-1 text-gray-400">Fri</div></div>
+            <div class="flex-1 flex flex-col items-center"><div class="w-full bg-gray-200 rounded-t" style="height:5%"></div><div class="text-xs mt-1 text-gray-400">Sat</div></div>
+            <div class="flex-1 flex flex-col items-center"><div class="w-full bg-gray-200 rounded-t" style="height:5%"></div><div class="text-xs mt-1 text-gray-400">Sun</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 6. PARENT DASHBOARD ================= -->
+<div class="screen" id="screen-parent">
+  <div class="flex gap-6 items-start">
+    <div class="frame phone-frame">
+      <div class="scroll-area">
+        <!-- Header -->
+        <div class="bg-indigo-600 text-white p-4 flex items-center justify-between">
+          <div>
+            <div class="text-lg font-bold">Family overview</div>
+            <div class="text-xs opacity-80">Thursday, 7 May</div>
+          </div>
+          <button class="relative bg-white/20 w-10 h-10 rounded-full">
+            🔔
+            <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">2</span>
+          </button>
+        </div>
+
+        <div class="p-4 space-y-4">
+          <!-- Today grid -->
+          <div class="bg-white rounded-2xl shadow p-4">
+            <div class="text-sm font-bold text-gray-700 mb-3">Today's progress</div>
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-xs text-gray-500">
+                  <th class="text-left"></th>
+                  <th>🌅</th><th>☀️</th><th>🌙</th><th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-t">
+                  <td class="py-2 font-bold flex items-center gap-2"><span class="w-7 h-7 rounded-full bg-orange-200 flex items-center justify-center">🦊</span> Liam</td>
+                  <td class="text-center text-green-600 font-bold">2/2</td>
+                  <td class="text-center text-amber-600 font-bold">1/2</td>
+                  <td class="text-center text-gray-400">0/2</td>
+                  <td class="text-center font-bold">3/6</td>
+                </tr>
+                <tr class="border-t">
+                  <td class="py-2 font-bold flex items-center gap-2"><span class="w-7 h-7 rounded-full bg-pink-200 flex items-center justify-center">🐼</span> Mia</td>
+                  <td class="text-center text-green-600 font-bold">2/2</td>
+                  <td class="text-center text-green-600 font-bold">2/2</td>
+                  <td class="text-center text-gray-400">0/2</td>
+                  <td class="text-center font-bold">4/6</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Family goal -->
+          <div class="bg-purple-50 border border-purple-200 rounded-2xl p-4">
+            <div class="text-sm font-bold text-purple-900 mb-1">🎬 Family goal: Movie night</div>
+            <div class="bg-white rounded-full h-3 overflow-hidden">
+              <div class="bg-purple-500 h-full" style="width: 80%"></div>
+            </div>
+            <div class="text-xs text-purple-700 mt-1 font-bold">320 / 400 (80 to go)</div>
+          </div>
+
+          <!-- Pending requests -->
+          <div class="bg-amber-50 border border-amber-300 rounded-2xl p-4">
+            <div class="text-sm font-bold text-amber-900">⚠️ 2 reward requests pending</div>
+            <ul class="text-xs text-amber-800 mt-2 space-y-1">
+              <li>🦊 Liam: 100⭐ Ice cream</li>
+              <li>🐼 Mia: 50⭐ Extra screen time</li>
+            </ul>
+            <button onclick="goTo('approve')" class="mt-3 w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 rounded-lg text-sm">Review requests →</button>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="goTo('tasks')" class="bg-white shadow rounded-xl p-3 text-sm font-bold">📋 Tasks</button>
+            <button class="bg-white shadow rounded-xl p-3 text-sm font-bold">🎁 Rewards</button>
+            <button class="bg-white shadow rounded-xl p-3 text-sm font-bold">👶 Kids</button>
+            <button class="bg-white shadow rounded-xl p-3 text-sm font-bold">📊 History</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hidden lg:block text-sm text-gray-600 max-w-xs pt-8">
+      <div class="font-bold text-gray-800 mb-2">Parent dashboard</div>
+      <p>Mobile-first — built for your phone. You manage tasks, rewards, and approve redemptions on the go. No need to touch the kids' tablet.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 7. APPROVE REWARDS ================= -->
+<div class="screen" id="screen-approve">
+  <div class="flex gap-6 items-start">
+    <div class="frame phone-frame">
+      <div class="scroll-area">
+        <div class="bg-indigo-600 text-white p-4 flex items-center gap-3">
+          <button onclick="goTo('parent')" class="text-2xl">←</button>
+          <div class="text-lg font-bold">Reward requests <span class="text-sm opacity-70">(2)</span></div>
+        </div>
+
+        <div class="p-4 space-y-3">
+          <div class="bg-white rounded-2xl shadow p-4 border-l-4 border-orange-500">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-full bg-orange-200 flex items-center justify-center text-2xl">🦊</div>
+              <div>
+                <div class="font-bold">Liam</div>
+                <div class="text-xs text-gray-500">12 minutes ago</div>
+              </div>
+            </div>
+            <div class="bg-pink-50 border border-pink-200 rounded-xl p-3 mb-3">
+              <div class="flex items-center gap-3">
+                <div class="text-3xl">🍦</div>
+                <div class="flex-1">
+                  <div class="font-bold">Ice cream</div>
+                  <div class="text-xs text-gray-600">Cost: 100 ⭐ · Has 240 ⭐</div>
+                </div>
+              </div>
+            </div>
+            <input class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-3" placeholder="Note (optional)..." />
+            <div class="grid grid-cols-2 gap-2">
+              <button class="bg-gray-100 hover:bg-red-100 text-gray-700 hover:text-red-700 font-bold py-2 rounded-lg">✕ Deny</button>
+              <button class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg">✓ Approve</button>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-2xl shadow p-4 border-l-4 border-pink-500">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 rounded-full bg-pink-200 flex items-center justify-center text-2xl">🐼</div>
+              <div>
+                <div class="font-bold">Mia</div>
+                <div class="text-xs text-gray-500">45 minutes ago</div>
+              </div>
+            </div>
+            <div class="bg-pink-50 border border-pink-200 rounded-xl p-3 mb-3">
+              <div class="flex items-center gap-3">
+                <div class="text-3xl">📱</div>
+                <div class="flex-1">
+                  <div class="font-bold">Extra 30min screen time</div>
+                  <div class="text-xs text-gray-600">Cost: 50 ⭐ · Has 195 ⭐</div>
+                </div>
+              </div>
+            </div>
+            <input class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-3" placeholder="Note (optional)..." />
+            <div class="grid grid-cols-2 gap-2">
+              <button class="bg-gray-100 hover:bg-red-100 text-gray-700 hover:text-red-700 font-bold py-2 rounded-lg">✕ Deny</button>
+              <button class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg">✓ Approve</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 8. MANAGE TASKS ================= -->
+<div class="screen" id="screen-tasks">
+  <div class="flex gap-6 items-start">
+    <div class="frame phone-frame">
+      <div class="scroll-area">
+        <div class="bg-indigo-600 text-white p-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <button onclick="goTo('parent')" class="text-2xl">←</button>
+            <div class="text-lg font-bold">Tasks</div>
+          </div>
+          <button class="bg-white/20 w-10 h-10 rounded-full font-bold text-xl">+</button>
+        </div>
+
+        <div class="p-4">
+          <div class="flex gap-1 bg-gray-100 rounded-lg p-1 mb-4 text-xs">
+            <button class="flex-1 bg-white shadow font-bold py-1.5 rounded">All</button>
+            <button class="flex-1 py-1.5">🦊 Liam</button>
+            <button class="flex-1 py-1.5">🐼 Mia</button>
+            <button class="flex-1 py-1.5">Both</button>
+          </div>
+
+          <div class="space-y-2">
+            <!-- Activity: swim -->
+            <div class="bg-white rounded-2xl shadow p-3 border-l-4 border-blue-400">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🏊</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <div class="font-bold">Swim training</div>
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Activity</span>
+                  </div>
+                  <div class="text-xs text-gray-500">🦊 Liam · Thu 3:30–4:30pm</div>
+                  <div class="text-xs text-gray-500">📍 Aquatic Centre · +5⭐ for attending well</div>
+                  <div class="text-xs text-blue-700 mt-1">🎒 Bring: swimsuit, towel, goggles, water bottle</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+
+            <!-- Activity: ballet -->
+            <div class="bg-white rounded-2xl shadow p-3 border-l-4 border-pink-400">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🩰</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <div class="font-bold">Ballet class</div>
+                    <span class="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-bold">Activity · info only</span>
+                  </div>
+                  <div class="text-xs text-gray-500">🐼 Mia · Thu 4:00–5:00pm</div>
+                  <div class="text-xs text-gray-500">📍 Sparkle Studio · 0⭐ (just a reminder)</div>
+                  <div class="text-xs text-pink-700 mt-1">🎒 Bring: leotard, tights, ballet shoes, hair tie</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+
+            <!-- Activity: tennis -->
+            <div class="bg-white rounded-2xl shadow p-3 border-l-4 border-blue-400">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🎾</div>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <div class="font-bold">Tennis</div>
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">Activity</span>
+                  </div>
+                  <div class="text-xs text-gray-500">🦊 Liam · Mon, Fri 4:00–5:00pm</div>
+                  <div class="text-xs text-gray-500">📍 Tennis Club · +5⭐ for attending well</div>
+                  <div class="text-xs text-blue-700 mt-1">🎒 Bring: racquet, tennis shoes, water bottle</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow p-3">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🎹</div>
+                <div class="flex-1">
+                  <div class="font-bold">Piano practice</div>
+                  <div class="text-xs text-gray-500">Both kids · Mon–Fri 5:00pm</div>
+                  <div class="text-xs text-gray-500">30 min · timer · 15⭐ +5 family</div>
+                  <div class="text-xs text-amber-700 font-bold mt-1">♩ default = 80 BPM, 4/4</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow p-3">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🛏️</div>
+                <div class="flex-1">
+                  <div class="font-bold">Make bed</div>
+                  <div class="text-xs text-gray-500">Both kids · Daily 7:30am</div>
+                  <div class="text-xs text-gray-500">Tap to complete · 5⭐</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow p-3">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🏃</div>
+                <div class="flex-1">
+                  <div class="font-bold">Exercise</div>
+                  <div class="text-xs text-gray-500">Both kids · Daily 5:00pm</div>
+                  <div class="text-xs text-gray-500">30 min · timer · 10⭐</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow p-3">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🦷</div>
+                <div class="flex-1">
+                  <div class="font-bold">Brush teeth</div>
+                  <div class="text-xs text-gray-500">Both kids · Daily 7:45am, 8:30pm</div>
+                  <div class="text-xs text-gray-500">Tap to complete · 3⭐</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow p-3">
+              <div class="flex items-start gap-3">
+                <div class="text-3xl">🍽️</div>
+                <div class="flex-1">
+                  <div class="font-bold">Help with dinner</div>
+                  <div class="text-xs text-gray-500">Both kids · Daily 6:30pm</div>
+                  <div class="text-xs text-gray-500">Tap to complete · 8⭐</div>
+                </div>
+                <button class="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg font-bold">Edit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- Confetti container -->
+<div id="confetti-host" class="fixed inset-0 pointer-events-none z-50"></div>
+
+<script>
+  // ============ Screen switching ============
+  function goTo(name) {
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    const btn = document.querySelector(`.nav-btn[data-screen="${name}"]`);
+    if (btn) btn.classList.add('active');
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => goTo(btn.dataset.screen));
+  });
+
+  // ============ Task completion (Today screen) ============
+  function completeTask(btn, points) {
+    if (btn.classList.contains('checkbox-done')) return;
+    btn.classList.add('checkbox-done');
+    btn.innerHTML = '✓';
+    btn.style.color = 'white';
+    btn.style.fontWeight = '900';
+    btn.parentElement.classList.add('done');
+    const nameEl = btn.parentElement.querySelector('.font-bold');
+    if (nameEl) nameEl.classList.add('line-through');
+    // bump points
+    const pEl = document.getElementById('liam-points');
+    pEl.textContent = parseInt(pEl.textContent) + points;
+    pEl.classList.add('pop'); setTimeout(() => pEl.classList.remove('pop'), 400);
+    confetti();
+  }
+
+  function confetti() {
+    const colors = ['#f97316','#ec4899','#8b5cf6','#22c55e','#facc15','#06b6d4'];
+    const host = document.getElementById('confetti-host');
+    const rect = host.getBoundingClientRect();
+    for (let i = 0; i < 30; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.background = colors[i % colors.length];
+      piece.style.left = (rect.width/2 - 100 + Math.random()*200) + 'px';
+      piece.style.top = '40%';
+      piece.style.animationDelay = (Math.random() * 0.3) + 's';
+      host.appendChild(piece);
+      setTimeout(() => piece.remove(), 1500);
+    }
+  }
+
+  // ============ Practice timer (visual only) ============
+  let timerRunning = false;
+  let timerSecs = 22 * 60 + 14;
+  let timerInterval;
+  function toggleTimer(btn) {
+    timerRunning = !timerRunning;
+    btn.textContent = timerRunning ? '⏸ Pause' : '▶ Start';
+    if (timerRunning) {
+      timerInterval = setInterval(() => {
+        if (timerSecs > 0) timerSecs--;
+        const m = Math.floor(timerSecs/60); const s = timerSecs%60;
+        document.getElementById('timer-display').textContent =
+          m.toString().padStart(2,'0') + ':' + s.toString().padStart(2,'0');
+      }, 1000);
+    } else {
+      clearInterval(timerInterval);
+    }
+  }
+
+  // ============ METRONOME (Web Audio API, drift-free scheduling) ============
+  let audioCtx = null;
+  let metroPlaying = false;
+  let bpm = 80;
+  let beatsPerMeasure = 4;
+  let nextNoteTime = 0;
+  let currentBeat = 0;
+  let schedulerTimer = null;
+  const lookAhead = 25;       // ms
+  const scheduleAhead = 0.1;  // s
+
+  function initBeatDots() {
+    const host = document.getElementById('beat-dots');
+    host.innerHTML = '';
+    for (let i = 0; i < beatsPerMeasure; i++) {
+      const d = document.createElement('div');
+      d.className = 'beat-dot w-6 h-6 rounded-full ' + (i === 0 ? 'bg-amber-500' : 'bg-gray-300');
+      d.dataset.beat = i;
+      host.appendChild(d);
+    }
+  }
+
+  function setBpm(v) {
+    bpm = parseInt(v);
+    document.getElementById('bpm-display').textContent = bpm;
+    document.getElementById('bpm-slider').value = bpm;
+  }
+  function bumpBpm(delta) {
+    setBpm(Math.max(40, Math.min(240, bpm + delta)));
+  }
+
+  // Time signature buttons
+  document.querySelectorAll('.ts-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.ts-btn').forEach(o => {
+        o.classList.remove('bg-amber-500','text-white','active-ts');
+        o.classList.add('bg-gray-100');
+      });
+      b.classList.add('bg-amber-500','text-white','active-ts');
+      b.classList.remove('bg-gray-100');
+      const [n] = b.dataset.ts.split(',').map(Number);
+      beatsPerMeasure = n;
+      currentBeat = 0;
+      initBeatDots();
+    });
+  });
+
+  function scheduleClick(beat, time) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    const accent = beat === 0;
+    osc.frequency.value = accent ? 1500 : 900;
+    const vol = (parseInt(document.getElementById('vol-slider').value) / 100) * (accent ? 0.6 : 0.3);
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(vol, time + 0.001);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(time);
+    osc.stop(time + 0.06);
+
+    // Visual pulse — schedule via setTimeout aligned to audio time
+    const delayMs = Math.max(0, (time - audioCtx.currentTime) * 1000);
+    setTimeout(() => {
+      document.querySelectorAll('.beat-dot').forEach(d => {
+        d.classList.remove('beat-pulse');
+        if (parseInt(d.dataset.beat) === 0) {
+          d.classList.add('bg-amber-500'); d.classList.remove('bg-gray-300','bg-amber-300');
+        } else {
+          d.classList.add('bg-gray-300'); d.classList.remove('bg-amber-500','bg-amber-300');
+        }
+      });
+      const dot = document.querySelector(`.beat-dot[data-beat="${beat}"]`);
+      if (dot) {
+        dot.classList.add('beat-pulse');
+        if (!accent) { dot.classList.remove('bg-gray-300'); dot.classList.add('bg-amber-300'); }
+      }
+    }, delayMs);
+  }
+
+  function scheduler() {
+    while (nextNoteTime < audioCtx.currentTime + scheduleAhead) {
+      scheduleClick(currentBeat, nextNoteTime);
+      const secondsPerBeat = 60.0 / bpm;
+      nextNoteTime += secondsPerBeat;
+      currentBeat = (currentBeat + 1) % beatsPerMeasure;
+    }
+  }
+
+  function toggleMetronome() {
+    const btn = document.getElementById('metro-toggle');
+    if (!metroPlaying) {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      currentBeat = 0;
+      nextNoteTime = audioCtx.currentTime + 0.05;
+      schedulerTimer = setInterval(scheduler, lookAhead);
+      metroPlaying = true;
+      btn.textContent = '⏸ Stop metronome';
+      btn.classList.remove('bg-amber-500','hover:bg-amber-600');
+      btn.classList.add('bg-red-500','hover:bg-red-600');
+    } else {
+      clearInterval(schedulerTimer);
+      metroPlaying = false;
+      btn.textContent = '▶ Start metronome';
+      btn.classList.add('bg-amber-500','hover:bg-amber-600');
+      btn.classList.remove('bg-red-500','hover:bg-red-600');
+      // reset visual
+      document.querySelectorAll('.beat-dot').forEach(d => {
+        d.classList.remove('beat-pulse','bg-amber-300');
+        d.classList.add(d.dataset.beat === '0' ? 'bg-amber-500' : 'bg-gray-300');
+      });
+    }
+  }
+
+  // Tap tempo
+  let tapTimes = [];
+  function tapTempo() {
+    const now = performance.now();
+    tapTimes.push(now);
+    tapTimes = tapTimes.filter(t => now - t < 3000);
+    if (tapTimes.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < tapTimes.length; i++) intervals.push(tapTimes[i] - tapTimes[i-1]);
+      const avg = intervals.reduce((a,b) => a+b, 0) / intervals.length;
+      const detected = Math.round(60000 / avg);
+      setBpm(Math.max(40, Math.min(240, detected)));
+    }
+  }
+
+  // init
+  initBeatDots();
+</script>
+</body>
+</html>

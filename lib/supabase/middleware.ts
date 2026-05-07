@@ -1,0 +1,66 @@
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+/**
+ * Middleware-side session refresh.
+ *
+ * Refreshes Supabase auth cookies on every request and bounces unauthenticated
+ * traffic away from protected pages.
+ */
+export async function updateSession(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
+      },
+    },
+  );
+
+  // Triggers a refresh if the access token is expired
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const url = request.nextUrl.pathname;
+
+  // Protected paths — bounce to /login if no user
+  const requiresAuth =
+    url.startsWith("/parent") ||
+    url.startsWith("/select-kid") ||
+    url.startsWith("/kid") ||
+    url.startsWith("/play");
+
+  // Public paths
+  const isAuthRoute =
+    url === "/login" || url === "/signup" || url === "/onboarding";
+
+  if (!user && requiresAuth) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("next", url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (user && isAuthRoute) {
+    const homeUrl = request.nextUrl.clone();
+    homeUrl.pathname = "/select-kid";
+    return NextResponse.redirect(homeUrl);
+  }
+
+  return supabaseResponse;
+}

@@ -1,0 +1,190 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+/**
+ * 4-digit PIN pad. Modes:
+ *   - "verify": user must match `expected`. Calls onSuccess on match.
+ *   - "set": user enters PIN once, confirms it second time. Calls onSet
+ *     with the chosen PIN.
+ */
+export default function PinPad({
+  mode,
+  expected,
+  accent,
+  prompt,
+  onSuccess,
+  onSet,
+  onCancel,
+}: {
+  mode: "verify" | "set";
+  expected?: string;
+  accent: string;
+  prompt?: string;
+  onSuccess?: () => void;
+  onSet?: (pin: string) => void;
+  onCancel?: () => void;
+}) {
+  const [pin, setPin] = useState("");
+  const [stage, setStage] = useState<"first" | "confirm">("first");
+  const [firstEntry, setFirstEntry] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [shake, setShake] = useState(false);
+
+  // Keep callbacks in refs so prop identity changes don't re-trigger the
+  // submit effect (which would call onSet/onSuccess in a loop).
+  const onSuccessRef = useRef(onSuccess);
+  const onSetRef = useRef(onSet);
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+    onSetRef.current = onSet;
+  }, [onSuccess, onSet]);
+
+  // Once onSet/onSuccess fires we don't want to fire it again for the same
+  // 4-digit entry; this latch prevents re-runs while React unwinds.
+  const submittedRef = useRef(false);
+
+  // Auto-submit when 4 digits entered
+  useEffect(() => {
+    if (pin.length !== 4 || submittedRef.current) return;
+    if (mode === "verify" && expected) {
+      if (pin === expected) {
+        submittedRef.current = true;
+        setError(null);
+        setPin("");
+        onSuccessRef.current?.();
+      } else {
+        setError("Wrong PIN — try again");
+        setShake(true);
+        setTimeout(() => {
+          setPin("");
+          setShake(false);
+        }, 600);
+      }
+      return;
+    }
+    if (mode === "set") {
+      if (stage === "first") {
+        setFirstEntry(pin);
+        setPin("");
+        setStage("confirm");
+        setError(null);
+      } else {
+        if (pin === firstEntry) {
+          submittedRef.current = true;
+          const finalPin = pin;
+          setPin("");
+          setFirstEntry("");
+          setStage("first");
+          onSetRef.current?.(finalPin);
+        } else {
+          setError("PINs didn't match — start again");
+          setShake(true);
+          setTimeout(() => {
+            setPin("");
+            setFirstEntry("");
+            setStage("first");
+            setShake(false);
+          }, 700);
+        }
+      }
+    }
+  }, [pin, mode, expected, stage, firstEntry]);
+
+  const tap = (digit: string) => {
+    if (pin.length >= 4) return;
+    setPin((p) => p + digit);
+    setError(null);
+  };
+  const back = () => setPin((p) => p.slice(0, -1));
+  const clear = () => setPin("");
+
+  const headline =
+    prompt ??
+    (mode === "verify"
+      ? "Enter your PIN"
+      : stage === "first"
+        ? "Pick a 4-digit PIN"
+        : "Type it again to confirm");
+
+  return (
+    <div className="bg-white rounded-3xl shadow-xl p-6 max-w-sm w-full">
+      <div className="text-center mb-4">
+        <div className="text-base md:text-lg font-bold text-gray-700">
+          {headline}
+        </div>
+        {error ? (
+          <div className="text-sm text-red-600 font-bold mt-1">{error}</div>
+        ) : null}
+      </div>
+
+      {/* PIN dots */}
+      <div
+        className={`flex justify-center gap-3 mb-6 ${shake ? "animate-pulse" : ""}`}
+        style={{ transition: "transform 0.2s" }}
+      >
+        {[0, 1, 2, 3].map((i) => {
+          const filled = i < pin.length;
+          return (
+            <div
+              key={i}
+              className="w-4 h-4 rounded-full border-2"
+              style={{
+                background: filled ? accent : "white",
+                borderColor: filled ? accent : "#d1d5db",
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Number pad */}
+      <div className="grid grid-cols-3 gap-2">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
+          <PadButton key={n} onClick={() => tap(String(n))}>
+            {n}
+          </PadButton>
+        ))}
+        <PadButton onClick={clear} small>
+          clear
+        </PadButton>
+        <PadButton onClick={() => tap("0")}>0</PadButton>
+        <PadButton onClick={back} small>
+          ⌫
+        </PadButton>
+      </div>
+
+      {onCancel ? (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="w-full mt-4 text-sm text-gray-500 hover:text-gray-700 font-bold py-2"
+        >
+          Cancel
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function PadButton({
+  children,
+  onClick,
+  small,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  small?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-2xl py-4 transition-colors ${
+        small ? "text-xs font-bold text-gray-600" : "text-2xl font-black"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
