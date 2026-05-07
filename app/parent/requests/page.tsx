@@ -1,4 +1,3 @@
-import ParentShell from "@/components/parent/ParentShell";
 import { listKids, listPendingRequests, listRewardsForKid } from "@/lib/data/stub";
 
 export default async function ParentRequestsPage() {
@@ -10,12 +9,7 @@ export default async function ParentRequestsPage() {
   const rewardById = new Map(allRewards.map((r) => [r.id, r]));
 
   return (
-    <ParentShell
-      active="requests"
-      title="Reward requests"
-      subtitle={`${requests.length} pending`}
-    >
-      <div className="p-4 space-y-3">
+    <div className="p-4 space-y-3">
         {requests.length === 0 ? (
           <div className="text-center text-sm text-gray-500 py-12">
             No pending requests. ✨
@@ -78,6 +72,5 @@ export default async function ParentRequestsPage() {
           })
         )}
       </div>
-    </ParentShell>
   );
 }

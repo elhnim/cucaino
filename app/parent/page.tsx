@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import ParentShell from "@/components/parent/ParentShell";
 import {
   getFamily,
   listKids,
@@ -37,17 +36,7 @@ export default async function ParentOverviewPage() {
   );
 
   return (
-    <ParentShell
-      active="overview"
-      title="Family overview"
-      subtitle={new Date().toLocaleDateString(undefined, {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      })}
-      pendingCount={pending.length}
-    >
-      <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4">
         {/* Today progress per kid */}
         <section className="bg-white rounded-2xl shadow p-4">
           <h2 className="text-sm font-bold text-gray-700 mb-3">Today&apos;s progress</h2>
@@ -139,6 +128,5 @@ export default async function ParentOverviewPage() {
           </Link>
         </section>
       </div>
-    </ParentShell>
   );
 }

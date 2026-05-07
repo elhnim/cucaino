@@ -1,4 +1,3 @@
-import ParentShell from "@/components/parent/ParentShell";
 import { listQuizBanks, listQuizQuestions } from "@/lib/data/stub";
 
 export default async function ParentQuizzesPage() {
@@ -11,8 +10,7 @@ export default async function ParentQuizzesPage() {
   );
 
   return (
-    <ParentShell active="quizzes" title="Quiz banks">
-      <div className="p-4">
+    <div className="p-4">
         <p className="text-xs text-gray-500 mb-3">
           Built-in banks ship with the app. Add custom banks (e.g., school spelling list, times tables).
         </p>
@@ -68,6 +66,5 @@ export default async function ParentQuizzesPage() {
           + Create custom bank
         </button>
       </div>
-    </ParentShell>
   );
 }

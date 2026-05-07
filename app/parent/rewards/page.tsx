@@ -1,4 +1,3 @@
-import ParentShell from "@/components/parent/ParentShell";
 import RewardsClient from "@/components/parent/RewardsClient";
 import { listKids, listRewardsForKid } from "@/lib/data/stub";
 
@@ -11,9 +10,5 @@ export default async function ParentRewardsPage() {
     seen.add(r.id);
     return true;
   });
-  return (
-    <ParentShell active="rewards" title="Rewards">
-      <RewardsClient rewards={rewards} kids={kids} />
-    </ParentShell>
-  );
+  return <RewardsClient rewards={rewards} kids={kids} />;
 }

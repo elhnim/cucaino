@@ -1,4 +1,3 @@
-import ParentShell from "@/components/parent/ParentShell";
 import { listKids } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 
@@ -6,8 +5,7 @@ export default async function ParentKidsPage() {
   const kids = await listKids();
 
   return (
-    <ParentShell active="kids" title="Kids">
-      <div className="p-4 space-y-3">
+    <div className="p-4 space-y-3">
         {kids.map((kid) => {
           const theme = getTheme(kid.themeId);
           return (
@@ -39,6 +37,5 @@ export default async function ParentKidsPage() {
           );
         })}
       </div>
-    </ParentShell>
   );
 }
