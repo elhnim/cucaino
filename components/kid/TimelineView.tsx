@@ -48,6 +48,7 @@ export default function TimelineView({
                 section={section}
                 accent={accent}
                 completedTaskIds={completedTaskIds}
+                kidId={kidId}
               />
             );
           case "quiz-prompt":

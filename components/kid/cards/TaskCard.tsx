@@ -1,30 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import type { Task } from "@/lib/domain/types";
 import { getCategory } from "@/lib/registry/category-registry";
+import { completeTask, uncompleteTask } from "@/lib/actions/completions";
 
 export default function TaskCard({
   task,
+  kidId,
   initiallyDone = false,
   accent,
 }: {
   task: Task;
+  kidId: string;
   initiallyDone?: boolean;
   accent: string;
 }) {
-  const pathname = usePathname();
-  const kidIdMatch = pathname.match(/^\/kid\/([^/]+)/);
-  const kidId = kidIdMatch?.[1];
   const [done, setDone] = useState(initiallyDone);
+  const [isPending, startTransition] = useTransition();
   const category = getCategory(task.category);
 
-  // Activity-style display: location pill, packing list, dashed border
   if (task.category === "activity") {
     return <ActivityCard task={task} />;
   }
+
+  const toggle = () => {
+    const next = !done;
+    setDone(next); // optimistic update
+    startTransition(async () => {
+      if (next) {
+        await completeTask(task.id, kidId, task.points, task.familyPointsContribution);
+      } else {
+        await uncompleteTask(task.id, kidId);
+      }
+    });
+  };
 
   return (
     <div
@@ -35,8 +46,9 @@ export default function TaskCard({
       <button
         type="button"
         aria-label={done ? "Mark as not done" : "Mark as done"}
-        onClick={() => setDone((d) => !d)}
-        className="w-10 h-10 rounded-xl border-2 flex items-center justify-center text-white font-black text-xl transition-colors"
+        onClick={toggle}
+        disabled={isPending}
+        className="w-10 h-10 rounded-xl border-2 flex items-center justify-center text-white font-black text-xl transition-colors disabled:opacity-60"
         style={{
           background: done ? accent : "white",
           borderColor: done ? accent : "#d1d5db",
@@ -92,9 +104,7 @@ function ActivityCard({ task }: { task: Task }) {
   };
 
   const time = task.startTime
-    ? `${task.startTime}${
-        task.durationMinutes ? ` (${task.durationMinutes} min)` : ""
-      }`
+    ? `${task.startTime}${task.durationMinutes ? ` (${task.durationMinutes} min)` : ""}`
     : "after school";
 
   return (
@@ -117,9 +127,7 @@ function ActivityCard({ task }: { task: Task }) {
           </div>
           <div className="text-xs text-gray-600 mt-1">
             {time}
-            {task.points
-              ? ` · +${task.points} ⭐ for attending well`
-              : " · just a reminder"}
+            {task.points ? ` · +${task.points} ⭐ for attending well` : " · just a reminder"}
           </div>
           {task.packingList && task.packingList.length > 0 ? (
             <div className="mt-3 bg-blue-50 rounded-xl p-3">
@@ -135,19 +143,14 @@ function ActivityCard({ task }: { task: Task }) {
                   {task.packingList.map((item, i) => {
                     const isPacked = packed.has(i);
                     return (
-                      <label
-                        key={item}
-                        className="flex items-center gap-2 cursor-pointer"
-                      >
+                      <label key={item} className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={isPacked}
                           onChange={() => toggle(i)}
                           className="w-4 h-4 accent-blue-600"
                         />
-                        <span className={isPacked ? "line-through text-gray-500" : ""}>
-                          {item}
-                        </span>
+                        <span className={isPacked ? "line-through text-gray-500" : ""}>{item}</span>
                       </label>
                     );
                   })}

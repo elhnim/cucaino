@@ -5,6 +5,7 @@ export default function TimeBlockSection({
   section,
   accent,
   completedTaskIds,
+  kidId,
 }: {
   section: {
     type: "time-block";
@@ -17,6 +18,7 @@ export default function TimeBlockSection({
   };
   accent: string;
   completedTaskIds: Set<string>;
+  kidId: string;
 }) {
   return (
     <div>
@@ -44,6 +46,7 @@ export default function TimeBlockSection({
           <TaskCard
             key={task.id}
             task={task}
+            kidId={kidId}
             initiallyDone={completedTaskIds.has(task.id)}
             accent={accent}
           />
