@@ -16,10 +16,13 @@ export default async function QuizGamePage({
 
   if (!bank || questions.length === 0) notFound();
 
+  // Shuffle server-side so every game session gets a different order
+  const shuffled = [...questions].sort(() => Math.random() - 0.5);
+
   return (
     <QuizGame
       bankName={bank.name}
-      questions={questions.map((q) => ({
+      questions={shuffled.map((q) => ({
         id: q.id,
         prompt: q.prompt,
         choices: q.choices.map((c) => ({ label: c.label, isCorrect: c.isCorrect })),
