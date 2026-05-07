@@ -210,6 +210,25 @@ export async function listSchoolItemsForDay(
   }));
 }
 
+export async function listAllSchoolItems(): Promise<SchoolItem[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("school_items")
+    .select("*")
+    .eq("active", true)
+    .order("name");
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id,
+    familyId: row.family_id,
+    kidId: row.kid_id,
+    name: row.name,
+    icon: row.icon,
+    daysOfWeek: row.days_of_week as SchoolItem["daysOfWeek"],
+    active: row.active,
+  }));
+}
+
 export async function listRewardsForKid(kidId: string): Promise<Reward[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

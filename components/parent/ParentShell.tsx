@@ -17,6 +17,7 @@ const NAV = [
 const EXTRA_TITLES: Record<string, string> = {
   "/parent/feedback": "Feature ideas",
   "/parent/quizzes": "Quiz banks",
+  "/parent/school-items": "School bag items",
 };
 
 export default function ParentShell({

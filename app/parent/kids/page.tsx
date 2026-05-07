@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listKids } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 
@@ -37,5 +38,12 @@ export default async function ParentKidsPage() {
           );
         })}
       </div>
+
+      <Link
+        href="/parent/school-items"
+        className="block w-full bg-white border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold text-center py-3 rounded-2xl transition-colors"
+      >
+        🎒 Manage school bag items →
+      </Link>
   );
 }
