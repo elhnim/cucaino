@@ -316,16 +316,33 @@ function ClassEditor({
           </Field>
         </div>
 
-        <Field label="Custom name (optional)">
-          <input
-            type="text"
-            placeholder="e.g. Algebra with Mr Brown"
-            value={draft.customLabel}
-            onChange={(e) => onChange({ ...draft, customLabel: e.target.value })}
-            className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm"
-            maxLength={40}
-          />
-        </Field>
+        {draft.subject === "other" ? (
+          <div className="mb-3">
+            <label className="text-xs font-black text-gray-700 block mb-1">
+              Subject name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Drama, Swimming, Mandarin, Coding"
+              value={draft.customLabel}
+              onChange={(e) => onChange({ ...draft, customLabel: e.target.value })}
+              className="w-full border-2 border-indigo-300 focus:border-indigo-500 rounded-lg px-3 py-2 text-sm bg-indigo-50"
+              maxLength={40}
+              autoFocus
+            />
+          </div>
+        ) : (
+          <Field label="Custom name (optional)">
+            <input
+              type="text"
+              placeholder="e.g. Algebra with Mr Brown"
+              value={draft.customLabel}
+              onChange={(e) => onChange({ ...draft, customLabel: e.target.value })}
+              className="w-full border-2 border-gray-200 rounded-lg px-3 py-2 text-sm"
+              maxLength={40}
+            />
+          </Field>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           <Field label="Room">

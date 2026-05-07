@@ -134,8 +134,8 @@ export const SUBJECTS: Record<Subject, SubjectDisplay> = {
   },
   other: {
     id: "other",
-    label: "Other",
-    icon: "✨",
+    label: "+ Custom",
+    icon: "✏️",
     bgClass: "bg-gray-100",
     textClass: "text-gray-800",
     borderClass: "border-gray-300",
