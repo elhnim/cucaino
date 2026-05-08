@@ -8,7 +8,6 @@ import {
   listCompletionsToday,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
-import ParentShell from "@/components/parent/ParentShell";
 
 export default async function ParentOverviewPage() {
   const [family, kids, pending] = await Promise.all([
@@ -34,8 +33,7 @@ export default async function ParentOverviewPage() {
   const visibleRequests = pending.slice(0, 3);
 
   return (
-    <ParentShell pendingCount={pending.length}>
-      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Left: Pending Requests */}
         <div className="bg-white rounded-2xl shadow p-4">
           <div className="flex items-center justify-between mb-3">
@@ -111,7 +109,6 @@ export default async function ParentOverviewPage() {
             })}
           </div>
         </div>
-      </div>
-    </ParentShell>
+    </div>
   );
 }

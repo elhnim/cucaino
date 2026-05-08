@@ -1,5 +1,4 @@
 import Link from "next/link";
-import ParentShell from "@/components/parent/ParentShell";
 import { listAllTasks, listKids } from "@/lib/data/stub";
 import type { Task, Kid } from "@/lib/domain/types";
 
@@ -100,8 +99,7 @@ export default async function TasksPage({
   ];
 
   return (
-    <ParentShell>
-      <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-gray-900">📋 Tasks</h1>
           <Link
@@ -162,7 +160,6 @@ export default async function TasksPage({
             ))}
           </div>
         )}
-      </div>
-    </ParentShell>
+    </div>
   );
 }

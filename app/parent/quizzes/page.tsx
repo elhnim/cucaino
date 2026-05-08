@@ -1,5 +1,4 @@
 import Link from "next/link";
-import ParentShell from "@/components/parent/ParentShell";
 
 type QuizTheme =
   | "maths" | "english" | "science" | "history" | "geography"
@@ -33,8 +32,7 @@ export default async function ParentQuizzesPage({
   const activeTheme = theme as QuizTheme | undefined;
 
   return (
-    <ParentShell>
-      <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4">
         {/* Tab bar */}
         <div className="flex gap-2 bg-gray-100 p-1 rounded-2xl">
           <Link
@@ -152,7 +150,6 @@ export default async function ParentQuizzesPage({
             </div>
           </div>
         )}
-      </div>
-    </ParentShell>
+    </div>
   );
 }

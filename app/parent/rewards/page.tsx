@@ -1,5 +1,4 @@
 import Link from "next/link";
-import ParentShell from "@/components/parent/ParentShell";
 import { listKids, listRewardsForKid } from "@/lib/data/stub";
 import type { Reward, Kid } from "@/lib/domain/types";
 
@@ -14,8 +13,7 @@ export default async function ParentRewardsPage() {
   });
 
   return (
-    <ParentShell>
-      <div className="px-4 py-5 max-w-lg mx-auto">
+    <div className="px-4 py-5 max-w-lg mx-auto">
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-xl font-bold text-gray-900">🎁 Rewards</h1>
           <Link
@@ -37,8 +35,7 @@ export default async function ParentRewardsPage() {
             ))}
           </div>
         )}
-      </div>
-    </ParentShell>
+    </div>
   );
 }
 

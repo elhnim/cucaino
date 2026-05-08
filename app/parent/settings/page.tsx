@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import ParentShell from "@/components/parent/ParentShell";
 import { getFamily, listKids, getParentPinFromDb } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 import { signOut } from "@/lib/actions/auth";
@@ -15,8 +14,7 @@ export default async function ParentSettingsPage() {
   if (!family) redirect("/login");
 
   return (
-    <ParentShell>
-      <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6">
 
         {/* Section 1: Family */}
         <div className="bg-white rounded-2xl shadow p-4 space-y-4">
@@ -144,7 +142,6 @@ export default async function ParentSettingsPage() {
           </form>
         </div>
 
-      </div>
-    </ParentShell>
+    </div>
   );
 }
