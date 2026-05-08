@@ -2,6 +2,7 @@ import React from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import KidShell from "@/components/kid/KidShell";
+import TodoTaskCard from "@/components/kid/TodoTaskCard";
 import {
   getKid,
   listTasksForKid,
@@ -13,84 +14,30 @@ import { getTheme } from "@/lib/themes/presets";
 import type { DayOfWeek, Task, TaskCompletion, SchoolClass } from "@/lib/domain/types";
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
-  1: "Mon",
-  2: "Tue",
-  3: "Wed",
-  4: "Thu",
-  5: "Fri",
-  6: "Sat",
-  7: "Sun",
+  1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun",
 };
 
-function targetInfo(task: Task): string | null {
-  if (task.target === "time" && task.targetDurationMinutes) {
-    return `⏱ ${task.targetDurationMinutes} min`;
-  }
-  if (task.target === "reps" && task.targetReps) {
-    const label = task.targetRepLabel ?? "reps";
-    return `✕ ${task.targetReps} ${label}`;
-  }
-  if (task.target === "checklist" && task.checklistItems) {
-    return `☑ ${task.checklistItems.length} items`;
-  }
-  return null;
-}
-
-function TaskCard({
-  task,
-  completion,
-  isPast,
-  isFuture,
-  accentColor,
+function Section({
+  label,
+  children,
+  isEmpty,
+  emptyText,
 }: {
-  task: Task;
-  completion: TaskCompletion | undefined;
-  isPast: boolean;
-  isFuture: boolean;
-  accentColor: string;
+  label: string;
+  children: React.ReactNode;
+  isEmpty?: boolean;
+  emptyText?: string;
 }) {
-  const isDone = !!completion;
-  const info = targetInfo(task);
-
   return (
-    <div
-      className={`bg-white rounded-2xl shadow-sm p-3 flex items-center gap-3 ${isFuture ? "opacity-60" : ""}`}
-    >
-      <span className="text-3xl shrink-0">{task.icon}</span>
-
-      <div className="flex-1 min-w-0">
-        <div className="font-bold text-gray-800 text-sm leading-tight">{task.name}</div>
-        {info && (
-          <div className="text-xs text-gray-500 mt-0.5">{info}</div>
-        )}
-        {task.description && (
-          <div className="text-xs text-gray-400 mt-0.5 truncate">{task.description}</div>
-        )}
-        {!isDone && (
-          <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
-            ⭐ {task.points}
-          </span>
-        )}
+    <div>
+      <div className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
+        {label}
       </div>
-
-      <div className="shrink-0 text-2xl">
-        {isDone ? (
-          <span
-            className="flex items-center justify-center w-9 h-9 rounded-full"
-            style={{ background: "#dcfce7" }}
-          >
-            ✅
-          </span>
-        ) : isPast ? (
-          <span className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-400 text-xl">
-            ○
-          </span>
-        ) : !isFuture ? (
-          <span className="flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 text-gray-300 text-xl">
-            ○
-          </span>
-        ) : null}
-      </div>
+      {isEmpty ? (
+        <div className="text-xs text-gray-400 italic px-1">{emptyText}</div>
+      ) : (
+        children
+      )}
     </div>
   );
 }
@@ -107,32 +54,18 @@ function WeekSummaryBar({
   accentColor: string;
 }) {
   const days: DayOfWeek[] = [1, 2, 3, 4, 5, 6, 7];
-
   return (
     <div className="flex justify-around items-center px-4 py-3 bg-white/80 border-t border-gray-100">
       {days.map((d) => {
         const dayTasks = tasksForDay(tasks, d).filter((t) => t.requiresCompletion);
         const total = dayTasks.length;
-
-        let done = 0;
-        if (d === today) {
-          done = completions.length;
-        }
-
+        const done = d === today ? completions.length : 0;
         const ratio = total > 0 ? done / total : 0;
         const isToday = d === today;
-
-        let bgColor = "#e5e7eb";
-        if (total === 0) {
-          bgColor = "#e5e7eb";
-        } else if (ratio >= 1) {
-          bgColor = "#f59e0b";
-        } else if (ratio > 0) {
-          bgColor = "#f97316";
-        }
+        const bgColor = total === 0 ? "#e5e7eb" : ratio >= 1 ? "#f59e0b" : ratio > 0 ? "#f97316" : "#e5e7eb";
 
         return (
-          <div key={d} className="flex flex-col items-center gap-1">
+          <Link key={d} href={`?day=${d}`} className="flex flex-col items-center gap-1">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isToday ? "ring-2 ring-offset-1" : ""}`}
               style={{
@@ -146,7 +79,7 @@ function WeekSummaryBar({
             <span className={`text-[9px] font-bold ${isToday ? "text-gray-800" : "text-gray-400"}`}>
               {DAY_LABELS[d]}
             </span>
-          </div>
+          </Link>
         );
       })}
     </div>
@@ -181,12 +114,15 @@ export default async function TodoPage({
   const isPast = activeDow < today;
   const isFuture = activeDow > today;
   const isToday = activeDow === today;
+  const isWeekday = activeDow <= 5;
 
   const dayTasks = tasksForDay(tasks, activeDow).filter((t) => t.requiresCompletion);
+  const beforeSchoolTasks = dayTasks.filter((t) => t.timeBlock === "before_school");
+  const afterSchoolTasks = dayTasks.filter((t) => t.timeBlock !== "before_school");
+  const todayClasses: SchoolClass[] = classes.filter((c) => c.dayOfWeek === activeDow);
 
-  const todayClasses: SchoolClass[] = classes.filter(
-    (c) => c.dayOfWeek === activeDow
-  );
+  const getCompletion = (taskId: string) =>
+    isToday ? completions.find((c) => c.taskId === taskId) : undefined;
 
   const days: DayOfWeek[] = [1, 2, 3, 4, 5, 6, 7];
 
@@ -199,7 +135,6 @@ export default async function TodoPage({
             const isActive = d === activeDow;
             const isDayToday = d === today;
             const isPastDay = d < today;
-
             return (
               <Link
                 key={d}
@@ -207,11 +142,7 @@ export default async function TodoPage({
                 className="min-w-[52px] h-[52px] rounded-2xl flex flex-col items-center justify-center text-xs font-bold shrink-0 transition-all relative"
                 style={{
                   background: isActive ? theme.accent : "#f3f4f6",
-                  color: isActive
-                    ? "#fff"
-                    : isPastDay
-                    ? "#9ca3af"
-                    : "#374151",
+                  color: isActive ? "#fff" : isPastDay ? "#9ca3af" : "#374151",
                 }}
               >
                 <span>{DAY_LABELS[d]}</span>
@@ -226,65 +157,99 @@ export default async function TodoPage({
           })}
         </div>
 
-        {/* Main content */}
-        <div className="flex-1 px-4 py-4 space-y-4">
-          {/* School section for weekdays */}
-          {activeDow <= 5 && (
-            <div>
-              <div className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
-                📚 School
+        {/* State banner for past/future */}
+        {isPast && (
+          <div className="mx-4 mt-3 bg-gray-100 rounded-xl px-4 py-2 text-xs text-gray-500 font-semibold text-center">
+            Past day — read only
+          </div>
+        )}
+        {isFuture && (
+          <div className="mx-4 mt-3 bg-blue-50 rounded-xl px-4 py-2 text-xs text-blue-600 font-semibold text-center">
+            Future day — tasks are waiting for you
+          </div>
+        )}
+
+        {/* Sections */}
+        <div className="flex-1 px-4 py-4 space-y-6">
+
+          {/* Before school — weekdays only */}
+          {isWeekday && (
+            <Section
+              label="🌅 Before school"
+              isEmpty={beforeSchoolTasks.length === 0}
+              emptyText="Nothing before school"
+            >
+              <div className="space-y-2">
+                {beforeSchoolTasks.map((task) => (
+                  <TodoTaskCard
+                    key={task.id}
+                    task={task}
+                    initialCompletion={getCompletion(task.id)}
+                    isToday={isToday}
+                    isPast={isPast}
+                    isFuture={isFuture}
+                    kidId={kid.id}
+                    accentColor={theme.accent}
+                  />
+                ))}
               </div>
-              {todayClasses.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {todayClasses.map((c) => (
-                    <span
-                      key={c.id}
-                      className="px-3 py-1.5 rounded-full text-xs font-bold text-white"
-                      style={{ background: theme.accent }}
-                    >
-                      {c.customLabel ?? c.subject}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-xs text-gray-400 italic px-1">School day</div>
-              )}
-            </div>
+            </Section>
           )}
 
-          {/* Tasks section */}
-          <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
-              Tasks
-            </div>
+          {/* School — weekdays only, read-only */}
+          {isWeekday && (
+            <Section
+              label="📚 School"
+              isEmpty={todayClasses.length === 0}
+              emptyText="School day"
+            >
+              <div className="flex flex-wrap gap-2">
+                {todayClasses.map((c) => (
+                  <span
+                    key={c.id}
+                    className="px-3 py-1.5 rounded-full text-xs font-bold text-white"
+                    style={{ background: theme.accent }}
+                  >
+                    {c.customLabel ?? c.subject}
+                  </span>
+                ))}
+              </div>
+            </Section>
+          )}
 
-            {dayTasks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="text-4xl mb-3">🎉</div>
-                <div className="text-gray-400 font-semibold">
-                  No tasks scheduled for this day
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {dayTasks.map((task) => {
-                  const completion = isToday
-                    ? completions.find((c) => c.taskId === task.id)
-                    : undefined;
-                  return (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      completion={completion}
-                      isPast={isPast}
-                      isFuture={isFuture}
-                      accentColor={theme.accent}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* After school / general tasks */}
+          <Section
+            label={isWeekday ? "🏠 After school" : "📋 Tasks"}
+            isEmpty={afterSchoolTasks.length === 0}
+            emptyText="Nothing here — enjoy your day! 🎉"
+          >
+            <div className="space-y-2">
+              {afterSchoolTasks.map((task) => (
+                <TodoTaskCard
+                  key={task.id}
+                  task={task}
+                  initialCompletion={getCompletion(task.id)}
+                  isToday={isToday}
+                  isPast={isPast}
+                  isFuture={isFuture}
+                  kidId={kid.id}
+                  accentColor={theme.accent}
+                />
+              ))}
+            </div>
+          </Section>
+
+          {/* Add a task — today and future only */}
+          {!isPast && (
+            <div className="pt-2">
+              <button
+                type="button"
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-3 text-sm font-bold text-gray-400 hover:border-gray-300 hover:text-gray-500 transition-colors"
+              >
+                + Add a task
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Week summary bar */}

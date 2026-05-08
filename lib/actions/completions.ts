@@ -42,7 +42,7 @@ export async function completeTask(
     await supabase.rpc("increment_family_points", { p_kid_id: kidId, p_amount: familyPointsAwarded });
   }
 
-  revalidatePath(`/kid/${kidId}/today`);
+  revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true };
 }
 
@@ -74,6 +74,6 @@ export async function uncompleteTask(
     await supabase.rpc("decrement_kid_points", { p_kid_id: kidId, p_amount: completion.points_awarded });
   }
 
-  revalidatePath(`/kid/${kidId}/today`);
+  revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true };
 }
