@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Nunito } from "next/font/google";
 import "./globals.css";
+import PerfReporter from "@/components/PerfReporter";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -33,7 +34,10 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${nunito.variable}`}>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <PerfReporter />
+        {children}
+      </body>
     </html>
   );
 }
