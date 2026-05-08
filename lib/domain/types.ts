@@ -33,6 +33,14 @@ export type ThemeId =
   | "dino"
   | "garden";
 
+// ----------------------------------------------------------------------------
+// New task rule/target/slot types (Step 6 redesign)
+// ----------------------------------------------------------------------------
+
+export type TaskRule = "strict" | "flexible";
+export type TaskTarget = "none" | "time" | "reps" | "checklist";
+export type TaskTimeSlot = "morning" | "afternoon" | "evening";
+
 export interface Family {
   id: string;
   name: string;
@@ -53,6 +61,10 @@ export interface Kid {
   pointsBalance: number;
   currentStreak: number;
   longestStreak: number;
+  // New gamification fields
+  totalStarsEarned: number;
+  selectedAvatarEmoji: string | null;
+  selectedFrame: "none" | "blue_glow" | "gold" | "fire" | "rainbow" | null;
 }
 
 export interface Task {
@@ -77,6 +89,24 @@ export interface Task {
   defaultTimeSignature: string | null;
   active: boolean;
   kidCanAdd: boolean;
+
+  // New rule system
+  rule: TaskRule;                     // default "strict"
+  flexibleMinPerWeek: number | null;  // only for rule="flexible"; 0 = bonus/optional
+  timeSlots: TaskTimeSlot[];          // for strict tasks (replaces timeBlock for new tasks)
+
+  // Target
+  target: TaskTarget;                 // default "none"
+  targetDurationMinutes: number | null;   // for target="time"
+  targetReps: number | null;              // for target="reps"
+  targetRepLabel: string | null;          // e.g. "basketball throws"
+  checklistItems: string[] | null;        // ordered list for target="checklist"
+
+  // Music
+  musicEnabled: boolean;
+
+  // Description
+  description: string | null;
 }
 
 export interface TaskCompletion {
@@ -99,6 +129,15 @@ export interface SchoolItem {
   active: boolean;
 }
 
+// ----------------------------------------------------------------------------
+// New reward types (Step 6 redesign)
+// ----------------------------------------------------------------------------
+
+export type RewardType = "privilege" | "treat" | "experience" | "prize";
+export type RewardWho = "individual" | "team";
+export type RewardRecurrence = "recurring" | "one_off";
+export type RewardPeriodLimit = "day" | "week" | "month" | "none";
+
 export interface Reward {
   id: string;
   familyId: string;
@@ -107,8 +146,17 @@ export interface Reward {
   description: string | null;
   icon: string;
   costPoints: number;
-  type: "individual" | "family";
+  type: "individual" | "family"; // kept for backward compat
   active: boolean;
+
+  // New reward fields
+  rewardType: RewardType;                    // default "treat"
+  who: RewardWho;                            // default "individual"
+  recurrence: RewardRecurrence;              // default "recurring"
+  redemptionLimit: number | null;            // max redemptions per period (null = unlimited)
+  redemptionPeriod: RewardPeriodLimit;       // period for the limit
+  requiresApproval: boolean;                 // default true
+  availableTo: string[];                     // array of kidIds; empty = all kids
 }
 
 export interface RewardRequest {
@@ -118,6 +166,49 @@ export interface RewardRequest {
   requestedAt: string;
   status: "pending" | "approved" | "denied" | "delivered";
   parentNote: string | null;
+}
+
+// ----------------------------------------------------------------------------
+// Wishlist
+// ----------------------------------------------------------------------------
+
+export interface WishlistItem {
+  id: string;
+  kidId: string;
+  rewardId: string;
+  addedAt: string; // ISO
+  position: number; // 1-3
+}
+
+// ----------------------------------------------------------------------------
+// Gamification — BadgeProgress
+// ----------------------------------------------------------------------------
+
+export type BadgeCategory = "hygiene" | "physical" | "learning" | "chores" | "music" | "mindfulness";
+export type BadgeTier = "none" | "bronze" | "silver" | "gold";
+
+export interface BadgeProgress {
+  id: string;
+  kidId: string;
+  category: BadgeCategory;
+  completionCount: number;
+  currentTier: BadgeTier;
+}
+
+// ----------------------------------------------------------------------------
+// Strikes
+// ----------------------------------------------------------------------------
+
+export interface Strike {
+  id: string;
+  kidId: string;
+  issuedByParentName: string;
+  reason: string;
+  penaltyStars: number;        // 0 = warning only
+  deductAt: string | null;     // ISO — null means "now", set = deferred
+  deductedAt: string | null;   // ISO — set once deduction occurred
+  clearedAt: string | null;    // ISO — set when parent clears
+  createdAt: string;
 }
 
 export type Subject =
@@ -151,6 +242,23 @@ export interface SchoolClass {
   teacher: string | null;
 }
 
+// ----------------------------------------------------------------------------
+// TimetableSlot
+// ----------------------------------------------------------------------------
+
+export type TimetableSection = "before_school" | "period" | "after_school";
+
+export interface TimetableSlot {
+  id: string;
+  kidId: string;
+  dayOfWeek: DayOfWeek;
+  section: TimetableSection;
+  slotIndex: number;
+  subjectId: string;    // references Subject enum or school activity key
+  isOverride: boolean;  // true = applies to a specific date only
+  overrideDate: string | null;  // YYYY-MM-DD if isOverride=true
+}
+
 export type QuizCategory =
   | "maths"
   | "spelling"
@@ -175,5 +283,48 @@ export interface QuizQuestion {
   prompt: string;
   choices: { label: string; isCorrect: boolean }[];
   timeLimitSeconds: number;
+  explanation: string | null;
+}
+
+// ----------------------------------------------------------------------------
+// Quiz redesign types (Step 10)
+// ----------------------------------------------------------------------------
+
+export type QuizTheme =
+  | "maths" | "english" | "science" | "history" | "geography"
+  | "sports" | "music" | "french" | "spanish" | "mandarin"
+  | "fun_facts" | "pop_culture" | "technology" | "food_culture";
+
+export type QuizAgeBand = "5_6" | "7_8" | "9_10" | "11_12";
+export type QuizDifficulty = "easy" | "medium" | "hard";
+export type QuizQuestionType = "multiple_choice" | "fill_in_blank";
+
+export interface QuizSet {
+  id: string;
+  familyId: string | null;       // null = built-in
+  name: string;
+  emoji: string;
+  themes: QuizTheme[];
+  ageBandFilter: QuizAgeBand | null;   // null = all ages
+  maxDifficulty: QuizDifficulty;
+  questionTypeFilter: QuizQuestionType[] | null;  // null = all types
+  questionsPerSession: number;
+}
+
+export interface QuizQuestion2 {
+  id: string;
+  setId: string | null;          // null = belongs to library only
+  familyId: string | null;       // null = built-in
+  type: QuizQuestionType;
+  questionText: string;
+  theme: QuizTheme;
+  ageBand: QuizAgeBand;
+  difficulty: QuizDifficulty;
+  isBuiltin: boolean;
+  // For multiple_choice:
+  choices: { label: string; isCorrect: boolean }[] | null;
+  // For fill_in_blank:
+  sentenceTemplate: string | null;  // e.g. "The capital of France is ___"
+  acceptedAnswers: string[] | null; // e.g. ["Paris", "paris"]
   explanation: string | null;
 }
