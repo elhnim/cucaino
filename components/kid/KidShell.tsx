@@ -14,7 +14,7 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift
   { key: "home",    label: "Home",    icon: "home",     href: (id) => `/kid/${id}/home` },
   { key: "todo",    label: "Todo",    icon: "calendar", href: (id) => `/kid/${id}/todo` },
   { key: "rewards", label: "Rewards", icon: "gift",     href: (id) => `/kid/${id}/rewards` },
-  { key: "play",    label: "Play",    icon: "play",     href: () => "/play" },
+  { key: "play",    label: "Play",    icon: "play",     href: (id) => `/play?kid=${id}` },
 ];
 
 function KidAvatarMenu({ kid, accent, accentSoft }: { kid: Kid; accent: string; accentSoft: string }) {
