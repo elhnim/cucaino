@@ -591,3 +591,17 @@ export async function listKidAddableTasks(): Promise<Task[]> {
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);
 }
+
+export async function listKidDailyAdditions(kidId: string, date: string): Promise<Task[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("kid_daily_task_additions")
+    .select("tasks(*)")
+    .eq("kid_id", kidId)
+    .eq("date", date);
+  if (error || !data) return [];
+  return data
+    .map((row) => row.tasks)
+    .filter(Boolean)
+    .map((t) => mapTask(t as DbTaskRow));
+}

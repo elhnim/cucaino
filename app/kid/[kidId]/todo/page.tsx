@@ -10,6 +10,7 @@ import {
   listCompletionsToday,
   listSchoolClasses,
   listKidAddableTasks,
+  listKidDailyAdditions,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -106,11 +107,13 @@ export default async function TodoPage({
     ? (Math.max(1, Math.min(7, parseInt(day))) as DayOfWeek)
     : today;
 
-  const [tasks, completions, classes, addableTasks] = await Promise.all([
+  const todayDateStr = new Date().toISOString().slice(0, 10);
+  const [tasks, completions, classes, addableTasks, dailyAdditions] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
     listSchoolClasses(kid.id),
     listKidAddableTasks(),
+    listKidDailyAdditions(kid.id, todayDateStr),
   ]);
 
   const theme = getTheme(kid.themeId);
@@ -119,7 +122,15 @@ export default async function TodoPage({
   const isToday = activeDow === today;
   const isWeekday = activeDow <= 5;
 
-  const dayTasks = tasksForDay(tasks, activeDow).filter((t) => t.requiresCompletion);
+  const scheduledTasks = tasksForDay(tasks, activeDow);
+  const scheduledTaskIds = new Set(scheduledTasks.map((t) => t.id));
+  // Daily additions (one-off tasks added by the kid) only surface for today
+  const extraTasks = isToday ? dailyAdditions.filter((t) => !scheduledTaskIds.has(t.id)) : [];
+  const dayTasks = [...scheduledTasks, ...extraTasks].filter((t) => t.requiresCompletion);
+
+  // Only show tasks in the picker that aren't already in today's list
+  const alreadyTodayIds = new Set([...scheduledTaskIds, ...dailyAdditions.map((t) => t.id)]);
+  const pickableTasks = isToday ? addableTasks.filter((t) => !alreadyTodayIds.has(t.id)) : [];
   const beforeSchoolTasks = dayTasks.filter((t) => t.timeBlock === "before_school");
   const afterSchoolTasks = dayTasks.filter((t) => t.timeBlock !== "before_school");
   const todayClasses: SchoolClass[] = classes.filter((c) => c.dayOfWeek === activeDow);
@@ -248,7 +259,7 @@ export default async function TodoPage({
               <AddPersonalTaskModal
                 kidId={kid.id}
                 accent={theme.accent}
-                addableTasks={addableTasks}
+                addableTasks={pickableTasks}
               />
             </div>
           )}
