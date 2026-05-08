@@ -32,7 +32,7 @@ export default function ParentPinGateClient({
   // No PIN set — force setup before entering
   if (!currentPin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 flex items-start justify-center overflow-y-auto p-4 py-8">
         <div className="w-full max-w-sm">
           <div className="text-center mb-6">
             <div className="text-6xl mb-3">🔐</div>
@@ -63,7 +63,7 @@ export default function ParentPinGateClient({
 
   // PIN exists — verify
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 flex items-start justify-center overflow-y-auto p-4 py-8">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
           <div className="text-6xl mb-3">🔒</div>

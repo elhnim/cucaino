@@ -53,10 +53,14 @@ export default function TodoTaskCard({
     setDone(next);
     if (next) setCelebrating(true);
     startTransition(async () => {
-      if (next) {
-        await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
-      } else {
-        await uncompleteTask(task.id, kidId);
+      const result = next
+        ? await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category)
+        : await uncompleteTask(task.id, kidId);
+      if (!result.ok) {
+        // Revert optimistic update on failure
+        setDone(!next);
+        setCelebrating(false);
+        return;
       }
       router.refresh();
     });

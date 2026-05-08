@@ -162,7 +162,7 @@ export default function SelectKidClient({
       </div>
 
       {modal ? (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 py-8 z-50">
           <div className="w-full max-w-sm">
             {modal.kind === "verify" ? (
               <PinPad

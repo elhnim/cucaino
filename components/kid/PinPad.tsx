@@ -181,7 +181,8 @@ function PadButton({
     <button
       type="button"
       onClick={onClick}
-      className={`bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-2xl py-4 transition-colors ${
+      style={{ touchAction: "manipulation" }}
+      className={`bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-2xl py-4 transition-colors select-none ${
         small ? "text-xs font-bold text-gray-600" : "text-2xl font-black"
       }`}
     >
