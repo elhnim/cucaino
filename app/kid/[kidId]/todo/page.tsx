@@ -128,9 +128,7 @@ export default async function TodoPage({
   const extraTasks = isToday ? dailyAdditions.filter((t) => !scheduledTaskIds.has(t.id)) : [];
   const dayTasks = [...scheduledTasks, ...extraTasks].filter((t) => t.requiresCompletion);
 
-  // Only show tasks in the picker that aren't already in today's list
-  const alreadyTodayIds = new Set([...scheduledTaskIds, ...dailyAdditions.map((t) => t.id)]);
-  const pickableTasks = isToday ? addableTasks.filter((t) => !alreadyTodayIds.has(t.id)) : [];
+  const pickableTasks = isToday ? addableTasks : [];
   const beforeSchoolTasks = dayTasks.filter((t) => t.timeBlock === "before_school");
   const afterSchoolTasks = dayTasks.filter((t) => t.timeBlock !== "before_school");
   const todayClasses: SchoolClass[] = classes.filter((c) => c.dayOfWeek === activeDow);
