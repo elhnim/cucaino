@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { completeTask, uncompleteTask } from "@/lib/actions/completions";
 import type { Task, TaskCompletion } from "@/lib/domain/types";
 
@@ -34,6 +35,7 @@ export default function TodoTaskCard({
   kidId: string;
   accentColor: string;
 }) {
+  const router = useRouter();
   const [done, setDone] = useState(!!initialCompletion);
   const [celebrating, setCelebrating] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -56,6 +58,7 @@ export default function TodoTaskCard({
       } else {
         await uncompleteTask(task.id, kidId);
       }
+      router.refresh();
     });
   };
 
