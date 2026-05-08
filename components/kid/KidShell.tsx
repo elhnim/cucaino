@@ -8,14 +8,13 @@ import { getTheme } from "@/lib/themes/presets";
 import KidOverridesApplier from "@/components/kid/KidOverridesApplier";
 import NavIcon from "@/components/ui/NavIcon";
 
-type NavKey = "home" | "todo" | "rewards" | "progress" | "play";
+type NavKey = "home" | "todo" | "rewards" | "play";
 
-const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "chart" | "play"; href: (kidId: string) => string }[] = [
-  { key: "home",     label: "Home",     icon: "home",     href: (id) => `/kid/${id}/home` },
-  { key: "todo",     label: "Todo",     icon: "calendar", href: (id) => `/kid/${id}/todo` },
-  { key: "rewards",  label: "Rewards",  icon: "gift",     href: (id) => `/kid/${id}/rewards` },
-  { key: "progress", label: "Progress", icon: "chart",    href: (id) => `/kid/${id}/progress` },
-  { key: "play",     label: "Play",     icon: "play",     href: () => "/play" },
+const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "play"; href: (kidId: string) => string }[] = [
+  { key: "home",    label: "Home",    icon: "home",     href: (id) => `/kid/${id}/home` },
+  { key: "todo",    label: "Todo",    icon: "calendar", href: (id) => `/kid/${id}/todo` },
+  { key: "rewards", label: "Rewards", icon: "gift",     href: (id) => `/kid/${id}/rewards` },
+  { key: "play",    label: "Play",    icon: "play",     href: () => "/play" },
 ];
 
 function KidAvatarMenu({ kid, accent, accentSoft }: { kid: Kid; accent: string; accentSoft: string }) {

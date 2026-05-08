@@ -45,7 +45,7 @@ export default async function ProgressPage({
   const sortedKids = [...allKids].sort((a, b) => b.pointsBalance - a.pointsBalance);
 
   return (
-    <KidShell kid={kid} active="progress">
+    <KidShell kid={kid} active="home">
       <div className="p-4 space-y-5">
 
         {/* Level card */}
