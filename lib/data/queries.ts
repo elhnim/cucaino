@@ -594,14 +594,18 @@ export async function listKidAddableTasks(): Promise<Task[]> {
 
 export async function listKidDailyAdditions(kidId: string, date: string): Promise<Task[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data: additions, error: addErr } = await supabase
     .from("kid_daily_task_additions")
-    .select("tasks(*)")
+    .select("task_id")
     .eq("kid_id", kidId)
     .eq("date", date);
+  if (addErr || !additions || additions.length === 0) return [];
+
+  const taskIds = additions.map((a) => a.task_id as string);
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .in("id", taskIds);
   if (error || !data) return [];
-  return data
-    .map((row) => row.tasks)
-    .filter(Boolean)
-    .map((t) => mapTask(t as DbTaskRow));
+  return (data as DbTaskRow[]).map(mapTask);
 }
