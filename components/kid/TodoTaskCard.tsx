@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { completeTask, uncompleteTask } from "@/lib/actions/completions";
 import type { Task, TaskCompletion } from "@/lib/domain/types";
 
@@ -35,7 +34,6 @@ export default function TodoTaskCard({
   kidId: string;
   accentColor: string;
 }) {
-  const router = useRouter();
   const [done, setDone] = useState(!!initialCompletion);
   const [celebrating, setCelebrating] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -57,12 +55,9 @@ export default function TodoTaskCard({
         ? await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category)
         : await uncompleteTask(task.id, kidId);
       if (!result.ok) {
-        // Revert optimistic update on failure
         setDone(!next);
         setCelebrating(false);
-        return;
       }
-      router.refresh();
     });
   };
 
