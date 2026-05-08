@@ -26,7 +26,8 @@ export default async function ParentOverviewPage() {
         listCompletionsToday(kid.id),
       ]);
       const todayTasks = tasksForDay(tasks, dow).filter((t) => t.requiresCompletion);
-      return { kid, done: completions.length, total: todayTasks.length };
+      const completedIds = new Set(completions.map((c) => c.taskId));
+      return { kid, todayTasks, completedIds, done: completions.length, total: todayTasks.length };
     }),
   );
 
@@ -83,27 +84,52 @@ export default async function ParentOverviewPage() {
         <div className="bg-white rounded-2xl shadow p-4">
           <div className="font-bold text-gray-800 mb-3">👧 Kids Today</div>
           <div className="divide-y divide-gray-100">
-            {kidStats.map(({ kid, done, total }) => {
+            {kidStats.map(({ kid, todayTasks, completedIds, done, total }) => {
               const pct = Math.round(total > 0 ? (done / total) * 100 : 0);
               return (
                 <div key={kid.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex items-center gap-2 mb-2">
                     <span className="text-2xl">{kid.avatar}</span>
                     <span className="font-bold text-gray-800 flex-1">{kid.name}</span>
                     <span className="text-sm">⭐ {kid.pointsBalance}</span>
                     <span className="text-sm">🔥 {kid.currentStreak}d</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 w-20 shrink-0">
-                      {done}/{total} tasks
-                    </span>
-                    <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${pct}%`, background: "#f97316" }}
-                      />
-                    </div>
-                  </div>
+                  {todayTasks.length === 0 ? (
+                    <p className="text-xs text-gray-400">No tasks today</p>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 gap-1 mb-2">
+                        {todayTasks.map((task) => {
+                          const isDone = completedIds.has(task.id);
+                          return (
+                            <div
+                              key={task.id}
+                              className="flex items-center gap-1.5 text-xs py-0.5"
+                            >
+                              <span className={isDone ? "text-green-500" : "text-gray-300"}>
+                                {isDone ? "✅" : "○"}
+                              </span>
+                              <span
+                                className={isDone ? "text-gray-400 line-through" : "text-gray-700"}
+                              >
+                                {task.icon} {task.name}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">{done}/{total}</span>
+                        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${pct}%`, background: "#f97316" }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-400">{pct}%</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}

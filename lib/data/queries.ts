@@ -12,6 +12,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { timed } from "@/lib/data/perf";
 import type {
+  BadgeCategory,
+  BadgeTier,
+  BadgeProgress,
   Family,
   Kid,
   QuizBank,
@@ -71,7 +74,9 @@ function mapKid(row: DbKidRow): Kid {
     id: row.id,
     familyId: row.family_id,
     name: row.name,
-    age: row.age ?? 0,
+    age: row.date_of_birth
+      ? Math.floor((Date.now() - new Date(row.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+      : (row.age ?? 0),
     avatar: row.avatar,
     themeId: row.theme_id as ThemeId,
     dateOfBirth: row.date_of_birth,
@@ -134,6 +139,8 @@ export async function getFamily(): Promise<Family | null> {
     id: data.id,
     name: data.name,
     familyPointsBalance: data.family_points_balance,
+    parentDisplayName: (data as any).parent_display_name ?? null,
+    parentAvatar: (data as any).parent_avatar ?? "🧙",
   };
 }
 
@@ -168,6 +175,17 @@ export const listTasksForKid = timed("listTasksForKid", async (kidId: string): P
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);
 });
+
+export async function getTask(id: string): Promise<Task | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapTask(data as DbTaskRow);
+}
 
 export async function listAllTasks(): Promise<Task[]> {
   const supabase = await createClient();
@@ -241,6 +259,34 @@ export async function listAllSchoolItems(): Promise<SchoolItem[]> {
     daysOfWeek: row.days_of_week as SchoolItem["daysOfWeek"],
     active: row.active,
   }));
+}
+
+export async function getReward(id: string): Promise<Reward | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("rewards")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    familyId: data.family_id,
+    kidId: data.kid_id,
+    name: data.name,
+    description: data.description,
+    icon: data.icon,
+    costPoints: data.cost_points,
+    type: data.type as Reward["type"],
+    active: data.active,
+    rewardType: (data as any).reward_type ?? "treat",
+    who: (data as any).who ?? "individual",
+    recurrence: (data as any).recurrence ?? "recurring",
+    redemptionLimit: (data as any).redemption_limit ?? null,
+    redemptionPeriod: (data as any).redemption_period ?? "none",
+    requiresApproval: (data as any).requires_approval ?? true,
+    availableTo: (data as any).available_to ?? [],
+  };
 }
 
 export const listRewardsForKid = timed("listRewardsForKid", async (kidId: string): Promise<Reward[]> => {
@@ -393,6 +439,112 @@ export async function listFeatureRequests(): Promise<FeatureRequest[]> {
   }));
 }
 
+export type QuizQuestion2 = {
+  id: string;
+  familyId: string | null;
+  type: "mc" | "fill_blank";
+  questionText: string;
+  theme: string;
+  ageBand: string;
+  difficulty: string;
+  isBuiltin: boolean;
+  choices: { label: string; isCorrect: boolean }[] | null;
+  sentenceTemplate: string | null;
+  acceptedAnswers: string[] | null;
+  explanation: string | null;
+  createdAt: string;
+};
+
+export type QuizSet = {
+  id: string;
+  familyId: string | null;
+  name: string;
+  emoji: string;
+  themes: string[];
+  ageBandFilter: string | null;
+  maxDifficulty: string;
+  questionsPerSession: number;
+  createdAt: string;
+};
+
+export async function listQuizQuestions2(opts?: { theme?: string }): Promise<QuizQuestion2[]> {
+  const supabase = await createClient();
+  let q = supabase.from("quiz_questions2").select("*").order("created_at", { ascending: false });
+  if (opts?.theme) q = q.eq("theme", opts.theme);
+  const { data, error } = await q;
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id,
+    familyId: row.family_id,
+    type: row.type as "mc" | "fill_blank",
+    questionText: row.question_text,
+    theme: row.theme,
+    ageBand: row.age_band,
+    difficulty: row.difficulty,
+    isBuiltin: row.is_builtin,
+    choices: row.choices as { label: string; isCorrect: boolean }[] | null,
+    sentenceTemplate: row.sentence_template,
+    acceptedAnswers: row.accepted_answers,
+    explanation: row.explanation,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function getQuizQuestion2(id: string): Promise<QuizQuestion2 | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("quiz_questions2").select("*").eq("id", id).maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    familyId: data.family_id,
+    type: data.type as "mc" | "fill_blank",
+    questionText: data.question_text,
+    theme: data.theme,
+    ageBand: data.age_band,
+    difficulty: data.difficulty,
+    isBuiltin: data.is_builtin,
+    choices: data.choices as { label: string; isCorrect: boolean }[] | null,
+    sentenceTemplate: data.sentence_template,
+    acceptedAnswers: data.accepted_answers,
+    explanation: data.explanation,
+    createdAt: data.created_at,
+  };
+}
+
+export async function listQuizSets(): Promise<QuizSet[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("quiz_sets").select("*").order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return data.map((row) => ({
+    id: row.id,
+    familyId: row.family_id,
+    name: row.name,
+    emoji: row.emoji,
+    themes: row.themes,
+    ageBandFilter: row.age_band_filter,
+    maxDifficulty: row.max_difficulty,
+    questionsPerSession: row.questions_per_session,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function getQuizSet(id: string): Promise<QuizSet | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("quiz_sets").select("*").eq("id", id).maybeSingle();
+  if (error || !data) return null;
+  return {
+    id: data.id,
+    familyId: data.family_id,
+    name: data.name,
+    emoji: data.emoji,
+    themes: data.themes,
+    ageBandFilter: data.age_band_filter,
+    maxDifficulty: data.max_difficulty,
+    questionsPerSession: data.questions_per_session,
+    createdAt: data.created_at,
+  };
+}
+
 export async function getParentPinFromDb(): Promise<string | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -401,6 +553,27 @@ export async function getParentPinFromDb(): Promise<string | null> {
     .maybeSingle();
   if (error || !data) return null;
   return data.parent_pin ?? null;
+}
+
+export async function listBadgeProgress(kidId: string): Promise<BadgeProgress[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("badge_progress")
+    .select("*")
+    .eq("kid_id", kidId);
+  if (error || !data) return [];
+  return data.map((row) => {
+    const count = (row.completion_count as number) ?? 0;
+    const tier: BadgeTier =
+      count >= 100 ? "gold" : count >= 50 ? "silver" : count >= 10 ? "bronze" : "none";
+    return {
+      id: row.id ?? `${row.kid_id}-${row.category}`,
+      kidId: row.kid_id,
+      category: row.category as BadgeCategory,
+      completionCount: count,
+      currentTier: tier,
+    };
+  });
 }
 
 export async function listKidAddableTasks(): Promise<Task[]> {

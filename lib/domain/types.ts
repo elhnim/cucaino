@@ -45,6 +45,8 @@ export interface Family {
   id: string;
   name: string;
   familyPointsBalance: number;
+  parentDisplayName: string | null;
+  parentAvatar: string;
 }
 
 export interface Kid {

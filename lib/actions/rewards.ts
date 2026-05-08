@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { Reward } from "@/lib/domain/types";
+import type { Reward, RewardType, RewardWho, RewardRecurrence, RewardPeriodLimit } from "@/lib/domain/types";
 
 export interface RewardFormData {
   name: string;
@@ -11,6 +11,13 @@ export interface RewardFormData {
   costPoints: number;
   type: Reward["type"];
   kidId: string | null;
+  rewardType: RewardType;
+  who: RewardWho;
+  recurrence: RewardRecurrence;
+  redemptionLimit: number | null;
+  redemptionPeriod: RewardPeriodLimit;
+  requiresApproval: boolean;
+  availableTo: string[];
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -32,6 +39,13 @@ export async function createReward(data: RewardFormData): Promise<ActionResult> 
     cost_points: data.costPoints,
     type: data.type,
     active: true,
+    reward_type: data.rewardType,
+    who: data.who,
+    recurrence: data.recurrence,
+    redemption_limit: data.redemptionLimit,
+    redemption_period: data.redemptionPeriod,
+    requires_approval: data.requiresApproval,
+    available_to: data.availableTo,
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/rewards");
@@ -52,6 +66,13 @@ export async function updateReward(
       description: data.description || null,
       cost_points: data.costPoints,
       type: data.type,
+      reward_type: data.rewardType,
+      who: data.who,
+      recurrence: data.recurrence,
+      redemption_limit: data.redemptionLimit,
+      redemption_period: data.redemptionPeriod,
+      requires_approval: data.requiresApproval,
+      available_to: data.availableTo,
     })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };

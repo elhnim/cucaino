@@ -37,7 +37,10 @@ function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
   const kid = task.kidId ? kids.find((k) => k.id === task.kidId) : null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3">
+    <Link
+      href={`/parent/tasks/${task.id}/edit`}
+      className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 block hover:shadow-md transition-shadow"
+    >
       <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-3xl flex-shrink-0">
         {task.icon}
       </div>
@@ -54,20 +57,14 @@ function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <span
           className={`w-3 h-3 rounded-full ${task.active ? "bg-green-400" : "bg-gray-300"}`}
           title={task.active ? "Active" : "Paused"}
         />
-        <Link
-          href={`/parent/tasks/${task.id}/edit`}
-          className="text-gray-400 hover:text-indigo-600 text-xl leading-none"
-          aria-label={`Edit ${task.name}`}
-        >
-          ›
-        </Link>
+        <span className="text-gray-300 text-xl">›</span>
       </div>
-    </div>
+    </Link>
   );
 }
 

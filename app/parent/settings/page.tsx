@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getFamily, listKids, getParentPinFromDb } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 import { signOut } from "@/lib/actions/auth";
+import FamilyNameEditor from "@/components/parent/FamilyNameEditor";
 
 const commit = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
@@ -21,10 +22,7 @@ export default async function ParentSettingsPage() {
           {/* Family name */}
           <div>
             <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Family name</div>
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-gray-900">{family.name}</span>
-              <span className="text-base">✏️</span>
-            </div>
+            <FamilyNameEditor initialName={family.name} />
           </div>
 
           {/* Kids list */}
@@ -42,7 +40,7 @@ export default async function ParentSettingsPage() {
               {kids.map((kid) => {
                 const theme = getTheme(kid.themeId);
                 return (
-                  <Link key={kid.id} href="/parent/kids" className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                  <Link key={kid.id} href={`/parent/kids/${kid.id}/edit`} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
                     <div
                       className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
                       style={{ backgroundColor: theme.accentSoft }}
@@ -87,9 +85,53 @@ export default async function ParentSettingsPage() {
               defaultValue="Australia/Sydney"
               className="border border-gray-300 rounded-lg p-2 w-full text-sm"
             >
-              <option value="Australia/Sydney">Australia/Sydney</option>
-              <option value="Australia/Melbourne">Australia/Melbourne</option>
-              <option value="Australia/Brisbane">Australia/Brisbane</option>
+              <optgroup label="Australia">
+                <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                <option value="Australia/Melbourne">Australia/Melbourne (AEST)</option>
+                <option value="Australia/Brisbane">Australia/Brisbane (AEST)</option>
+                <option value="Australia/Adelaide">Australia/Adelaide (ACST)</option>
+                <option value="Australia/Perth">Australia/Perth (AWST)</option>
+                <option value="Australia/Darwin">Australia/Darwin (ACST)</option>
+                <option value="Australia/Hobart">Australia/Hobart (AEST)</option>
+              </optgroup>
+              <optgroup label="New Zealand">
+                <option value="Pacific/Auckland">Pacific/Auckland (NZST)</option>
+                <option value="Pacific/Chatham">Pacific/Chatham (CHAST)</option>
+              </optgroup>
+              <optgroup label="Asia">
+                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                <option value="Asia/Hong_Kong">Asia/Hong Kong (HKT)</option>
+                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                <option value="Asia/Seoul">Asia/Seoul (KST)</option>
+                <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+              </optgroup>
+              <optgroup label="Europe">
+                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                <option value="Europe/Paris">Europe/Paris (CET)</option>
+                <option value="Europe/Berlin">Europe/Berlin (CET)</option>
+                <option value="Europe/Rome">Europe/Rome (CET)</option>
+                <option value="Europe/Madrid">Europe/Madrid (CET)</option>
+                <option value="Europe/Amsterdam">Europe/Amsterdam (CET)</option>
+              </optgroup>
+              <optgroup label="Americas">
+                <option value="America/New_York">America/New York (EST)</option>
+                <option value="America/Chicago">America/Chicago (CST)</option>
+                <option value="America/Denver">America/Denver (MST)</option>
+                <option value="America/Los_Angeles">America/Los Angeles (PST)</option>
+                <option value="America/Toronto">America/Toronto (EST)</option>
+                <option value="America/Vancouver">America/Vancouver (PST)</option>
+                <option value="America/Sao_Paulo">America/São Paulo (BRT)</option>
+              </optgroup>
+              <optgroup label="Africa">
+                <option value="Africa/Johannesburg">Africa/Johannesburg (SAST)</option>
+                <option value="Africa/Cairo">Africa/Cairo (EET)</option>
+                <option value="Africa/Lagos">Africa/Lagos (WAT)</option>
+              </optgroup>
+              <optgroup label="UTC">
+                <option value="UTC">UTC</option>
+              </optgroup>
             </select>
           </div>
 

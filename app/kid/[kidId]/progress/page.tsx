@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import KidShell from "@/components/kid/KidShell";
-import { getKid, listKids } from "@/lib/data/stub";
+import { getKid, listKids, listBadgeProgress } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
+import type { BadgeCategory } from "@/lib/domain/types";
 
 const LEVELS = [
   { min: 0,    max: 99,   emoji: "🌱", name: "Seedling",  color: "#16a34a" },
@@ -11,13 +12,13 @@ const LEVELS = [
   { min: 1000, max: Infinity, emoji: "🚀", name: "Superstar", color: "#dc2626" },
 ];
 
-const BADGE_CATEGORIES = [
-  { emoji: "🪥", label: "Hygiene",     bronze: "Clean Start",  silver: "Squeaky Clean", gold: "Hygiene Hero" },
-  { emoji: "💪", label: "Physical",    bronze: "On the Move",  silver: "Athlete",        gold: "Sports Star"  },
-  { emoji: "📚", label: "Learning",    bronze: "Bookworm",     silver: "Scholar",        gold: "Genius"       },
-  { emoji: "🧹", label: "Chores",      bronze: "Helper",       silver: "House Pro",      gold: "Home Hero"    },
-  { emoji: "🎵", label: "Music",       bronze: "First Notes",  silver: "Musician",       gold: "Maestro"      },
-  { emoji: "🧘", label: "Mindfulness", bronze: "Good Rest",    silver: "Calm Mind",      gold: "Zen Master"   },
+const BADGE_CATEGORIES: { key: BadgeCategory; emoji: string; label: string; bronze: string; silver: string; gold: string }[] = [
+  { key: "hygiene",     emoji: "🪥", label: "Hygiene",     bronze: "Clean Start",  silver: "Squeaky Clean", gold: "Hygiene Hero" },
+  { key: "physical",   emoji: "💪", label: "Physical",    bronze: "On the Move",  silver: "Athlete",        gold: "Sports Star"  },
+  { key: "learning",   emoji: "📚", label: "Learning",    bronze: "Bookworm",     silver: "Scholar",        gold: "Genius"       },
+  { key: "chores",     emoji: "🧹", label: "Chores",      bronze: "Helper",       silver: "House Pro",      gold: "Home Hero"    },
+  { key: "music",      emoji: "🎵", label: "Music",       bronze: "First Notes",  silver: "Musician",       gold: "Maestro"      },
+  { key: "mindfulness",emoji: "🧘", label: "Mindfulness", bronze: "Good Rest",    silver: "Calm Mind",      gold: "Zen Master"   },
 ];
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -28,8 +29,10 @@ export default async function ProgressPage({
   params: Promise<{ kidId: string }>;
 }) {
   const { kidId } = await params;
-  const [kid, allKids] = await Promise.all([getKid(kidId), listKids()]);
+  const [kid, allKids, badgeRows] = await Promise.all([getKid(kidId), listKids(), listBadgeProgress(kidId)]);
   if (!kid) notFound();
+
+  const badgeMap = new Map(badgeRows.map((b) => [b.category, b]));
 
   const theme = getTheme(kid.themeId);
   const stars = kid.totalStarsEarned;
@@ -84,20 +87,60 @@ export default async function ProgressPage({
         <div>
           <div className="font-bold mb-3">🎖 My Badges</div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {BADGE_CATEGORIES.map((cat) => (
-              <div
-                key={cat.label}
-                className="bg-white rounded-2xl shadow p-3 text-center"
-              >
-                <div className="text-3xl">{cat.emoji}</div>
-                <div className="text-xs font-bold text-gray-500 mt-1">{cat.label}</div>
-                <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
-                  <div className="h-1.5 rounded-full bg-gray-300" style={{ width: "0%" }} />
+            {BADGE_CATEGORIES.map((cat) => {
+              const bp = badgeMap.get(cat.key);
+              const count = bp?.completionCount ?? 0;
+              const tier = bp?.currentTier ?? "none";
+
+              let tierLabel = "";
+              let tierName = "";
+              let progressPct = 0;
+              let toNext = 0;
+              if (tier === "gold") {
+                tierLabel = "🥇 Gold";
+                tierName = cat.gold;
+                progressPct = 100;
+              } else if (tier === "silver") {
+                tierLabel = "🥈 Silver";
+                tierName = cat.silver;
+                progressPct = Math.min(100, ((count - 50) / 50) * 100);
+                toNext = 100 - count;
+              } else if (tier === "bronze") {
+                tierLabel = "🥉 Bronze";
+                tierName = cat.bronze;
+                progressPct = Math.min(100, ((count - 10) / 40) * 100);
+                toNext = 50 - count;
+              } else {
+                tierLabel = "";
+                tierName = cat.bronze;
+                progressPct = Math.min(100, (count / 10) * 100);
+                toNext = 10 - count;
+              }
+
+              const earned = tier !== "none";
+              return (
+                <div
+                  key={cat.key}
+                  className="bg-white rounded-2xl shadow p-3 text-center"
+                  style={earned ? { borderTop: "3px solid #f59e0b" } : undefined}
+                >
+                  <div className={`text-3xl ${earned ? "" : "grayscale opacity-60"}`}>{cat.emoji}</div>
+                  <div className="text-xs font-bold text-gray-500 mt-1">{cat.label}</div>
+                  {tierLabel && <div className="text-xs font-bold text-amber-600">{tierLabel}</div>}
+                  <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
+                    <div
+                      className="h-1.5 rounded-full"
+                      style={{ width: `${progressPct}%`, backgroundColor: tier === "gold" ? "#f59e0b" : tier === "silver" ? "#9ca3af" : tier === "bronze" ? "#d97706" : "#6366f1" }}
+                    />
+                  </div>
+                  {tier === "gold" ? (
+                    <div className="text-xs text-amber-600 font-bold mt-1">Mastered! 🏆</div>
+                  ) : (
+                    <div className="text-xs text-gray-400 mt-1">{count}/{tier === "none" ? 10 : tier === "bronze" ? 50 : 100} to {tierName}</div>
+                  )}
                 </div>
-                <div className="text-xs text-gray-400 mt-1">0/10 to Bronze</div>
-                <div className="text-xs text-gray-400 italic mt-0.5">{cat.bronze}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

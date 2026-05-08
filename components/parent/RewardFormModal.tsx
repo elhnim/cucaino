@@ -13,6 +13,13 @@ function defaultForm(reward?: Reward): RewardFormData {
     costPoints: reward?.costPoints ?? 50,
     type: reward?.type ?? "individual",
     kidId: reward?.kidId ?? null,
+    rewardType: reward?.rewardType ?? "treat",
+    who: reward?.who ?? "individual",
+    recurrence: reward?.recurrence ?? "recurring",
+    redemptionLimit: reward?.redemptionLimit ?? null,
+    redemptionPeriod: reward?.redemptionPeriod ?? "none",
+    requiresApproval: reward?.requiresApproval ?? true,
+    availableTo: reward?.availableTo ?? [],
   };
 }
 

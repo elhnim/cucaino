@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { completeTask, uncompleteTask } from "@/lib/actions/completions";
 import type { Task, TaskCompletion } from "@/lib/domain/types";
 
@@ -35,16 +35,24 @@ export default function TodoTaskCard({
   accentColor: string;
 }) {
   const [done, setDone] = useState(!!initialCompletion);
+  const [celebrating, setCelebrating] = useState(false);
   const [isPending, startTransition] = useTransition();
   const info = targetInfo(task);
+
+  useEffect(() => {
+    if (!celebrating) return;
+    const t = setTimeout(() => setCelebrating(false), 1500);
+    return () => clearTimeout(t);
+  }, [celebrating]);
 
   const toggle = () => {
     if (!isToday || isPending) return;
     const next = !done;
     setDone(next);
+    if (next) setCelebrating(true);
     startTransition(async () => {
       if (next) {
-        await completeTask(task.id, kidId, task.points, task.familyPointsContribution);
+        await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
       } else {
         await uncompleteTask(task.id, kidId);
       }
@@ -56,11 +64,17 @@ export default function TodoTaskCard({
       type="button"
       onClick={toggle}
       disabled={!isToday || isPending}
-      className={`w-full bg-white rounded-2xl shadow-sm p-3 flex items-center gap-3 text-left transition-all ${
+      className={`w-full rounded-2xl shadow-sm p-3 flex items-center gap-3 text-left transition-all duration-300 ${
         isFuture ? "opacity-60" : ""
       } ${isToday ? "active:scale-98 cursor-pointer" : "cursor-default"} ${
         done ? "opacity-80" : ""
-      }`}
+      } ${celebrating ? "scale-[1.03] shadow-lg" : ""}`}
+      style={{
+        backgroundColor: celebrating ? accentColor + "22" : "white",
+        borderWidth: celebrating ? 2 : 0,
+        borderStyle: "solid",
+        borderColor: celebrating ? accentColor : "transparent",
+      }}
     >
       <span className="text-3xl shrink-0">{task.icon}</span>
 
@@ -89,10 +103,10 @@ export default function TodoTaskCard({
       <div className="shrink-0">
         {done ? (
           <span
-            className="flex items-center justify-center w-9 h-9 rounded-full"
-            style={{ background: "#dcfce7" }}
+            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${celebrating ? "scale-125" : ""}`}
+            style={{ background: celebrating ? accentColor + "33" : "#dcfce7" }}
           >
-            ✅
+            {celebrating ? "🎉" : "✅"}
           </span>
         ) : (
           <span

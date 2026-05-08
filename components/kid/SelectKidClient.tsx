@@ -18,17 +18,20 @@ export default function SelectKidClient({
   themes,
   parentPin,
   familyName,
+  kidProgress = [],
 }: {
   kids: Kid[];
   themes: Theme[];
   parentPin: string | null;
   familyName: string | null;
+  kidProgress?: { kidId: string; done: number; total: number }[];
 }) {
   const router = useRouter();
   const [modal, setModal] = useState<Modal>(null);
   const [isPending, startTransition] = useTransition();
 
   const themeById = new Map(themes.map((t) => [t.id, t]));
+  const progressById = new Map(kidProgress.map((p) => [p.kidId, p]));
 
   const tap = (kid: Kid) => {
     if (kid.pin) {
@@ -93,7 +96,7 @@ export default function SelectKidClient({
                 className="group bg-white rounded-3xl p-3 md:p-4 shadow-xl hover:scale-105 active:scale-100 transition-transform relative"
                 style={{ aspectRatio: "1" }}
               >
-                <div className="flex flex-col items-center justify-center h-full gap-2">
+                <div className="flex flex-col items-center justify-center h-full gap-1.5">
                   <div
                     className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-4xl md:text-5xl group-hover:rotate-12 transition-transform"
                     style={{ background: theme.accentSoft }}
@@ -111,6 +114,24 @@ export default function SelectKidClient({
                       🔥 {kid.currentStreak}d
                     </span>
                   </div>
+                  {(() => {
+                    const p = progressById.get(kid.id);
+                    if (!p || p.total === 0) return null;
+                    const pct = Math.round((p.done / p.total) * 100);
+                    return (
+                      <div className="w-full px-2 space-y-0.5">
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${pct}%`, background: pct === 100 ? "#22c55e" : theme.accent }}
+                          />
+                        </div>
+                        <div className="text-center text-[9px] text-gray-400 font-semibold">
+                          {p.done}/{p.total} tasks{pct === 100 ? " ✅" : ""}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
                 {kid.pin ? (
                   <span className="absolute top-2 right-2 bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold">

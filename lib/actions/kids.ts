@@ -28,6 +28,7 @@ export async function updateKidProfile(
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/kid/${kidId}/profile`);
   revalidatePath(`/select-kid`);
+  revalidatePath(`/parent/settings`);
   return { ok: true };
 }
 

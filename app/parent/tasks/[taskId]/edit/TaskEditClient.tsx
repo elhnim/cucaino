@@ -1,0 +1,501 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import type { Task, Kid, TaskCategory, TimeBlock, ScheduleType, TaskRule, TaskTarget } from "@/lib/domain/types";
+import { createTask, updateTask, deleteTask } from "@/lib/actions/tasks";
+
+const CATEGORIES: { value: TaskCategory; label: string }[] = [
+  { value: "chore", label: "🧹 Chore" },
+  { value: "exercise", label: "💪 Exercise" },
+  { value: "music", label: "🎵 Music" },
+  { value: "activity", label: "🎨 Activity" },
+  { value: "personal", label: "🧴 Personal" },
+];
+
+const TIME_BLOCKS: { value: TimeBlock; label: string }[] = [
+  { value: "before_school", label: "🌅 Before school" },
+  { value: "morning", label: "☀️ Morning" },
+  { value: "afternoon", label: "🌤 Afternoon" },
+  { value: "after_school", label: "🏠 After school" },
+  { value: "evening", label: "🌙 Evening" },
+  { value: "anytime", label: "🕐 Anytime" },
+];
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const COMMON_ICONS = ["🛁", "🦷", "🍽️", "📚", "🎵", "🏃", "🛏️", "🎒", "🧹", "🐕", "🎮", "✏️", "🥗", "💊", "🧘"];
+
+export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[] }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+
+  const [name, setName] = useState(task?.name ?? "");
+  const [icon, setIcon] = useState(task?.icon ?? "✏️");
+  const [customIcon, setCustomIcon] = useState(task ? !COMMON_ICONS.includes(task.icon) : false);
+  const [category, setCategory] = useState<TaskCategory>(task?.category ?? "chore");
+  const [rule, setRule] = useState<TaskRule>(task?.rule ?? "strict");
+  const [timeBlock, setTimeBlock] = useState<TimeBlock>(task?.timeBlock ?? "after_school");
+  const [scheduleType, setScheduleType] = useState<ScheduleType>(task?.scheduleType ?? "daily");
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>(task?.daysOfWeek ?? [1,2,3,4,5]);
+  const [flexMin, setFlexMin] = useState(task?.flexibleMinPerWeek ?? 1);
+  const [target, setTarget] = useState<TaskTarget>(task?.target ?? "none");
+  const [durationMinutes, setDurationMinutes] = useState(task?.targetDurationMinutes ?? task?.durationMinutes ?? 10);
+  const [reps, setReps] = useState(task?.targetReps ?? 10);
+  const [repLabel, setRepLabel] = useState(task?.targetRepLabel ?? "reps");
+  const [checklistItems, setChecklistItems] = useState<string[]>(task?.checklistItems ?? [""]);
+  const [points, setPoints] = useState(task?.points ?? 5);
+  const [kidId, setKidId] = useState<string | null>(task?.kidId ?? null);
+  const [musicEnabled, setMusicEnabled] = useState(task?.musicEnabled ?? false);
+  const [description, setDescription] = useState(task?.description ?? "");
+
+  const toggleDay = (d: number) => {
+    setDaysOfWeek((prev) =>
+      prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()
+    );
+  };
+
+  const buildData = () => ({
+    name: name.trim(),
+    icon,
+    category,
+    rule,
+    scheduleType: rule === "flexible" ? "specific_days" as const : scheduleType,
+    daysOfWeek: rule === "flexible" ? [] : daysOfWeek,
+    timeBlock,
+    startTime: null,
+    points,
+    familyPointsContribution: 0,
+    requiresTimer: target === "time",
+    durationMinutes: target === "time" ? durationMinutes : null,
+    requiresCompletion: true,
+    location: null,
+    packingList: null,
+    defaultBpm: musicEnabled ? (task?.defaultBpm ?? 120) : null,
+    defaultTimeSignature: musicEnabled ? (task?.defaultTimeSignature ?? "4/4") : null,
+    kidId,
+    kidCanAdd: task?.kidCanAdd ?? false,
+    flexibleMinPerWeek: rule === "flexible" ? flexMin : null,
+    target,
+    targetDurationMinutes: target === "time" ? durationMinutes : null,
+    targetReps: target === "reps" ? reps : null,
+    targetRepLabel: target === "reps" ? repLabel : null,
+    checklistItems: target === "checklist" ? checklistItems.filter(Boolean) : null,
+    musicEnabled,
+    description: description.trim() || null,
+    timeSlots: task?.timeSlots ?? [],
+  });
+
+  const handleSave = () => {
+    if (!name.trim()) { setError("Task name is required"); return; }
+    setError(null);
+    startTransition(async () => {
+      const data = buildData();
+      const result = task
+        ? await updateTask(task.id, data)
+        : await createTask(data);
+      if (!result.ok) { setError(result.error); return; }
+      router.push("/parent/tasks");
+    });
+  };
+
+  const handleDelete = () => {
+    startTransition(async () => {
+      await deleteTask(task!.id);
+      router.push("/parent/tasks");
+    });
+  };
+
+  return (
+    <div className="p-4 space-y-4 max-w-lg mx-auto pb-8">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="text-gray-400 hover:text-gray-600 text-lg"
+        >
+          ←
+        </button>
+        <h1 className="text-xl font-black text-gray-900 flex-1">{task ? "Edit task" : "New task"}</h1>
+        {task && (
+          <button
+            type="button"
+            onClick={() => setShowDelete(true)}
+            className="text-red-400 hover:text-red-600 text-sm font-semibold"
+          >
+            Delete
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <div className="bg-red-50 text-red-700 text-sm font-medium px-4 py-2 rounded-xl">
+          {error}
+        </div>
+      )}
+
+      {/* Icon */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
+        <div className="text-sm font-bold text-gray-700">Icon</div>
+        <div className="flex flex-wrap gap-2">
+          {COMMON_ICONS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => { setIcon(e); setCustomIcon(false); }}
+              className={`w-11 h-11 rounded-xl text-2xl flex items-center justify-center ${
+                icon === e && !customIcon ? "ring-2 ring-indigo-500 bg-indigo-50 scale-110" : "bg-gray-100"
+              }`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+        <input
+          placeholder="Or type any emoji…"
+          value={customIcon ? icon : ""}
+          onChange={(e) => { setIcon(e.target.value); setCustomIcon(true); }}
+          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Name + description */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
+        <div>
+          <label className="text-sm font-bold text-gray-700 block mb-1">Task name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-bold text-gray-700 block mb-1">Description <span className="font-normal text-gray-400">(optional)</span></label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Instructions shown to the kid…"
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none"
+          />
+        </div>
+      </div>
+
+      {/* Category */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-2">
+        <div className="text-sm font-bold text-gray-700">Category</div>
+        <div className="flex flex-wrap gap-2">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              onClick={() => setCategory(c.value)}
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                category === c.value
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Assigned to */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-2">
+        <div className="text-sm font-bold text-gray-700">Assigned to</div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setKidId(null)}
+            className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+              kidId === null ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            All kids
+          </button>
+          {kids.map((k) => (
+            <button
+              key={k.id}
+              type="button"
+              onClick={() => setKidId(k.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+                kidId === k.id ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {k.avatar} {k.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Rule */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
+        <div className="text-sm font-bold text-gray-700">Rule</div>
+        <div className="flex gap-3">
+          {(["strict", "flexible"] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRule(r)}
+              className={`flex-1 py-2 rounded-xl text-sm font-bold border ${
+                rule === r
+                  ? r === "strict"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-green-600 text-white border-green-600"
+                  : "border-gray-200 text-gray-500"
+              }`}
+            >
+              {r === "strict" ? "📌 Strict" : "🔄 Flexible"}
+            </button>
+          ))}
+        </div>
+
+        {rule === "strict" && (
+          <>
+            <div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">Schedule</div>
+              <div className="flex flex-wrap gap-2">
+                {(["daily", "weekdays", "weekends", "specific_days"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setScheduleType(s)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      scheduleType === s ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    {s === "daily" ? "Every day" : s === "weekdays" ? "Weekdays" : s === "weekends" ? "Weekends" : "Custom"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {scheduleType === "specific_days" && (
+              <div className="flex gap-1.5">
+                {DAYS.map((d, i) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => toggleDay(i + 1)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold ${
+                      daysOfWeek.includes(i + 1)
+                        ? "bg-indigo-600 text-white"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">Time of day</div>
+              <div className="flex flex-wrap gap-2">
+                {TIME_BLOCKS.map((tb) => (
+                  <button
+                    key={tb.value}
+                    type="button"
+                    onClick={() => setTimeBlock(tb.value)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      timeBlock === tb.value ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500"
+                    }`}
+                  >
+                    {tb.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {rule === "flexible" && (
+          <div>
+            <div className="text-xs font-semibold text-gray-500 mb-1">Minimum times per week</div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setFlexMin((v) => Math.max(0, v - 1))}
+                className="w-9 h-9 rounded-full bg-gray-100 text-lg font-bold"
+              >
+                −
+              </button>
+              <span className="text-xl font-black w-8 text-center">{flexMin}</span>
+              <button
+                type="button"
+                onClick={() => setFlexMin((v) => v + 1)}
+                className="w-9 h-9 rounded-full bg-gray-100 text-lg font-bold"
+              >
+                +
+              </button>
+              <span className="text-xs text-gray-400">{flexMin === 0 ? "(bonus / optional)" : "per week"}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Target */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
+        <div className="text-sm font-bold text-gray-700">Target</div>
+        <div className="flex flex-wrap gap-2">
+          {(["none", "time", "reps", "checklist"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTarget(t)}
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+                target === t ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {t === "none" ? "None" : t === "time" ? "⏱ Time" : t === "reps" ? "🔢 Reps" : "☑ Checklist"}
+            </button>
+          ))}
+        </div>
+
+        {target === "time" && (
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min={1}
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(Number(e.target.value))}
+              className="w-20 border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold text-center"
+            />
+            <span className="text-sm text-gray-500">minutes</span>
+          </div>
+        )}
+
+        {target === "reps" && (
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              value={reps}
+              onChange={(e) => setReps(Number(e.target.value))}
+              className="w-20 border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold text-center"
+            />
+            <input
+              value={repLabel}
+              onChange={(e) => setRepLabel(e.target.value)}
+              placeholder="reps"
+              className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm"
+            />
+          </div>
+        )}
+
+        {target === "checklist" && (
+          <div className="space-y-2">
+            {checklistItems.map((item, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input
+                  value={item}
+                  onChange={(e) => {
+                    const next = [...checklistItems];
+                    next[idx] = e.target.value;
+                    setChecklistItems(next);
+                  }}
+                  placeholder={`Step ${idx + 1}`}
+                  className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setChecklistItems(checklistItems.filter((_, i) => i !== idx))}
+                  className="text-gray-300 hover:text-red-400 text-lg"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setChecklistItems([...checklistItems, ""])}
+              className="text-indigo-600 text-sm font-semibold"
+            >
+              + Add step
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Stars */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-2">
+        <label className="text-sm font-bold text-gray-700 block">Stars per completion</label>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setPoints((v) => Math.max(1, v - 1))}
+            className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold"
+          >
+            −
+          </button>
+          <span className="text-2xl font-black w-10 text-center">⭐{points}</span>
+          <button
+            type="button"
+            onClick={() => setPoints((v) => v + 1)}
+            className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Music */}
+      <div className="bg-white rounded-2xl shadow p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-bold text-gray-700">🎵 Music / Metronome</div>
+            <div className="text-xs text-gray-400">Opens metronome when kid starts task</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMusicEnabled((v) => !v)}
+            className={`w-12 h-6 rounded-full transition-colors ${musicEnabled ? "bg-indigo-600" : "bg-gray-200"}`}
+          >
+            <span
+              className={`block w-5 h-5 rounded-full bg-white shadow mx-0.5 transition-transform ${musicEnabled ? "translate-x-6" : ""}`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Save */}
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={isPending}
+        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-2xl disabled:opacity-50"
+      >
+        {isPending ? "Saving…" : task ? "Save changes" : "Create task"}
+      </button>
+
+      {/* Delete confirm */}
+      {showDelete && (
+        <div className="fixed inset-0 bg-black/40 flex items-end justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <div className="font-bold text-gray-900">Delete "{task?.name}"?</div>
+            <p className="text-sm text-gray-500">This will hide the task from all kids. You can restore it from Supabase if needed.</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDelete(false)}
+                className="flex-1 border border-gray-200 text-gray-600 font-bold py-2.5 rounded-xl text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isPending}
+                className="flex-1 bg-red-500 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50"
+              >
+                {isPending ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

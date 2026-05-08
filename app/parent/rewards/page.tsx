@@ -55,7 +55,10 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
           .join(", ");
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3">
+    <Link
+      href={`/parent/rewards/${reward.id}/edit`}
+      className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 block hover:shadow-md transition-shadow"
+    >
       <div
         className="flex-shrink-0 flex items-center justify-center rounded-full bg-amber-50 text-3xl"
         style={{ width: 48, height: 48 }}
@@ -81,7 +84,6 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
         </div>
 
         <p className="text-xs text-gray-400 mt-0.5">{kidNames}</p>
-
         <p className="text-sm text-gray-600 mt-0.5">⭐ {reward.costPoints}</p>
 
         {reward.requiresApproval && (
@@ -89,24 +91,16 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
         )}
       </div>
 
-      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+      <div className="flex items-center gap-2 flex-shrink-0">
         <span
           className={`text-xs font-semibold px-3 py-1 rounded-full ${
-            reward.active
-              ? "bg-green-100 text-green-700"
-              : "bg-gray-100 text-gray-500"
+            reward.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
           }`}
         >
           {reward.active ? "Active" : "Paused"}
         </span>
-        <Link
-          href={`/parent/rewards/${reward.id}/edit`}
-          className="text-xl text-gray-400 leading-none"
-          aria-label={`Edit ${reward.name}`}
-        >
-          ›
-        </Link>
+        <span className="text-xl text-gray-300">›</span>
       </div>
-    </div>
+    </Link>
   );
 }

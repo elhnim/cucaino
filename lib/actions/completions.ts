@@ -5,11 +5,20 @@ import { createClient } from "@/lib/supabase/server";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+const BADGE_CATEGORY_MAP: Record<string, string> = {
+  chore: "chores",
+  exercise: "physical",
+  music: "music",
+  personal: "hygiene",
+  activity: "mindfulness",
+};
+
 export async function completeTask(
   taskId: string,
   kidId: string,
   pointsAwarded: number,
   familyPointsAwarded: number,
+  taskCategory?: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -42,6 +51,17 @@ export async function completeTask(
     await supabase.rpc("increment_family_points", { p_kid_id: kidId, p_amount: familyPointsAwarded });
   }
 
+  // Update total_stars_earned and streak (single atomic call)
+  await supabase.rpc("update_kid_gamification", { p_kid_id: kidId, p_points: pointsAwarded });
+
+  // Increment badge progress if category is provided
+  if (taskCategory) {
+    const badgeCategory = BADGE_CATEGORY_MAP[taskCategory];
+    if (badgeCategory) {
+      await supabase.rpc("increment_badge_progress", { p_kid_id: kidId, p_category: badgeCategory });
+    }
+  }
+
   revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true };
 }
@@ -72,6 +92,7 @@ export async function uncompleteTask(
   // Atomic deduction — clamped to 0 in the SQL function
   if (completion.points_awarded > 0) {
     await supabase.rpc("decrement_kid_points", { p_kid_id: kidId, p_amount: completion.points_awarded });
+    await supabase.rpc("decrement_kid_stars", { p_kid_id: kidId, p_amount: completion.points_awarded });
   }
 
   revalidatePath(`/kid/${kidId}/todo`);

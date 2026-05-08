@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { TaskCategory, TimeBlock, ScheduleType } from "@/lib/domain/types";
+import type { TaskCategory, TimeBlock, ScheduleType, TaskRule, TaskTarget, TaskTimeSlot } from "@/lib/domain/types";
 
 export interface TaskFormData {
   name: string;
@@ -23,6 +23,17 @@ export interface TaskFormData {
   defaultTimeSignature: string | null;
   kidId: string | null;
   kidCanAdd: boolean;
+  // New fields
+  rule?: TaskRule;
+  flexibleMinPerWeek?: number | null;
+  target?: TaskTarget;
+  targetDurationMinutes?: number | null;
+  targetReps?: number | null;
+  targetRepLabel?: string | null;
+  checklistItems?: string[] | null;
+  musicEnabled?: boolean;
+  description?: string | null;
+  timeSlots?: TaskTimeSlot[];
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -89,6 +100,16 @@ export async function updateTask(
       default_bpm: data.defaultBpm,
       default_time_signature: data.defaultTimeSignature,
       kid_can_add: data.kidCanAdd,
+      rule: data.rule ?? "strict",
+      flexible_min_per_week: data.flexibleMinPerWeek ?? null,
+      target: data.target ?? "none",
+      target_duration_minutes: data.targetDurationMinutes ?? null,
+      target_reps: data.targetReps ?? null,
+      target_rep_label: data.targetRepLabel ?? null,
+      checklist_items: data.checklistItems ?? null,
+      music_enabled: data.musicEnabled ?? false,
+      description: data.description ?? null,
+      time_slots: data.timeSlots ?? [],
     })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
