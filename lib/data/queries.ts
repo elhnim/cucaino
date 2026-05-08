@@ -603,5 +603,5 @@ export async function listKidDailyAdditions(kidId: string, date: string): Promis
   return data
     .map((row) => row.tasks)
     .filter(Boolean)
-    .map((t) => mapTask(t as DbTaskRow));
+    .map((t) => mapTask(t as unknown as DbTaskRow));
 }
