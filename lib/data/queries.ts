@@ -581,8 +581,9 @@ export async function listKidAddableTasks(): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
     .select("*")
-    .eq("kid_can_add", true)
+    .eq("rule", "flexible")
     .eq("active", true)
+    .is("kid_id", null)
     .order("name");
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);
