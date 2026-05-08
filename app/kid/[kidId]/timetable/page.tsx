@@ -16,7 +16,7 @@ export default async function TimetablePage({
   const classes = await listSchoolClasses(kid.id);
 
   return (
-    <KidShell kid={kid} active="today">
+    <KidShell kid={kid} active="home">
       <div className="p-4 md:p-6">
         <TimetableEditor kidId={kid.id} accent={theme.accent} initialClasses={classes} />
       </div>

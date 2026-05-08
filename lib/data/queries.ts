@@ -10,6 +10,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { timed } from "@/lib/data/perf";
 import type {
   Family,
   Kid,
@@ -78,6 +79,9 @@ function mapKid(row: DbKidRow): Kid {
     pointsBalance: row.points_balance,
     currentStreak: row.current_streak,
     longestStreak: row.longest_streak,
+    totalStarsEarned: (row as any).total_stars_earned ?? 0,
+    selectedAvatarEmoji: (row as any).selected_avatar_emoji ?? null,
+    selectedFrame: (row as any).selected_frame ?? null,
   };
 }
 
@@ -104,6 +108,16 @@ function mapTask(row: DbTaskRow): Task {
     defaultTimeSignature: row.default_time_signature,
     active: row.active,
     kidCanAdd: row.kid_can_add ?? false,
+    rule: (row as any).rule ?? "strict",
+    flexibleMinPerWeek: (row as any).flexible_min_per_week ?? null,
+    timeSlots: (row as any).time_slots ?? [],
+    target: (row as any).target ?? "none",
+    targetDurationMinutes: (row as any).target_duration_minutes ?? null,
+    targetReps: (row as any).target_reps ?? null,
+    targetRepLabel: (row as any).target_rep_label ?? null,
+    checklistItems: (row as any).checklist_items ?? null,
+    musicEnabled: (row as any).music_enabled ?? false,
+    description: (row as any).description ?? null,
   };
 }
 
@@ -133,7 +147,7 @@ export async function listKids(): Promise<Kid[]> {
   return (data as DbKidRow[]).map(mapKid);
 }
 
-export async function getKid(id: string): Promise<Kid | null> {
+export const getKid = timed("getKid", async (id: string): Promise<Kid | null> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("kids")
@@ -142,9 +156,9 @@ export async function getKid(id: string): Promise<Kid | null> {
     .maybeSingle();
   if (error || !data) return null;
   return mapKid(data as DbKidRow);
-}
+});
 
-export async function listTasksForKid(kidId: string): Promise<Task[]> {
+export const listTasksForKid = timed("listTasksForKid", async (kidId: string): Promise<Task[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tasks")
@@ -153,7 +167,7 @@ export async function listTasksForKid(kidId: string): Promise<Task[]> {
     .eq("active", true);
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);
-}
+});
 
 export async function listAllTasks(): Promise<Task[]> {
   const supabase = await createClient();
@@ -167,7 +181,7 @@ export async function listAllTasks(): Promise<Task[]> {
   return (data as DbTaskRow[]).map(mapTask);
 }
 
-export async function listCompletionsToday(kidId: string): Promise<TaskCompletion[]> {
+export const listCompletionsToday = timed("listCompletionsToday", async (kidId: string): Promise<TaskCompletion[]> => {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
@@ -185,7 +199,7 @@ export async function listCompletionsToday(kidId: string): Promise<TaskCompletio
     durationActualSeconds: row.duration_actual_seconds,
     pointsAwarded: row.points_awarded,
   }));
-}
+});
 
 export async function listSchoolItemsForDay(
   kidId: string,
@@ -229,7 +243,7 @@ export async function listAllSchoolItems(): Promise<SchoolItem[]> {
   }));
 }
 
-export async function listRewardsForKid(kidId: string): Promise<Reward[]> {
+export const listRewardsForKid = timed("listRewardsForKid", async (kidId: string): Promise<Reward[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("rewards")
@@ -247,10 +261,17 @@ export async function listRewardsForKid(kidId: string): Promise<Reward[]> {
     costPoints: row.cost_points,
     type: row.type as Reward["type"],
     active: row.active,
+    rewardType: (row as any).reward_type ?? "treat",
+    who: (row as any).who ?? "individual",
+    recurrence: (row as any).recurrence ?? "recurring",
+    redemptionLimit: (row as any).redemption_limit ?? null,
+    redemptionPeriod: (row as any).redemption_period ?? "none",
+    requiresApproval: (row as any).requires_approval ?? true,
+    availableTo: (row as any).available_to ?? [],
   }));
-}
+});
 
-export async function listPendingRequests(): Promise<RewardRequest[]> {
+export const listPendingRequests = timed("listPendingRequests", async (): Promise<RewardRequest[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("reward_requests")
@@ -266,9 +287,9 @@ export async function listPendingRequests(): Promise<RewardRequest[]> {
     status: row.status as RewardRequest["status"],
     parentNote: row.parent_note,
   }));
-}
+});
 
-export async function listQuizBanks(): Promise<QuizBank[]> {
+export const listQuizBanks = timed("listQuizBanks", async (): Promise<QuizBank[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("quiz_banks")
@@ -285,7 +306,7 @@ export async function listQuizBanks(): Promise<QuizBank[]> {
     maxAge: row.max_age,
     isBuiltin: row.is_builtin,
   }));
-}
+});
 
 export async function getQuizBank(id: string): Promise<QuizBank | null> {
   const supabase = await createClient();

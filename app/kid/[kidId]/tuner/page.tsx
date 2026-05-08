@@ -15,7 +15,7 @@ export default async function TunerPage({
   const theme = getTheme(kid.themeId);
 
   return (
-    <KidShell kid={kid} active="today">
+    <KidShell kid={kid} active="home">
       <div className="p-4 md:p-6">
         <p className="text-sm text-gray-600 mb-4">
           🎻 Violin and 🪕 ukulele tuner. Allow mic access when asked, then play one string at a time.

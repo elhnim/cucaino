@@ -55,7 +55,7 @@ export default async function TodayPage({
   return (
     <KidShell
       kid={kid}
-      active="today"
+      active="home"
       familyGoal={{
         name: "Movie night",
         emoji: "🎬",

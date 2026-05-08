@@ -17,7 +17,7 @@ export default async function ProfilePage({
   const allThemes = listThemes();
 
   return (
-    <KidShell kid={kid} active="profile">
+    <KidShell kid={kid} active="home">
       <div className="p-4 md:p-6">
         <ProfileEditor kid={kid} accent={theme.accent} themes={allThemes} />
       </div>

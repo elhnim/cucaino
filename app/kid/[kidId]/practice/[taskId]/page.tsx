@@ -24,7 +24,7 @@ export default async function PracticePage({
   const isMusic = task.category === "music";
 
   return (
-    <KidShell kid={kid} active="today">
+    <KidShell kid={kid} active="home">
       <div className="p-4 md:p-6 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <Link

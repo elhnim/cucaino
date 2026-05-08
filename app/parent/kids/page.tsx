@@ -7,7 +7,7 @@ export default async function ParentKidsPage() {
 
   return (
     <div className="p-4 space-y-3">
-        {kids.map((kid) => {
+      {kids.map((kid) => {
           const theme = getTheme(kid.themeId);
           return (
             <div
@@ -37,13 +37,12 @@ export default async function ParentKidsPage() {
             </div>
           );
         })}
-      </div>
-
       <Link
         href="/parent/school-items"
         className="block w-full bg-white border-2 border-indigo-200 hover:border-indigo-400 text-indigo-700 font-bold text-center py-3 rounded-2xl transition-colors"
       >
         🎒 Manage school bag items →
       </Link>
+    </div>
   );
 }

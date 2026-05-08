@@ -18,7 +18,7 @@ export default async function WeekPage({
   ]);
 
   return (
-    <KidShell kid={kid} active="week">
+    <KidShell kid={kid} active="todo">
       <WeekGridClient kid={kid} tasks={tasks} classes={classes} />
     </KidShell>
   );
