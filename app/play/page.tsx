@@ -1,149 +1,79 @@
 import Link from "next/link";
-import { listKids } from "@/lib/data/stub";
 
-interface GameCard {
-  id: string;
-  title: string;
-  description: string;
-  emoji: string;
-  href?: string;
-  comingSoon?: boolean;
-  /** Tailwind classes for the card body when active */
-  activeClass?: string;
-}
-
-const GAMES: GameCard[] = [
-  {
-    id: "quiz",
-    title: "Quiz battles",
-    description: "Take turns or solo — maths, spelling, silly trivia and more",
-    emoji: "🎮",
-    href: "/play/quiz",
-    activeClass: "from-fuchsia-500 to-purple-600 text-white",
-  },
-  {
-    id: "memory",
-    title: "Memory match",
-    description: "Flip cards, find pairs, beat the clock",
-    emoji: "🃏",
-    comingSoon: true,
-  },
-  {
-    id: "draw",
-    title: "Drawing duel",
-    description: "Guess what your sibling drew",
-    emoji: "🎨",
-    comingSoon: true,
-  },
-  {
-    id: "words",
-    title: "Word jumble",
-    description: "Unscramble words against the timer",
-    emoji: "🔤",
-    comingSoon: true,
-  },
-  {
-    id: "rps",
-    title: "Rock paper scissors",
-    description: "Best of 5 on one tablet",
-    emoji: "✊",
-    comingSoon: true,
-  },
-  {
-    id: "story",
-    title: "Story builder",
-    description: "Take turns adding one line to a silly story",
-    emoji: "📖",
-    comingSoon: true,
-  },
-];
-
-export default async function PlayHubPage() {
-  const kids = await listKids();
-
+export default function PlayHubPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100 font-fun p-6">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6 gap-3">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-black text-fuchsia-900">
-              🎮 Play together
-            </h1>
-            <p className="text-sm md:text-base text-fuchsia-700">
-              Pick a game and battle for the high score!
-            </p>
-          </div>
+    <main className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
+      <div className="max-w-3xl mx-auto p-4">
+        {/* Header */}
+        <div className="flex items-center gap-3 py-4 mb-2">
           <Link
             href="/select-kid"
-            className="text-sm bg-white/70 hover:bg-white px-4 py-2 rounded-full shadow shrink-0"
+            className="text-2xl leading-none text-indigo-400 hover:text-indigo-600 transition-colors"
           >
-            ← Back
+            ←
           </Link>
+          <h1 className="text-3xl font-black text-indigo-900">🎮 Games</h1>
         </div>
 
-        {/* Players */}
-        <div className="bg-white rounded-2xl p-4 shadow mb-6">
-          <div className="text-sm font-bold text-gray-500 mb-2">PLAYERS</div>
-          <div className="flex gap-3 flex-wrap">
-            {kids.map((kid) => (
-              <div
-                key={kid.id}
-                className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2"
-              >
-                <div className="text-2xl">{kid.avatar}</div>
-                <div>
-                  <div className="text-sm font-bold">{kid.name}</div>
-                  <div className="text-xs text-gray-500">⭐ {kid.pointsBalance}</div>
-                </div>
+        {/* Game cards grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Quiz */}
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-3xl p-6 shadow-lg flex flex-col gap-3">
+            <div className="text-5xl">🎯</div>
+            <div>
+              <div className="text-2xl font-black text-amber-900">Quiz</div>
+              <div className="text-sm text-amber-700 mt-1">
+                Test your knowledge · 14 topics · 3 modes
               </div>
-            ))}
+            </div>
+            <Link
+              href="/play/quiz"
+              className="mt-auto w-full text-center bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold rounded-2xl py-3 transition-colors"
+            >
+              Play Quiz →
+            </Link>
+          </div>
+
+          {/* Flashcards */}
+          <div className="bg-purple-50 border-2 border-purple-200 rounded-3xl p-6 shadow-lg flex flex-col gap-3">
+            <div className="text-5xl">🃏</div>
+            <div>
+              <div className="text-2xl font-black text-purple-900">Flashcards</div>
+              <div className="text-sm text-purple-700 mt-1">
+                Flip through topics and learn as you go
+              </div>
+            </div>
+            <button
+              disabled
+              className="mt-auto w-full text-center bg-gray-200 text-gray-400 font-bold rounded-2xl py-3 cursor-not-allowed"
+            >
+              Coming soon
+            </button>
+          </div>
+
+          {/* Memory Match */}
+          <div className="bg-emerald-50 border-2 border-emerald-200 rounded-3xl p-6 shadow-lg flex flex-col gap-3">
+            <div className="text-5xl">🧩</div>
+            <div>
+              <div className="text-2xl font-black text-emerald-900">Memory Match</div>
+              <div className="text-sm text-emerald-700 mt-1">
+                Flip tiles and find the pairs
+              </div>
+            </div>
+            <button
+              disabled
+              className="mt-auto w-full text-center bg-gray-200 text-gray-400 font-bold rounded-2xl py-3 cursor-not-allowed"
+            >
+              Coming soon
+            </button>
+          </div>
+
+          {/* More coming soon */}
+          <div className="border-2 border-dashed border-gray-300 rounded-3xl p-6 flex flex-col items-center justify-center gap-2 text-center">
+            <div className="text-3xl">🎲 🎪 🎨</div>
+            <div className="text-gray-400 font-semibold">More games coming soon! 🚀</div>
           </div>
         </div>
-
-        {/* Game grid */}
-        <h2 className="text-sm font-bold text-gray-500 mb-2">GAMES</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {GAMES.map((game) => {
-            if (game.comingSoon) {
-              return (
-                <div
-                  key={game.id}
-                  className="bg-white rounded-2xl p-4 shadow opacity-60 relative"
-                >
-                  <span className="absolute top-2 right-2 text-[10px] font-bold bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">
-                    SOON
-                  </span>
-                  <div className="text-4xl">{game.emoji}</div>
-                  <div className="font-bold text-gray-700 mt-1">{game.title}</div>
-                  <div className="text-xs text-gray-500">{game.description}</div>
-                </div>
-              );
-            }
-            return (
-              <Link
-                key={game.id}
-                href={game.href!}
-                className={`rounded-2xl p-5 shadow hover:shadow-xl hover:-translate-y-0.5 transition-all relative bg-gradient-to-br ${game.activeClass}`}
-              >
-                <div className="text-5xl mb-2">{game.emoji}</div>
-                <div className="font-black text-xl">{game.title}</div>
-                <div className="text-sm opacity-90">{game.description}</div>
-                <div className="absolute top-3 right-3 text-2xl">→</div>
-              </Link>
-            );
-          })}
-        </div>
-
-        <p className="text-xs text-center text-gray-500 mt-6">
-          More games rolling out — got an idea?{" "}
-          <Link
-            href="/parent/feedback"
-            className="font-bold text-indigo-600 hover:underline"
-          >
-            Send it via Feature ideas
-          </Link>
-          .
-        </p>
       </div>
     </main>
   );
