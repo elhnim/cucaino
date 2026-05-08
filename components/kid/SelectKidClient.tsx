@@ -49,14 +49,14 @@ export default function SelectKidClient({
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 font-fun flex flex-col">
       {/* Brand bar */}
-      <header className="px-6 md:px-10 pt-5 pb-2 flex items-center">
+      <header className="px-6 md:px-10 pt-5 pb-2 flex items-center max-w-2xl mx-auto w-full">
         <div className="flex items-center gap-2">
           <span className="text-2xl">✨</span>
           <span className="font-black text-xl text-indigo-900 tracking-tight">Cucaino</span>
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col px-6 md:px-10 pb-8">
+      <div className="flex-1 flex flex-col px-6 md:px-10 pb-8 max-w-2xl mx-auto w-full">
         {/* Family name sub-heading */}
         {familyName ? (
           <p className="text-base md:text-lg text-indigo-700 font-semibold mt-2 mb-1">
