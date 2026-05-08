@@ -230,7 +230,7 @@ export default function ProfileEditor({
           {isPending ? "Saving…" : dirty ? "Save changes" : "No changes"}
         </button>
         <Link
-          href={`/kid/${serverKid.id}/today`}
+          href={`/kid/${serverKid.id}/home`}
           className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2.5 rounded-xl text-sm"
         >
           Done

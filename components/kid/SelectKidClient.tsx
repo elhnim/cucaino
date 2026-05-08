@@ -150,7 +150,7 @@ export default function SelectKidClient({
                 accent={themeById.get(modal.kid.themeId)?.accent ?? "#6366f1"}
                 prompt={`Enter ${modal.kid.name}'s PIN`}
                 onCancel={() => setModal(null)}
-                onSuccess={() => { setModal(null); router.push(`/kid/${modal.kid.id}/today`); }}
+                onSuccess={() => { setModal(null); router.push(`/kid/${modal.kid.id}/home`); }}
               />
             ) : modal.kind === "parent-verify" ? (
               <PinPad
@@ -180,7 +180,7 @@ export default function SelectKidClient({
                   onSet={(pin) => {
                     startTransition(async () => {
                       await setKidPin(modal.kid.id, pin);
-                      router.push(`/kid/${modal.kid.id}/today`);
+                      router.push(`/kid/${modal.kid.id}/home`);
                     });
                   }}
                 />
@@ -189,7 +189,7 @@ export default function SelectKidClient({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => router.push(`/kid/${modal.kid.id}/today`)}
+                  onClick={() => router.push(`/kid/${modal.kid.id}/home`)}
                   className="w-full mt-2 text-sm text-gray-400 hover:text-gray-600 font-bold py-2"
                 >
                   Skip for now

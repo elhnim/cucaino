@@ -28,10 +28,10 @@ export default async function PracticePage({
       <div className="p-4 md:p-6 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <Link
-            href={`/kid/${kid.id}/today`}
+            href={`/kid/${kid.id}/home`}
             className="text-sm bg-white/70 hover:bg-white px-3 py-1.5 rounded-full shadow"
           >
-            ← Today
+            ← Home
           </Link>
           {isMusic ? (
             <Link
