@@ -55,6 +55,13 @@ function KidAvatarMenu({ kid, accent, accentSoft }: { kid: Kid; accent: string; 
             ✏️ Edit profile
           </Link>
           <Link
+            href={`/kid/${kid.id}/timetable`}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 active:bg-gray-100 border-t border-gray-100"
+          >
+            📚 My timetable
+          </Link>
+          <Link
             href="/select-kid"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 active:bg-gray-100 border-t border-gray-100"
