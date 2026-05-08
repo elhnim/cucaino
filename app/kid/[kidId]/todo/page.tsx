@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import KidShell from "@/components/kid/KidShell";
 import TodoTaskCard from "@/components/kid/TodoTaskCard";
+import AddPersonalTaskModal from "@/components/kid/AddPersonalTaskModal";
 import {
   getKid,
   listTasksForKid,
   listCompletionsToday,
   listSchoolClasses,
+  listKidAddableTasks,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -104,10 +106,11 @@ export default async function TodoPage({
     ? (Math.max(1, Math.min(7, parseInt(day))) as DayOfWeek)
     : today;
 
-  const [tasks, completions, classes] = await Promise.all([
+  const [tasks, completions, classes, addableTasks] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
     listSchoolClasses(kid.id),
+    listKidAddableTasks(),
   ]);
 
   const theme = getTheme(kid.themeId);
@@ -242,12 +245,11 @@ export default async function TodoPage({
           {/* Add a task — today and future only */}
           {!isPast && (
             <div className="pt-2">
-              <button
-                type="button"
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-3 text-sm font-bold text-gray-400 hover:border-gray-300 hover:text-gray-500 transition-colors"
-              >
-                + Add a task
-              </button>
+              <AddPersonalTaskModal
+                kidId={kid.id}
+                accent={theme.accent}
+                addableTasks={addableTasks}
+              />
             </div>
           )}
         </div>
