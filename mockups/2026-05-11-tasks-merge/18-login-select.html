@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Login & Select Profile — Mockups</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+body { flex-wrap: nowrap; align-items: flex-start; }
+
+/* ── Gradient background (shared across all 3 phones) ── */
+.grad-bg {
+  background: linear-gradient(160deg, #e0e7ff 0%, #f5f3ff 45%, #fce7f3 100%);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── Screen code badge ── */
+.screen-code {
+  display: inline-block;
+  background: #6366f1;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin: 10px auto 0;
+  text-align: center;
+}
+
+/* ── LOGIN ── */
+.login-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  gap: 24px;
+}
+
+.brand-mark {
+  font-size: 28px;
+  font-weight: 900;
+  color: #312e81;
+  letter-spacing: -0.5px;
+}
+
+.login-card {
+  background: white;
+  border-radius: 24px;
+  padding: 28px 24px;
+  width: 100%;
+  box-shadow: 0 8px 32px -4px rgba(99,102,241,0.15), 0 0 0 1px rgba(99,102,241,0.08);
+}
+
+.login-heading {
+  font-size: 22px;
+  font-weight: 900;
+  color: #1e1b4b;
+  margin-bottom: 4px;
+}
+
+.login-sub {
+  font-size: 13px;
+  color: #6366f1;
+  margin-bottom: 22px;
+  font-weight: 500;
+}
+
+.login-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  margin-bottom: 6px;
+}
+
+.login-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  font-size: 14px;
+  color: #111827;
+  margin-bottom: 14px;
+  background: #fafafa;
+}
+
+.login-input.focused { border-color: #6366f1; }
+
+.btn-signin {
+  width: 100%;
+  padding: 14px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.login-footer {
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.login-footer a {
+  color: #6366f1;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+/* ── SELECT PROFILE ── */
+.sp-header {
+  padding: 20px 24px 0;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sp-brand {
+  font-size: 16px;
+  font-weight: 900;
+  color: #312e81;
+  margin-bottom: 18px;
+}
+
+.sp-heading {
+  font-size: 28px;
+  font-weight: 900;
+  color: #1e1b4b;
+  line-height: 1.15;
+  margin-bottom: 20px;
+}
+
+.sp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 0 16px 24px;
+  flex: 1;
+  align-content: start;
+}
+
+.kid-card {
+  border-radius: 20px;
+  padding: 18px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  background: white;
+  box-shadow: 0 2px 12px -2px rgba(0,0,0,0.1);
+  position: relative;
+  aspect-ratio: 1;
+}
+
+.kid-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+}
+
+.kid-name {
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.kid-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.kid-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.badge-star { background: #fef9c3; color: #854d0e; }
+.badge-fire { background: #ffedd5; color: #9a3412; }
+
+.kid-progress-bar-wrap {
+  width: 100%;
+  padding: 0 4px;
+}
+
+.kid-progress-bg {
+  height: 5px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.kid-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+
+.kid-progress-text {
+  font-size: 9px;
+  color: #9ca3af;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 2px;
+}
+
+.pin-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 6px;
+}
+
+/* Parent card — same shape as kid card */
+.parent-card {
+  border-radius: 20px;
+  padding: 18px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  background: white;
+  box-shadow: 0 2px 12px -2px rgba(0,0,0,0.1);
+  aspect-ratio: 1;
+  position: relative;
+}
+
+.parent-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #e0e7ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+}
+
+.parent-name {
+  font-size: 13px;
+  font-weight: 900;
+  color: #4338ca;
+  text-align: center;
+}
+
+.parent-role-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: #e0e7ff;
+  color: #4338ca;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── PIN MODAL ── */
+.pin-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 24px;
+}
+
+.pin-card {
+  background: white;
+  border-radius: 28px;
+  padding: 28px 24px 20px;
+  width: 100%;
+  text-align: center;
+}
+
+.pin-avatar-ring {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #ede9fe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  margin: 0 auto 12px;
+  border: 3px solid #a78bfa;
+}
+
+.pin-heading {
+  font-size: 18px;
+  font-weight: 900;
+  color: #1e1b4b;
+  margin-bottom: 4px;
+}
+
+.pin-sub {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-bottom: 20px;
+}
+
+.pin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
+}
+
+.pin-dot.filled {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.num-btn {
+  padding: 14px 8px;
+  background: #f9fafb;
+  border-radius: 14px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #111827;
+  cursor: pointer;
+  text-align: center;
+}
+
+.num-btn.blank { background: transparent; cursor: default; }
+
+.num-btn.back {
+  font-size: 15px;
+  color: #9ca3af;
+}
+
+.pin-cancel {
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* ── Flow arrows ── */
+.flow-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.flow-arrow {
+  font-size: 28px;
+  color: #9ca3af;
+  align-self: center;
+  flex-shrink: 0;
+  margin-top: 80px;
+}
+</style>
+</head>
+<body>
+
+<!-- L-01: Login -->
+<div class="flow-col">
+  <div class="screen-code">L-01</div>
+  <div class="phone">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span>●●● 100%</span>
+    </div>
+    <div class="grad-bg">
+      <div class="login-wrap">
+        <div class="brand-mark">✨ Cucaino</div>
+        <div class="login-card">
+          <div class="login-heading">Hello! 👋</div>
+          <div class="login-sub">Sign in to your Cucaino family.</div>
+
+          <div class="login-label">Email</div>
+          <div class="login-input focused">sarah@example.com</div>
+
+          <div class="login-label">Password</div>
+          <div class="login-input" style="color:#9ca3af;letter-spacing:3px;">••••••••</div>
+
+          <button class="btn-signin">Sign in</button>
+        </div>
+        <div class="login-footer">New here? <a href="#">Create an account</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- SP-01: Select Profile -->
+<div class="flow-col">
+  <div class="screen-code">SP-01</div>
+  <div class="phone">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span>●●● 100%</span>
+    </div>
+    <div class="grad-bg">
+      <div class="sp-header">
+        <div class="sp-brand">✨ Cucaino</div>
+        <div class="sp-heading">Knock knock... 🚪<br/>Who's there?</div>
+      </div>
+      <div class="sp-grid">
+
+        <!-- Emma -->
+        <div class="kid-card">
+          <div class="pin-badge">🔒 PIN</div>
+          <div class="kid-avatar" style="background:#ede9fe;">🦄</div>
+          <div class="kid-name" style="color:#7c3aed;">Emma</div>
+          <div class="kid-badges">
+            <span class="kid-badge badge-star">⭐ 240</span>
+            <span class="kid-badge badge-fire">🔥 7d</span>
+          </div>
+          <div class="kid-progress-bar-wrap">
+            <div class="kid-progress-bg">
+              <div class="kid-progress-fill" style="width:80%;background:#7c3aed;"></div>
+            </div>
+            <div class="kid-progress-text">4/5 tasks</div>
+          </div>
+        </div>
+
+        <!-- Liam -->
+        <div class="kid-card">
+          <div class="kid-avatar" style="background:#dbeafe;">🚀</div>
+          <div class="kid-name" style="color:#1d4ed8;">Liam</div>
+          <div class="kid-badges">
+            <span class="kid-badge badge-star">⭐ 180</span>
+            <span class="kid-badge badge-fire">🔥 3d</span>
+          </div>
+          <div class="kid-progress-bar-wrap">
+            <div class="kid-progress-bg">
+              <div class="kid-progress-fill" style="width:40%;background:#1d4ed8;"></div>
+            </div>
+            <div class="kid-progress-text">2/5 tasks</div>
+          </div>
+        </div>
+
+        <!-- Sophie -->
+        <div class="kid-card">
+          <div class="kid-avatar" style="background:#ccfbf1;">🌊</div>
+          <div class="kid-name" style="color:#0f766e;">Sophie</div>
+          <div class="kid-badges">
+            <span class="kid-badge badge-star">⭐ 95</span>
+            <span class="kid-badge badge-fire">🔥 1d</span>
+          </div>
+          <div class="kid-progress-bar-wrap">
+            <div class="kid-progress-bg">
+              <div class="kid-progress-fill" style="width:20%;background:#0f766e;"></div>
+            </div>
+            <div class="kid-progress-text">1/5 tasks</div>
+          </div>
+        </div>
+
+        <!-- Mum (parent profile) -->
+        <div class="parent-card">
+          <div class="pin-badge">🔒 PIN</div>
+          <div class="parent-avatar">👩</div>
+          <div class="parent-name">Mum</div>
+          <div class="parent-role-badge">Parent</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- SP-02: PIN entry (tapped Emma) -->
+<div class="flow-col">
+  <div class="screen-code">SP-02</div>
+  <div class="phone">
+    <div class="status-bar">
+      <span>9:41</span>
+      <span>●●● 100%</span>
+    </div>
+    <div class="grad-bg" style="position:relative;">
+      <!-- dimmed background -->
+      <div class="sp-header" style="filter:blur(2px);opacity:0.4;">
+        <div class="sp-brand">✨ Cucaino</div>
+        <div class="sp-heading">Knock knock... 🚪<br/>Who's there?</div>
+      </div>
+      <div class="sp-grid" style="filter:blur(2px);opacity:0.4;">
+        <div class="kid-card"><div class="kid-avatar" style="background:#ede9fe;">🦄</div><div class="kid-name" style="color:#7c3aed;">Emma</div></div>
+        <div class="kid-card"><div class="kid-avatar" style="background:#dbeafe;">🚀</div><div class="kid-name" style="color:#1d4ed8;">Liam</div></div>
+        <div class="kid-card"><div class="kid-avatar" style="background:#ccfbf1;">🌊</div><div class="kid-name" style="color:#0f766e;">Sophie</div></div>
+        <div class="parent-card"><div class="parent-avatar" style="width:68px;height:68px;border-radius:50%;background:#e0e7ff;display:flex;align-items:center;justify-content:center;font-size:34px;">👩</div><div class="parent-name">Mum</div></div>
+      </div>
+
+      <!-- PIN modal -->
+      <div class="pin-overlay">
+        <div class="pin-card">
+          <div class="pin-avatar-ring">🦄</div>
+          <div class="pin-heading">Enter Emma's PIN</div>
+          <div class="pin-sub">Type your 4-digit PIN to continue</div>
+
+          <div class="pin-dots">
+            <div class="pin-dot filled"></div>
+            <div class="pin-dot filled"></div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+          </div>
+
+          <div class="numpad">
+            <div class="num-btn">1</div>
+            <div class="num-btn">2</div>
+            <div class="num-btn">3</div>
+            <div class="num-btn">4</div>
+            <div class="num-btn">5</div>
+            <div class="num-btn">6</div>
+            <div class="num-btn">7</div>
+            <div class="num-btn">8</div>
+            <div class="num-btn">9</div>
+            <div class="num-btn blank"></div>
+            <div class="num-btn">0</div>
+            <div class="num-btn back">⌫</div>
+          </div>
+
+          <div class="pin-cancel">Cancel</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

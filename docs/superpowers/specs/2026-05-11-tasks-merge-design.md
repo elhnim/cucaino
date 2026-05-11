@@ -249,6 +249,55 @@ Same as S-01 but with an amber banner at the top: "Holiday mode is on — Strict
 
 ---
 
+## Login Screen (L-01)
+
+`/login` — full-screen gradient background (indigo-100 → purple-50 → pink-100). Centered white card:
+
+- Brand mark: ✨ Cucaino above the card
+- Heading: "Hello! 👋"
+- Subheading: "Sign in to your Cucaino family."
+- Email field (focused state: indigo border)
+- Password field
+- "Sign in" primary button (indigo)
+- Footer link: "New here? Create an account" → `/signup`
+
+---
+
+## Select Profile Screen (SP-01 / SP-02)
+
+`/select-kid` renamed conceptually to **Select Profile** — shows all family members (kids and parents) as equal profile cards.
+
+### SP-01 Profile grid
+
+- Brand: ✨ Cucaino at top
+- Heading: "Knock knock... 🚪 / Who's there?"
+- `auto-fit` grid (`minmax(150px, 1fr)`) — auto-organises to fill screen width (e.g. 4 profiles → 2×2, 3 profiles → 3 across)
+- Cards are square (`aspect-ratio: 1`)
+
+**Kid profile card** (white, shadow):
+- Theme-coloured avatar circle with emoji (e.g. 🦄 on purple, 🚀 on blue)
+- Name in theme colour, bold
+- ⭐ points + 🔥 streak day badges
+- Progress bar (tasks done / total), shows count below
+- 🔒 PIN badge (top-right corner) if PIN is set
+
+**Parent profile card** — same white square format as kids:
+- Indigo-tinted avatar circle with parent emoji (e.g. 👩)
+- Name in indigo (e.g. "Mum")
+- Small "PARENT" pill badge below name
+- 🔒 PIN badge if PIN is set
+
+### SP-02 PIN entry modal
+
+Shown when tapping any profile that has a PIN set. Overlays the blurred grid:
+- Profile avatar ring (coloured border matching theme)
+- "Enter [Name]'s PIN" heading
+- 4 dot indicators (filled indigo = entered, empty gray = remaining)
+- 3×4 numpad (1–9, blank, 0, ⌫)
+- "Cancel" link at bottom
+
+---
+
 ## Parent Profile — Settings
 
 `/parent/profile` (accessible from the Settings screen via the parent's name/avatar row).
@@ -299,3 +348,4 @@ Full-screen PIN entry sheet:
 | Quizzes flow (Q-01, Q-01b, Q-02) | `15-quizzes.html` |
 | Settings flow (S-01 – S-04) | `16-settings.html` |
 | Parent profile (PP-01 – PP-02) | `17-parent-profile.html` |
+| Login + Select Profile (L-01, SP-01, SP-02) | `18-login-select.html` |
