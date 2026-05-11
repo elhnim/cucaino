@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kid Rewards — Mockups</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+body { flex-wrap: nowrap; align-items: flex-start; }
+
+.screen-code {
+  display: inline-block;
+  background: #6366f1;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin: 10px auto 0;
+  text-align: center;
+}
+
+.flow-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.flow-arrow { font-size: 28px; color: #9ca3af; align-self: center; flex-shrink: 0; margin-top: 80px; }
+
+.kid-shell { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+/* Header — Magical theme */
+.rewards-header {
+  background: linear-gradient(135deg, #a21caf 0%, #c026d3 50%, #e879f9 100%);
+  padding: 32px 20px 0;
+  flex-shrink: 0;
+}
+
+.rewards-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.rewards-title { font-size: 20px; font-weight: 900; color: white; }
+.rewards-sub { font-size: 11px; color: rgba(255,255,255,0.75); font-weight: 600; margin-top: 2px; }
+
+.star-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.star-balance-val {
+  font-size: 22px;
+  font-weight: 900;
+  color: white;
+  line-height: 1;
+}
+.star-balance-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tab bar inside header */
+.rewards-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: none;
+}
+.rewards-tab {
+  flex: 1;
+  padding: 10px 4px 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.15s;
+}
+.rewards-tab.active {
+  color: white;
+  border-bottom: 3px solid white;
+}
+
+/* Page body */
+.rewards-body {
+  flex: 1;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #fdf4ff 0%, #fce7f3 40%, #fff 100%);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sec-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  margin-bottom: 8px;
+}
+
+/* Reward grid */
+.reward-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.reward-card {
+  background: white;
+  border-radius: 18px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.reward-card.locked { opacity: 0.65; }
+
+.reward-heart {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 14px;
+  color: #d1d5db;
+}
+.reward-heart.wishlisted { color: #f43f5e; }
+
+.reward-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  align-self: flex-start;
+}
+.badge-team { background: #f3e8ff; color: #7c3aed; }
+.badge-oneoff { background: #fef3c7; color: #92400e; }
+
+.reward-icon { font-size: 36px; line-height: 1; }
+.reward-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.2;
+}
+.reward-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #fef9c3;
+  border: 1.5px solid #fde047;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #854d0e;
+  align-self: flex-start;
+}
+
+.progress-bar-bg {
+  height: 5px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-bar-fill { height: 100%; border-radius: 999px; }
+
+.reward-need { font-size: 10px; font-weight: 600; color: #9ca3af; }
+
+.reward-btn {
+  width: 100%;
+  padding: 9px;
+  border: none;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 2px;
+}
+.btn-get { background: #f97316; color: white; }
+.btn-request { background: #c026d3; color: white; }
+.btn-team { background: #7c3aed; color: white; }
+.btn-locked { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+
+.accent-team { border-left: 4px solid #a78bfa; }
+.accent-oneoff { border-left: 4px solid #fbbf24; }
+
+/* Pending request card */
+.pending-card {
+  background: #fffbeb;
+  border: 1.5px solid #fde68a;
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pending-icon { font-size: 26px; flex-shrink: 0; }
+.pending-info { flex: 1; }
+.pending-name { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 2px; }
+.pending-sub { font-size: 11px; color: #9ca3af; font-weight: 600; }
+.pending-badge {
+  font-size: 10px; font-weight: 700; padding: 4px 9px;
+  border-radius: 999px; background: #fef3c7; color: #92400e; flex-shrink: 0;
+}
+
+/* ── BADGE TAB STYLES ── */
+
+/* Level card */
+.level-card {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  border-radius: 18px;
+  padding: 14px 16px;
+  color: white;
+}
+.level-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.level-badge-big {
+  display: flex; align-items: center; gap: 8px;
+}
+.level-num { font-size: 28px; font-weight: 900; line-height: 1; }
+.level-lbl { font-size: 11px; font-weight: 700; opacity: 0.8; }
+.level-title { font-size: 14px; font-weight: 800; }
+.xp-bar-bg { height: 8px; background: rgba(255,255,255,0.25); border-radius: 999px; overflow: hidden; margin-bottom: 5px; }
+.xp-bar-fill { height: 100%; background: #fde047; border-radius: 999px; }
+.xp-lbl { font-size: 10px; font-weight: 700; opacity: 0.75; }
+
+/* Stats row */
+.stat-strip {
+  display: flex;
+  gap: 8px;
+}
+.stat-pill {
+  flex: 1;
+  background: white;
+  border-radius: 14px;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.08);
+}
+.stat-pill-val { font-size: 18px; font-weight: 900; color: #111827; }
+.stat-pill-lbl { font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Badge progress cards */
+.badge-progress-card {
+  background: white;
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.08);
+}
+.badge-emoji-ring {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  border: 2.5px solid;
+}
+.ring-gold { border-color: #fbbf24; background: #fef9c3; }
+.ring-silver { border-color: #9ca3af; background: #f9fafb; }
+.ring-bronze { border-color: #d97706; background: #fef3c7; }
+.ring-purple { border-color: #a855f7; background: #faf5ff; }
+.badge-info { flex: 1; min-width: 0; }
+.badge-name { font-size: 13px; font-weight: 800; color: #111827; margin-bottom: 2px; }
+.badge-desc { font-size: 10px; color: #9ca3af; font-weight: 600; margin-bottom: 6px; }
+.badge-progress-row { display: flex; align-items: center; gap: 6px; }
+.badge-progress-bg { flex: 1; height: 5px; background: #f3f4f6; border-radius: 999px; overflow: hidden; }
+.badge-progress-fill { height: 100%; border-radius: 999px; }
+.badge-pct { font-size: 10px; font-weight: 800; color: #6b7280; white-space: nowrap; }
+.badge-tier-pill {
+  font-size: 9px; font-weight: 700; padding: 2px 7px;
+  border-radius: 999px; flex-shrink: 0;
+}
+.tier-gold { background: #fef9c3; color: #92400e; }
+.tier-silver { background: #f3f4f6; color: #4b5563; }
+.tier-bronze { background: #fef3c7; color: #92400e; }
+.tier-next { background: #f3e8ff; color: #7c3aed; }
+
+/* Earned badge mini-grid */
+.earned-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.earned-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.earned-badge-icon {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+.earned-badge-lbl { font-size: 9px; font-weight: 700; color: #6b7280; text-align: center; line-height: 1.2; }
+
+/* Siblings leaderboard */
+.sibling-card {
+  background: white;
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.08);
+}
+.sibling-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.sibling-row:last-child { border-bottom: none; }
+.sibling-rank {
+  width: 22px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 900;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+.sibling-rank.rank-1 { color: #f59e0b; }
+.sibling-rank.rank-2 { color: #9ca3af; }
+.sibling-rank.rank-3 { color: #d97706; }
+.sibling-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 2.5px solid transparent;
+}
+.sibling-avatar.me { border-color: #c026d3; }
+.sibling-info { flex: 1; min-width: 0; }
+.sibling-name { font-size: 13px; font-weight: 800; color: #111827; }
+.sibling-you { font-size: 10px; font-weight: 700; color: #c026d3; }
+.sibling-bar-wrap { margin-top: 3px; }
+.sibling-bar-bg { height: 4px; background: #f3f4f6; border-radius: 999px; overflow: hidden; }
+.sibling-bar-fill { height: 100%; border-radius: 999px; }
+.sibling-stat {
+  display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0;
+}
+.sibling-stat-val { font-size: 13px; font-weight: 900; color: #111827; }
+.sibling-stat-lbl { font-size: 9px; font-weight: 600; color: #9ca3af; }
+.this-week-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #fdf4ff; border: 1.5px solid #e879f9;
+  border-radius: 999px; padding: 3px 10px;
+  font-size: 10px; font-weight: 700; color: #a21caf;
+  margin-bottom: 10px;
+}
+
+/* Locked badge */
+.locked-badge-row {
+  display: flex; gap: 10px; align-items: center;
+  background: white; border-radius: 14px; padding: 10px 12px;
+  opacity: 0.5;
+}
+.locked-badge-icon { font-size: 24px; flex-shrink: 0; }
+.locked-badge-name { font-size: 12px; font-weight: 700; color: #111827; }
+.locked-badge-crit { font-size: 10px; color: #9ca3af; font-weight: 600; }
+
+/* Redeem confirmation sheet */
+.confirm-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  z-index: 50;
+}
+.confirm-sheet {
+  background: white;
+  border-radius: 28px 28px 0 0;
+  padding: 20px 24px 28px;
+  text-align: center;
+}
+.confirm-icon { font-size: 52px; margin-bottom: 8px; }
+.confirm-title { font-size: 20px; font-weight: 900; color: #111827; margin-bottom: 4px; }
+.confirm-sub { font-size: 13px; color: #6b7280; margin-bottom: 6px; }
+.confirm-cost { display: inline-flex; align-items: center; gap: 5px; background: #fef9c3; border: 1.5px solid #fde047; border-radius: 999px; padding: 6px 14px; font-size: 14px; font-weight: 800; color: #854d0e; margin-bottom: 20px; }
+.confirm-balance { font-size: 11px; color: #9ca3af; font-weight: 600; margin-bottom: 20px; }
+.confirm-btn-row { display: flex; gap: 8px; }
+.btn-cancel-confirm { flex: 1; padding: 13px; border: 1.5px solid #e5e7eb; border-radius: 14px; background: white; color: #6b7280; font-size: 14px; font-weight: 700; cursor: pointer; }
+.btn-confirm-get { flex: 2; padding: 13px; border: none; border-radius: 14px; background: #f97316; color: white; font-size: 14px; font-weight: 800; cursor: pointer; }
+
+/* Bottom nav */
+.kid-nav { display: flex; background: white; border-top: 1px solid #e5e7eb; flex-shrink: 0; }
+.kid-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 4px 14px; gap: 3px; }
+.kid-nav-icon { font-size: 20px; }
+.kid-nav-label { font-size: 10px; font-weight: 600; color: #9ca3af; }
+</style>
+</head>
+<body>
+
+<!-- RW-01: Reward Shop tab -->
+<div class="flow-col">
+  <div class="screen-code">RW-01 — Shop</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="rewards-header">
+        <div class="rewards-header-top">
+          <div>
+            <div class="rewards-title">🎁 Rewards</div>
+            <div class="rewards-sub">What will you spend your stars on?</div>
+          </div>
+          <div class="star-balance">
+            <div class="star-balance-val">⭐ 240</div>
+            <div class="star-balance-lbl">Your stars</div>
+          </div>
+        </div>
+        <div class="rewards-tabs">
+          <div class="rewards-tab active">🛒 Shop</div>
+          <div class="rewards-tab">🏅 Badges</div>
+        </div>
+      </div>
+
+      <div class="rewards-body">
+
+        <!-- Pending requests -->
+        <div>
+          <div class="sec-lbl">⏳ Waiting for approval</div>
+          <div class="pending-card">
+            <div class="pending-icon">🍦</div>
+            <div class="pending-info">
+              <div class="pending-name">Ice cream outing</div>
+              <div class="pending-sub">Requested 2 hrs ago · ⭐ 80</div>
+            </div>
+            <div class="pending-badge">⏳ Pending</div>
+          </div>
+        </div>
+
+        <!-- Available rewards -->
+        <div>
+          <div class="sec-lbl">✨ Available now</div>
+          <div class="reward-grid">
+
+            <div class="reward-card">
+              <div class="reward-heart">🤍</div>
+              <div class="reward-icon">🎬</div>
+              <div class="reward-name">Movie night pick</div>
+              <div class="reward-cost">⭐ 100</div>
+              <button class="reward-btn btn-get">Get it! →</button>
+            </div>
+
+            <div class="reward-card">
+              <div class="reward-heart wishlisted">❤️</div>
+              <div class="reward-icon">🎮</div>
+              <div class="reward-name">Nintendo time</div>
+              <div class="reward-cost">⭐ 150</div>
+              <button class="reward-btn btn-request">Request →</button>
+            </div>
+
+            <div class="reward-card accent-team">
+              <div class="reward-heart">🤍</div>
+              <div class="reward-badge badge-team">👥 Team</div>
+              <div class="reward-icon">🏖️</div>
+              <div class="reward-name">Beach day!</div>
+              <div class="reward-cost">⭐ 80</div>
+              <button class="reward-btn btn-team">Contribute ⭐</button>
+            </div>
+
+            <div class="reward-card accent-oneoff">
+              <div class="reward-heart">🤍</div>
+              <div class="reward-badge badge-oneoff">✨ One-off</div>
+              <div class="reward-icon">🍕</div>
+              <div class="reward-name">Pizza Friday</div>
+              <div class="reward-cost">⭐ 200</div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width:100%;background:#f59e0b;"></div>
+              </div>
+              <div style="font-size:10px;font-weight:700;color:#059669;">Ready! Ask Mum or Dad</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Saving up -->
+        <div>
+          <div class="sec-lbl">🔒 Saving up</div>
+          <div class="reward-grid">
+
+            <div class="reward-card locked">
+              <div class="reward-heart">🤍</div>
+              <div class="reward-icon">🎢</div>
+              <div class="reward-name">Theme park trip</div>
+              <div class="reward-cost">⭐ 500</div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width:48%;background:#f97316;"></div>
+              </div>
+              <div class="reward-need">Need 260 more ⭐</div>
+              <button class="reward-btn btn-locked" disabled>Saving up...</button>
+            </div>
+
+            <div class="reward-card locked">
+              <div class="reward-heart">🤍</div>
+              <div class="reward-icon">👟</div>
+              <div class="reward-name">New sneakers</div>
+              <div class="reward-cost">⭐ 400</div>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width:60%;background:#f97316;"></div>
+              </div>
+              <div class="reward-need">Need 160 more ⭐</div>
+              <button class="reward-btn btn-locked" disabled>Saving up...</button>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label" style="color:#c026d3;">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- RW-01b: Badges & Gamification tab -->
+<div class="flow-col">
+  <div class="screen-code">RW-01b — Badges</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="rewards-header">
+        <div class="rewards-header-top">
+          <div>
+            <div class="rewards-title">🎁 Rewards</div>
+            <div class="rewards-sub">Your achievements and progress</div>
+          </div>
+          <div class="star-balance">
+            <div class="star-balance-val">⭐ 240</div>
+            <div class="star-balance-lbl">Your stars</div>
+          </div>
+        </div>
+        <div class="rewards-tabs">
+          <div class="rewards-tab">🛒 Shop</div>
+          <div class="rewards-tab active">🏅 Badges</div>
+        </div>
+      </div>
+
+      <div class="rewards-body">
+
+        <!-- Level card -->
+        <div class="level-card">
+          <div class="level-row">
+            <div class="level-badge-big">
+              <div>
+                <div style="font-size:10px;font-weight:700;opacity:0.75;text-transform:uppercase;letter-spacing:0.05em;">Level</div>
+                <div class="level-num">4</div>
+              </div>
+              <div>
+                <div class="level-title">🌟 Star Collector</div>
+                <div style="font-size:10px;opacity:0.7;font-weight:600;margin-top:2px;">Next: Level 5 — Champion</div>
+              </div>
+            </div>
+            <div style="font-size:28px;">🏆</div>
+          </div>
+          <div class="xp-bar-bg">
+            <div class="xp-bar-fill" style="width:68%;"></div>
+          </div>
+          <div class="xp-lbl">680 / 1000 XP to Level 5</div>
+        </div>
+
+        <!-- Stats strip -->
+        <div class="stat-strip">
+          <div class="stat-pill">
+            <div class="stat-pill-val">⭐ 1,240</div>
+            <div class="stat-pill-lbl">Total stars</div>
+          </div>
+          <div class="stat-pill">
+            <div class="stat-pill-val">🔥 12</div>
+            <div class="stat-pill-lbl">Day streak</div>
+          </div>
+          <div class="stat-pill">
+            <div class="stat-pill-val">🏅 8</div>
+            <div class="stat-pill-lbl">Badges</div>
+          </div>
+        </div>
+
+        <!-- Siblings competition -->
+        <div>
+          <div class="sec-lbl">🏆 This week's family race</div>
+          <div class="sibling-card">
+            <div class="this-week-badge">⭐ Stars earned this week</div>
+
+            <!-- 1st: Liam -->
+            <div class="sibling-row">
+              <div class="sibling-rank rank-1">🥇</div>
+              <div class="sibling-avatar" style="background:#dbeafe;">👦</div>
+              <div class="sibling-info">
+                <div class="sibling-name">Liam</div>
+                <div class="sibling-bar-wrap">
+                  <div class="sibling-bar-bg">
+                    <div class="sibling-bar-fill" style="width:100%;background:#f59e0b;"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sibling-stat">
+                <div class="sibling-stat-val">⭐ 95</div>
+                <div class="sibling-stat-lbl">this week</div>
+              </div>
+            </div>
+
+            <!-- 2nd: Emma (you) -->
+            <div class="sibling-row">
+              <div class="sibling-rank rank-2">🥈</div>
+              <div class="sibling-avatar me" style="background:#fdf4ff;">👧</div>
+              <div class="sibling-info">
+                <div class="sibling-name">Emma <span class="sibling-you">· You</span></div>
+                <div class="sibling-bar-wrap">
+                  <div class="sibling-bar-bg">
+                    <div class="sibling-bar-fill" style="width:80%;background:#c026d3;"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sibling-stat">
+                <div class="sibling-stat-val">⭐ 76</div>
+                <div class="sibling-stat-lbl" style="color:#c026d3;font-weight:700;">19 behind 😤</div>
+              </div>
+            </div>
+
+            <!-- 3rd: Zoe -->
+            <div class="sibling-row">
+              <div class="sibling-rank rank-3">🥉</div>
+              <div class="sibling-avatar" style="background:#fef9c3;">👧</div>
+              <div class="sibling-info">
+                <div class="sibling-name">Zoe</div>
+                <div class="sibling-bar-wrap">
+                  <div class="sibling-bar-bg">
+                    <div class="sibling-bar-fill" style="width:47%;background:#f97316;"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="sibling-stat">
+                <div class="sibling-stat-val">⭐ 45</div>
+                <div class="sibling-stat-lbl" style="color:#059669;font-weight:700;">31 ahead 😎</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Badges in progress -->
+        <div>
+          <div class="sec-lbl">⚡ In progress</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+
+            <div class="badge-progress-card">
+              <div class="badge-emoji-ring ring-gold">🧹</div>
+              <div class="badge-info">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div class="badge-name">Chore Champion</div>
+                  <span class="badge-tier-pill tier-gold">🥇 Gold</span>
+                </div>
+                <div class="badge-desc">Complete 100 chores · 78/100</div>
+                <div class="badge-progress-row">
+                  <div class="badge-progress-bg">
+                    <div class="badge-progress-fill" style="width:78%;background:#fbbf24;"></div>
+                  </div>
+                  <span class="badge-pct">78%</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="badge-progress-card">
+              <div class="badge-emoji-ring ring-silver">🎵</div>
+              <div class="badge-info">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div class="badge-name">Music Maker</div>
+                  <span class="badge-tier-pill tier-silver">🥈 Silver</span>
+                </div>
+                <div class="badge-desc">Practice 50 sessions · 32/50</div>
+                <div class="badge-progress-row">
+                  <div class="badge-progress-bg">
+                    <div class="badge-progress-fill" style="width:64%;background:#9ca3af;"></div>
+                  </div>
+                  <span class="badge-pct">64%</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="badge-progress-card">
+              <div class="badge-emoji-ring ring-purple">🔥</div>
+              <div class="badge-info">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div class="badge-name">On a Roll</div>
+                  <span class="badge-tier-pill tier-next">Next: 🥇</span>
+                </div>
+                <div class="badge-desc">14-day streak · 12/14 days</div>
+                <div class="badge-progress-row">
+                  <div class="badge-progress-bg">
+                    <div class="badge-progress-fill" style="width:86%;background:#a855f7;"></div>
+                  </div>
+                  <span class="badge-pct">86%</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Earned badges -->
+        <div>
+          <div class="sec-lbl">🏅 Earned (8)</div>
+          <div class="earned-grid">
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#fef9c3;border:2px solid #fbbf24;">🧹</div>
+              <div class="earned-badge-lbl">Chore Star</div>
+            </div>
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#fef9c3;border:2px solid #fbbf24;">🎵</div>
+              <div class="earned-badge-lbl">First Notes</div>
+            </div>
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#f0fdf4;border:2px solid #86efac;">🏃</div>
+              <div class="earned-badge-lbl">Get Moving</div>
+            </div>
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#faf5ff;border:2px solid #d8b4fe;">🔥</div>
+              <div class="earned-badge-lbl">7-Day Streak</div>
+            </div>
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#fff7ed;border:2px solid #fdba74;">⭐</div>
+              <div class="earned-badge-lbl">Star Saver</div>
+            </div>
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#eff6ff;border:2px solid #93c5fd;">📚</div>
+              <div class="earned-badge-lbl">Scholar</div>
+            </div>
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#fef9c3;border:2px solid #fbbf24;">🧼</div>
+              <div class="earned-badge-lbl">Hygiene Pro</div>
+            </div>
+            <div class="earned-badge">
+              <div class="earned-badge-icon" style="background:#f0fdf4;border:2px solid #86efac;">🐶</div>
+              <div class="earned-badge-lbl">Pet Pal</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Locked badges -->
+        <div>
+          <div class="sec-lbl">🔒 Still to unlock</div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div class="locked-badge-row">
+              <div class="locked-badge-icon">🎯</div>
+              <div>
+                <div class="locked-badge-name">Bullseye</div>
+                <div class="locked-badge-crit">Complete 5 tasks with targets in one day</div>
+              </div>
+            </div>
+            <div class="locked-badge-row">
+              <div class="locked-badge-icon">🌙</div>
+              <div>
+                <div class="locked-badge-name">Night Owl</div>
+                <div class="locked-badge-crit">Finish all tasks 3 evenings in a row</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label" style="color:#c026d3;">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- RW-02: Redeem confirmation sheet -->
+<div class="flow-col">
+  <div class="screen-code">RW-02 — Redeem</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="rewards-header">
+        <div class="rewards-header-top">
+          <div><div class="rewards-title">🎁 Rewards</div><div class="rewards-sub">What will you spend your stars on?</div></div>
+          <div class="star-balance"><div class="star-balance-val">⭐ 240</div><div class="star-balance-lbl">Your stars</div></div>
+        </div>
+        <div class="rewards-tabs">
+          <div class="rewards-tab active">🛒 Shop</div>
+          <div class="rewards-tab">🏅 Badges</div>
+        </div>
+      </div>
+
+      <!-- Dimmed body -->
+      <div style="flex:1;position:relative;overflow:hidden;">
+        <div class="rewards-body" style="filter:blur(1.5px);opacity:0.3;">
+          <div style="height:50px;background:#e5e7eb;border-radius:14px;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="height:130px;background:#e5e7eb;border-radius:16px;"></div>
+            <div style="height:130px;background:#e5e7eb;border-radius:16px;"></div>
+          </div>
+        </div>
+
+        <div class="confirm-overlay">
+          <div class="confirm-sheet">
+            <div style="width:36px;height:4px;background:#e5e7eb;border-radius:2px;margin:0 auto 16px;"></div>
+            <div class="confirm-icon">🎬</div>
+            <div class="confirm-title">Movie night pick</div>
+            <div class="confirm-sub">You get to choose the movie tonight! 🍿</div>
+            <div class="confirm-cost">⭐ 100 stars</div>
+            <div class="confirm-balance">You'll have ⭐ 140 stars left</div>
+            <div class="confirm-btn-row">
+              <button class="btn-cancel-confirm">Cancel</button>
+              <button class="btn-confirm-get">Get it! 🎉</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label" style="color:#c026d3;">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
