@@ -24,6 +24,161 @@ body { flex-wrap: nowrap; align-items: flex-start; }
 .flow-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .flow-arrow { font-size: 28px; color: #9ca3af; align-self: center; flex-shrink: 0; margin-top: 80px; }
 
+/* Edit widgets button */
+.edit-widgets-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.2);
+  border: 1.5px solid rgba(255,255,255,0.35);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  cursor: pointer;
+}
+
+/* Widget management mode */
+.widget-manage-page {
+  flex: 1;
+  background: #f3f4f6;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.widget-manage-header {
+  background: linear-gradient(135deg, #a21caf 0%, #c026d3 50%, #e879f9 100%);
+  padding: 32px 20px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.widget-manage-title {
+  font-size: 18px;
+  font-weight: 900;
+  color: white;
+}
+
+.widget-done-btn {
+  background: white;
+  color: #c026d3;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.widget-section-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  padding: 16px 16px 6px;
+}
+
+.widget-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  background: white;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.widget-drag {
+  font-size: 16px;
+  color: #d1d5db;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.widget-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.widget-label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.widget-sub {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+/* Toggle */
+.toggle {
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.toggle.on { background: #c026d3; }
+.toggle.off { background: #e5e7eb; }
+
+.toggle-knob {
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  transition: left 0.15s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.toggle.on .toggle-knob { left: 21px; }
+.toggle.off .toggle-knob { left: 3px; }
+
+.widget-add-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  background: white;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+}
+
+.widget-add-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 2px dashed #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.widget-add-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #c026d3;
+}
+
 /* ── Kid shell ── */
 .kid-shell {
   display: flex;
@@ -341,7 +496,10 @@ body { flex-wrap: nowrap; align-items: flex-start; }
             <div class="header-greeting">Good morning,</div>
             <div class="header-name">Emma 🦄</div>
           </div>
-          <div class="header-avatar">🦄</div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+            <div class="header-avatar">🦄</div>
+            <a class="edit-widgets-btn" href="#">✏️ Edit</a>
+          </div>
         </div>
         <div class="family-goal-label">Family goal — Holiday to Bali 🏝️ · 1,240 / 2,000 ⭐</div>
         <div class="family-goal-bar">
@@ -386,14 +544,42 @@ body { flex-wrap: nowrap; align-items: flex-start; }
           </div>
         </div>
 
-        <!-- School today -->
-        <div class="home-card">
-          <div class="school-head">📚 School tomorrow</div>
-          <div class="school-pills">
-            <div class="school-pill">🧮 Maths</div>
-            <div class="school-pill">📖 English</div>
-            <div class="school-pill">🔬 Science</div>
-            <div class="school-pill">🎨 Art</div>
+        <!-- Tomorrow reminders -->
+        <div class="home-card" style="padding:14px;">
+          <div style="font-size:14px;font-weight:800;color:#1f2937;margin-bottom:10px;">🗓 Tomorrow's reminders</div>
+
+          <!-- Activity: Swimming -->
+          <div style="margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <div style="width:30px;height:30px;background:#e0f2fe;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">🏊</div>
+              <div>
+                <div style="font-size:13px;font-weight:800;color:#111827;">Swimming</div>
+                <div style="font-size:10px;color:#9ca3af;font-weight:600;">Activity · 3:00 pm · City Aquatic Centre</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;padding-left:38px;">
+              <span style="background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">🩱 Swimsuit</span>
+              <span style="background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">🥽 Goggles</span>
+              <span style="background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">🏊 Towel</span>
+            </div>
+          </div>
+
+          <div style="height:1px;background:#f3f4f6;margin:8px 0;"></div>
+
+          <!-- School bag items -->
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+              <div style="width:30px;height:30px;background:#eff6ff;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;">🎒</div>
+              <div>
+                <div style="font-size:13px;font-weight:800;color:#111827;">School bag</div>
+                <div style="font-size:10px;color:#9ca3af;font-weight:600;">Maths · Music · Library day</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;padding-left:38px;">
+              <span style="background:#f0fdf4;color:#166534;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">📐 Maths textbook</span>
+              <span style="background:#f0fdf4;color:#166534;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">🎵 Recorder</span>
+              <span style="background:#f0fdf4;color:#166534;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;">📗 Library bag</span>
+            </div>
           </div>
         </div>
 
@@ -590,6 +776,121 @@ body { flex-wrap: nowrap; align-items: flex-start; }
           <div class="kid-nav-icon">🎮</div>
           <div class="kid-nav-label">Play</div>
         </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="flow-arrow">›</div>
+
+<!-- KH-03: Widget management mode -->
+<div class="flow-col">
+  <div class="screen-code">KH-03</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="widget-manage-header">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.75);margin-bottom:2px;">Emma's home</div>
+          <div class="widget-manage-title">Edit widgets</div>
+        </div>
+        <button class="widget-done-btn">Done</button>
+      </div>
+
+      <div class="widget-manage-page">
+
+        <div class="widget-section-lbl">Visible — drag to reorder</div>
+
+        <!-- Level progress -->
+        <div class="widget-row">
+          <div class="widget-drag">⠿</div>
+          <div class="widget-icon-wrap" style="background:#f3e8ff;">🗺️</div>
+          <div>
+            <div class="widget-label">Level progress</div>
+            <div class="widget-sub">Explorer · 240 ⭐</div>
+          </div>
+          <div class="toggle on"><div class="toggle-knob"></div></div>
+        </div>
+
+        <!-- Stats -->
+        <div class="widget-row">
+          <div class="widget-drag">⠿</div>
+          <div class="widget-icon-wrap" style="background:#fef9c3;">⭐</div>
+          <div>
+            <div class="widget-label">Stars, streak & tasks</div>
+            <div class="widget-sub">3 stats at a glance</div>
+          </div>
+          <div class="toggle on"><div class="toggle-knob"></div></div>
+        </div>
+
+        <!-- Tomorrow reminders -->
+        <div class="widget-row">
+          <div class="widget-drag">⠿</div>
+          <div class="widget-icon-wrap" style="background:#eff6ff;">🗓</div>
+          <div>
+            <div class="widget-label">Tomorrow's reminders</div>
+            <div class="widget-sub">Activities + items to bring</div>
+          </div>
+          <div class="toggle on"><div class="toggle-knob"></div></div>
+        </div>
+
+        <!-- Today's tasks -->
+        <div class="widget-row">
+          <div class="widget-drag">⠿</div>
+          <div class="widget-icon-wrap" style="background:#fdf4ff;">✅</div>
+          <div>
+            <div class="widget-label">Today's tasks</div>
+            <div class="widget-sub">Incomplete tasks only</div>
+          </div>
+          <div class="toggle on"><div class="toggle-knob"></div></div>
+        </div>
+
+        <!-- Badges -->
+        <div class="widget-row">
+          <div class="widget-drag">⠿</div>
+          <div class="widget-icon-wrap" style="background:#fdf4ff;">🎖</div>
+          <div>
+            <div class="widget-label">My badges</div>
+            <div class="widget-sub">Progress toward next tier</div>
+          </div>
+          <div class="toggle on"><div class="toggle-knob"></div></div>
+        </div>
+
+        <div class="widget-section-lbl">Hidden</div>
+
+        <!-- Encouragement — off -->
+        <div class="widget-row" style="opacity:0.5;">
+          <div class="widget-drag">⠿</div>
+          <div class="widget-icon-wrap" style="background:#f3f4f6;">💬</div>
+          <div>
+            <div class="widget-label">Encouragement</div>
+            <div class="widget-sub">Daily motivational message</div>
+          </div>
+          <div class="toggle off"><div class="toggle-knob"></div></div>
+        </div>
+
+        <!-- Rewards teaser — off -->
+        <div class="widget-row" style="opacity:0.5;">
+          <div class="widget-drag">⠿</div>
+          <div class="widget-icon-wrap" style="background:#f3f4f6;">🎁</div>
+          <div>
+            <div class="widget-label">Rewards teaser</div>
+            <div class="widget-sub">What you can redeem now</div>
+          </div>
+          <div class="toggle off"><div class="toggle-knob"></div></div>
+        </div>
+
+        <div style="height:20px;"></div>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label" style="color:#c026d3;">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">✅</div><div class="kid-nav-label">Todo</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
       </div>
     </div>
   </div>
