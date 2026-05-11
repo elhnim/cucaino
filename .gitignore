@@ -37,5 +37,5 @@ yarn-error.log*
 next-env.d.ts
 
 # Perf audit outputs
-docs/perf-report-*.md
+docs/perf-report-*
 docs/perf-screenshots/

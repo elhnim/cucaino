@@ -4,6 +4,7 @@
 //   node scripts/perf-audit.mjs --no-browser # static only
 
 import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { join, relative, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -357,71 +358,222 @@ async function runBrowserAudit() {
 // REPORT
 // ============================================================
 
-function generateReport(findings, timings) {
+async function generateReport(findings, timings) {
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 16).replace('T', ' ');
   const critical = findings.filter(f => f.severity === 'critical');
-  const high = findings.filter(f => f.severity === 'high');
-  const medium = findings.filter(f => f.severity === 'medium');
+  const high     = findings.filter(f => f.severity === 'high');
+  const medium   = findings.filter(f => f.severity === 'medium');
 
-  function rateMetric(name, value) {
-    if (value == null) return '—';
+  // Rating helpers
+  function rateClass(name, value) {
+    if (value == null) return 'na';
     const thresholds = { ttfb: [800, 1800], fcp: [1800, 3000], lcp: [2500, 4000] };
     const [good, poor] = thresholds[name] ?? [1000, 2000];
-    const icon = value < good ? '🟢' : value < poor ? '🟡' : '🔴';
-    return `${icon} ${value}ms`;
+    return value < good ? 'good' : value < poor ? 'ok' : 'poor';
+  }
+  function rateCell(name, value) {
+    if (value == null) return `<td class="na">—</td>`;
+    const cls = rateClass(name, value);
+    const label = cls === 'good' ? '●' : cls === 'ok' ? '●' : '●';
+    return `<td class="${cls}"><span class="dot">${label}</span> ${value}ms</td>`;
   }
 
-  function renderFindings(label, list) {
-    if (!list.length) return '';
-    let s = `### ${label}\n\n`;
-    list.forEach((f, i) => {
-      s += `#### ${i + 1}. ${f.message}\n\n`;
-      s += `**File:** \`${f.file}\`${f.line ? `:${f.line}` : ''}\n\n`;
-      s += `**Fix:** ${f.fix}\n\n`;
-      s += `**Effort:** ${f.effort}\n\n`;
-      s += '---\n\n';
-    });
-    return s;
+  // Embed screenshots as base64 data URIs so report is self-contained
+  async function imgTag(screenshotRelPath, alt) {
+    const absPath = join(ROOT, 'docs', screenshotRelPath);
+    if (!existsSync(absPath)) return `<p class="no-screenshot">No screenshot</p>`;
+    const buf = await readFile(absPath);
+    const b64 = buf.toString('base64');
+    return `<img src="data:image/png;base64,${b64}" alt="${alt}" class="screenshot">`;
   }
 
-  let md = `# Perf Audit — ${dateStr}\n\n`;
+  function severityBadge(sev) {
+    const map = { critical: '🔴 Critical', high: '🟡 High', medium: '🟢 Medium' };
+    return `<span class="badge badge-${sev}">${map[sev] ?? sev}</span>`;
+  }
 
-  md += `## Summary\n\n`;
-  md += `**${findings.length} issues found** · 🔴 ${critical.length} critical · 🟡 ${high.length} high · 🟢 ${medium.length} medium\n\n`;
+  function findingCards(list) {
+    return list.map((f, i) => {
+      const loc = f.line ? `:${f.line}` : '';
+      const fixHtml = f.fix.replace(/\n/g, '<br>');
+      return `
+      <div class="card">
+        <div class="card-header">
+          ${severityBadge(f.severity)}
+          <span class="card-title">${escHtml(f.message)}</span>
+        </div>
+        <dl>
+          <dt>File</dt><dd><code>${escHtml(f.file)}${loc}</code></dd>
+          <dt>Fix</dt><dd>${fixHtml}</dd>
+          <dt>Effort</dt><dd>${escHtml(f.effort)}</dd>
+        </dl>
+      </div>`;
+    }).join('\n');
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Screenshots section
+  let screenshotHtml = '';
   if (timings.length) {
-    md += `Tested ${timings.length} routes on mobile simulation (Moto G4 / Fast 3G)\n\n`;
+    const imgs = await Promise.all(timings.map(t => imgTag(t.screenshot, t.route)));
+    screenshotHtml = `
+    <section>
+      <h2>Screenshots <small>Moto G4 viewport</small></h2>
+      <div class="screenshots">
+        ${timings.map((t, i) => `
+        <figure>
+          <figcaption><code>${escHtml(t.route)}</code></figcaption>
+          ${imgs[i]}
+        </figure>`).join('')}
+      </div>
+    </section>`;
   }
 
+  // Timing table
+  let timingHtml = '';
   if (timings.length) {
-    md += `## Browser Timing\n\n`;
-    md += `| Route | Status | TTFB | FCP | LCP |\n`;
-    md += `|---|---|---|---|---|\n`;
-    for (const t of timings) {
-      md += `| \`${t.route}\` | ${t.status ?? '—'} | ${rateMetric('ttfb', t.ttfb)} | ${rateMetric('fcp', t.fcp)} | ${rateMetric('lcp', t.lcp)} |\n`;
-    }
-    md += '\n';
-
-    md += `## Screenshots\n\n`;
-    for (const t of timings) {
-      md += `**\`${t.route}\`**\n\n![${t.route}](${t.screenshot})\n\n`;
-    }
+    const rows = timings.map(t => `
+        <tr>
+          <td><code>${escHtml(t.route)}</code></td>
+          <td>${t.status ?? '—'}</td>
+          ${rateCell('ttfb', t.ttfb)}
+          ${rateCell('fcp', t.fcp)}
+          ${rateCell('lcp', t.lcp)}
+        </tr>`).join('');
+    timingHtml = `
+    <section>
+      <h2>Browser Timing <small>Moto G4 / Fast 3G simulation</small></h2>
+      <table>
+        <thead><tr><th>Route</th><th>Status</th><th>TTFB</th><th>FCP</th><th>LCP</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="legend">
+        <span class="dot good">●</span> Good &nbsp;
+        <span class="dot ok">●</span> Needs improvement &nbsp;
+        <span class="dot poor">●</span> Poor
+      </p>
+    </section>`;
   }
 
-  md += `## Findings\n\n`;
-  md += renderFindings('🔴 Critical', critical);
-  md += renderFindings('🟡 High', high);
-  md += renderFindings('🟢 Medium', medium);
-
-  md += `## Recommended Fix Order\n\n`;
-  md += `_Work through these top-to-bottom for maximum perceived performance gain:_\n\n`;
+  // Fix order
   const ordered = [...critical, ...high, ...medium];
-  ordered.forEach((f, i) => {
+  const fixOrderHtml = ordered.map((f, i) => {
     const loc = f.line ? `:${f.line}` : '';
-    md += `${i + 1}. **${f.message}**  \n   \`${f.file}${loc}\` · ${f.effort}\n\n`;
-  });
+    return `<li>${severityBadge(f.severity)} <strong>${escHtml(f.message)}</strong><br>
+      <code>${escHtml(f.file)}${loc}</code> <em>· ${escHtml(f.effort)}</em></li>`;
+  }).join('\n');
 
-  return md;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perf Audit — ${dateStr}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px; line-height: 1.6; color: #1a1a2e; background: #f4f6fb; }
+  a { color: #4361ee; }
+  header { background: #1a1a2e; color: #fff; padding: 2rem; }
+  header h1 { font-size: 1.6rem; font-weight: 700; }
+  header p { opacity: .7; font-size: .9rem; margin-top: .25rem; }
+  main { max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }
+  section { background: #fff; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 1rem; color: #1a1a2e; }
+  h2 small { font-size: .8rem; font-weight: 400; color: #888; margin-left: .5rem; }
+  h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .75rem; color: #333; }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+  .stat { border-radius: 10px; padding: 1rem 1.25rem; text-align: center; color: #fff; }
+  .stat .num { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+  .stat .lbl { font-size: .8rem; opacity: .85; margin-top: .2rem; }
+  .stat.total  { background: #4361ee; }
+  .stat.crit   { background: #e63946; }
+  .stat.hi     { background: #f4a261; color: #1a1a2e; }
+  .stat.med    { background: #2a9d8f; }
+
+  /* Browser timing table */
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th { text-align: left; padding: .5rem .75rem; background: #f4f6fb; color: #555; font-weight: 600; border-bottom: 2px solid #e8ecf5; }
+  td { padding: .55rem .75rem; border-bottom: 1px solid #f0f0f0; }
+  tr:last-child td { border-bottom: none; }
+  td.good  { color: #2a9d8f; font-weight: 600; }
+  td.ok    { color: #e07b00; font-weight: 600; }
+  td.poor  { color: #e63946; font-weight: 600; }
+  td.na    { color: #aaa; }
+  .dot.good { color: #2a9d8f; }
+  .dot.ok   { color: #e07b00; }
+  .dot.poor { color: #e63946; }
+  .legend   { font-size: .8rem; color: #666; margin-top: .75rem; }
+
+  /* Screenshots */
+  .screenshots { display: flex; gap: 1rem; flex-wrap: wrap; }
+  figure { flex: 1; min-width: 200px; }
+  figcaption { font-size: .8rem; color: #555; margin-bottom: .4rem; }
+  .screenshot { width: 100%; border-radius: 8px; border: 1px solid #e8ecf5; display: block; }
+  .no-screenshot { color: #aaa; font-size: .85rem; }
+
+  /* Finding cards */
+  .card { border: 1px solid #e8ecf5; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: .75rem; }
+  .card-header { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .6rem; }
+  .card-title { font-weight: 600; font-size: .95rem; }
+  .badge { font-size: .75rem; font-weight: 700; padding: .2rem .55rem; border-radius: 20px; white-space: nowrap; }
+  .badge-critical { background: #fde8ea; color: #c0392b; }
+  .badge-high     { background: #fef3e2; color: #a04000; }
+  .badge-medium   { background: #e6f7f5; color: #1a6b5e; }
+  dl { display: grid; grid-template-columns: 80px 1fr; gap: .2rem .75rem; font-size: .875rem; }
+  dt { font-weight: 600; color: #666; padding-top: .1rem; }
+  dd code { background: #f4f6fb; padding: .1rem .35rem; border-radius: 4px; font-size: .82rem; word-break: break-all; }
+
+  /* Fix order */
+  ol.fix-list { padding-left: 1.25rem; }
+  ol.fix-list li { margin-bottom: .9rem; line-height: 1.5; }
+  ol.fix-list code { background: #f4f6fb; padding: .1rem .35rem; border-radius: 4px; font-size: .82rem; }
+  ol.fix-list em { color: #888; font-size: .85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Perf Audit</h1>
+  <p>Generated ${dateStr} · Mobile simulation: Moto G4 / Fast 3G</p>
+</header>
+<main>
+
+  <section>
+    <h2>Summary</h2>
+    <div class="summary-grid">
+      <div class="stat total"><div class="num">${findings.length}</div><div class="lbl">Total issues</div></div>
+      <div class="stat crit"><div class="num">${critical.length}</div><div class="lbl">Critical</div></div>
+      <div class="stat hi"><div class="num">${high.length}</div><div class="lbl">High</div></div>
+      <div class="stat med"><div class="num">${medium.length}</div><div class="lbl">Medium</div></div>
+    </div>
+  </section>
+
+  ${timingHtml}
+  ${screenshotHtml}
+
+  <section>
+    <h2>Findings</h2>
+    ${critical.length ? `<h3>🔴 Critical</h3>${findingCards(critical)}` : ''}
+    ${high.length     ? `<h3>🟡 High</h3>${findingCards(high)}` : ''}
+    ${medium.length   ? `<h3>🟢 Medium</h3>${findingCards(medium)}` : ''}
+  </section>
+
+  <section>
+    <h2>Recommended Fix Order</h2>
+    <p style="color:#666;font-size:.9rem;margin-bottom:1rem">Work through these top-to-bottom for maximum perceived performance gain.</p>
+    <ol class="fix-list">
+      ${fixOrderHtml}
+    </ol>
+  </section>
+
+</main>
+</body>
+</html>`;
 }
 
 // ============================================================
@@ -445,11 +597,11 @@ async function main() {
   }
 
   log('\n── Generating report ────────────────────────────');
-  const report = generateReport(findings, timings);
+  const report = await generateReport(findings, timings);
   const date = new Date().toISOString().slice(0, 10);
-  const outPath = join(ROOT, 'docs', `perf-report-${date}.md`);
+  const outPath = join(ROOT, 'docs', `perf-report-${date}.html`);
   writeFileSync(outPath, report, 'utf-8');
-  log(`\n✅ Report written to docs/perf-report-${date}.md`);
+  log(`\n✅ Report written to docs/perf-report-${date}.html`);
 
   const critical = findings.filter(f => f.severity === 'critical').length;
   const high = findings.filter(f => f.severity === 'high').length;
