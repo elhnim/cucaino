@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kid Play — Mockups</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+body { flex-wrap: nowrap; align-items: flex-start; justify-content: flex-start; overflow-x: auto; }
+
+.screen-code {
+  display: inline-block;
+  background: #6366f1;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin: 10px auto 0;
+  text-align: center;
+}
+
+.flow-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.flow-arrow { font-size: 28px; color: #9ca3af; align-self: center; flex-shrink: 0; margin-top: 80px; }
+
+.kid-shell { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+/* Play header */
+.play-header {
+  background: linear-gradient(135deg, #a21caf 0%, #c026d3 50%, #e879f9 100%);
+  padding: 32px 20px 20px;
+  flex-shrink: 0;
+}
+.play-title { font-size: 22px; font-weight: 900; color: white; }
+.play-sub { font-size: 12px; color: rgba(255,255,255,0.75); font-weight: 600; margin-top: 2px; }
+
+/* Page body */
+.play-body {
+  flex: 1;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #fdf4ff 0%, #fce7f3 40%, #fff 100%);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sec-lbl {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: #9ca3af; margin-bottom: 8px;
+}
+
+/* Game cards grid */
+.game-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.game-card {
+  border-radius: 20px;
+  padding: 18px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.game-card-active {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  box-shadow: 0 4px 16px -4px rgba(249,115,22,0.45);
+}
+
+.game-card-soon {
+  background: #f9fafb;
+  border: 1.5px dashed #e5e7eb;
+  cursor: not-allowed;
+}
+
+.game-icon { font-size: 36px; line-height: 1; margin-bottom: 2px; }
+.game-name { font-size: 15px; font-weight: 900; color: white; }
+.game-desc { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.8); line-height: 1.3; }
+.game-btn {
+  margin-top: 6px;
+  background: rgba(255,255,255,0.25);
+  border: none;
+  border-radius: 10px;
+  padding: 7px 12px;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  align-self: flex-start;
+  cursor: pointer;
+}
+
+.game-soon-icon { font-size: 36px; line-height: 1; margin-bottom: 2px; opacity: 0.4; }
+.game-soon-name { font-size: 15px; font-weight: 900; color: #9ca3af; }
+.game-soon-desc { font-size: 10px; font-weight: 600; color: #d1d5db; line-height: 1.3; }
+.game-soon-pill {
+  margin-top: 6px;
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 5px 10px;
+  color: #d1d5db;
+  font-size: 11px;
+  font-weight: 700;
+  align-self: flex-start;
+}
+
+/* Topic picker */
+.topic-card {
+  background: white;
+  border-radius: 16px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.08);
+  cursor: pointer;
+}
+.topic-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.topic-info { flex: 1; }
+.topic-name { font-size: 14px; font-weight: 800; color: #111827; }
+.topic-meta { font-size: 11px; font-weight: 600; color: #9ca3af; margin-top: 1px; }
+.topic-chevron { font-size: 16px; color: #d1d5db; }
+.topic-new-pill {
+  font-size: 9px; font-weight: 700;
+  background: #fdf4ff; color: #c026d3;
+  border: 1px solid #e879f9;
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+/* Setup screen */
+.setup-header {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  padding: 32px 20px 20px;
+  flex-shrink: 0;
+}
+.setup-title { font-size: 18px; font-weight: 900; color: white; }
+.setup-sub { font-size: 11px; color: rgba(255,255,255,0.8); font-weight: 600; margin-top: 2px; }
+
+.setup-body {
+  flex: 1; overflow-y: auto;
+  background: #fff; padding: 16px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.setup-section-lbl {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: #9ca3af; margin-bottom: 8px;
+}
+
+.mode-row { display: flex; gap: 8px; }
+.mode-btn {
+  flex: 1; border-radius: 14px; padding: 12px 8px;
+  border: 2px solid #e5e7eb;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; background: white;
+}
+.mode-btn.active { border-color: #f97316; background: #fff7ed; }
+.mode-btn-icon { font-size: 22px; }
+.mode-btn-label { font-size: 12px; font-weight: 800; color: #374151; }
+.mode-btn-desc { font-size: 10px; font-weight: 600; color: #9ca3af; text-align: center; line-height: 1.3; }
+.mode-btn.active .mode-btn-label { color: #ea580c; }
+
+.player-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.player-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 2px solid #e5e7eb;
+  font-size: 12px; font-weight: 700; color: #374151;
+  cursor: pointer; background: white;
+}
+.player-chip.selected { border-color: #f97316; background: #fff7ed; color: #ea580c; }
+.player-chip-avatar { font-size: 16px; }
+
+.qcount-row { display: flex; gap: 8px; }
+.qcount-btn {
+  flex: 1; padding: 10px 4px;
+  border-radius: 12px; border: 2px solid #e5e7eb;
+  font-size: 13px; font-weight: 800; color: #374151;
+  text-align: center; cursor: pointer; background: white;
+}
+.qcount-btn.active { border-color: #f97316; background: #fff7ed; color: #ea580c; }
+
+.start-btn {
+  width: 100%; padding: 16px;
+  border: none; border-radius: 16px;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: white; font-size: 16px; font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 4px 16px -4px rgba(249,115,22,0.5);
+}
+
+/* Question screen */
+.quiz-header {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  padding: 32px 16px 14px;
+  flex-shrink: 0;
+}
+.quiz-top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.quiz-quit {
+  width: 30px; height: 30px;
+  border-radius: 50%; background: rgba(255,255,255,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: white; font-weight: 900; cursor: pointer;
+}
+.quiz-player-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 999px; padding: 5px 12px;
+}
+.quiz-player-avatar { font-size: 16px; }
+.quiz-player-name { font-size: 12px; font-weight: 800; color: white; }
+.quiz-counter { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.85); }
+
+.timer-row { display: flex; align-items: center; gap: 8px; }
+.timer-bar-bg { flex: 1; height: 6px; background: rgba(255,255,255,0.3); border-radius: 999px; overflow: hidden; }
+.timer-bar-fill { height: 100%; border-radius: 999px; background: white; }
+.timer-num { font-size: 16px; font-weight: 900; color: white; width: 24px; text-align: right; }
+.timer-num.urgent { color: #fca5a5; }
+
+.quiz-body {
+  flex: 1; overflow-y: auto;
+  background: #f9fafb;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.question-box {
+  background: white;
+  border-radius: 18px;
+  padding: 18px 16px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,0.08);
+}
+
+.answer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.answer-tile {
+  border-radius: 16px;
+  padding: 16px 10px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px;
+  font-size: 14px; font-weight: 800;
+  cursor: pointer; border: none;
+  min-height: 80px; text-align: center;
+}
+.answer-tile-lbl {
+  font-size: 10px; font-weight: 700;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.3);
+  color: white;
+}
+
+.tile-red { background: #ef4444; color: white; }
+.tile-blue { background: #3b82f6; color: white; }
+.tile-orange { background: #f97316; color: white; }
+.tile-green { background: #22c55e; color: white; }
+
+/* Answer reveal states */
+.tile-correct { background: #22c55e; color: white; border: 3px solid #166534; transform: scale(1.03); }
+.tile-wrong { background: #9ca3af; color: white; opacity: 0.55; }
+.tile-neutral { background: #e5e7eb; color: #9ca3af; opacity: 0.45; }
+
+.reveal-feedback {
+  background: white;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.08);
+}
+.reveal-icon { font-size: 28px; flex-shrink: 0; }
+.reveal-msg { font-size: 14px; font-weight: 800; color: #111827; }
+.reveal-sub { font-size: 11px; font-weight: 600; color: #6b7280; margin-top: 1px; }
+.reveal-star-pill {
+  margin-left: auto; flex-shrink: 0;
+  background: #fef9c3; border: 1.5px solid #fde047;
+  border-radius: 999px; padding: 4px 10px;
+  font-size: 12px; font-weight: 800; color: #854d0e;
+}
+
+.next-btn {
+  width: 100%; padding: 14px;
+  border: none; border-radius: 14px;
+  background: #f97316; color: white;
+  font-size: 15px; font-weight: 900;
+  cursor: pointer;
+}
+
+/* Score strip (turns mode) */
+.score-strip {
+  display: flex; gap: 8px;
+}
+.score-chip {
+  flex: 1; background: white; border-radius: 12px;
+  padding: 8px 6px; display: flex; flex-direction: column;
+  align-items: center; gap: 2px;
+  box-shadow: 0 1px 4px -1px rgba(0,0,0,0.08);
+}
+.score-chip.current { border: 2px solid #f97316; }
+.score-chip-avatar { font-size: 16px; }
+.score-chip-name { font-size: 9px; font-weight: 700; color: #9ca3af; }
+.score-chip-val { font-size: 14px; font-weight: 900; color: #111827; }
+
+/* Results screen */
+.results-header {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  padding: 36px 20px 24px;
+  flex-shrink: 0;
+  text-align: center;
+}
+.results-trophy { font-size: 52px; line-height: 1; margin-bottom: 6px; }
+.results-title { font-size: 22px; font-weight: 900; color: white; margin-bottom: 2px; }
+.results-sub { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.8); }
+
+.results-body {
+  flex: 1; overflow-y: auto;
+  background: #fff;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+
+.podium-card {
+  background: white;
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,0.08);
+}
+.podium-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.podium-row:last-child { border-bottom: none; }
+.podium-medal { font-size: 22px; width: 28px; text-align: center; flex-shrink: 0; }
+.podium-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.podium-info { flex: 1; }
+.podium-name { font-size: 14px; font-weight: 800; color: #111827; }
+.podium-score { font-size: 11px; font-weight: 600; color: #9ca3af; }
+.podium-stars {
+  background: #fef9c3; border: 1.5px solid #fde047;
+  border-radius: 999px; padding: 4px 10px;
+  font-size: 13px; font-weight: 800; color: #854d0e;
+  flex-shrink: 0;
+}
+
+.results-btn-row { display: flex; gap: 8px; }
+.btn-again {
+  flex: 1; padding: 14px; border-radius: 14px;
+  border: 2px solid #f97316; background: white;
+  color: #f97316; font-size: 14px; font-weight: 800; cursor: pointer;
+}
+.btn-new {
+  flex: 1; padding: 14px; border-radius: 14px;
+  border: none; background: #f97316;
+  color: white; font-size: 14px; font-weight: 800; cursor: pointer;
+}
+
+/* Bottom nav */
+.kid-nav { display: flex; background: white; border-top: 1px solid #e5e7eb; flex-shrink: 0; }
+.kid-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 4px 14px; gap: 3px; }
+.kid-nav-icon { font-size: 20px; }
+.kid-nav-label { font-size: 10px; font-weight: 600; color: #9ca3af; }
+</style>
+</head>
+<body>
+
+<!-- PL-01: Play hub -->
+<div class="flow-col">
+  <div class="screen-code">PL-01 — Play Hub</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="play-header">
+        <div class="play-title">🎮 Play</div>
+        <div class="play-sub">Choose a game to play</div>
+      </div>
+
+      <div class="play-body">
+        <div class="game-grid">
+
+          <!-- Quiz — active -->
+          <div class="game-card game-card-active">
+            <div class="game-icon">🎯</div>
+            <div class="game-name">Quiz</div>
+            <div class="game-desc">Test your knowledge · 14 topics</div>
+            <button class="game-btn">Play →</button>
+          </div>
+
+          <!-- Flashcards — soon -->
+          <div class="game-card game-card-soon">
+            <div class="game-soon-icon">📇</div>
+            <div class="game-soon-name">Flashcards</div>
+            <div class="game-soon-desc">Swipe to learn words & facts</div>
+            <div class="game-soon-pill">Coming soon</div>
+          </div>
+
+          <!-- Memory Match — soon -->
+          <div class="game-card game-card-soon">
+            <div class="game-soon-icon">🧩</div>
+            <div class="game-soon-name">Match</div>
+            <div class="game-soon-desc">Find the matching pairs</div>
+            <div class="game-soon-pill">Coming soon</div>
+          </div>
+
+          <!-- Spelling — soon -->
+          <div class="game-card game-card-soon">
+            <div class="game-soon-icon">✏️</div>
+            <div class="game-soon-name">Spelling</div>
+            <div class="game-soon-desc">Practise words out loud</div>
+            <div class="game-soon-pill">Coming soon</div>
+          </div>
+
+        </div>
+
+        <!-- Recent activity -->
+        <div>
+          <div class="sec-lbl">🕹 Recently played</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="topic-card">
+              <div class="topic-icon" style="background:#fef9c3;">➗</div>
+              <div class="topic-info">
+                <div class="topic-name">Maths Blast</div>
+                <div class="topic-meta">Last played: Yesterday · Best ⭐ 45</div>
+              </div>
+              <div class="topic-chevron">›</div>
+            </div>
+            <div class="topic-card">
+              <div class="topic-icon" style="background:#dbeafe;">🌍</div>
+              <div class="topic-info">
+                <div class="topic-name">Fun Facts</div>
+                <div class="topic-meta">Last played: Monday · Best ⭐ 30</div>
+              </div>
+              <div class="topic-chevron">›</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label" style="color:#c026d3;">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- PL-02: Topic picker -->
+<div class="flow-col">
+  <div class="screen-code">PL-02 — Pick a Topic</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="setup-header">
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.7);margin-bottom:6px;">← Back</div>
+        <div class="setup-title">🎯 Quiz</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <div class="setup-sub">Questions matched to your age</div>
+          <div style="background:rgba(255,255,255,0.25);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800;color:white;flex-shrink:0;">👧 Age 8</div>
+        </div>
+      </div>
+
+      <!-- Dropdown filters -->
+      <div style="background:white;border-bottom:1px solid #f3f4f6;padding:10px 14px;flex-shrink:0;display:flex;gap:8px;position:relative;">
+        <!-- Theme dropdown — closed -->
+        <div style="flex:1;border:1.5px solid #e5e7eb;border-radius:12px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:white;">
+          <div>
+            <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#9ca3af;">Theme</div>
+            <div style="font-size:13px;font-weight:700;color:#111827;margin-top:1px;">All themes</div>
+          </div>
+          <div style="font-size:12px;color:#9ca3af;">▾</div>
+        </div>
+        <!-- Difficulty dropdown — open, showing options -->
+        <div style="flex:1;position:relative;">
+          <div style="border:1.5px solid #f97316;border-radius:12px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;background:#fff7ed;">
+            <div>
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#f97316;">Difficulty</div>
+              <div style="font-size:13px;font-weight:700;color:#ea580c;margin-top:1px;">⭐ Easy</div>
+            </div>
+            <div style="font-size:12px;color:#f97316;">▴</div>
+          </div>
+          <!-- Dropdown menu -->
+          <div style="position:absolute;top:calc(100% + 6px);left:0;right:0;background:white;border:1.5px solid #e5e7eb;border-radius:14px;box-shadow:0 8px 24px -4px rgba(0,0,0,0.14);z-index:20;overflow:hidden;">
+            <div style="padding:8px 12px;font-size:13px;font-weight:700;color:#9ca3af;border-bottom:1px solid #f3f4f6;">Any</div>
+            <div style="padding:8px 12px;font-size:13px;font-weight:800;color:#ea580c;background:#fff7ed;display:flex;align-items:center;justify-content:space-between;">⭐ Easy <span style="font-size:14px;">✓</span></div>
+            <div style="padding:8px 12px;font-size:13px;font-weight:700;color:#111827;border-top:1px solid #f3f4f6;">⭐⭐ Medium</div>
+            <div style="padding:8px 12px;font-size:13px;font-weight:700;color:#111827;border-top:1px solid #f3f4f6;">⭐⭐⭐ Hard</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="play-body" style="background:white;">
+
+        <div>
+          <div class="sec-lbl">🌟 Our quiz sets</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="topic-card">
+              <div class="topic-icon" style="background:#fef9c3;">➗</div>
+              <div class="topic-info">
+                <div class="topic-name">Maths Blast</div>
+                <div class="topic-meta">10 for you · ⭐ Easy</div>
+              </div>
+              <div class="topic-chevron">›</div>
+            </div>
+            <div class="topic-card" style="border:1.5px solid #e879f9;">
+              <div class="topic-icon" style="background:#fdf4ff;">📖</div>
+              <div class="topic-info">
+                <div class="topic-name">Spelling Bee</div>
+                <div class="topic-meta">15 for you · ⭐ Easy</div>
+              </div>
+              <span class="topic-new-pill">NEW</span>
+              <div class="topic-chevron">›</div>
+            </div>
+            <div class="topic-card">
+              <div class="topic-icon" style="background:#dbeafe;">🌍</div>
+              <div class="topic-info">
+                <div class="topic-name">World Explorer</div>
+                <div class="topic-meta">12 for you · ⭐⭐ Medium</div>
+              </div>
+              <div class="topic-chevron">›</div>
+            </div>
+            <div class="topic-card">
+              <div class="topic-icon" style="background:#f0fdf4;">💡</div>
+              <div class="topic-info">
+                <div class="topic-name">Fun Facts Round</div>
+                <div class="topic-meta">10 for you · ⭐⭐ Medium</div>
+              </div>
+              <div class="topic-chevron">›</div>
+            </div>
+            <div class="topic-card">
+              <div class="topic-icon" style="background:#fce7f3;">🎵</div>
+              <div class="topic-info">
+                <div class="topic-name">Music Masters</div>
+                <div class="topic-meta">8 for you · ⭐⭐⭐ Hard</div>
+              </div>
+              <div class="topic-chevron">›</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label" style="color:#c026d3;">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- PL-03: Quiz setup -->
+<div class="flow-col">
+  <div class="screen-code">PL-03 — Setup</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="setup-header">
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.7);margin-bottom:6px;">← Back</div>
+        <div class="setup-title">🔢 Maths Blast</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <div class="setup-sub">Set up your quiz</div>
+          <div style="background:rgba(255,255,255,0.25);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:800;color:white;flex-shrink:0;">👧 Age 8 · 10 Qs</div>
+        </div>
+      </div>
+
+      <div class="setup-body">
+
+        <!-- Mode -->
+        <div>
+          <div class="setup-section-lbl">Mode</div>
+          <div class="mode-row">
+            <div class="mode-btn active">
+              <div class="mode-btn-icon">⚔️</div>
+              <div class="mode-btn-label">Take turns</div>
+              <div class="mode-btn-desc">Kids alternate · highest score wins</div>
+            </div>
+            <div class="mode-btn">
+              <div class="mode-btn-icon">🎯</div>
+              <div class="mode-btn-label">Solo</div>
+              <div class="mode-btn-desc">Practice on your own</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Players -->
+        <div>
+          <div class="setup-section-lbl">Who's playing?</div>
+          <div class="player-row">
+            <div class="player-chip selected">
+              <div class="player-chip-avatar">👧</div>
+              Emma
+            </div>
+            <div class="player-chip selected">
+              <div class="player-chip-avatar">👦</div>
+              Liam
+            </div>
+            <div class="player-chip">
+              <div class="player-chip-avatar">👧</div>
+              Zoe
+            </div>
+          </div>
+        </div>
+
+        <!-- Questions -->
+        <div>
+          <div class="setup-section-lbl">How many questions?</div>
+          <div class="qcount-row">
+            <div class="qcount-btn">5</div>
+            <div class="qcount-btn active">10</div>
+            <div class="qcount-btn">15</div>
+            <div class="qcount-btn">All</div>
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:6px;padding:8px 10px;background:#f0fdf4;border-radius:10px;">
+            <span style="font-size:14px;">✅</span>
+            <span style="font-size:11px;font-weight:700;color:#166534;">10 questions ready for Emma (age 8) · picked automatically</span>
+          </div>
+        </div>
+
+        <button class="start-btn">▶ Start 10 questions</button>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label" style="color:#c026d3;">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- PL-04: Question in progress -->
+<div class="flow-col">
+  <div class="screen-code">PL-04 — Question</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="quiz-header">
+        <div class="quiz-top-bar">
+          <div class="quiz-quit">✕</div>
+          <div class="quiz-player-pill">
+            <span class="quiz-player-avatar">👧</span>
+            <span class="quiz-player-name">Emma's turn</span>
+          </div>
+          <div class="quiz-counter">Q 4 / 10</div>
+        </div>
+        <div class="timer-row">
+          <div class="timer-bar-bg">
+            <div class="timer-bar-fill" style="width:53%;"></div>
+          </div>
+          <div class="timer-num">8</div>
+          <!-- Points available — counts down with the timer -->
+          <div style="background:rgba(255,255,255,0.25);border-radius:999px;padding:3px 9px;white-space:nowrap;font-size:12px;font-weight:900;color:white;flex-shrink:0;">⭐ 16</div>
+        </div>
+      </div>
+
+      <div class="quiz-body">
+
+        <!-- Score strip -->
+        <div class="score-strip">
+          <div class="score-chip current">
+            <div class="score-chip-avatar">👧</div>
+            <div class="score-chip-name">Emma</div>
+            <div class="score-chip-val">⭐ 35</div>
+          </div>
+          <div class="score-chip">
+            <div class="score-chip-avatar">👦</div>
+            <div class="score-chip-name">Liam</div>
+            <div class="score-chip-val">⭐ 40</div>
+          </div>
+        </div>
+
+        <div class="question-box">
+          What is 7 × 8?
+        </div>
+
+        <!-- Speed hint -->
+        <div style="text-align:center;font-size:11px;font-weight:700;color:#9ca3af;">⚡ Answer faster = more stars!</div>
+
+        <div class="answer-grid">
+          <button class="answer-tile tile-red">
+            <div class="answer-tile-lbl">A</div>
+            54
+          </button>
+          <button class="answer-tile tile-blue">
+            <div class="answer-tile-lbl">B</div>
+            56
+          </button>
+          <button class="answer-tile tile-orange">
+            <div class="answer-tile-lbl">C</div>
+            48
+          </button>
+          <button class="answer-tile tile-green">
+            <div class="answer-tile-lbl">D</div>
+            63
+          </button>
+        </div>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label" style="color:#c026d3;">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- PL-05: Answer reveal — correct -->
+<div class="flow-col">
+  <div class="screen-code">PL-05 — Answer Reveal</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="quiz-header">
+        <div class="quiz-top-bar">
+          <div class="quiz-quit">✕</div>
+          <div class="quiz-player-pill">
+            <span class="quiz-player-avatar">👧</span>
+            <span class="quiz-player-name">Emma's turn</span>
+          </div>
+          <div class="quiz-counter">Q 4 / 10</div>
+        </div>
+        <div class="timer-row">
+          <div class="timer-bar-bg">
+            <div class="timer-bar-fill" style="width:73%;background:#fca5a5;"></div>
+          </div>
+          <div class="timer-num" style="color:#fca5a5;">4s</div>
+          <div style="background:rgba(255,255,255,0.25);border-radius:999px;padding:3px 9px;white-space:nowrap;font-size:12px;font-weight:900;color:white;flex-shrink:0;">⭐ 18</div>
+        </div>
+      </div>
+
+      <div class="quiz-body">
+
+        <div class="score-strip">
+          <div class="score-chip current">
+            <div class="score-chip-avatar">👧</div>
+            <div class="score-chip-name">Emma</div>
+            <div class="score-chip-val">⭐ 53</div>
+          </div>
+          <div class="score-chip">
+            <div class="score-chip-avatar">👦</div>
+            <div class="score-chip-name">Liam</div>
+            <div class="score-chip-val">⭐ 40</div>
+          </div>
+        </div>
+
+        <div class="question-box">What is 7 × 8?</div>
+
+        <div class="answer-grid">
+          <button class="answer-tile tile-wrong">
+            <div class="answer-tile-lbl">A</div>
+            54
+          </button>
+          <button class="answer-tile tile-correct">
+            <div class="answer-tile-lbl">B</div>
+            ✓ 56
+          </button>
+          <button class="answer-tile tile-neutral">
+            <div class="answer-tile-lbl">C</div>
+            48
+          </button>
+          <button class="answer-tile tile-neutral">
+            <div class="answer-tile-lbl">D</div>
+            63
+          </button>
+        </div>
+
+        <div class="reveal-feedback">
+          <div class="reveal-icon">⚡</div>
+          <div>
+            <div class="reveal-msg">Correct! Lightning fast!</div>
+            <div class="reveal-sub">Answered in 4s · 7 × 8 = 56</div>
+          </div>
+          <div class="reveal-star-pill">+18 ⭐</div>
+        </div>
+
+        <!-- Speed scale -->
+        <div style="background:#f9fafb;border-radius:12px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Speed bonus</div>
+          <div style="display:flex;gap:0;border-radius:8px;overflow:hidden;">
+            <div style="flex:1;background:#22c55e;padding:5px 4px;text-align:center;font-size:9px;font-weight:800;color:white;">⚡ &lt;3s<br>+20 ⭐</div>
+            <div style="flex:1;background:#86efac;padding:5px 4px;text-align:center;font-size:9px;font-weight:800;color:#166534;border:2px solid #22c55e;">3–5s<br>+18 ⭐ ✓</div>
+            <div style="flex:1;background:#fef9c3;padding:5px 4px;text-align:center;font-size:9px;font-weight:800;color:#92400e;">5–8s<br>+12 ⭐</div>
+            <div style="flex:1;background:#fee2e2;padding:5px 4px;text-align:center;font-size:9px;font-weight:800;color:#991b1b;">&gt;8s<br>+5 ⭐</div>
+          </div>
+        </div>
+
+        <button class="next-btn">Next question →</button>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label" style="color:#c026d3;">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- PL-06: Results -->
+<div class="flow-col">
+  <div class="screen-code">PL-06 — Results</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="results-header">
+        <div class="results-trophy">🏆</div>
+        <div class="results-title">Liam wins! 🎉</div>
+        <div class="results-sub">🔢 Maths · 10 questions</div>
+      </div>
+
+      <div class="results-body">
+
+        <div class="podium-card">
+          <div class="podium-row">
+            <div class="podium-medal">🥇</div>
+            <div class="podium-avatar" style="background:#dbeafe;">👦</div>
+            <div class="podium-info">
+              <div class="podium-name">Liam</div>
+              <div class="podium-score">8 / 10 correct</div>
+            </div>
+            <div class="podium-stars">⭐ 80</div>
+          </div>
+          <div class="podium-row">
+            <div class="podium-medal">🥈</div>
+            <div class="podium-avatar" style="background:#fdf4ff;border:2px solid #e879f9;">👧</div>
+            <div class="podium-info">
+              <div class="podium-name">Emma <span style="font-size:10px;color:#c026d3;font-weight:700;">· You</span></div>
+              <div class="podium-score">7 / 10 correct</div>
+            </div>
+            <div class="podium-stars">⭐ 70</div>
+          </div>
+        </div>
+
+        <!-- Stars earned this game -->
+        <div style="background:#fef9c3;border:1.5px solid #fde047;border-radius:16px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#111827;">Stars earned this game</div>
+            <div style="font-size:11px;font-weight:600;color:#9ca3af;margin-top:2px;">Added to your balance</div>
+          </div>
+          <div style="font-size:22px;font-weight:900;color:#854d0e;">+70 ⭐</div>
+        </div>
+
+        <div class="results-btn-row">
+          <button class="btn-again">🔁 Play again</button>
+          <button class="btn-new">New topic →</button>
+        </div>
+
+        <div style="text-align:center;">
+          <a href="#" style="font-size:12px;font-weight:700;color:#c026d3;text-decoration:none;">🏠 Back to home</a>
+        </div>
+
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label" style="color:#c026d3;">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
