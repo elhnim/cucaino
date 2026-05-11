@@ -23,7 +23,8 @@ export type TaskCategory =
   | "exercise"
   | "music"
   | "activity"
-  | "personal";
+  | "personal"
+  | "school_subject";
 
 export type ThemeId =
   | "adventure"
@@ -109,6 +110,13 @@ export interface Task {
 
   // Description
   description: string | null;
+
+  // school_subject only
+  subject: string | null;
+  customLabel: string | null;
+  endTime: string | null;
+  room: string | null;
+  teacher: string | null;
 }
 
 export interface TaskCompletion {

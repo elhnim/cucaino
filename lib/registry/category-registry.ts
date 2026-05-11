@@ -61,6 +61,14 @@ export const CATEGORIES: Record<TaskCategory, CategoryDisplay> = {
     borderClass: "border-purple-200",
     isInfoByDefault: false,
   },
+  school_subject: {
+    id: "school_subject",
+    label: "School Subject",
+    defaultIcon: "📚",
+    badgeClass: "bg-indigo-100 text-indigo-700",
+    borderClass: "border-indigo-200",
+    isInfoByDefault: true,
+  },
 };
 
 export function getCategory(id: TaskCategory): CategoryDisplay {

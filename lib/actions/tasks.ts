@@ -34,6 +34,12 @@ export interface TaskFormData {
   musicEnabled?: boolean;
   description?: string | null;
   timeSlots?: TaskTimeSlot[];
+  // school_subject only
+  subject?: string | null;
+  customLabel?: string | null;
+  endTime?: string | null;
+  room?: string | null;
+  teacher?: string | null;
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -67,6 +73,21 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
     default_time_signature: data.defaultTimeSignature,
     active: true,
     kid_can_add: data.kidCanAdd,
+    rule: data.rule ?? "strict",
+    flexible_min_per_week: data.flexibleMinPerWeek ?? null,
+    target: data.target ?? "none",
+    target_duration_minutes: data.targetDurationMinutes ?? null,
+    target_reps: data.targetReps ?? null,
+    target_rep_label: data.targetRepLabel ?? null,
+    checklist_items: data.checklistItems ?? null,
+    music_enabled: data.musicEnabled ?? false,
+    description: data.description ?? null,
+    time_slots: data.timeSlots ?? [],
+    subject: data.subject ?? null,
+    custom_label: data.customLabel ?? null,
+    end_time: data.endTime ?? null,
+    room: data.room ?? null,
+    teacher: data.teacher ?? null,
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
@@ -110,10 +131,33 @@ export async function updateTask(
       music_enabled: data.musicEnabled ?? false,
       description: data.description ?? null,
       time_slots: data.timeSlots ?? [],
+      subject: data.subject ?? null,
+      custom_label: data.customLabel ?? null,
+      end_time: data.endTime ?? null,
+      room: data.room ?? null,
+      teacher: data.teacher ?? null,
     })
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
+  return { ok: true };
+}
+
+export async function addTaskToDay(taskId: string, kidId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase
+    .from("families")
+    .select("id")
+    .maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await supabase.from("kid_daily_task_additions").upsert(
+    { family_id: fam.id, kid_id: kidId, task_id: taskId, date: today },
+    { onConflict: "kid_id,task_id,date" },
+  );
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true };
 }
 

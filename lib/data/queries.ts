@@ -124,6 +124,11 @@ function mapTask(row: DbTaskRow): Task {
     checklistItems: (row as any).checklist_items ?? null,
     musicEnabled: (row as any).music_enabled ?? false,
     description: (row as any).description ?? null,
+    subject: (row as any).subject ?? null,
+    customLabel: (row as any).custom_label ?? null,
+    endTime: (row as any).end_time ?? null,
+    room: (row as any).room ?? null,
+    teacher: (row as any).teacher ?? null,
   };
 }
 
@@ -219,6 +224,16 @@ export const listCompletionsToday = timed("listCompletionsToday", async (kidId: 
     pointsAwarded: row.points_awarded,
   }));
 });
+
+export async function listKidDailyAdditions(kidId: string, date: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("kid_daily_task_additions")
+    .select("task_id")
+    .eq("kid_id", kidId)
+    .eq("date", date);
+  return (data ?? []).map((row) => (row as any).task_id as string);
+}
 
 export async function listSchoolItemsForDay(
   kidId: string,
