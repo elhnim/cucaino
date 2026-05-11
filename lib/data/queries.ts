@@ -228,14 +228,22 @@ export const listCompletionsToday = timed("listCompletionsToday", async (kidId: 
   }));
 });
 
-export async function listKidDailyAdditions(kidId: string, date: string): Promise<string[]> {
+export async function listKidDailyAdditions(kidId: string, date: string): Promise<Task[]> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data: additions, error: addErr } = await supabase
     .from("kid_daily_task_additions")
     .select("task_id")
     .eq("kid_id", kidId)
     .eq("date", date);
-  return (data ?? []).map((row) => (row as any).task_id as string);
+  if (addErr || !additions || additions.length === 0) return [];
+
+  const taskIds = additions.map((a) => a.task_id as string);
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .in("id", taskIds);
+  if (error || !data) return [];
+  return (data as DbTaskRow[]).map(mapTask);
 }
 
 export async function listSchoolItemsForDay(
@@ -471,6 +479,7 @@ export type QuizQuestion2 = {
   sentenceTemplate: string | null;
   acceptedAnswers: string[] | null;
   explanation: string | null;
+  tags: string[];
   createdAt: string;
 };
 
@@ -505,6 +514,7 @@ export async function listQuizQuestions2(opts?: { theme?: string }): Promise<Qui
     sentenceTemplate: row.sentence_template,
     acceptedAnswers: row.accepted_answers,
     explanation: row.explanation,
+    tags: (row.tags as string[]) ?? [],
     createdAt: row.created_at,
   }));
 }
@@ -526,6 +536,7 @@ export async function getQuizQuestion2(id: string): Promise<QuizQuestion2 | null
     sentenceTemplate: data.sentence_template,
     acceptedAnswers: data.accepted_answers,
     explanation: data.explanation,
+    tags: (data.tags as string[]) ?? [],
     createdAt: data.created_at,
   };
 }
@@ -627,22 +638,4 @@ export async function listWeeklyStarsByKid(): Promise<Record<string, number>> {
     totals[row.kid_id] = (totals[row.kid_id] ?? 0) + (row.points_awarded ?? 0);
   }
   return totals;
-}
-
-export async function listKidDailyAdditions(kidId: string, date: string): Promise<Task[]> {
-  const supabase = await createClient();
-  const { data: additions, error: addErr } = await supabase
-    .from("kid_daily_task_additions")
-    .select("task_id")
-    .eq("kid_id", kidId)
-    .eq("date", date);
-  if (addErr || !additions || additions.length === 0) return [];
-
-  const taskIds = additions.map((a) => a.task_id as string);
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("*")
-    .in("id", taskIds);
-  if (error || !data) return [];
-  return (data as DbTaskRow[]).map(mapTask);
 }
