@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Add Task — School Subject (Custom)</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+  <div class="page-header"><div class="page-title">📋 Tasks</div><div class="btn-add">+ Add Task</div></div>
+  <div class="page-bg" style="flex:1;"></div>
+
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:92%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">New task</div>
+        <div class="sheet-close">✕</div>
+      </div>
+      <div class="sheet-body">
+
+        <div class="form-sec">
+          <div class="icon-name-row">
+            <div class="icon-picker">✏️</div>
+            <div style="flex:1;">
+              <!-- Custom label field — required, error state (empty) -->
+              <div class="form-label" style="margin-bottom:4px;">Subject name <span style="color:var(--red);">*</span></div>
+              <div class="form-input error placeholder">What should this be called?</div>
+              <div class="form-hint error">Required when subject is "Custom"</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-sec">
+          <div class="form-label">Category</div>
+          <div class="cat-pills">
+            <div class="cat-pill"><span class="ci">🧹</span> Chore</div>
+            <div class="cat-pill"><span class="ci">🏃</span> Exercise</div>
+            <div class="cat-pill"><span class="ci">🎹</span> Music</div>
+            <div class="cat-pill"><span class="ci">🎒</span> Activity</div>
+            <div class="cat-pill"><span class="ci">🌱</span> Habit</div>
+            <div class="cat-pill active"><span class="ci">📚</span> School Subject</div>
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <div class="form-sec">
+          <div class="form-label">Assigned to</div>
+          <div class="kids-row">
+            <div class="kid-chip"><span class="kid-chip-em">🦁</span> Emma</div>
+            <div class="kid-chip"><span class="kid-chip-em">🚀</span> Liam</div>
+            <div class="kid-chip active"><span class="kid-chip-em">🐬</span> Sophie</div>
+          </div>
+        </div>
+
+        <div class="form-sec">
+          <div class="form-label">Schedule</div>
+          <div class="sched-grid">
+            <div class="sched-btn">Every day</div>
+            <div class="sched-btn active">Weekdays</div>
+            <div class="sched-btn">Weekends</div>
+            <div class="sched-btn">Pick days</div>
+          </div>
+        </div>
+
+        <!-- Subject grid — "Custom" selected -->
+        <div class="form-sec">
+          <div class="form-label">Subject</div>
+          <div class="subject-grid">
+            <div class="subj-cell"><div class="subj-icon">🧮</div><div class="subj-label">Maths</div></div>
+            <div class="subj-cell"><div class="subj-icon">📚</div><div class="subj-label">English</div></div>
+            <div class="subj-cell"><div class="subj-icon">🔬</div><div class="subj-label">Science</div></div>
+            <div class="subj-cell"><div class="subj-icon">🏛️</div><div class="subj-label">History</div></div>
+            <div class="subj-cell"><div class="subj-icon">🌍</div><div class="subj-label">Geography</div></div>
+            <div class="subj-cell"><div class="subj-icon">🎨</div><div class="subj-label">Art</div></div>
+            <div class="subj-cell"><div class="subj-icon">⚽</div><div class="subj-label">PE / Sport</div></div>
+            <div class="subj-cell"><div class="subj-icon">🎵</div><div class="subj-label">Music</div></div>
+            <div class="subj-cell"><div class="subj-icon">📖</div><div class="subj-label">Library</div></div>
+            <div class="subj-cell"><div class="subj-icon">💻</div><div class="subj-label">Computing</div></div>
+            <div class="subj-cell"><div class="subj-icon">🗣️</div><div class="subj-label">Language</div></div>
+            <div class="subj-cell"><div class="subj-icon">🕊️</div><div class="subj-label">RE</div></div>
+            <div class="subj-cell"><div class="subj-icon">🍱</div><div class="subj-label">Lunch</div></div>
+            <div class="subj-cell"><div class="subj-icon">🏃</div><div class="subj-label">Recess</div></div>
+            <div class="subj-cell active" style="border-color:#6366f1;background:#eef2ff;">
+              <div class="subj-icon">✏️</div>
+              <div class="subj-label" style="color:#4f46e5;">Custom ✓</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Time row -->
+        <div class="form-sec">
+          <div class="form-label">Time</div>
+          <div class="time-row">
+            <div class="time-input-wrap">
+              <div class="time-sub-label">Start</div>
+              <div class="form-input">10:00 AM</div>
+            </div>
+          <div class="form-hint">5-minute steps</div>
+            <div class="time-input-wrap">
+              <div class="time-sub-label">End</div>
+              <div class="form-input">10:30 AM</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-sec">
+          <div class="time-row">
+            <div class="time-input-wrap">
+              <div class="time-sub-label">🚪 Room (optional)</div>
+              <div class="form-input">Art room</div>
+            </div>
+            <div class="time-input-wrap">
+              <div class="time-sub-label">👤 Teacher (optional)</div>
+              <div class="form-input placeholder">e.g. Ms Lee</div>
+            </div>
+          </div>
+        </div>
+        <!-- Packing list -->
+        <div class="form-sec">
+          <div class="form-label">🎒 Things to bring (optional)</div>
+          <div class="pack-wrap">
+            <div class="pack-input-ghost">Add item…</div>
+          </div>
+          <div class="form-hint">e.g. Recorder, PE uniform, Library book</div>
+        </div>
+        <div class="scroll-pad"></div>
+      </div>
+      <div class="sheet-footer">
+        <div class="btn-cancel">Cancel</div>
+        <div class="btn-save disabled">Add task</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="state-label">STATE: School Subject — Custom selected, name required (blocked)</div>
+</body>
+</html>

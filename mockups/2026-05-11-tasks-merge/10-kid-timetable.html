@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kid Todo — School section + Add Subject</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+  :root { --accent: #f97316; --accent-light: #fff7ed; --accent-dark: #ea580c; }
+
+  .kid-header {
+    padding: 14px 20px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: white;
+    border-bottom: 1px solid var(--gray-100);
+    flex-shrink: 0;
+  }
+
+  /* Day tab strip */
+  .day-strip {
+    display: flex;
+    gap: 4px;
+    padding: 10px 20px;
+    overflow-x: auto;
+    background: white;
+    border-bottom: 1px solid var(--gray-100);
+    flex-shrink: 0;
+  }
+
+  .day-chip {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-500);
+    background: var(--gray-100);
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .day-chip.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  /* Section label */
+  .todo-section-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gray-400);
+    margin: 14px 0 8px;
+  }
+
+  /* School subject pill (read-only, existing) */
+  .school-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 6px;
+    margin-bottom: 6px;
+  }
+
+  /* Task card */
+  .todo-card {
+    background: white;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 16px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .todo-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .todo-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-900);
+    flex: 1;
+  }
+
+  .todo-check {
+    width: 26px;
+    height: 26px;
+    border: 2px solid var(--gray-300);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .todo-check.done {
+    background: var(--accent);
+    border-color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 13px;
+  }
+
+  /* Add subject button — inline in school section */
+  .add-subj-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 20px;
+    border: 1.5px dashed var(--accent);
+    background: var(--accent-light);
+    color: var(--accent-dark);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 6px;
+  }
+
+  /* Kid bottom nav */
+  .kid-nav {
+    display: flex;
+    background: white;
+    border-top: 1px solid var(--gray-200);
+    flex-shrink: 0;
+  }
+
+  .kid-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 4px 12px;
+    gap: 3px;
+    text-decoration: none;
+  }
+
+  .kid-nav-label { font-size: 10px; font-weight: 600; color: var(--gray-400); }
+  .kid-nav-item.active .kid-nav-label { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+
+  <div class="kid-header">
+    <div style="font-size:22px;">🦁</div>
+    <div style="font-size:17px;font-weight:800;color:var(--gray-900);">Monday</div>
+    <div style="font-size:13px;font-weight:700;color:var(--accent);">6 / 9</div>
+  </div>
+
+  <!-- Day strip -->
+  <div class="day-strip">
+    <div class="day-chip">Sun</div>
+    <div class="day-chip active">Mon</div>
+    <div class="day-chip">Tue</div>
+    <div class="day-chip">Wed</div>
+    <div class="day-chip">Thu</div>
+    <div class="day-chip">Fri</div>
+    <div class="day-chip">Sat</div>
+  </div>
+
+  <!-- Content -->
+  <div style="flex:1;overflow-y:auto;padding:0 20px;">
+
+    <!-- Before school -->
+    <div class="todo-section-label">🌅 Before school</div>
+
+    <div class="todo-card">
+      <div class="todo-icon" style="background:#fff7ed;">🦷</div>
+      <div class="todo-name">Brush teeth</div>
+      <div style="display:flex;align-items:center;gap:5px;">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);">1 / 2</div>
+        <div class="todo-check done">✓</div>
+      </div>
+    </div>
+
+    <div class="todo-card">
+      <div class="todo-icon" style="background:#f0fdf4;">🧹</div>
+      <div class="todo-name">Make your bed</div>
+      <div class="todo-check done">✓</div>
+    </div>
+
+    <!-- School section — pills + Add subject -->
+    <div class="todo-section-label">📚 School</div>
+
+    <div style="flex-wrap:wrap;display:flex;align-items:center;margin-bottom:4px;">
+      <div class="school-pill" style="background:#dbeafe;color:#1e40af;">🧮 Maths</div>
+      <div class="school-pill" style="background:#fce7f3;color:#9d174d;">📚 English</div>
+      <div class="school-pill" style="background:#dcfce7;color:#166534;">🔬 Science</div>
+      <div class="school-pill" style="background:#fed7aa;color:#9a3412;">⚽ PE</div>
+      <!-- Add subject inline button -->
+      <a class="add-subj-inline" href="11-kid-add-subject.html">+ Add subject</a>
+    </div>
+
+    <!-- After school -->
+    <div class="todo-section-label">🏠 After school</div>
+
+    <div class="todo-card">
+      <div class="todo-icon" style="background:#f5f3ff;">🎹</div>
+      <div class="todo-name">Piano practice</div>
+      <div class="todo-check"></div>
+    </div>
+
+    <div class="todo-card">
+      <div class="todo-icon" style="background:#f0fdf4;">🌱</div>
+      <div class="todo-name">Read a book</div>
+      <div class="todo-check"></div>
+    </div>
+
+    <div class="todo-card">
+      <div class="todo-icon" style="background:#fff7ed;">🦷</div>
+      <div class="todo-name">Brush teeth</div>
+      <div style="display:flex;align-items:center;gap:5px;">
+        <div style="font-size:12px;font-weight:700;color:var(--gray-400);">0 / 2</div>
+        <div class="todo-check"></div>
+      </div>
+    </div>
+
+    <div style="height:80px;"></div>
+  </div>
+
+  <!-- Kid bottom nav -->
+  <nav class="kid-nav">
+    <a class="kid-nav-item" href="#">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>
+      <span class="kid-nav-label">Home</span>
+    </a>
+    <a class="kid-nav-item active" href="#">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#f97316" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      <span class="kid-nav-label" style="color:#f97316;">Tasks</span>
+    </a>
+    <a class="kid-nav-item" href="#">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+      <span class="kid-nav-label">Rewards</span>
+    </a>
+    <a class="kid-nav-item" href="#">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <span class="kid-nav-label">Profile</span>
+    </a>
+  </nav>
+</div>
+
+<div class="state-label">STATE: Kid todo (Monday) — school section with "+ Add subject"</div>
+</body>
+</html>

@@ -1,0 +1,180 @@
+# Tasks Merge — Design Spec
+**Date:** 2026-05-11  
+**Status:** Approved  
+**Mockups:** `mockups/2026-05-11-tasks-merge/`
+
+---
+
+## Purpose
+
+Consolidate three separate data concepts (Tasks, SchoolClass, SchoolItem) into a single **Task** with six categories. Parents manage everything from one screen and one form. Kids see everything in one unified view.
+
+---
+
+## Categories
+
+Six categories, each pill shown in the "Add task" form:
+
+| Icon | Label | Description |
+|------|-------|-------------|
+| 🧹 | Chore | Household responsibilities |
+| 🏃 | Exercise | Physical activity |
+| 🎹 | Music | Instrument practice — metronome always available on task card, no form config |
+| 🎒 | Activity | Extracurriculars with location + packing list — no completion tracking |
+| 🌱 | Habit | Self-improvement (reading, journaling, etc.) |
+| 📚 | School Subject | Timetable entries — info-only, no completion tracking |
+
+`personal` category is renamed to `habit` in the data model. `school_subject` is new.
+
+---
+
+## Add Task Form — Fields by Category
+
+### Standard categories: Chore, Exercise, Music, Habit
+
+| Field | Notes |
+|-------|-------|
+| Icon picker + Name | Required |
+| Category pills | All 6 shown |
+| Rule | Strict / Flexible |
+| Assigned to | All kids or individual kids |
+| Schedule | Every day / Weekdays / Weekends / Pick days |
+| Times per day | 1× / 2× / 3× / 4× (default 1×) |
+| Time of day | Dropdown (Before school / Morning / After school / Afternoon / Evening / Anytime) |
+| Start time | Optional; 5-minute increment steps |
+| Target | None / Timer / Reps / Checklist |
+| Points | Kid ⭐ (per completion) + Family ⭐ |
+| **Auto-set — Requires completion** | Always YES — displayed as locked badge, not a checkbox |
+| **Auto-set — Kids can add** | Always NO for strict; eligible for flexible — displayed as locked badge |
+
+Music has no additional fields. The metronome feature is always available on the task card during practice.
+
+### Activity
+
+Activities happen on the scheduled day or they don't — no Strict/Flexible rule. Fields shown:
+
+| Field | Notes |
+|-------|-------|
+| Icon picker + Name | Required |
+| Category pills | All 6 shown |
+| Assigned to | All kids or individual kids |
+| Schedule | Every day / Weekdays / Weekends / Pick days |
+| Time of day | Dropdown |
+| Start time | Optional; 5-minute increment steps |
+| 📍 Location | Optional — where to drop off / pick up |
+| 🎒 Packing list | Tag input — items shown as a reminder the evening before |
+| Points | Optional (default 0) |
+
+**Hidden for Activity:** Rule, Times per day, Target, Requires completion badge, Kids can add badge.
+
+### School Subject
+
+Parent-side form. Each kid has their own timetable — subjects assigned to one kid at a time.
+
+| Field | Notes |
+|-------|-------|
+| Subject grid | 15 subjects in 3-column grid (see subject registry); one must be selected to enable Save |
+| Custom name | Optional — overrides the subject label display |
+| When subject = Custom (✏️) | "Subject name" field becomes required; Save blocked until filled |
+| Assigned to | Single kid picker |
+| Schedule | Every day / Weekdays / Weekends / Pick days |
+| Start time + End time | Two inputs side by side; 5-minute increment steps |
+| Room | Optional |
+| Teacher | Optional |
+| 🎒 Packing list | Tag input — items kids need to bring for this subject |
+
+**Hidden for School Subject:** Rule, Times per day, Time of day, Target, Points, Requires completion badge, Kids can add badge. No info banner.
+
+---
+
+## Times per Day — Counter Behaviour
+
+- Selector: 1× / 2× / 3× / 4× (shown for Chore, Exercise, Music, Habit only)
+- Default: 1×
+- On the kid's todo card: one card with a tap counter (0 / N). Each tap increments and awards points once. Card is complete when counter reaches N / N.
+- Points label updates to "per completion" when times_per_day > 1
+- "Requires completion" auto-set badge updates to "Yes × N" when times_per_day > 1
+
+---
+
+## Tasks List — Parent View
+
+`/parent/tasks` shows all tasks in a **single flat scrollable list**.
+
+### Filters
+
+Two side-by-side dropdown controls above the list:
+
+- **Category** — All / 🧹 Chore / 🏃 Exercise / 🎹 Music / 🎒 Activity / 🌱 Habit / 📚 School Subject
+- **Kid** — All kids / [each kid by name]
+
+Each dropdown shows the current selection value. Opening a dropdown dims the list and shows a panel with radio-select options (single selection per filter).
+
+### Task cards
+
+Each card shows: icon, name, category tag, schedule info, points badge, and a **📌 Strict** (amber) or **🔄 Flexible** (blue) rule tag inline. Activity and School Subject cards show no rule tag. A `›` arrow opens the edit form.
+
+---
+
+## Kid Todo Screen — School Section
+
+The school section in the kid's daily todo view (`/kid/[kidId]/todo`) shows school_subject tasks for the active day as coloured pills (e.g. 🧮 Maths, 📚 English). At the end of the pill row is a dashed `+ Add subject` button.
+
+Tapping `+ Add subject` opens a bottom sheet with a **school-subject-only** form (no category picker). Fields: subject grid, which days (Mon–Fri toggles), start + end time (5-minute steps), room, teacher, packing list. Save is disabled until a subject is selected.
+
+Kids cannot add any other task category from this screen.
+
+---
+
+## School Items — Deprecation
+
+`/parent/school-items` shows a prominent amber banner:
+
+> **School Items are moving to Tasks**  
+> Packing reminders now live on Activity tasks — add a Location and Packing List to any activity. Existing items here still work but won't be added to new schedules.  
+> → Create an Activity task instead
+
+Existing school items remain visible and functional below the banner.
+
+---
+
+## Data Requirements
+
+### New DB columns on `tasks` table
+
+```sql
+subject       text          -- school_subject only (math, english, science…)
+custom_label  text          -- school_subject: overrides subject label display
+end_time      text          -- school_subject: "HH:MM" paired with start_time
+room          text          -- school_subject: optional room label
+teacher       text          -- school_subject: optional teacher name
+times_per_day integer       -- default 1; chore/exercise/music/habit only
+```
+
+### Category rename
+
+`personal` → `habit` in the `TaskCategory` enum and category registry.
+
+### Deprecated tables (kept, not deleted)
+
+`school_classes` and `school_items` remain in the DB. Their management UIs show deprecation notices. New data goes into `tasks`.
+
+---
+
+## Mockup Reference
+
+| Screen | File |
+|--------|------|
+| Default (category picker) | `01-form-default.html` |
+| Chore — 1× per day | `02-form-chore.html` |
+| Chore — 2× per day (brush teeth) | `02b-form-chore-2x.html` |
+| Music | `03-form-music.html` |
+| Activity | `04-form-activity.html` |
+| School Subject — subject picker | `05-form-school-picker.html` |
+| School Subject — Maths selected | `06-form-school-filled.html` |
+| School Subject — Custom | `07-form-school-other.html` |
+| School Items — deprecation | `09-school-items-deprecation.html` |
+| Kid todo — school section + add subject | `10-kid-timetable.html` |
+| Kid add subject sheet | `11-kid-add-subject.html` |
+| Tasks list — filters closed | `12-tasks-all.html` |
+| Tasks list — Category dropdown open | `12b-tasks-filter-open.html` |

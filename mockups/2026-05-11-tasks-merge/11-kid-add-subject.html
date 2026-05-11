@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kid — Add Subject</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+  :root { --accent: #f97316; --accent-light: #fff7ed; --accent-dark: #ea580c; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+
+  <!-- Kid timetable visible behind sheet (dimmed) -->
+  <div class="page-header" style="background:white;border-bottom:1px solid var(--gray-100);">
+    <div style="font-size:17px;font-weight:800;color:var(--gray-900);">📚 My Timetable</div>
+  </div>
+  <div class="page-bg" style="flex:1;"></div>
+
+  <!-- Sheet -->
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:90%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">Add a subject</div>
+        <div class="sheet-close">✕</div>
+      </div>
+      <div class="sheet-body">
+
+        <!-- Subject grid — no subject selected yet -->
+        <div class="form-sec">
+          <div class="form-label">What subject?</div>
+          <div class="subject-grid">
+            <div class="subj-cell"><div class="subj-icon">🧮</div><div class="subj-label">Maths</div></div>
+            <div class="subj-cell"><div class="subj-icon">📚</div><div class="subj-label">English</div></div>
+            <div class="subj-cell"><div class="subj-icon">🔬</div><div class="subj-label">Science</div></div>
+            <div class="subj-cell"><div class="subj-icon">🏛️</div><div class="subj-label">History</div></div>
+            <div class="subj-cell"><div class="subj-icon">🌍</div><div class="subj-label">Geography</div></div>
+            <div class="subj-cell"><div class="subj-icon">🎨</div><div class="subj-label">Art</div></div>
+            <div class="subj-cell"><div class="subj-icon">⚽</div><div class="subj-label">PE / Sport</div></div>
+            <div class="subj-cell"><div class="subj-icon">🎵</div><div class="subj-label">Music</div></div>
+            <div class="subj-cell"><div class="subj-icon">📖</div><div class="subj-label">Library</div></div>
+            <div class="subj-cell"><div class="subj-icon">💻</div><div class="subj-label">Computing</div></div>
+            <div class="subj-cell"><div class="subj-icon">🗣️</div><div class="subj-label">Language</div></div>
+            <div class="subj-cell"><div class="subj-icon">🕊️</div><div class="subj-label">RE</div></div>
+            <div class="subj-cell"><div class="subj-icon">🍱</div><div class="subj-label">Lunch</div></div>
+            <div class="subj-cell"><div class="subj-icon">🏃</div><div class="subj-label">Recess</div></div>
+            <div class="subj-cell"><div class="subj-icon">✏️</div><div class="subj-label">+ Custom</div></div>
+          </div>
+        </div>
+
+        <!-- Which days -->
+        <div class="form-sec">
+          <div class="form-label">Which days?</div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">
+            <div class="sched-btn active" style="font-size:11px;">Mon</div>
+            <div class="sched-btn" style="font-size:11px;">Tue</div>
+            <div class="sched-btn" style="font-size:11px;">Wed</div>
+            <div class="sched-btn" style="font-size:11px;">Thu</div>
+            <div class="sched-btn" style="font-size:11px;">Fri</div>
+          </div>
+        </div>
+
+        <!-- Time -->
+        <div class="form-sec">
+          <div class="form-label">When?</div>
+          <div class="time-row">
+            <div class="time-input-wrap">
+              <div class="time-sub-label">Start</div>
+              <div class="form-input placeholder">—</div>
+            </div>
+            <div class="time-input-wrap">
+              <div class="time-sub-label">End</div>
+              <div class="form-input placeholder">—</div>
+            </div>
+          </div>
+          <div class="form-hint">5-minute steps</div>
+        </div>
+
+        <!-- Room + Teacher -->
+        <div class="form-sec">
+          <div class="time-row">
+            <div class="time-input-wrap">
+              <div class="time-sub-label">🚪 Room (optional)</div>
+              <div class="form-input placeholder">e.g. 4A</div>
+            </div>
+            <div class="time-input-wrap">
+              <div class="time-sub-label">👤 Teacher (optional)</div>
+              <div class="form-input placeholder">e.g. Ms Lee</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Packing list -->
+        <div class="form-sec">
+          <div class="form-label">🎒 Things to bring (optional)</div>
+          <div class="pack-wrap">
+            <div class="pack-input-ghost">Add item…</div>
+          </div>
+          <div class="form-hint">e.g. Recorder, PE uniform, Library book</div>
+        </div>
+
+        <div class="scroll-pad"></div>
+      </div>
+      <div class="sheet-footer">
+        <div class="btn-cancel">Cancel</div>
+        <div class="btn-save disabled" style="background:#f97316;opacity:0.4;">Save</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="state-label">STATE: Kid adding school subject — no subject chosen yet</div>
+</body>
+</html>

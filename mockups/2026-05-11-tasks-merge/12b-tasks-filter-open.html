@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Tasks — Category Filter Open</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: white;
+    border-bottom: 1px solid var(--gray-100);
+    flex-shrink: 0;
+  }
+
+  .filter-dropdown {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    gap: 6px;
+  }
+
+  .filter-dropdown.active {
+    border-color: var(--indigo);
+    background: #eef2ff;
+  }
+
+  .filter-dropdown-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gray-500);
+    white-space: nowrap;
+  }
+
+  .filter-dropdown.active .filter-dropdown-label {
+    color: var(--indigo);
+  }
+
+  .filter-dropdown-value {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--gray-800);
+    flex: 1;
+  }
+
+  .filter-dropdown.active .filter-dropdown-value {
+    color: var(--indigo);
+  }
+
+  .filter-dropdown-arrow {
+    font-size: 11px;
+    color: var(--gray-400);
+  }
+
+  .filter-dropdown.active .filter-dropdown-arrow {
+    color: var(--indigo);
+  }
+
+  /* Overlay dim */
+  .overlay-dim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.2);
+    z-index: 40;
+  }
+
+  /* Dropdown panel */
+  .dropdown-panel {
+    position: absolute;
+    top: 118px;
+    left: 16px;
+    right: 88px;
+    background: white;
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    z-index: 50;
+    overflow: hidden;
+  }
+
+  .dropdown-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .dropdown-panel-title {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .dropdown-panel-clear {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--indigo);
+  }
+
+  .dropdown-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-800);
+    cursor: pointer;
+    border-bottom: 1px solid var(--gray-50);
+  }
+
+  .dropdown-option:last-child { border-bottom: none; }
+
+  .dropdown-option.selected {
+    color: var(--indigo);
+    background: #f5f3ff;
+  }
+
+  .dropdown-option .opt-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--indigo);
+    color: white;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .dropdown-option .opt-empty {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid var(--gray-300);
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+<div class="phone" style="position:relative;">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+
+  <div class="page-header">
+    <div class="page-title">📋 Tasks</div>
+    <div class="btn-add">+ Add Task</div>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <div class="filter-dropdown active">
+      <div style="display:flex;flex-direction:column;gap:1px;flex:1;">
+        <div class="filter-dropdown-label">Category</div>
+        <div class="filter-dropdown-value">All</div>
+      </div>
+      <div class="filter-dropdown-arrow">▴</div>
+    </div>
+    <div class="filter-dropdown">
+      <div style="display:flex;flex-direction:column;gap:1px;flex:1;">
+        <div class="filter-dropdown-label">Kid</div>
+        <div class="filter-dropdown-value">All kids</div>
+      </div>
+      <div class="filter-dropdown-arrow">▾</div>
+    </div>
+  </div>
+
+  <!-- Task list (dimmed behind overlay) -->
+  <div style="flex:1;overflow-y:hidden;padding:8px 16px;filter:blur(1px);pointer-events:none;">
+    <div class="task-card">
+      <div class="task-icon-lg" style="background:#fff7ed;">🦷</div>
+      <div class="task-info"><div class="task-name">Brush teeth</div></div>
+    </div>
+    <div class="task-card">
+      <div class="task-icon-lg" style="background:#f0fdf4;">🧹</div>
+      <div class="task-info"><div class="task-name">Make your bed</div></div>
+    </div>
+    <div class="task-card">
+      <div class="task-icon-lg" style="background:#f5f3ff;">🎹</div>
+      <div class="task-info"><div class="task-name">Piano practice</div></div>
+    </div>
+  </div>
+
+  <!-- Dim overlay -->
+  <div class="overlay-dim"></div>
+
+  <!-- Category dropdown panel -->
+  <div class="dropdown-panel">
+    <div class="dropdown-panel-header">
+      <div class="dropdown-panel-title">Category</div>
+      <div class="dropdown-panel-clear">Clear</div>
+    </div>
+    <div class="dropdown-option selected">
+      <div class="opt-check">✓</div>
+      <span>All</span>
+    </div>
+    <div class="dropdown-option">
+      <div class="opt-empty"></div>
+      <span>🧹 Chore</span>
+    </div>
+    <div class="dropdown-option">
+      <div class="opt-empty"></div>
+      <span>🏃 Exercise</span>
+    </div>
+    <div class="dropdown-option">
+      <div class="opt-empty"></div>
+      <span>🎹 Music</span>
+    </div>
+    <div class="dropdown-option">
+      <div class="opt-empty"></div>
+      <span>🎒 Activity</span>
+    </div>
+    <div class="dropdown-option">
+      <div class="opt-empty"></div>
+      <span>🌱 Habit</span>
+    </div>
+    <div class="dropdown-option">
+      <div class="opt-empty"></div>
+      <span>📚 School Subject</span>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <a class="nav-item" href="../parent-overview/02-no-requests.html">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg>
+      <span class="nav-label">Home</span>
+    </a>
+    <a class="nav-item active" href="#">
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      <span class="nav-label" style="color:#6366f1;">Tasks</span>
+    </a>
+    <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/></svg><span class="nav-label">Rewards</span></a>
+    <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label">Quizzes</span></a>
+    <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></a>
+  </nav>
+</div>
+
+<div class="state-label">STATE: Tasks — Category dropdown open · "All" selected</div>
+</body>
+</html>

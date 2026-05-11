@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Add Task — Default</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="phone">
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span>9:41</span>
+    <span style="font-size:12px;font-weight:700;">100%</span>
+  </div>
+
+  <!-- Background: tasks list (dimmed) -->
+  <div class="page-header">
+    <div class="page-title">📋 Tasks</div>
+    <div class="btn-add">+ Add Task</div>
+  </div>
+  <div class="filter-tabs">
+    <div class="filter-tab active">All</div>
+    <div class="filter-tab">Strict</div>
+    <div class="filter-tab">Flexible</div>
+  </div>
+  <div class="page-bg" style="flex:1;">
+    <div class="task-section-head" style="margin-top:4px;">📌 Strict Tasks</div>
+    <div class="bg-card"><div class="bg-icon">🧹</div><div><div class="bg-name">Make your bed</div><div class="bg-sub">Chore · Weekdays · 5 ⭐</div></div></div>
+    <div class="bg-card"><div class="bg-icon">🏃</div><div><div class="bg-name">Morning run</div><div class="bg-sub">Exercise · Every day · 8 ⭐</div></div></div>
+    <div class="bg-card"><div class="bg-icon">🎹</div><div><div class="bg-name">Piano practice</div><div class="bg-sub">Music · Weekdays · 10 ⭐</div></div></div>
+  </div>
+
+  <!-- Sheet overlay -->
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:72%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">New task</div>
+        <div class="sheet-close">✕</div>
+      </div>
+      <div class="sheet-body">
+
+        <!-- Icon + Name -->
+        <div class="form-sec">
+          <div class="icon-name-row">
+            <div class="icon-picker" title="tap to pick emoji">🏠</div>
+            <div style="flex:1;">
+              <div class="form-input placeholder" style="margin-top:0;">Task name…</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category -->
+        <div class="form-sec">
+          <div class="form-label">Category</div>
+          <div class="cat-pills">
+            <div class="cat-pill"><span class="ci">🧹</span> Chore</div>
+            <div class="cat-pill"><span class="ci">🏃</span> Exercise</div>
+            <div class="cat-pill"><span class="ci">🎹</span> Music</div>
+            <div class="cat-pill"><span class="ci">🎒</span> Activity</div>
+            <div class="cat-pill"><span class="ci">🌱</span> Habit</div>
+            <div class="cat-pill"><span class="ci">📚</span> School Subject</div>
+          </div>
+          <div class="form-hint">Select a category to continue</div>
+        </div>
+
+      </div>
+      <div class="sheet-footer">
+        <div class="btn-cancel">Cancel</div>
+        <div class="btn-save disabled">Add task</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="state-label">STATE: Form opened — no category selected yet</div>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Add Task — Activity</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+  <div class="page-header"><div class="page-title">📋 Tasks</div><div class="btn-add">+ Add Task</div></div>
+  <div class="page-bg" style="flex:1;"></div>
+
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:92%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">New task</div>
+        <div class="sheet-close">✕</div>
+      </div>
+      <div class="sheet-body">
+
+        <div class="form-sec">
+          <div class="icon-name-row">
+            <div class="icon-picker">🏊</div>
+            <div style="flex:1;"><div class="form-input">Swimming</div></div>
+          </div>
+        </div>
+
+        <div class="form-sec">
+          <div class="form-label">Category</div>
+          <div class="cat-pills">
+            <div class="cat-pill"><span class="ci">🧹</span> Chore</div>
+            <div class="cat-pill"><span class="ci">🏃</span> Exercise</div>
+            <div class="cat-pill"><span class="ci">🎹</span> Music</div>
+            <div class="cat-pill active"><span class="ci">🎒</span> Activity</div>
+            <div class="cat-pill"><span class="ci">🌱</span> Habit</div>
+            <div class="cat-pill"><span class="ci">📚</span> School Subject</div>
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <div class="form-sec">
+          <div class="form-label">Assigned to</div>
+          <div class="kids-row">
+            <div class="kid-chip"><span class="kid-chip-em">👨‍👩‍👧‍👦</span> All kids</div>
+            <div class="kid-chip active"><span class="kid-chip-em">🦁</span> Emma</div>
+            <div class="kid-chip active"><span class="kid-chip-em">🚀</span> Liam</div>
+            <div class="kid-chip"><span class="kid-chip-em">🐬</span> Sophie</div>
+          </div>
+        </div>
+
+        <div class="form-sec">
+          <div class="form-label">Schedule — Pick days</div>
+          <div class="sched-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px;">
+            <div class="sched-btn">Every day</div>
+            <div class="sched-btn">Weekdays</div>
+            <div class="sched-btn">Weekends</div>
+            <div class="sched-btn active">Pick days</div>
+          </div>
+          <!-- Day toggles -->
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">
+            <div class="sched-btn" style="font-size:9px;">Mon</div>
+            <div class="sched-btn active" style="font-size:9px;">Tue</div>
+            <div class="sched-btn" style="font-size:9px;">Wed</div>
+            <div class="sched-btn active" style="font-size:9px;">Thu</div>
+            <div class="sched-btn" style="font-size:9px;">Fri</div>
+            <div class="sched-btn" style="font-size:9px;">Sat</div>
+            <div class="sched-btn" style="font-size:9px;">Sun</div>
+          </div>
+        </div>
+
+        <div class="form-sec">
+          <div class="form-label">Time of day</div>
+          <div class="tod-select">🏠 After school</div>
+        </div>
+
+        <div class="form-sec">
+          <div class="form-label">Start time (optional)</div>
+          <div class="form-input">4:30 PM</div>
+          <div class="form-hint">5-minute steps</div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <!-- Activity-specific fields -->
+        <div class="form-sec">
+          <div class="form-label">📍 Location</div>
+          <div class="form-input">City Aquatic Centre</div>
+          <div class="form-hint">Where to drop off / pick up</div>
+        </div>
+
+        <div class="form-sec">
+          <div class="form-label">🎒 Packing list</div>
+          <div class="pack-wrap">
+            <div class="pack-tag">Swimsuit <span class="pack-x">✕</span></div>
+            <div class="pack-tag">Towel <span class="pack-x">✕</span></div>
+            <div class="pack-tag">Goggles <span class="pack-x">✕</span></div>
+            <div class="pack-input-ghost">Add item…</div>
+          </div>
+          <div class="form-hint">Items to pack — shown as a reminder the evening before</div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <div class="form-sec">
+          <div class="form-label">Points</div>
+          <div class="points-row">
+            <div><div class="points-label-row"><span class="points-sub">Kid ⭐</span></div><div class="form-input">0</div></div>
+            <div><div class="points-label-row"><span class="points-sub">Family ⭐</span></div><div class="form-input">0</div></div>
+          </div>
+        </div>
+
+
+        <div class="scroll-pad"></div>
+      </div>
+      <div class="sheet-footer">
+        <div class="btn-cancel">Cancel</div>
+        <div class="btn-save">Add task</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="state-label">STATE: Activity — location + packing list</div>
+</body>
+</html>

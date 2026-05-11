@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Add Task — Chore</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+  <div class="page-header"><div class="page-title">📋 Tasks</div><div class="btn-add">+ Add Task</div></div>
+  <div class="page-bg" style="flex:1;"></div>
+
+  <!-- Sheet -->
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:92%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">New task</div>
+        <div class="sheet-close">✕</div>
+      </div>
+      <div class="sheet-body">
+
+        <!-- Icon + Name -->
+        <div class="form-sec">
+          <div class="icon-name-row">
+            <div class="icon-picker">🧹</div>
+            <div style="flex:1;"><div class="form-input">Make your bed</div></div>
+          </div>
+        </div>
+
+        <!-- Category -->
+        <div class="form-sec">
+          <div class="form-label">Category</div>
+          <div class="cat-pills">
+            <div class="cat-pill active"><span class="ci">🧹</span> Chore</div>
+            <div class="cat-pill"><span class="ci">🏃</span> Exercise</div>
+            <div class="cat-pill"><span class="ci">🎹</span> Music</div>
+            <div class="cat-pill"><span class="ci">🎒</span> Activity</div>
+            <div class="cat-pill"><span class="ci">🌱</span> Habit</div>
+            <div class="cat-pill"><span class="ci">📚</span> School Subject</div>
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <!-- Rule -->
+        <div class="form-sec">
+          <div class="form-label">Rule</div>
+          <div class="rule-grid">
+            <div class="rule-btn active">
+              <div class="rule-title">Strict</div>
+              <div class="rule-desc">Must be done every scheduled day</div>
+            </div>
+            <div class="rule-btn">
+              <div class="rule-title">Flexible</div>
+              <div class="rule-desc">Goal: X times per week</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Assigned to -->
+        <div class="form-sec">
+          <div class="form-label">Assigned to</div>
+          <div class="kids-row">
+            <div class="kid-chip active"><span class="kid-chip-em">👨‍👩‍👧‍👦</span> All kids</div>
+            <div class="kid-chip"><span class="kid-chip-em">🦁</span> Emma</div>
+            <div class="kid-chip"><span class="kid-chip-em">🚀</span> Liam</div>
+            <div class="kid-chip"><span class="kid-chip-em">🐬</span> Sophie</div>
+          </div>
+        </div>
+
+        <!-- Schedule -->
+        <div class="form-sec">
+          <div class="form-label">Schedule</div>
+          <div class="sched-grid">
+            <div class="sched-btn">Every day</div>
+            <div class="sched-btn active">Weekdays</div>
+            <div class="sched-btn">Weekends</div>
+            <div class="sched-btn">Pick days</div>
+          </div>
+        </div>
+
+        <!-- Times per day -->
+        <div class="form-sec">
+          <div class="form-label">Times per day</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+            <div class="sched-btn active">1×</div>
+            <div class="sched-btn">2×</div>
+            <div class="sched-btn">3×</div>
+            <div class="sched-btn">4×</div>
+          </div>
+          <div class="form-hint">e.g. brush teeth = 2× per day</div>
+        </div>
+
+        <!-- Time of day -->
+        <div class="form-sec">
+          <div class="form-label">Time of day</div>
+          <div class="tod-select">🌅 Before school</div>
+        </div>
+
+        <!-- Start time -->
+        <div class="form-sec">
+          <div class="form-label">Start time (optional)</div>
+          <div class="form-input">7:30 AM</div>
+          <div class="form-hint">5-minute steps</div>
+        </div>
+
+        <!-- Target -->
+        <div class="form-sec">
+          <div class="form-label">Target</div>
+          <div class="target-grid">
+            <div class="target-btn active">None</div>
+            <div class="target-btn">⏱ Timer</div>
+            <div class="target-btn">✕ Reps</div>
+            <div class="target-btn">☑ Checklist</div>
+          </div>
+        </div>
+
+        <!-- Points -->
+        <div class="form-sec">
+          <div class="form-label">Points</div>
+          <div class="points-row">
+            <div>
+              <div class="points-label-row"><span class="points-sub">Kid ⭐</span></div>
+              <div class="form-input">5</div>
+            </div>
+            <div>
+              <div class="points-label-row"><span class="points-sub">Family ⭐</span></div>
+              <div class="form-input">2</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Auto-set fields (predefined by category + rule — not user-selectable) -->
+        <div class="form-divider"></div>
+        <div style="display:flex;flex-direction:column;gap:0;border:1.5px solid var(--gray-200);border-radius:13px;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:var(--gray-50);">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--gray-700);">Requires completion</div>
+              <div style="font-size:11px;color:var(--gray-400);margin-top:1px;">Always on for chores</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;background:#dcfce7;color:#166534;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;">✓ Yes</div>
+          </div>
+          <div style="height:1px;background:var(--gray-200);"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 13px;background:var(--gray-50);">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--gray-700);">Kids can add this task</div>
+              <div style="font-size:11px;color:var(--gray-400);margin-top:1px;">Only available on flexible tasks</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;background:var(--gray-100);color:var(--gray-500);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;">— No</div>
+          </div>
+        </div>
+
+        <div class="scroll-pad"></div>
+      </div>
+      <div class="sheet-footer">
+        <div class="btn-cancel">Cancel</div>
+        <div class="btn-save"><a href="02-form-chore.html" style="color:inherit;text-decoration:none;">Add task</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="state-label">STATE: Chore — strict, weekdays, no target</div>
+</body>
+</html>
