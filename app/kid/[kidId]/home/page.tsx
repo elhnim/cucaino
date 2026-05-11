@@ -3,14 +3,12 @@ import Link from "next/link";
 import KidShell from "@/components/kid/KidShell";
 import {
   getKid,
-  getFamily,
   listTasksForKid,
   listCompletionsToday,
-  listSchoolClasses,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
-import type { DayOfWeek } from "@/lib/domain/types";
+import { SUBJECTS } from "@/lib/registry/subject-registry";
 
 const LEVELS = [
   { min: 0,    max: 99,       emoji: "🌱", name: "Seedling",  color: "#16a34a" },
@@ -55,10 +53,9 @@ export default async function KidHomePage({
   const now = new Date();
   const dow = isoWeekday(now);
 
-  const [tasks, completions, allClasses] = await Promise.all([
+  const [tasks, completions] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
-    dow <= 5 ? listSchoolClasses(kid.id) : Promise.resolve([]),
   ]);
 
   const todayTasks = tasksForDay(tasks, dow);
@@ -67,7 +64,9 @@ export default async function KidHomePage({
   const done = completableTasks.filter((t) => completedIds.has(t.id)).length;
   const total = completableTasks.length;
 
-  const todayClasses = allClasses.filter((c) => c.dayOfWeek === (dow as DayOfWeek));
+  const todaySchoolTasks = dow <= 5
+    ? tasksForDay(tasks.filter((t) => t.category === "school_subject"), dow)
+    : [];
 
   const theme = getTheme(kid.themeId);
   const level = getLevel(kid.totalStarsEarned);
@@ -150,20 +149,22 @@ export default async function KidHomePage({
           </div>
         </div>
 
-        {/* 3. School today (weekdays only, when classes exist) */}
-        {dow <= 5 && todayClasses.length > 0 && (
+        {/* 3. School today (weekdays only, when tasks exist) */}
+        {todaySchoolTasks.length > 0 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <h2 className="font-bold text-gray-700 mb-3">📚 School today</h2>
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {todayClasses.map((cls) => (
-                <span
-                  key={cls.id}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap bg-blue-50 text-blue-700"
-                >
-                  📖 {(cls.customLabel ?? cls.subject).charAt(0).toUpperCase() +
-                    (cls.customLabel ?? cls.subject).slice(1)}
-                </span>
-              ))}
+              {todaySchoolTasks.map((t) => {
+                const subj = t.subject && t.subject in SUBJECTS ? SUBJECTS[t.subject as keyof typeof SUBJECTS] : null;
+                return (
+                  <span
+                    key={t.id}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap ${subj ? `${subj.bgClass} ${subj.textClass}` : "bg-blue-50 text-blue-700"}`}
+                  >
+                    {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
