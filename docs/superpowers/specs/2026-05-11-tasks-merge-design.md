@@ -161,6 +161,38 @@ times_per_day integer       -- default 1; chore/exercise/music/habit only
 
 ---
 
+## Rewards List — Parent View
+
+`/parent/rewards` shows all family rewards in a **flat scrollable list**, split into Active and Paused sections.
+
+### Filters
+
+Two side-by-side dropdowns above the list:
+
+- **Type** — All / 🍬 Treat / 🔓 Privilege / ✨ Experience / 🎀 Prize
+- **Who** — All / 👤 Individual / 👨‍👩‍👧‍👦 Team
+
+### Reward cards
+
+Each card shows: icon, name, type badge (colour-coded), individual/team badge, approval badge if required, cost in ⭐, and a `›` arrow to edit. Paused rewards are dimmed with a red ⏸ Paused tag.
+
+### Add Reward form
+
+Bottom sheet with fields:
+
+| Field | Notes |
+|-------|-------|
+| Icon picker + Name | Required |
+| Type | 2×2 grid: 🍬 Treat / 🔓 Privilege / ✨ Experience / 🎀 Prize |
+| Who | Individual / Team (2-column grid) |
+| Available to | All kids or specific kids |
+| Cost | Points required to redeem |
+| Recurrence | Recurring / One-off |
+| Redemption limit | Max times per day/week/month (optional, blank = unlimited) |
+| Requires approval | Toggle — parent must approve before delivery |
+
+---
+
 ## Mockup Reference
 
 | Screen | File |
@@ -178,3 +210,5 @@ times_per_day integer       -- default 1; chore/exercise/music/habit only
 | Kid add subject sheet | `11-kid-add-subject.html` |
 | Tasks list — filters closed | `12-tasks-all.html` |
 | Tasks list — Category dropdown open | `12b-tasks-filter-open.html` |
+| Rewards list | `13-rewards.html` |
+| Add Reward form | `14-reward-form.html` |

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Add Reward</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+  .type-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .type-btn {
+    padding: 11px 12px;
+    border-radius: 13px;
+    border: 1.5px solid var(--gray-200);
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .type-btn.active {
+    border-color: var(--indigo);
+    background: var(--indigo-light);
+  }
+
+  .type-btn-icon { font-size: 18px; }
+
+  .type-btn-text { }
+  .type-btn-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--gray-800);
+  }
+  .type-btn.active .type-btn-label { color: var(--indigo); }
+  .type-btn-desc {
+    font-size: 10px;
+    color: var(--gray-400);
+    margin-top: 1px;
+  }
+  .type-btn.active .type-btn-desc { color: #818cf8; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--gray-50);
+  }
+
+  .toggle-row + .toggle-row {
+    border-top: 1px solid var(--gray-200);
+  }
+
+  .toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+  }
+
+  .toggle-sub {
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-top: 1px;
+  }
+
+  .toggle-on {
+    background: #dcfce7;
+    color: #166534;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  .toggle-off {
+    background: var(--gray-100);
+    color: var(--gray-500);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  .who-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .who-btn {
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1.5px solid var(--gray-200);
+    background: white;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .who-btn.active {
+    border-color: var(--indigo);
+    background: var(--indigo-light);
+  }
+
+  .who-btn-em { font-size: 20px; }
+  .who-btn-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gray-700);
+    margin-top: 4px;
+  }
+  .who-btn.active .who-btn-label { color: var(--indigo); }
+
+  .limit-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+
+  <div class="page-header">
+    <div class="page-title">🎁 Rewards</div>
+    <div class="btn-add">+ Add Reward</div>
+  </div>
+  <div class="page-bg" style="flex:1;"></div>
+
+  <div class="sheet-overlay">
+    <div class="sheet" style="max-height:92%;">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <div class="sheet-title">New reward</div>
+        <div class="sheet-close">✕</div>
+      </div>
+      <div class="sheet-body">
+
+        <!-- Icon + Name -->
+        <div class="form-sec">
+          <div class="icon-name-row">
+            <div class="icon-picker">🍦</div>
+            <div style="flex:1;"><div class="form-input">Ice cream outing</div></div>
+          </div>
+        </div>
+
+        <!-- Reward type -->
+        <div class="form-sec">
+          <div class="form-label">Type</div>
+          <div class="type-grid">
+            <div class="type-btn active">
+              <div class="type-btn-icon">🍬</div>
+              <div class="type-btn-text">
+                <div class="type-btn-label">Treat</div>
+                <div class="type-btn-desc">Food, snack, outing</div>
+              </div>
+            </div>
+            <div class="type-btn">
+              <div class="type-btn-icon">🔓</div>
+              <div class="type-btn-text">
+                <div class="type-btn-label">Privilege</div>
+                <div class="type-btn-desc">Screen time, bedtime</div>
+              </div>
+            </div>
+            <div class="type-btn">
+              <div class="type-btn-icon">✨</div>
+              <div class="type-btn-text">
+                <div class="type-btn-label">Experience</div>
+                <div class="type-btn-desc">Trip, event, activity</div>
+              </div>
+            </div>
+            <div class="type-btn">
+              <div class="type-btn-icon">🎀</div>
+              <div class="type-btn-text">
+                <div class="type-btn-label">Prize</div>
+                <div class="type-btn-desc">Toy, book, gift</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <!-- Who -->
+        <div class="form-sec">
+          <div class="form-label">Who is it for?</div>
+          <div class="who-grid">
+            <div class="who-btn active">
+              <div class="who-btn-em">👤</div>
+              <div class="who-btn-label">Individual</div>
+            </div>
+            <div class="who-btn">
+              <div class="who-btn-em">👨‍👩‍👧‍👦</div>
+              <div class="who-btn-label">Team (all kids)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Available to -->
+        <div class="form-sec">
+          <div class="form-label">Available to</div>
+          <div class="kids-row">
+            <div class="kid-chip active"><span class="kid-chip-em">👨‍👩‍👧‍👦</span> All kids</div>
+            <div class="kid-chip"><span class="kid-chip-em">🦁</span> Emma</div>
+            <div class="kid-chip"><span class="kid-chip-em">🚀</span> Liam</div>
+            <div class="kid-chip"><span class="kid-chip-em">🐬</span> Sophie</div>
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <!-- Cost -->
+        <div class="form-sec">
+          <div class="form-label">Cost</div>
+          <div class="form-input">40 ⭐</div>
+          <div class="form-hint">Points a kid must spend to redeem</div>
+        </div>
+
+        <!-- Recurrence -->
+        <div class="form-sec">
+          <div class="form-label">Recurrence</div>
+          <div class="sched-grid" style="grid-template-columns:1fr 1fr;">
+            <div class="sched-btn active">🔁 Recurring</div>
+            <div class="sched-btn">🔂 One-off</div>
+          </div>
+        </div>
+
+        <!-- Redemption limit -->
+        <div class="form-sec">
+          <div class="form-label">Redemption limit</div>
+          <div class="limit-row">
+            <div>
+              <div class="time-sub-label">Max times</div>
+              <div class="form-input">1</div>
+            </div>
+            <div>
+              <div class="time-sub-label">Per</div>
+              <div class="tod-select">Week ▾</div>
+            </div>
+          </div>
+          <div class="form-hint">Leave blank for unlimited</div>
+        </div>
+
+        <div class="form-divider"></div>
+
+        <!-- Toggles -->
+        <div style="border:1.5px solid var(--gray-200);border-radius:13px;overflow:hidden;">
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Requires approval</div>
+              <div class="toggle-sub">Parent must approve before it's delivered</div>
+            </div>
+            <div class="toggle-on">✓ Yes</div>
+          </div>
+        </div>
+
+        <div class="scroll-pad"></div>
+      </div>
+      <div class="sheet-footer">
+        <div class="btn-cancel">Cancel</div>
+        <div class="btn-save">Add reward</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="state-label">STATE: Add Reward — Treat selected, Individual, Recurring</div>
+</body>
+</html>
