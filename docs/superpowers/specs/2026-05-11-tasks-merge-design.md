@@ -290,6 +290,49 @@ Header has a **‹ Todo** back button. Expanded panel below the task card top ro
 
 ---
 
+## Kid Schedule Screen
+
+`/kid/[kidId]/schedule` (previously "todo" — renamed to Schedule). Bottom nav icon: 📅.
+
+### Header
+
+Theme gradient banner with: "Schedule 📅" title, "Week of [date] · [Name]" sub-label, kid avatar circle.
+
+**Week day strip** — 7 pill buttons (Mon–Sun) inside the header. Each pill shows: day label, date number, coloured dot (🟢 green = all done, 🟡 yellow = partial, ⚪ gray = nothing yet). Active day pill: white background, theme-coloured text. Horizontally scrollable.
+
+### Day content (scrollable body)
+
+Sections shown depend on the day:
+
+| Section | Shown when |
+|---------|-----------|
+| 🌅 Before school | Weekday, tasks scheduled before school |
+| 📚 School | Weekday; subject pills + **✏️ Edit timetable** button |
+| 🏃 Activity | Any day with activity tasks |
+| 🏠 After school | Weekday tasks after school |
+| 📋 Tasks | Weekend (replaces Before/After school) |
+
+**Task cards** show: icon, name, category tag, **target/KPI tag** (⏱ 20 min / 🔢 20/20 laps / ☑ 3/4 items), points tag. Completed tasks show target in green ("⏱ 20 min done"), incomplete in gray.
+
+**School section** — subject pills (theme-coloured, emoji + name). "✏️ Edit timetable" button inline next to section label — only place kids manage their school timetable.
+
+**✏️ Edit timetable sheet (SC-01b)** — bottom sheet with:
+- Current subjects list (each shows days/times, red ✕ to remove)
+- Subject grid below to add new subjects (15 options + Custom)
+- Done button to close
+
+**+ Add a task sheet (SC-01c)** — bottom sheet listing flexible tasks the kid can pull into today. Each row has a **+ Add** button. Sub-label: "Flexible tasks you can choose to do."
+
+### Future days (SC-02)
+
+Banner: "Coming up — plan ahead, tasks unlock on the day 📅". Tasks are fully visible (no dimming). Checkboxes are faded (35% opacity, `cursor: not-allowed`). **✏️ Edit timetable** and **+ Add a task for [Day]** are both active — kids can plan ahead but cannot complete tasks.
+
+### Week summary bar
+
+Sticky above the bottom nav. 7 circles (one per day) showing done/total. Today has a coloured ring. Circles: green = all done, amber = partial, gray = none. Tapping navigates to that day.
+
+---
+
 ## Login Screen (L-01)
 
 `/login` — full-screen gradient background (indigo-100 → purple-50 → pink-100). Centered white card:
@@ -390,6 +433,7 @@ Full-screen PIN entry sheet:
 | Settings flow (S-01 – S-04) | `16-settings.html` |
 | Parent profile (PP-01 – PP-02) | `17-parent-profile.html` |
 | Login + Select Profile (L-01, SP-01, SP-02) | `18-login-select.html` |
-| Kid home — in progress + all done (KH-01, KH-02) | `19-kid-home.html` |
+| Kid home (KH-01, KH-01b avatar menu, KH-02, KH-03 edit widgets) | `19-kid-home.html` |
 | Task target panels (T-01 – T-04) | `20-kid-task-targets.html` |
 | Celebration moments (FG-01 – FG-03) | `21-kid-celebrations.html` |
+| Kid schedule (SC-01, SC-01b timetable, SC-01c add task, SC-02 future day) | `22-kid-schedule.html` |

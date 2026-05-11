@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kid Schedule — Mockups</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+body { flex-wrap: nowrap; align-items: flex-start; }
+
+.screen-code {
+  display: inline-block;
+  background: #6366f1;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin: 10px auto 0;
+  text-align: center;
+}
+
+.flow-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.flow-arrow { font-size: 28px; color: #9ca3af; align-self: center; flex-shrink: 0; margin-top: 80px; }
+
+/* Shell */
+.kid-shell { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+/* Header — Magical theme */
+.sched-header {
+  background: linear-gradient(135deg, #a21caf 0%, #c026d3 50%, #e879f9 100%);
+  padding: 32px 20px 14px;
+  flex-shrink: 0;
+}
+
+.sched-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.sched-title { font-size: 22px; font-weight: 900; color: white; }
+.sched-date { font-size: 12px; color: rgba(255,255,255,0.75); font-weight: 600; margin-top: 1px; }
+.sched-avatar {
+  width: 40px; height: 40px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+
+/* Week strip */
+.week-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.day-pill {
+  min-width: 44px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  background: rgba(255,255,255,0.15);
+}
+
+.day-pill.active {
+  background: white;
+}
+
+.day-lbl {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.8);
+}
+
+.day-pill.active .day-lbl { color: #c026d3; }
+
+.day-num {
+  font-size: 16px;
+  font-weight: 900;
+  color: white;
+}
+
+.day-pill.active .day-num { color: #c026d3; }
+
+.day-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.6);
+}
+
+.day-dot.done { background: #86efac; }
+.day-dot.partial { background: #fde047; }
+.day-dot.none { background: rgba(255,255,255,0.2); }
+.day-pill.active .day-dot.partial { background: #f59e0b; }
+
+/* Page body */
+.sched-body {
+  flex: 1;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #fdf4ff 0%, #fce7f3 50%, #fff 100%);
+  padding: 14px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Section label */
+.sec-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  padding: 0 2px 4px;
+}
+
+/* School subject pills row */
+.subject-row {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.subj-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+}
+
+/* Task card */
+.task-card {
+  background: white;
+  border-radius: 18px;
+  border: 1.5px solid #e5e7eb;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+}
+
+.task-card.done { opacity: 0.7; }
+
+.t-icon {
+  width: 40px; height: 40px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.t-info { flex: 1; min-width: 0; }
+
+.t-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 3px;
+}
+
+.t-name.done { text-decoration: line-through; color: #9ca3af; }
+
+.t-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+
+.t-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.tag-pink { background: #fce7f3; color: #9d174d; }
+.tag-gray { background: #f3f4f6; color: #6b7280; }
+.tag-green { background: #dcfce7; color: #166534; }
+
+.t-check {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.t-check.empty { border: 2px solid #e5e7eb; }
+.t-check.done { background: #c026d3; color: white; }
+
+/* Add task dashed button */
+.add-task-btn {
+  border: 2px dashed #e5e7eb;
+  border-radius: 18px;
+  padding: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+/* Week summary bar at bottom */
+.week-summary {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 10px 16px 14px;
+  background: rgba(255,255,255,0.9);
+  border-top: 1px solid #f3f4f6;
+  flex-shrink: 0;
+}
+
+.ws-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.ws-circle {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.ws-lbl {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Bottom nav */
+.kid-nav {
+  display: flex;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.kid-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 4px 14px;
+  gap: 3px;
+}
+
+.kid-nav-icon { font-size: 20px; }
+.kid-nav-label { font-size: 10px; font-weight: 600; color: #9ca3af; }
+
+/* Past/future banners */
+.day-banner {
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+<!-- SC-01: Wednesday (active day, in progress) -->
+<div class="flow-col">
+  <div class="screen-code">SC-01</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="sched-header">
+        <div class="sched-header-row">
+          <div>
+            <div class="sched-title">Schedule 📅</div>
+            <div class="sched-date">Week of 12 May · Emma</div>
+          </div>
+          <div class="sched-avatar">🦄</div>
+        </div>
+
+        <!-- Week day strip -->
+        <div class="week-strip">
+          <div class="day-pill">
+            <div class="day-lbl">Mon</div>
+            <div class="day-num">12</div>
+            <div class="day-dot done"></div>
+          </div>
+          <div class="day-pill">
+            <div class="day-lbl">Tue</div>
+            <div class="day-num">13</div>
+            <div class="day-dot done"></div>
+          </div>
+          <div class="day-pill active">
+            <div class="day-lbl">Wed</div>
+            <div class="day-num">14</div>
+            <div class="day-dot partial"></div>
+          </div>
+          <div class="day-pill">
+            <div class="day-lbl">Thu</div>
+            <div class="day-num">15</div>
+            <div class="day-dot none"></div>
+          </div>
+          <div class="day-pill">
+            <div class="day-lbl">Fri</div>
+            <div class="day-num">16</div>
+            <div class="day-dot none"></div>
+          </div>
+          <div class="day-pill">
+            <div class="day-lbl">Sat</div>
+            <div class="day-num">17</div>
+            <div class="day-dot none"></div>
+          </div>
+          <div class="day-pill">
+            <div class="day-lbl">Sun</div>
+            <div class="day-num">18</div>
+            <div class="day-dot none"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sched-body">
+
+        <!-- Before school -->
+        <div>
+          <div class="sec-lbl">🌅 Before school</div>
+          <!-- Make bed — checklist target, done (3/3) -->
+          <div class="task-card done">
+            <div class="t-icon" style="background:#fdf4ff;">🛏️</div>
+            <div class="t-info">
+              <div class="t-name done">Make bed</div>
+              <div class="t-tags">
+                <span class="t-tag tag-pink">Chore</span>
+                <span class="t-tag" style="background:#f0fdf4;color:#166534;">☑ 3/3 done</span>
+                <span class="t-tag tag-green">+5 ⭐</span>
+              </div>
+            </div>
+            <div class="t-check done">✓</div>
+          </div>
+        </div>
+
+        <!-- School -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px 4px;">
+            <div class="sec-lbl" style="padding:0;">📚 School</div>
+            <a href="#" style="font-size:11px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;border-radius:999px;padding:3px 10px;text-decoration:none;">✏️ Edit timetable</a>
+          </div>
+          <div class="subject-row">
+            <span class="subj-pill" style="background:#c026d3;">🧮 Maths</span>
+            <span class="subj-pill" style="background:#7c3aed;">📖 English</span>
+            <span class="subj-pill" style="background:#0891b2;">🔬 Science</span>
+            <span class="subj-pill" style="background:#d97706;">🎨 Art</span>
+          </div>
+        </div>
+
+        <!-- After school -->
+        <div>
+          <div class="sec-lbl">🏠 After school</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+
+            <!-- Piano — timer target, done -->
+            <div class="task-card done">
+              <div class="t-icon" style="background:#fdf4ff;">🎹</div>
+              <div class="t-info">
+                <div class="t-name done">Piano practice</div>
+                <div class="t-tags">
+                  <span class="t-tag tag-pink">Music</span>
+                  <span class="t-tag" style="background:#f0fdf4;color:#166534;">⏱ 20 min done</span>
+                  <span class="t-tag tag-green">+10 ⭐</span>
+                </div>
+              </div>
+              <div class="t-check done">✓</div>
+            </div>
+
+            <!-- Walk Max — reps target, done (20/20 steps) -->
+            <div class="task-card done">
+              <div class="t-icon" style="background:#fdf4ff;">🐕</div>
+              <div class="t-info">
+                <div class="t-name done">Walk Max</div>
+                <div class="t-tags">
+                  <span class="t-tag tag-pink">Exercise</span>
+                  <span class="t-tag" style="background:#f0fdf4;color:#166534;">🔢 20/20 laps done</span>
+                  <span class="t-tag tag-green">+8 ⭐</span>
+                </div>
+              </div>
+              <div class="t-check done">✓</div>
+            </div>
+
+            <!-- Tidy room — checklist, incomplete (0/4) -->
+            <div class="task-card" style="border-color:#f0abfc;background:#fdf4ff;">
+              <div class="t-icon" style="background:#f3e8ff;">🧹</div>
+              <div class="t-info">
+                <div class="t-name">Tidy room</div>
+                <div class="t-tags">
+                  <span class="t-tag tag-pink">Chore</span>
+                  <span class="t-tag tag-gray">☑ 0/4 items</span>
+                  <span class="t-tag tag-gray">+5 ⭐</span>
+                </div>
+              </div>
+              <div class="t-check empty" style="border-color:#c026d3;"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Add task -->
+        <div class="add-task-btn">+ Add a task</div>
+
+      </div>
+
+      <!-- Week summary bar -->
+      <div class="week-summary">
+        <div class="ws-day">
+          <div class="ws-circle" style="background:#22c55e;color:white;">2/2</div>
+          <div class="ws-lbl" style="color:#9ca3af;">Mon</div>
+        </div>
+        <div class="ws-day">
+          <div class="ws-circle" style="background:#22c55e;color:white;">3/3</div>
+          <div class="ws-lbl" style="color:#9ca3af;">Tue</div>
+        </div>
+        <div class="ws-day">
+          <div class="ws-circle" style="background:#f59e0b;color:white;box-shadow:0 0 0 3px #fde68a;">3/4</div>
+          <div class="ws-lbl" style="color:#c026d3;">Wed</div>
+        </div>
+        <div class="ws-day">
+          <div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;">0/4</div>
+          <div class="ws-lbl" style="color:#9ca3af;">Thu</div>
+        </div>
+        <div class="ws-day">
+          <div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;">0/3</div>
+          <div class="ws-lbl" style="color:#9ca3af;">Fri</div>
+        </div>
+        <div class="ws-day">
+          <div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;">·</div>
+          <div class="ws-lbl" style="color:#9ca3af;">Sat</div>
+        </div>
+        <div class="ws-day">
+          <div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;">·</div>
+          <div class="ws-lbl" style="color:#9ca3af;">Sun</div>
+        </div>
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label" style="color:#c026d3;">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- SC-01b: Edit timetable sheet open -->
+<div class="flow-col">
+  <div class="screen-code">SC-01b</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="sched-header">
+        <div class="sched-header-row">
+          <div><div class="sched-title">Schedule 📅</div><div class="sched-date">Week of 12 May · Emma</div></div>
+          <div class="sched-avatar">🦄</div>
+        </div>
+        <div class="week-strip">
+          <div class="day-pill"><div class="day-lbl">Mon</div><div class="day-num">12</div><div class="day-dot done"></div></div>
+          <div class="day-pill"><div class="day-lbl">Tue</div><div class="day-num">13</div><div class="day-dot done"></div></div>
+          <div class="day-pill active"><div class="day-lbl">Wed</div><div class="day-num">14</div><div class="day-dot partial"></div></div>
+          <div class="day-pill"><div class="day-lbl">Thu</div><div class="day-num">15</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Fri</div><div class="day-num">16</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Sat</div><div class="day-num">17</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Sun</div><div class="day-num">18</div><div class="day-dot none"></div></div>
+        </div>
+      </div>
+
+      <!-- Dimmed background content -->
+      <div style="flex:1;position:relative;overflow:hidden;">
+        <div style="padding:14px;display:flex;flex-direction:column;gap:10px;filter:blur(1.5px);opacity:0.3;">
+          <div style="height:36px;background:#e5e7eb;border-radius:10px;"></div>
+          <div style="height:50px;background:#e5e7eb;border-radius:14px;"></div>
+          <div style="height:50px;background:#e5e7eb;border-radius:14px;"></div>
+        </div>
+
+        <!-- Bottom sheet overlay -->
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;justify-content:flex-end;z-index:50;">
+          <div style="background:white;border-radius:24px 24px 0 0;max-height:88%;display:flex;flex-direction:column;overflow:hidden;">
+
+            <!-- Handle + header -->
+            <div style="width:36px;height:4px;background:#e5e7eb;border-radius:2px;margin:12px auto 0;flex-shrink:0;"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px 12px;border-bottom:1px solid #f3f4f6;flex-shrink:0;">
+              <div style="font-size:17px;font-weight:900;color:#111827;">My timetable</div>
+              <div style="font-size:12px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;border-radius:999px;padding:4px 12px;cursor:pointer;">Done</div>
+            </div>
+
+            <!-- Scrollable body -->
+            <div style="overflow-y:auto;padding:14px 16px 20px;display:flex;flex-direction:column;gap:14px;">
+
+              <!-- Current subjects -->
+              <div>
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;margin-bottom:8px;">Current subjects</div>
+                <div style="display:flex;flex-direction:column;gap:7px;">
+
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdf4ff;border-radius:14px;border:1.5px solid #f0abfc;">
+                    <div style="width:32px;height:32px;border-radius:9px;background:#c026d3;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🧮</div>
+                    <div style="flex:1;">
+                      <div style="font-size:13px;font-weight:700;color:#111827;">Maths</div>
+                      <div style="font-size:10px;color:#9ca3af;font-weight:600;">Mon Tue Wed Thu Fri · 9:00–9:45</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;color:#ef4444;cursor:pointer;">✕</div>
+                  </div>
+
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdf4ff;border-radius:14px;border:1.5px solid #f0abfc;">
+                    <div style="width:32px;height:32px;border-radius:9px;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">📖</div>
+                    <div style="flex:1;">
+                      <div style="font-size:13px;font-weight:700;color:#111827;">English</div>
+                      <div style="font-size:10px;color:#9ca3af;font-weight:600;">Mon Wed Fri · 10:00–10:45</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;color:#ef4444;cursor:pointer;">✕</div>
+                  </div>
+
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdf4ff;border-radius:14px;border:1.5px solid #f0abfc;">
+                    <div style="width:32px;height:32px;border-radius:9px;background:#0891b2;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🔬</div>
+                    <div style="flex:1;">
+                      <div style="font-size:13px;font-weight:700;color:#111827;">Science</div>
+                      <div style="font-size:10px;color:#9ca3af;font-weight:600;">Tue Thu · 11:00–11:45</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;color:#ef4444;cursor:pointer;">✕</div>
+                  </div>
+
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fdf4ff;border-radius:14px;border:1.5px solid #f0abfc;">
+                    <div style="width:32px;height:32px;border-radius:9px;background:#d97706;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎨</div>
+                    <div style="flex:1;">
+                      <div style="font-size:13px;font-weight:700;color:#111827;">Art</div>
+                      <div style="font-size:10px;color:#9ca3af;font-weight:600;">Wed · 1:00–1:45</div>
+                    </div>
+                    <div style="font-size:13px;font-weight:700;color:#ef4444;cursor:pointer;">✕</div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Add subject -->
+              <div>
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#9ca3af;margin-bottom:8px;">Add a subject</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:7px;">
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border:1.5px solid #e5e7eb;border-radius:12px;background:#f9fafb;min-height:58px;cursor:pointer;">
+                    <div style="font-size:18px;margin-bottom:2px;">🎵</div>
+                    <div style="font-size:9.5px;font-weight:700;color:#374151;">Music</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border:1.5px solid #e5e7eb;border-radius:12px;background:#f9fafb;min-height:58px;cursor:pointer;">
+                    <div style="font-size:18px;margin-bottom:2px;">🏃</div>
+                    <div style="font-size:9.5px;font-weight:700;color:#374151;">PE</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border:1.5px solid #e5e7eb;border-radius:12px;background:#f9fafb;min-height:58px;cursor:pointer;">
+                    <div style="font-size:18px;margin-bottom:2px;">🌍</div>
+                    <div style="font-size:9.5px;font-weight:700;color:#374151;">Geography</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border:1.5px solid #e5e7eb;border-radius:12px;background:#f9fafb;min-height:58px;cursor:pointer;">
+                    <div style="font-size:18px;margin-bottom:2px;">🏛️</div>
+                    <div style="font-size:9.5px;font-weight:700;color:#374151;">History</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border:1.5px solid #e5e7eb;border-radius:12px;background:#f9fafb;min-height:58px;cursor:pointer;">
+                    <div style="font-size:18px;margin-bottom:2px;">💻</div>
+                    <div style="font-size:9.5px;font-weight:700;color:#374151;">Computing</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border:1.5px dashed #d1d5db;border-radius:12px;background:#f9fafb;min-height:58px;cursor:pointer;">
+                    <div style="font-size:18px;margin-bottom:2px;">✏️</div>
+                    <div style="font-size:9.5px;font-weight:700;color:#9ca3af;">Custom</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label" style="color:#c026d3;">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- SC-01c: Add a task sheet open -->
+<div class="flow-col">
+  <div class="screen-code">SC-01c</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="sched-header">
+        <div class="sched-header-row">
+          <div><div class="sched-title">Schedule 📅</div><div class="sched-date">Week of 12 May · Emma</div></div>
+          <div class="sched-avatar">🦄</div>
+        </div>
+        <div class="week-strip">
+          <div class="day-pill"><div class="day-lbl">Mon</div><div class="day-num">12</div><div class="day-dot done"></div></div>
+          <div class="day-pill"><div class="day-lbl">Tue</div><div class="day-num">13</div><div class="day-dot done"></div></div>
+          <div class="day-pill active"><div class="day-lbl">Wed</div><div class="day-num">14</div><div class="day-dot partial"></div></div>
+          <div class="day-pill"><div class="day-lbl">Thu</div><div class="day-num">15</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Fri</div><div class="day-num">16</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Sat</div><div class="day-num">17</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Sun</div><div class="day-num">18</div><div class="day-dot none"></div></div>
+        </div>
+      </div>
+
+      <div style="flex:1;position:relative;overflow:hidden;">
+        <!-- Dimmed background -->
+        <div style="padding:14px;display:flex;flex-direction:column;gap:9px;filter:blur(1.5px);opacity:0.3;">
+          <div style="height:40px;background:#e5e7eb;border-radius:10px;"></div>
+          <div style="height:52px;background:#e5e7eb;border-radius:14px;"></div>
+          <div style="height:52px;background:#e5e7eb;border-radius:14px;"></div>
+          <div style="height:52px;background:#e5e7eb;border-radius:14px;"></div>
+        </div>
+
+        <!-- Sheet overlay -->
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;justify-content:flex-end;z-index:50;">
+          <div style="background:white;border-radius:24px 24px 0 0;max-height:85%;display:flex;flex-direction:column;overflow:hidden;">
+
+            <div style="width:36px;height:4px;background:#e5e7eb;border-radius:2px;margin:12px auto 0;flex-shrink:0;"></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px 12px;border-bottom:1px solid #f3f4f6;flex-shrink:0;">
+              <div>
+                <div style="font-size:17px;font-weight:900;color:#111827;">Add a task for today</div>
+                <div style="font-size:11px;color:#9ca3af;font-weight:600;margin-top:2px;">Flexible tasks you can choose to do</div>
+              </div>
+              <div style="width:28px;height:28px;background:#f3f4f6;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#6b7280;cursor:pointer;">✕</div>
+            </div>
+
+            <div style="overflow-y:auto;padding:12px 14px 20px;display:flex;flex-direction:column;gap:8px;">
+
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#f9fafb;border-radius:16px;cursor:pointer;">
+                <div style="width:38px;height:38px;border-radius:11px;background:#fce7f3;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📖</div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:700;color:#111827;">Read for 20 mins</div>
+                  <div style="font-size:10px;color:#9ca3af;font-weight:600;">Habit · +6 ⭐</div>
+                </div>
+                <div style="font-size:11px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;padding:4px 10px;border-radius:999px;">+ Add</div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#f9fafb;border-radius:16px;cursor:pointer;">
+                <div style="width:38px;height:38px;border-radius:11px;background:#fce7f3;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🧘</div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:700;color:#111827;">5-min stretch</div>
+                  <div style="font-size:10px;color:#9ca3af;font-weight:600;">Exercise · +4 ⭐</div>
+                </div>
+                <div style="font-size:11px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;padding:4px 10px;border-radius:999px;">+ Add</div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#f9fafb;border-radius:16px;cursor:pointer;">
+                <div style="width:38px;height:38px;border-radius:11px;background:#fce7f3;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🎨</div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:700;color:#111827;">Draw something</div>
+                  <div style="font-size:10px;color:#9ca3af;font-weight:600;">Habit · +5 ⭐</div>
+                </div>
+                <div style="font-size:11px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;padding:4px 10px;border-radius:999px;">+ Add</div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#f9fafb;border-radius:16px;cursor:pointer;">
+                <div style="width:38px;height:38px;border-radius:11px;background:#fce7f3;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🚲</div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:700;color:#111827;">Ride bike</div>
+                  <div style="font-size:10px;color:#9ca3af;font-weight:600;">Exercise · +8 ⭐</div>
+                </div>
+                <div style="font-size:11px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;padding:4px 10px;border-radius:999px;">+ Add</div>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:#f9fafb;border-radius:16px;cursor:pointer;">
+                <div style="width:38px;height:38px;border-radius:11px;background:#fce7f3;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🌱</div>
+                <div style="flex:1;">
+                  <div style="font-size:13px;font-weight:700;color:#111827;">Water the plants</div>
+                  <div style="font-size:10px;color:#9ca3af;font-weight:600;">Chore · +3 ⭐</div>
+                </div>
+                <div style="font-size:11px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;padding:4px 10px;border-radius:999px;">+ Add</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label" style="color:#c026d3;">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- SC-02: Thursday (future day) -->
+<div class="flow-col">
+  <div class="screen-code">SC-02</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+
+      <div class="sched-header">
+        <div class="sched-header-row">
+          <div>
+            <div class="sched-title">Schedule 📅</div>
+            <div class="sched-date">Week of 12 May · Emma</div>
+          </div>
+          <div class="sched-avatar">🦄</div>
+        </div>
+        <div class="week-strip">
+          <div class="day-pill"><div class="day-lbl">Mon</div><div class="day-num">12</div><div class="day-dot done"></div></div>
+          <div class="day-pill"><div class="day-lbl">Tue</div><div class="day-num">13</div><div class="day-dot done"></div></div>
+          <div class="day-pill"><div class="day-lbl">Wed</div><div class="day-num">14</div><div class="day-dot partial"></div></div>
+          <div class="day-pill active"><div class="day-lbl">Thu</div><div class="day-num">15</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Fri</div><div class="day-num">16</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Sat</div><div class="day-num">17</div><div class="day-dot none"></div></div>
+          <div class="day-pill"><div class="day-lbl">Sun</div><div class="day-num">18</div><div class="day-dot none"></div></div>
+        </div>
+      </div>
+
+      <div class="sched-body">
+
+        <div class="day-banner" style="background:#eff6ff;color:#1d4ed8;">Coming up — plan ahead, tasks unlock on the day 📅</div>
+
+        <!-- Before school -->
+        <div>
+          <div class="sec-lbl">🌅 Before school</div>
+          <div class="task-card">
+            <div class="t-icon" style="background:#f9fafb;">🛏️</div>
+            <div class="t-info"><div class="t-name">Make bed</div><div class="t-tags"><span class="t-tag tag-gray">Chore</span><span class="t-tag tag-gray">+5 ⭐</span></div></div>
+            <div class="t-check empty" style="opacity:0.35;cursor:not-allowed;"></div>
+          </div>
+        </div>
+
+        <!-- School — editable -->
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 2px 4px;">
+            <div class="sec-lbl" style="padding:0;">📚 School</div>
+            <a href="#" style="font-size:11px;font-weight:700;color:#c026d3;background:#fdf4ff;border:1.5px solid #f0abfc;border-radius:999px;padding:3px 10px;text-decoration:none;">✏️ Edit timetable</a>
+          </div>
+          <div class="subject-row">
+            <span class="subj-pill" style="background:#c026d3;">🧮 Maths</span>
+            <span class="subj-pill" style="background:#0891b2;">🔬 Science</span>
+            <span class="subj-pill" style="background:#7c3aed;">🎵 Music</span>
+          </div>
+        </div>
+
+        <!-- Activity -->
+        <div>
+          <div class="sec-lbl">🏃 Activity</div>
+          <div class="task-card">
+            <div class="t-icon" style="background:#e0f2fe;">🏊</div>
+            <div class="t-info">
+              <div class="t-name">Swimming</div>
+              <div class="t-tags"><span class="t-tag tag-gray">3:00 pm</span><span class="t-tag tag-gray">📍 City Aquatic Centre</span></div>
+            </div>
+            <div style="font-size:14px;font-weight:700;color:#d1d5db;">›</div>
+          </div>
+        </div>
+
+        <!-- After school -->
+        <div>
+          <div class="sec-lbl">🏠 After school</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="task-card">
+              <div class="t-icon" style="background:#f9fafb;">🎹</div>
+              <div class="t-info"><div class="t-name">Piano practice</div><div class="t-tags"><span class="t-tag tag-gray">Music · 20 min</span><span class="t-tag tag-gray">+10 ⭐</span></div></div>
+              <div class="t-check empty" style="opacity:0.35;cursor:not-allowed;"></div>
+            </div>
+            <div class="task-card">
+              <div class="t-icon" style="background:#f9fafb;">🧹</div>
+              <div class="t-info"><div class="t-name">Tidy room</div><div class="t-tags"><span class="t-tag tag-gray">Chore</span><span class="t-tag tag-gray">+5 ⭐</span></div></div>
+              <div class="t-check empty" style="opacity:0.35;cursor:not-allowed;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add task — still available for future days -->
+        <div class="add-task-btn">+ Add a task for Thursday</div>
+
+      </div>
+
+      <div class="week-summary">
+        <div class="ws-day"><div class="ws-circle" style="background:#22c55e;color:white;">2/2</div><div class="ws-lbl" style="color:#9ca3af;">Mon</div></div>
+        <div class="ws-day"><div class="ws-circle" style="background:#22c55e;color:white;">3/3</div><div class="ws-lbl" style="color:#9ca3af;">Tue</div></div>
+        <div class="ws-day"><div class="ws-circle" style="background:#f59e0b;color:white;">3/4</div><div class="ws-lbl" style="color:#9ca3af;">Wed</div></div>
+        <div class="ws-day"><div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;box-shadow:0 0 0 3px #e0e7ff;">0/4</div><div class="ws-lbl" style="color:#c026d3;">Thu</div></div>
+        <div class="ws-day"><div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;">0/3</div><div class="ws-lbl" style="color:#9ca3af;">Fri</div></div>
+        <div class="ws-day"><div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;">·</div><div class="ws-lbl" style="color:#9ca3af;">Sat</div></div>
+        <div class="ws-day"><div class="ws-circle" style="background:#e5e7eb;color:#9ca3af;">·</div><div class="ws-lbl" style="color:#9ca3af;">Sun</div></div>
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label" style="color:#c026d3;">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

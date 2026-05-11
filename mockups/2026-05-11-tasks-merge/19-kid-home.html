@@ -25,6 +25,50 @@ body { flex-wrap: nowrap; align-items: flex-start; }
 .flow-arrow { font-size: 28px; color: #9ca3af; align-self: center; flex-shrink: 0; margin-top: 80px; }
 
 /* Edit widgets button */
+/* Avatar tap menu */
+.avatar-menu-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+}
+
+.avatar-menu {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px -4px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06);
+  overflow: hidden;
+  min-width: 180px;
+  z-index: 50;
+}
+
+.avatar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+}
+
+.avatar-menu-item:last-child { border-bottom: none; }
+
+.avatar-menu-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
 .edit-widgets-btn {
   display: inline-flex;
   align-items: center;
@@ -661,8 +705,8 @@ body { flex-wrap: nowrap; align-items: flex-start; }
           <div class="kid-nav-label" style="color:#c026d3;">Home</div>
         </div>
         <a class="kid-nav-item" href="#">
-          <div class="kid-nav-icon">✅</div>
-          <div class="kid-nav-label">Todo</div>
+          <div class="kid-nav-icon">📅</div>
+          <div class="kid-nav-label">Schedule</div>
         </a>
         <a class="kid-nav-item" href="#">
           <div class="kid-nav-icon">🎁</div>
@@ -672,6 +716,61 @@ body { flex-wrap: nowrap; align-items: flex-start; }
           <div class="kid-nav-icon">🎮</div>
           <div class="kid-nav-label">Play</div>
         </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- KH-01b: Avatar menu open -->
+<div class="flow-col">
+  <div class="screen-code">KH-01b</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="kid-shell">
+      <div class="kid-header-magical" style="padding-top:32px;position:relative;">
+        <div class="header-top">
+          <div>
+            <div class="header-greeting">Good morning,</div>
+            <div class="header-name">Emma 🦄</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+            <div class="header-avatar" style="border:2px solid white;">🦄</div>
+            <a class="edit-widgets-btn" href="#">✏️ Edit</a>
+          </div>
+        </div>
+        <div class="family-goal-label">Family goal — Holiday to Bali 🏝️ · 1,240 / 2,000 ⭐</div>
+        <div class="family-goal-bar"><div class="family-goal-fill" style="width:62%;"></div></div>
+
+        <!-- Avatar tap menu -->
+        <div class="avatar-menu">
+          <div class="avatar-menu-item">
+            <div class="avatar-menu-icon" style="background:#fdf4ff;">✏️</div>
+            Edit profile
+          </div>
+          <div class="avatar-menu-item">
+            <div class="avatar-menu-icon" style="background:#f3f4f6;">🔄</div>
+            Switch profile
+          </div>
+        </div>
+      </div>
+
+      <!-- dimmed content behind -->
+      <div class="page-grad-magical" style="filter:blur(1px);opacity:0.4;flex:1;">
+        <div class="home-card" style="height:60px;"></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+          <div class="home-card" style="height:80px;"></div>
+          <div class="home-card" style="height:80px;"></div>
+          <div class="home-card" style="height:80px;"></div>
+        </div>
+      </div>
+
+      <div class="kid-nav">
+        <div class="kid-nav-item active"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label" style="color:#c026d3;">Home</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">📅</div><div class="kid-nav-label">Schedule</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+        <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
       </div>
     </div>
   </div>
@@ -765,8 +864,8 @@ body { flex-wrap: nowrap; align-items: flex-start; }
           <div class="kid-nav-label" style="color:#4f46e5;">Home</div>
         </div>
         <a class="kid-nav-item" href="#">
-          <div class="kid-nav-icon">✅</div>
-          <div class="kid-nav-label">Todo</div>
+          <div class="kid-nav-icon">📅</div>
+          <div class="kid-nav-label">Schedule</div>
         </a>
         <a class="kid-nav-item" href="#">
           <div class="kid-nav-icon">🎁</div>
