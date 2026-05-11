@@ -603,3 +603,24 @@ export async function listKidAddableTasks(): Promise<Task[]> {
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);
 }
+
+/** Returns total points_awarded per kid for the current ISO week (Mon–Sun). */
+export async function listWeeklyStarsByKid(): Promise<Record<string, number>> {
+  const supabase = await createClient();
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun
+  const daysSinceMon = (dow + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - daysSinceMon);
+  const weekStart = monday.toISOString().slice(0, 10);
+  const { data, error } = await supabase
+    .from("task_completions")
+    .select("kid_id, points_awarded")
+    .gte("date", weekStart);
+  if (error || !data) return {};
+  const totals: Record<string, number> = {};
+  for (const row of data) {
+    totals[row.kid_id] = (totals[row.kid_id] ?? 0) + (row.points_awarded ?? 0);
+  }
+  return totals;
+}
