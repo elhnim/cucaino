@@ -9,6 +9,7 @@
  * the threat model is "stop my sibling guessing", not security).
  */
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { timed } from "@/lib/data/perf";
 import type {
@@ -154,7 +155,7 @@ export async function listKids(): Promise<Kid[]> {
   return (data as DbKidRow[]).map(mapKid);
 }
 
-export const getKid = timed("getKid", async (id: string): Promise<Kid | null> => {
+export const getKid = cache(timed("getKid", async (id: string): Promise<Kid | null> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("kids")
@@ -163,7 +164,7 @@ export const getKid = timed("getKid", async (id: string): Promise<Kid | null> =>
     .maybeSingle();
   if (error || !data) return null;
   return mapKid(data as DbKidRow);
-});
+}));
 
 export const listTasksForKid = timed("listTasksForKid", async (kidId: string): Promise<Task[]> => {
   const supabase = await createClient();
