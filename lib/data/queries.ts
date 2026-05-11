@@ -455,6 +455,7 @@ export type QuizQuestion2 = {
   sentenceTemplate: string | null;
   acceptedAnswers: string[] | null;
   explanation: string | null;
+  tags: string[];
   createdAt: string;
 };
 
@@ -489,6 +490,7 @@ export async function listQuizQuestions2(opts?: { theme?: string }): Promise<Qui
     sentenceTemplate: row.sentence_template,
     acceptedAnswers: row.accepted_answers,
     explanation: row.explanation,
+    tags: (row.tags as string[]) ?? [],
     createdAt: row.created_at,
   }));
 }
@@ -510,6 +512,7 @@ export async function getQuizQuestion2(id: string): Promise<QuizQuestion2 | null
     sentenceTemplate: data.sentence_template,
     acceptedAnswers: data.accepted_answers,
     explanation: data.explanation,
+    tags: (data.tags as string[]) ?? [],
     createdAt: data.created_at,
   };
 }
