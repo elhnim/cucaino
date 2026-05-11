@@ -84,13 +84,22 @@ export default function QuizGame({
     setRevealed(false);
   };
 
+  const scoreForSpeed = (secondsTaken: number, maxSeconds: number): number => {
+    const ratio = secondsTaken / maxSeconds;
+    if (ratio <= 0.2) return 20;
+    if (ratio <= 0.4) return 18;
+    if (ratio <= 0.65) return 12;
+    return 5;
+  };
+
   const handleAnswer = (choiceIndex: number | null) => {
     if (revealed) return;
     setChosen(choiceIndex);
     setRevealed(true);
     if (choiceIndex !== null && currentQuestion?.choices[choiceIndex]?.isCorrect) {
-      const speedBonus = Math.max(0, secondsLeft); // up to 10 bonus points
-      const points = 10 + speedBonus;
+      const limit = currentQuestion.timeLimitSeconds;
+      const taken = limit - secondsLeft;
+      const points = scoreForSpeed(taken, limit);
       setScores((s) => ({
         ...s,
         [currentPlayer!.id]: (s[currentPlayer!.id] ?? 0) + points,

@@ -1,61 +1,123 @@
 import Link from "next/link";
-import { listQuizSets, listQuizBanks } from "@/lib/data/stub";
+import { listQuizSets, listQuizBanks, listQuizQuestions2, getKid } from "@/lib/data/stub";
+import QuizFilters from "@/components/play/QuizFilters";
 
 const THEME_LABEL: Record<string, { icon: string; label: string }> = {
-  maths:       { icon: "🧮", label: "Maths" },
-  english:     { icon: "📖", label: "English" },
-  science:     { icon: "🔬", label: "Science" },
-  history:     { icon: "🏛️", label: "History" },
-  geography:   { icon: "🌍", label: "Geography" },
-  sports:      { icon: "⚽", label: "Sports" },
-  music:       { icon: "🎵", label: "Music" },
-  french:      { icon: "🇫🇷", label: "French" },
-  spanish:     { icon: "🇪🇸", label: "Spanish" },
-  mandarin:    { icon: "🇨🇳", label: "Mandarin" },
-  fun_facts:   { icon: "🎉", label: "Fun Facts" },
-  pop_culture: { icon: "🎬", label: "Pop Culture" },
-  technology:  { icon: "💻", label: "Technology" },
-  food_culture:{ icon: "🍜", label: "Food & Culture" },
-  // Legacy categories
-  spelling:    { icon: "📝", label: "Spelling" },
-  silly:       { icon: "🎊", label: "Silly trivia" },
-  custom:      { icon: "🎯", label: "Custom" },
+  maths:        { icon: "🧮", label: "Maths" },
+  english:      { icon: "📖", label: "English" },
+  science:      { icon: "🔬", label: "Science" },
+  history:      { icon: "🏛️", label: "History" },
+  geography:    { icon: "🌍", label: "Geography" },
+  sports:       { icon: "⚽", label: "Sports" },
+  music:        { icon: "🎵", label: "Music" },
+  french:       { icon: "🇫🇷", label: "French" },
+  spanish:      { icon: "🇪🇸", label: "Spanish" },
+  mandarin:     { icon: "🇨🇳", label: "Mandarin" },
+  fun_facts:    { icon: "🎉", label: "Fun Facts" },
+  pop_culture:  { icon: "🎬", label: "Pop Culture" },
+  technology:   { icon: "💻", label: "Technology" },
+  food_culture: { icon: "🍜", label: "Food & Culture" },
+  // Legacy
+  spelling:     { icon: "📝", label: "Spelling" },
+  silly:        { icon: "🎊", label: "Silly Trivia" },
+  custom:       { icon: "🎯", label: "Custom" },
 };
 
-export default async function QuizSetsPage() {
-  const [sets, banks] = await Promise.all([listQuizSets(), listQuizBanks()]);
+const AGE_BAND_MIN: Record<string, number> = {
+  "5_6": 5, "7_8": 7, "9_10": 9, "11_12": 11,
+};
+
+const DIFFICULTY_ORDER: Record<string, number> = { easy: 0, medium: 1, hard: 2 };
+
+type Q2Row = { ageBand: string; difficulty: string; choices: unknown[] | null };
+function ageMatchedCount(questions: Q2Row[], kidAge: number, maxDiff?: string): number {
+  const maxDiffIdx = maxDiff ? (DIFFICULTY_ORDER[maxDiff] ?? 2) : 2;
+  return questions.filter((q) => {
+    const minAge = AGE_BAND_MIN[q.ageBand] ?? 0;
+    const qDiff = DIFFICULTY_ORDER[q.difficulty] ?? 0;
+    return kidAge >= minAge && qDiff <= maxDiffIdx && q.choices && q.choices.length > 0;
+  }).length;
+}
+
+export default async function QuizSetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ kid?: string; theme?: string; diff?: string }>;
+}) {
+  const { kid: kidParam, theme = "", diff: difficulty = "" } = await searchParams;
+
+  const [sets, banks, kid, allQ] = await Promise.all([
+    listQuizSets(),
+    listQuizBanks(),
+    kidParam ? getKid(kidParam) : Promise.resolve(null),
+    listQuizQuestions2(),
+  ]);
+
+  const kidAge = kid?.age ?? null;
+
+  // Filter sets by theme
+  const filteredSets = sets.filter((set) => {
+    if (theme && !set.themes.includes(theme as string)) return false;
+    if (difficulty && set.maxDifficulty) {
+      const setMaxIdx = DIFFICULTY_ORDER[set.maxDifficulty] ?? 2;
+      const filterIdx = DIFFICULTY_ORDER[difficulty] ?? 0;
+      if (filterIdx > setMaxIdx) return false;
+    }
+    return true;
+  });
+
+  // Filter banks by theme (legacy — category match)
+  const filteredBanks = banks.filter((bank) => {
+    if (theme) return bank.category === theme;
+    return true;
+  });
+
+  const kidParam2 = kidParam ?? "";
+  const backHref = kidParam ? `/play?kid=${kidParam}` : "/play";
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100 font-fun p-6">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6 gap-3">
+        <div className="flex items-center justify-between mb-4 gap-3">
           <div>
             <h1 className="text-3xl md:text-4xl font-black text-fuchsia-900">
               🎮 Quiz battles
             </h1>
-            <p className="text-sm md:text-base text-fuchsia-700">
-              Pick a quiz, take turns, and battle for the high score!
-            </p>
+            {kid && (
+              <p className="text-sm text-fuchsia-700">
+                👤 {kid.avatar} {kid.name} · Age {kid.age}
+              </p>
+            )}
           </div>
           <Link
-            href="/play"
+            href={backHref}
             className="text-sm bg-white/70 hover:bg-white px-4 py-2 rounded-full shadow shrink-0"
           >
             ← Games
           </Link>
         </div>
 
-        {sets.length > 0 && (
+        <QuizFilters theme={theme} difficulty={difficulty} kidParam={kidParam2} />
+
+        {filteredSets.length > 0 && (
           <>
             <h2 className="text-sm font-bold text-gray-500 mb-2">QUIZ SETS</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-              {sets.map((set) => {
+              {filteredSets.map((set) => {
                 const firstTheme = set.themes[0] ?? "custom";
                 const cat = THEME_LABEL[firstTheme] ?? { icon: "🎯", label: firstTheme };
+                // Age-matched count for this set
+                const setQuestions = allQ.filter((q) => set.themes.includes(q.theme as string));
+                const forYouCount = kidAge !== null
+                  ? ageMatchedCount(setQuestions, kidAge, difficulty || set.maxDifficulty)
+                  : setQuestions.filter((q) => q.choices && q.choices.length > 0).length;
+                const href = kidParam
+                  ? `/play/quiz/${set.id}?kid=${kidParam}`
+                  : `/play/quiz/${set.id}`;
                 return (
                   <Link
                     key={set.id}
-                    href={`/play/quiz/${set.id}`}
+                    href={href}
                     className="bg-white rounded-2xl p-4 shadow hover:shadow-lg hover:-translate-y-0.5 transition-all"
                   >
                     <div className="flex items-center gap-3">
@@ -63,9 +125,13 @@ export default async function QuizSetsPage() {
                       <div className="flex-1">
                         <div className="font-bold">{set.name}</div>
                         <div className="text-xs text-gray-500">
-                          {set.themes.map((t) => THEME_LABEL[t]?.label ?? t).join(", ")} ·{" "}
-                          {set.questionsPerSession} q per session
+                          {set.themes.map((t) => THEME_LABEL[t]?.label ?? t).join(", ")}
                         </div>
+                        {kidAge !== null && (
+                          <div className="text-xs text-indigo-600 font-semibold mt-0.5">
+                            {forYouCount} for you
+                          </div>
+                        )}
                       </div>
                       <span className="text-fuchsia-500 shrink-0">→</span>
                     </div>
@@ -76,16 +142,24 @@ export default async function QuizSetsPage() {
           </>
         )}
 
-        {banks.length > 0 && (
+        {filteredBanks.length > 0 && (
           <>
             <h2 className="text-sm font-bold text-gray-500 mb-2">CLASSIC BANKS</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {banks.map((bank) => {
+              {filteredBanks.map((bank) => {
                 const cat = THEME_LABEL[bank.category] ?? { icon: "🎯", label: bank.category };
+                const forYouCount = kidAge !== null && kidAge >= bank.minAge
+                  ? "Available for you"
+                  : kidAge !== null
+                  ? `For ages ${bank.minAge}+`
+                  : null;
+                const href = kidParam
+                  ? `/play/quiz/${bank.id}?kid=${kidParam}`
+                  : `/play/quiz/${bank.id}`;
                 return (
                   <Link
                     key={bank.id}
-                    href={`/play/quiz/${bank.id}`}
+                    href={href}
                     className="bg-white rounded-2xl p-4 shadow hover:shadow-lg hover:-translate-y-0.5 transition-all"
                   >
                     <div className="flex items-center gap-3">
@@ -95,6 +169,11 @@ export default async function QuizSetsPage() {
                         <div className="text-xs text-gray-500">
                           {cat.label} · ages {bank.minAge}–{bank.maxAge}
                         </div>
+                        {forYouCount && (
+                          <div className="text-xs text-indigo-600 font-semibold mt-0.5">
+                            {forYouCount}
+                          </div>
+                        )}
                       </div>
                       <span className="text-fuchsia-500 shrink-0">→</span>
                     </div>
@@ -105,28 +184,11 @@ export default async function QuizSetsPage() {
           </>
         )}
 
-        {sets.length === 0 && banks.length === 0 && (
+        {filteredSets.length === 0 && filteredBanks.length === 0 && (
           <p className="text-center text-gray-400 py-12">
-            No quizzes yet. Add some at{" "}
-            <Link href="/parent/quizzes" className="font-bold text-indigo-600 underline">
-              /parent/quizzes
-            </Link>
-            .
+            No quizzes match your filters. Try changing the theme or difficulty!
           </p>
         )}
-
-        <p className="text-xs text-center text-gray-500 mt-6">
-          🚀 Multi-device Kahoot mode coming in Phase 4. For now, gather around the same tablet!
-          <br />
-          Parents can manage quizzes at{" "}
-          <Link
-            href="/parent/quizzes"
-            className="font-bold text-indigo-600 hover:underline"
-          >
-            /parent/quizzes
-          </Link>
-          .
-        </p>
       </div>
     </main>
   );
