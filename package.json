@@ -7,7 +7,9 @@
     "build": "cross-env NODE_OPTIONS=\"--max-http-header-size=32768\" next build",
     "start": "cross-env NODE_OPTIONS=\"--max-http-header-size=32768\" next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "perf": "node scripts/perf-audit.mjs",
+    "perf:static": "node scripts/perf-audit.mjs --no-browser"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",

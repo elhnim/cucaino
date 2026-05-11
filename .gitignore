@@ -35,3 +35,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Perf audit outputs
+docs/perf-report-*.md
+docs/perf-screenshots/
