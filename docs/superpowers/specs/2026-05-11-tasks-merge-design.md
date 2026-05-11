@@ -222,6 +222,33 @@ Age band hidden — quiz engine matches age automatically from kid profiles.
 
 ---
 
+## Settings — Parent View
+
+`/parent/settings` is a grouped list screen with four sections.
+
+### S-01 Settings main
+
+| Section | Rows |
+|---------|------|
+| Family | Family name (editable) · Parents & Guardians (member count) |
+| Kids | One row per kid (emoji, name, age, theme) · Add a kid |
+| Preferences | Timezone · Week starts on · Holiday mode (toggle) |
+| App | Send feedback · Version · Sign out (red) |
+
+### S-02 Parents & Guardians
+
+Lists all members with avatar, name, email, and role (Admin). Current user tagged "You". Other members have a red Remove button. Below the list, an email invite field with a Send Invite button. Both parents are admins with full access.
+
+### S-03 Edit Kid
+
+Sub-page per kid: emoji avatar (tappable to change), name, date of birth (shows calculated age), theme picker, PIN, and a red Remove kid row at the bottom.
+
+### S-04 Holiday mode ON
+
+Same as S-01 but with an amber banner at the top: "Holiday mode is on — Strict tasks are paused. Kids only see flexible tasks and activities." The holiday mode toggle shows as on.
+
+---
+
 ## Mockup Reference
 
 | Screen | File |
@@ -242,3 +269,4 @@ Age band hidden — quiz engine matches age automatically from kid profiles.
 | Rewards list | `13-rewards.html` |
 | Add Reward form | `14-reward-form.html` |
 | Quizzes flow (Q-01, Q-01b, Q-02) | `15-quizzes.html` |
+| Settings flow (S-01 – S-04) | `16-settings.html` |

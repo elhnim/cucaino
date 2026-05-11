@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Parent — Settings Flow</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+  body {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0;
+    padding: 40px 32px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .flow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .flow-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b7280;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  .screen-code {
+    display: inline-block;
+    background: var(--indigo);
+    color: white;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+  }
+
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    margin-top: 180px;
+    font-size: 28px;
+    color: #d1d5db;
+    flex-shrink: 0;
+  }
+
+  /* Settings list rows */
+  .settings-group {
+    border: 1.5px solid var(--gray-200);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .settings-group-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gray-400);
+    margin-bottom: 8px;
+  }
+
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 14px;
+    background: white;
+    border-bottom: 1px solid var(--gray-100);
+    gap: 10px;
+    cursor: pointer;
+  }
+
+  .settings-row:last-child { border-bottom: none; }
+
+  .settings-row-left { display: flex; align-items: center; gap: 10px; }
+
+  .settings-row-icon {
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .settings-row-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-800);
+  }
+
+  .settings-row-value {
+    font-size: 12px;
+    color: var(--gray-400);
+    font-weight: 500;
+  }
+
+  .settings-row-arrow {
+    font-size: 18px;
+    color: var(--gray-300);
+    flex-shrink: 0;
+  }
+
+  .toggle-pill {
+    width: 42px; height: 24px;
+    border-radius: 12px;
+    display: flex; align-items: center;
+    padding: 2px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  .toggle-pill.on { background: var(--indigo); justify-content: flex-end; }
+  .toggle-pill.off { background: var(--gray-300); justify-content: flex-start; }
+
+  .toggle-thumb {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  /* Kid row inside settings */
+  .kid-settings-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    background: white;
+    border-bottom: 1px solid var(--gray-100);
+    cursor: pointer;
+  }
+  .kid-settings-row:last-child { border-bottom: none; }
+
+  .kid-avatar-sm {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── S-01: Settings main ── -->
+<div class="flow-col">
+  <div class="screen-code">S-01</div>
+  <div class="flow-label">Settings</div>
+  <div class="phone" style="min-height:780px;">
+    <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+    <div class="page-header">
+      <div class="page-title">⚙️ Settings</div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:16px;">
+
+      <!-- Family -->
+      <div class="settings-group-label">Family</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#ede9fe;">🏠</div>
+            <div>
+              <div class="settings-row-label">Family name</div>
+              <div class="settings-row-value">The Johnsons</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fef3c7;">👤</div>
+            <div>
+              <div class="settings-row-label">Parents &amp; Guardians</div>
+              <div class="settings-row-value">2 members</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+
+      <!-- Kids -->
+      <div class="settings-group-label">Kids</div>
+      <div class="settings-group">
+        <div class="kid-settings-row">
+          <div class="kid-avatar-sm" style="background:#fef3c7;">🦁</div>
+          <div style="flex:1;">
+            <div class="settings-row-label">Emma</div>
+            <div class="settings-row-value">Age 9 · Adventure theme</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="kid-settings-row">
+          <div class="kid-avatar-sm" style="background:#ede9fe;">🚀</div>
+          <div style="flex:1;">
+            <div class="settings-row-label">Liam</div>
+            <div class="settings-row-value">Age 7 · Galactic theme</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="kid-settings-row">
+          <div class="kid-avatar-sm" style="background:#d1fae5;">🐬</div>
+          <div style="flex:1;">
+            <div class="settings-row-label">Sophie</div>
+            <div class="settings-row-value">Age 6 · Ocean theme</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="border-top:1px solid var(--gray-100);">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:var(--gray-100);">＋</div>
+            <div class="settings-row-label" style="color:var(--indigo);">Add a kid</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+
+      <!-- Preferences -->
+      <div class="settings-group-label">Preferences</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#d1fae5;">🌏</div>
+            <div>
+              <div class="settings-row-label">Timezone</div>
+              <div class="settings-row-value">Sydney (AEST)</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#dbeafe;">📅</div>
+            <div>
+              <div class="settings-row-label">Week starts on</div>
+              <div class="settings-row-value">Monday</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fef9c3;">🏖️</div>
+            <div>
+              <div class="settings-row-label">Holiday mode</div>
+              <div class="settings-row-value">Pauses strict tasks</div>
+            </div>
+          </div>
+          <div class="toggle-pill off"><div class="toggle-thumb"></div></div>
+        </div>
+      </div>
+
+      <!-- App -->
+      <div class="settings-group-label">App</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fce7f3;">💬</div>
+            <div class="settings-row-label">Send feedback</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:var(--gray-100);">ℹ️</div>
+            <div>
+              <div class="settings-row-label">Version</div>
+              <div class="settings-row-value">v1.0 · a3f9c12</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sign out -->
+      <div style="border:1.5px solid #fee2e2;border-radius:14px;overflow:hidden;margin-bottom:16px;">
+        <div class="settings-row" style="background:#fff5f5;">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fee2e2;">🚪</div>
+            <div class="settings-row-label" style="color:#dc2626;">Sign out</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:80px;"></div>
+    </div>
+
+    <nav class="bottom-nav">
+      <a class="nav-item" href="../parent-overview/02-no-requests.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg><span class="nav-label">Home</span></a>
+      <a class="nav-item" href="12-tasks-all.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg><span class="nav-label">Tasks</span></a>
+      <a class="nav-item" href="13-rewards.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/></svg><span class="nav-label">Rewards</span></a>
+      <a class="nav-item" href="15-quizzes.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label">Quizzes</span></a>
+      <a class="nav-item active" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label" style="color:#6366f1;">Settings</span></a>
+    </nav>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- ── S-02: Parents & Guardians ── -->
+<div class="flow-col">
+  <div class="screen-code">S-02</div>
+  <div class="flow-label">Parents &amp; Guardians</div>
+  <div class="phone" style="min-height:780px;">
+    <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+    <div class="page-header" style="padding:10px 16px;">
+      <div style="font-size:15px;font-weight:700;color:var(--indigo);cursor:pointer;">‹ Settings</div>
+      <div style="font-size:17px;font-weight:800;color:var(--gray-900);">Parents &amp; Guardians</div>
+      <div style="width:60px;"></div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px;">
+
+      <div class="settings-group-label">Members</div>
+      <div class="settings-group">
+        <!-- Current user -->
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div style="width:38px;height:38px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">👩</div>
+            <div>
+              <div class="settings-row-label">Sarah Johnson <span style="font-size:11px;font-weight:600;background:#eef2ff;color:var(--indigo);padding:1px 7px;border-radius:20px;margin-left:4px;">You</span></div>
+              <div class="settings-row-value">sarah@example.com · Admin</div>
+            </div>
+          </div>
+        </div>
+        <!-- Co-parent -->
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div style="width:38px;height:38px;border-radius:50%;background:#d1fae5;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">👨</div>
+            <div>
+              <div class="settings-row-label">Mark Johnson</div>
+              <div class="settings-row-value">mark@example.com · Admin</div>
+            </div>
+          </div>
+          <div style="font-size:13px;font-weight:700;color:#dc2626;padding:4px 8px;border-radius:8px;background:#fee2e2;cursor:pointer;">Remove</div>
+        </div>
+      </div>
+
+      <div class="settings-group-label">Invite</div>
+      <div class="settings-group">
+        <div style="padding:14px;">
+          <div class="form-label" style="margin-bottom:6px;">Email address</div>
+          <div class="form-input placeholder" style="margin-bottom:8px;">e.g. partner@example.com</div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;"></div>
+            <div style="background:var(--indigo);color:white;font-size:13px;font-weight:700;padding:9px 18px;border-radius:10px;cursor:pointer;">Send Invite</div>
+          </div>
+          <div class="form-hint" style="margin-top:8px;">They'll get an email to join your family. Both parents are admins — full access to all settings.</div>
+        </div>
+      </div>
+
+      <div style="height:80px;"></div>
+    </div>
+    <nav class="bottom-nav">
+      <a class="nav-item" href="../parent-overview/02-no-requests.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg><span class="nav-label">Home</span></a>
+      <a class="nav-item" href="12-tasks-all.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg><span class="nav-label">Tasks</span></a>
+      <a class="nav-item" href="13-rewards.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/></svg><span class="nav-label">Rewards</span></a>
+      <a class="nav-item" href="15-quizzes.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label">Quizzes</span></a>
+      <a class="nav-item active" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label" style="color:#6366f1;">Settings</span></a>
+    </nav>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- ── S-03: Edit kid profile ── -->
+<div class="flow-col">
+  <div class="screen-code">S-03</div>
+  <div class="flow-label">Edit Kid</div>
+  <div class="phone" style="min-height:780px;position:relative;">
+    <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+    <div class="page-header" style="padding:10px 16px;">
+      <div style="font-size:15px;font-weight:700;color:var(--indigo);cursor:pointer;">‹ Settings</div>
+      <div style="font-size:17px;font-weight:800;color:var(--gray-900);">Emma</div>
+      <div style="width:60px;"></div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px;">
+
+      <!-- Avatar -->
+      <div style="display:flex;flex-direction:column;align-items:center;margin-bottom:20px;">
+        <div style="width:72px;height:72px;border-radius:50%;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:8px;">🦁</div>
+        <div style="font-size:12px;font-weight:700;color:var(--indigo);">Change emoji</div>
+      </div>
+
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fef3c7;">✏️</div>
+            <div>
+              <div class="settings-row-label">Name</div>
+              <div class="settings-row-value">Emma</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#dbeafe;">🎂</div>
+            <div>
+              <div class="settings-row-label">Date of birth</div>
+              <div class="settings-row-value">12 Mar 2016 · Age 9</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#ede9fe;">🎨</div>
+            <div>
+              <div class="settings-row-label">Theme</div>
+              <div class="settings-row-value">Adventure 🏕️</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#d1fae5;">🔢</div>
+            <div>
+              <div class="settings-row-label">PIN</div>
+              <div class="settings-row-value">4-digit kid PIN</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+
+      <!-- Danger zone -->
+      <div style="border:1.5px solid #fee2e2;border-radius:14px;overflow:hidden;margin-bottom:16px;">
+        <div class="settings-row" style="background:#fff5f5;">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fee2e2;">🗑️</div>
+            <div class="settings-row-label" style="color:#dc2626;">Remove kid</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:80px;"></div>
+    </div>
+    <nav class="bottom-nav">
+      <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg><span class="nav-label">Home</span></a>
+      <a class="nav-item" href="12-tasks-all.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg><span class="nav-label">Tasks</span></a>
+      <a class="nav-item" href="13-rewards.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/></svg><span class="nav-label">Rewards</span></a>
+      <a class="nav-item" href="15-quizzes.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label">Quizzes</span></a>
+      <a class="nav-item active" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label" style="color:#6366f1;">Settings</span></a>
+    </nav>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- ── S-04: Holiday mode ON ── -->
+<div class="flow-col">
+  <div class="screen-code">S-04</div>
+  <div class="flow-label">Holiday mode ON</div>
+  <div class="phone" style="min-height:780px;">
+    <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+    <div class="page-header">
+      <div class="page-title">⚙️ Settings</div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px;">
+
+      <!-- Holiday banner -->
+      <div style="background:#fef3c7;border:1.5px solid #fcd34d;border-radius:14px;padding:13px 14px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px;">
+        <div style="font-size:22px;">🏖️</div>
+        <div>
+          <div style="font-size:13px;font-weight:800;color:#92400e;">Holiday mode is on</div>
+          <div style="font-size:12px;color:#b45309;margin-top:2px;">Strict tasks are paused. Kids only see flexible tasks and activities.</div>
+        </div>
+      </div>
+
+      <div class="settings-group-label">Family</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#ede9fe;">🏠</div>
+            <div>
+              <div class="settings-row-label">Family name</div>
+              <div class="settings-row-value">The Johnsons</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fef3c7;">👤</div>
+            <div>
+              <div class="settings-row-label">Parents &amp; Guardians</div>
+              <div class="settings-row-value">2 members</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+
+      <div class="settings-group-label">Kids</div>
+      <div class="settings-group">
+        <div class="kid-settings-row">
+          <div class="kid-avatar-sm" style="background:#fef3c7;">🦁</div>
+          <div style="flex:1;"><div class="settings-row-label">Emma</div><div class="settings-row-value">Age 9 · Adventure theme</div></div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="kid-settings-row">
+          <div class="kid-avatar-sm" style="background:#ede9fe;">🚀</div>
+          <div style="flex:1;"><div class="settings-row-label">Liam</div><div class="settings-row-value">Age 7 · Galactic theme</div></div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="kid-settings-row">
+          <div class="kid-avatar-sm" style="background:#d1fae5;">🐬</div>
+          <div style="flex:1;"><div class="settings-row-label">Sophie</div><div class="settings-row-value">Age 6 · Ocean theme</div></div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="border-top:1px solid var(--gray-100);">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:var(--gray-100);">＋</div>
+            <div class="settings-row-label" style="color:var(--indigo);">Add a kid</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+
+      <div class="settings-group-label">Preferences</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#d1fae5;">🌏</div>
+            <div>
+              <div class="settings-row-label">Timezone</div>
+              <div class="settings-row-value">Sydney (AEST)</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#dbeafe;">📅</div>
+            <div>
+              <div class="settings-row-label">Week starts on</div>
+              <div class="settings-row-value">Monday</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fef9c3;">🏖️</div>
+            <div>
+              <div class="settings-row-label">Holiday mode</div>
+              <div class="settings-row-value">Strict tasks paused</div>
+            </div>
+          </div>
+          <div class="toggle-pill on"><div class="toggle-thumb"></div></div>
+        </div>
+      </div>
+
+      <div class="settings-group-label">App</div>
+      <div class="settings-group">
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fce7f3;">💬</div>
+            <div class="settings-row-label">Send feedback</div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:var(--gray-100);">ℹ️</div>
+            <div>
+              <div class="settings-row-label">Version</div>
+              <div class="settings-row-value">v1.0 · a3f9c12</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border:1.5px solid #fee2e2;border-radius:14px;overflow:hidden;margin-bottom:16px;">
+        <div class="settings-row" style="background:#fff5f5;">
+          <div class="settings-row-left">
+            <div class="settings-row-icon" style="background:#fee2e2;">🚪</div>
+            <div class="settings-row-label" style="color:#dc2626;">Sign out</div>
+          </div>
+        </div>
+      </div>
+      <div style="height:80px;"></div>
+    </div>
+    <nav class="bottom-nav">
+      <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg><span class="nav-label">Home</span></a>
+      <a class="nav-item" href="12-tasks-all.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg><span class="nav-label">Tasks</span></a>
+      <a class="nav-item" href="13-rewards.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/></svg><span class="nav-label">Rewards</span></a>
+      <a class="nav-item" href="15-quizzes.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label">Quizzes</span></a>
+      <a class="nav-item active" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label" style="color:#6366f1;">Settings</span></a>
+    </nav>
+  </div>
+</div>
+
+<div class="state-label" style="position:fixed;bottom:12px;left:50%;transform:translateX(-50%);">STATE: Settings flow — S-01 Main · S-02 Parents & Guardians · S-03 Edit Kid · S-04 Holiday mode ON</div>
+</body>
+</html>
