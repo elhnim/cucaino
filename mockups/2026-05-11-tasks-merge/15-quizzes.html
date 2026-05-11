@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Parent — Quizzes Flow</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+  body {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0;
+    padding: 40px 32px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .flow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .flow-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b7280;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  .screen-code {
+    display: inline-block;
+    background: var(--indigo);
+    color: white;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+  }
+
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    margin-top: 180px;
+    font-size: 28px;
+    color: #d1d5db;
+    flex-shrink: 0;
+  }
+
+  /* Filter bar */
+  .fbar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: white;
+    border-bottom: 1px solid var(--gray-100);
+    flex-shrink: 0;
+  }
+  .fdrop {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    background: white;
+    gap: 4px;
+  }
+  .fdrop-inner { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+  .fdrop-lbl { font-size: 10px; font-weight: 700; color: var(--gray-500); }
+  .fdrop-val { font-size: 12px; font-weight: 800; color: var(--gray-800); }
+  .fdrop-arr { font-size: 10px; color: var(--gray-400); }
+
+  /* Set card */
+  .set-card {
+    background: white;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 14px;
+    padding: 12px 13px;
+    margin-bottom: 7px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    cursor: pointer;
+  }
+  .set-icon {
+    width: 44px; height: 44px;
+    border-radius: 13px;
+    background: var(--indigo-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .set-name { font-size: 14px; font-weight: 800; color: var(--gray-900); margin-bottom: 4px; }
+  .set-meta { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+  .qtag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+  }
+  .qtag-easy   { background: #d1fae5; color: #065f46; }
+  .qtag-medium { background: #fef3c7; color: #92400e; }
+  .qtag-hard   { background: #fee2e2; color: #991b1b; }
+  .qtag-gray   { background: var(--gray-100); color: var(--gray-600); }
+  .qtag-blue   { background: #dbeafe; color: #1e40af; }
+</style>
+</head>
+<body>
+
+<!-- ── Q-01: Quiz Sets list ── -->
+<div class="flow-col">
+  <div class="screen-code">Q-01</div>
+  <div class="flow-label">Quiz Sets</div>
+  <div class="phone" style="min-height:780px;">
+    <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+    <div class="page-header">
+      <div class="page-title">🎯 Quizzes</div>
+      <div class="btn-add">+ Add Set</div>
+    </div>
+    <!-- Filter bar -->
+    <div class="fbar">
+      <div class="fdrop"><div class="fdrop-inner"><div class="fdrop-lbl">Theme</div><div class="fdrop-val">All</div></div><div class="fdrop-arr">▾</div></div>
+      <div class="fdrop"><div class="fdrop-inner"><div class="fdrop-lbl">Difficulty</div><div class="fdrop-val">All</div></div><div class="fdrop-arr">▾</div></div>
+    </div>
+    <!-- Age note -->
+    <div style="padding:6px 16px 8px;background:white;border-bottom:1px solid var(--gray-100);font-size:11px;color:var(--gray-400);flex-shrink:0;">Questions are auto-matched to each kid's age from their profile.</div>
+    <div style="flex:1;overflow-y:auto;padding:8px 16px;">
+
+      <div class="set-card">
+        <div class="set-icon">🧮</div>
+        <div style="flex:1;min-width:0;">
+          <div class="set-name">Maths Blitz</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px;">
+            <span class="qtag qtag-gray">🧮 Maths</span>
+            <span class="qtag qtag-easy">Easy–Medium</span>
+          </div>
+          <div class="set-meta">10 questions per session</div>
+        </div>
+        <div style="font-size:20px;color:var(--gray-300);">›</div>
+      </div>
+
+      <div class="set-card">
+        <div class="set-icon">🌍</div>
+        <div style="flex:1;min-width:0;">
+          <div class="set-name">World Explorer</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px;">
+            <span class="qtag qtag-gray">🌍 Geography</span>
+            <span class="qtag qtag-gray">🏛️ History</span>
+            <span class="qtag qtag-medium">Medium</span>
+          </div>
+          <div class="set-meta">8 questions per session</div>
+        </div>
+        <div style="font-size:20px;color:var(--gray-300);">›</div>
+      </div>
+
+      <div class="set-card">
+        <div class="set-icon">🔬</div>
+        <div style="flex:1;min-width:0;">
+          <div class="set-name">Science Lab</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px;">
+            <span class="qtag qtag-gray">🔬 Science</span>
+            <span class="qtag qtag-medium">Medium–Hard</span>
+          </div>
+          <div class="set-meta">10 questions per session</div>
+        </div>
+        <div style="font-size:20px;color:var(--gray-300);">›</div>
+      </div>
+
+      <div class="set-card">
+        <div class="set-icon">🌟</div>
+        <div style="flex:1;min-width:0;">
+          <div class="set-name">Emma's Mix</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px;">
+            <span class="qtag qtag-gray">🧮 Maths</span>
+            <span class="qtag qtag-gray">🔬 Science</span>
+            <span class="qtag qtag-easy">Easy</span>
+          </div>
+          <div class="set-meta">5 questions per session</div>
+        </div>
+        <div style="font-size:20px;color:var(--gray-300);">›</div>
+      </div>
+
+      <div class="set-card">
+        <div class="set-icon">🎉</div>
+        <div style="flex:1;min-width:0;">
+          <div class="set-name">Fun Friday</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:3px;">
+            <span class="qtag qtag-gray">🎭 Fun Facts</span>
+            <span class="qtag qtag-gray">🎵 Music</span>
+            <span class="qtag qtag-gray">⚽ Sports</span>
+          </div>
+          <div class="set-meta">12 questions per session</div>
+        </div>
+        <div style="font-size:20px;color:var(--gray-300);">›</div>
+      </div>
+
+      <div style="height:80px;"></div>
+    </div>
+    <nav class="bottom-nav">
+      <a class="nav-item" href="../parent-overview/02-no-requests.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg><span class="nav-label">Home</span></a>
+      <a class="nav-item" href="12-tasks-all.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg><span class="nav-label">Tasks</span></a>
+      <a class="nav-item" href="13-rewards.html"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/></svg><span class="nav-label">Rewards</span></a>
+      <a class="nav-item active" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label" style="color:#6366f1;">Quizzes</span></a>
+      <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></a>
+    </nav>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- ── Q-01b: Theme filter open ── -->
+<div class="flow-col">
+  <div class="screen-code">Q-01b</div>
+  <div class="flow-label">Theme filter open</div>
+  <div class="phone" style="min-height:780px;position:relative;">
+    <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+    <div class="page-header"><div class="page-title">🎯 Quizzes</div><div class="btn-add">+ Add Set</div></div>
+    <div class="fbar">
+      <div class="fdrop" style="border-color:var(--indigo);background:#eef2ff;">
+        <div class="fdrop-inner">
+          <div class="fdrop-lbl" style="color:var(--indigo);">Theme</div>
+          <div class="fdrop-val" style="color:var(--indigo);">All</div>
+        </div>
+        <div class="fdrop-arr" style="color:var(--indigo);">▴</div>
+      </div>
+      <div class="fdrop"><div class="fdrop-inner"><div class="fdrop-lbl">Difficulty</div><div class="fdrop-val">All</div></div><div class="fdrop-arr">▾</div></div>
+    </div>
+    <div style="padding:6px 16px 8px;background:white;border-bottom:1px solid var(--gray-100);font-size:11px;color:var(--gray-400);flex-shrink:0;">Questions are auto-matched to each kid's age from their profile.</div>
+    <!-- Dimmed list behind -->
+    <div style="flex:1;overflow:hidden;padding:8px 16px;filter:blur(1px);pointer-events:none;">
+      <div class="set-card"><div class="set-icon">🧮</div><div style="flex:1;"><div class="set-name">Maths Blitz</div></div></div>
+      <div class="set-card"><div class="set-icon">🌍</div><div style="flex:1;"><div class="set-name">World Explorer</div></div></div>
+      <div class="set-card"><div class="set-icon">🔬</div><div style="flex:1;"><div class="set-name">Science Lab</div></div></div>
+    </div>
+    <!-- Dim overlay -->
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.2);z-index:40;"></div>
+    <!-- Dropdown panel -->
+    <div style="position:absolute;top:136px;left:16px;right:88px;background:white;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.15);z-index:50;overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;border-bottom:1px solid var(--gray-100);">
+        <div style="font-size:12px;font-weight:800;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.04em;">Theme</div>
+        <div style="font-size:12px;font-weight:700;color:var(--indigo);">Clear</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;">
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gray-50);border-right:1px solid var(--gray-50);background:#f5f3ff;">
+          <div style="width:18px;height:18px;border-radius:50%;background:var(--indigo);color:white;font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✓</div>
+          <span style="font-size:13px;font-weight:700;color:var(--indigo);">All</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gray-50);">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--gray-300);flex-shrink:0;"></div>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-800);">🧮 Maths</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gray-50);border-right:1px solid var(--gray-50);">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--gray-300);flex-shrink:0;"></div>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-800);">📚 English</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gray-50);">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--gray-300);flex-shrink:0;"></div>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-800);">🔬 Science</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gray-50);border-right:1px solid var(--gray-50);">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--gray-300);flex-shrink:0;"></div>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-800);">🌍 Geography</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gray-50);">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--gray-300);flex-shrink:0;"></div>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-800);">🏛️ History</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--gray-50);border-right:1px solid var(--gray-50);">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--gray-300);flex-shrink:0;"></div>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-800);">⚽ Sports</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;">
+          <div style="width:18px;height:18px;border-radius:50%;border:1.5px solid var(--gray-300);flex-shrink:0;"></div>
+          <span style="font-size:13px;font-weight:600;color:var(--gray-800);">🎭 Fun Facts</span>
+        </div>
+      </div>
+    </div>
+    <nav class="bottom-nav">
+      <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/></svg><span class="nav-label">Home</span></a>
+      <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg><span class="nav-label">Tasks</span></a>
+      <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/></svg><span class="nav-label">Rewards</span></a>
+      <a class="nav-item active" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><span class="nav-label" style="color:#6366f1;">Quizzes</span></a>
+      <a class="nav-item" href="#"><svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></a>
+    </nav>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- ── Q-02: Add Quiz Set sheet ── -->
+<div class="flow-col">
+  <div class="screen-code">Q-02</div>
+  <div class="flow-label">Add Quiz Set</div>
+  <div class="phone" style="min-height:780px;position:relative;">
+    <div class="status-bar"><span>9:41</span><span style="font-size:12px;font-weight:700;">100%</span></div>
+    <div class="page-header"><div class="page-title">🎯 Quizzes</div><div class="btn-add">+ Add Set</div></div>
+    <div class="page-bg" style="flex:1;"></div>
+    <div class="sheet-overlay">
+      <div class="sheet" style="max-height:92%;">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div class="sheet-title">New quiz set</div>
+          <div class="sheet-close">✕</div>
+        </div>
+        <div class="sheet-body">
+          <div class="form-sec">
+            <div class="icon-name-row">
+              <div class="icon-picker">🌟</div>
+              <div style="flex:1;"><div class="form-input">Emma's Mix</div></div>
+            </div>
+          </div>
+          <div class="form-sec">
+            <div class="form-label">Themes <span style="color:var(--gray-400);font-weight:400;">— pick one or more</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <div class="sched-btn active" style="font-size:11px;">🧮 Maths</div>
+              <div class="sched-btn active" style="font-size:11px;">🔬 Science</div>
+              <div class="sched-btn" style="font-size:11px;">📚 English</div>
+              <div class="sched-btn" style="font-size:11px;">🌍 Geography</div>
+              <div class="sched-btn" style="font-size:11px;">🏛️ History</div>
+              <div class="sched-btn" style="font-size:11px;">⚽ Sports</div>
+              <div class="sched-btn" style="font-size:11px;">🎵 Music</div>
+              <div class="sched-btn" style="font-size:11px;">🎭 Fun Facts</div>
+              <div class="sched-btn" style="font-size:11px;">🇫🇷 French</div>
+              <div class="sched-btn" style="font-size:11px;">🇪🇸 Spanish</div>
+            </div>
+          </div>
+          <div class="form-sec">
+            <div class="form-label">Max difficulty</div>
+            <div class="sched-grid" style="grid-template-columns:repeat(3,1fr);">
+              <div class="sched-btn active" style="font-size:12px;">Easy</div>
+              <div class="sched-btn" style="font-size:12px;">Medium</div>
+              <div class="sched-btn" style="font-size:12px;">Hard</div>
+            </div>
+            <div class="form-hint">Age matched automatically from kid profiles</div>
+          </div>
+          <div class="form-sec">
+            <div class="form-label">Questions per session</div>
+            <div class="form-input">5</div>
+            <div class="form-hint">How many questions per play session</div>
+          </div>
+          <div class="scroll-pad"></div>
+        </div>
+        <div class="sheet-footer">
+          <div class="btn-cancel">Cancel</div>
+          <div class="btn-save">Save set</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="state-label" style="position:fixed;bottom:12px;left:50%;transform:translateX(-50%);">STATE: Quizzes flow — Q-01 Quiz Sets · Q-01b Theme filter · Q-02 Add Set</div>
+</body>
+</html>

@@ -193,6 +193,35 @@ Bottom sheet with fields:
 
 ---
 
+## Quizzes — Parent View
+
+`/parent/quizzes` shows quiz sets only — no question library in the app. The full question bank is seeded data managed outside the app; the quiz engine auto-selects questions matching each kid's age from their profile.
+
+### List (Q-01)
+
+Flat scrollable list of all quiz sets. Two dropdown filters: **Theme** and **Difficulty**. All sets are equally editable via `›` — no built-in vs custom distinction.
+
+Each card: emoji icon, name, theme tags, difficulty tag, questions-per-session count.
+
+### Theme filter open (Q-01b)
+
+Tapping Theme opens a dropdown panel with a 2-column grid of all themes. Single-select with "All" default. Dim overlay behind.
+
+### Add / Edit Quiz Set (Q-02)
+
+Bottom sheet with:
+
+| Field | Notes |
+|-------|-------|
+| Emoji + Name | Required |
+| Themes | Multi-select pill grid (all 10 themes) |
+| Max difficulty | Easy / Medium / Hard 3-button toggle |
+| Questions per session | Number input |
+
+Age band hidden — quiz engine matches age automatically from kid profiles.
+
+---
+
 ## Mockup Reference
 
 | Screen | File |
@@ -212,3 +241,4 @@ Bottom sheet with fields:
 | Tasks list — Category dropdown open | `12b-tasks-filter-open.html` |
 | Rewards list | `13-rewards.html` |
 | Add Reward form | `14-reward-form.html` |
+| Quizzes flow (Q-01, Q-01b, Q-02) | `15-quizzes.html` |
