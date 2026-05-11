@@ -4,6 +4,7 @@ import Link from "next/link";
 import KidShell from "@/components/kid/KidShell";
 import TodoTaskCard from "@/components/kid/TodoTaskCard";
 import AddTaskButton from "@/components/kid/AddTaskButton";
+import AllDoneDetector from "@/components/kid/AllDoneDetector";
 import {
   getKid,
   listTasksForKid,
@@ -286,6 +287,18 @@ export default async function TodoPage({
           accentColor={theme.accent}
         />
       </div>
+
+      {/* All-done celebration — fires when last task of the day completes */}
+      {isToday && (
+        <AllDoneDetector
+          kidId={kid.id}
+          kidName={kid.name}
+          kidAvatar={kid.avatar}
+          streak={kid.currentStreak}
+          total={dayTasks.length}
+          initialDone={completions.length}
+        />
+      )}
     </KidShell>
   );
 }

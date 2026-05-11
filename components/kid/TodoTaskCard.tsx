@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { completeTask, uncompleteTask } from "@/lib/actions/completions";
+import { TaskDoneSheet } from "@/components/kid/CelebrationOverlay";
 import type { Task, TaskCompletion } from "@/lib/domain/types";
 
 function CompletedBadge({
@@ -345,6 +346,7 @@ export default function TodoTaskCard({
 }) {
   const [done, setDone] = useState(!!initialCompletion);
   const [celebrating, setCelebrating] = useState(false);
+  const [showSheet, setShowSheet] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -356,6 +358,8 @@ export default function TodoTaskCard({
   const complete = () => {
     setDone(true);
     setCelebrating(true);
+    setShowSheet(true);
+    window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
     startTransition(async () => {
       await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
     });
@@ -390,6 +394,7 @@ export default function TodoTaskCard({
   };
 
   return (
+    <>
     <button
       type="button"
       onClick={toggle}
@@ -448,5 +453,14 @@ export default function TodoTaskCard({
         )}
       </div>
     </button>
+    {showSheet && (
+      <TaskDoneSheet
+        taskIcon={task.icon}
+        taskName={task.name}
+        points={task.points}
+        onContinue={() => setShowSheet(false)}
+      />
+    )}
+    </>
   );
 }
