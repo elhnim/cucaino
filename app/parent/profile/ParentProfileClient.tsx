@@ -11,7 +11,7 @@ const PARENT_AVATARS = [
   "🐉", "🦁", "🐺", "🦊", "🐻",
 ];
 
-type View = "main" | "set-pin" | "change-pin";
+type View = "main" | "set-pin" | "change-pin" | "edit-avatar";
 
 export default function ParentProfileClient({
   email,
@@ -83,110 +83,123 @@ export default function ParentProfileClient({
   }
 
   return (
-    <div className="p-4 space-y-4 max-w-md mx-auto">
-      <h1 className="text-xl font-black text-gray-900">My Profile</h1>
+    <div className="max-w-md mx-auto pb-10">
+      {/* Hero section */}
+      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 px-6 pt-8 pb-6 flex flex-col items-center text-center">
+        <div className="relative mb-3">
+          <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center text-5xl border-4 border-white shadow-lg">
+            {selectedAvatar}
+          </div>
+          <button
+            type="button"
+            onClick={() => setView(view === "edit-avatar" ? "main" : "edit-avatar")}
+            className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-indigo-600 text-white text-sm flex items-center justify-center shadow"
+          >
+            ✏️
+          </button>
+        </div>
+        <div className="text-xl font-black text-gray-900">{name || "Parent"}</div>
+        <div className="text-sm text-gray-500 mt-0.5">{email}</div>
+      </div>
+
+      {/* Avatar picker (expandable) */}
+      {view === "edit-avatar" && (
+        <div className="bg-white border-b border-gray-100 px-4 py-4">
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Choose avatar</div>
+          <div className="grid grid-cols-5 gap-2">
+            {PARENT_AVATARS.map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => { setSelectedAvatar(a); saveProfile(); setView("main"); }}
+                className={`w-12 h-12 rounded-full text-2xl flex items-center justify-center transition-all ${
+                  selectedAvatar === a
+                    ? "ring-2 ring-indigo-500 bg-indigo-50 scale-110"
+                    : "bg-gray-100 hover:bg-gray-200"
+                }`}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl">
+        <div className="mx-4 mt-3 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-4 py-3 rounded-xl">
           ⚠️ {error}
         </div>
       )}
 
-      {/* Avatar picker */}
-      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
-        <div className="font-bold text-gray-900 text-sm">Avatar</div>
-        <div className="flex flex-wrap gap-2">
-          {PARENT_AVATARS.map((a) => (
-            <button
-              key={a}
-              type="button"
-              onClick={() => setSelectedAvatar(a)}
-              className={`w-11 h-11 rounded-xl text-2xl flex items-center justify-center transition-all ${
-                selectedAvatar === a
-                  ? "ring-2 ring-indigo-500 scale-110 bg-indigo-50"
-                  : "bg-gray-100 hover:bg-gray-200"
-              }`}
-            >
-              {a}
-            </button>
-          ))}
+      <div className="px-4 pt-5 space-y-4">
+        {/* Account section */}
+        <div>
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">Account</div>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-gray-50">
+              <div>
+                <div className="text-xs text-gray-400 font-semibold">Display name</div>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onBlur={saveProfile}
+                  placeholder="e.g. Mum, Dad…"
+                  className="text-sm font-bold text-gray-800 bg-transparent focus:outline-none w-full mt-0.5"
+                />
+              </div>
+              <span className="text-gray-300 text-xl">›</span>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3.5">
+              <div>
+                <div className="text-xs text-gray-400 font-semibold">Email</div>
+                <div className="text-sm font-bold text-gray-800 mt-0.5">{email}</div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Display name */}
-      <div className="bg-white rounded-2xl shadow p-4 space-y-2">
-        <label className="block text-sm font-bold text-gray-700">Display name</label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Mum, Dad, Guardian…"
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        />
-        <p className="text-xs text-gray-400">Shows as "Hi [Name]!" in the header</p>
-        <button
-          type="button"
-          onClick={saveProfile}
-          disabled={isPending}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50"
-        >
-          {isPending ? "Saving…" : saved ? "Saved ✓" : "Save profile"}
-        </button>
-      </div>
-
-      {/* Account */}
-      <div className="bg-white rounded-2xl shadow p-4 space-y-1">
-        <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Account</div>
-        <div className="text-sm text-gray-600">{email}</div>
-      </div>
-
-      {/* PIN management */}
-      <div className="bg-white rounded-2xl shadow p-4 space-y-3">
-        <div className="font-bold text-gray-900 text-sm">Parent PIN</div>
-        {pinExists ? (
-          <>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-600">🔒 PIN is active</span>
-              <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">On</span>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setView("change-pin")}
-                className="flex-1 border border-indigo-300 text-indigo-700 font-bold py-2.5 rounded-xl text-sm hover:bg-indigo-50"
-              >
-                Change PIN
-              </button>
-              <button
-                type="button"
-                onClick={removePin}
-                disabled={isPending}
-                className="flex-1 border border-red-200 text-red-600 font-bold py-2.5 rounded-xl text-sm hover:bg-red-50 disabled:opacity-50"
-              >
-                Remove PIN
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-gray-500">No PIN set — anyone can access the parent area.</p>
+        {/* Security section */}
+        <div>
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">Security</div>
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             <button
               type="button"
-              onClick={() => setView("set-pin")}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-sm"
+              onClick={() => setView(pinExists ? "change-pin" : "set-pin")}
+              className="w-full flex items-center justify-between px-4 py-3.5"
             >
-              Set a PIN
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-base">🔒</div>
+                <span className="text-sm font-bold text-gray-800">
+                  {pinExists ? "Change PIN" : "Set a PIN"}
+                </span>
+              </div>
+              <span className="text-gray-300 text-xl">›</span>
             </button>
-          </>
+            {pinExists && (
+              <div className="border-t border-gray-50">
+                <button
+                  type="button"
+                  onClick={removePin}
+                  disabled={isPending}
+                  className="w-full flex items-center justify-between px-4 py-3.5 disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-base">🗑️</div>
+                    <span className="text-sm font-bold text-red-600">Remove PIN</span>
+                  </div>
+                  <span className="text-gray-300 text-xl">›</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {saved && (
+          <div className="text-center text-sm font-bold text-green-600 bg-green-50 rounded-xl py-2">
+            ✓ Profile saved
+          </div>
         )}
       </div>
-
-      <button
-        type="button"
-        onClick={() => router.back()}
-        className="w-full border border-gray-200 text-gray-600 font-bold py-3 rounded-xl text-sm"
-      >
-        Done
-      </button>
     </div>
   );
 }
