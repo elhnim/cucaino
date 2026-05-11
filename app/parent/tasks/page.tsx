@@ -77,22 +77,26 @@ function SectionHeading({ label }: { label: string }) {
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ rule?: string }>;
+  searchParams: Promise<{ rule?: string; category?: string }>;
 }) {
-  const { rule } = await searchParams;
+  const { rule, category } = await searchParams;
   const [tasks, kids] = await Promise.all([listAllTasks(), listKids()]);
 
-  const filtered =
-    rule === "strict"
-      ? tasks.filter((t) => t.rule === "strict")
-      : rule === "flexible"
-      ? tasks.filter((t) => t.rule === "flexible")
-      : tasks;
+  const isSchoolTab = category === "school_subject";
+
+  const filtered = isSchoolTab
+    ? tasks.filter((t) => t.category === "school_subject")
+    : rule === "strict"
+    ? tasks.filter((t) => t.rule === "strict" && t.category !== "school_subject")
+    : rule === "flexible"
+    ? tasks.filter((t) => t.rule === "flexible" && t.category !== "school_subject")
+    : tasks.filter((t) => t.category !== "school_subject");
 
   const tabs = [
     { label: "All", value: undefined, href: "?" },
     { label: "Strict", value: "strict", href: "?rule=strict" },
     { label: "Flexible", value: "flexible", href: "?rule=flexible" },
+    { label: "📚 School", value: "school_subject", href: "?category=school_subject", isCategory: true },
   ];
 
   return (
@@ -107,15 +111,18 @@ export default async function TasksPage({
           </Link>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           {tabs.map((tab) => {
-            const isActive =
-              tab.value === undefined ? !rule : rule === tab.value;
+            const isActive = tab.isCategory
+              ? isSchoolTab
+              : tab.value === undefined
+              ? !rule && !isSchoolTab
+              : rule === tab.value && !isSchoolTab;
             return (
               <Link
                 key={tab.label}
                 href={tab.href}
-                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${
                   isActive
                     ? "bg-indigo-600 text-white"
                     : "text-gray-500 hover:text-gray-700"
@@ -129,9 +136,15 @@ export default async function TasksPage({
 
         {filtered.length === 0 ? (
           <p className="text-center text-gray-400 py-12">
-            No tasks yet. Add your first task! 🎯
+            {isSchoolTab ? "No school subjects yet. Add one to get started! 📚" : "No tasks yet. Add your first task! 🎯"}
           </p>
-        ) : !rule ? (
+        ) : isSchoolTab || rule ? (
+          <div className="space-y-3">
+            {filtered.map((task) => (
+              <TaskCard key={task.id} task={task} kids={kids} />
+            ))}
+          </div>
+        ) : (
           <>
             {(["strict", "flexible"] as const).map((r) => {
               const group = filtered.filter((t) => t.rule === r);
@@ -150,12 +163,6 @@ export default async function TasksPage({
               );
             })}
           </>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((task) => (
-              <TaskCard key={task.id} task={task} kids={kids} />
-            ))}
-          </div>
         )}
     </div>
   );

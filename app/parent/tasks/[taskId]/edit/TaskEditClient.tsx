@@ -11,6 +11,7 @@ const CATEGORIES: { value: TaskCategory; label: string }[] = [
   { value: "music", label: "🎵 Music" },
   { value: "activity", label: "🎨 Activity" },
   { value: "personal", label: "🧴 Personal" },
+  { value: "school_subject", label: "📚 School Subject" },
 ];
 
 const TIME_BLOCKS: { value: TimeBlock; label: string }[] = [
@@ -65,18 +66,18 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
     scheduleType: rule === "flexible" ? "specific_days" as const : scheduleType,
     daysOfWeek: rule === "flexible" ? [] : daysOfWeek,
     timeBlock,
-    startTime: null,
+    startTime: task?.startTime ?? null,
     points,
-    familyPointsContribution: 0,
+    familyPointsContribution: task?.familyPointsContribution ?? 0,
     requiresTimer: target === "time",
     durationMinutes: target === "time" ? durationMinutes : null,
-    requiresCompletion: true,
-    location: null,
-    packingList: null,
+    requiresCompletion: category === "school_subject" ? false : true,
+    location: task?.location ?? null,
+    packingList: task?.packingList ?? null,
     defaultBpm: musicEnabled ? (task?.defaultBpm ?? 120) : null,
     defaultTimeSignature: musicEnabled ? (task?.defaultTimeSignature ?? "4/4") : null,
     kidId,
-    kidCanAdd: task?.kidCanAdd ?? false,
+    kidCanAdd: category === "school_subject" ? false : (task?.kidCanAdd ?? false),
     flexibleMinPerWeek: rule === "flexible" ? flexMin : null,
     target,
     targetDurationMinutes: target === "time" ? durationMinutes : null,
@@ -86,6 +87,11 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
     musicEnabled,
     description: description.trim() || null,
     timeSlots: task?.timeSlots ?? [],
+    subject: task?.subject ?? null,
+    customLabel: task?.customLabel ?? null,
+    endTime: task?.endTime ?? null,
+    room: task?.room ?? null,
+    teacher: task?.teacher ?? null,
   });
 
   const handleSave = () => {
