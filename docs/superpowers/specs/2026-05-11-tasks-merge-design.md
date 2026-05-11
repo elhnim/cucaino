@@ -249,6 +249,47 @@ Same as S-01 but with an amber banner at the top: "Holiday mode is on — Strict
 
 ---
 
+## Kid Home Screen
+
+`/kid/[kidId]/home` — theme-aware gradient page with bottom nav (Home · Todo · Rewards · Play).
+
+### Header
+
+Gradient banner (theme colours). Shows: "Good morning / afternoon, [Name] [avatar emoji]", kid's avatar circle, family goal progress bar ("Holiday to Bali 🏝️ · 1,240 / 2,000 ⭐").
+
+### Content sections (top to bottom)
+
+1. **Level badge strip** — coloured pill (e.g. 🗺️ Explorer), progress bar toward next level, "X more ⭐ to [Next level]" hint.
+2. **Stats row** — three cards: ⭐ Stars balance · 🔥 Streak days · SVG ring showing tasks done/total (ring turns green when 100%).
+3. **School tomorrow** — shown when tomorrow is a school day; horizontal scrollable pills for each subject (e.g. 🧮 Maths, 📖 English). Label reads "School tomorrow" since kids typically open the app after school.
+4. **Today's tasks** — progress bar (done/total) + list of **incomplete tasks only**. Each row: icon, name, category, ⭐ reward, empty circle tap target.
+5. **Badge progress** — 3-column grid of badge cards (emoji, category name, mini progress bar, count/threshold). "See all →" links to the Progress screen.
+6. **Encouragement message** — semi-transparent card with rotating message (e.g. "You're on a roll! 🔥").
+
+### Task target states (shown on Todo screen, navigated from task row)
+
+Header has a **‹ Todo** back button. Expanded panel below the task card top row:
+
+| Target | UI |
+|--------|----|
+| **Timer** (idle) | Large countdown display (e.g. 20:00), progress bar, ▶ play button + reset. Label: "Tap ▶ to start the timer" |
+| **Timer** (running) | Countdown ticking (e.g. 15:32), progress bar fills, ⏸ pause button, "● Recording" badge, elapsed time label |
+| **Reps** | Large counter (e.g. 12 / 20), progress bar, big 👆 Tap button in centre, "undo" link below |
+| **Checklist** | List of checklist items (white cards); ticked items show fuchsia checkbox + strikethrough; unticked are plain |
+
+### Celebration moments
+
+**FG-01 — Task completed** (bottom sheet over blurred todo list):
+- Confetti emoji row, task emoji large, task name + "done!", "Great job [Name]!" sub-text, ⭐ stars earned pill, Continue button.
+
+**FG-02 — Badge tier unlocked** (full-screen gradient overlay with confetti dots):
+- Tier pill (e.g. 🥈 Silver unlocked!), large badge emoji in glowing ring, badge tier name (e.g. "House Pro!"), completion message, bonus stars row, "Awesome! 🎉" button.
+
+**FG-03 — All tasks done for the day** (full-screen theme gradient):
+- Kid avatar in glowing ring, "All done, [Name]! 🎉" heading, "perfect day" sub-text, stats row (stars today · streak · tasks), "Back to home" primary button, "Spend your stars → Rewards" secondary link.
+
+---
+
 ## Login Screen (L-01)
 
 `/login` — full-screen gradient background (indigo-100 → purple-50 → pink-100). Centered white card:
@@ -349,3 +390,6 @@ Full-screen PIN entry sheet:
 | Settings flow (S-01 – S-04) | `16-settings.html` |
 | Parent profile (PP-01 – PP-02) | `17-parent-profile.html` |
 | Login + Select Profile (L-01, SP-01, SP-02) | `18-login-select.html` |
+| Kid home — in progress + all done (KH-01, KH-02) | `19-kid-home.html` |
+| Task target panels (T-01 – T-04) | `20-kid-task-targets.html` |
+| Celebration moments (FG-01 – FG-03) | `21-kid-celebrations.html` |

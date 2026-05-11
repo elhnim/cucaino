@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kid Task Targets — Mockups</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+body { flex-wrap: nowrap; align-items: flex-start; }
+
+.screen-code {
+  display: inline-block;
+  background: #6366f1;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin: 10px auto 0;
+  text-align: center;
+}
+
+.flow-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.flow-arrow { font-size: 28px; color: #9ca3af; align-self: center; flex-shrink: 0; margin-top: 80px; }
+
+/* Page bg — Magical theme */
+.todo-page {
+  flex: 1;
+  background: linear-gradient(180deg, #fdf4ff 0%, #fce7f3 60%, #fff 100%);
+  overflow-y: auto;
+  padding: 14px 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Page header */
+.todo-header {
+  background: linear-gradient(135deg, #a21caf 0%, #c026d3 50%, #e879f9 100%);
+  padding: 32px 20px 16px;
+  flex-shrink: 0;
+}
+
+.todo-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.todo-header-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: white;
+}
+
+.todo-header-sub {
+  font-size: 12px;
+  color: rgba(255,255,255,0.75);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.todo-header-avatar {
+  width: 40px;
+  height: 40px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,0.2);
+  border: 1.5px solid rgba(255,255,255,0.35);
+  border-radius: 999px;
+  padding: 5px 12px 5px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 10px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ── Task card base ── */
+.task-card-todo {
+  background: white;
+  border-radius: 20px;
+  border: 1.5px solid #e5e7eb;
+  overflow: hidden;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,0.07);
+}
+
+.task-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+}
+
+.task-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.task-info-wrap { flex: 1; min-width: 0; }
+
+.task-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #111827;
+  margin-bottom: 3px;
+}
+
+.task-meta {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.task-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.tag-pink { background: #fce7f3; color: #9d174d; }
+.tag-gray { background: #f3f4f6; color: #6b7280; }
+.tag-blue { background: #dbeafe; color: #1e40af; }
+.tag-green { background: #dcfce7; color: #166534; }
+.tag-amber { background: #fef3c7; color: #92400e; }
+.tag-purple { background: #f3e8ff; color: #6b21a8; }
+
+/* ── Timer target ── */
+.timer-panel {
+  background: #fdf4ff;
+  border-top: 1.5px solid #f0abfc;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.timer-display {
+  font-size: 40px;
+  font-weight: 900;
+  color: #c026d3;
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-display.running { color: #7c3aed; }
+
+.timer-progress-bg {
+  width: 100%;
+  height: 8px;
+  background: #f3e8ff;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.timer-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #c026d3;
+}
+
+.timer-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.timer-btn-play {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #c026d3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: white;
+  box-shadow: 0 4px 12px -2px rgba(192,38,211,0.4);
+}
+
+.timer-btn-pause {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: white;
+  box-shadow: 0 4px 12px -2px rgba(124,58,237,0.4);
+}
+
+.timer-btn-reset {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  color: #6b7280;
+}
+
+.timer-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* ── Reps target ── */
+.reps-panel {
+  background: #fdf4ff;
+  border-top: 1.5px solid #f0abfc;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.reps-counter {
+  font-size: 48px;
+  font-weight: 900;
+  color: #c026d3;
+  line-height: 1;
+}
+
+.reps-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.reps-progress-bg {
+  width: 100%;
+  height: 8px;
+  background: #f3e8ff;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.reps-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #c026d3;
+}
+
+.reps-tap-btn {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: #c026d3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 2px;
+  box-shadow: 0 6px 20px -4px rgba(192,38,211,0.5);
+}
+
+.reps-tap-icon { font-size: 24px; }
+
+.reps-undo {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* ── Checklist target ── */
+.checklist-panel {
+  background: #fdf4ff;
+  border-top: 1.5px solid #f0abfc;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: white;
+  border-radius: 12px;
+  border: 1.5px solid #e5e7eb;
+}
+
+.checklist-item.done {
+  background: #fdf4ff;
+  border-color: #f0abfc;
+}
+
+.check-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid #d1d5db;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.check-box.checked {
+  background: #c026d3;
+  border-color: #c026d3;
+  color: white;
+}
+
+.check-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+}
+
+.check-label.done {
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+/* ── Bottom nav ── */
+.kid-nav {
+  display: flex;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.kid-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 4px 14px;
+  gap: 3px;
+}
+
+.kid-nav-icon { font-size: 20px; }
+
+.kid-nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+/* Section label above tasks */
+.section-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  padding: 2px 4px;
+}
+</style>
+</head>
+<body>
+
+<!-- T-01: Timer — idle -->
+<div class="flow-col">
+  <div class="screen-code">T-01</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="todo-header" style="padding-top:32px;">
+      <a class="back-btn" href="#">‹ Todo</a>
+      <div class="todo-header-row">
+        <div>
+          <div class="todo-header-title">Today ✅</div>
+          <div class="todo-header-sub">Monday · 1 of 5 left</div>
+        </div>
+        <div class="todo-header-avatar">🦄</div>
+      </div>
+    </div>
+    <div class="todo-page">
+      <div class="section-lbl">Still to do</div>
+
+      <!-- Timer card — idle -->
+      <div class="task-card-todo">
+        <div class="task-card-top">
+          <div class="task-icon-wrap" style="background:#f3e8ff;">🎹</div>
+          <div class="task-info-wrap">
+            <div class="task-title">Piano practice</div>
+            <div class="task-meta">
+              <span class="task-tag tag-pink">Music</span>
+              <span class="task-tag tag-gray">⏱ 20 min</span>
+              <span class="task-tag tag-gray">+10 ⭐</span>
+            </div>
+          </div>
+        </div>
+        <div class="timer-panel">
+          <div class="timer-display">20:00</div>
+          <div class="timer-progress-bg">
+            <div class="timer-progress-fill" style="width:0%;"></div>
+          </div>
+          <div class="timer-controls">
+            <div class="timer-btn-reset">↺</div>
+            <div class="timer-btn-play">▶</div>
+            <div style="width:36px;"></div>
+          </div>
+          <div class="timer-label">Tap ▶ to start the timer</div>
+        </div>
+      </div>
+    </div>
+    <div class="kid-nav">
+      <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">✅</div><div class="kid-nav-label" style="color:#c026d3;">Todo</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- T-02: Timer — running -->
+<div class="flow-col">
+  <div class="screen-code">T-02</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="todo-header" style="padding-top:32px;">
+      <a class="back-btn" href="#">‹ Todo</a>
+      <div class="todo-header-row">
+        <div>
+          <div class="todo-header-title">Today ✅</div>
+          <div class="todo-header-sub">Monday · 1 of 5 left</div>
+        </div>
+        <div class="todo-header-avatar">🦄</div>
+      </div>
+    </div>
+    <div class="todo-page">
+      <div class="section-lbl">Still to do</div>
+
+      <!-- Timer card — running -->
+      <div class="task-card-todo" style="border-color:#c026d3;">
+        <div class="task-card-top" style="background:#fdf4ff;">
+          <div class="task-icon-wrap" style="background:#f3e8ff;">🎹</div>
+          <div class="task-info-wrap">
+            <div class="task-title">Piano practice</div>
+            <div class="task-meta">
+              <span class="task-tag tag-pink">Music</span>
+              <span class="task-tag" style="background:#c026d3;color:white;">● Recording</span>
+            </div>
+          </div>
+        </div>
+        <div class="timer-panel">
+          <div class="timer-display running">15:32</div>
+          <div class="timer-progress-bg">
+            <div class="timer-progress-fill" style="width:22%;"></div>
+          </div>
+          <div class="timer-controls">
+            <div class="timer-btn-reset">↺</div>
+            <div class="timer-btn-pause">⏸</div>
+            <div style="width:36px;"></div>
+          </div>
+          <div class="timer-label">4 min 28 sec elapsed</div>
+        </div>
+      </div>
+    </div>
+    <div class="kid-nav">
+      <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">✅</div><div class="kid-nav-label" style="color:#c026d3;">Todo</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- T-03: Reps counter -->
+<div class="flow-col">
+  <div class="screen-code">T-03</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="todo-header" style="padding-top:32px;">
+      <a class="back-btn" href="#">‹ Todo</a>
+      <div class="todo-header-row">
+        <div>
+          <div class="todo-header-title">Today ✅</div>
+          <div class="todo-header-sub">Monday · 1 of 5 left</div>
+        </div>
+        <div class="todo-header-avatar">🦄</div>
+      </div>
+    </div>
+    <div class="todo-page">
+      <div class="section-lbl">Still to do</div>
+
+      <!-- Reps card -->
+      <div class="task-card-todo">
+        <div class="task-card-top">
+          <div class="task-icon-wrap" style="background:#fce7f3;">💪</div>
+          <div class="task-info-wrap">
+            <div class="task-title">Push-ups</div>
+            <div class="task-meta">
+              <span class="task-tag tag-pink">Exercise</span>
+              <span class="task-tag tag-gray">🔢 20 reps</span>
+              <span class="task-tag tag-gray">+8 ⭐</span>
+            </div>
+          </div>
+        </div>
+        <div class="reps-panel">
+          <div style="display:flex;align-items:baseline;gap:6px;">
+            <div class="reps-counter">12</div>
+            <div style="font-size:22px;font-weight:700;color:#d1d5db;">/ 20</div>
+          </div>
+          <div class="reps-progress-bg" style="width:100%;">
+            <div class="reps-progress-fill" style="width:60%;"></div>
+          </div>
+          <div class="reps-tap-btn">
+            <div class="reps-tap-icon">👆</div>
+            <div>Tap</div>
+          </div>
+          <div class="reps-undo">Tap anywhere to count · undo</div>
+        </div>
+      </div>
+    </div>
+    <div class="kid-nav">
+      <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">✅</div><div class="kid-nav-label" style="color:#c026d3;">Todo</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- T-04: Checklist -->
+<div class="flow-col">
+  <div class="screen-code">T-04</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;"><span>9:41</span><span>●●● 100%</span></div>
+    <div class="todo-header" style="padding-top:32px;">
+      <a class="back-btn" href="#">‹ Todo</a>
+      <div class="todo-header-row">
+        <div>
+          <div class="todo-header-title">Today ✅</div>
+          <div class="todo-header-sub">Monday · 1 of 5 left</div>
+        </div>
+        <div class="todo-header-avatar">🦄</div>
+      </div>
+    </div>
+    <div class="todo-page">
+      <div class="section-lbl">Still to do</div>
+
+      <!-- Checklist card -->
+      <div class="task-card-todo">
+        <div class="task-card-top">
+          <div class="task-icon-wrap" style="background:#fce7f3;">🌅</div>
+          <div class="task-info-wrap">
+            <div class="task-title">Morning routine</div>
+            <div class="task-meta">
+              <span class="task-tag tag-pink">Habit</span>
+              <span class="task-tag tag-gray">☑ 3 of 5</span>
+              <span class="task-tag tag-gray">+6 ⭐</span>
+            </div>
+          </div>
+        </div>
+        <div class="checklist-panel">
+          <div class="checklist-item done">
+            <div class="check-box checked">✓</div>
+            <div class="check-label done">Brush teeth</div>
+          </div>
+          <div class="checklist-item done">
+            <div class="check-box checked">✓</div>
+            <div class="check-label done">Make bed</div>
+          </div>
+          <div class="checklist-item done">
+            <div class="check-box checked">✓</div>
+            <div class="check-label done">Get dressed</div>
+          </div>
+          <div class="checklist-item">
+            <div class="check-box"></div>
+            <div class="check-label">Eat breakfast</div>
+          </div>
+          <div class="checklist-item">
+            <div class="check-box"></div>
+            <div class="check-label">Pack school bag</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="kid-nav">
+      <div class="kid-nav-item"><div class="kid-nav-icon">🏠</div><div class="kid-nav-label">Home</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">✅</div><div class="kid-nav-label" style="color:#c026d3;">Todo</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎁</div><div class="kid-nav-label">Rewards</div></div>
+      <div class="kid-nav-item"><div class="kid-nav-icon">🎮</div><div class="kid-nav-label">Play</div></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

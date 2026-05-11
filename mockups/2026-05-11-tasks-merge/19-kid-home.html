@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kid Home Screen — Mockups</title>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+body { flex-wrap: nowrap; align-items: flex-start; }
+
+.screen-code {
+  display: inline-block;
+  background: #6366f1;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin: 10px auto 0;
+  text-align: center;
+}
+
+.flow-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.flow-arrow { font-size: 28px; color: #9ca3af; align-self: center; flex-shrink: 0; margin-top: 80px; }
+
+/* ── Kid shell ── */
+.kid-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Header gradient — Magical theme (fuchsia) */
+.kid-header-magical {
+  background: linear-gradient(135deg, #a21caf 0%, #c026d3 50%, #e879f9 100%);
+  padding: 16px 20px 20px;
+  flex-shrink: 0;
+}
+
+/* Header gradient — Galactic theme (indigo) */
+.kid-header-galactic {
+  background: linear-gradient(135deg, #3730a3 0%, #4f46e5 50%, #818cf8 100%);
+  padding: 16px 20px 20px;
+  flex-shrink: 0;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.header-greeting {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+}
+
+.header-name {
+  font-size: 22px;
+  font-weight: 900;
+  color: white;
+  line-height: 1.1;
+}
+
+.header-avatar {
+  width: 52px;
+  height: 52px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  border: 2px solid rgba(255,255,255,0.4);
+}
+
+/* Family goal bar */
+.family-goal-bar {
+  background: rgba(255,255,255,0.15);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.family-goal-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.8);
+}
+
+.family-goal-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.7);
+  margin-bottom: 5px;
+}
+
+/* Page background */
+.page-grad-magical {
+  background: linear-gradient(180deg, #fdf4ff 0%, #fce7f3 60%, #fff 100%);
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.page-grad-galactic {
+  background: linear-gradient(180deg, #eef2ff 0%, #e0e7ff 60%, #fff 100%);
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Cards */
+.home-card {
+  background: white;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,0.08);
+}
+
+/* Level badge strip */
+.level-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+
+.level-bar-bg {
+  height: 8px;
+  background: #f3f4f6;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.level-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.level-next {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat-card {
+  background: white;
+  border-radius: 18px;
+  padding: 12px 8px;
+  text-align: center;
+  box-shadow: 0 2px 8px -2px rgba(0,0,0,0.08);
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  color: #111827;
+  line-height: 1.1;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+}
+
+/* Task ring */
+.ring-wrap {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  margin: 0 auto 4px;
+}
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: #374151;
+}
+
+/* School pills */
+.school-head {
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 10px;
+}
+
+.school-pills {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+
+.school-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+/* Task CTA card */
+.cta-card {
+  border-radius: 20px;
+  padding: 16px;
+  border: 2px solid;
+}
+
+.cta-head {
+  font-size: 15px;
+  font-weight: 800;
+  color: #1f2937;
+  margin-bottom: 3px;
+}
+
+.cta-sub {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.cta-progress-bg {
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  background: rgba(255,255,255,0.6);
+}
+
+.cta-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.cta-btn {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 800;
+  color: white;
+  text-decoration: none;
+}
+
+/* Encouragement */
+.encourage-card {
+  background: rgba(255,255,255,0.6);
+  border-radius: 18px;
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Bottom nav */
+.kid-nav {
+  display: flex;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.kid-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 4px 14px;
+  gap: 3px;
+  text-decoration: none;
+}
+
+.kid-nav-icon { font-size: 20px; }
+
+.kid-nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.kid-nav-item.active .kid-nav-label { color: #c026d3; }
+.kid-nav-item.active-galactic .kid-nav-label { color: #4f46e5; }
+</style>
+</head>
+<body>
+
+<!-- KH-01: Emma — Magical theme, in-progress day (school + tasks) -->
+<div class="flow-col">
+  <div class="screen-code">KH-01</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;">
+      <span>9:41</span>
+      <span>●●● 100%</span>
+    </div>
+    <div class="kid-shell">
+
+      <!-- Header -->
+      <div class="kid-header-magical" style="padding-top:32px;">
+        <div class="header-top">
+          <div>
+            <div class="header-greeting">Good morning,</div>
+            <div class="header-name">Emma 🦄</div>
+          </div>
+          <div class="header-avatar">🦄</div>
+        </div>
+        <div class="family-goal-label">Family goal — Holiday to Bali 🏝️ · 1,240 / 2,000 ⭐</div>
+        <div class="family-goal-bar">
+          <div class="family-goal-fill" style="width:62%;"></div>
+        </div>
+      </div>
+
+      <!-- Scrollable page content -->
+      <div class="page-grad-magical">
+
+        <!-- Level badge -->
+        <div class="home-card">
+          <div class="level-pill" style="background:#f3e8ff;color:#7c3aed;">🗺️ Explorer</div>
+          <div class="level-bar-bg">
+            <div class="level-bar-fill" style="width:70%;background:#c026d3;"></div>
+          </div>
+          <div class="level-next">60 more ⭐ to Champion 🏅</div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-value">⭐ 240</div>
+            <div class="stat-label">Stars</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">🔥 7d</div>
+            <div class="stat-label">Streak</div>
+          </div>
+          <div class="stat-card">
+            <!-- Task progress ring -->
+            <div class="ring-wrap">
+              <svg width="50" height="50" viewBox="0 0 50 50">
+                <circle cx="25" cy="25" r="20" fill="none" stroke="#e5e7eb" stroke-width="5"/>
+                <circle cx="25" cy="25" r="20" fill="none" stroke="#c026d3" stroke-width="5"
+                  stroke-dasharray="125.66" stroke-dashoffset="25.13"
+                  stroke-linecap="round" transform="rotate(-90 25 25)"/>
+              </svg>
+              <div class="ring-center">4/5</div>
+            </div>
+            <div class="stat-label">Tasks</div>
+          </div>
+        </div>
+
+        <!-- School today -->
+        <div class="home-card">
+          <div class="school-head">📚 School tomorrow</div>
+          <div class="school-pills">
+            <div class="school-pill">🧮 Maths</div>
+            <div class="school-pill">📖 English</div>
+            <div class="school-pill">🔬 Science</div>
+            <div class="school-pill">🎨 Art</div>
+          </div>
+        </div>
+
+        <!-- Tasks today -->
+        <div class="home-card" style="padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:800;color:#1f2937;">Today's tasks</div>
+            <div style="font-size:12px;font-weight:700;color:#c026d3;">4 / 5 done</div>
+          </div>
+          <div class="cta-progress-bg" style="margin-bottom:12px;">
+            <div class="cta-progress-fill" style="width:80%;background:#c026d3;"></div>
+          </div>
+
+          <!-- Incomplete tasks only -->
+          <div style="display:flex;flex-direction:column;gap:8px;">
+
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border-radius:14px;border:1.5px solid #e5e7eb;">
+              <div style="width:36px;height:36px;background:#f9fafb;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">🧹</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:700;color:#111827;">Tidy room</div>
+                <div style="font-size:10px;color:#9ca3af;font-weight:600;">Chore · +5 ⭐</div>
+              </div>
+              <div style="width:24px;height:24px;border:2px solid #e5e7eb;border-radius:50%;flex-shrink:0;"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Badge progress strip -->
+        <div class="home-card" style="padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:14px;font-weight:800;color:#1f2937;">🎖 My badges</div>
+            <div style="font-size:12px;font-weight:700;color:#c026d3;">See all →</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+
+            <!-- Chores — Silver almost -->
+            <div style="background:#fdf4ff;border-radius:14px;padding:10px 8px;text-align:center;border:1.5px solid #f0abfc;">
+              <div style="font-size:22px;margin-bottom:3px;">🧹</div>
+              <div style="font-size:9px;font-weight:700;color:#6b21a8;margin-bottom:5px;">Chores</div>
+              <div style="height:5px;background:#f3e8ff;border-radius:999px;overflow:hidden;margin-bottom:3px;">
+                <div style="height:100%;width:78%;background:#c026d3;border-radius:999px;"></div>
+              </div>
+              <div style="font-size:9px;color:#9ca3af;font-weight:600;">78 / 100 🥇</div>
+            </div>
+
+            <!-- Music — Silver close -->
+            <div style="background:#fdf4ff;border-radius:14px;padding:10px 8px;text-align:center;border:1.5px solid #f0abfc;">
+              <div style="font-size:22px;margin-bottom:3px;">🎵</div>
+              <div style="font-size:9px;font-weight:700;color:#6b21a8;margin-bottom:5px;">Music</div>
+              <div style="height:5px;background:#f3e8ff;border-radius:999px;overflow:hidden;margin-bottom:3px;">
+                <div style="height:100%;width:64%;background:#c026d3;border-radius:999px;"></div>
+              </div>
+              <div style="font-size:9px;color:#9ca3af;font-weight:600;">32 / 50 🥈</div>
+            </div>
+
+            <!-- Hygiene — Silver almost -->
+            <div style="background:#fdf4ff;border-radius:14px;padding:10px 8px;text-align:center;border:1.5px solid #f0abfc;">
+              <div style="font-size:22px;margin-bottom:3px;">🪥</div>
+              <div style="font-size:9px;font-weight:700;color:#6b21a8;margin-bottom:5px;">Hygiene</div>
+              <div style="height:5px;background:#f3e8ff;border-radius:999px;overflow:hidden;margin-bottom:3px;">
+                <div style="height:100%;width:45%;background:#9ca3af;border-radius:999px;"></div>
+              </div>
+              <div style="font-size:9px;color:#9ca3af;font-weight:600;">45 / 100 🥈</div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Encouragement -->
+        <div class="encourage-card">You're on a roll! 🔥</div>
+
+      </div>
+
+      <!-- Bottom nav -->
+      <div class="kid-nav">
+        <div class="kid-nav-item active">
+          <div class="kid-nav-icon">🏠</div>
+          <div class="kid-nav-label" style="color:#c026d3;">Home</div>
+        </div>
+        <a class="kid-nav-item" href="#">
+          <div class="kid-nav-icon">✅</div>
+          <div class="kid-nav-label">Todo</div>
+        </a>
+        <a class="kid-nav-item" href="#">
+          <div class="kid-nav-icon">🎁</div>
+          <div class="kid-nav-label">Rewards</div>
+        </a>
+        <a class="kid-nav-item" href="#">
+          <div class="kid-nav-icon">🎮</div>
+          <div class="kid-nav-label">Play</div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="flow-arrow">›</div>
+
+<!-- KH-02: Liam — Galactic theme, all tasks done -->
+<div class="flow-col">
+  <div class="screen-code">KH-02</div>
+  <div class="phone">
+    <div class="status-bar" style="background:transparent;position:absolute;top:0;left:0;right:0;color:white;z-index:10;">
+      <span>9:41</span>
+      <span>●●● 100%</span>
+    </div>
+    <div class="kid-shell">
+
+      <!-- Header -->
+      <div class="kid-header-galactic" style="padding-top:32px;">
+        <div class="header-top">
+          <div>
+            <div class="header-greeting">Good morning,</div>
+            <div class="header-name">Liam 🚀</div>
+          </div>
+          <div class="header-avatar">🚀</div>
+        </div>
+        <div class="family-goal-label">Family goal — Holiday to Bali 🏝️ · 1,240 / 2,000 ⭐</div>
+        <div class="family-goal-bar">
+          <div class="family-goal-fill" style="width:62%;"></div>
+        </div>
+      </div>
+
+      <!-- Scrollable page content -->
+      <div class="page-grad-galactic">
+
+        <!-- Level badge -->
+        <div class="home-card">
+          <div class="level-pill" style="background:#e0e7ff;color:#3730a3;">🌱 Seedling</div>
+          <div class="level-bar-bg">
+            <div class="level-bar-fill" style="width:80%;background:#4f46e5;"></div>
+          </div>
+          <div class="level-next">20 more ⭐ to Explorer 🗺️</div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-value">⭐ 80</div>
+            <div class="stat-label">Stars</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">🔥 3d</div>
+            <div class="stat-label">Streak</div>
+          </div>
+          <div class="stat-card">
+            <!-- All done ring — full circle green -->
+            <div class="ring-wrap">
+              <svg width="50" height="50" viewBox="0 0 50 50">
+                <circle cx="25" cy="25" r="20" fill="none" stroke="#e5e7eb" stroke-width="5"/>
+                <circle cx="25" cy="25" r="20" fill="none" stroke="#22c55e" stroke-width="5"
+                  stroke-dasharray="125.66" stroke-dashoffset="0"
+                  stroke-linecap="round" transform="rotate(-90 25 25)"/>
+              </svg>
+              <div class="ring-center" style="color:#22c55e;">5/5</div>
+            </div>
+            <div class="stat-label">Tasks</div>
+          </div>
+        </div>
+
+        <!-- No school today (weekend / no classes) — absent -->
+
+        <!-- Task CTA — all done -->
+        <div class="cta-card" style="background:#f0fdf4;border-color:#86efac;">
+          <div class="cta-head">Your tasks today</div>
+          <div class="cta-sub">All 5 tasks done! 🎉</div>
+          <div class="cta-progress-bg" style="background:rgba(255,255,255,0.6);">
+            <div class="cta-progress-fill" style="width:100%;background:#22c55e;"></div>
+          </div>
+          <div class="cta-btn" style="background:#16a34a;">See today →</div>
+        </div>
+
+        <!-- Encouragement -->
+        <div class="encourage-card">Amazing effort! 💪</div>
+
+      </div>
+
+      <!-- Bottom nav -->
+      <div class="kid-nav">
+        <div class="kid-nav-item active-galactic">
+          <div class="kid-nav-icon">🏠</div>
+          <div class="kid-nav-label" style="color:#4f46e5;">Home</div>
+        </div>
+        <a class="kid-nav-item" href="#">
+          <div class="kid-nav-icon">✅</div>
+          <div class="kid-nav-label">Todo</div>
+        </a>
+        <a class="kid-nav-item" href="#">
+          <div class="kid-nav-icon">🎁</div>
+          <div class="kid-nav-label">Rewards</div>
+        </a>
+        <a class="kid-nav-item" href="#">
+          <div class="kid-nav-icon">🎮</div>
+          <div class="kid-nav-label">Play</div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
