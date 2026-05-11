@@ -6,29 +6,26 @@ import type { ReactNode } from "react";
 import type { Kid } from "@/lib/domain/types";
 import { getTheme } from "@/lib/themes/presets";
 import KidOverridesApplier from "@/components/kid/KidOverridesApplier";
-import NavIcon from "@/components/ui/NavIcon";
 
 type NavKey = "home" | "todo" | "rewards" | "play";
 
-const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "play"; href: (kidId: string) => string }[] = [
-  { key: "home",    label: "Home",    icon: "home",     href: (id) => `/kid/${id}/home` },
-  { key: "todo",    label: "Todo",    icon: "calendar", href: (id) => `/kid/${id}/todo` },
-  { key: "rewards", label: "Rewards", icon: "gift",     href: (id) => `/kid/${id}/rewards` },
-  { key: "play",    label: "Play",    icon: "play",     href: () => "/play" },
+const NAV_ITEMS: { key: NavKey; label: string; icon: string; href: (kidId: string) => string }[] = [
+  { key: "home",    label: "Home",     icon: "🏠", href: (id) => `/kid/${id}/home` },
+  { key: "todo",    label: "Schedule", icon: "📅", href: (id) => `/kid/${id}/todo` },
+  { key: "rewards", label: "Rewards",  icon: "🎁", href: (id) => `/kid/${id}/rewards` },
+  { key: "play",    label: "Play",     icon: "🎮", href: (id) => `/play?kid=${id}` },
 ];
 
-function KidAvatarMenu({ kid, accent, accentSoft }: { kid: Kid; accent: string; accentSoft: string }) {
+export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+    function onMouseDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
   }, []);
 
   return (
@@ -36,30 +33,32 @@ function KidAvatarMenu({ kid, accent, accentSoft }: { kid: Kid; accent: string; 
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative w-12 h-12 md:w-14 md:h-14 rounded-full flex items-center justify-center text-3xl md:text-4xl shrink-0"
-        style={{ background: accentSoft }}
+        className="w-12 h-12 rounded-full flex items-center justify-center text-3xl border-2 border-white/40"
+        style={{ background: "rgba(255,255,255,0.2)" }}
       >
         <span data-kid-avatar={kid.id}>{kid.avatar}</span>
-        <span className="absolute -bottom-1 -right-1 bg-white rounded-full w-5 h-5 flex items-center justify-center text-xs shadow">
-          ✏️
-        </span>
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full mt-2 bg-white rounded-2xl shadow-xl z-50 min-w-[170px] overflow-hidden">
+        <div
+          className="absolute right-0 top-full mt-2 bg-white rounded-2xl overflow-hidden z-50"
+          style={{ minWidth: 180, boxShadow: "0 8px 32px -4px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)" }}
+        >
           <Link
             href={`/kid/${kid.id}/profile`}
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 active:bg-gray-100"
+            className="flex items-center gap-2.5 px-4 py-3.5 text-sm font-bold text-gray-800 border-b border-gray-50 hover:bg-gray-50"
           >
-            ✏️ Edit profile
+            <span className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-sm">✏️</span>
+            Edit profile
           </Link>
           <Link
             href="/select-kid"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 active:bg-gray-100 border-t border-gray-100"
+            className="flex items-center gap-2.5 px-4 py-3.5 text-sm font-bold text-gray-800 hover:bg-gray-50"
           >
-            ⇄ Switch profile
+            <span className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-sm">🔄</span>
+            Switch profile
           </Link>
         </div>
       )}
@@ -72,72 +71,59 @@ export default function KidShell({
   active,
   children,
   familyGoal,
+  customHeader,
 }: {
   kid: Kid;
   active: NavKey;
   children: ReactNode;
   familyGoal?: { name: string; emoji: string; current: number; target: number };
+  customHeader?: ReactNode;
 }) {
   const theme = getTheme(kid.themeId);
 
   return (
     <main className={`min-h-screen bg-gradient-to-br ${theme.pageGradient} font-fun flex flex-col`}>
-      {/* Header */}
-      <header
-        className={`bg-gradient-to-r ${theme.headerGradient} text-white p-4 md:p-5 flex items-center justify-between gap-3`}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <KidAvatarMenu kid={kid} accent={theme.accent} accentSoft={theme.accentSoft} />
-          <div className="min-w-0">
-            <div className="text-xl md:text-2xl font-black truncate">
-              Hi <span data-kid-name={kid.id}>{kid.name}</span>! 👋
-            </div>
-            <div className="text-xs md:text-sm opacity-90">
-              {new Date().toLocaleDateString(undefined, {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="bg-white/20 backdrop-blur px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold text-base md:text-lg">
-            ⭐ {kid.pointsBalance}
-          </span>
-          <span className="hidden sm:inline-flex bg-white/20 backdrop-blur px-3 py-1.5 md:px-4 md:py-2 rounded-full font-bold">
-            🔥 {kid.currentStreak}d
-          </span>
-        </div>
-      </header>
 
-      {/* Family goal strip */}
-      {familyGoal ? (
-        <div className="px-4 md:px-5 py-3 bg-purple-100 border-b-2 border-purple-200">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-bold text-purple-900">
-              {familyGoal.emoji} Family goal: {familyGoal.name}
-            </span>
-            <span className="text-purple-700 font-bold">
-              {familyGoal.current} / {familyGoal.target}
-            </span>
+      {customHeader ?? (
+        <header
+          className={`bg-gradient-to-br ${theme.headerGradient} text-white flex-shrink-0`}
+          style={{ paddingTop: 36, paddingLeft: 20, paddingRight: 20, paddingBottom: 20 }}
+        >
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="text-sm font-semibold opacity-75">Good morning,</div>
+              <div className="text-[22px] font-black leading-tight mt-0.5">
+                <span data-kid-name={kid.id}>{kid.name}</span> {kid.avatar}
+              </div>
+            </div>
+            <KidAvatarMenu kid={kid} accent={theme.accent} />
           </div>
-          <div className="bg-white rounded-full h-2.5 mt-2 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-purple-500 to-pink-500 h-full"
-              style={{
-                width: `${Math.min(100, (familyGoal.current / familyGoal.target) * 100)}%`,
-              }}
-            />
-          </div>
-        </div>
-      ) : null}
 
-      {/* Birthday banner + override patcher (client) */}
+          {familyGoal && (
+            <>
+              <div className="text-[11px] font-semibold opacity-70 mb-1.5">
+                Family goal — {familyGoal.emoji} {familyGoal.name} · {familyGoal.current.toLocaleString()} / {familyGoal.target.toLocaleString()} ⭐
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.25)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.min(100, (familyGoal.current / familyGoal.target) * 100)}%`,
+                    background: "rgba(255,255,255,0.85)",
+                  }}
+                />
+              </div>
+            </>
+          )}
+        </header>
+      )}
+
       <KidOverridesApplier kid={kid} />
 
-      {/* Top nav */}
-      <nav className="bg-white/80 backdrop-blur border-b-2 border-gray-100 px-3 py-2 flex justify-around">
+      <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
+
+      {/* Bottom nav */}
+      <nav className="bg-white border-t border-gray-100 flex flex-shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {NAV_ITEMS.map((item) => {
           const isActive = item.key === active;
           return (
@@ -145,23 +131,11 @@ export default function KidShell({
               key={item.key}
               href={item.href(kid.id)}
               prefetch={false}
-              className="flex flex-col items-center gap-1"
+              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5"
             >
+              <span className="text-xl leading-none">{item.icon}</span>
               <span
-                className="flex items-center justify-center transition-all"
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 16,
-                  background: isActive ? theme.accent : "#f3f4f6",
-                  boxShadow: isActive ? `0 4px 14px ${theme.accent}66` : "none",
-                  color: isActive ? "#fff" : "#9ca3af",
-                }}
-              >
-                <NavIcon name={item.icon} size={24} />
-              </span>
-              <span
-                className="text-[10px] font-bold"
+                className="text-[10px] font-bold tracking-wide"
                 style={{ color: isActive ? theme.accent : "#9ca3af" }}
               >
                 {item.label}
@@ -170,9 +144,6 @@ export default function KidShell({
           );
         })}
       </nav>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
     </main>
   );
 }

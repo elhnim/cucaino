@@ -18,12 +18,16 @@ export default function SelectKidClient({
   themes,
   parentPin,
   familyName,
+  parentDisplayName,
+  parentAvatar,
   kidProgress = [],
 }: {
   kids: Kid[];
   themes: Theme[];
   parentPin: string | null;
   familyName: string | null;
+  parentDisplayName?: string | null;
+  parentAvatar?: string;
   kidProgress?: { kidId: string; done: number; total: number }[];
 }) {
   const router = useRouter();
@@ -146,16 +150,25 @@ export default function SelectKidClient({
           <button
             type="button"
             onClick={goToParent}
-            className="rounded-3xl p-3 md:p-4 shadow-xl hover:scale-105 active:scale-100 transition-transform"
-            style={{
-              background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
-              aspectRatio: "1",
-            }}
+            className="bg-white rounded-3xl p-3 md:p-4 shadow-xl hover:scale-105 active:scale-100 transition-transform"
+            style={{ aspectRatio: "1" }}
           >
-            <div className="flex flex-col items-center justify-center h-full gap-2 text-white">
-              <div className="text-5xl md:text-6xl">🧙</div>
-              <div className="text-xl md:text-2xl font-black">Parent</div>
-              <div className="text-xs md:text-sm opacity-90">Magic zone ✨</div>
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+              <div
+                className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-4xl md:text-5xl"
+                style={{ background: "#eef2ff", border: "2px solid #6366f1" }}
+              >
+                {parentAvatar ?? "🧙"}
+              </div>
+              <div className="text-lg md:text-xl font-black text-center text-indigo-700">
+                {parentDisplayName ?? "Parent"}
+              </div>
+              <div
+                className="text-[10px] md:text-xs font-bold px-2 py-0.5 rounded-full"
+                style={{ background: "#eef2ff", color: "#6366f1" }}
+              >
+                PARENT
+              </div>
             </div>
           </button>
         </div>

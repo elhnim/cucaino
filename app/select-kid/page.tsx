@@ -32,6 +32,8 @@ export default async function SelectKidPage() {
       themes={themes}
       parentPin={parentPin}
       familyName={family?.name ?? null}
+      parentDisplayName={family?.parentDisplayName ?? null}
+      parentAvatar={family?.parentAvatar ?? "🧙"}
       kidProgress={kidProgress}
     />
   );

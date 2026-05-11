@@ -5,10 +5,13 @@ import {
   getKid,
   listTasksForKid,
   listCompletionsToday,
+  listBadgeProgress,
+  getFamily,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
 import { SUBJECTS } from "@/lib/registry/subject-registry";
+import type { BadgeProgress, DayOfWeek } from "@/lib/domain/types";
 
 const LEVELS = [
   { min: 0,    max: 99,       emoji: "🌱", name: "Seedling",  color: "#16a34a" },
@@ -27,8 +30,7 @@ function getLevelProgress(stars: number) {
   const level = LEVELS[idx];
   if (idx === LEVELS.length - 1) return { pct: 1, next: null };
   const next = LEVELS[idx + 1];
-  const pct = (stars - level.min) / (next.min - level.min);
-  return { pct: Math.min(1, pct), next };
+  return { pct: Math.min(1, (stars - level.min) / (next.min - level.min)), next };
 }
 
 const ENCOURAGEMENTS = [
@@ -39,7 +41,12 @@ const ENCOURAGEMENTS = [
   "Legend in the making! 🏆",
 ];
 
-const CIRCUMFERENCE = 2 * Math.PI * 20; // radius=20 → ~125.66
+const CIRCUMFERENCE = 2 * Math.PI * 20;
+
+const TIER_THRESHOLDS = { bronze: 10, silver: 50, gold: 100 } as const;
+const BADGE_ICONS: Record<string, string> = {
+  hygiene: "🪥", physical: "🏃", learning: "📚", chores: "🧹", music: "🎵", mindfulness: "🧘",
+};
 
 export default async function KidHomePage({
   params,
@@ -53,9 +60,11 @@ export default async function KidHomePage({
   const now = new Date();
   const dow = isoWeekday(now);
 
-  const [tasks, completions] = await Promise.all([
+  const [tasks, completions, badges, family] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
+    listBadgeProgress(kid.id),
+    getFamily(),
   ]);
 
   const todayTasks = tasksForDay(tasks, dow);
@@ -63,10 +72,27 @@ export default async function KidHomePage({
   const completedIds = new Set(completions.map((c) => c.taskId));
   const done = completableTasks.filter((t) => completedIds.has(t.id)).length;
   const total = completableTasks.length;
+  const incompleteTasks = completableTasks.filter((t) => !completedIds.has(t.id));
 
   const todaySchoolTasks = dow <= 5
     ? tasksForDay(tasks.filter((t) => t.category === "school_subject"), dow)
     : [];
+
+  // Tomorrow's reminders
+  const tomorrowDow: DayOfWeek = dow < 5 ? ((dow + 1) as DayOfWeek) : 1;
+  const tomorrowActivityTasks = tasksForDay(
+    tasks.filter((t) => t.category === "activity"),
+    tomorrowDow,
+  ).filter((t) => t.location || (t.packingList && t.packingList.length > 0));
+
+  // Badge progress (non-zero), capped at 3, sorted by tier then count
+  const badgesInProgress: BadgeProgress[] = badges
+    .filter((b) => b.completionCount > 0)
+    .sort((a, b) => {
+      const tierOrder = { gold: 3, silver: 2, bronze: 1, none: 0 };
+      return tierOrder[b.currentTier] - tierOrder[a.currentTier] || b.completionCount - a.completionCount;
+    })
+    .slice(0, 3);
 
   const theme = getTheme(kid.themeId);
   const level = getLevel(kid.totalStarsEarned);
@@ -74,59 +100,62 @@ export default async function KidHomePage({
   const ringOffset = CIRCUMFERENCE * (1 - (total > 0 ? done / total : 0));
   const taskPct = total > 0 ? Math.round((done / total) * 100) : 0;
   const encouragement = ENCOURAGEMENTS[kid.currentStreak % 5];
+  const allDone = total > 0 && done >= total;
+
+  const familyGoal = family ? {
+    name: family.name,
+    emoji: "⭐",
+    current: family.familyPointsBalance,
+    target: 2000,
+  } : undefined;
 
   return (
-    <KidShell kid={kid} active="home">
-      <div className="p-4 space-y-4">
+    <KidShell kid={kid} active="home" familyGoal={familyGoal}>
+      <div className="p-4 space-y-3">
 
         {/* 1. Level badge strip */}
         <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="mb-2.5">
             <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold"
-              style={{
-                background: level.color + "26",
-                color: level.color,
-              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black"
+              style={{ background: level.color + "20", color: level.color }}
             >
               {level.emoji} {level.name}
             </span>
           </div>
-          <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div className="bg-gray-100 rounded-full h-2 overflow-hidden mb-1.5">
             <div
               className="h-full rounded-full transition-all"
               style={{ width: `${Math.round(levelPct * 100)}%`, background: level.color }}
             />
           </div>
-          <p className="text-xs text-gray-500 mt-1.5">
+          <p className="text-[11px] text-gray-400 font-semibold">
             {nextLevel
               ? `${nextLevel.min - kid.totalStarsEarned} more ⭐ to ${nextLevel.name}`
-              : "Maximum level! 🎉"}
+              : "Maximum level reached! 🎉"}
           </p>
         </div>
 
         {/* 2. Stats row */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center justify-center gap-1">
-            <span className="text-2xl font-black">⭐ {kid.pointsBalance}</span>
-            <span className="text-[10px] font-bold text-gray-400 tracking-widest">STARS</span>
+          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+            <span className="text-xl font-black">⭐ {kid.pointsBalance}</span>
+            <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Stars</span>
           </div>
 
-          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center justify-center gap-1">
-            <span className="text-2xl font-black">🔥 {kid.currentStreak}d</span>
-            <span className="text-[10px] font-bold text-gray-400 tracking-widest">STREAK</span>
+          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+            <span className="text-xl font-black">🔥 {kid.currentStreak}d</span>
+            <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Streak</span>
           </div>
 
-          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center justify-center gap-1">
-            <svg width={52} height={52} viewBox="0 0 52 52">
+          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+            <svg width={50} height={50} viewBox="0 0 52 52">
               <circle cx={26} cy={26} r={20} fill="none" stroke="#e5e7eb" strokeWidth={5} />
               {total > 0 && (
                 <circle
-                  cx={26}
-                  cy={26}
-                  r={20}
+                  cx={26} cy={26} r={20}
                   fill="none"
-                  stroke={theme.accent}
+                  stroke={allDone ? "#22c55e" : theme.accent}
                   strokeWidth={5}
                   strokeLinecap="round"
                   strokeDasharray={CIRCUMFERENCE}
@@ -134,32 +163,113 @@ export default async function KidHomePage({
                   transform="rotate(-90 26 26)"
                 />
               )}
-              <text
-                x={26}
-                y={30}
-                textAnchor="middle"
-                fontSize={11}
-                fontWeight="bold"
-                fill={total > 0 ? theme.accent : "#9ca3af"}
-              >
+              <text x={26} y={30} textAnchor="middle" fontSize={11} fontWeight="bold"
+                fill={total > 0 ? (allDone ? "#22c55e" : theme.accent) : "#9ca3af"}>
                 {total > 0 ? `${done}/${total}` : "—"}
               </text>
             </svg>
-            <span className="text-[10px] font-bold text-gray-400 tracking-widest">TASKS</span>
+            <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Tasks</span>
           </div>
         </div>
 
-        {/* 3. School today (weekdays only, when tasks exist) */}
+        {/* 3. Tomorrow's reminders */}
+        {tomorrowActivityTasks.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="text-sm font-black text-gray-800 mb-3">🗓 Tomorrow's reminders</div>
+            <div className="space-y-3">
+              {tomorrowActivityTasks.map((t) => (
+                <div key={t.id}>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-base flex-shrink-0">
+                      {t.icon}
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-black text-gray-900">{t.name}</div>
+                      {(t.location || t.startTime) && (
+                        <div className="text-[10px] text-gray-400 font-semibold">
+                          {t.startTime && `${t.startTime} · `}{t.location && `📍 ${t.location}`}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {t.packingList && t.packingList.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pl-10">
+                      {t.packingList.map((item, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold">
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 4. Today's tasks */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm" style={allDone ? { background: "#f0fdf4", border: "2px solid #86efac" } : {}}>
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="text-sm font-black text-gray-800">Today's tasks</div>
+            {total > 0 && (
+              <span className="text-xs font-bold" style={{ color: allDone ? "#16a34a" : theme.accent }}>
+                {done} / {total} done
+              </span>
+            )}
+          </div>
+          {total > 0 && (
+            <div className="bg-gray-100 rounded-full h-2 overflow-hidden mb-3">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${taskPct}%`, background: allDone ? "#22c55e" : theme.accent }}
+              />
+            </div>
+          )}
+
+          {/* Incomplete tasks inline */}
+          {incompleteTasks.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {incompleteTasks.slice(0, 3).map((task) => (
+                <div key={task.id} className="flex items-center gap-2.5 px-3 py-2.5 bg-gray-50 rounded-2xl border border-gray-100">
+                  <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg flex-shrink-0 shadow-sm">
+                    {task.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-bold text-gray-900 truncate">{task.name}</div>
+                    <div className="text-[10px] text-gray-400 font-semibold">+{task.points} ⭐</div>
+                  </div>
+                  <div className="w-6 h-6 rounded-full border-2 border-gray-200 flex-shrink-0" />
+                </div>
+              ))}
+              {incompleteTasks.length > 3 && (
+                <div className="text-xs text-gray-400 font-semibold pl-1">
+                  +{incompleteTasks.length - 3} more…
+                </div>
+              )}
+            </div>
+          )}
+
+          <Link
+            href={`/kid/${kid.id}/todo`}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-white text-sm"
+            style={{ background: allDone ? "#16a34a" : theme.accent }}
+          >
+            {allDone ? "All done! 🎉" : "Jump in →"}
+          </Link>
+        </div>
+
+        {/* 5. School today — weekdays only */}
         {todaySchoolTasks.length > 0 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <h2 className="font-bold text-gray-700 mb-3">📚 School today</h2>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="text-sm font-black text-gray-800 mb-3">📚 School today</div>
+            <div className="flex flex-wrap gap-2">
               {todaySchoolTasks.map((t) => {
                 const subj = t.subject && t.subject in SUBJECTS ? SUBJECTS[t.subject as keyof typeof SUBJECTS] : null;
                 return (
                   <span
                     key={t.id}
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap ${subj ? `${subj.bgClass} ${subj.textClass}` : "bg-blue-50 text-blue-700"}`}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white ${subj ? subj.bgClass : ""}`}
+                    style={!subj ? { background: theme.accent } : undefined}
                   >
                     {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
                   </span>
@@ -169,36 +279,61 @@ export default async function KidHomePage({
           </div>
         )}
 
-        {/* 4. Task CTA card */}
-        <div
-          className="rounded-2xl p-4 shadow-sm"
-          style={{
-            background: theme.accentSoft,
-            border: `2px solid ${theme.accent}`,
-          }}
-        >
-          <h2 className="font-bold text-gray-800 mb-1">Your tasks today</h2>
-          <p className="text-sm text-gray-600 mb-3">
-            {total > 0 ? `${done} of ${total} tasks done` : "No tasks scheduled today"}
-          </p>
-          {total > 0 && (
-            <div className="bg-white/60 rounded-full h-2.5 mb-4 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${taskPct}%`, background: theme.accent }}
-              />
+        {/* 6. Badge progress — 3-col grid cards */}
+        {badgesInProgress.length > 0 && (
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-black text-gray-800">🎖 My badges</div>
+              <Link
+                href={`/kid/${kid.id}/rewards?tab=badges`}
+                className="text-xs font-bold"
+                style={{ color: theme.accent }}
+              >
+                See all →
+              </Link>
             </div>
-          )}
-          <Link
-            href={`/kid/${kid.id}/todo`}
-            className="inline-flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-white text-sm"
-            style={{ background: theme.accent }}
-          >
-            Jump in →
-          </Link>
-        </div>
+            <div className="grid grid-cols-3 gap-2">
+              {badgesInProgress.map((b) => {
+                const nextThreshold =
+                  b.currentTier === "gold" ? 100
+                  : b.currentTier === "silver" ? TIER_THRESHOLDS.gold
+                  : b.currentTier === "bronze" ? TIER_THRESHOLDS.silver
+                  : TIER_THRESHOLDS.bronze;
+                const prevThreshold =
+                  b.currentTier === "silver" ? TIER_THRESHOLDS.bronze
+                  : b.currentTier === "gold" ? TIER_THRESHOLDS.silver
+                  : 0;
+                const pct = Math.min(1, (b.completionCount - prevThreshold) / (nextThreshold - prevThreshold));
+                const tierLabel =
+                  b.currentTier === "gold" ? `${b.completionCount} / 100 🥇`
+                  : b.currentTier === "silver" ? `${b.completionCount} / 100 🥈`
+                  : b.currentTier === "bronze" ? `${b.completionCount} / 50 🥈`
+                  : `${b.completionCount} / 10 🥉`;
+                return (
+                  <div
+                    key={b.id}
+                    className="rounded-2xl p-2.5 text-center border-[1.5px]"
+                    style={{ background: theme.accentSoft, borderColor: theme.accent + "44" }}
+                  >
+                    <div className="text-2xl mb-1">{BADGE_ICONS[b.category] ?? "🏅"}</div>
+                    <div className="text-[9px] font-black uppercase tracking-wide mb-1.5" style={{ color: theme.accent }}>
+                      {b.category}
+                    </div>
+                    <div className="h-1 rounded-full bg-gray-200 overflow-hidden mb-1">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${Math.round(pct * 100)}%`, background: theme.accent }}
+                      />
+                    </div>
+                    <div className="text-[9px] text-gray-400 font-semibold">{tierLabel}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-        {/* 5. Encouragement */}
+        {/* 7. Encouragement */}
         <div className="bg-white/60 rounded-2xl px-4 py-3 text-center text-sm text-gray-500 font-medium">
           {encouragement}
         </div>

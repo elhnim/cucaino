@@ -3,9 +3,9 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { upsertSchoolClass, deleteSchoolClass, clearKidTimetable } from "@/lib/actions/school-classes";
+import { upsertSchoolSubjectTask, deleteTask } from "@/lib/actions/tasks";
 import { getSubject, listSubjects } from "@/lib/registry/subject-registry";
-import type { DayOfWeek, SchoolClass, Subject } from "@/lib/domain/types";
+import type { DayOfWeek, Task, Subject } from "@/lib/domain/types";
 
 const DAYS: { dow: DayOfWeek; short: string; full: string }[] = [
   { dow: 1, short: "Mon", full: "Monday" },
@@ -26,24 +26,40 @@ interface DraftClass {
   teacher: string;
 }
 
+function taskToDraft(t: Task): DraftClass {
+  return {
+    id: t.id,
+    dayOfWeek: (t.daysOfWeek[0] ?? 1) as DayOfWeek,
+    subject: (t.subject ?? "other") as Subject,
+    customLabel: t.customLabel ?? "",
+    startTime: t.startTime ?? "09:00",
+    endTime: t.endTime ?? "10:00",
+    room: t.room ?? "",
+    teacher: t.teacher ?? "",
+  };
+}
+
 export default function TimetableEditor({
   kidId,
   accent,
-  initialClasses,
+  initialTasks,
 }: {
   kidId: string;
   accent: string;
-  initialClasses: SchoolClass[];
+  initialTasks: Task[];
 }) {
   const router = useRouter();
-  const [classes, setClasses] = useState<SchoolClass[]>(initialClasses);
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeDay, setActiveDay] = useState<DayOfWeek>(1);
   const [draft, setDraft] = useState<DraftClass | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const dayClasses = useMemo(
-    () => classes.filter((c) => c.dayOfWeek === activeDay).sort((a, b) => a.startTime.localeCompare(b.startTime)),
-    [classes, activeDay],
+  const dayTasks = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.daysOfWeek.includes(activeDay))
+        .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")),
+    [tasks, activeDay],
   );
 
   const startAdd = () => {
@@ -59,18 +75,7 @@ export default function TimetableEditor({
     });
   };
 
-  const startEdit = (c: SchoolClass) => {
-    setDraft({
-      id: c.id,
-      dayOfWeek: c.dayOfWeek,
-      subject: c.subject,
-      customLabel: c.customLabel ?? "",
-      startTime: c.startTime,
-      endTime: c.endTime,
-      room: c.room ?? "",
-      teacher: c.teacher ?? "",
-    });
-  };
+  const startEdit = (t: Task) => setDraft(taskToDraft(t));
 
   const saveDraft = () => {
     if (!draft) return;
@@ -79,8 +84,9 @@ export default function TimetableEditor({
       return;
     }
     startTransition(async () => {
-      const result = await upsertSchoolClass(kidId, {
+      const result = await upsertSchoolSubjectTask({
         id: draft.id ?? undefined,
+        kidId,
         dayOfWeek: draft.dayOfWeek,
         subject: draft.subject,
         customLabel: draft.customLabel.trim() || null,
@@ -92,6 +98,8 @@ export default function TimetableEditor({
       if (result.ok) {
         router.refresh();
         setDraft(null);
+      } else {
+        alert(result.error);
       }
     });
   };
@@ -99,18 +107,18 @@ export default function TimetableEditor({
   const removeDraft = () => {
     if (!draft?.id) return;
     startTransition(async () => {
-      await deleteSchoolClass(kidId, draft.id!);
-      setClasses((cs) => cs.filter((c) => c.id !== draft.id));
+      await deleteTask(draft.id!);
+      setTasks((ts) => ts.filter((t) => t.id !== draft.id));
       router.refresh();
       setDraft(null);
     });
   };
 
   const resetAll = () => {
-    if (!confirm("Delete your entire timetable from the database? This cannot be undone.")) return;
+    if (!confirm("Delete your entire timetable? This cannot be undone.")) return;
     startTransition(async () => {
-      await clearKidTimetable(kidId);
-      setClasses([]);
+      await Promise.all(tasks.map((t) => deleteTask(t.id)));
+      setTasks([]);
       router.refresh();
     });
   };
@@ -131,7 +139,7 @@ export default function TimetableEditor({
       <div className="bg-white rounded-2xl shadow p-2 grid grid-cols-5 gap-1">
         {DAYS.map((d) => {
           const active = activeDay === d.dow;
-          const count = classes.filter((c) => c.dayOfWeek === d.dow).length;
+          const count = tasks.filter((t) => t.daysOfWeek.includes(d.dow)).length;
           return (
             <button
               key={d.dow}
@@ -156,27 +164,27 @@ export default function TimetableEditor({
         <h3 className="text-xs font-black text-gray-500 uppercase tracking-wider">
           {DAYS.find((d) => d.dow === activeDay)?.full}
         </h3>
-        {dayClasses.length === 0 ? (
+        {dayTasks.length === 0 ? (
           <div className="text-sm text-gray-500 italic py-3">No classes added yet for this day.</div>
         ) : (
           <div className="space-y-2">
-            {dayClasses.map((c) => {
-              const s = getSubject(c.subject);
+            {dayTasks.map((t) => {
+              const s = getSubject((t.subject ?? "other") as Subject);
               return (
                 <button
-                  key={c.id}
+                  key={t.id}
                   type="button"
-                  onClick={() => startEdit(c)}
+                  onClick={() => startEdit(t)}
                   className={`w-full text-left rounded-xl p-3 border-l-4 ${s.bgClass} ${s.borderClass} hover:shadow transition-shadow`}
                 >
                   <div className="flex items-center gap-3">
                     <div className="text-2xl shrink-0">{s.icon}</div>
                     <div className="flex-1 min-w-0">
-                      <div className={`font-bold ${s.textClass}`}>{c.customLabel ?? s.label}</div>
+                      <div className={`font-bold ${s.textClass}`}>{t.customLabel ?? s.label}</div>
                       <div className="text-xs text-gray-600">
-                        {c.startTime} – {c.endTime}
-                        {c.room ? ` · 🚪 ${c.room}` : ""}
-                        {c.teacher ? ` · 👤 ${c.teacher}` : ""}
+                        {t.startTime} – {t.endTime}
+                        {t.room ? ` · 🚪 ${t.room}` : ""}
+                        {t.teacher ? ` · 👤 ${t.teacher}` : ""}
                       </div>
                     </div>
                     <span className="text-gray-400 text-sm shrink-0">edit</span>
@@ -198,7 +206,7 @@ export default function TimetableEditor({
       </section>
 
       {/* Reset */}
-      {classes.length > 0 ? (
+      {tasks.length > 0 ? (
         <div className="flex justify-end">
           <button
             type="button"
@@ -301,6 +309,7 @@ function ClassEditor({
           <Field label="Start">
             <input
               type="time"
+              step="300"
               value={draft.startTime}
               onChange={(e) => onChange({ ...draft, startTime: e.target.value })}
               className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm"
@@ -309,6 +318,7 @@ function ClassEditor({
           <Field label="End">
             <input
               type="time"
+              step="300"
               value={draft.endTime}
               onChange={(e) => onChange({ ...draft, endTime: e.target.value })}
               className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm"

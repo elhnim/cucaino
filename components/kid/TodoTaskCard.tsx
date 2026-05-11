@@ -255,6 +255,83 @@ function ChecklistCard({
   );
 }
 
+function FrequencyCard({
+  task,
+  initialCount,
+  isToday,
+  isFuture,
+  accentColor,
+  kidId,
+}: {
+  task: Task;
+  initialCount: number;
+  isToday: boolean;
+  isFuture: boolean;
+  accentColor: string;
+  kidId: string;
+}) {
+  const target = task.frequencyPerDay ?? 1;
+  const [count, setCount] = useState(Math.min(initialCount, target));
+  const [celebrating, setCelebrating] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const done = count >= target;
+
+  useEffect(() => {
+    if (!celebrating) return;
+    const t = setTimeout(() => setCelebrating(false), 1500);
+    return () => clearTimeout(t);
+  }, [celebrating]);
+
+  const tap = () => {
+    if (!isToday || isPending || done) return;
+    const next = count + 1;
+    setCount(next);
+    if (next >= target) {
+      setCelebrating(true);
+      window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
+    }
+    startTransition(async () => {
+      await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
+    });
+  };
+
+  const progress = count / target;
+
+  return (
+    <div
+      className={`w-full rounded-2xl shadow-sm bg-white p-3 flex items-center gap-3 transition-all ${celebrating ? "scale-[1.03] shadow-lg" : ""} ${isFuture ? "opacity-60" : ""}`}
+      style={{ border: celebrating ? `2px solid ${accentColor}` : "none", backgroundColor: celebrating ? accentColor + "22" : "white" }}
+    >
+      <span className="text-3xl shrink-0">{task.icon}</span>
+      <div className="flex-1 min-w-0">
+        <div className={`font-bold text-sm leading-tight ${done ? "line-through text-gray-400" : "text-gray-800"}`}>{task.name}</div>
+        <div className="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress * 100}%`, background: accentColor }} />
+        </div>
+        <div className="text-xs mt-1 font-semibold" style={{ color: done ? "#22c55e" : "#9ca3af" }}>
+          {count} / {target} {done ? "✅" : ""}
+        </div>
+      </div>
+      {isToday && !done && (
+        <button
+          type="button"
+          onClick={tap}
+          disabled={isPending}
+          className="shrink-0 w-12 h-12 rounded-full text-white font-black text-lg flex items-center justify-center shadow active:scale-95 transition-transform disabled:opacity-50"
+          style={{ background: accentColor }}
+        >
+          +1
+        </button>
+      )}
+      {done && (
+        <span className="shrink-0 text-xs font-semibold text-green-600 bg-green-50 rounded-full px-2 py-1">
+          +{task.points * target} ⭐
+        </span>
+      )}
+    </div>
+  );
+}
+
 function TimerCard({
   task,
   done,
@@ -330,6 +407,7 @@ function TimerCard({
 export default function TodoTaskCard({
   task,
   initialCompletion,
+  initialCompletionCount,
   isToday,
   isPast,
   isFuture,
@@ -338,12 +416,25 @@ export default function TodoTaskCard({
 }: {
   task: Task;
   initialCompletion: TaskCompletion | undefined;
+  initialCompletionCount?: number;
   isToday: boolean;
   isPast: boolean;
   isFuture: boolean;
   kidId: string;
   accentColor: string;
 }) {
+  if ((task.frequencyPerDay ?? 1) > 1) {
+    return (
+      <FrequencyCard
+        task={task}
+        initialCount={initialCompletionCount ?? 0}
+        isToday={isToday}
+        isFuture={isFuture}
+        accentColor={accentColor}
+        kidId={kidId}
+      />
+    );
+  }
   const [done, setDone] = useState(!!initialCompletion);
   const [celebrating, setCelebrating] = useState(false);
   const [showSheet, setShowSheet] = useState(false);

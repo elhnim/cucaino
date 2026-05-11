@@ -90,3 +90,27 @@ export async function deleteReward(id: string): Promise<ActionResult> {
   revalidatePath("/parent/rewards");
   return { ok: true };
 }
+
+export async function approveRequest(requestId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("reward_requests")
+    .update({ status: "approved" })
+    .eq("id", requestId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/parent");
+  revalidatePath("/parent/requests");
+  return { ok: true };
+}
+
+export async function denyRequest(requestId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("reward_requests")
+    .update({ status: "denied" })
+    .eq("id", requestId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/parent");
+  revalidatePath("/parent/requests");
+  return { ok: true };
+}

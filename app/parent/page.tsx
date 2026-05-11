@@ -6,8 +6,12 @@ import {
   listPendingRequests,
   listTasksForKid,
   listCompletionsToday,
+  listRewardsForKid,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
+import { getTheme } from "@/lib/themes/presets";
+import RequestActions from "@/components/parent/RequestActions";
+import type { Task, DayOfWeek } from "@/lib/domain/types";
 
 export default async function ParentOverviewPage() {
   const [family, kids, pending] = await Promise.all([
@@ -18,123 +22,243 @@ export default async function ParentOverviewPage() {
   if (!family) redirect("/login");
 
   const dow = isoWeekday();
+  const today = new Date();
+  const todayLabel = today.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 
-  const kidStats = await Promise.all(
+  // Load per-kid data
+  const kidData = await Promise.all(
     kids.map(async (kid) => {
-      const [tasks, completions] = await Promise.all([
+      const [tasks, completions, rewards] = await Promise.all([
         listTasksForKid(kid.id),
         listCompletionsToday(kid.id),
+        listRewardsForKid(kid.id),
       ]);
       const todayTasks = tasksForDay(tasks, dow).filter((t) => t.requiresCompletion);
       const completedIds = new Set(completions.map((c) => c.taskId));
-      return { kid, todayTasks, completedIds, done: completions.length, total: todayTasks.length };
+      const done = todayTasks.filter((t) => completedIds.has(t.id)).length;
+      const total = todayTasks.length;
+      const activityTasks = tasksForDay(tasks.filter((t) => t.category === "activity"), dow);
+      return { kid, todayTasks, completedIds, done, total, activityTasks, rewards };
     }),
   );
 
-  const visibleRequests = pending.slice(0, 3);
+  // Build reward lookup from all kids' rewards
+  const rewardById = new Map(kidData.flatMap((d) => d.rewards).map((r) => [r.id, r]));
+
+  // Group activity tasks by timeBlock across all kids for Today's Heads-Up
+  const headsUpBefore: Array<{ kid: (typeof kids)[0]; task: Task }> = [];
+  const headsUpAfter: Array<{ kid: (typeof kids)[0]; task: Task }> = [];
+
+  for (const { kid, activityTasks } of kidData) {
+    for (const task of activityTasks) {
+      if (!task.location && (!task.packingList || task.packingList.length === 0)) continue;
+      if (task.timeBlock === "before_school") {
+        headsUpBefore.push({ kid, task });
+      } else {
+        headsUpAfter.push({ kid, task });
+      }
+    }
+  }
+
+  const hasHeadsUp = headsUpBefore.length > 0 || headsUpAfter.length > 0;
 
   return (
-    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left: Pending Requests */}
-        <div className="bg-white rounded-2xl shadow p-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="font-bold text-gray-800">🔔 Pending Requests</span>
-            <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">
-              {pending.length}
-            </span>
+    <div className="p-4 space-y-4 pt-5">
+
+      {/* TODAY'S HEADS-UP */}
+      {hasHeadsUp && (
+        <div>
+          <div className="flex items-center justify-between mb-2.5 px-1">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Today&apos;s Heads-Up</span>
+            <span className="text-[11px] font-semibold text-gray-400">{todayLabel}</span>
           </div>
-
-          {pending.length === 0 ? (
-            <p className="text-sm text-gray-400">✅ All clear! No pending requests.</p>
-          ) : (
-            <div className="space-y-3">
-              {visibleRequests.map((req) => {
-                const kid = kids.find((k) => k.id === req.kidId);
-                return (
-                  <div key={req.id} className="flex items-center gap-2">
-                    <span className="text-xl">🎁</span>
-                    <span className="text-sm flex-1">Reward request</span>
-                    {kid && <span className="text-xl">{kid.avatar}</span>}
-                    <button
-                      type="button"
-                      className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-lg"
-                    >
-                      ✓ Approve
-                    </button>
-                    <button
-                      type="button"
-                      className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-lg"
-                    >
-                      ✗ Deny
-                    </button>
-                  </div>
-                );
-              })}
-              <Link
-                href="/parent/requests"
-                className="block text-sm text-indigo-600 font-medium mt-1"
-              >
-                View all requests →
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Kids Today */}
-        <div className="bg-white rounded-2xl shadow p-4">
-          <div className="font-bold text-gray-800 mb-3">👧 Kids Today</div>
-          <div className="divide-y divide-gray-100">
-            {kidStats.map(({ kid, todayTasks, completedIds, done, total }) => {
-              const pct = Math.round(total > 0 ? (done / total) * 100 : 0);
-              return (
-                <div key={kid.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xl">{kid.avatar}</span>
-                    <span className="font-bold text-gray-800 flex-1">{kid.name}</span>
-                    <span className="text-sm">⭐ {kid.pointsBalance}</span>
-                    <span className="text-sm">🔥 {kid.currentStreak}d</span>
-                  </div>
-                  {todayTasks.length === 0 ? (
-                    <p className="text-xs text-gray-400">No tasks today</p>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-2 gap-1 mb-2">
-                        {todayTasks.map((task) => {
-                          const isDone = completedIds.has(task.id);
-                          return (
-                            <div
-                              key={task.id}
-                              className="flex items-center gap-1.5 text-xs py-0.5"
-                            >
-                              <span className={isDone ? "text-green-500" : "text-gray-300"}>
-                                {isDone ? "✅" : "○"}
-                              </span>
-                              <span
-                                className={isDone ? "text-gray-400 line-through" : "text-gray-700"}
-                              >
-                                {task.icon} {task.name}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">{done}/{total}</span>
-                        <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="h-full rounded-full"
-                            style={{ width: `${pct}%`, background: "#f97316" }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-400">{pct}%</span>
-                      </div>
-                    </>
-                  )}
+          <div className="bg-white rounded-[20px] border-[1.5px] border-gray-200 overflow-hidden" style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+            {headsUpBefore.length > 0 && (
+              <div className="px-3.5 pt-3 pb-2.5">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-orange-500 mb-2">🌅 Before school</div>
+                <div className="space-y-3">
+                  {headsUpBefore.map(({ kid, task }) => (
+                    <HeadsUpRow key={`${kid.id}-${task.id}`} kid={kid} task={task} />
+                  ))}
                 </div>
-              );
-            })}
+              </div>
+            )}
+            {headsUpBefore.length > 0 && headsUpAfter.length > 0 && (
+              <div className="h-px bg-gray-100 mx-3.5" />
+            )}
+            {headsUpAfter.length > 0 && (
+              <div className="px-3.5 pt-2.5 pb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-violet-500 mb-2">🎒 After school</div>
+                <div className="space-y-3">
+                  {headsUpAfter.map(({ kid, task }) => (
+                    <HeadsUpRow key={`${kid.id}-${task.id}`} kid={kid} task={task} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* TODAY — kid cards */}
+      <div>
+        <div className="flex items-center justify-between mb-2.5 px-1">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Today</span>
+          <span className="text-[11px] font-semibold text-gray-400">{kids.length} kids</span>
+        </div>
+        <div className="space-y-2.5">
+          {kidData.map(({ kid, done, total }) => {
+            const theme = getTheme(kid.themeId);
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            const allDone = total > 0 && done >= total;
+            const kidPending = pending.filter((r) => r.kidId === kid.id);
+            const req = kidPending[0];
+            const reward = req ? rewardById.get(req.rewardId) : undefined;
+            const agoMin = req
+              ? Math.round((Date.now() - new Date(req.requestedAt).getTime()) / 60_000)
+              : 0;
+
+            return (
+              <div
+                key={kid.id}
+                className="bg-white rounded-[20px] p-3.5"
+                style={{
+                  border: `1.5px solid ${theme.accentSoft}`,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                }}
+              >
+                {/* Top row */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-[22px] flex-shrink-0"
+                    style={{ background: theme.accentSoft }}
+                  >
+                    {kid.avatar}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-extrabold text-gray-900 leading-tight" style={{ fontSize: 15 }}>{kid.name}</div>
+                    <div className="text-gray-400 font-medium" style={{ fontSize: 11 }}>{theme.name} · Age {kid.age}</div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "#fef3c7", color: "#92400e" }}>
+                      {kid.pointsBalance} ⭐
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "#fff7ed", color: "#9a3412" }}>
+                      🔥 {kid.currentStreak}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="flex items-center gap-2.5">
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{ width: `${pct}%`, background: theme.accent }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold flex-shrink-0" style={{ color: allDone ? "#16a34a" : theme.accent }}>
+                    {allDone ? "✓ Done" : `${done} / ${total}`}
+                  </span>
+                </div>
+
+                {/* All done banner */}
+                {allDone && (
+                  <div className="mt-2 bg-green-50 rounded-xl px-3 py-1.5 text-xs font-bold text-green-700">
+                    🎉 All tasks done!
+                  </div>
+                )}
+
+                {/* Inline pending request */}
+                {req && reward && (
+                  <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.accentSoft}` }}>
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <span className="text-lg">{reward.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] font-bold text-gray-900 truncate">Wants {reward.name}</div>
+                        <div className="text-[11px] text-gray-400">
+                          Costs {reward.costPoints} ⭐ ·{" "}
+                          <span className="text-green-600 font-semibold">Has {kid.pointsBalance} ⭐</span>{" "}
+                          · {agoMin < 1 ? "just now" : `${agoMin} min ago`}
+                        </div>
+                      </div>
+                    </div>
+                    <RequestActions requestId={req.id} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Quick links */}
+      <div className="grid grid-cols-2 gap-3">
+        <Link
+          href="/parent/requests"
+          className="bg-white rounded-2xl p-4 border-[1.5px] border-gray-200 flex items-center gap-3"
+          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg flex-shrink-0">🔔</div>
+          <div>
+            <div className="text-sm font-bold text-gray-800">Requests</div>
+            {pending.length > 0 && (
+              <div className="text-xs text-amber-600 font-semibold">{pending.length} pending</div>
+            )}
+          </div>
+        </Link>
+        <Link
+          href="/parent/kids"
+          className="bg-white rounded-2xl p-4 border-[1.5px] border-gray-200 flex items-center gap-3"
+          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
+        >
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-lg flex-shrink-0">👧</div>
+          <div>
+            <div className="text-sm font-bold text-gray-800">Kids</div>
+            <div className="text-xs text-gray-400 font-semibold">{kids.length} profiles</div>
+          </div>
+        </Link>
+      </div>
+
+    </div>
+  );
+}
+
+function HeadsUpRow({ kid, task }: { kid: { avatar: string; name: string; themeId: string }; task: Task }) {
+  const theme = getTheme(kid.themeId as Parameters<typeof getTheme>[0]);
+  return (
+    <div className="flex items-start gap-2.5">
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0 mt-0.5"
+        style={{ background: theme.accentSoft }}
+      >
+        {kid.avatar}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-bold text-gray-900">
+          {kid.name} — {task.name}
+        </div>
+        {(task.location || task.startTime) && (
+          <div className="text-[11px] text-gray-400 mt-0.5">
+            {task.location && `📍 ${task.location}`}
+            {task.location && task.startTime && " · "}
+            {task.startTime && task.startTime}
+          </div>
+        )}
+        {task.packingList && task.packingList.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {task.packingList.map((item, i) => (
+              <span
+                key={i}
+                className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                style={{ background: theme.accentSoft, color: theme.accent }}
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

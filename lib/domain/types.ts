@@ -108,6 +108,9 @@ export interface Task {
   // Music
   musicEnabled: boolean;
 
+  // How many completions required per day (default 1)
+  frequencyPerDay: number;
+
   // Description
   description: string | null;
 
@@ -271,9 +274,21 @@ export interface TimetableSlot {
 
 export type QuizCategory =
   | "maths"
-  | "spelling"
-  | "geography"
+  | "english"
   | "science"
+  | "history"
+  | "geography"
+  | "sports"
+  | "music"
+  | "fun_facts"
+  | "pop_culture"
+  | "technology"
+  | "food_culture"
+  | "french"
+  | "spanish"
+  | "mandarin"
+  // Legacy
+  | "spelling"
   | "silly"
   | "custom";
 

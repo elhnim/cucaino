@@ -13,6 +13,11 @@ const THEMES = [
   { value: "music", label: "🎵 Music" },
   { value: "fun_facts", label: "🎉 Fun Facts" },
   { value: "pop_culture", label: "🎬 Pop Culture" },
+  { value: "technology", label: "💻 Technology" },
+  { value: "food_culture", label: "🍜 Food & Culture" },
+  { value: "french", label: "🇫🇷 French" },
+  { value: "spanish", label: "🇪🇸 Spanish" },
+  { value: "mandarin", label: "🇨🇳 Mandarin" },
 ];
 
 const DIFFICULTIES = [

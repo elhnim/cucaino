@@ -1,66 +1,95 @@
 import Link from "next/link";
 import { listAllTasks, listKids } from "@/lib/data/stub";
+import { CATEGORIES } from "@/lib/registry/category-registry";
+import TaskFilterBar from "@/components/parent/TaskFilterBar";
 import type { Task, Kid } from "@/lib/domain/types";
 
-function RuleBadge({ rule }: { rule: Task["rule"] }) {
-  if (rule === "strict") {
-    return (
-      <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
-        Strict
-      </span>
-    );
-  }
-  return (
-    <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-      Flexible
-    </span>
-  );
-}
-
-function TargetBadge({ task }: { task: Task }) {
-  if (task.target === "none") return null;
-  let label = "";
-  if (task.target === "time" && task.targetDurationMinutes) {
-    label = `⏱ ${task.targetDurationMinutes} min`;
-  } else if (task.target === "reps" && task.targetReps) {
-    label = `✕ ${task.targetReps}${task.targetRepLabel ? ` ${task.targetRepLabel}` : " reps"}`;
-  } else if (task.target === "checklist") {
-    label = "☑ checklist";
-  }
-  if (!label) return null;
-  return (
-    <span className="text-xs text-gray-400">{label}</span>
-  );
-}
+const CATEGORY_ICON_BG: Record<string, { bg: string; color: string }> = {
+  chore:          { bg: "#f3f4f6", color: "#374151" },
+  exercise:       { bg: "#dcfce7", color: "#15803d" },
+  music:          { bg: "#fef3c7", color: "#92400e" },
+  activity:       { bg: "#dbeafe", color: "#1d4ed8" },
+  personal:       { bg: "#ede9fe", color: "#5b21b6" },
+  school_subject: { bg: "#e0e7ff", color: "#3730a3" },
+};
 
 function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
   const kid = task.kidId ? kids.find((k) => k.id === task.kidId) : null;
+  const catMeta = CATEGORIES[task.category];
+  const iconStyle = CATEGORY_ICON_BG[task.category] ?? { bg: "#f3f4f6", color: "#374151" };
+
+  const targetLabel = (() => {
+    if (task.target === "time" && task.targetDurationMinutes) return `⏱ ${task.targetDurationMinutes} min`;
+    if (task.target === "reps" && task.targetReps) return `✕ ${task.targetReps}${task.targetRepLabel ? ` ${task.targetRepLabel}` : " reps"}`;
+    if (task.target === "checklist") return "☑ checklist";
+    return null;
+  })();
+
+  const scheduleLabel = (() => {
+    if (task.scheduleType === "daily") return "Every day";
+    if (task.scheduleType === "weekdays") return "Weekdays";
+    if (task.scheduleType === "specific_days") {
+      const days = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      return task.daysOfWeek.map((d) => days[d]).join(", ");
+    }
+    return task.rule === "flexible" ? "Flexible" : "Scheduled";
+  })();
 
   return (
     <Link
       href={`/parent/tasks/${task.id}/edit`}
-      className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 block hover:shadow-md transition-shadow"
+      className="bg-white rounded-2xl flex items-center gap-3 p-3.5 hover:shadow-md transition-shadow"
+      style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
     >
-      <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-3xl flex-shrink-0">
+      {/* Icon */}
+      <div
+        className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
+        style={{ background: iconStyle.bg }}
+      >
         {task.icon}
       </div>
 
-      <div className="flex-1 min-w-0 space-y-0.5">
-        <div className="font-bold text-gray-900 truncate">{task.name}</div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <RuleBadge rule={task.rule} />
-          <TargetBadge task={task} />
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="font-bold text-gray-900 truncate text-[14px]">{task.name}</div>
+        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+          {/* Category */}
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+            style={{ background: iconStyle.bg, color: iconStyle.color }}
+          >
+            {catMeta.label}
+          </span>
+          {/* Rule */}
+          {task.category !== "school_subject" && (
+            <span
+              className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style={task.rule === "strict"
+                ? { background: "#dbeafe", color: "#1d4ed8" }
+                : { background: "#dcfce7", color: "#15803d" }}
+            >
+              {task.rule === "strict" ? "Strict" : "Flexible"}
+            </span>
+          )}
+          {/* Stars */}
+          {task.points > 0 && (
+            <span className="text-[10px] text-gray-400 font-semibold">⭐ {task.points}</span>
+          )}
+          {/* Target */}
+          {targetLabel && (
+            <span className="text-[10px] text-gray-400">{targetLabel}</span>
+          )}
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <span>{kid ? kid.name : "All kids"}</span>
-          <span>⭐ {task.points}</span>
+        <div className="text-[11px] text-gray-400 mt-1">
+          {kid ? kid.name : "All kids"} · {scheduleLabel}
         </div>
       </div>
 
-      <div className="flex items-center gap-2 flex-shrink-0">
+      {/* Status + arrow */}
+      <div className="flex items-center gap-1.5 flex-shrink-0">
         <span
-          className={`w-3 h-3 rounded-full ${task.active ? "bg-green-400" : "bg-gray-300"}`}
-          title={task.active ? "Active" : "Paused"}
+          className="w-2 h-2 rounded-full"
+          style={{ background: task.active ? "#22c55e" : "#d1d5db" }}
         />
         <span className="text-gray-300 text-xl">›</span>
       </div>
@@ -68,102 +97,54 @@ function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
   );
 }
 
-function SectionHeading({ label }: { label: string }) {
-  return (
-    <h2 className="text-sm font-bold text-gray-500 uppercase mb-2">{label}</h2>
-  );
-}
-
 export default async function TasksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ rule?: string; category?: string }>;
+  searchParams: Promise<{ category?: string; kid?: string }>;
 }) {
-  const { rule, category } = await searchParams;
+  const { category = "", kid: kidId = "" } = await searchParams;
   const [tasks, kids] = await Promise.all([listAllTasks(), listKids()]);
 
-  const isSchoolTab = category === "school_subject";
-
-  const filtered = isSchoolTab
-    ? tasks.filter((t) => t.category === "school_subject")
-    : rule === "strict"
-    ? tasks.filter((t) => t.rule === "strict" && t.category !== "school_subject")
-    : rule === "flexible"
-    ? tasks.filter((t) => t.rule === "flexible" && t.category !== "school_subject")
-    : tasks.filter((t) => t.category !== "school_subject");
-
-  const tabs = [
-    { label: "All", value: undefined, href: "?" },
-    { label: "Strict", value: "strict", href: "?rule=strict" },
-    { label: "Flexible", value: "flexible", href: "?rule=flexible" },
-    { label: "📚 School", value: "school_subject", href: "?category=school_subject", isCategory: true },
-  ];
+  const filtered = tasks.filter((t) => {
+    if (category && t.category !== category) return false;
+    if (kidId && t.kidId !== kidId && t.kidId !== null) return false;
+    return true;
+  });
 
   return (
-    <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-lg font-bold text-gray-900">📋 Tasks</h1>
-          <Link
-            href="/parent/tasks/new"
-            className="bg-indigo-600 text-white rounded-full px-4 py-2 text-sm font-bold hover:bg-indigo-700"
-          >
-            + Add Task
-          </Link>
-        </div>
+    <div className="flex flex-col min-h-full">
+      {/* Filter bar */}
+      <TaskFilterBar
+        category={category}
+        kidId={kidId}
+        kids={kids.map((k) => ({ id: k.id, name: k.name }))}
+      />
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {tabs.map((tab) => {
-            const isActive = tab.isCategory
-              ? isSchoolTab
-              : tab.value === undefined
-              ? !rule && !isSchoolTab
-              : rule === tab.value && !isSchoolTab;
-            return (
-              <Link
-                key={tab.label}
-                href={tab.href}
-                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${
-                  isActive
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab.label}
-              </Link>
-            );
-          })}
-        </div>
+      {/* Header + add */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <h1 className="text-base font-extrabold text-gray-900">
+          {filtered.length} {category ? (CATEGORIES[category as keyof typeof CATEGORIES]?.label ?? category) : "Tasks"}
+        </h1>
+        <Link
+          href="/parent/tasks/new"
+          className="bg-indigo-600 text-white rounded-full px-4 py-2 text-sm font-bold hover:bg-indigo-700"
+        >
+          + Add Task
+        </Link>
+      </div>
 
+      {/* Task list */}
+      <div className="px-4 pb-4 space-y-2.5">
         {filtered.length === 0 ? (
-          <p className="text-center text-gray-400 py-12">
-            {isSchoolTab ? "No school subjects yet. Add one to get started! 📚" : "No tasks yet. Add your first task! 🎯"}
+          <p className="text-center text-gray-400 py-16">
+            No tasks found. Add your first task! 🎯
           </p>
-        ) : isSchoolTab || rule ? (
-          <div className="space-y-3">
-            {filtered.map((task) => (
-              <TaskCard key={task.id} task={task} kids={kids} />
-            ))}
-          </div>
         ) : (
-          <>
-            {(["strict", "flexible"] as const).map((r) => {
-              const group = filtered.filter((t) => t.rule === r);
-              if (group.length === 0) return null;
-              return (
-                <div key={r}>
-                  <SectionHeading
-                    label={r === "strict" ? "📌 Strict Tasks" : "🔄 Flexible Tasks"}
-                  />
-                  <div className="space-y-3">
-                    {group.map((task) => (
-                      <TaskCard key={task.id} task={task} kids={kids} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </>
+          filtered.map((task) => (
+            <TaskCard key={task.id} task={task} kids={kids} />
+          ))
         )}
+      </div>
     </div>
   );
 }

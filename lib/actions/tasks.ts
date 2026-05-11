@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { TaskCategory, TimeBlock, ScheduleType, TaskRule, TaskTarget, TaskTimeSlot } from "@/lib/domain/types";
+import type { TaskCategory, TimeBlock, ScheduleType, TaskRule, TaskTarget, TaskTimeSlot, DayOfWeek } from "@/lib/domain/types";
 
 export interface TaskFormData {
   name: string;
@@ -23,6 +23,7 @@ export interface TaskFormData {
   defaultTimeSignature: string | null;
   kidId: string | null;
   kidCanAdd: boolean;
+  frequencyPerDay?: number;
   // New fields
   rule?: TaskRule;
   flexibleMinPerWeek?: number | null;
@@ -73,6 +74,7 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
     default_time_signature: data.defaultTimeSignature,
     active: true,
     kid_can_add: data.kidCanAdd,
+    frequency_per_day: data.frequencyPerDay ?? 1,
     rule: data.rule ?? "strict",
     flexible_min_per_week: data.flexibleMinPerWeek ?? null,
     target: data.target ?? "none",
@@ -121,6 +123,7 @@ export async function updateTask(
       default_bpm: data.defaultBpm,
       default_time_signature: data.defaultTimeSignature,
       kid_can_add: data.kidCanAdd,
+      frequency_per_day: data.frequencyPerDay ?? 1,
       rule: data.rule ?? "strict",
       flexible_min_per_week: data.flexibleMinPerWeek ?? null,
       target: data.target ?? "none",
@@ -158,6 +161,89 @@ export async function addTaskToDay(taskId: string, kidId: string): Promise<Actio
   );
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/kid/${kidId}/todo`);
+  return { ok: true };
+}
+
+export interface SchoolSubjectInput {
+  id?: string;
+  kidId: string;
+  dayOfWeek: DayOfWeek;
+  subject: string;
+  customLabel: string | null;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  teacher: string | null;
+}
+
+export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase
+    .from("families")
+    .select("id")
+    .maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
+
+  const taskName = data.customLabel?.trim() || data.subject;
+
+  if (data.id) {
+    const { error } = await supabase
+      .from("tasks")
+      .update({
+        name: taskName,
+        days_of_week: [data.dayOfWeek],
+        start_time: data.startTime,
+        end_time: data.endTime,
+        subject: data.subject,
+        custom_label: data.customLabel?.trim() || null,
+        room: data.room?.trim() || null,
+        teacher: data.teacher?.trim() || null,
+      })
+      .eq("id", data.id);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { error } = await supabase.from("tasks").insert({
+      family_id: fam.id,
+      kid_id: data.kidId,
+      name: taskName,
+      icon: "📚",
+      category: "school_subject",
+      schedule_type: "specific_days",
+      days_of_week: [data.dayOfWeek],
+      time_block: "morning",
+      start_time: data.startTime,
+      end_time: data.endTime || null,
+      points: 0,
+      family_points_contribution: 0,
+      requires_timer: false,
+      duration_minutes: null,
+      requires_completion: false,
+      location: null,
+      packing_list: null,
+      default_bpm: null,
+      default_time_signature: null,
+      active: true,
+      kid_can_add: false,
+      rule: "strict",
+      flexible_min_per_week: null,
+      target: "none",
+      target_duration_minutes: null,
+      target_reps: null,
+      target_rep_label: null,
+      checklist_items: null,
+      music_enabled: false,
+      description: null,
+      time_slots: [],
+      subject: data.subject,
+      custom_label: data.customLabel?.trim() || null,
+      room: data.room?.trim() || null,
+      teacher: data.teacher?.trim() || null,
+    });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/kid/${data.kidId}/timetable`);
+  revalidatePath(`/kid/${data.kidId}/todo`);
   return { ok: true };
 }
 

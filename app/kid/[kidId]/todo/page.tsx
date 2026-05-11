@@ -1,7 +1,7 @@
 import React from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import KidShell from "@/components/kid/KidShell";
+import KidShell, { KidAvatarMenu } from "@/components/kid/KidShell";
 import TodoTaskCard from "@/components/kid/TodoTaskCard";
 import AddTaskButton from "@/components/kid/AddTaskButton";
 import AllDoneDetector from "@/components/kid/AllDoneDetector";
@@ -25,66 +25,25 @@ function Section({
   children,
   isEmpty,
   emptyText,
+  headerRight,
 }: {
   label: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   isEmpty?: boolean;
   emptyText?: string;
+  headerRight?: React.ReactNode;
 }) {
   return (
     <div>
-      <div className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
-        {label}
+      <div className="flex items-center justify-between mb-2 px-1">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{label}</div>
+        {headerRight}
       </div>
       {isEmpty ? (
         <div className="text-xs text-gray-400 italic px-1">{emptyText}</div>
       ) : (
         children
       )}
-    </div>
-  );
-}
-
-function WeekSummaryBar({
-  tasks,
-  completions,
-  today,
-  accentColor,
-}: {
-  tasks: Task[];
-  completions: TaskCompletion[];
-  today: DayOfWeek;
-  accentColor: string;
-}) {
-  const days: DayOfWeek[] = [1, 2, 3, 4, 5, 6, 7];
-  return (
-    <div className="flex justify-around items-center px-4 py-3 bg-white/80 border-t border-gray-100">
-      {days.map((d) => {
-        const dayTasks = tasksForDay(tasks, d).filter((t) => t.requiresCompletion);
-        const total = dayTasks.length;
-        const done = d === today ? completions.length : 0;
-        const ratio = total > 0 ? done / total : 0;
-        const isToday = d === today;
-        const bgColor = total === 0 ? "#e5e7eb" : ratio >= 1 ? "#f59e0b" : ratio > 0 ? "#f97316" : "#e5e7eb";
-
-        return (
-          <Link key={d} href={`?day=${d}`} className="flex flex-col items-center gap-1">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${isToday ? "ring-2 ring-offset-1" : ""}`}
-              style={{
-                background: bgColor,
-                color: ratio > 0 || total === 0 ? "#fff" : "#9ca3af",
-                ...(isToday ? { "--tw-ring-color": accentColor } as React.CSSProperties : {}),
-              }}
-            >
-              {total > 0 ? `${done}/${total}` : "·"}
-            </div>
-            <span className={`text-[9px] font-bold ${isToday ? "text-gray-800" : "text-gray-400"}`}>
-              {DAY_LABELS[d]}
-            </span>
-          </Link>
-        );
-      })}
     </div>
   );
 }
@@ -121,13 +80,11 @@ export default async function TodoPage({
   const isToday = activeDow === today;
   const isWeekday = activeDow <= 5;
 
-  // Strict scheduled tasks for this day (exclude flexible — they're self-added only)
   const scheduledTasks = tasksForDay(
     tasks.filter((t) => t.rule !== "flexible"),
     activeDow,
   );
 
-  // Flexible tasks the kid added for today (today view only)
   const addedTasks: Task[] = isToday
     ? addedTaskIds.map((id) => tasks.find((t) => t.id === id)).filter(Boolean) as Task[]
     : [];
@@ -135,53 +92,108 @@ export default async function TodoPage({
   const dayTasks = [...scheduledTasks, ...addedTasks].filter((t) => t.requiresCompletion);
   const beforeSchoolTasks = dayTasks.filter((t) => t.timeBlock === "before_school");
   const afterSchoolTasks = dayTasks.filter((t) => t.timeBlock !== "before_school");
-  // school_subject tasks rendered as pills (no completion checkbox)
+
   const schoolSubjectTasks = tasksForDay(
     tasks.filter((t) => t.category === "school_subject"),
     activeDow,
   );
 
-  // Tasks the kid can self-add: flexible family templates not yet added today
   const addedSet = new Set(addedTaskIds);
   const selfAddableTasks = tasks.filter(
-    (t) => t.rule === "flexible" && t.kidId === null && t.kidCanAdd && !addedSet.has(t.id),
+    (t) => t.rule === "flexible" && t.kidCanAdd && !addedSet.has(t.id),
   );
 
   const getCompletion = (taskId: string) =>
     isToday ? completions.find((c) => c.taskId === taskId) : undefined;
+  const getCompletionCount = (taskId: string) =>
+    isToday ? completions.filter((c) => c.taskId === taskId).length : 0;
 
   const days: DayOfWeek[] = [1, 2, 3, 4, 5, 6, 7];
 
-  return (
-    <KidShell kid={kid} active="todo">
-      <div className="flex flex-col min-h-full">
-        {/* Day tab bar */}
-        <div className="overflow-x-auto flex gap-2 px-4 py-3 bg-white/80 border-b border-gray-100 scrollbar-hide">
-          {days.map((d) => {
-            const isActive = d === activeDow;
-            const isDayToday = d === today;
-            const isPastDay = d < today;
-            return (
-              <Link
-                key={d}
-                href={`?day=${d}`}
-                className="min-w-[52px] h-[52px] rounded-2xl flex flex-col items-center justify-center text-xs font-bold shrink-0 transition-all relative"
-                style={{
-                  background: isActive ? theme.accent : "#f3f4f6",
-                  color: isActive ? "#fff" : isPastDay ? "#9ca3af" : "#374151",
-                }}
-              >
-                <span>{DAY_LABELS[d]}</span>
-                {isDayToday && !isActive && (
-                  <span
-                    className="absolute bottom-1.5 w-1 h-1 rounded-full"
-                    style={{ background: theme.accent }}
-                  />
-                )}
-              </Link>
-            );
-          })}
+  // Compute week dates (Mon–Sun of current week)
+  const now = new Date();
+  const weekDates: Record<DayOfWeek, number> = {} as Record<DayOfWeek, number>;
+  for (let d = 1; d <= 7; d++) {
+    const dt = new Date(now);
+    dt.setDate(now.getDate() - (today - d));
+    weekDates[d as DayOfWeek] = dt.getDate();
+  }
+
+  // Monday date for "Week of" label
+  const mondayDate = new Date(now);
+  mondayDate.setDate(now.getDate() - (today - 1));
+  const weekLabel = mondayDate.toLocaleDateString(undefined, { day: "numeric", month: "long" });
+
+  // Dot color per day
+  const getDotColor = (d: DayOfWeek) => {
+    if (d === today) {
+      const total = dayTasks.length;
+      if (total === 0) return "rgba(255,255,255,0.2)";
+      const ratio = completions.length / total;
+      if (ratio >= 1) return "#86efac";
+      if (ratio > 0) return "#fde047";
+      return "rgba(255,255,255,0.2)";
+    }
+    if (d < today) return "#86efac"; // simplified: assume past days done
+    return "rgba(255,255,255,0.2)";
+  };
+
+  const scheduleHeader = (
+    <div
+      className={`bg-gradient-to-br ${theme.headerGradient} flex-shrink-0`}
+      style={{ paddingTop: 36, paddingLeft: 20, paddingRight: 20, paddingBottom: 14 }}
+    >
+      {/* Title row */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-[22px] font-black text-white">Schedule 📅</div>
+          <div className="text-xs font-semibold text-white/75">Week of {weekLabel} · {kid.name}</div>
         </div>
+        <KidAvatarMenu kid={kid} accent={theme.accent} />
+      </div>
+
+      {/* Week day strip */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+        {days.map((d) => {
+          const isActive = d === activeDow;
+          const dotColor = getDotColor(d);
+          return (
+            <Link
+              key={d}
+              href={`?day=${d}`}
+              className="flex flex-col items-center justify-center gap-0.5 flex-shrink-0 rounded-2xl transition-all"
+              style={{
+                minWidth: 44,
+                height: 60,
+                background: isActive ? "white" : "rgba(255,255,255,0.15)",
+              }}
+            >
+              <span
+                className="text-[9px] font-bold uppercase tracking-widest"
+                style={{ color: isActive ? theme.accent : "rgba(255,255,255,0.8)" }}
+              >
+                {DAY_LABELS[d]}
+              </span>
+              <span
+                className="text-base font-black"
+                style={{ color: isActive ? theme.accent : "white" }}
+              >
+                {weekDates[d]}
+              </span>
+              <span
+                className="w-1.5 h-1.5 rounded-full"
+                style={{ background: isActive ? dotColor : dotColor }}
+              />
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <KidShell kid={kid} active="todo" customHeader={scheduleHeader}>
+      <div className="flex flex-col min-h-full">
 
         {/* State banner for past/future */}
         {isPast && (
@@ -190,13 +202,13 @@ export default async function TodoPage({
           </div>
         )}
         {isFuture && (
-          <div className="mx-4 mt-3 bg-blue-50 rounded-xl px-4 py-2 text-xs text-blue-600 font-semibold text-center">
-            Future day — tasks are waiting for you
+          <div className="mx-4 mt-3 bg-blue-50 rounded-xl px-4 py-2 text-xs text-blue-700 font-semibold text-center">
+            Coming up — plan ahead, tasks unlock on the day 📅
           </div>
         )}
 
         {/* Sections */}
-        <div className="flex-1 px-4 py-4 space-y-6">
+        <div className="flex-1 px-4 py-4 space-y-5">
 
           {/* Before school — weekdays only */}
           {isWeekday && (
@@ -211,6 +223,7 @@ export default async function TodoPage({
                     key={task.id}
                     task={task}
                     initialCompletion={getCompletion(task.id)}
+                    initialCompletionCount={getCompletionCount(task.id)}
                     isToday={isToday}
                     isPast={isPast}
                     isFuture={isFuture}
@@ -227,7 +240,16 @@ export default async function TodoPage({
             <Section
               label="📚 School"
               isEmpty={schoolSubjectTasks.length === 0}
-              emptyText="School day"
+              emptyText="No subjects added"
+              headerRight={
+                <Link
+                  href={`/kid/${kid.id}/timetable`}
+                  className="text-[11px] font-bold px-2.5 py-1 rounded-full border-[1.5px]"
+                  style={{ color: theme.accent, background: theme.accentSoft, borderColor: theme.accent + "66" }}
+                >
+                  ✏️ Edit timetable
+                </Link>
+              }
             >
               <div className="flex flex-wrap gap-2">
                 {schoolSubjectTasks.map((t) => {
@@ -235,7 +257,8 @@ export default async function TodoPage({
                   return (
                     <span
                       key={t.id}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "bg-indigo-100 text-indigo-800"}`}
+                      className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white ${subj ? subj.bgClass : ""}`}
+                      style={!subj ? { background: theme.accent } : undefined}
                     >
                       {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
                     </span>
@@ -267,9 +290,9 @@ export default async function TodoPage({
             </div>
           </Section>
 
-          {/* Add a task — today only, only if there are self-addable tasks */}
-          {isToday && selfAddableTasks.length > 0 && (
-            <div className="pt-2">
+          {/* Add a task */}
+          {selfAddableTasks.length > 0 && (
+            <div className="pt-1">
               <AddTaskButton
                 kidId={kid.id}
                 availableTasks={selfAddableTasks}
@@ -280,15 +303,38 @@ export default async function TodoPage({
         </div>
 
         {/* Week summary bar */}
-        <WeekSummaryBar
-          tasks={tasks}
-          completions={completions}
-          today={today}
-          accentColor={theme.accent}
-        />
+        <div className="flex justify-around items-center px-4 py-2.5 bg-white/80 border-t border-gray-100">
+          {days.map((d) => {
+            const dayTasksForD = tasksForDay(tasks, d).filter((t) => t.requiresCompletion);
+            const total = dayTasksForD.length;
+            const done = d === today ? completions.length : 0;
+            const ratio = total > 0 ? done / total : 0;
+            const isActive = d === activeDow;
+            const bgColor = total === 0 ? "#e5e7eb" : ratio >= 1 ? "#22c55e" : ratio > 0 ? "#f59e0b" : "#e5e7eb";
+            return (
+              <Link key={d} href={`?day=${d}`} className="flex flex-col items-center gap-1">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  style={{
+                    background: bgColor,
+                    color: ratio > 0 || total === 0 ? "#fff" : "#9ca3af",
+                    boxShadow: isActive ? `0 0 0 3px ${theme.accent}44` : "none",
+                  }}
+                >
+                  {total > 0 ? `${done}/${total}` : "·"}
+                </div>
+                <span
+                  className="text-[9px] font-bold uppercase tracking-wider"
+                  style={{ color: isActive ? theme.accent : "#9ca3af" }}
+                >
+                  {DAY_LABELS[d]}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
-      {/* All-done celebration — fires when last task of the day completes */}
       {isToday && (
         <AllDoneDetector
           kidId={kid.id}

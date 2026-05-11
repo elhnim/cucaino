@@ -122,6 +122,7 @@ function mapTask(row: DbTaskRow): Task {
     targetReps: (row as any).target_reps ?? null,
     targetRepLabel: (row as any).target_rep_label ?? null,
     checklistItems: (row as any).checklist_items ?? null,
+    frequencyPerDay: (row as any).frequency_per_day ?? 1,
     musicEnabled: (row as any).music_enabled ?? false,
     description: (row as any).description ?? null,
     subject: (row as any).subject ?? null,

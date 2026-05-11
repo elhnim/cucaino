@@ -7,182 +7,191 @@ import FamilyNameEditor from "@/components/parent/FamilyNameEditor";
 
 const commit = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
+function SettingsRow({
+  icon,
+  iconBg,
+  label,
+  value,
+  href,
+  danger,
+}: {
+  icon: string;
+  iconBg: string;
+  label: string;
+  value?: string;
+  href?: string;
+  danger?: boolean;
+}) {
+  const inner = (
+    <div className="flex items-center justify-between px-3.5 py-3.5 bg-white gap-2.5">
+      <div className="flex items-center gap-2.5">
+        <div
+          className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0"
+          style={{ background: iconBg }}
+        >
+          {icon}
+        </div>
+        <div>
+          <div className={`text-[14px] font-semibold ${danger ? "text-red-600" : "text-gray-800"}`}>{label}</div>
+          {value && <div className="text-[12px] text-gray-400 font-medium">{value}</div>}
+        </div>
+      </div>
+      <span className="text-gray-300 text-xl flex-shrink-0">›</span>
+    </div>
+  );
+
+  if (href) {
+    return <Link href={href} className="block border-b border-gray-100 last:border-none">{inner}</Link>;
+  }
+  return <div className="border-b border-gray-100 last:border-none">{inner}</div>;
+}
+
 export default async function ParentSettingsPage() {
   const [family, kids] = await Promise.all([getFamily(), listKids()]);
-  // getParentPinFromDb kept available for future use
   await getParentPinFromDb();
 
   if (!family) redirect("/login");
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-5 pt-5">
 
-        {/* Section 1: Family */}
-        <div className="bg-white rounded-2xl shadow p-4 space-y-4">
-          {/* Family name */}
-          <div>
-            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Family name</div>
-            <FamilyNameEditor initialName={family.name} />
-          </div>
+      <h1 className="text-xl font-extrabold text-gray-900">⚙️ Settings</h1>
 
-          {/* Kids list */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-bold text-gray-900">Kids</span>
-              <Link
-                href="/parent/kids"
-                className="text-xs text-indigo-600 border border-indigo-300 rounded-lg px-2 py-1 font-semibold"
-              >
-                + Add
-              </Link>
+      {/* Family */}
+      <div>
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-2">Family</div>
+        <div className="bg-white rounded-2xl overflow-hidden border-[1.5px] border-gray-200">
+          {/* Editable family name inline */}
+          <div className="px-3.5 py-3.5 border-b border-gray-100 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0" style={{ background: "#ede9fe" }}>
+              🏠
             </div>
-            <div className="space-y-2">
-              {kids.map((kid) => {
-                const theme = getTheme(kid.themeId);
-                return (
-                  <Link key={kid.id} href={`/parent/kids/${kid.id}/edit`} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
-                      style={{ backgroundColor: theme.accentSoft }}
-                    >
-                      {kid.avatar}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-gray-900 text-sm">{kid.name}</div>
-                      <div className="text-xs text-gray-500">Age {kid.age}</div>
-                    </div>
-                    <span className="text-gray-400 text-lg">›</span>
-                  </Link>
-                );
-              })}
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-400 font-medium mb-0.5">Family name</div>
+              <FamilyNameEditor initialName={family.name} />
             </div>
           </div>
-
-          {/* Co-parents */}
-          <div>
-            <div className="font-bold text-gray-900 mb-2">Parents &amp; Guardians</div>
-            <div className="border border-dashed border-gray-300 rounded-xl p-4 text-center space-y-2">
-              <p className="text-sm text-gray-500">📨 Invite a co-parent/guardian</p>
-              <button
-                type="button"
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm"
-              >
-                Send Invite
-              </button>
-              <p className="text-xs text-gray-500">
-                They&apos;ll get full access to manage tasks, rewards, and approvals
-              </p>
-            </div>
-          </div>
+          <SettingsRow
+            icon="👤"
+            iconBg="#fef3c7"
+            label="Parents & Guardians"
+            value="1 member"
+            href="/parent/profile"
+          />
         </div>
+      </div>
 
-        {/* Section 2: Preferences */}
-        <div className="bg-white rounded-2xl shadow p-4 space-y-4">
-          {/* Timezone */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Timezone</label>
-            <select
-              defaultValue="Australia/Sydney"
-              className="border border-gray-300 rounded-lg p-2 w-full text-sm"
-            >
-              <optgroup label="Australia">
+      {/* Kids */}
+      <div>
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-2">Kids</div>
+        <div className="bg-white rounded-2xl overflow-hidden border-[1.5px] border-gray-200">
+          {kids.map((kid) => {
+            const theme = getTheme(kid.themeId);
+            return (
+              <Link
+                key={kid.id}
+                href={`/parent/kids/${kid.id}/edit`}
+                className="flex items-center gap-2.5 px-3.5 py-3 border-b border-gray-100 last:border-none bg-white"
+              >
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-[18px] flex-shrink-0"
+                  style={{ background: theme.accentSoft }}
+                >
+                  {kid.avatar}
+                </div>
+                <div className="flex-1">
+                  <div className="text-[14px] font-semibold text-gray-800">{kid.name}</div>
+                  <div className="text-[12px] text-gray-400 font-medium">Age {kid.age} · {theme.name} theme</div>
+                </div>
+                <span className="text-gray-300 text-xl">›</span>
+              </Link>
+            );
+          })}
+          <Link
+            href="/parent/kids"
+            className="flex items-center gap-2.5 px-3.5 py-3 border-t border-gray-100 bg-white"
+          >
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-[18px] flex-shrink-0 bg-gray-100">
+              ＋
+            </div>
+            <div className="text-[14px] font-semibold text-indigo-600">Add a kid</div>
+            <span className="text-gray-300 text-xl ml-auto">›</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* Preferences */}
+      <div>
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-2">Preferences</div>
+        <div className="bg-white rounded-2xl overflow-hidden border-[1.5px] border-gray-200">
+          <div className="px-3.5 py-3.5 border-b border-gray-100 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-blue-50">🌍</div>
+            <div className="flex-1">
+              <label className="text-[14px] font-semibold text-gray-800">Timezone</label>
+              <select defaultValue="Australia/Sydney" className="block w-full text-[12px] text-gray-400 border-none bg-transparent p-0 mt-0.5 focus:outline-none">
                 <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
                 <option value="Australia/Melbourne">Australia/Melbourne (AEST)</option>
                 <option value="Australia/Brisbane">Australia/Brisbane (AEST)</option>
-                <option value="Australia/Adelaide">Australia/Adelaide (ACST)</option>
-                <option value="Australia/Perth">Australia/Perth (AWST)</option>
-                <option value="Australia/Darwin">Australia/Darwin (ACST)</option>
-                <option value="Australia/Hobart">Australia/Hobart (AEST)</option>
-              </optgroup>
-              <optgroup label="New Zealand">
-                <option value="Pacific/Auckland">Pacific/Auckland (NZST)</option>
-                <option value="Pacific/Chatham">Pacific/Chatham (CHAST)</option>
-              </optgroup>
-              <optgroup label="Asia">
-                <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                <option value="Asia/Hong_Kong">Asia/Hong Kong (HKT)</option>
-                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                <option value="Asia/Seoul">Asia/Seoul (KST)</option>
-                <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
-                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                <option value="Asia/Dubai">Asia/Dubai (GST)</option>
-              </optgroup>
-              <optgroup label="Europe">
-                <option value="Europe/London">Europe/London (GMT/BST)</option>
-                <option value="Europe/Paris">Europe/Paris (CET)</option>
-                <option value="Europe/Berlin">Europe/Berlin (CET)</option>
-                <option value="Europe/Rome">Europe/Rome (CET)</option>
-                <option value="Europe/Madrid">Europe/Madrid (CET)</option>
-                <option value="Europe/Amsterdam">Europe/Amsterdam (CET)</option>
-              </optgroup>
-              <optgroup label="Americas">
                 <option value="America/New_York">America/New York (EST)</option>
-                <option value="America/Chicago">America/Chicago (CST)</option>
-                <option value="America/Denver">America/Denver (MST)</option>
                 <option value="America/Los_Angeles">America/Los Angeles (PST)</option>
-                <option value="America/Toronto">America/Toronto (EST)</option>
-                <option value="America/Vancouver">America/Vancouver (PST)</option>
-                <option value="America/Sao_Paulo">America/São Paulo (BRT)</option>
-              </optgroup>
-              <optgroup label="Africa">
-                <option value="Africa/Johannesburg">Africa/Johannesburg (SAST)</option>
-                <option value="Africa/Cairo">Africa/Cairo (EET)</option>
-                <option value="Africa/Lagos">Africa/Lagos (WAT)</option>
-              </optgroup>
-              <optgroup label="UTC">
+                <option value="Europe/London">Europe/London (GMT)</option>
                 <option value="UTC">UTC</option>
-              </optgroup>
-            </select>
-          </div>
-
-          {/* Week starts on */}
-          <div>
-            <div className="text-sm font-semibold text-gray-700 mb-2">Week starts on</div>
-            <div className="flex rounded-full overflow-hidden border border-gray-200 w-fit">
-              <button type="button" className="px-4 py-1.5 text-sm font-semibold bg-indigo-600 text-white">
-                Monday
-              </button>
-              <button type="button" className="px-4 py-1.5 text-sm font-semibold bg-gray-100 text-gray-600">
-                Sunday
-              </button>
+              </select>
             </div>
           </div>
-
-          {/* Holiday mode */}
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-700 flex-1">Holiday mode 🏖️</span>
-              {/* Visual toggle — off state */}
-              <div className="w-11 h-6 rounded-full bg-gray-200 relative flex-shrink-0">
-                <div className="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow" />
+          <div className="px-3.5 py-3.5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-green-50">📅</div>
+              <span className="text-[14px] font-semibold text-gray-800">Week starts on</span>
+            </div>
+            <div className="flex rounded-full overflow-hidden border border-gray-200 text-xs font-semibold">
+              <button type="button" className="px-3 py-1 bg-indigo-600 text-white">Mon</button>
+              <button type="button" className="px-3 py-1 bg-gray-100 text-gray-600">Sun</button>
+            </div>
+          </div>
+          <div className="px-3.5 py-3.5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-amber-50">🏖️</div>
+              <div>
+                <div className="text-[14px] font-semibold text-gray-800">Holiday mode</div>
+                <div className="text-[11px] text-gray-400">Pauses all strict tasks</div>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Pauses all strict tasks while away</p>
+            <div className="w-11 h-6 rounded-full bg-gray-200 relative flex-shrink-0">
+              <div className="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow" />
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Section 3: App */}
-        <div className="bg-white rounded-2xl shadow p-4 space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Build</span>
-            <span className="font-mono text-xs text-gray-500">{commit}</span>
-          </div>
-
-          <Link href="/parent/feedback" className="block text-sm text-indigo-600 font-semibold">
-            💡 Send feedback
+      {/* App */}
+      <div>
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-2">App</div>
+        <div className="bg-white rounded-2xl overflow-hidden border-[1.5px] border-gray-200">
+          <Link href="/parent/feedback" className="flex items-center gap-2.5 px-3.5 py-3.5 border-b border-gray-100">
+            <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-indigo-50">💡</div>
+            <span className="text-[14px] font-semibold text-gray-800">Send feedback</span>
+            <span className="text-gray-300 text-xl ml-auto">›</span>
           </Link>
-
-          <hr className="border-gray-100" />
-
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3 rounded-xl text-sm"
-            >
-              🚪 Sign out
-            </button>
-          </form>
+          <div className="flex items-center justify-between px-3.5 py-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-gray-100">ℹ️</div>
+              <span className="text-[14px] font-semibold text-gray-800">Build</span>
+            </div>
+            <span className="font-mono text-xs text-gray-400">{commit}</span>
+          </div>
         </div>
+      </div>
+
+      {/* Sign out */}
+      <form action={signOut}>
+        <button
+          type="submit"
+          className="w-full rounded-2xl py-3.5 text-sm font-bold text-red-600 border-[1.5px] border-red-200 bg-red-50"
+        >
+          🚪 Sign out
+        </button>
+      </form>
 
     </div>
   );
