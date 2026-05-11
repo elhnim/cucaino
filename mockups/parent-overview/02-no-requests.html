@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Overview — No Requests</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<div class="phone">
+  <!-- Status bar -->
+  <div class="status-bar">
+    <span>9:41</span>
+    <span style="display:flex;gap:6px;align-items:center;">
+      <svg width="16" height="12" viewBox="0 0 16 12" fill="currentColor"><rect x="0" y="3" width="3" height="9" rx="1"/><rect x="4.5" y="2" width="3" height="10" rx="1"/><rect x="9" y="0" width="3" height="12" rx="1"/><rect x="13.5" y="0" width="2.5" height="12" rx="1" opacity=".3"/></svg>
+      <svg width="16" height="12" viewBox="0 0 24 12" fill="currentColor"><path d="M1 4C5.5 0 18.5 0 23 4" opacity=".3"/><path d="M4 7c2.5-2.5 13.5-2.5 16 0"/><path d="M7.5 10c1.5-1.5 8-1.5 9.5 0"/><circle cx="12" cy="12" r="1.5"/></svg>
+      <span style="font-size:12px;font-weight:700;">100%</span>
+    </span>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="greeting">Good morning, Sarah 👋</div>
+      <div class="date">Sunday, 11 May 2026</div>
+    </div>
+    <div class="parent-avatar">🧙</div>
+  </div>
+
+  <!-- Scrollable content -->
+  <div class="screen-content">
+
+    <!-- Heads-Up hidden — no activities today -->
+
+    <!-- ── KIDS — no requests, clean progress only ── -->
+    <div class="section" style="padding-top:14px;">
+      <div class="section-header">
+        <span class="section-label">Today</span>
+        <span style="font-size:11px;font-weight:600;color:#9ca3af;">3 kids</span>
+      </div>
+
+      <!-- Emma -->
+      <div class="kid-card">
+        <div class="kid-card-top">
+          <div class="kid-avatar-lg" style="background:#fff7ed;">🦁</div>
+          <div class="kid-meta">
+            <div class="kid-name">Emma</div>
+            <div class="kid-theme">Adventure · Age 9</div>
+          </div>
+          <div class="kid-stats">
+            <div class="stat-pill stars">62 ⭐</div>
+            <div class="stat-pill streak">🔥 5</div>
+          </div>
+        </div>
+        <div class="progress-section">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width:80%;background:#f97316;"></div>
+          </div>
+          <div class="progress-label" style="color:#f97316;">8 / 10</div>
+        </div>
+      </div>
+
+      <!-- Liam -->
+      <div class="kid-card">
+        <div class="kid-card-top">
+          <div class="kid-avatar-lg" style="background:#f5f3ff;">🚀</div>
+          <div class="kid-meta">
+            <div class="kid-name">Liam</div>
+            <div class="kid-theme">Galactic · Age 7</div>
+          </div>
+          <div class="kid-stats">
+            <div class="stat-pill stars">45 ⭐</div>
+            <div class="stat-pill streak">🔥 3</div>
+          </div>
+        </div>
+        <div class="progress-section">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width:62.5%;background:#8b5cf6;"></div>
+          </div>
+          <div class="progress-label" style="color:#8b5cf6;">5 / 8</div>
+        </div>
+      </div>
+
+      <!-- Sophie -->
+      <div class="kid-card">
+        <div class="kid-card-top">
+          <div class="kid-avatar-lg" style="background:#ecfeff;">🐬</div>
+          <div class="kid-meta">
+            <div class="kid-name">Sophie</div>
+            <div class="kid-theme">Ocean · Age 11</div>
+          </div>
+          <div class="kid-stats">
+            <div class="stat-pill stars">88 ⭐</div>
+            <div class="stat-pill streak">🔥 12</div>
+          </div>
+        </div>
+        <div class="progress-section">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" style="width:100%;background:#06b6d4;"></div>
+          </div>
+          <div class="progress-label" style="color:#06b6d4;">10 / 10</div>
+        </div>
+        <div style="margin-top:8px;">
+          <div class="all-done-banner">🎉 All tasks done!</div>
+        </div>
+      </div>
+
+      <div class="scroll-pad"></div>
+    </div>
+
+  </div><!-- /screen-content -->
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <a class="nav-item active" href="02-no-requests.html">
+      <div class="nav-icon">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#6366f1" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9"/>
+        </svg>
+      </div>
+      <span class="nav-label" style="color:#6366f1;">Home</span>
+    </a>
+    <a class="nav-item" href="#">
+      <div class="nav-icon">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+      </div>
+      <span class="nav-label">Tasks</span>
+    </a>
+    <a class="nav-item" href="#">
+      <div class="nav-icon">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a4 4 0 00-4-4H5.45a1 1 0 00-.95 1.316l.86 2.38A2 2 0 007.24 7H12zm0 0V6a4 4 0 014-4h2.55a1 1 0 01.95 1.316l-.86 2.38A2 2 0 0016.76 7H12zM3 11h18M5 11v9a2 2 0 002 2h10a2 2 0 002-2v-9"/>
+        </svg>
+      </div>
+      <span class="nav-label">Rewards</span>
+    </a>
+    <a class="nav-item" href="#">
+      <div class="nav-icon">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <span class="nav-label">Quizzes</span>
+    </a>
+    <a class="nav-item" href="#">
+      <div class="nav-icon">
+        <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="#9ca3af" stroke-width="2.2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
+      <span class="nav-label">Settings</span>
+    </a>
+  </nav>
+</div>
+
+<div class="state-label">STATE: No requests + no activities — heads-up hidden</div>
+
+</body>
+</html>
