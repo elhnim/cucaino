@@ -3,15 +3,17 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import KidShell from "@/components/kid/KidShell";
 import TodoTaskCard from "@/components/kid/TodoTaskCard";
+import AddTaskButton from "@/components/kid/AddTaskButton";
 import {
   getKid,
   listTasksForKid,
   listCompletionsToday,
-  listSchoolClasses,
+  listKidDailyAdditions,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
-import type { DayOfWeek, Task, TaskCompletion, SchoolClass } from "@/lib/domain/types";
+import { SUBJECTS } from "@/lib/registry/subject-registry";
+import type { DayOfWeek, Task, TaskCompletion } from "@/lib/domain/types";
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
   1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun",
@@ -104,10 +106,12 @@ export default async function TodoPage({
     ? (Math.max(1, Math.min(7, parseInt(day))) as DayOfWeek)
     : today;
 
-  const [tasks, completions, classes] = await Promise.all([
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const [tasks, completions, addedTaskIds] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
-    listSchoolClasses(kid.id),
+    listKidDailyAdditions(kid.id, todayStr),
   ]);
 
   const theme = getTheme(kid.themeId);
@@ -116,10 +120,31 @@ export default async function TodoPage({
   const isToday = activeDow === today;
   const isWeekday = activeDow <= 5;
 
-  const dayTasks = tasksForDay(tasks, activeDow).filter((t) => t.requiresCompletion);
+  // Strict scheduled tasks for this day (exclude flexible — they're self-added only)
+  const scheduledTasks = tasksForDay(
+    tasks.filter((t) => t.rule !== "flexible"),
+    activeDow,
+  );
+
+  // Flexible tasks the kid added for today (today view only)
+  const addedTasks: Task[] = isToday
+    ? addedTaskIds.map((id) => tasks.find((t) => t.id === id)).filter(Boolean) as Task[]
+    : [];
+
+  const dayTasks = [...scheduledTasks, ...addedTasks].filter((t) => t.requiresCompletion);
   const beforeSchoolTasks = dayTasks.filter((t) => t.timeBlock === "before_school");
   const afterSchoolTasks = dayTasks.filter((t) => t.timeBlock !== "before_school");
-  const todayClasses: SchoolClass[] = classes.filter((c) => c.dayOfWeek === activeDow);
+  // school_subject tasks rendered as pills (no completion checkbox)
+  const schoolSubjectTasks = tasksForDay(
+    tasks.filter((t) => t.category === "school_subject"),
+    activeDow,
+  );
+
+  // Tasks the kid can self-add: flexible family templates not yet added today
+  const addedSet = new Set(addedTaskIds);
+  const selfAddableTasks = tasks.filter(
+    (t) => t.rule === "flexible" && t.kidId === null && t.kidCanAdd && !addedSet.has(t.id),
+  );
 
   const getCompletion = (taskId: string) =>
     isToday ? completions.find((c) => c.taskId === taskId) : undefined;
@@ -196,23 +221,25 @@ export default async function TodoPage({
             </Section>
           )}
 
-          {/* School — weekdays only, read-only */}
+          {/* School — weekdays only, read-only pills */}
           {isWeekday && (
             <Section
               label="📚 School"
-              isEmpty={todayClasses.length === 0}
+              isEmpty={schoolSubjectTasks.length === 0}
               emptyText="School day"
             >
               <div className="flex flex-wrap gap-2">
-                {todayClasses.map((c) => (
-                  <span
-                    key={c.id}
-                    className="px-3 py-1.5 rounded-full text-xs font-bold text-white"
-                    style={{ background: theme.accent }}
-                  >
-                    {c.customLabel ?? c.subject}
-                  </span>
-                ))}
+                {schoolSubjectTasks.map((t) => {
+                  const subj = t.subject && t.subject in SUBJECTS ? SUBJECTS[t.subject as keyof typeof SUBJECTS] : null;
+                  return (
+                    <span
+                      key={t.id}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "bg-indigo-100 text-indigo-800"}`}
+                    >
+                      {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
+                    </span>
+                  );
+                })}
               </div>
             </Section>
           )}
@@ -239,15 +266,14 @@ export default async function TodoPage({
             </div>
           </Section>
 
-          {/* Add a task — today and future only */}
-          {!isPast && (
+          {/* Add a task — today only, only if there are self-addable tasks */}
+          {isToday && selfAddableTasks.length > 0 && (
             <div className="pt-2">
-              <button
-                type="button"
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-3 text-sm font-bold text-gray-400 hover:border-gray-300 hover:text-gray-500 transition-colors"
-              >
-                + Add a task
-              </button>
+              <AddTaskButton
+                kidId={kid.id}
+                availableTasks={selfAddableTasks}
+                accentColor={theme.accent}
+              />
             </div>
           )}
         </div>

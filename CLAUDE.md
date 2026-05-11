@@ -26,7 +26,7 @@ No test runner is configured.
 - `/select-kid` — Home screen (tablet kid picker)
 - `/kid/[kidId]/{today,week,rewards,progress,profile,practice,timetable,tuner}` — Kid-side views, all parameterised by kid ID
 - `/parent/{overview,kids,tasks,rewards,requests,feedback,quizzes}` — Parent dashboard (mobile-first)
-- `/play` and `/play/[bankId]` — Quiz hub and live quiz
+- `/play` and `/play/[bankId]` — Quiz hub and live quiz (nav bar injected via `?kid=<id>` query param so KidShell wraps all play screens)
 - `/auth/callback`, `/login`, `/signup` — Auth flow
 
 ### Data layer
@@ -59,15 +59,37 @@ See `EXTENDING.md` for step-by-step guides on adding new pages, themes, categori
 
 `lib/domain/types.ts` mirrors the Postgres schema. Key types: `Kid`, `Task`, `TaskCompletion`, `Reward`, `RewardRequest`, `SchoolItem`, `SchoolClass`, `QuizBank`, `QuizQuestion`, `Family`. Enums: `TaskCategory`, `ThemeId`, `Subject`, `QuizCategory`.
 
+### Kid daily task additions
+
+Kids can self-add flexible tasks to a single day without mutating the task library. The table `kid_daily_task_additions (kid_id, task_id, date)` stores date-scoped additions. The todo page merges these into the task list only for today. Use `addTaskToDay(taskId, kidId)` server action and `listKidDailyAdditions(kidId, date)` query — never `createTask` from the kid flow.
+
+Tasks eligible for self-add: `rule = 'flexible'` and `kid_id IS NULL` (family-level templates only).
+
 ### Supabase schema
 
 Migrations live in `supabase/migrations/0001_initial.sql`. Auto-generated TypeScript types are at `lib/supabase/database.types.ts` — regenerate with `supabase gen types typescript` after schema changes.
+
+Active migrations:
+- `0001_initial.sql` — base schema
+- `0006_*` — gamification SQL functions (badge progress, family points)
+- `0007_indexes.sql` — composite index on `quiz_banks(is_builtin DESC, name)`; table `kid_daily_task_additions` with RLS `family_scope` policy
 
 ### Environment variables
 
 Copy `.env.example` to `.env.local` and fill in:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### Performance patterns
+
+- `getKid` is wrapped with `React.cache()` so multiple server components in one render hit the DB only once.
+- Do **not** call `router.refresh()` from `TodoTaskCard` after task completion — it triggers a full RSC re-fetch and kills INP. Optimistic state updates immediately; counts/stars update on next navigation via `revalidatePath`.
+- Profile route has `app/kid/[kidId]/profile/loading.tsx` to stream a skeleton and eliminate blank-screen TTFB.
+- `netlify/functions/keepalive.mts` pings Supabase every 10 minutes (cron) to prevent free-tier project sleeping.
+
+### Task completion insert
+
+`INSERT` into `task_completions` **must** include `family_id` (NOT NULL, no default) and `family_points_awarded`. Missing `family_id` causes silent RLS rejection — no error, completion just doesn't save. Revert optimistic UI on failure.
 
 ### Build version
 
