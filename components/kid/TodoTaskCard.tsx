@@ -452,7 +452,11 @@ export default function TodoTaskCard({
     setShowSheet(true);
     window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
     startTransition(async () => {
-      await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
+      const result = await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
+      if (!result.ok) {
+        setDone(false);
+        setCelebrating(false);
+      }
     });
   };
 

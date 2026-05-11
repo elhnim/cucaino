@@ -23,6 +23,12 @@ export async function completeTask(
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
+  const { data: fam, error: famErr } = await supabase
+    .from("families")
+    .select("id")
+    .maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
+
   // Idempotent — skip if already completed today
   const { data: existing } = await supabase
     .from("task_completions")
@@ -34,11 +40,13 @@ export async function completeTask(
   if (existing) return { ok: true };
 
   const { error } = await supabase.from("task_completions").insert({
+    family_id: fam.id,
     task_id: taskId,
     kid_id: kidId,
     date: today,
     completed_at: new Date().toISOString(),
     points_awarded: pointsAwarded,
+    family_points_awarded: familyPointsAwarded,
     duration_actual_seconds: null,
   });
   if (error) return { ok: false, error: error.message };

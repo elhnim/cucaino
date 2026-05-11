@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createTask } from "@/lib/actions/tasks";
+import { addTaskToDay } from "@/lib/actions/tasks";
 import type { Task } from "@/lib/domain/types";
 
 export default function AddPersonalTaskModal({
@@ -30,26 +30,7 @@ export default function AddPersonalTaskModal({
   function pick(task: Task) {
     setError(null);
     startTransition(async () => {
-      const result = await createTask({
-        name: task.name,
-        icon: task.icon,
-        category: task.category,
-        scheduleType: task.scheduleType,
-        daysOfWeek: task.daysOfWeek,
-        timeBlock: task.timeBlock,
-        startTime: task.startTime,
-        points: task.points,
-        familyPointsContribution: task.familyPointsContribution,
-        requiresTimer: task.requiresTimer,
-        durationMinutes: task.durationMinutes,
-        requiresCompletion: task.requiresCompletion,
-        location: task.location,
-        packingList: task.packingList,
-        defaultBpm: task.defaultBpm,
-        defaultTimeSignature: task.defaultTimeSignature,
-        kidId,
-        kidCanAdd: false,
-      });
+      const result = await addTaskToDay(task.id, kidId);
       if (!result.ok) { setError(result.error); return; }
       close();
       router.refresh();

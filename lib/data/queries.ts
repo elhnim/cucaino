@@ -161,7 +161,7 @@ export async function listKids(): Promise<Kid[]> {
   return (data as DbKidRow[]).map(mapKid);
 }
 
-export const getKid = cache(timed("getKid", async (id: string): Promise<Kid | null> => {
+const _getKidRaw = cache(async (id: string): Promise<Kid | null> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("kids")
@@ -170,7 +170,9 @@ export const getKid = cache(timed("getKid", async (id: string): Promise<Kid | nu
     .maybeSingle();
   if (error || !data) return null;
   return mapKid(data as DbKidRow);
-}));
+});
+
+export const getKid = timed("getKid", _getKidRaw);
 
 export const listTasksForKid = timed("listTasksForKid", async (kidId: string): Promise<Task[]> => {
   const supabase = await createClient();
@@ -598,8 +600,9 @@ export async function listKidAddableTasks(): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
     .select("*")
-    .eq("kid_can_add", true)
+    .eq("rule", "flexible")
     .eq("active", true)
+    .is("kid_id", null)
     .order("name");
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);
@@ -624,4 +627,22 @@ export async function listWeeklyStarsByKid(): Promise<Record<string, number>> {
     totals[row.kid_id] = (totals[row.kid_id] ?? 0) + (row.points_awarded ?? 0);
   }
   return totals;
+}
+
+export async function listKidDailyAdditions(kidId: string, date: string): Promise<Task[]> {
+  const supabase = await createClient();
+  const { data: additions, error: addErr } = await supabase
+    .from("kid_daily_task_additions")
+    .select("task_id")
+    .eq("kid_id", kidId)
+    .eq("date", date);
+  if (addErr || !additions || additions.length === 0) return [];
+
+  const taskIds = additions.map((a) => a.task_id as string);
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .in("id", taskIds);
+  if (error || !data) return [];
+  return (data as DbTaskRow[]).map(mapTask);
 }

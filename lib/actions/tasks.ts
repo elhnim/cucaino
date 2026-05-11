@@ -257,3 +257,23 @@ export async function deleteTask(id: string): Promise<ActionResult> {
   revalidatePath("/parent/tasks");
   return { ok: true };
 }
+
+export async function addTaskToDay(taskId: string, kidId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: fam, error: famErr } = await supabase
+    .from("families")
+    .select("id")
+    .maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
+
+  const { error } = await supabase.from("kid_daily_task_additions").upsert(
+    { family_id: fam.id, kid_id: kidId, task_id: taskId, date: today },
+    { onConflict: "kid_id,task_id,date" },
+  );
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/kid/${kidId}/todo`);
+  return { ok: true };
+}

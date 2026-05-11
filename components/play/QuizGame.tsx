@@ -31,10 +31,12 @@ export default function QuizGame({
   bankName,
   questions,
   players,
+  backHref = "/play/quiz",
 }: {
   bankName: string;
   questions: Question[];
   players: Player[];
+  backHref?: string;
 }) {
   const DEFAULT_COUNT = Math.min(10, questions.length);
   const COUNT_OPTIONS = [5, 10, 15, 20].filter((n) => n < questions.length).concat(questions.length);
@@ -129,7 +131,7 @@ export default function QuizGame({
       <main className="min-h-screen bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100 font-fun p-6">
         <div className="max-w-2xl mx-auto">
           <Link
-            href="/play/quiz"
+            href={backHref}
             className="text-sm bg-white/70 hover:bg-white px-4 py-2 rounded-full shadow inline-block mb-4"
           >
             ← Back
@@ -247,7 +249,7 @@ export default function QuizGame({
         {/* Top bar */}
         <div className="max-w-3xl mx-auto w-full flex items-center justify-between mb-6 gap-2">
           <Link
-            href="/play/quiz"
+            href={backHref}
             className="bg-white rounded-full w-10 h-10 shadow flex items-center justify-center text-lg shrink-0"
             title="Quit quiz"
           >
@@ -383,7 +385,7 @@ export default function QuizGame({
             🔁 Play again
           </button>
           <Link
-            href="/play/quiz"
+            href={backHref}
             className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 rounded-xl text-center"
           >
             New quiz →

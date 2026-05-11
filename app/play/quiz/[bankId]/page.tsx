@@ -4,10 +4,13 @@ import QuizGame from "@/components/play/QuizGame";
 
 export default async function QuizGamePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ bankId: string }>;
+  searchParams: Promise<{ kid?: string }>;
 }) {
   const { bankId } = await params;
+  const { kid: kidId } = await searchParams;
 
   // Try new quiz set first, fall back to legacy bank
   const [set, bank, kids] = await Promise.all([
@@ -57,6 +60,8 @@ export default async function QuizGamePage({
 
   if (questions.length === 0) notFound();
 
+  const qs = kidId ? `?kid=${kidId}` : "";
+
   return (
     <QuizGame
       bankName={bankName}
@@ -67,6 +72,7 @@ export default async function QuizGamePage({
         avatar: k.avatar,
         themeId: k.themeId,
       }))}
+      backHref={`/play/quiz${qs}`}
     />
   );
 }

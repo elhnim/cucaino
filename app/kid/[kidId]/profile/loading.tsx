@@ -1,38 +1,41 @@
-export default function Loading() {
+export default function ProfileLoading() {
   return (
-    <div className="flex flex-col min-h-dvh bg-gray-50">
-      <div className="flex items-center gap-3 px-4 py-3 bg-white shadow-sm border-b">
-        <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse" />
-        <div className="flex-1 h-4 rounded-full bg-gray-200 animate-pulse max-w-[100px]" />
-        <div className="flex items-center gap-1">
-          <div className="w-4 h-4 rounded bg-gray-200 animate-pulse" />
-          <div className="w-10 h-4 rounded bg-gray-200 animate-pulse" />
-        </div>
+    <div className="min-h-screen bg-white">
+      {/* Nav shell skeleton */}
+      <div className="h-16 bg-white border-b border-gray-100 flex items-center px-4 gap-3 animate-pulse">
+        <div className="w-10 h-10 rounded-full bg-gray-200" />
+        <div className="flex-1" />
+        <div className="w-24 h-4 bg-gray-200 rounded-full" />
       </div>
-      <div className="flex-1 p-4 space-y-6 overflow-auto">
+
+      <div className="p-4 md:p-6 max-w-lg mx-auto space-y-6 animate-pulse">
+        {/* Avatar + name */}
         <div className="flex flex-col items-center gap-3 pt-4">
-          <div className="w-24 h-24 rounded-full bg-gray-200 animate-pulse" />
-          <div className="h-5 bg-gray-200 rounded animate-pulse w-28" />
+          <div className="w-24 h-24 rounded-full bg-gray-200" />
+          <div className="w-32 h-5 bg-gray-200 rounded-full" />
+          <div className="w-20 h-3 bg-gray-100 rounded-full" />
         </div>
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="space-y-1">
-              <div className="h-3 bg-gray-200 rounded animate-pulse w-20" />
-              <div className="h-10 bg-gray-200 rounded-xl animate-pulse w-full" />
-            </div>
-          ))}
+
+        {/* Stars bar */}
+        <div className="h-12 bg-gray-100 rounded-2xl" />
+
+        {/* Fields */}
+        <div className="space-y-3">
+          <div className="h-14 bg-gray-100 rounded-2xl" />
+          <div className="h-14 bg-gray-100 rounded-2xl" />
+          <div className="h-14 bg-gray-100 rounded-2xl" />
         </div>
-        <div className="flex gap-3">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="w-10 h-10 rounded-full bg-gray-200 animate-pulse" />
-          ))}
-        </div>
+
+        {/* Save button */}
+        <div className="h-12 bg-gray-200 rounded-2xl" />
       </div>
-      <div className="flex justify-around items-center py-2 px-6 bg-white border-t">
-        {[...Array(4)].map((_, i) => (
+
+      {/* Bottom nav skeleton */}
+      <div className="fixed bottom-0 inset-x-0 h-16 bg-white border-t border-gray-100 flex items-center justify-around px-4 animate-pulse">
+        {[0, 1, 2, 3].map((i) => (
           <div key={i} className="flex flex-col items-center gap-1">
-            <div className="w-8 h-8 rounded-xl bg-gray-200 animate-pulse" />
-            <div className="w-10 h-2 rounded bg-gray-200 animate-pulse" />
+            <div className="w-6 h-6 bg-gray-200 rounded" />
+            <div className="w-10 h-2 bg-gray-100 rounded-full" />
           </div>
         ))}
       </div>
