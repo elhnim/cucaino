@@ -249,6 +249,34 @@ Same as S-01 but with an amber banner at the top: "Holiday mode is on — Strict
 
 ---
 
+## Parent Profile — Settings
+
+`/parent/profile` (accessible from the Settings screen via the parent's name/avatar row).
+
+### PP-01 My Profile
+
+Hero section at the top: 80px emoji avatar with an indigo pencil-badge overlay (tap to open avatar picker). Display name below (e.g. "Mum"), email address below that.
+
+Two grouped sections:
+
+| Section | Rows |
+|---------|------|
+| Account | Display name (editable text row) · Email (display-only, labelled "Managed by login") |
+| Security | Parent PIN (shows current state: "Set" or "Not set"; tap to change/remove) |
+
+Below the sections: a 5-column × 4-row emoji avatar grid (20 options). Selected emoji has an indigo border and indigo-tinted background.
+
+### PP-02 Change PIN
+
+Full-screen PIN entry sheet:
+
+- Lock icon header, "Enter a new 4-digit PIN" heading + short description
+- 4 circular dot indicators (filled indigo = entered digit, empty gray = remaining)
+- 3×4 numpad (digits 1–9, blank, 0, backspace)
+- "Remove PIN" link in red at the bottom (only shown when a PIN is already set)
+
+---
+
 ## Mockup Reference
 
 | Screen | File |
@@ -270,3 +298,4 @@ Same as S-01 but with an amber banner at the top: "Holiday mode is on — Strict
 | Add Reward form | `14-reward-form.html` |
 | Quizzes flow (Q-01, Q-01b, Q-02) | `15-quizzes.html` |
 | Settings flow (S-01 – S-04) | `16-settings.html` |
+| Parent profile (PP-01 – PP-02) | `17-parent-profile.html` |
