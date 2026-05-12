@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import {
   createFeatureRequest,
   updateFeatureRequestStatus,
@@ -34,8 +33,7 @@ export default function FeedbackBoard({
 }: {
   initialItems: FeatureRequest[];
 }) {
-  const router = useRouter();
-  const [items] = useState<FeatureRequest[]>(initialItems);
+  const [items, setItems] = useState<FeatureRequest[]>(initialItems);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -45,27 +43,35 @@ export default function FeedbackBoard({
 
   const submit = () => {
     if (!title.trim()) return;
+    const optimistic: FeatureRequest = {
+      id: `temp-${Date.now()}`,
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      status: "new",
+      createdAt: new Date().toISOString(),
+    };
+    setItems((prev) => [optimistic, ...prev]);
+    setTitle("");
+    setDescription("");
+    setCategory("other");
+    setShowForm(false);
     startTransition(async () => {
-      await createFeatureRequest({ title: title.trim(), description: description.trim(), category });
-      setTitle("");
-      setDescription("");
-      setCategory("other");
-      setShowForm(false);
-      router.refresh();
+      await createFeatureRequest({ title: optimistic.title, description: optimistic.description, category: optimistic.category });
     });
   };
 
   const setStatus = (id: string, status: Status) => {
+    setItems((prev) => prev.map((i) => i.id === id ? { ...i, status } : i));
     startTransition(async () => {
       await updateFeatureRequestStatus(id, status);
-      router.refresh();
     });
   };
 
   const remove = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
     startTransition(async () => {
       await deleteFeatureRequest(id);
-      router.refresh();
     });
   };
 

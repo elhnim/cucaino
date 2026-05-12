@@ -33,7 +33,6 @@ export default function AddPersonalTaskModal({
       const result = await addTaskToDay(task.id, kidId);
       if (!result.ok) { setError(result.error); return; }
       close();
-      router.refresh();
     });
   }
 

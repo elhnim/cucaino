@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { upsertSchoolItem, deleteSchoolItem } from "@/lib/actions/school-items";
 import type { Kid, SchoolItem, DayOfWeek } from "@/lib/domain/types";
 
@@ -26,13 +25,13 @@ export default function SchoolItemsEditor({
   kids: Kid[];
   initialItems: SchoolItem[];
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [activeKidId, setActiveKidId] = useState(kids[0]?.id ?? "");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<SchoolItem[]>(initialItems);
 
-  const kidItems = initialItems.filter((i) => i.kidId === activeKidId);
+  const kidItems = items.filter((i) => i.kidId === activeKidId);
 
   const openAdd = () => { setDraft(emptyDraft()); setError(null); };
   const openEdit = (item: SchoolItem) => {
@@ -55,19 +54,33 @@ export default function SchoolItemsEditor({
     if (!draft) return;
     if (!draft.name.trim()) { setError("Item needs a name."); return; }
     if (draft.daysOfWeek.length === 0) { setError("Select at least one day."); return; }
+    const optimisticId = draft.id ?? `temp-${Date.now()}`;
+    const optimistic: SchoolItem = {
+      id: optimisticId,
+      familyId: "",
+      kidId: activeKidId,
+      name: draft.name.trim(),
+      icon: draft.icon,
+      daysOfWeek: draft.daysOfWeek,
+      active: true,
+    };
+    setItems((prev) =>
+      draft.id
+        ? prev.map((i) => i.id === draft.id ? optimistic : i)
+        : [...prev, optimistic]
+    );
+    setDraft(null);
     startTransition(async () => {
       const result = await upsertSchoolItem(activeKidId, draft);
-      if (!result.ok) { setError(result.error); return; }
-      router.refresh();
-      setDraft(null);
+      if (!result.ok) { setError(result.error); }
     });
   };
 
   const remove = (item: SchoolItem) => {
     if (!confirm(`Remove "${item.name}" from the bag list?`)) return;
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
     startTransition(async () => {
       await deleteSchoolItem(item.id, activeKidId);
-      router.refresh();
     });
   };
 

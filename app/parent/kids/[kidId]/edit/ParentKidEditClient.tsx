@@ -13,6 +13,7 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
   const [newPin, setNewPin] = useState("");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [pinCleared, setPinCleared] = useState(false);
 
   const save = () => {
     if (!name.trim()) { setError("Name is required"); return; }
@@ -35,7 +36,7 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
   const removePin = () => {
     startTransition(async () => {
       await clearKidPin(kid.id);
-      router.refresh();
+      setPinCleared(true);
     });
   };
 
@@ -72,7 +73,7 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
       {/* PIN */}
       <div>
         <label className="block text-sm font-bold text-gray-700 mb-1">
-          Kid PIN {kid.pin ? "(currently set)" : "(not set)"}
+          Kid PIN {(kid.pin && !pinCleared) ? "(currently set)" : "(not set)"}
         </label>
         <div className="flex gap-2">
           <input
@@ -84,7 +85,7 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
             onChange={(e) => setNewPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
             className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
-          {kid.pin && (
+          {kid.pin && !pinCleared && (
             <button
               type="button"
               onClick={removePin}

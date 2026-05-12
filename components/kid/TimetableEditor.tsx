@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { upsertSchoolSubjectTask, deleteTask } from "@/lib/actions/tasks";
 import { getSubject, listSubjects } from "@/lib/registry/subject-registry";
@@ -52,7 +51,6 @@ export default function TimetableEditor({
   initialTasks: Task[];
   initialDay?: DayOfWeek;
 }) {
-  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [activeDay, setActiveDay] = useState<DayOfWeek>(initialDay);
   const [draft, setDraft] = useState<DraftClass | null>(null);
@@ -105,10 +103,14 @@ export default function TimetableEditor({
         teacher: draft.teacher.trim() || null,
         packingList: draft.packingList.length > 0 ? draft.packingList : null,
       });
-      if (result.ok) {
-        router.refresh();
+      if (result.ok && result.task) {
+        setTasks((ts) =>
+          draft.id
+            ? ts.map((t) => t.id === draft.id ? result.task! : t)
+            : [...ts, result.task!]
+        );
         setDraft(null);
-      } else {
+      } else if (!result.ok) {
         alert(result.error);
       }
     });
@@ -119,7 +121,6 @@ export default function TimetableEditor({
     startTransition(async () => {
       await deleteTask(draft.id!);
       setTasks((ts) => ts.filter((t) => t.id !== draft.id));
-      router.refresh();
       setDraft(null);
     });
   };
@@ -131,7 +132,6 @@ export default function TimetableEditor({
     startTransition(async () => {
       await Promise.all(dayTasks.map((t) => deleteTask(t.id)));
       setTasks((ts) => ts.filter((t) => !t.daysOfWeek.includes(activeDay)));
-      router.refresh();
     });
   };
 

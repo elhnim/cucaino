@@ -37,7 +37,6 @@ export default function SignupForm() {
       });
       if (result.ok) {
         router.push("/select-kid");
-        router.refresh();
       } else {
         setError(result.error);
       }

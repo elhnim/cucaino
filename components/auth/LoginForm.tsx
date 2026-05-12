@@ -20,7 +20,6 @@ export default function LoginForm() {
       const result = await signIn({ email, password });
       if (result.ok) {
         router.push(next);
-        router.refresh();
       } else {
         setError(result.error);
       }

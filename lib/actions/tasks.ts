@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { TaskCategory, TimeBlock, ScheduleType, TaskRule, TaskTarget, TaskTimeSlot, DayOfWeek } from "@/lib/domain/types";
+import { mapTask } from "@/lib/data/queries";
+import type { Task, TaskCategory, TimeBlock, ScheduleType, TaskRule, TaskTarget, TaskTimeSlot, DayOfWeek } from "@/lib/domain/types";
 
 export interface TaskFormData {
   name: string;
@@ -177,7 +178,7 @@ export interface SchoolSubjectInput {
   packingList: string[] | null;
 }
 
-export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise<ActionResult> {
+export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise<ActionResult & { task?: Task }> {
   const supabase = await createClient();
   const { data: fam, error: famErr } = await supabase
     .from("families")
@@ -187,8 +188,10 @@ export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise
 
   const taskName = data.customLabel?.trim() || data.subject;
 
+  let savedRow: Record<string, unknown> | null = null;
+
   if (data.id) {
-    const { error } = await supabase
+    const { data: row, error } = await supabase
       .from("tasks")
       .update({
         name: taskName,
@@ -201,10 +204,13 @@ export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise
         teacher: data.teacher?.trim() || null,
         packing_list: data.packingList ?? null,
       })
-      .eq("id", data.id);
+      .eq("id", data.id)
+      .select()
+      .single();
     if (error) return { ok: false, error: error.message };
+    savedRow = row as Record<string, unknown>;
   } else {
-    const { error } = await supabase.from("tasks").insert({
+    const { data: row, error } = await supabase.from("tasks").insert({
       family_id: fam.id,
       kid_id: data.kidId,
       name: taskName,
@@ -240,13 +246,14 @@ export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise
       custom_label: data.customLabel?.trim() || null,
       room: data.room?.trim() || null,
       teacher: data.teacher?.trim() || null,
-    });
+    }).select().single();
     if (error) return { ok: false, error: error.message };
+    savedRow = row as Record<string, unknown>;
   }
 
   revalidatePath(`/kid/${data.kidId}/timetable`);
   revalidatePath(`/kid/${data.kidId}/todo`);
-  return { ok: true };
+  return { ok: true, task: mapTask(savedRow as any) };
 }
 
 export async function deleteTask(id: string): Promise<ActionResult> {

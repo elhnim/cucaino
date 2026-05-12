@@ -95,7 +95,7 @@ function mapKid(row: DbKidRow): Kid {
   };
 }
 
-function mapTask(row: DbTaskRow): Task {
+export function mapTask(row: DbTaskRow): Task {
   return {
     id: row.id,
     familyId: row.family_id,

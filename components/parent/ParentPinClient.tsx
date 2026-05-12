@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import PinPad from "@/components/kid/PinPad";
 import { setParentPinDb, clearParentPinDb } from "@/lib/actions/parent-settings";
 
@@ -12,12 +11,10 @@ export default function ParentPinClient({
 }: {
   currentPin: string | null;
 }) {
-  const router = useRouter();
   const [view, setView] = useState<View>("idle");
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const hasPin = !!currentPin;
+  const [hasPin, setHasPin] = useState(!!currentPin);
 
   const showSuccess = (msg: string) => {
     setSuccess(msg);
@@ -28,8 +25,8 @@ export default function ParentPinClient({
     startTransition(async () => {
       await setParentPinDb(pin);
       setView("idle");
+      setHasPin(true);
       showSuccess("Parent PIN saved.");
-      router.refresh();
     });
   };
 
@@ -37,8 +34,8 @@ export default function ParentPinClient({
     startTransition(async () => {
       await clearParentPinDb();
       setView("idle");
+      setHasPin(false);
       showSuccess("PIN removed.");
-      router.refresh();
     });
   };
 

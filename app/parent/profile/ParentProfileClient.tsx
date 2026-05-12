@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import PinPad from "@/components/kid/PinPad";
 import { setParentPinDb, clearParentPinDb, updateParentProfile } from "@/lib/actions/parent-settings";
 
@@ -24,7 +23,6 @@ export default function ParentProfileClient({
   displayName: string;
   avatar: string;
 }) {
-  const router = useRouter();
   const [view, setView] = useState<View>("main");
   const [name, setName] = useState(displayName);
   const [selectedAvatar, setSelectedAvatar] = useState(avatar);
@@ -39,7 +37,6 @@ export default function ParentProfileClient({
       const result = await updateParentProfile({ displayName: name, avatar: selectedAvatar });
       if (!result.ok) { setError(result.error); return; }
       setSaved(true);
-      router.refresh();
       setTimeout(() => setSaved(false), 2000);
     });
   };

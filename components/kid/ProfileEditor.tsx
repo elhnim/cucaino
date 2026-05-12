@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PinPad from "@/components/kid/PinPad";
 import { updateKidProfile, setKidPin, clearKidPin } from "@/lib/actions/kids";
@@ -52,7 +51,6 @@ export default function ProfileEditor({
   themes: Theme[];
   totalStarsEarned: number;
 }) {
-  const router = useRouter();
   const [name, setName] = useState(serverKid.name);
   const [avatar, setAvatar] = useState(serverKid.avatar);
   const [themeId, setThemeId] = useState(serverKid.themeId);
@@ -83,7 +81,6 @@ export default function ProfileEditor({
       // TODO: persist selectedFrame once updateKidProfile supports it
       if (result.ok) {
         setSaveMsg("Saved!");
-        router.refresh();
         setTimeout(() => setSaveMsg(null), 3000);
       } else {
         setSaveMsg(`Error: ${result.error}`);
@@ -401,7 +398,6 @@ export default function ProfileEditor({
           onClose={() => setPinState({ kind: "idle" })}
           onDone={() => {
             setPinState({ kind: "idle" });
-            router.refresh();
           }}
         />
       ) : null}
