@@ -9,6 +9,7 @@ import {
   listWishlistItems,
 } from "@/lib/data/stub";
 import { addToWishlist, removeFromWishlist } from "@/lib/actions/rewards";
+import RewardClaimButton from "@/components/kid/RewardClaimButton";
 import { BADGE_META } from "@/lib/domain/badge-config";
 import type { Reward, Kid, BadgeProgress, WishlistItem, BadgeCategory } from "@/lib/domain/types";
 // Kid is used in BadgesTab props
@@ -292,9 +293,15 @@ function RewardCard({
         <div className="flex flex-col items-center px-2 pt-6 pb-2.5 flex-1">
           <div className="text-4xl mb-1.5">{r.icon}</div>
           <div className="font-black text-[12px] text-center text-gray-800 leading-tight mb-2.5 px-1">{r.name}</div>
-          <button type="button" className="w-full rounded-xl text-[11px] text-white font-bold py-1.5 mt-auto bg-orange-500">
-            {r.requiresApproval ? "Request →" : "Get it! →"}
-          </button>
+          <RewardClaimButton
+            kidId={kidId}
+            rewardId={r.id}
+            rewardName={r.name}
+            rewardIcon={r.icon}
+            costPoints={r.costPoints}
+            requiresApproval={r.requiresApproval}
+            currentStars={pointsBalance}
+          />
         </div>
       </div>
     );

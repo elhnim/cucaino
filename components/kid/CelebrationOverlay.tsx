@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import AddTaskButton from "@/components/kid/AddTaskButton";
+import type { Task } from "@/lib/domain/types";
 
 // ── FG-01: Task done bottom sheet ──────────────────────────────────────────
 export function TaskDoneSheet({
@@ -60,6 +62,8 @@ export function AllDoneScreen({
   streak,
   taskCount,
   kidId,
+  selfAddableTasks = [],
+  accentColor,
 }: {
   kidName: string;
   kidAvatar: string;
@@ -67,6 +71,8 @@ export function AllDoneScreen({
   streak: number;
   taskCount: number;
   kidId: string;
+  selfAddableTasks?: Task[];
+  accentColor?: string;
 }) {
   return (
     <div
@@ -108,6 +114,20 @@ export function AllDoneScreen({
           </div>
         ))}
       </div>
+
+      {selfAddableTasks.length > 0 && accentColor && (
+        <div className="w-full mb-3">
+          <p className="text-xs font-bold text-white/70 mb-2 text-center">
+            Want to keep the momentum going? 💪
+          </p>
+          <AddTaskButton
+            kidId={kidId}
+            availableTasks={selfAddableTasks}
+            accentColor="rgba(255,255,255,0.25)"
+            dayLabel="today"
+          />
+        </div>
+      )}
 
       <Link
         href={`/kid/${kidId}/home`}

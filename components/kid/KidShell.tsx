@@ -8,14 +8,9 @@ import { getTheme } from "@/lib/themes/presets";
 import KidOverridesApplier from "@/components/kid/KidOverridesApplier";
 import NavIcon from "@/components/ui/NavIcon";
 import BadgeUnlockModal from "@/components/kid/BadgeUnlockModal";
+import { BADGE_META } from "@/lib/domain/badge-config";
 
 type NavKey = "home" | "todo" | "rewards" | "play";
-
-const BADGE_ICONS: Record<string, string> = {
-  champion: "🧹", athlete: "🏃", musician: "🎵",
-  self_care: "✨", explorer: "🗺️", scholar: "📚",
-  streak: "🔥", star_collector: "⭐", task_titan: "⚡",
-};
 
 function wmoIcon(code: number): string {
   if (code === 0) return "☀️";
@@ -224,7 +219,7 @@ export default function KidShell({
                 {badges
                   .filter((b) => b.currentTier !== "none")
                   .map((b) => {
-                    const icon = BADGE_ICONS[b.category] ?? "⭐";
+                    const icon = BADGE_META[b.category as keyof typeof BADGE_META]?.icon ?? "⭐";
                     const tierColor =
                       b.currentTier === "gold" ? "#f59e0b"
                       : b.currentTier === "silver" ? "#9ca3af"

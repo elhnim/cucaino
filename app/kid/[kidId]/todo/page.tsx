@@ -328,6 +328,8 @@ export default async function TodoPage({
           streak={kid.currentStreak}
           total={dayTasks.length}
           initialDone={completions.length}
+          selfAddableTasks={selfAddableTasks}
+          accentColor={theme.accent}
         />
       )}
     </KidShell>

@@ -2,12 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { AllDoneScreen } from "@/components/kid/CelebrationOverlay";
+import type { Task } from "@/lib/domain/types";
 
-/**
- * Listens for the custom "task-completed" event dispatched by TodoTaskCard
- * after each completion. When total completions reach total tasks, shows
- * the FG-03 all-done screen.
- */
 export default function AllDoneDetector({
   kidId,
   kidName,
@@ -15,6 +11,8 @@ export default function AllDoneDetector({
   streak,
   total,
   initialDone,
+  selfAddableTasks,
+  accentColor,
 }: {
   kidId: string;
   kidName: string;
@@ -22,6 +20,8 @@ export default function AllDoneDetector({
   streak: number;
   total: number;
   initialDone: number;
+  selfAddableTasks?: Task[];
+  accentColor?: string;
 }) {
   const [doneCount, setDoneCount] = useState(initialDone);
   const [starsToday, setStarsToday] = useState(0);
@@ -55,6 +55,8 @@ export default function AllDoneDetector({
       starsToday={starsToday}
       streak={streak}
       taskCount={total}
+      selfAddableTasks={selfAddableTasks}
+      accentColor={accentColor}
     />
   );
 }

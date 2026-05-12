@@ -115,6 +115,49 @@ export async function denyRequest(requestId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+export async function claimReward(kidId: string, rewardId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  // Get reward + kid in parallel
+  const [{ data: reward, error: rErr }, { data: kid, error: kErr }] = await Promise.all([
+    supabase.from("rewards").select("*").eq("id", rewardId).single(),
+    supabase.from("kids").select("id, family_id, points_balance").eq("id", kidId).single(),
+  ]);
+  if (rErr || !reward) return { ok: false, error: "Reward not found." };
+  if (kErr || !kid) return { ok: false, error: "Kid not found." };
+  if (kid.points_balance < reward.cost_points) return { ok: false, error: "Not enough stars." };
+
+  if (reward.requires_approval) {
+    // Create a pending request — parent approves before stars are deducted
+    const { error } = await supabase.from("reward_requests").insert({
+      family_id: kid.family_id,
+      reward_id: rewardId,
+      kid_id: kidId,
+    });
+    if (error) return { ok: false, error: error.message };
+  } else {
+    // Deduct stars immediately
+    const { error: deductErr } = await supabase
+      .from("kids")
+      .update({ points_balance: kid.points_balance - reward.cost_points })
+      .eq("id", kidId);
+    if (deductErr) return { ok: false, error: deductErr.message };
+
+    // Record as approved + delivered
+    const { error } = await supabase.from("reward_requests").insert({
+      family_id: kid.family_id,
+      reward_id: rewardId,
+      kid_id: kidId,
+      status: "delivered",
+      points_deducted_at: new Date().toISOString(),
+    });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/kid/${kidId}/rewards`);
+  return { ok: true };
+}
+
 export async function addToWishlist(kidId: string, rewardId: string): Promise<ActionResult> {
   const supabase = await createClient();
 
