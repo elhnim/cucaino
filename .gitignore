@@ -39,3 +39,6 @@ next-env.d.ts
 # Perf audit outputs
 docs/perf-report-*
 docs/perf-screenshots/
+
+# Claude Code worktrees (local agent artifacts)
+.claude/worktrees/
