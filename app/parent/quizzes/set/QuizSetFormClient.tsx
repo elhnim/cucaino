@@ -16,6 +16,7 @@ export default function QuizSetFormClient({ quizSet }: { quizSet?: QuizSet }) {
   const [showDelete, setShowDelete] = useState(false);
 
   const [name, setName] = useState(quizSet?.name ?? "");
+  const [description, setDescription] = useState(quizSet?.description ?? "");
   const [emoji, setEmoji] = useState(quizSet?.emoji ?? "🎯");
   const [themes, setThemes] = useState<string[]>(quizSet?.themes ?? []);
   const [ageBandFilter, setAgeBandFilter] = useState<string | null>(quizSet?.ageBandFilter ?? null);
@@ -31,7 +32,7 @@ export default function QuizSetFormClient({ quizSet }: { quizSet?: QuizSet }) {
     setError(null);
 
     startTransition(async () => {
-      const data = { name: name.trim(), emoji, themes, ageBandFilter, maxDifficulty, questionsPerSession };
+      const data = { name: name.trim(), description: description.trim() || null, emoji, themes, ageBandFilter, maxDifficulty, questionsPerSession };
       const result = quizSet
         ? await updateQuizSet(quizSet.id, data)
         : await createQuizSet(data);
@@ -85,6 +86,15 @@ export default function QuizSetFormClient({ quizSet }: { quizSet?: QuizSet }) {
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Times Tables Challenge"
             className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold"
+          />
+        </div>
+        <div>
+          <label className="text-sm font-bold text-gray-700 block mb-1">Tagline <span className="font-normal text-gray-400">(optional)</span></label>
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="e.g. Test your multiplication skills!"
+            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-600"
           />
         </div>
       </div>

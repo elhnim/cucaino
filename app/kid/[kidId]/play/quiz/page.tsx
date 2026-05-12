@@ -79,9 +79,6 @@ export default async function KidQuizSetsPage({
               const firstTheme = set.themes[0] ?? "custom";
               const cat = getQuizTheme(firstTheme);
               const setQuestions = allQ.filter((q) => set.themes.includes(q.theme as typeof set.themes[number]));
-              const forYouCount = kidAge !== null
-                ? ageMatchedCount(setQuestions, kidAge, difficulty || set.maxDifficulty)
-                : setQuestions.filter((q) => q.choices && q.choices.length > 0).length;
               return (
                 <Link
                   key={set.id}
@@ -97,7 +94,6 @@ export default async function KidQuizSetsPage({
                       ) : (
                         <div className="text-xs text-gray-400">
                           {set.themes.map((t) => getQuizTheme(t).label).join(", ")}
-                          {kidAge !== null && ` · ${forYouCount} for you`}
                         </div>
                       )}
                     </div>

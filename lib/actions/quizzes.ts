@@ -21,6 +21,7 @@ export interface QuestionFormData {
 
 export interface QuizSetFormData {
   name: string;
+  description: string | null;
   emoji: string;
   themes: string[];
   ageBandFilter: string | null;
@@ -87,6 +88,7 @@ export async function createQuizSet(data: QuizSetFormData): Promise<ActionResult
   const { data: row, error } = await supabase.from("quiz_sets").insert({
     family_id: fam.id,
     name: data.name,
+    description: data.description,
     emoji: data.emoji,
     themes: data.themes,
     age_band_filter: data.ageBandFilter,
@@ -103,6 +105,7 @@ export async function updateQuizSet(id: string, data: QuizSetFormData): Promise<
   const supabase = await createClient();
   const { error } = await supabase.from("quiz_sets").update({
     name: data.name,
+    description: data.description,
     emoji: data.emoji,
     themes: data.themes,
     age_band_filter: data.ageBandFilter,

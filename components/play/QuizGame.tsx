@@ -38,13 +38,9 @@ export default function QuizGame({
   players: Player[];
   backHref?: string;
 }) {
-  const DEFAULT_COUNT = Math.min(10, questions.length);
-  const COUNT_OPTIONS = [5, 10, 15, 20].filter((n) => n < questions.length).concat(questions.length);
-
   const [mode, setMode] = useState<Mode>("setup");
   const [gameMode, setGameMode] = useState<"solo" | "turns">("turns");
   const [activePlayers, setActivePlayers] = useState<Player[]>(players);
-  const [questionCount, setQuestionCount] = useState(DEFAULT_COUNT);
   const [activeQuestions, setActiveQuestions] = useState<Question[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [scores, setScores] = useState<Record<string, number>>({});
@@ -81,7 +77,7 @@ export default function QuizGame({
   }, [questionIndex, mode]);
 
   const start = () => {
-    setActiveQuestions(questions.slice(0, questionCount));
+    setActiveQuestions(questions);
     setMode("playing");
     setQuestionIndex(0);
     setScores(Object.fromEntries(activePlayers.map((p) => [p.id, 0])));
@@ -222,31 +218,13 @@ export default function QuizGame({
               })}
             </div>
 
-            <div className="text-sm font-bold text-gray-700 mb-2">QUESTIONS</div>
-            <div className="flex gap-2 flex-wrap mb-6">
-              {COUNT_OPTIONS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setQuestionCount(n)}
-                  className={`px-4 py-2 rounded-xl border-2 font-bold text-sm transition-colors ${
-                    questionCount === n
-                      ? "border-fuchsia-500 bg-fuchsia-50 text-fuchsia-700"
-                      : "border-gray-200 text-gray-600 hover:border-gray-300"
-                  }`}
-                >
-                  {n === questions.length ? `All ${n}` : n}
-                </button>
-              ))}
-            </div>
-
             <button
               type="button"
               onClick={start}
               disabled={activePlayers.length === 0}
               className="w-full bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-50 text-white font-black text-lg py-4 rounded-2xl shadow-lg"
             >
-              ▶ Start {questionCount} questions
+              ▶ Start {questions.length} questions
             </button>
           </div>
         </div>
