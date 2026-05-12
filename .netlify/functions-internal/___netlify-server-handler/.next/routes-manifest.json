@@ -1,0 +1,221 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/kid/[kidId]/practice/[taskId]",
+      "regex": "^/kid/([^/]+?)/practice/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId",
+        "nxtPtaskId": "nxtPtaskId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/practice/(?<nxtPtaskId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/kid/[kidId]/profile",
+      "regex": "^/kid/([^/]+?)/profile(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/profile(?:/)?$"
+    },
+    {
+      "page": "/kid/[kidId]/progress",
+      "regex": "^/kid/([^/]+?)/progress(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/progress(?:/)?$"
+    },
+    {
+      "page": "/kid/[kidId]/rewards",
+      "regex": "^/kid/([^/]+?)/rewards(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/rewards(?:/)?$"
+    },
+    {
+      "page": "/kid/[kidId]/timetable",
+      "regex": "^/kid/([^/]+?)/timetable(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/timetable(?:/)?$"
+    },
+    {
+      "page": "/kid/[kidId]/today",
+      "regex": "^/kid/([^/]+?)/today(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/today(?:/)?$"
+    },
+    {
+      "page": "/kid/[kidId]/tuner",
+      "regex": "^/kid/([^/]+?)/tuner(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/tuner(?:/)?$"
+    },
+    {
+      "page": "/kid/[kidId]/week",
+      "regex": "^/kid/([^/]+?)/week(?:/)?$",
+      "routeKeys": {
+        "nxtPkidId": "nxtPkidId"
+      },
+      "namedRegex": "^/kid/(?<nxtPkidId>[^/]+?)/week(?:/)?$"
+    },
+    {
+      "page": "/play/quiz/[bankId]",
+      "regex": "^/play/quiz/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPbankId": "nxtPbankId"
+      },
+      "namedRegex": "^/play/quiz/(?<nxtPbankId>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/auth/callback",
+      "regex": "^/auth/callback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/auth/callback(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/parent",
+      "regex": "^/parent(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent(?:/)?$"
+    },
+    {
+      "page": "/parent/feedback",
+      "regex": "^/parent/feedback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent/feedback(?:/)?$"
+    },
+    {
+      "page": "/parent/kids",
+      "regex": "^/parent/kids(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent/kids(?:/)?$"
+    },
+    {
+      "page": "/parent/quizzes",
+      "regex": "^/parent/quizzes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent/quizzes(?:/)?$"
+    },
+    {
+      "page": "/parent/requests",
+      "regex": "^/parent/requests(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent/requests(?:/)?$"
+    },
+    {
+      "page": "/parent/rewards",
+      "regex": "^/parent/rewards(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent/rewards(?:/)?$"
+    },
+    {
+      "page": "/parent/settings",
+      "regex": "^/parent/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent/settings(?:/)?$"
+    },
+    {
+      "page": "/parent/tasks",
+      "regex": "^/parent/tasks(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/parent/tasks(?:/)?$"
+    },
+    {
+      "page": "/play",
+      "regex": "^/play(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/play(?:/)?$"
+    },
+    {
+      "page": "/play/quiz",
+      "regex": "^/play/quiz(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/play/quiz(?:/)?$"
+    },
+    {
+      "page": "/select-kid",
+      "regex": "^/select\\-kid(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/select\\-kid(?:/)?$"
+    },
+    {
+      "page": "/signup",
+      "regex": "^/signup(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/signup(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

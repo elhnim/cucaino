@@ -48,6 +48,9 @@ export interface Family {
   familyPointsBalance: number;
   parentDisplayName: string | null;
   parentAvatar: string;
+  weatherCity: string | null;
+  weatherLat: number | null;
+  weatherLon: number | null;
 }
 
 export interface Kid {
@@ -66,6 +69,7 @@ export interface Kid {
   longestStreak: number;
   // New gamification fields
   totalStarsEarned: number;
+  totalCompletions: number;
   selectedAvatarEmoji: string | null;
   selectedFrame: "none" | "blue_glow" | "gold" | "fire" | "rainbow" | null;
 }
@@ -197,7 +201,10 @@ export interface WishlistItem {
 // Gamification — BadgeProgress
 // ----------------------------------------------------------------------------
 
-export type BadgeCategory = "hygiene" | "physical" | "learning" | "chores" | "music" | "mindfulness";
+export type BadgeCategory =
+  | "champion" | "athlete" | "musician" | "self_care" | "explorer" | "scholar"
+  | "streak" | "star_collector" | "task_titan";
+
 export type BadgeTier = "none" | "bronze" | "silver" | "gold";
 
 export interface BadgeProgress {
@@ -206,6 +213,16 @@ export interface BadgeProgress {
   category: BadgeCategory;
   completionCount: number;
   currentTier: BadgeTier;
+  bronzeEarnedAt: string | null;
+  silverEarnedAt: string | null;
+  goldEarnedAt: string | null;
+}
+
+export interface UnlockedBadge {
+  category: BadgeCategory;
+  tier: "bronze" | "silver" | "gold";
+  tierName: string;
+  icon: string;
 }
 
 // ----------------------------------------------------------------------------
@@ -296,6 +313,7 @@ export interface QuizBank {
   id: string;
   familyId: string | null; // null = built-in
   name: string;
+  description: string | null;
   category: QuizCategory;
   minAge: number;
   maxAge: number;
@@ -328,6 +346,7 @@ export interface QuizSet {
   id: string;
   familyId: string | null;       // null = built-in
   name: string;
+  description: string | null;
   emoji: string;
   themes: QuizTheme[];
   ageBandFilter: QuizAgeBand | null;   // null = all ages

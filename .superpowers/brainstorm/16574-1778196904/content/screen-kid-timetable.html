@@ -1,0 +1,335 @@
+<h2>Kid Timetable Setup</h2>
+<p class="subtitle">Kid sets up their weekly template once. It repeats automatically. Individual days can be edited for exceptions (sport day, excursion, etc).</p>
+
+<div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
+
+  <!-- Flow explanation -->
+  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: white; border-radius: 14px; padding: 14px 18px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
+    <div style="background: #dbeafe; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 700; color: #1d4ed8; text-align: center;">Kid taps ✏️ Timetable<br><span style="font-weight: 400; font-size: 10px;">From Todo screen</span></div>
+    <div style="color: #d1d5db; font-size: 18px;">→</div>
+    <div style="background: #ede9fe; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 700; color: #6d28d9; text-align: center;">Weekly grid<br><span style="font-weight: 400; font-size: 10px;">Set subjects per period per day</span></div>
+    <div style="color: #d1d5db; font-size: 18px;">→</div>
+    <div style="background: #d1fae5; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 700; color: #065f46; text-align: center;">Repeats every week<br><span style="font-weight: 400; font-size: 10px;">Automatically</span></div>
+    <div style="color: #d1d5db; font-size: 18px;">→</div>
+    <div style="background: #fff7ed; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 700; color: #92400e; text-align: center;">Override a day<br><span style="font-weight: 400; font-size: 10px;">From Todo for exceptions</span></div>
+  </div>
+
+  <!-- Main timetable grid screen -->
+  <div style="display: flex; gap: 20px; align-items: flex-start;">
+
+    <!-- Phone: Timetable edit screen -->
+    <div style="flex: 1;">
+      <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 10px;">📱 Timetable setup screen</div>
+      <div style="background: white; border-radius: 24px; box-shadow: 0 6px 30px rgba(0,0,0,0.10); overflow: hidden; max-width: 380px; margin: 0 auto;">
+
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #f97316, #fb923c); padding: 14px 18px; display: flex; align-items: center; gap: 12px;">
+          <div style="width: 32px; height: 32px; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; cursor: pointer;">←</div>
+          <div style="flex: 1;">
+            <div style="color: white; font-weight: 800; font-size: 15px;">My Timetable</div>
+            <div style="color: rgba(255,255,255,0.75); font-size: 10px;">Set your weekly subjects</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.2); border-radius: 10px; padding: 6px 12px; color: white; font-size: 11px; font-weight: 700; cursor: pointer;">Save ✓</div>
+        </div>
+
+        <!-- Scroll hint -->
+        <div style="background: #fff7ed; padding: 8px 16px; font-size: 10px; color: #9ca3af; text-align: center;">
+          Tap any period to add or change a subject · Scroll left/right for all days
+        </div>
+
+        <!-- Grid: scroll horizontally on phone -->
+        <div style="background: #f9fafb; overflow-x: auto; padding: 12px 14px;">
+          <table style="border-collapse: collapse; min-width: 480px; width: 100%;">
+            <thead>
+              <tr>
+                <th style="width: 52px; padding: 6px 4px; font-size: 10px; font-weight: 700; color: #9ca3af; text-align: left;"></th>
+                <th style="padding: 6px 6px; font-size: 10px; font-weight: 800; color: #374151; text-align: center; width: 80px;">Mon</th>
+                <th style="padding: 6px 6px; font-size: 10px; font-weight: 800; color: #374151; text-align: center; width: 80px;">Tue</th>
+                <th style="padding: 6px 6px; font-size: 10px; font-weight: 800; color: #374151; text-align: center; width: 80px;">Wed</th>
+                <th style="padding: 6px 6px; font-size: 10px; font-weight: 800; color: #f97316; text-align: center; width: 80px;">Thu ●</th>
+                <th style="padding: 6px 6px; font-size: 10px; font-weight: 800; color: #374151; text-align: center; width: 80px;">Fri</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Period 1 -->
+              <tr>
+                <td style="padding: 4px; font-size: 9px; color: #9ca3af; font-weight: 700; white-space: nowrap;">Period 1</td>
+                <td style="padding: 4px;">
+                  <div style="background: #fef3c7; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer; border: 1.5px solid transparent;">
+                    <div style="font-size: 14px;">➕</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #dbeafe; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">📖</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #fef3c7; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">➕</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #d1fae5; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🔬</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #dbeafe; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">📖</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div>
+                  </div>
+                </td>
+              </tr>
+              <!-- Period 2 -->
+              <tr>
+                <td style="padding: 4px; font-size: 9px; color: #9ca3af; font-weight: 700; white-space: nowrap;">Period 2</td>
+                <td style="padding: 4px;">
+                  <div style="background: #dbeafe; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">📖</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #fef3c7; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">➕</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #d1fae5; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🔬</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #dbeafe; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer; border: 2px solid #f97316;">
+                    <div style="font-size: 14px;">📖</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #f97316; margin-top: 2px;">English</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #fef3c7; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">➕</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div>
+                  </div>
+                </td>
+              </tr>
+              <!-- Period 3 -->
+              <tr>
+                <td style="padding: 4px; font-size: 9px; color: #9ca3af; font-weight: 700; white-space: nowrap;">Period 3</td>
+                <td style="padding: 4px;">
+                  <div style="background: #ffe4e6; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">⚽</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 2px;">PE</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #d1fae5; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🔬</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #fae8ff; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🎨</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 2px;">Art</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #fae8ff; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🎨</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 2px;">Art</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #ffe4e6; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">⚽</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 2px;">PE</div>
+                  </div>
+                </td>
+              </tr>
+              <!-- Period 4 -->
+              <tr>
+                <td style="padding: 4px; font-size: 9px; color: #9ca3af; font-weight: 700; white-space: nowrap;">Period 4</td>
+                <td style="padding: 4px;">
+                  <div style="background: #d1fae5; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🔬</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #fae8ff; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🎨</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 2px;">Art</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #dbeafe; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">📖</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #fef3c7; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">➕</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #d1fae5; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer;">
+                    <div style="font-size: 14px;">🔬</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div>
+                  </div>
+                </td>
+              </tr>
+              <!-- Period 5 — empty slots -->
+              <tr>
+                <td style="padding: 4px; font-size: 9px; color: #9ca3af; font-weight: 700; white-space: nowrap;">Period 5</td>
+                <td style="padding: 4px;">
+                  <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #d1d5db;">
+                    <div style="font-size: 14px; color: #d1d5db;">＋</div>
+                    <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #d1d5db;">
+                    <div style="font-size: 14px; color: #d1d5db;">＋</div>
+                    <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #d1d5db;">
+                    <div style="font-size: 14px; color: #d1d5db;">＋</div>
+                    <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #d1d5db;">
+                    <div style="font-size: 14px; color: #d1d5db;">＋</div>
+                    <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+                  </div>
+                </td>
+                <td style="padding: 4px;">
+                  <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #d1d5db;">
+                    <div style="font-size: 14px; color: #d1d5db;">＋</div>
+                    <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #fff7ed; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 10px; color: #9ca3af;">🔁 Repeats every week</div>
+          <div style="font-size: 10px; color: #f97316; font-weight: 700; cursor: pointer;">+ Add period row</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Subject picker modal -->
+    <div style="flex: 1;">
+      <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 10px;">Tap a cell → subject picker</div>
+      <div style="background: white; border-radius: 24px; box-shadow: 0 6px 30px rgba(0,0,0,0.10); overflow: hidden; max-width: 380px; margin: 0 auto;">
+
+        <!-- Sheet handle -->
+        <div style="background: #f9fafb; padding: 10px; text-align: center; border-bottom: 1px solid #f3f4f6;">
+          <div style="width: 36px; height: 4px; background: #d1d5db; border-radius: 999px; margin: 0 auto 8px;"></div>
+          <div style="font-weight: 800; font-size: 14px; color: #374151;">Thursday · Period 2</div>
+          <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">Tap to pick a subject</div>
+        </div>
+
+        <!-- Subject grid -->
+        <div style="padding: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+
+          <div style="background: #fef3c7; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid #f59e0b;">
+            <div style="font-size: 22px;">➕</div>
+            <div style="font-size: 10px; font-weight: 700; color: #92400e; margin-top: 4px;">Maths</div>
+          </div>
+          <div style="background: #dbeafe; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid transparent;">
+            <div style="font-size: 22px;">📖</div>
+            <div style="font-size: 10px; font-weight: 700; color: #1e40af; margin-top: 4px;">English</div>
+          </div>
+          <div style="background: #d1fae5; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid transparent;">
+            <div style="font-size: 22px;">🔬</div>
+            <div style="font-size: 10px; font-weight: 700; color: #065f46; margin-top: 4px;">Science</div>
+          </div>
+          <div style="background: #ffe4e6; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid transparent;">
+            <div style="font-size: 22px;">⚽</div>
+            <div style="font-size: 10px; font-weight: 700; color: #9f1239; margin-top: 4px;">PE</div>
+          </div>
+          <div style="background: #fae8ff; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid transparent;">
+            <div style="font-size: 22px;">🎨</div>
+            <div style="font-size: 10px; font-weight: 700; color: #7e22ce; margin-top: 4px;">Art</div>
+          </div>
+          <div style="background: #fef9c3; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid transparent;">
+            <div style="font-size: 22px;">🌍</div>
+            <div style="font-size: 10px; font-weight: 700; color: #713f12; margin-top: 4px;">HASS</div>
+          </div>
+          <div style="background: #ecfdf5; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid transparent;">
+            <div style="font-size: 22px;">🎵</div>
+            <div style="font-size: 10px; font-weight: 700; color: #064e3b; margin-top: 4px;">Music</div>
+          </div>
+          <div style="background: #fff1f2; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 2px solid transparent;">
+            <div style="font-size: 22px;">🇫🇷</div>
+            <div style="font-size: 10px; font-weight: 700; color: #881337; margin-top: 4px;">French</div>
+          </div>
+          <!-- Empty slot -->
+          <div style="background: #f9fafb; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+            <div style="font-size: 22px; color: #d1d5db;">＋</div>
+            <div style="font-size: 10px; font-weight: 600; color: #9ca3af; margin-top: 4px;">None</div>
+          </div>
+
+        </div>
+
+        <!-- Clear + done -->
+        <div style="padding: 0 14px 14px; display: flex; gap: 8px;">
+          <div style="flex: 1; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 10px; text-align: center; font-size: 12px; font-weight: 700; color: #6b7280; cursor: pointer;">Clear slot</div>
+          <div style="flex: 2; background: #f97316; border-radius: 12px; padding: 10px; text-align: center; font-size: 12px; font-weight: 800; color: white; cursor: pointer;">Done ✓</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Override from Todo screen -->
+  <div style="background: white; border-radius: 16px; padding: 16px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 10px;">Overriding a day (e.g. excursion, sport day)</div>
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+      <div style="background: white; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;">
+        <div style="font-size: 14px;">🏫</div>
+        <div>
+          <div style="font-size: 12px; font-weight: 700; color: #374151;">School (from template)</div>
+          <div style="font-size: 10px; color: #9ca3af;">Maths · English · Science · Art</div>
+        </div>
+        <div style="background: #f3f4f6; border-radius: 8px; padding: 4px 10px; font-size: 10px; font-weight: 700; color: #374151; cursor: pointer; white-space: nowrap;">✏️ Edit today</div>
+      </div>
+      <div style="color: #d1d5db; font-size: 16px;">→</div>
+      <div style="background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 12px; padding: 10px 14px;">
+        <div style="font-size: 11px; font-weight: 700; color: #92400e;">Today only override</div>
+        <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">Template is unchanged for future weeks</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Design notes -->
+  <div style="background: #f9fafb; border-radius: 12px; padding: 14px 18px; font-size: 11px; color: #374151; line-height: 1.8;">
+    <strong>Design decisions:</strong><br>
+    · Timetable accessed via a dedicated screen (not inline in Todo) — keeps Todo clean<br>
+    · Entry point: "✏️ Timetable" button on the School section header in Todo<br>
+    · Grid scrolls horizontally on phone — all 5 days always present<br>
+    · Subject picker shows standard subjects + kid can later have custom ones<br>
+    · "None / Clear slot" option for free periods<br>
+    · "+ Add period row" to support schools with 5 or 6 periods<br>
+    · Saved template applies from next day onward — current day uses whatever was set
+  </div>
+
+</div>

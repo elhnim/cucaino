@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { getQuizBank, listQuizQuestions, getQuizSet, listQuizQuestions2, listKids } from "@/lib/data/stub";
+import { getQuizBank, listQuizQuestions, getQuizSet, listQuizQuestions2, listKids, getKid } from "@/lib/data/stub";
+import KidShell from "@/components/kid/KidShell";
 import QuizGame from "@/components/play/QuizGame";
 
 export default async function QuizGamePage({
@@ -13,10 +14,11 @@ export default async function QuizGamePage({
   const { kid: kidId } = await searchParams;
 
   // Try new quiz set first, fall back to legacy bank
-  const [set, bank, kids] = await Promise.all([
+  const [set, bank, kids, kid] = await Promise.all([
     getQuizSet(bankId),
     getQuizBank(bankId),
     listKids(),
+    kidId ? getKid(kidId) : Promise.resolve(null),
   ]);
 
   let bankName = "";
@@ -61,8 +63,7 @@ export default async function QuizGamePage({
   if (questions.length === 0) notFound();
 
   const qs = kidId ? `?kid=${kidId}` : "";
-
-  return (
+  const game = (
     <QuizGame
       bankName={bankName}
       questions={questions}
@@ -75,4 +76,9 @@ export default async function QuizGamePage({
       backHref={`/play/quiz${qs}`}
     />
   );
+
+  if (kid) {
+    return <KidShell kid={kid} active="play">{game}</KidShell>;
+  }
+  return game;
 }

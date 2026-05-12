@@ -30,7 +30,7 @@ export default async function SelectKidPage() {
     <SelectKidClient
       kids={kids}
       themes={themes}
-      parentPin={parentPin}
+      hasParentPin={!!parentPin}
       familyName={family?.name ?? null}
       parentDisplayName={family?.parentDisplayName ?? null}
       parentAvatar={family?.parentAvatar ?? "🧙"}

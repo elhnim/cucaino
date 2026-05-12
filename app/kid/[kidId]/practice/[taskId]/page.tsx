@@ -8,10 +8,13 @@ import { getTheme } from "@/lib/themes/presets";
 
 export default async function PracticePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ kidId: string; taskId: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { kidId, taskId } = await params;
+  const { from = "todo" } = await searchParams;
   const kid = await getKid(kidId);
   if (!kid) notFound();
 
@@ -22,20 +25,22 @@ export default async function PracticePage({
   const theme = getTheme(kid.themeId);
   const duration = task.durationMinutes ?? 15;
   const isMusic = task.category === "music";
+  const isPiano = isMusic && /piano|keyboard/i.test(task.name);
+  const backHref = from === "home" ? `/kid/${kid.id}/home` : `/kid/${kid.id}/todo`;
 
   return (
     <KidShell kid={kid} active="home">
       <div className="p-4 md:p-6 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <Link
-            href={`/kid/${kid.id}/home`}
+            href={backHref}
             className="text-sm bg-white/70 hover:bg-white px-3 py-1.5 rounded-full shadow"
           >
-            ← Home
+            ← Schedule
           </Link>
-          {isMusic ? (
+          {isMusic && !isPiano ? (
             <Link
-              href={`/kid/${kid.id}/tuner`}
+              href={`/kid/${kid.id}/tuner?taskId=${task.id}`}
               className="text-sm font-bold text-white px-3 py-1.5 rounded-full shadow"
               style={{ background: theme.accent }}
             >
@@ -77,7 +82,9 @@ export default async function PracticePage({
 
         {isMusic ? (
           <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-3 mt-4 text-sm text-blue-900">
-            💡 <strong>Tip:</strong> Tune up first with the tuner above, then run the metronome alongside the timer.
+            {isPiano
+              ? "💡 Warm up with scales or arpeggios before running the timer."
+              : "💡 Tune up first with the tuner above, then run the metronome alongside the timer."}
           </div>
         ) : null}
       </div>

@@ -146,7 +146,7 @@ export async function updateTask(
   return { ok: true };
 }
 
-export async function addTaskToDay(taskId: string, kidId: string): Promise<ActionResult> {
+export async function addTaskToDay(taskId: string, kidId: string, date?: string): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: fam, error: famErr } = await supabase
     .from("families")
@@ -154,9 +154,9 @@ export async function addTaskToDay(taskId: string, kidId: string): Promise<Actio
     .maybeSingle();
   if (famErr || !fam) return { ok: false, error: "Family not found." };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const targetDate = date ?? new Date().toISOString().slice(0, 10);
   const { error } = await supabase.from("kid_daily_task_additions").upsert(
-    { family_id: fam.id, kid_id: kidId, task_id: taskId, date: today },
+    { family_id: fam.id, kid_id: kidId, task_id: taskId, date: targetDate },
     { onConflict: "kid_id,task_id,date" },
   );
   if (error) return { ok: false, error: error.message };
@@ -174,6 +174,7 @@ export interface SchoolSubjectInput {
   endTime: string;
   room: string | null;
   teacher: string | null;
+  packingList: string[] | null;
 }
 
 export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise<ActionResult> {
@@ -198,6 +199,7 @@ export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise
         custom_label: data.customLabel?.trim() || null,
         room: data.room?.trim() || null,
         teacher: data.teacher?.trim() || null,
+        packing_list: data.packingList ?? null,
       })
       .eq("id", data.id);
     if (error) return { ok: false, error: error.message };
@@ -219,7 +221,7 @@ export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise
       duration_minutes: null,
       requires_completion: false,
       location: null,
-      packing_list: null,
+      packing_list: data.packingList ?? null,
       default_bpm: null,
       default_time_signature: null,
       active: true,
@@ -258,22 +260,3 @@ export async function deleteTask(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function addTaskToDay(taskId: string, kidId: string): Promise<ActionResult> {
-  const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
-
-  const { data: fam, error: famErr } = await supabase
-    .from("families")
-    .select("id")
-    .maybeSingle();
-  if (famErr || !fam) return { ok: false, error: "Family not found." };
-
-  const { error } = await supabase.from("kid_daily_task_additions").upsert(
-    { family_id: fam.id, kid_id: kidId, task_id: taskId, date: today },
-    { onConflict: "kid_id,task_id,date" },
-  );
-  if (error) return { ok: false, error: error.message };
-
-  revalidatePath(`/kid/${kidId}/todo`);
-  return { ok: true };
-}

@@ -1,0 +1,115 @@
+<h2>Kid View — Reps Task in Progress</h2>
+<p class="subtitle">Big tap button, counter, done locked until target hit. Feel right?</p>
+
+<div style="max-width: 400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px;">
+
+  <!-- Reps task active -->
+  <div style="background: #1a1a1a; border-radius: 28px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);">
+    <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+      <div style="width: 10px; height: 10px; background: #333; border-radius: 50%; border: 1.5px solid #444;"></div>
+    </div>
+
+    <div style="background: #f8fafc; border-radius: 16px; overflow: hidden;">
+      <!-- Kid header -->
+      <div style="background: #f97316; padding: 14px 20px; display: flex; align-items: center; gap: 12px;">
+        <div style="width: 44px; height: 44px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 2px solid rgba(255,255,255,0.5);">🦊</div>
+        <div>
+          <div style="color: white; font-weight: 900; font-size: 17px;">Hi Liam</div>
+          <div style="color: rgba(255,255,255,0.7); font-size: 11px;">Thursday, 8 May 2026</div>
+        </div>
+      </div>
+
+      <!-- Task in progress -->
+      <div style="padding: 24px 20px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+
+        <!-- Task label -->
+        <div style="text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 6px;">🏀</div>
+          <div style="font-weight: 900; font-size: 18px; color: #374151;">Basketball Throws</div>
+          <div style="font-size: 13px; color: #9ca3af; margin-top: 2px;">Keep tapping each time you throw!</div>
+        </div>
+
+        <!-- Counter display -->
+        <div style="text-align: center;">
+          <div style="font-size: 72px; font-weight: 900; color: #4338ca; line-height: 1;">67</div>
+          <div style="font-size: 14px; color: #9ca3af; margin-top: 4px;">of <strong style="color: #374151;">100</strong> throws</div>
+          <!-- Progress bar -->
+          <div style="width: 200px; height: 8px; background: #e5e7eb; border-radius: 20px; margin: 10px auto 0;">
+            <div style="width: 67%; height: 100%; background: #4338ca; border-radius: 20px;"></div>
+          </div>
+        </div>
+
+        <!-- Big tap button -->
+        <div style="width: 140px; height: 140px; background: #4338ca; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 30px rgba(67,56,202,0.5); cursor: pointer; user-select: none; flex-shrink: 0;">
+          <div style="text-align: center;">
+            <div style="font-size: 36px; color: white; font-weight: 900; line-height: 1;">+1</div>
+            <div style="font-size: 11px; color: rgba(255,255,255,0.7); margin-top: 2px;">tap!</div>
+          </div>
+        </div>
+
+        <!-- Done button — locked -->
+        <div style="width: 100%; background: #e5e7eb; border-radius: 14px; padding: 14px; text-align: center; color: #9ca3af; font-weight: 700; font-size: 14px;">
+          Done — 33 more to go
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Timer task for comparison -->
+  <div style="background: #1a1a1a; border-radius: 28px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);">
+    <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+      <div style="width: 10px; height: 10px; background: #333; border-radius: 50%; border: 1.5px solid #444;"></div>
+    </div>
+
+    <div style="background: #f8fafc; border-radius: 16px; overflow: hidden;">
+      <div style="background: #f97316; padding: 14px 20px; display: flex; align-items: center; gap: 12px;">
+        <div style="width: 44px; height: 44px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 2px solid rgba(255,255,255,0.5);">🦊</div>
+        <div>
+          <div style="color: white; font-weight: 900; font-size: 17px;">Hi Liam</div>
+          <div style="color: rgba(255,255,255,0.7); font-size: 11px;">Thursday, 8 May 2026</div>
+        </div>
+      </div>
+
+      <div style="padding: 24px 20px; background: #f8fafc; display: flex; flex-direction: column; align-items: center; gap: 20px;">
+
+        <div style="text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 6px;">🎹</div>
+          <div style="font-weight: 900; font-size: 18px; color: #374151;">Piano Practice</div>
+          <div style="font-size: 13px; color: #9ca3af; margin-top: 2px;">Keep going until the timer finishes!</div>
+        </div>
+
+        <!-- Countdown ring -->
+        <div style="position: relative; width: 140px; height: 140px;">
+          <svg width="140" height="140" viewBox="0 0 140 140">
+            <circle cx="70" cy="70" r="60" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+            <circle cx="70" cy="70" r="60" fill="none" stroke="#4338ca" stroke-width="8"
+              stroke-dasharray="377" stroke-dashoffset="113" stroke-linecap="round"
+              transform="rotate(-90 70 70)"/>
+          </svg>
+          <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="font-size: 30px; font-weight: 900; color: #374151;">12:42</div>
+            <div style="font-size: 11px; color: #9ca3af;">remaining</div>
+          </div>
+        </div>
+
+        <!-- Pause button -->
+        <div style="width: 100%; background: white; border: 2px solid #e5e7eb; border-radius: 14px; padding: 14px; text-align: center; color: #374151; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#374151"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          Pause
+        </div>
+
+        <!-- Done button — locked -->
+        <div style="width: 100%; background: #e5e7eb; border-radius: 14px; padding: 14px; text-align: center; color: #9ca3af; font-weight: 700; font-size: 14px;">
+          Done — timer still running
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 14px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151; max-width: 400px; margin-left: auto; margin-right: auto;">
+  Left: reps task — big +1 button, counter, Done locked until 100. Right: timer task — countdown ring, Pause button, Done locked until zero.
+</div>

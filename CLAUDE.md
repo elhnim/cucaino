@@ -98,3 +98,7 @@ Copy `.env.example` to `.env.local` and fill in:
 ### Netlify hook
 
 `.claude/settings.json` runs `node scripts/netlify-watch.mjs` after every Bash tool use to sync Netlify deployments. Do not remove this hook.
+
+## Pre-push checklist
+
+Before every `git push`, run `npm run build` and confirm it succeeds with no errors.

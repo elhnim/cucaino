@@ -1,0 +1,460 @@
+<h2>Kid Timetable — Full Day Grid</h2>
+<p class="subtitle">School-run activities before class (Choir, Band) · Class periods · School-run activities after class (Sports team, Drama). External activities (Karate, Piano) are tasks — not in the timetable.</p>
+
+<div style="background: #ede9fe; border-radius: 10px; padding: 10px 16px; font-size: 11px; color: #5b21b6; font-weight: 600; margin-bottom: 4px;">
+  📌 Key distinction: Timetable = school schedule only. Outside activities (Karate, Swimming, Piano) = tasks in Todo's After school section.
+</div>
+
+<div style="max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px;">
+
+  <!-- Access points -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div style="background: white; border-radius: 14px; padding: 14px 18px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
+      <div style="font-weight: 800; font-size: 12px; color: #374151; margin-bottom: 8px;">Access point 1 — from Todo</div>
+      <!-- Mini Todo section header showing edit button -->
+      <div style="background: #fff7ed; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">☀️ Before school</div>
+          <div style="background: white; border: 1.5px solid #e5e7eb; border-radius: 6px; padding: 3px 8px; font-size: 9px; font-weight: 700; color: #374151; cursor: pointer;">✏️ Timetable</div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">🏫 School</div>
+          <div style="font-size: 9px; color: #9ca3af;">(same button opens full timetable)</div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">🌅 After school</div>
+        </div>
+      </div>
+      <div style="font-size: 10px; color: #9ca3af; margin-top: 8px;">One "✏️ Timetable" button in the header area opens the full timetable screen</div>
+    </div>
+    <div style="background: white; border-radius: 14px; padding: 14px 18px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
+      <div style="font-weight: 800; font-size: 12px; color: #374151; margin-bottom: 8px;">Access point 2 — from Profile</div>
+      <div style="background: #f9fafb; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f3f4f6;">
+          <div style="font-size: 16px;">🎨</div>
+          <div style="flex: 1; font-size: 11px; font-weight: 700; color: #374151;">Avatar &amp; style</div>
+          <div style="font-size: 10px; color: #9ca3af;">→</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; background: #ede9fe; border-radius: 8px; padding: 8px 10px;">
+          <div style="font-size: 16px;">📅</div>
+          <div style="flex: 1; font-size: 11px; font-weight: 700; color: #6d28d9;">My Timetable</div>
+          <div style="font-size: 10px; color: #7c3aed;">→</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 0;">
+          <div style="font-size: 16px;">🔑</div>
+          <div style="flex: 1; font-size: 11px; font-weight: 700; color: #374151;">PIN / Security</div>
+          <div style="font-size: 10px; color: #9ca3af;">→</div>
+        </div>
+      </div>
+      <div style="font-size: 10px; color: #9ca3af; margin-top: 8px;">Also accessible from avatar → Edit profile → My Timetable</div>
+    </div>
+  </div>
+
+  <!-- Full timetable screen -->
+  <div style="background: white; border-radius: 24px; box-shadow: 0 6px 30px rgba(0,0,0,0.10); overflow: hidden;">
+
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #f97316, #fb923c); padding: 14px 22px; display: flex; align-items: center; gap: 12px;">
+      <div style="width: 32px; height: 32px; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; cursor: pointer;">←</div>
+      <div style="flex: 1;">
+        <div style="color: white; font-weight: 800; font-size: 15px;">My Timetable</div>
+        <div style="color: rgba(255,255,255,0.75); font-size: 10px;">🔁 Repeats every week · tap any slot to change</div>
+      </div>
+      <div style="background: white; border-radius: 10px; padding: 7px 14px; color: #f97316; font-size: 12px; font-weight: 800; cursor: pointer;">Save ✓</div>
+    </div>
+
+    <!-- Scroll hint -->
+    <div style="background: #fff7ed; padding: 7px 20px; font-size: 10px; color: #9ca3af; text-align: center; border-bottom: 1px solid #f3f4f6;">
+      Tap a slot to add or change · Tap a filled slot to clear it · Scroll right to see all days →
+    </div>
+
+    <!-- Grid -->
+    <div style="overflow-x: auto; padding: 16px 20px; background: #fafafa;">
+      <table style="border-collapse: separate; border-spacing: 4px; min-width: 600px; width: 100%;">
+        <thead>
+          <tr>
+            <th style="width: 90px; padding: 8px 6px; font-size: 10px; font-weight: 700; color: #9ca3af; text-align: left;"></th>
+            <th style="padding: 8px 4px; font-size: 11px; font-weight: 800; color: #374151; text-align: center; width: 90px;">Mon</th>
+            <th style="padding: 8px 4px; font-size: 11px; font-weight: 800; color: #374151; text-align: center; width: 90px;">Tue</th>
+            <th style="padding: 8px 4px; font-size: 11px; font-weight: 800; color: #374151; text-align: center; width: 90px;">Wed</th>
+            <th style="padding: 8px 4px; font-size: 11px; font-weight: 800; color: #374151; text-align: center; width: 90px;">Thu</th>
+            <th style="padding: 8px 4px; font-size: 11px; font-weight: 800; color: #374151; text-align: center; width: 90px;">Fri</th>
+            <th style="padding: 8px 4px; font-size: 11px; font-weight: 800; color: #6d28d9; text-align: center; width: 90px; border-left: 2px dashed #e5e7eb;">Sat</th>
+            <th style="padding: 8px 4px; font-size: 11px; font-weight: 800; color: #6d28d9; text-align: center; width: 90px;">Sun</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- ── BEFORE SCHOOL ── -->
+          <tr>
+            <td colspan="8" style="padding: 10px 6px 4px;">
+              <div style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; gap: 6px;">
+                <span style="background: #fef3c7; border-radius: 4px; padding: 2px 8px; color: #92400e;">☀️ Before school</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">Early slot</td>
+            <td style="padding: 4px;">
+              <div style="background: #fef9c3; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;">
+                <div style="font-size: 16px;">🎵</div>
+                <div style="font-size: 9px; font-weight: 700; color: #713f12; margin-top: 2px;">School Choir</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #fef9c3; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;">
+                <div style="font-size: 16px;">🎵</div>
+                <div style="font-size: 9px; font-weight: 700; color: #713f12; margin-top: 2px;">School Choir</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px; border-left: 2px dashed #e5e7eb;">
+              <div style="background: #fef9c3; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;">
+                <div style="font-size: 16px;">🏃</div>
+                <div style="font-size: 9px; font-weight: 700; color: #713f12; margin-top: 2px;">Sports Training</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- ── SCHOOL ── -->
+          <tr>
+            <td colspan="8" style="padding: 12px 6px 4px;">
+              <div style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px;">
+                <span style="background: #dbeafe; border-radius: 4px; padding: 2px 8px; color: #1e40af;">🏫 School periods</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">Period 1</td>
+            <td style="padding: 4px;"><div style="background: #fef3c7; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">➕</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div></div></td>
+            <td style="padding: 4px;"><div style="background: #dbeafe; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">📖</div><div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div></div></td>
+            <td style="padding: 4px;"><div style="background: #fef3c7; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">➕</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div></div></td>
+            <td style="padding: 4px;"><div style="background: #d1fae5; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🔬</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div></div></td>
+            <td style="padding: 4px;"><div style="background: #dbeafe; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">📖</div><div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div></div></td>
+            <td style="padding: 4px; border-left: 2px dashed #e5e7eb;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+            <td style="padding: 4px;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">Period 2</td>
+            <td style="padding: 4px;"><div style="background: #dbeafe; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">📖</div><div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div></div></td>
+            <td style="padding: 4px;"><div style="background: #fef3c7; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">➕</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div></div></td>
+            <td style="padding: 4px;"><div style="background: #d1fae5; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🔬</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div></div></td>
+            <td style="padding: 4px;"><div style="background: #dbeafe; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">📖</div><div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div></div></td>
+            <td style="padding: 4px;"><div style="background: #fef3c7; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">➕</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div></div></td>
+            <td style="padding: 4px; border-left: 2px dashed #e5e7eb;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+            <td style="padding: 4px;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">Period 3</td>
+            <td style="padding: 4px;"><div style="background: #ffe4e6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">⚽</div><div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 2px;">PE</div></div></td>
+            <td style="padding: 4px;"><div style="background: #d1fae5; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🔬</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div></div></td>
+            <td style="padding: 4px;"><div style="background: #fae8ff; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🎨</div><div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 2px;">Art</div></div></td>
+            <td style="padding: 4px;"><div style="background: #fae8ff; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🎨</div><div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 2px;">Art</div></div></td>
+            <td style="padding: 4px;"><div style="background: #ffe4e6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">⚽</div><div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 2px;">PE</div></div></td>
+            <td style="padding: 4px; border-left: 2px dashed #e5e7eb;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+            <td style="padding: 4px;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">Period 4</td>
+            <td style="padding: 4px;"><div style="background: #d1fae5; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🔬</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div></div></td>
+            <td style="padding: 4px;"><div style="background: #fae8ff; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🎨</div><div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 2px;">Art</div></div></td>
+            <td style="padding: 4px;"><div style="background: #dbeafe; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">📖</div><div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 2px;">English</div></div></td>
+            <td style="padding: 4px;"><div style="background: #fef3c7; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">➕</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 2px;">Maths</div></div></td>
+            <td style="padding: 4px;"><div style="background: #d1fae5; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;"><div style="font-size: 16px;">🔬</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 2px;">Science</div></div></td>
+            <td style="padding: 4px; border-left: 2px dashed #e5e7eb;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+            <td style="padding: 4px;"><div style="background: #f9fafb; border-radius: 8px; padding: 8px 6px; text-align: center; opacity: 0.6;"><div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">No school</div></div></td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">+ Add period</td>
+            <td colspan="7" style="padding: 4px;">
+              <div style="border: 1.5px dashed #e5e7eb; border-radius: 8px; padding: 6px; text-align: center; font-size: 10px; font-weight: 700; color: #9ca3af; cursor: pointer;">+ Add period row</div>
+            </td>
+          </tr>
+
+          <!-- ── AFTER SCHOOL ── -->
+          <tr>
+            <td colspan="8" style="padding: 12px 6px 4px;">
+              <div style="font-size: 10px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.6px;">
+                <span style="background: #ffe4e6; border-radius: 4px; padding: 2px 8px; color: #9f1239;">🌅 After school</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">Activity 1</td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #ffe4e6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;">
+                <div style="font-size: 16px;">⚽</div>
+                <div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 2px;">School Sport</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #fae8ff; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;">
+                <div style="font-size: 16px;">🎭</div>
+                <div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 2px;">Drama Club</div>
+              </div>
+            </td>
+            <td style="padding: 4px; border-left: 2px dashed #e5e7eb;">
+              <div style="background: #ffe4e6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer;">
+                <div style="font-size: 16px;">⚽</div>
+                <div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 2px;">Sport Match</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">Activity 2</td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px; border-left: 2px dashed #e5e7eb;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+            <td style="padding: 4px;">
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;">
+                <div style="font-size: 16px; color: #d1d5db;">＋</div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 2px;">Add</div>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 4px 6px; font-size: 10px; color: #9ca3af; font-weight: 600; white-space: nowrap; vertical-align: middle;">+ Add row</td>
+            <td colspan="7" style="padding: 4px;">
+              <div style="border: 1.5px dashed #e5e7eb; border-radius: 8px; padding: 6px; text-align: center; font-size: 10px; font-weight: 700; color: #9ca3af; cursor: pointer;">+ Add after-school slot</div>
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer actions -->
+    <div style="background: #fff7ed; padding: 12px 22px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #f3f4f6;">
+      <div style="font-size: 11px; color: #9ca3af;">🔁 Saves as weekly template · overrides stay per-day</div>
+      <div style="background: #f97316; border-radius: 12px; padding: 10px 20px; color: white; font-size: 12px; font-weight: 800; cursor: pointer;">Save timetable ✓</div>
+    </div>
+
+  </div>
+
+  <!-- Subject picker (what appears when you tap a slot) -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;">
+
+    <!-- School subject picker -->
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+      <div style="background: #dbeafe; padding: 12px 16px;">
+        <div style="width: 32px; height: 4px; background: rgba(30,64,175,0.3); border-radius: 999px; margin: 0 auto 8px;"></div>
+        <div style="font-weight: 800; font-size: 13px; color: #1e40af; text-align: center;">🏫 Pick a subject</div>
+        <div style="font-size: 10px; color: #3b82f6; text-align: center; margin-top: 2px;">Monday · Period 1</div>
+      </div>
+      <div style="padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+        <div style="background: #fef3c7; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; border: 2px solid #f59e0b;"><div style="font-size: 18px;">➕</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 3px;">Maths</div></div>
+        <div style="background: #dbeafe; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">📖</div><div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 3px;">English</div></div>
+        <div style="background: #d1fae5; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🔬</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 3px;">Science</div></div>
+        <div style="background: #ffe4e6; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">⚽</div><div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 3px;">PE</div></div>
+        <div style="background: #fae8ff; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🎨</div><div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 3px;">Art</div></div>
+        <div style="background: #fef9c3; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🌍</div><div style="font-size: 9px; font-weight: 700; color: #713f12; margin-top: 3px;">HASS</div></div>
+        <div style="background: #ecfdf5; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🎵</div><div style="font-size: 9px; font-weight: 700; color: #064e3b; margin-top: 3px;">Music</div></div>
+        <div style="background: #fff1f2; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🇫🇷</div><div style="font-size: 9px; font-weight: 700; color: #881337; margin-top: 3px;">French</div></div>
+        <div style="background: #f9fafb; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;"><div style="font-size: 18px; color: #d1d5db;">✕</div><div style="font-size: 9px; color: #9ca3af; margin-top: 3px;">Clear</div></div>
+      </div>
+      <div style="padding: 0 12px 12px; display: flex; gap: 8px;">
+        <div style="flex: 1; background: #f97316; border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Done ✓</div>
+      </div>
+    </div>
+
+    <!-- Before/After school activity picker (school-run only) -->
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+      <div style="background: #fef9c3; padding: 12px 16px;">
+        <div style="width: 32px; height: 4px; background: rgba(113,63,18,0.2); border-radius: 999px; margin: 0 auto 8px;"></div>
+        <div style="font-weight: 800; font-size: 13px; color: #713f12; text-align: center;">🏫 Pick a school activity</div>
+        <div style="font-size: 10px; color: #92400e; text-align: center; margin-top: 2px;">Monday · Before school slot</div>
+      </div>
+      <div style="padding: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+        <div style="background: #fef9c3; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; border: 2px solid #f59e0b;"><div style="font-size: 18px;">🎵</div><div style="font-size: 9px; font-weight: 700; color: #713f12; margin-top: 3px;">Choir</div></div>
+        <div style="background: #fef9c3; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🎺</div><div style="font-size: 9px; font-weight: 700; color: #713f12; margin-top: 3px;">School Band</div></div>
+        <div style="background: #ffe4e6; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">⚽</div><div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 3px;">School Sport</div></div>
+        <div style="background: #fae8ff; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🎭</div><div style="font-size: 9px; font-weight: 700; color: #7e22ce; margin-top: 3px;">Drama Club</div></div>
+        <div style="background: #dbeafe; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🔬</div><div style="font-size: 9px; font-weight: 700; color: #1e40af; margin-top: 3px;">Science Club</div></div>
+        <div style="background: #d1fae5; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">📰</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 3px;">Debating</div></div>
+        <div style="background: #fef3c7; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">♟️</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 3px;">Chess Club</div></div>
+        <div style="background: #ecfdf5; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🌿</div><div style="font-size: 9px; font-weight: 700; color: #065f46; margin-top: 3px;">Garden Club</div></div>
+        <div style="background: #ffe4e6; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">💪</div><div style="font-size: 9px; font-weight: 700; color: #9f1239; margin-top: 3px;">Fitness</div></div>
+        <div style="background: #fef3c7; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer;"><div style="font-size: 18px;">🥁</div><div style="font-size: 9px; font-weight: 700; color: #92400e; margin-top: 3px;">Taiko</div></div>
+        <div style="background: #f9fafb; border-radius: 10px; padding: 10px 6px; text-align: center; cursor: pointer; border: 1.5px dashed #e5e7eb;"><div style="font-size: 18px; color: #d1d5db;">✕</div><div style="font-size: 9px; color: #9ca3af; margin-top: 3px;">Clear</div></div>
+      </div>
+      <div style="padding: 0 12px 12px; display: flex; gap: 8px;">
+        <div style="flex: 1; background: #f97316; border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Done ✓</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Full subject + school activity list -->
+  <div style="background: white; border-radius: 16px; padding: 16px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 14px;">Full list — what kids can add to the timetable</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+
+      <!-- Class subjects -->
+      <div>
+        <div style="font-size: 10px; font-weight: 800; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; background: #dbeafe; border-radius: 6px; padding: 3px 8px; display: inline-block;">🏫 Class subjects</div>
+        <div style="display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: #374151;">
+          <div>➕ Maths</div>
+          <div>📖 English / Literacy</div>
+          <div>🔬 Science</div>
+          <div>🌍 HASS / History / Geography</div>
+          <div>🎨 Art / Visual Arts</div>
+          <div>⚽ PE / Physical Education</div>
+          <div>🎵 Music</div>
+          <div>💻 Technology / Computing</div>
+          <div>🇫🇷 French</div>
+          <div>🇪🇸 Spanish</div>
+          <div>🇨🇳 Mandarin / Chinese</div>
+          <div>🇩🇪 German</div>
+          <div>🇯🇵 Japanese</div>
+          <div>📐 Design / DT</div>
+          <div>🏥 Health</div>
+          <div>🎬 Media Studies</div>
+          <div>📊 Business Studies</div>
+          <div>🙏 Religious Education</div>
+          <div>🎭 Drama</div>
+          <div>📚 Library / Reading</div>
+        </div>
+      </div>
+
+      <!-- Before school school activities -->
+      <div>
+        <div style="font-size: 10px; font-weight: 800; color: #713f12; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; background: #fef9c3; border-radius: 6px; padding: 3px 8px; display: inline-block;">☀️ Before school</div>
+        <div style="display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: #374151;">
+          <div>🎵 School Choir</div>
+          <div>🎺 School Band</div>
+          <div>🎻 Orchestra</div>
+          <div>⚽ Sports training</div>
+          <div>🏃 Cross country training</div>
+          <div>♟️ Chess Club</div>
+          <div>📰 Debating practice</div>
+          <div>🌿 Garden Club</div>
+          <div>🔬 Science Club</div>
+          <div>📷 Photography Club</div>
+          <div>🤝 Student Council</div>
+          <div>💪 Fitness</div>
+        </div>
+      </div>
+
+      <!-- After school school activities -->
+      <div>
+        <div style="font-size: 10px; font-weight: 800; color: #9f1239; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; background: #ffe4e6; border-radius: 6px; padding: 3px 8px; display: inline-block;">🌅 After school</div>
+        <div style="display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: #374151;">
+          <div>⚽ School Sport / Inter-school</div>
+          <div>🎭 Drama Club / School Play</div>
+          <div>🎵 Choir rehearsal</div>
+          <div>🎺 Band rehearsal</div>
+          <div>📰 Debating competition</div>
+          <div>♟️ Chess competition</div>
+          <div>🔬 Science Club project</div>
+          <div>🌿 Garden Club</div>
+          <div>📷 Photography Club</div>
+          <div>🤝 Student Council meeting</div>
+          <div>📚 Homework Club / Study</div>
+          <div>🎨 Art Club</div>
+          <div>🥁 Taiko</div>
+        </div>
+      </div>
+
+    </div>
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #f3f4f6; font-size: 10px; color: #9ca3af;">
+      External activities (Karate, Swimming, Piano lessons, Soccer club, etc.) are <strong>tasks</strong> — added in Todo, not in the timetable.
+    </div>
+  </div>
+
+  <!-- Notes -->
+  <div style="background: #f9fafb; border-radius: 12px; padding: 14px 18px; font-size: 11px; color: #374151; line-height: 1.8;">
+    <strong>How it works:</strong><br>
+    · Three sections per day: Before school (school activities) · Class periods (subjects) · After school (school activities)<br>
+    · The subject registry in <code>subject-registry.ts</code> covers both class subjects and school activities<br>
+    · Subjects and school activities flow into Todo as read-only display rows — they are <em>not</em> tasks and earn no stars<br>
+    · External activities (Karate, Piano, etc.) are tasks added to the After school section of Todo separately<br>
+    · "✏️ Timetable" button in Todo opens the full grid; also accessible from Avatar → Edit profile → My Timetable<br>
+    · Overriding a single day from Todo only affects that one day — template unchanged for future weeks
+  </div>
+
+</div>

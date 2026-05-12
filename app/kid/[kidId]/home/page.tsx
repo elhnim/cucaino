@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import PrefetchRoutes from "@/components/kid/PrefetchRoutes";
 import Link from "next/link";
 import KidShell from "@/components/kid/KidShell";
 import {
@@ -6,11 +7,14 @@ import {
   listTasksForKid,
   listCompletionsToday,
   listBadgeProgress,
+  listKids,
+  listWeeklyStarsByKid,
   getFamily,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
 import { SUBJECTS } from "@/lib/registry/subject-registry";
+import { BADGE_META, BADGE_THRESHOLDS, getTierFromCount } from "@/lib/domain/badge-config";
 import type { BadgeProgress, DayOfWeek } from "@/lib/domain/types";
 
 const LEVELS = [
@@ -43,10 +47,6 @@ const ENCOURAGEMENTS = [
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
-const TIER_THRESHOLDS = { bronze: 10, silver: 50, gold: 100 } as const;
-const BADGE_ICONS: Record<string, string> = {
-  hygiene: "🪥", physical: "🏃", learning: "📚", chores: "🧹", music: "🎵", mindfulness: "🧘",
-};
 
 export default async function KidHomePage({
   params,
@@ -60,11 +60,13 @@ export default async function KidHomePage({
   const now = new Date();
   const dow = isoWeekday(now);
 
-  const [tasks, completions, badges, family] = await Promise.all([
+  const [tasks, completions, badges, family, allKids, weeklyStars] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
     listBadgeProgress(kid.id),
     getFamily(),
+    listKids(),
+    listWeeklyStarsByKid(),
   ]);
 
   const todayTasks = tasksForDay(tasks, dow);
@@ -110,12 +112,25 @@ export default async function KidHomePage({
   } : undefined;
 
   return (
-    <KidShell kid={kid} active="home" familyGoal={familyGoal}>
+    <KidShell
+      kid={kid}
+      active="home"
+      familyGoal={familyGoal}
+      todayProgress={{ done, total }}
+      badges={badges}
+      weatherLocation={
+        family?.weatherLat != null && family?.weatherLon != null
+          ? { lat: family.weatherLat, lon: family.weatherLon }
+          : undefined
+      }
+    >
       <div className="p-4 space-y-3">
+        <PrefetchRoutes routes={[`/kid/${kid.id}/todo`, `/kid/${kid.id}/rewards`, `/play`]} />
 
-        {/* 1. Level badge strip */}
+        {/* 1. Profile Level strip */}
         <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="mb-2.5">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Profile Level</span>
             <span
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black"
               style={{ background: level.color + "20", color: level.color }}
@@ -268,7 +283,7 @@ export default async function KidHomePage({
                 return (
                   <span
                     key={t.id}
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold text-white ${subj ? subj.bgClass : ""}`}
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "text-white"}`}
                     style={!subj ? { background: theme.accent } : undefined}
                   >
                     {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
@@ -279,7 +294,7 @@ export default async function KidHomePage({
           </div>
         )}
 
-        {/* 6. Badge progress — 3-col grid cards */}
+        {/* 6. Badge highlights — top 3 in progress */}
         {badgesInProgress.length > 0 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -294,38 +309,30 @@ export default async function KidHomePage({
             </div>
             <div className="grid grid-cols-3 gap-2">
               {badgesInProgress.map((b) => {
-                const nextThreshold =
-                  b.currentTier === "gold" ? 100
-                  : b.currentTier === "silver" ? TIER_THRESHOLDS.gold
-                  : b.currentTier === "bronze" ? TIER_THRESHOLDS.silver
-                  : TIER_THRESHOLDS.bronze;
-                const prevThreshold =
-                  b.currentTier === "silver" ? TIER_THRESHOLDS.bronze
-                  : b.currentTier === "gold" ? TIER_THRESHOLDS.silver
-                  : 0;
-                const pct = Math.min(1, (b.completionCount - prevThreshold) / (nextThreshold - prevThreshold));
-                const tierLabel =
-                  b.currentTier === "gold" ? `${b.completionCount} / 100 🥇`
-                  : b.currentTier === "silver" ? `${b.completionCount} / 100 🥈`
-                  : b.currentTier === "bronze" ? `${b.completionCount} / 50 🥈`
-                  : `${b.completionCount} / 10 🥉`;
+                const meta = BADGE_META[b.category];
+                const thresholds = BADGE_THRESHOLDS[b.category];
+                if (!meta || !thresholds) return null;
+                const tier = getTierFromCount(b.category, b.completionCount);
+                const prevThreshold = tier === "gold" ? thresholds.silver : tier === "silver" ? thresholds.bronze : 0;
+                const nextThreshold = tier === "gold" ? thresholds.gold : tier === "silver" ? thresholds.gold : tier === "bronze" ? thresholds.silver : thresholds.bronze;
+                const pct = tier === "gold" ? 1 : Math.min(1, (b.completionCount - prevThreshold) / (nextThreshold - prevThreshold));
+                const tierEmoji = tier === "gold" ? "🥇" : tier === "silver" ? "🥈" : tier === "bronze" ? "🥉" : "";
                 return (
                   <div
-                    key={b.id}
+                    key={b.category}
                     className="rounded-2xl p-2.5 text-center border-[1.5px]"
                     style={{ background: theme.accentSoft, borderColor: theme.accent + "44" }}
                   >
-                    <div className="text-2xl mb-1">{BADGE_ICONS[b.category] ?? "🏅"}</div>
+                    <div className="text-2xl mb-1">{meta.icon}</div>
                     <div className="text-[9px] font-black uppercase tracking-wide mb-1.5" style={{ color: theme.accent }}>
-                      {b.category}
+                      {meta.label}
                     </div>
                     <div className="h-1 rounded-full bg-gray-200 overflow-hidden mb-1">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${Math.round(pct * 100)}%`, background: theme.accent }}
-                      />
+                      <div className="h-full rounded-full" style={{ width: `${Math.round(pct * 100)}%`, background: theme.accent }} />
                     </div>
-                    <div className="text-[9px] text-gray-400 font-semibold">{tierLabel}</div>
+                    <div className="text-[9px] text-gray-400 font-semibold">
+                      {b.completionCount} / {nextThreshold} {tierEmoji}
+                    </div>
                   </div>
                 );
               })}
@@ -333,7 +340,48 @@ export default async function KidHomePage({
           </div>
         )}
 
-        {/* 7. Encouragement */}
+        {/* 7. Family race this week */}
+        {allKids.length > 1 && (() => {
+          const ranked = allKids
+            .map((k) => ({ kid: k, stars: weeklyStars[k.id] ?? 0 }))
+            .sort((a, b) => b.stars - a.stars);
+          const leader = ranked[0]?.stars ?? 0;
+          return (
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
+              <h3 className="text-sm font-black text-gray-800 mb-3">🏁 This week&apos;s family race</h3>
+              <div className="space-y-2">
+                {ranked.map(({ kid: k, stars }, idx) => {
+                  const isMe = k.id === kid.id;
+                  const barPct = leader > 0 ? (stars / leader) * 100 : 0;
+                  const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉";
+                  const gap = leader - stars;
+                  return (
+                    <div key={k.id} className={`flex items-center gap-2 p-2 rounded-xl ${isMe ? "bg-indigo-50" : ""}`}>
+                      <span className="text-lg w-6 text-center">{medal}</span>
+                      <span className="text-xl w-8 text-center">{k.avatar}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <span className={`text-sm font-bold ${isMe ? "text-indigo-700" : "text-gray-700"}`}>
+                            {k.name}{isMe && " (you)"}
+                          </span>
+                        </div>
+                        <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${barPct}%`, background: isMe ? "#4f46e5" : "#d1d5db" }} />
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-bold">⭐ {stars}</div>
+                        {gap > 0 && isMe && <div className="text-[10px] text-gray-400">{gap} behind</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 8. Encouragement */}
         <div className="bg-white/60 rounded-2xl px-4 py-3 text-center text-sm text-gray-500 font-medium">
           {encouragement}
         </div>

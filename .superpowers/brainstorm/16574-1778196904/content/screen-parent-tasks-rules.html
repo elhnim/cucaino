@@ -1,0 +1,201 @@
+<h2>Parent Tasks — Rule Types</h2>
+<p class="subtitle">Each task has a Rule that controls how it appears and when. Tap a task to see its edit form.</p>
+
+<div style="max-width: 680px; margin: 0 auto; display: flex; gap: 20px; align-items: flex-start;">
+
+  <!-- Left: Task list -->
+  <div style="flex: 1; background: #1a1a1a; border-radius: 28px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);">
+    <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+      <div style="width: 10px; height: 10px; background: #333; border-radius: 50%; border: 1.5px solid #444;"></div>
+    </div>
+
+    <div style="background: #f8fafc; border-radius: 16px; overflow: hidden;">
+      <!-- Mini header -->
+      <div style="background: #4338ca; padding: 12px 18px;">
+        <div style="color: white; font-weight: 900; font-size: 17px;">Tasks</div>
+      </div>
+
+      <div style="padding: 14px 18px; background: #f8fafc;">
+
+        <!-- Filter + Add -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+          <div style="display: flex; gap: 6px;">
+            <div style="background: #4338ca; color: white; border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 700;">All</div>
+            <div style="background: white; color: #6b7280; border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 600; border: 1.5px solid #e5e7eb;">🦊 Liam</div>
+            <div style="background: white; color: #6b7280; border-radius: 20px; padding: 5px 12px; font-size: 11px; font-weight: 600; border: 1.5px solid #e5e7eb;">🐼 Mia</div>
+          </div>
+          <div style="background: #4338ca; color: white; border-radius: 10px; padding: 6px 12px; font-size: 11px; font-weight: 700;">+ Add</div>
+        </div>
+
+        <!-- STRICT tasks -->
+        <div style="font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Strict</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;">
+
+          <div style="background: white; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid #ef4444;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">🦷</span>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Brush teeth</div>
+                <div style="font-size: 10px; color: #9ca3af;">Every day · Morning + Evening · 🦊 🐼</div>
+              </div>
+            </div>
+            <span style="background: #fee2e2; color: #ef4444; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;">STRICT</span>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid #ef4444;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">🛏️</span>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Make bed</div>
+                <div style="font-size: 10px; color: #9ca3af;">Every day · Morning · 🦊 🐼</div>
+              </div>
+            </div>
+            <span style="background: #fee2e2; color: #ef4444; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;">STRICT</span>
+          </div>
+
+        </div>
+
+        <!-- FLEXIBLE tasks -->
+        <div style="font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Flexible</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;">
+
+          <div style="background: white; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid #f59e0b;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">🎹</span>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Piano practice</div>
+                <div style="font-size: 10px; color: #9ca3af;">3× per week · 20 min each · 🦊 · ⭐ 20</div>
+              </div>
+            </div>
+            <span style="background: #fef3c7; color: #d97706; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;">FLEXIBLE</span>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid #f59e0b;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">📚</span>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Read for 20 min</div>
+                <div style="font-size: 10px; color: #9ca3af;">5× per week · 20 min each · 🦊 🐼 · ⭐ 15</div>
+              </div>
+            </div>
+            <span style="background: #fef3c7; color: #d97706; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;">FLEXIBLE</span>
+          </div>
+
+        </div>
+
+        <!-- FLEXIBLE bonus (0×) tasks -->
+        <div style="font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Flexible — bonus (0× min)</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+
+          <div style="background: white; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid #f59e0b;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">🧹</span>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Tidy bedroom</div>
+                <div style="font-size: 10px; color: #9ca3af;">0× min · Kids pick when · 🦊 🐼 · ⭐ 10</div>
+              </div>
+            </div>
+            <span style="background: #fef3c7; color: #d97706; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;">FLEXIBLE</span>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; border-left: 3px solid #f59e0b;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 20px;">🐶</span>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Feed the dog</div>
+                <div style="font-size: 10px; color: #9ca3af;">0× min · Kids pick when · 🦊 🐼 · ⭐ 15</div>
+              </div>
+            </div>
+            <span style="background: #fef3c7; color: #d97706; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 20px;">FLEXIBLE</span>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Edit form for a Strict task -->
+  <div style="flex: 1; display: flex; flex-direction: column; gap: 16px;">
+
+    <!-- Strict form -->
+    <div style="background: white; border-radius: 20px; padding: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-top: 4px solid #ef4444;">
+      <div style="font-weight: 800; font-size: 14px; color: #374151; margin-bottom: 14px;">Edit Task — Brush Teeth</div>
+
+      <!-- Rule type selector -->
+      <div style="margin-bottom: 14px;">
+        <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Rule</div>
+        <div style="display: flex; gap: 6px;">
+          <div style="background: #fee2e2; color: #ef4444; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700; border: 2px solid #ef4444;">Strict</div>
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;">Flexible</div>
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;">Optional</div>
+        </div>
+      </div>
+
+      <!-- Strict-specific fields -->
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Frequency</div>
+        <div style="display: flex; gap: 6px;">
+          <div style="background: #4338ca; color: white; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700;">Every day</div>
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;">Weekdays</div>
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;">Weekends</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Time slots (parent assigns)</div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <div style="background: #4338ca; color: white; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700;">Morning</div>
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;">Afternoon</div>
+          <div style="background: #4338ca; color: white; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700;">Evening</div>
+        </div>
+        <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;">Appears in each selected slot — 2 instances today</div>
+      </div>
+
+      <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 4px;">Points per completion</div>
+      <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: #374151; width: 60px;">⭐ 5</div>
+    </div>
+
+    <!-- Flexible form -->
+    <div style="background: white; border-radius: 20px; padding: 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-top: 4px solid #f59e0b;">
+      <div style="font-weight: 800; font-size: 14px; color: #374151; margin-bottom: 14px;">Edit Task — Piano Practice</div>
+
+      <div style="margin-bottom: 14px;">
+        <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Rule</div>
+        <div style="display: flex; gap: 6px;">
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;">Strict</div>
+          <div style="background: #fef3c7; color: #d97706; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700; border: 2px solid #f59e0b;">Flexible</div>
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600;">Optional</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Target frequency</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="background: #f3f4f6; border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 700; color: #374151;">3×</div>
+          <span style="font-size: 12px; color: #6b7280;">per week</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Duration per session</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="background: #f3f4f6; border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 700; color: #374151;">20 min</div>
+        </div>
+        <div style="font-size: 10px; color: #9ca3af; margin-top: 4px;">Kids choose which days to do it — shows in their flexible task pool</div>
+      </div>
+
+      <div style="font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 4px;">Points per session</div>
+      <div style="background: #f3f4f6; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: #374151; width: 60px;">⭐ 20</div>
+    </div>
+
+  </div>
+
+</div>
+
+<div style="margin-top: 14px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151;">
+  <strong>Rule summary:</strong><br>
+  🔴 <strong>Strict</strong> — Parent sets frequency + time slot. Appears automatically each day in the right slot.<br>
+  🟡 <strong>Flexible</strong> — Parent sets weekly target + duration. Kid decides which days — sits in their "to schedule" pool.<br>
+  🟢 <strong>Optional</strong> — No schedule. Kid picks from the list any time to earn stars.
+</div>

@@ -1,0 +1,66 @@
+<h2>Parent Nav — Which Items?</h2>
+<p class="subtitle">Select all the items you want visible in the nav bar. Click to toggle.</p>
+
+<div class="options" data-multiselect style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+
+  <div class="option" data-choice="home" onclick="toggleSelect(this)">
+    <div class="letter">🏠</div>
+    <div class="content">
+      <h3>Home</h3>
+      <p>Overview / dashboard</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="tasks" onclick="toggleSelect(this)">
+    <div class="letter">✅</div>
+    <div class="content">
+      <h3>Tasks</h3>
+      <p>Manage chores and activities</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="rewards" onclick="toggleSelect(this)">
+    <div class="letter">🎁</div>
+    <div class="content">
+      <h3>Rewards</h3>
+      <p>Manage reward catalogue</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="requests" onclick="toggleSelect(this)">
+    <div class="letter">🔔</div>
+    <div class="content">
+      <h3>Requests</h3>
+      <p>Pending reward requests from kids</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="kids" onclick="toggleSelect(this)">
+    <div class="letter">👨‍👩‍👧</div>
+    <div class="content">
+      <h3>Kids</h3>
+      <p>Manage kid profiles</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="quizzes" onclick="toggleSelect(this)">
+    <div class="letter">🧠</div>
+    <div class="content">
+      <h3>Quizzes</h3>
+      <p>Quiz bank editor</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="settings" onclick="toggleSelect(this)">
+    <div class="letter">⚙️</div>
+    <div class="content">
+      <h3>Settings</h3>
+      <p>Account and app settings</p>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 16px; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 13px; color: #6b7280; text-align: center;">
+  Select as many as you like, then tell me in the terminal.
+</div>

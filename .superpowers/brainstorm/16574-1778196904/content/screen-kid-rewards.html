@@ -1,0 +1,541 @@
+<h2>Rewards — Kid Shop</h2>
+<p class="subtitle">Wishlist pinned at top · reward grid below · Individual / Team / One-off types · can-afford vs. saving states</p>
+
+<div style="max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px;">
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 1. KID SHOP — phone + iPad -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px;">1 · Kid rewards shop</div>
+    <div style="display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start;">
+
+      <!-- ── Phone ── -->
+      <div style="background: white; border-radius: 24px; box-shadow: 0 6px 30px rgba(0,0,0,0.10); overflow: hidden;">
+
+        <!-- Shell header — orange theme -->
+        <div style="background: linear-gradient(135deg, #f97316, #fb923c); padding: 14px 18px 10px; display: flex; align-items: center; gap: 12px;">
+          <div style="position: relative; width: 40px; height: 40px; flex-shrink: 0;">
+            <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px;">🦊</div>
+            <div style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px;">✏️</div>
+          </div>
+          <div style="flex: 1;">
+            <div style="color: white; font-weight: 800; font-size: 15px;">Hi Liam! 👋</div>
+            <div style="color: rgba(255,255,255,0.7); font-size: 10px;">Thursday, 8 May</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.2); border-radius: 10px; padding: 5px 10px; display: flex; align-items: center; gap: 5px;">
+            <div style="font-size: 13px;">⭐</div>
+            <div style="color: white; font-weight: 900; font-size: 14px;">340</div>
+          </div>
+        </div>
+
+        <!-- Nav — Rewards active -->
+        <div style="background: #f9fafb; padding: 8px 12px; display: flex; gap: 6px; justify-content: space-between; border-bottom: 1px solid #f3f4f6;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Home</div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Todo</div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f97316; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(249,115,22,0.45);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+            </div>
+            <div style="font-size: 9px; font-weight: 700; color: #f97316;">Rewards</div>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </div>
+            <div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Play</div>
+          </div>
+        </div>
+
+        <!-- Shop content -->
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 16px;">
+
+          <!-- Wishlist — pinned at top -->
+          <div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div style="font-size: 11px; font-weight: 900; color: #374151;">💛 My Wishlist <span style="color: #9ca3af; font-weight: 600;">(2/3)</span></div>
+              <div style="font-size: 9px; color: #9ca3af;">Tap 🤍 on any reward to add</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 7px;">
+
+              <!-- Wishlist item 1 — 72% progress -->
+              <div style="background: #fff7ed; border-radius: 12px; padding: 10px 12px; border: 1.5px solid #fed7aa;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                  <div style="font-size: 22px;">🎮</div>
+                  <div style="flex: 1;">
+                    <div style="font-size: 11px; font-weight: 800; color: #374151;">New video game</div>
+                    <div style="font-size: 9px; color: #9ca3af;">Cost: 500 ⭐ · You have 340</div>
+                  </div>
+                  <div style="font-size: 11px; font-weight: 900; color: #f97316;">68%</div>
+                  <div style="font-size: 14px; cursor: pointer;">💛</div>
+                </div>
+                <div style="background: #fed7aa; border-radius: 999px; height: 6px; overflow: hidden;">
+                  <div style="background: #f97316; height: 6px; border-radius: 999px; width: 68%;"></div>
+                </div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 4px;">160 more ⭐ to go</div>
+              </div>
+
+              <!-- Wishlist item 2 — 34% progress -->
+              <div style="background: #f9fafb; border-radius: 12px; padding: 10px 12px; border: 1.5px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                  <div style="font-size: 22px;">🎡</div>
+                  <div style="flex: 1;">
+                    <div style="font-size: 11px; font-weight: 800; color: #374151;">Theme park trip</div>
+                    <div style="font-size: 9px; color: #9ca3af;">Cost: 1000 ⭐ · You have 340</div>
+                  </div>
+                  <div style="font-size: 11px; font-weight: 900; color: #9ca3af;">34%</div>
+                  <div style="font-size: 14px; cursor: pointer;">💛</div>
+                </div>
+                <div style="background: #e5e7eb; border-radius: 999px; height: 6px; overflow: hidden;">
+                  <div style="background: #6b7280; height: 6px; border-radius: 999px; width: 34%;"></div>
+                </div>
+                <div style="font-size: 9px; color: #9ca3af; margin-top: 4px;">660 more ⭐ to go</div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div style="border-top: 1px solid #f3f4f6;"></div>
+
+          <!-- Reward grid — 2 columns -->
+          <div>
+            <div style="font-size: 11px; font-weight: 900; color: #374151; margin-bottom: 10px;">🛍️ Shop</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+
+              <!-- Individual — can afford -->
+              <div style="background: white; border-radius: 14px; padding: 12px; border: 1.5px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; position: relative;">
+                <div style="position: absolute; top: 8px; right: 8px; font-size: 12px; cursor: pointer;">🤍</div>
+                <div style="font-size: 28px; text-align: center; margin-bottom: 2px;">🍦</div>
+                <div style="font-size: 11px; font-weight: 800; color: #374151; text-align: center;">Ice cream</div>
+                <div style="font-size: 10px; color: #9ca3af; text-align: center;">50 ⭐</div>
+                <div style="background: #f97316; border-radius: 8px; padding: 7px; text-align: center; font-size: 10px; font-weight: 800; color: white; cursor: pointer; margin-top: 2px;">Request ›</div>
+              </div>
+
+              <!-- Individual — saving -->
+              <div style="background: #f9fafb; border-radius: 14px; padding: 12px; border: 1.5px solid #e5e7eb; display: flex; flex-direction: column; gap: 6px; position: relative; opacity: 0.85;">
+                <div style="position: absolute; top: 8px; right: 8px; font-size: 12px; cursor: pointer;">🤍</div>
+                <div style="font-size: 28px; text-align: center; margin-bottom: 2px; filter: grayscale(0.3);">🎮</div>
+                <div style="font-size: 11px; font-weight: 800; color: #374151; text-align: center;">New video game</div>
+                <div style="font-size: 10px; color: #9ca3af; text-align: center;">500 ⭐</div>
+                <div style="background: #f3f4f6; border-radius: 999px; height: 5px; overflow: hidden; margin-top: 2px;">
+                  <div style="background: #f97316; height: 5px; border-radius: 999px; width: 68%;"></div>
+                </div>
+                <div style="font-size: 9px; color: #9ca3af; text-align: center;">160 more ⭐</div>
+              </div>
+
+              <!-- Team reward -->
+              <div style="background: white; border-radius: 14px; padding: 12px; border: 2px solid #a78bfa; display: flex; flex-direction: column; gap: 6px; position: relative;">
+                <div style="position: absolute; top: 6px; left: 8px; background: #ede9fe; border-radius: 5px; padding: 2px 6px; font-size: 8px; font-weight: 800; color: #5b21b6;">👥 TEAM</div>
+                <div style="position: absolute; top: 8px; right: 8px; font-size: 12px; cursor: pointer;">🤍</div>
+                <div style="font-size: 28px; text-align: center; margin-top: 14px; margin-bottom: 2px;">🍕</div>
+                <div style="font-size: 11px; font-weight: 800; color: #374151; text-align: center;">Pizza night</div>
+                <div style="font-size: 10px; color: #9ca3af; text-align: center;">200 ⭐ total</div>
+                <!-- Per-kid progress -->
+                <div style="display: flex; flex-direction: column; gap: 3px;">
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="font-size: 10px;">🦊</div>
+                    <div style="flex: 1; background: #e5e7eb; border-radius: 999px; height: 4px; overflow: hidden;"><div style="background: #f97316; height: 4px; border-radius: 999px; width: 68%;"></div></div>
+                    <div style="font-size: 9px; color: #374151; font-weight: 700;">68/100</div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="font-size: 10px;">🐱</div>
+                    <div style="flex: 1; background: #e5e7eb; border-radius: 999px; height: 4px; overflow: hidden;"><div style="background: #a78bfa; height: 4px; border-radius: 999px; width: 90%;"></div></div>
+                    <div style="font-size: 9px; color: #374151; font-weight: 700;">90/100</div>
+                  </div>
+                </div>
+                <div style="background: #7c3aed; border-radius: 8px; padding: 7px; text-align: center; font-size: 10px; font-weight: 800; color: white; cursor: pointer; margin-top: 2px;">Contribute ⭐</div>
+              </div>
+
+              <!-- One-off reward -->
+              <div style="background: white; border-radius: 14px; padding: 12px; border: 2px solid #fbbf24; display: flex; flex-direction: column; gap: 6px; position: relative;">
+                <div style="position: absolute; top: 6px; left: 8px; background: #fef3c7; border-radius: 5px; padding: 2px 6px; font-size: 8px; font-weight: 800; color: #92400e;">✨ ONE-OFF</div>
+                <div style="position: absolute; top: 8px; right: 8px; font-size: 12px; cursor: pointer;">🤍</div>
+                <div style="font-size: 28px; text-align: center; margin-top: 14px; margin-bottom: 2px;">🎡</div>
+                <div style="font-size: 11px; font-weight: 800; color: #374151; text-align: center;">Theme park trip</div>
+                <div style="font-size: 10px; color: #9ca3af; text-align: center;">1000 ⭐</div>
+                <div style="background: #f3f4f6; border-radius: 999px; height: 5px; overflow: hidden; margin-top: 2px;">
+                  <div style="background: #fbbf24; height: 5px; border-radius: 999px; width: 34%;"></div>
+                </div>
+                <div style="font-size: 9px; color: #9ca3af; text-align: center;">660 more ⭐</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── iPad ── -->
+      <div style="background: white; border-radius: 24px; box-shadow: 0 6px 30px rgba(0,0,0,0.10); overflow: hidden;">
+
+        <!-- Shell header -->
+        <div style="background: linear-gradient(135deg, #f97316, #fb923c); padding: 14px 24px 10px; display: flex; align-items: center; gap: 14px;">
+          <div style="position: relative; width: 42px; height: 42px; flex-shrink: 0;">
+            <div style="width: 42px; height: 42px; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px;">🦊</div>
+            <div style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px;">✏️</div>
+          </div>
+          <div style="flex: 1;">
+            <div style="color: white; font-weight: 800; font-size: 15px;">Hi Liam! 👋</div>
+            <div style="color: rgba(255,255,255,0.7); font-size: 10px;">Thursday, 8 May</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.2); border-radius: 10px; padding: 6px 14px; display: flex; align-items: center; gap: 6px;">
+            <div style="font-size: 14px;">⭐</div>
+            <div style="color: white; font-weight: 900; font-size: 16px;">340</div>
+          </div>
+        </div>
+
+        <!-- Nav -->
+        <div style="background: #f9fafb; padding: 8px 20px; display: flex; gap: 8px; border-bottom: 1px solid #f3f4f6;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;"><div style="width: 48px; height: 48px; background: #f3f4f6; border-radius: 14px; display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Home</div></div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;"><div style="width: 48px; height: 48px; background: #f3f4f6; border-radius: 14px; display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Todo</div></div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;"><div style="width: 48px; height: 48px; background: #f97316; border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(249,115,22,0.45);"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #f97316;">Rewards</div></div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;"><div style="width: 48px; height: 48px; background: #f3f4f6; border-radius: 14px; display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Play</div></div>
+        </div>
+
+        <!-- iPad 2-column layout: wishlist left, shop right -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 500px;">
+
+          <!-- Left: Wishlist -->
+          <div style="padding: 16px 18px; border-right: 1px solid #f3f4f6;">
+            <div style="font-size: 12px; font-weight: 900; color: #374151; margin-bottom: 12px;">💛 My Wishlist <span style="color: #9ca3af; font-weight: 600;">(2/3)</span></div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+              <div style="background: #fff7ed; border-radius: 14px; padding: 12px; border: 1.5px solid #fed7aa;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                  <div style="font-size: 26px;">🎮</div>
+                  <div style="flex: 1;">
+                    <div style="font-size: 12px; font-weight: 800; color: #374151;">New video game</div>
+                    <div style="font-size: 10px; color: #9ca3af;">500 ⭐ · 340 saved</div>
+                  </div>
+                  <div style="font-size: 13px; font-weight: 900; color: #f97316;">68%</div>
+                  <div style="font-size: 16px; cursor: pointer;">💛</div>
+                </div>
+                <div style="background: #fed7aa; border-radius: 999px; height: 7px; overflow: hidden;">
+                  <div style="background: #f97316; height: 7px; border-radius: 999px; width: 68%;"></div>
+                </div>
+                <div style="font-size: 10px; color: #9ca3af; margin-top: 5px;">160 more ⭐ to go</div>
+              </div>
+
+              <div style="background: #f9fafb; border-radius: 14px; padding: 12px; border: 1.5px solid #e5e7eb;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                  <div style="font-size: 26px;">🎡</div>
+                  <div style="flex: 1;">
+                    <div style="font-size: 12px; font-weight: 800; color: #374151;">Theme park trip</div>
+                    <div style="font-size: 10px; color: #9ca3af;">1000 ⭐ · 340 saved</div>
+                  </div>
+                  <div style="font-size: 13px; font-weight: 900; color: #9ca3af;">34%</div>
+                  <div style="font-size: 16px; cursor: pointer;">💛</div>
+                </div>
+                <div style="background: #e5e7eb; border-radius: 999px; height: 7px; overflow: hidden;">
+                  <div style="background: #9ca3af; height: 7px; border-radius: 999px; width: 34%;"></div>
+                </div>
+                <div style="font-size: 10px; color: #9ca3af; margin-top: 5px;">660 more ⭐ to go</div>
+              </div>
+
+              <!-- Empty slot -->
+              <div style="border: 2px dashed #e5e7eb; border-radius: 14px; padding: 16px; text-align: center; color: #9ca3af; font-size: 11px;">
+                + Add one more to wishlist<br><span style="font-size: 9px;">Tap 🤍 on any reward</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Shop grid -->
+          <div style="padding: 16px 18px;">
+            <div style="font-size: 12px; font-weight: 900; color: #374151; margin-bottom: 12px;">🛍️ Shop</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+
+              <!-- Can afford -->
+              <div style="background: white; border-radius: 14px; padding: 14px; border: 1.5px solid #e5e7eb; display: flex; flex-direction: column; gap: 7px; position: relative;">
+                <div style="position: absolute; top: 10px; right: 10px; font-size: 14px; cursor: pointer;">🤍</div>
+                <div style="font-size: 32px; text-align: center;">🍦</div>
+                <div style="font-size: 12px; font-weight: 800; color: #374151; text-align: center;">Ice cream</div>
+                <div style="font-size: 11px; color: #9ca3af; text-align: center;">50 ⭐</div>
+                <div style="background: #f97316; border-radius: 9px; padding: 8px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Request ›</div>
+              </div>
+
+              <!-- Can't afford -->
+              <div style="background: #f9fafb; border-radius: 14px; padding: 14px; border: 1.5px solid #e5e7eb; display: flex; flex-direction: column; gap: 7px; position: relative; opacity: 0.8;">
+                <div style="position: absolute; top: 10px; right: 10px; font-size: 14px; cursor: pointer;">🤍</div>
+                <div style="font-size: 32px; text-align: center; filter: grayscale(0.3);">🎮</div>
+                <div style="font-size: 12px; font-weight: 800; color: #374151; text-align: center;">New video game</div>
+                <div style="font-size: 11px; color: #9ca3af; text-align: center;">500 ⭐</div>
+                <div style="background: #f3f4f6; border-radius: 999px; height: 6px; overflow: hidden;">
+                  <div style="background: #f97316; height: 6px; border-radius: 999px; width: 68%;"></div>
+                </div>
+                <div style="font-size: 9px; color: #9ca3af; text-align: center;">160 more ⭐</div>
+              </div>
+
+              <!-- Team reward -->
+              <div style="background: white; border-radius: 14px; padding: 14px; border: 2px solid #a78bfa; display: flex; flex-direction: column; gap: 7px; position: relative;">
+                <div style="position: absolute; top: 8px; left: 10px; background: #ede9fe; border-radius: 5px; padding: 2px 7px; font-size: 8px; font-weight: 800; color: #5b21b6;">👥 TEAM</div>
+                <div style="position: absolute; top: 10px; right: 10px; font-size: 14px; cursor: pointer;">🤍</div>
+                <div style="font-size: 32px; text-align: center; margin-top: 14px;">🍕</div>
+                <div style="font-size: 12px; font-weight: 800; color: #374151; text-align: center;">Pizza night</div>
+                <div style="font-size: 11px; color: #9ca3af; text-align: center;">200 ⭐ total</div>
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <div style="display: flex; align-items: center; gap: 5px;"><div style="font-size: 11px;">🦊</div><div style="flex: 1; background: #e5e7eb; border-radius: 999px; height: 5px; overflow: hidden;"><div style="background: #f97316; height: 5px; border-radius: 999px; width: 68%;"></div></div><div style="font-size: 9px; color: #374151; font-weight: 700; white-space: nowrap;">68/100</div></div>
+                  <div style="display: flex; align-items: center; gap: 5px;"><div style="font-size: 11px;">🐱</div><div style="flex: 1; background: #e5e7eb; border-radius: 999px; height: 5px; overflow: hidden;"><div style="background: #a78bfa; height: 5px; border-radius: 999px; width: 90%;"></div></div><div style="font-size: 9px; color: #374151; font-weight: 700; white-space: nowrap;">90/100</div></div>
+                </div>
+                <div style="background: #7c3aed; border-radius: 9px; padding: 8px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Contribute ⭐</div>
+              </div>
+
+              <!-- One-off -->
+              <div style="background: white; border-radius: 14px; padding: 14px; border: 2px solid #fbbf24; display: flex; flex-direction: column; gap: 7px; position: relative;">
+                <div style="position: absolute; top: 8px; left: 10px; background: #fef3c7; border-radius: 5px; padding: 2px 7px; font-size: 8px; font-weight: 800; color: #92400e;">✨ ONE-OFF</div>
+                <div style="position: absolute; top: 10px; right: 10px; font-size: 14px; cursor: pointer;">🤍</div>
+                <div style="font-size: 32px; text-align: center; margin-top: 14px;">🎡</div>
+                <div style="font-size: 12px; font-weight: 800; color: #374151; text-align: center;">Theme park trip</div>
+                <div style="font-size: 11px; color: #9ca3af; text-align: center;">1000 ⭐</div>
+                <div style="background: #f3f4f6; border-radius: 999px; height: 6px; overflow: hidden;">
+                  <div style="background: #fbbf24; height: 6px; border-radius: 999px; width: 34%;"></div>
+                </div>
+                <div style="font-size: 9px; color: #9ca3af; text-align: center;">660 more ⭐</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 2. WISHLIST MILESTONE — full-screen celebration -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px;">2 · Wishlist milestone celebrations (fire at 25% / 50% / 75% / 100%)</div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;">
+
+      <!-- 25% -->
+      <div style="background: #1e40af; border-radius: 20px; overflow: hidden; box-shadow: 0 6px 24px rgba(30,64,175,0.35);">
+        <div style="padding: 28px 16px; text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 8px;">🌱</div>
+          <div style="color: #93c5fd; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Journey started!</div>
+          <div style="color: white; font-size: 16px; font-weight: 900; margin-bottom: 4px;">25% there!</div>
+          <div style="color: rgba(255,255,255,0.7); font-size: 10px; margin-bottom: 14px;">Keep going Liam! 💪</div>
+          <div style="background: rgba(255,255,255,0.15); border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 6px;">
+            <div style="background: #93c5fd; height: 8px; border-radius: 999px; width: 25%;"></div>
+          </div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px;">🎮 New video game · 125 / 500 ⭐</div>
+        </div>
+        <div style="padding: 0 14px 16px;"><div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Let's keep going →</div></div>
+      </div>
+
+      <!-- 50% -->
+      <div style="background: linear-gradient(135deg, #b45309, #d97706); border-radius: 20px; overflow: hidden; box-shadow: 0 6px 24px rgba(180,83,9,0.35);">
+        <div style="padding: 28px 16px; text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 8px;">⚡</div>
+          <div style="color: #fde68a; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Halfway there!</div>
+          <div style="color: white; font-size: 16px; font-weight: 900; margin-bottom: 4px;">You're on fire! 🔥</div>
+          <div style="color: rgba(255,255,255,0.8); font-size: 10px; margin-bottom: 14px;">Keep it up Liam!</div>
+          <div style="background: rgba(255,255,255,0.2); border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 6px;">
+            <div style="background: #fde68a; height: 8px; border-radius: 999px; width: 50%;"></div>
+          </div>
+          <div style="color: rgba(255,255,255,0.6); font-size: 9px;">🎮 New video game · 250 / 500 ⭐</div>
+        </div>
+        <div style="padding: 0 14px 16px;"><div style="background: rgba(255,255,255,0.2); border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Let's keep going →</div></div>
+      </div>
+
+      <!-- 75% -->
+      <div style="background: linear-gradient(135deg, #ea580c, #f97316); border-radius: 20px; overflow: hidden; box-shadow: 0 6px 24px rgba(234,88,12,0.35);">
+        <div style="padding: 28px 16px; text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 8px;">🚀</div>
+          <div style="color: #fed7aa; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">Almost there!</div>
+          <div style="color: white; font-size: 16px; font-weight: 900; margin-bottom: 4px;">Don't stop now! 💪</div>
+          <div style="color: rgba(255,255,255,0.8); font-size: 10px; margin-bottom: 14px;">So close Liam!</div>
+          <div style="background: rgba(255,255,255,0.2); border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 6px;">
+            <div style="background: #fed7aa; height: 8px; border-radius: 999px; width: 75%;"></div>
+          </div>
+          <div style="color: rgba(255,255,255,0.6); font-size: 9px;">🎮 New video game · 375 / 500 ⭐</div>
+        </div>
+        <div style="padding: 0 14px 16px;"><div style="background: rgba(255,255,255,0.2); border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Let's keep going →</div></div>
+      </div>
+
+      <!-- 100% -->
+      <div style="background: linear-gradient(135deg, #15803d, #16a34a); border-radius: 20px; overflow: hidden; box-shadow: 0 6px 24px rgba(21,128,61,0.35);">
+        <div style="padding: 28px 16px; text-align: center;">
+          <div style="font-size: 40px; margin-bottom: 8px;">🏆</div>
+          <div style="color: #bbf7d0; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">You earned it!</div>
+          <div style="color: white; font-size: 16px; font-weight: 900; margin-bottom: 4px;">500 / 500 ⭐! 🎉</div>
+          <div style="color: rgba(255,255,255,0.8); font-size: 10px; margin-bottom: 14px;">Amazing work Liam!</div>
+          <div style="background: rgba(255,255,255,0.2); border-radius: 999px; height: 8px; overflow: hidden; margin-bottom: 6px;">
+            <div style="background: #bbf7d0; height: 8px; border-radius: 999px; width: 100%;"></div>
+          </div>
+          <div style="color: rgba(255,255,255,0.7); font-size: 9px;">🎮 New video game · unlocked!</div>
+        </div>
+        <div style="padding: 0 14px 16px;"><div style="background: white; border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: #15803d; cursor: pointer;">Request now! →</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 3. PARENT REWARDS MANAGEMENT -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px;">3 · Parent — Rewards catalogue &amp; editor</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;">
+
+      <!-- Catalogue list -->
+      <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #4338ca, #6366f1); padding: 12px 18px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="color: white; font-weight: 800; font-size: 14px;">🎁 Rewards</div>
+          <div style="background: white; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 800; color: #4338ca; cursor: pointer;">+ Add reward</div>
+        </div>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+
+          <!-- Individual reward row -->
+          <div style="background: #f9fafb; border-radius: 12px; padding: 11px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer;">
+            <div style="font-size: 22px;">🍦</div>
+            <div style="flex: 1;">
+              <div style="font-size: 12px; font-weight: 800; color: #374151;">Ice cream</div>
+              <div style="display: flex; gap: 5px; margin-top: 3px;">
+                <div style="background: #dbeafe; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #1e40af;">Individual</div>
+                <div style="background: #d1fae5; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #065f46;">Recurring</div>
+                <div style="font-size: 9px; color: #9ca3af;">50 ⭐</div>
+              </div>
+            </div>
+            <div style="width: 36px; height: 20px; background: #22c55e; border-radius: 999px; position: relative; cursor: pointer;"><div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px;"></div></div>
+          </div>
+
+          <!-- Team reward row -->
+          <div style="background: #f9fafb; border-radius: 12px; padding: 11px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer;">
+            <div style="font-size: 22px;">🍕</div>
+            <div style="flex: 1;">
+              <div style="font-size: 12px; font-weight: 800; color: #374151;">Pizza night</div>
+              <div style="display: flex; gap: 5px; margin-top: 3px;">
+                <div style="background: #ede9fe; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #5b21b6;">Team</div>
+                <div style="background: #d1fae5; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #065f46;">Recurring</div>
+                <div style="font-size: 9px; color: #9ca3af;">200 ⭐ total</div>
+              </div>
+            </div>
+            <div style="width: 36px; height: 20px; background: #22c55e; border-radius: 999px; position: relative; cursor: pointer;"><div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px;"></div></div>
+          </div>
+
+          <!-- One-off reward row -->
+          <div style="background: #f9fafb; border-radius: 12px; padding: 11px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer;">
+            <div style="font-size: 22px;">🎡</div>
+            <div style="flex: 1;">
+              <div style="font-size: 12px; font-weight: 800; color: #374151;">Theme park trip</div>
+              <div style="display: flex; gap: 5px; margin-top: 3px;">
+                <div style="background: #dbeafe; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #1e40af;">Individual</div>
+                <div style="background: #fef3c7; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #92400e;">One-off</div>
+                <div style="font-size: 9px; color: #9ca3af;">1000 ⭐</div>
+              </div>
+            </div>
+            <div style="width: 36px; height: 20px; background: #22c55e; border-radius: 999px; position: relative; cursor: pointer;"><div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px;"></div></div>
+          </div>
+
+          <!-- Paused reward -->
+          <div style="background: #f9fafb; border-radius: 12px; padding: 11px 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; opacity: 0.5;">
+            <div style="font-size: 22px;">🎬</div>
+            <div style="flex: 1;">
+              <div style="font-size: 12px; font-weight: 800; color: #374151;">Movie night</div>
+              <div style="display: flex; gap: 5px; margin-top: 3px;">
+                <div style="background: #f3f4f6; border-radius: 4px; padding: 1px 6px; font-size: 9px; font-weight: 700; color: #9ca3af;">Paused</div>
+                <div style="font-size: 9px; color: #9ca3af;">150 ⭐</div>
+              </div>
+            </div>
+            <div style="width: 36px; height: 20px; background: #e5e7eb; border-radius: 999px; position: relative; cursor: pointer;"><div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px;"></div></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Reward editor -->
+      <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #4338ca, #6366f1); padding: 12px 18px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 26px; height: 26px; background: rgba(255,255,255,0.2); border-radius: 7px; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; cursor: pointer;">←</div>
+          <div style="color: white; font-weight: 800; font-size: 14px;">Edit reward</div>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;">
+
+          <!-- Emoji + Name -->
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="width: 52px; height: 52px; background: #fef3c7; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; cursor: pointer; border: 2px dashed #fbbf24;">🍦</div>
+            <div style="flex: 1;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 4px;">Name</div>
+              <div style="background: #f9fafb; border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 800; color: #374151; border: 1.5px solid #e5e7eb;">Ice cream</div>
+            </div>
+          </div>
+
+          <!-- Type -->
+          <div>
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Type</div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;">
+              <div style="background: #dbeafe; border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: #1e40af; border: 2px solid #3b82f6;">🍬 Treat</div>
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 700; color: #6b7280;">🌟 Privilege</div>
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 700; color: #6b7280;">🎟 Experience</div>
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 700; color: #6b7280;">🎁 Prize</div>
+            </div>
+          </div>
+
+          <!-- Who -->
+          <div>
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Who</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div style="background: #dbeafe; border-radius: 8px; padding: 8px; text-align: center; font-size: 10px; font-weight: 800; color: #1e40af; border: 2px solid #3b82f6;">👤 Individual</div>
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px; text-align: center; font-size: 10px; font-weight: 700; color: #6b7280;">👥 Team</div>
+            </div>
+          </div>
+
+          <!-- Star cost -->
+          <div>
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Star cost</div>
+            <div style="background: #f9fafb; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border: 1.5px solid #e5e7eb;">
+              <div style="font-size: 16px;">⭐</div>
+              <div style="font-size: 14px; font-weight: 900; color: #374151; flex: 1;">50</div>
+              <div style="display: flex; gap: 6px;">
+                <div style="width: 26px; height: 26px; background: #e5e7eb; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer;">−</div>
+                <div style="width: 26px; height: 26px; background: #e5e7eb; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; cursor: pointer;">+</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recurrence -->
+          <div>
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Recurrence</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+              <div style="background: #dbeafe; border-radius: 8px; padding: 8px; text-align: center; font-size: 10px; font-weight: 800; color: #1e40af; border: 2px solid #3b82f6;">🔁 Recurring</div>
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 8px; text-align: center; font-size: 10px; font-weight: 700; color: #6b7280;">✨ One-off</div>
+            </div>
+          </div>
+
+          <!-- Requires approval -->
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #f9fafb; border-radius: 10px; padding: 10px 12px;">
+            <div>
+              <div style="font-size: 11px; font-weight: 800; color: #374151;">Requires approval</div>
+              <div style="font-size: 9px; color: #9ca3af; margin-top: 1px;">Kid requests → parent approves</div>
+            </div>
+            <div style="width: 40px; height: 22px; background: #22c55e; border-radius: 999px; position: relative; cursor: pointer;"><div style="width: 18px; height: 18px; background: white; border-radius: 50%; position: absolute; top: 2px; right: 2px;"></div></div>
+          </div>
+
+          <!-- Available to -->
+          <div>
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 6px;">Available to</div>
+            <div style="display: flex; gap: 6px;">
+              <div style="background: #fff7ed; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 5px; border: 2px solid #f97316; cursor: pointer;"><div style="font-size: 14px;">🦊</div><div style="font-size: 10px; font-weight: 800; color: #374151;">Liam</div></div>
+              <div style="background: #f3f4f6; border-radius: 8px; padding: 6px 10px; display: flex; align-items: center; gap: 5px; cursor: pointer;"><div style="font-size: 14px;">🐱</div><div style="font-size: 10px; font-weight: 700; color: #9ca3af;">Mia</div></div>
+            </div>
+          </div>
+
+          <div style="background: #4338ca; border-radius: 12px; padding: 11px; text-align: center; font-size: 12px; font-weight: 800; color: white; cursor: pointer; margin-top: 4px;">Save reward ✓</div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

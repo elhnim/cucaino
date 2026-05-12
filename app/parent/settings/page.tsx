@@ -4,6 +4,7 @@ import { getFamily, listKids, getParentPinFromDb } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 import { signOut } from "@/lib/actions/auth";
 import FamilyNameEditor from "@/components/parent/FamilyNameEditor";
+import WeatherLocationPicker from "@/components/parent/WeatherLocationPicker";
 
 const commit = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
@@ -149,7 +150,7 @@ export default async function ParentSettingsPage() {
               <button type="button" className="px-3 py-1 bg-gray-100 text-gray-600">Sun</button>
             </div>
           </div>
-          <div className="px-3.5 py-3.5 flex items-center justify-between">
+          <div className="px-3.5 py-3.5 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-amber-50">🏖️</div>
               <div>
@@ -160,6 +161,16 @@ export default async function ParentSettingsPage() {
             <div className="w-11 h-6 rounded-full bg-gray-200 relative flex-shrink-0">
               <div className="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow" />
             </div>
+          </div>
+          <div className="px-3.5 py-3.5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-sky-50">🌤️</div>
+              <div>
+                <div className="text-[14px] font-semibold text-gray-800">Weather location</div>
+                <div className="text-[11px] text-gray-400">Used to show weather in the kids header</div>
+              </div>
+            </div>
+            <WeatherLocationPicker current={family.weatherCity} />
           </div>
         </div>
       </div>
@@ -178,7 +189,7 @@ export default async function ParentSettingsPage() {
               <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-gray-100">ℹ️</div>
               <span className="text-[14px] font-semibold text-gray-800">Build</span>
             </div>
-            <span className="font-mono text-xs text-gray-400">{commit}</span>
+            <span className="font-mono text-xs text-gray-400">{commit.replace(/^dev-/, "")}</span>
           </div>
         </div>
       </div>

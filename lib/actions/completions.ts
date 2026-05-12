@@ -2,16 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  TASK_CATEGORY_TO_BADGE,
+  BADGE_META,
+  BADGE_THRESHOLDS,
+  getTierFromCount,
+} from "@/lib/domain/badge-config";
+import type { UnlockedBadge } from "@/lib/domain/types";
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
-
-const BADGE_CATEGORY_MAP: Record<string, string> = {
-  chore: "chores",
-  exercise: "physical",
-  music: "music",
-  personal: "hygiene",
-  activity: "mindfulness",
-};
+export type ActionResult = { ok: true; newTiers?: UnlockedBadge[] } | { ok: false; error: string };
 
 export async function completeTask(
   taskId: string,
@@ -51,7 +50,7 @@ export async function completeTask(
   });
   if (error) return { ok: false, error: error.message };
 
-  // Atomic point increments — avoids a read round-trip per completion
+  // Atomic point increments
   if (pointsAwarded > 0) {
     await supabase.rpc("increment_kid_points", { p_kid_id: kidId, p_amount: pointsAwarded });
   }
@@ -59,19 +58,115 @@ export async function completeTask(
     await supabase.rpc("increment_family_points", { p_kid_id: kidId, p_amount: familyPointsAwarded });
   }
 
-  // Update total_stars_earned and streak (single atomic call)
+  // Update total_stars_earned + streak
   await supabase.rpc("update_kid_gamification", { p_kid_id: kidId, p_points: pointsAwarded });
+  // Atomic increment for total_completions (fails silently if migration not yet applied)
+  try {
+    await supabase.rpc("increment_kid_total_completions", { p_kid_id: kidId });
+  } catch {
+    // Function may not exist yet
+  }
 
-  // Increment badge progress if category is provided
+  const newTiers: UnlockedBadge[] = [];
+
+  // --- Task badge ---
   if (taskCategory) {
-    const badgeCategory = BADGE_CATEGORY_MAP[taskCategory];
+    const badgeCategory = TASK_CATEGORY_TO_BADGE[taskCategory];
     if (badgeCategory) {
-      await supabase.rpc("increment_badge_progress", { p_kid_id: kidId, p_category: badgeCategory });
+      const { data: tierResult } = await supabase.rpc("increment_badge_progress", {
+        p_kid_id: kidId,
+        p_category: badgeCategory,
+      });
+      if (tierResult) {
+        const tier = tierResult as "bronze" | "silver" | "gold";
+        newTiers.push({
+          category: badgeCategory,
+          tier,
+          tierName: BADGE_META[badgeCategory].tierNames[tier],
+          icon: BADGE_META[badgeCategory].icon,
+        });
+      }
     }
   }
 
+  // --- Streak badge ---
+  const { data: kidRow } = await supabase
+    .from("kids")
+    .select("current_streak, total_stars_earned, total_completions")
+    .eq("id", kidId)
+    .maybeSingle();
+
+  if (kidRow) {
+    const streakUnlock = await checkMilestoneBadge(
+      supabase, kidId, "streak", kidRow.current_streak ?? 0,
+    );
+    if (streakUnlock) newTiers.push(streakUnlock);
+
+    const starUnlock = await checkMilestoneBadge(
+      supabase, kidId, "star_collector", kidRow.total_stars_earned ?? 0,
+    );
+    if (starUnlock) newTiers.push(starUnlock);
+
+    const titanUnlock = await checkMilestoneBadge(
+      supabase, kidId, "task_titan", kidRow.total_completions ?? 0,
+    );
+    if (titanUnlock) newTiers.push(titanUnlock);
+  }
+
   revalidatePath(`/kid/${kidId}/todo`);
-  return { ok: true };
+  return { ok: true, newTiers: newTiers.length > 0 ? newTiers : undefined };
+}
+
+async function checkMilestoneBadge(
+  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>,
+  kidId: string,
+  category: "streak" | "star_collector" | "task_titan",
+  currentValue: number,
+): Promise<UnlockedBadge | null> {
+  const thresholds = BADGE_THRESHOLDS[category];
+  const newTier = getTierFromCount(category, currentValue);
+  if (newTier === "none") return null;
+
+  // Get current badge row
+  const { data: row } = await supabase
+    .from("badge_progress")
+    .select("completion_count, bronze_earned_at, silver_earned_at, gold_earned_at")
+    .eq("kid_id", kidId)
+    .eq("category", category)
+    .maybeSingle();
+
+  const oldCount = row?.completion_count ?? 0;
+  const oldTier = getTierFromCount(category, oldCount);
+
+  // Upsert with latest value
+  await supabase
+    .from("badge_progress")
+    .upsert({ kid_id: kidId, category, completion_count: currentValue }, { onConflict: "kid_id,category" });
+
+  // Determine if a new tier was just crossed
+  const tierOrder = { none: 0, bronze: 1, silver: 2, gold: 3 };
+  if (tierOrder[newTier] <= tierOrder[oldTier]) return null;
+
+  // Set the earned_at for the newly crossed tier
+  const earnedAtField = `${newTier}_earned_at`;
+  const alreadySet = row?.[earnedAtField as keyof typeof row];
+  if (!alreadySet) {
+    await supabase
+      .from("badge_progress")
+      .update({ [earnedAtField]: new Date().toISOString() })
+      .eq("kid_id", kidId)
+      .eq("category", category);
+  }
+
+  // Only fire unlock event if the tier was just earned this call
+  if (alreadySet) return null;
+
+  return {
+    category,
+    tier: newTier as "bronze" | "silver" | "gold",
+    tierName: BADGE_META[category].tierNames[newTier as "bronze" | "silver" | "gold"],
+    icon: BADGE_META[category].icon,
+  };
 }
 
 export async function uncompleteTask(
@@ -97,7 +192,6 @@ export async function uncompleteTask(
     .eq("id", completion.id);
   if (error) return { ok: false, error: error.message };
 
-  // Atomic deduction — clamped to 0 in the SQL function
   if (completion.points_awarded > 0) {
     await supabase.rpc("decrement_kid_points", { p_kid_id: kidId, p_amount: completion.points_awarded });
     await supabase.rpc("decrement_kid_stars", { p_kid_id: kidId, p_amount: completion.points_awarded });

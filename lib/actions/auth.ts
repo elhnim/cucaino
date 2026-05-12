@@ -120,6 +120,16 @@ export async function signOut() {
   redirect("/login");
 }
 
+export async function verifyParentPin(enteredPin: string): Promise<{ ok: boolean }> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("families")
+    .select("parent_pin")
+    .maybeSingle();
+  if (!data?.parent_pin) return { ok: true }; // no PIN set → always passes
+  return { ok: data.parent_pin === enteredPin };
+}
+
 // ----- Helpers -----
 
 function friendlyAuthError(raw: string): string {

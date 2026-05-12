@@ -114,3 +114,42 @@ export async function denyRequest(requestId: string): Promise<ActionResult> {
   revalidatePath("/parent/requests");
   return { ok: true };
 }
+
+export async function addToWishlist(kidId: string, rewardId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { count } = await supabase
+    .from("wishlist_items")
+    .select("*", { count: "exact", head: true })
+    .eq("kid_id", kidId);
+  if ((count ?? 0) >= 3) return { ok: false, error: "Wishlist is full." };
+
+  const { data: existing } = await supabase
+    .from("wishlist_items")
+    .select("position")
+    .eq("kid_id", kidId);
+  const usedPositions = new Set((existing ?? []).map((r: any) => r.position as number));
+  const position = [1, 2, 3].find((p) => !usedPositions.has(p)) ?? 1;
+
+  const { error } = await supabase.from("wishlist_items").insert({
+    kid_id: kidId,
+    reward_id: rewardId,
+    position,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/kid/${kidId}/rewards`);
+  return { ok: true };
+}
+
+export async function removeFromWishlist(kidId: string, rewardId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("wishlist_items")
+    .delete()
+    .eq("kid_id", kidId)
+    .eq("reward_id", rewardId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/kid/${kidId}/rewards`);
+  return { ok: true };
+}

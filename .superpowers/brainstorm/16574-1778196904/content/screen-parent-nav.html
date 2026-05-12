@@ -1,0 +1,121 @@
+<h2>Screen 3: Parent Nav — Current vs Proposed</h2>
+<p class="subtitle">Current has tiny text, 6 items, and 3 hidden pages. What's your feedback?</p>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+
+  <!-- Current -->
+  <div style="flex: 1; min-width: 280px; max-width: 360px;">
+    <div class="label" style="margin-bottom: 8px; text-align: center;">Current (problems highlighted)</div>
+    <div style="background: #1a1a1a; border-radius: 20px; padding: 10px;">
+      <div style="background: #f8fafc; border-radius: 12px; overflow: hidden;">
+        <!-- Indigo header -->
+        <div style="background: #4338ca; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="color: white; font-weight: 800; font-size: 16px;">Overview</div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 4px 10px; color: white; font-size: 12px;">🔔</div>
+            <div style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 4px 10px; color: white; font-size: 12px;">Kids view</div>
+            <div style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 4px 10px; color: white; font-size: 12px;">Sign out</div>
+          </div>
+        </div>
+        <!-- Tiny nav -->
+        <div style="background: white; border-bottom: 1px solid #e5e7eb; display: grid; grid-template-columns: repeat(6, 1fr); padding: 6px 4px;">
+          <div style="text-align: center; padding: 4px 2px; background: #eef2ff; border-radius: 6px;">
+            <div style="font-size: 14px;">🏠</div>
+            <div style="font-size: 9px; font-weight: 700; color: #4338ca;">Home</div>
+          </div>
+          <div style="text-align: center; padding: 4px 2px;">
+            <div style="font-size: 14px;">✅</div>
+            <div style="font-size: 9px; color: #9ca3af;">Tasks</div>
+          </div>
+          <div style="text-align: center; padding: 4px 2px;">
+            <div style="font-size: 14px;">🎁</div>
+            <div style="font-size: 9px; color: #9ca3af;">Rewards</div>
+          </div>
+          <div style="text-align: center; padding: 4px 2px;">
+            <div style="font-size: 14px;">🔔</div>
+            <div style="font-size: 9px; color: #9ca3af;">Requests</div>
+          </div>
+          <div style="text-align: center; padding: 4px 2px;">
+            <div style="font-size: 14px;">👧</div>
+            <div style="font-size: 9px; color: #9ca3af;">Kids</div>
+          </div>
+          <div style="text-align: center; padding: 4px 2px;">
+            <div style="font-size: 14px;">⚙️</div>
+            <div style="font-size: 9px; color: #9ca3af;">Settings</div>
+          </div>
+        </div>
+        <!-- Content area -->
+        <div style="padding: 12px; min-height: 100px; background: #f8fafc; font-size: 12px;">
+          <div style="background: #fef3c7; border-radius: 8px; padding: 8px 10px; color: #92400e; font-size: 11px;">
+            ⚠️ Quizzes, School Items, Feedback — <strong>not in nav at all</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proposed -->
+  <div style="flex: 1; min-width: 280px; max-width: 360px;">
+    <div class="label" style="margin-bottom: 8px; text-align: center;">Proposed — same button style as kid nav</div>
+    <div style="background: #1a1a1a; border-radius: 20px; padding: 10px;">
+      <div style="background: #f8fafc; border-radius: 12px; overflow: hidden;">
+        <!-- Cleaner header -->
+        <div style="background: #4338ca; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="color: white; font-weight: 800; font-size: 16px;">Parent</div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 12px; color: white; font-size: 12px; font-weight: 600;">🔔 Requests</div>
+            <div style="background: rgba(255,255,255,0.2); border-radius: 20px; padding: 5px 12px; color: white; font-size: 12px; font-weight: 600;">⚙️</div>
+          </div>
+        </div>
+        <!-- Rounded square icon buttons -->
+        <div style="background: white; padding: 10px 14px; display: flex; gap: 8px; justify-content: space-between; border-bottom: 2px solid #f3f4f6;">
+          <!-- Home (active) -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #4338ca; border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(67,56,202,0.4);">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <span style="font-size: 10px; font-weight: 700; color: #4338ca;">Home</span>
+          </div>
+          <!-- Tasks -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <span style="font-size: 10px; color: #9ca3af;">Tasks</span>
+          </div>
+          <!-- Rewards -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+            </div>
+            <span style="font-size: 10px; color: #9ca3af;">Rewards</span>
+          </div>
+          <!-- Kids -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <span style="font-size: 10px; color: #9ca3af;">Kids</span>
+          </div>
+          <!-- Quizzes -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1;">
+            <div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 14px; display: flex; align-items: center; justify-content: center;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <span style="font-size: 10px; color: #9ca3af;">Quizzes</span>
+          </div>
+        </div>
+        <div style="padding: 12px; min-height: 100px; background: #f8fafc; font-size: 12px;">
+          <div style="background: #f0fdf4; border-radius: 8px; padding: 8px 10px; color: #166534; font-size: 11px;">
+            ✅ Quizzes now in nav · Requests + Settings moved to header
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 14px; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 13px; color: #6b7280; text-align: center;">
+  What's your feedback? Right items in the nav? Anything to add, remove, or rename?
+</div>

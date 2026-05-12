@@ -1,0 +1,497 @@
+<h2>Play — Game Hub &amp; Quiz (Full Redesign)</h2>
+<p class="subtitle">Game hub → Quiz → 3 modes: Solo · Taking Turns (same device) · Multiplayer Kahoot-style (own device, age-matched questions, race to answer)</p>
+
+<style>
+  .quiz-dark { background: #1e1b4b; }
+  .mode-btn { cursor: pointer; transition: transform 0.1s; }
+  .mode-btn:hover { transform: scale(1.02); }
+</style>
+
+<div style="max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px;">
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 1. GAME HUB — Play tab -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px;">1 · Game hub (Play tab)</div>
+    <div style="display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start;">
+
+      <div style="background: white; border-radius: 24px; box-shadow: 0 6px 30px rgba(0,0,0,0.10); overflow: hidden;">
+        <!-- Shell header -->
+        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 14px 18px 10px; display: flex; align-items: center; gap: 12px;">
+          <div style="position: relative; width: 40px; height: 40px; flex-shrink: 0;">
+            <div style="width: 40px; height: 40px; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px;">🦊</div>
+            <div style="position: absolute; bottom: 0; right: 0; width: 14px; height: 14px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px;">✏️</div>
+          </div>
+          <div style="flex: 1;">
+            <div style="color: white; font-weight: 800; font-size: 15px;">Hi Liam! 👋</div>
+            <div style="color: rgba(255,255,255,0.7); font-size: 10px;">Thursday, 8 May</div>
+          </div>
+        </div>
+        <!-- Nav -->
+        <div style="background: #f9fafb; padding: 8px 12px; display: flex; gap: 6px; justify-content: space-between; border-bottom: 1px solid #f3f4f6;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;"><div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Home</div></div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;"><div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Todo</div></div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;"><div style="width: 44px; height: 44px; background: #f3f4f6; border-radius: 12px; display: flex; align-items: center; justify-content: center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #9ca3af;">Rewards</div></div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;"><div style="width: 44px; height: 44px; background: #4f46e5; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(79,70,229,0.45);"><svg width="20" height="20" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="1"><polygon points="5 3 19 12 5 21 5 3"/></svg></div><div style="font-size: 9px; font-weight: 700; color: #4f46e5;">Play</div></div>
+        </div>
+        <!-- Game cards -->
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+          <!-- Quiz card -->
+          <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; border: 2px solid #f59e0b;">
+            <div style="width: 52px; height: 52px; background: #f59e0b; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;">🎯</div>
+            <div style="flex: 1;">
+              <div style="font-size: 15px; font-weight: 900; color: #374151;">Quiz</div>
+              <div style="font-size: 10px; color: #92400e; margin-top: 2px;">Solo · Taking Turns · Multiplayer</div>
+              <div style="display: flex; gap: 4px; margin-top: 6px;">
+                <div style="background: rgba(255,255,255,0.6); border-radius: 6px; padding: 2px 7px; font-size: 9px; font-weight: 700; color: #92400e;">14 themes</div>
+                <div style="background: rgba(255,255,255,0.6); border-radius: 6px; padding: 2px 7px; font-size: 9px; font-weight: 700; color: #92400e;">Age-matched</div>
+              </div>
+            </div>
+            <div style="font-size: 18px; color: #92400e;">›</div>
+          </div>
+          <!-- Flashcards -->
+          <div style="background: linear-gradient(135deg, #ede9fe, #ddd6fe); border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; border: 2px solid #a78bfa;">
+            <div style="width: 52px; height: 52px; background: #7c3aed; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;">🃏</div>
+            <div style="flex: 1;"><div style="font-size: 15px; font-weight: 900; color: #374151;">Flashcards</div><div style="font-size: 10px; color: #5b21b6; margin-top: 2px;">Flip cards · learn and remember</div></div>
+            <div style="font-size: 18px; color: #5b21b6;">›</div>
+          </div>
+          <!-- Memory Match -->
+          <div style="background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 16px; padding: 16px; display: flex; align-items: center; gap: 14px; cursor: pointer; border: 2px solid #34d399;">
+            <div style="width: 52px; height: 52px; background: #10b981; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;">🧩</div>
+            <div style="flex: 1;"><div style="font-size: 15px; font-weight: 900; color: #374151;">Memory Match</div><div style="font-size: 10px; color: #065f46; margin-top: 2px;">Find the pairs · flip &amp; remember</div></div>
+            <div style="font-size: 18px; color: #065f46;">›</div>
+          </div>
+          <div style="background: #f9fafb; border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; border: 2px dashed #e5e7eb; opacity: 0.6;">
+            <div style="width: 52px; height: 52px; background: #e5e7eb; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;">🎲</div>
+            <div><div style="font-size: 13px; font-weight: 800; color: #9ca3af;">More coming soon…</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- note -->
+      <div style="background: #f9fafb; border-radius: 16px; padding: 16px 20px; font-size: 11px; color: #374151; line-height: 1.9;">
+        <strong>Game hub flow:</strong> Play tab → pick a game → game-specific screens<br>
+        Nav visible on hub + all browser screens. Hidden during active sessions.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 2. QUIZ — set browser + MODE SELECTION -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px;">2 · Quiz → set browser → mode selection</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start;">
+
+      <!-- Quiz set browser -->
+      <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 12px 16px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 28px; height: 28px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; cursor: pointer;">←</div>
+          <div style="color: white; font-weight: 800; font-size: 14px;">🎯 Quiz</div>
+        </div>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="background: #f3f4f6; border-radius: 10px; padding: 8px 12px; font-size: 10px; color: #9ca3af;">🔍 Search quiz sets…</div>
+          <div>
+            <div style="font-size: 9px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">🔢 Maths &amp; Science</div>
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+              <div style="background: #fef3c7; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; cursor: pointer;"><div style="font-size: 18px;">➕</div><div style="flex: 1;"><div style="font-size: 11px; font-weight: 800; color: #374151;">Times Tables</div><div style="font-size: 9px; color: #9ca3af;">10 q</div></div><div style="background: #f59e0b; border-radius: 7px; padding: 4px 9px; font-size: 9px; font-weight: 800; color: white;">▶</div></div>
+              <div style="background: #d1fae5; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; cursor: pointer;"><div style="font-size: 18px;">🔬</div><div style="flex: 1;"><div style="font-size: 11px; font-weight: 800; color: #374151;">Science Explorers</div><div style="font-size: 9px; color: #9ca3af;">15 q</div></div><div style="background: #10b981; border-radius: 7px; padding: 4px 9px; font-size: 9px; font-weight: 800; color: white;">▶</div></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 9px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">🗣️ Languages</div>
+            <div style="background: #ede9fe; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; cursor: pointer;"><div style="font-size: 18px;">🇫🇷</div><div style="flex: 1;"><div style="font-size: 11px; font-weight: 800; color: #374151;">French Basics</div><div style="font-size: 9px; color: #9ca3af;">8 q</div></div><div style="background: #7c3aed; border-radius: 7px; padding: 4px 9px; font-size: 9px; font-weight: 800; color: white;">▶</div></div>
+          </div>
+          <div>
+            <div style="font-size: 9px; font-weight: 800; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">🌟 Fun &amp; General</div>
+            <div style="background: #fff1f2; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; cursor: pointer;"><div style="font-size: 18px;">🎭</div><div style="flex: 1;"><div style="font-size: 11px; font-weight: 800; color: #374151;">Pokémon &amp; Pop</div><div style="font-size: 9px; color: #9ca3af;">12 q</div></div><div style="background: #f43f5e; border-radius: 7px; padding: 4px 9px; font-size: 9px; font-weight: 800; color: white;">▶</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode selection — after tapping a set -->
+      <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 12px 16px; display: flex; align-items: center; gap: 10px;">
+          <div style="width: 28px; height: 28px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; cursor: pointer;">←</div>
+          <div>
+            <div style="color: white; font-weight: 800; font-size: 13px;">➕ Times Tables</div>
+            <div style="color: rgba(255,255,255,0.7); font-size: 9px;">Pick how you want to play</div>
+          </div>
+        </div>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+
+          <!-- Solo -->
+          <div style="background: linear-gradient(135deg, #fef9c3, #fef3c7); border-radius: 14px; padding: 14px; cursor: pointer; border: 2px solid #fbbf24;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+              <div style="font-size: 26px;">🎯</div>
+              <div>
+                <div style="font-size: 13px; font-weight: 900; color: #374151;">Solo</div>
+                <div style="font-size: 9px; color: #92400e;">Just me</div>
+              </div>
+            </div>
+            <div style="background: #f59e0b; border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white;">Start Solo ▶</div>
+          </div>
+
+          <!-- Taking Turns -->
+          <div style="background: linear-gradient(135deg, #ede9fe, #ddd6fe); border-radius: 14px; padding: 14px; cursor: pointer; border: 2px solid #a78bfa;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+              <div style="font-size: 26px;">🔄</div>
+              <div>
+                <div style="font-size: 13px; font-weight: 900; color: #374151;">Taking Turns</div>
+                <div style="font-size: 9px; color: #5b21b6;">Same device · one at a time</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 5px; margin-bottom: 8px;">
+              <div style="background: white; border-radius: 8px; padding: 6px 8px; display: flex; align-items: center; gap: 5px; flex: 1;"><div style="width: 16px; height: 16px; background: #7c3aed; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: white;">✓</div><div style="font-size: 16px;">🦊</div><div style="font-size: 10px; font-weight: 700; color: #374151;">Liam</div></div>
+              <div style="background: white; border-radius: 8px; padding: 6px 8px; display: flex; align-items: center; gap: 5px; flex: 1;"><div style="width: 16px; height: 16px; background: #7c3aed; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 8px; color: white;">✓</div><div style="font-size: 16px;">🐱</div><div style="font-size: 10px; font-weight: 700; color: #374151;">Mia</div></div>
+            </div>
+            <div style="background: #f3f4f6; border-radius: 8px; padding: 5px 8px; display: flex; align-items: center; gap: 5px; margin-bottom: 8px; cursor: pointer;">
+              <div style="width: 16px; height: 16px; background: #e5e7eb; border-radius: 4px;"></div>
+              <div style="font-size: 14px;">🧙</div><div style="font-size: 10px; color: #9ca3af;">+ Join as parent/guardian</div>
+            </div>
+            <div style="background: #7c3aed; border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white;">Start Taking Turns ▶</div>
+          </div>
+
+          <!-- Multiplayer -->
+          <div style="background: linear-gradient(135deg, #fef2f2, #ffe4e6); border-radius: 14px; padding: 14px; cursor: pointer; border: 2px solid #fca5a5;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+              <div style="font-size: 26px;">📱</div>
+              <div>
+                <div style="font-size: 13px; font-weight: 900; color: #374151;">Multiplayer</div>
+                <div style="font-size: 9px; color: #9f1239;">Own devices · race to answer!</div>
+              </div>
+            </div>
+            <div style="background: #ef4444; border-radius: 10px; padding: 9px; text-align: center; font-size: 11px; font-weight: 800; color: white;">Host a Game ▶</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Multiplayer lobby (host view) -->
+      <div style="background: #1e1b4b; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.25); overflow: hidden;">
+        <div style="padding: 14px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="width: 28px; height: 28px; background: rgba(255,255,255,0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 13px; cursor: pointer;">←</div>
+          <div>
+            <div style="color: white; font-weight: 800; font-size: 13px;">📱 Multiplayer</div>
+            <div style="color: rgba(255,255,255,0.5); font-size: 9px;">Others join with the code</div>
+          </div>
+        </div>
+        <div style="padding: 16px; text-align: center;">
+          <!-- Room code -->
+          <div style="color: rgba(255,255,255,0.6); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Game code</div>
+          <div style="font-size: 42px; font-weight: 900; color: white; letter-spacing: 8px; background: rgba(255,255,255,0.08); border-radius: 14px; padding: 14px; margin-bottom: 6px;">4872</div>
+          <div style="color: rgba(255,255,255,0.4); font-size: 9px; margin-bottom: 16px;">Players go to app → Play → Join Game → enter this code</div>
+          <!-- Players joined -->
+          <div style="text-align: left; margin-bottom: 14px;">
+            <div style="color: rgba(255,255,255,0.5); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Players joined (2)</div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="background: rgba(255,255,255,0.08); border-radius: 10px; padding: 9px 12px; display: flex; align-items: center; gap: 10px;">
+                <div style="font-size: 20px;">🦊</div>
+                <div style="font-size: 12px; font-weight: 800; color: white; flex: 1;">Liam</div>
+                <div style="background: #22c55e; border-radius: 6px; padding: 2px 8px; font-size: 9px; font-weight: 700; color: white;">Host</div>
+              </div>
+              <div style="background: rgba(255,255,255,0.08); border-radius: 10px; padding: 9px 12px; display: flex; align-items: center; gap: 10px;">
+                <div style="font-size: 20px;">🐱</div>
+                <div style="font-size: 12px; font-weight: 800; color: white; flex: 1;">Mia</div>
+                <div style="background: rgba(255,255,255,0.15); border-radius: 6px; padding: 2px 8px; font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.7);">Ready ✓</div>
+              </div>
+              <div style="border: 1.5px dashed rgba(255,255,255,0.15); border-radius: 10px; padding: 9px 12px; display: flex; align-items: center; gap: 10px;">
+                <div style="font-size: 20px; opacity: 0.3;">👤</div>
+                <div style="font-size: 11px; color: rgba(255,255,255,0.3);">Waiting for more…</div>
+              </div>
+            </div>
+          </div>
+          <div style="background: #4f46e5; border-radius: 12px; padding: 12px; font-size: 12px; font-weight: 800; color: white; cursor: pointer;">Start Game (2 players) ▶</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 3. LIVE SESSION — TAKING TURNS  -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 4px;">3 · Live session — Taking Turns (dark game-show stage)</div>
+    <div style="font-size: 11px; color: #9ca3af; margin-bottom: 12px;">Nav hidden · immersive full-screen · back arrow exits</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start;">
+
+      <!-- Player transition card -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px; font-weight: 700;">➕ Times Tables · Q 4 of 10</div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px;">🦊 3 · 🐱 2</div>
+        </div>
+        <!-- Big "your turn" moment -->
+        <div style="padding: 32px 20px; text-align: center;">
+          <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #a78bfa, #7c3aed); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 42px; margin: 0 auto 14px; box-shadow: 0 0 0 8px rgba(167,139,250,0.15);">🐱</div>
+          <div style="color: #a78bfa; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Next up</div>
+          <div style="color: white; font-size: 28px; font-weight: 900; margin-bottom: 4px;">Mia's turn!</div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 11px;">Get ready…</div>
+          <div style="margin-top: 24px; background: rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-around;">
+            <div style="text-align: center;"><div style="font-size: 18px;">🦊</div><div style="font-size: 11px; font-weight: 800; color: white;">3</div><div style="font-size: 9px; color: rgba(255,255,255,0.4);">Liam</div></div>
+            <div style="text-align: center;"><div style="font-size: 18px;">🐱</div><div style="font-size: 11px; font-weight: 800; color: #a78bfa;">2</div><div style="font-size: 9px; color: #a78bfa;">Mia</div></div>
+          </div>
+        </div>
+        <div style="padding: 0 16px 16px;">
+          <div style="background: #4f46e5; border-radius: 12px; padding: 12px; text-align: center; font-size: 12px; font-weight: 800; color: white; cursor: pointer;">I'm ready — show my question ▶</div>
+        </div>
+      </div>
+
+      <!-- Question (MC) — answering state -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <!-- Header bar -->
+        <div style="padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="font-size: 18px;">🐱</div>
+            <div style="color: white; font-size: 11px; font-weight: 800;">Mia</div>
+          </div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px; font-weight: 700;">Q 4 of 10</div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px;">🦊 3 · 🐱 2</div>
+        </div>
+        <!-- Progress bar -->
+        <div style="height: 3px; background: rgba(255,255,255,0.1);"><div style="height: 3px; background: #a78bfa; width: 40%;"></div></div>
+
+        <!-- Question card -->
+        <div style="padding: 20px 16px 12px;">
+          <div style="background: rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 16px;">
+            <div style="color: rgba(255,255,255,0.5); font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;">Which animal lays the biggest eggs?</div>
+            <div style="font-size: 22px; font-weight: 900; color: white; line-height: 1.3;">Which animal lays<br>the biggest eggs?</div>
+          </div>
+          <!-- A/B/C/D answer grid -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: #dc2626; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              <div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">A</div>
+              <div style="font-size: 13px; font-weight: 800; color: white; flex: 1; text-align: left;">Crocodile 🐊</div>
+            </div>
+            <div style="background: #2563eb; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              <div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">B</div>
+              <div style="font-size: 13px; font-weight: 800; color: white; flex: 1; text-align: left;">Ostrich 🦤</div>
+            </div>
+            <div style="background: #d97706; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              <div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">C</div>
+              <div style="font-size: 13px; font-weight: 800; color: white; flex: 1; text-align: left;">Whale 🐋</div>
+            </div>
+            <div style="background: #059669; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              <div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">D</div>
+              <div style="font-size: 13px; font-weight: 800; color: white; flex: 1; text-align: left;">Python 🐍</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Correct answer revealed -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="display: flex; align-items: center; gap: 8px;"><div style="font-size: 18px;">🐱</div><div style="color: white; font-size: 11px; font-weight: 800;">Mia</div></div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px; font-weight: 700;">Q 4 of 10</div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px;">🦊 3 · 🐱 2</div>
+        </div>
+        <div style="height: 3px; background: rgba(255,255,255,0.1);"><div style="height: 3px; background: #a78bfa; width: 40%;"></div></div>
+        <div style="padding: 20px 16px 12px;">
+          <div style="background: rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 22px; font-weight: 900; color: white; line-height: 1.3;">Which animal lays<br>the biggest eggs?</div>
+          </div>
+          <!-- Answers revealed — Mia picked B (correct) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+            <div style="background: rgba(220,38,38,0.3); border-radius: 14px; padding: 14px 10px; display: flex; align-items: center; gap: 8px; opacity: 0.5;"><div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">A</div><div style="font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.6);">Crocodile 🐊</div></div>
+            <div style="background: #2563eb; border-radius: 14px; padding: 14px 10px; display: flex; align-items: center; gap: 8px; box-shadow: 0 0 0 3px #22c55e;"><div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">B</div><div style="font-size: 12px; font-weight: 800; color: white;">Ostrich 🦤 ✓</div></div>
+            <div style="background: rgba(217,119,6,0.3); border-radius: 14px; padding: 14px 10px; display: flex; align-items: center; gap: 8px; opacity: 0.5;"><div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">C</div><div style="font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.6);">Whale 🐋</div></div>
+            <div style="background: rgba(5,150,105,0.3); border-radius: 14px; padding: 14px 10px; display: flex; align-items: center; gap: 8px; opacity: 0.5;"><div style="background: rgba(0,0,0,0.2); border-radius: 8px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: white; flex-shrink: 0;">D</div><div style="font-size: 12px; font-weight: 800; color: rgba(255,255,255,0.6);">Python 🐍</div></div>
+          </div>
+          <!-- Feedback -->
+          <div style="background: #16a34a; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+              <div style="font-size: 22px;">🎉</div>
+              <div><div style="font-size: 13px; font-weight: 900; color: white;">Correct!</div><div style="font-size: 9px; color: rgba(255,255,255,0.8);">Ostriches lay the biggest eggs of any bird!</div></div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px 12px; display: flex; justify-content: space-around;">
+              <div style="text-align: center;"><div style="font-size: 15px; font-weight: 900; color: #fbbf24;">+920</div><div style="font-size: 9px; color: rgba(255,255,255,0.6);">points</div></div>
+              <div style="width: 1px; background: rgba(255,255,255,0.15);"></div>
+              <div style="text-align: center;"><div style="font-size: 15px; font-weight: 900; color: white;">1.8s</div><div style="font-size: 9px; color: rgba(255,255,255,0.6);">speed</div></div>
+              <div style="width: 1px; background: rgba(255,255,255,0.15);"></div>
+              <div style="text-align: center;"><div style="font-size: 15px; font-weight: 900; color: white;">3,740</div><div style="font-size: 9px; color: rgba(255,255,255,0.6);">total</div></div>
+            </div>
+          </div>
+          <div style="background: rgba(255,255,255,0.1); border-radius: 12px; padding: 11px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">Next → Liam's turn ›</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 4. LIVE SESSION — MULTIPLAYER (Kahoot-style) -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 4px;">4 · Live session — Multiplayer (each on own device, race to answer)</div>
+    <div style="font-size: 11px; color: #9ca3af; margin-bottom: 12px;">Host's screen shows question to all · each player sees same question on their device · tap to answer fast · age-matched difficulty</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start;">
+
+      <!-- Host/shared display — question visible to all -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="background: #312e81; padding: 10px 14px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="color: rgba(255,255,255,0.6); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">➕ Times Tables · Q 3 of 10</div>
+        </div>
+        <!-- Countdown -->
+        <div style="padding: 16px; text-align: center;">
+          <div style="width: 60px; height: 60px; border-radius: 50%; border: 4px solid #4f46e5; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; position: relative;">
+            <div style="font-size: 24px; font-weight: 900; color: white;">8</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 20px; font-weight: 900; color: white; line-height: 1.4;">What is 9 × 7?</div>
+          </div>
+          <!-- Colour-coded answer shapes (like Kahoot) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: #dc2626; border-radius: 12px; padding: 16px 10px; text-align: center;"><div style="font-size: 18px; color: white; font-weight: 900;">▲</div><div style="font-size: 13px; font-weight: 900; color: white; margin-top: 4px;">63</div></div>
+            <div style="background: #2563eb; border-radius: 12px; padding: 16px 10px; text-align: center;"><div style="font-size: 18px; color: white; font-weight: 900;">◆</div><div style="font-size: 13px; font-weight: 900; color: white; margin-top: 4px;">54</div></div>
+            <div style="background: #d97706; border-radius: 12px; padding: 16px 10px; text-align: center;"><div style="font-size: 18px; color: white; font-weight: 900;">●</div><div style="font-size: 13px; font-weight: 900; color: white; margin-top: 4px;">72</div></div>
+            <div style="background: #059669; border-radius: 12px; padding: 16px 10px; text-align: center;"><div style="font-size: 18px; color: white; font-weight: 900;">■</div><div style="font-size: 13px; font-weight: 900; color: white; margin-top: 4px;">81</div></div>
+          </div>
+        </div>
+        <!-- Live answer count -->
+        <div style="padding: 0 14px 14px; text-align: center; color: rgba(255,255,255,0.4); font-size: 10px; font-weight: 700;">1 of 2 answered…</div>
+      </div>
+
+      <!-- Player's own device — picking answer -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="display: flex; align-items: center; gap: 8px;"><div style="font-size: 18px;">🐱</div><div style="color: white; font-size: 11px; font-weight: 800;">Mia</div></div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px;">Score: 1,200</div>
+        </div>
+        <div style="padding: 16px;">
+          <!-- Question shown on own device too -->
+          <div style="background: rgba(255,255,255,0.06); border-radius: 14px; padding: 14px; text-align: center; margin-bottom: 14px;">
+            <div style="font-size: 16px; font-weight: 900; color: white;">What is 9 × 7?</div>
+            <div style="color: rgba(255,255,255,0.4); font-size: 9px; margin-top: 4px;">Tap fast — faster = more points!</div>
+          </div>
+          <!-- Big tap buttons — shape + colour only (no text, or with text for kids) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div style="background: #dc2626; border-radius: 16px; padding: 28px 10px; text-align: center; cursor: pointer; box-shadow: 0 6px 0 #991b1b;">
+              <div style="font-size: 26px; color: white; font-weight: 900;">▲</div>
+              <div style="font-size: 14px; font-weight: 900; color: white; margin-top: 6px;">63</div>
+            </div>
+            <div style="background: #2563eb; border-radius: 16px; padding: 28px 10px; text-align: center; cursor: pointer; box-shadow: 0 6px 0 #1d4ed8;">
+              <div style="font-size: 26px; color: white; font-weight: 900;">◆</div>
+              <div style="font-size: 14px; font-weight: 900; color: white; margin-top: 6px;">54</div>
+            </div>
+            <div style="background: #d97706; border-radius: 16px; padding: 28px 10px; text-align: center; cursor: pointer; box-shadow: 0 6px 0 #b45309;">
+              <div style="font-size: 26px; color: white; font-weight: 900;">●</div>
+              <div style="font-size: 14px; font-weight: 900; color: white; margin-top: 6px;">72</div>
+            </div>
+            <div style="background: #059669; border-radius: 16px; padding: 28px 10px; text-align: center; cursor: pointer; box-shadow: 0 6px 0 #047857;">
+              <div style="font-size: 26px; color: white; font-weight: 900;">■</div>
+              <div style="font-size: 14px; font-weight: 900; color: white; margin-top: 6px;">81</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- After answer — waiting + between-Q leaderboard -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div style="display: flex; align-items: center; gap: 8px;"><div style="font-size: 18px;">🐱</div><div style="color: white; font-size: 11px; font-weight: 800;">Mia</div></div>
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px;">Q 3 of 10</div>
+        </div>
+        <div style="padding: 16px;">
+          <!-- Answered indicator -->
+          <div style="background: #16a34a; border-radius: 14px; padding: 16px; text-align: center; margin-bottom: 14px;">
+            <div style="font-size: 28px; margin-bottom: 6px;">🎉</div>
+            <div style="font-size: 16px; font-weight: 900; color: white;">Correct!</div>
+            <div style="font-size: 11px; color: rgba(255,255,255,0.8); margin-top: 4px;">9 × 7 = 63</div>
+            <div style="background: rgba(0,0,0,0.2); border-radius: 10px; padding: 8px; margin-top: 8px; display: flex; justify-content: space-around;">
+              <div><div style="font-size: 14px; font-weight: 900; color: #fbbf24;">+850</div><div style="font-size: 9px; color: rgba(255,255,255,0.6);">points</div></div>
+              <div><div style="font-size: 14px; font-weight: 900; color: white;">2.1s</div><div style="font-size: 9px; color: rgba(255,255,255,0.6);">speed</div></div>
+            </div>
+          </div>
+          <!-- Mini leaderboard between questions -->
+          <div style="color: rgba(255,255,255,0.5); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Leaderboard after Q3</div>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="background: #d97706; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px;"><div style="font-size: 14px;">🥇</div><div style="font-size: 18px;">🦊</div><div style="flex: 1; font-size: 11px; font-weight: 800; color: white;">Liam</div><div style="font-size: 12px; font-weight: 900; color: white;">3,200</div></div>
+            <div style="background: rgba(255,255,255,0.1); border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; border: 1.5px solid #a78bfa;"><div style="font-size: 14px;">🥈</div><div style="font-size: 18px;">🐱</div><div style="flex: 1; font-size: 11px; font-weight: 800; color: white;">Mia</div><div style="font-size: 12px; font-weight: 900; color: #a78bfa;">2,050</div></div>
+          </div>
+          <div style="color: rgba(255,255,255,0.3); font-size: 9px; text-align: center; margin-top: 10px;">Next question coming up…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- 5. END SCREENS -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <div>
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px;">5 · End screens</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start;">
+
+      <!-- Solo end -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="background: linear-gradient(180deg, #4f46e5, #1e1b4b); padding: 28px 20px 20px; text-align: center;">
+          <div style="font-size: 50px; margin-bottom: 8px;">🦊</div>
+          <div style="color: rgba(255,255,255,0.6); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Solo · Times Tables</div>
+          <div style="font-size: 40px; font-weight: 900; color: #fbbf24;">7,450</div>
+          <div style="font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px;">pts · 8/10 correct</div>
+          <div style="font-size: 12px; color: white; font-weight: 800; margin-top: 4px;">Nice work Liam! 🎯</div>
+        </div>
+        <div style="padding: 14px 16px;">
+          <!-- Q grid -->
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 14px;">
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q1 ✓</div>
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q2 ✓</div>
+            <div style="background: #dc2626; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q3 ✗</div>
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q4 ✓</div>
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q5 ✓</div>
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q6 ✓</div>
+            <div style="background: #dc2626; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q7 ✗</div>
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q8 ✓</div>
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q9 ✓</div>
+            <div style="background: #16a34a; border-radius: 7px; padding: 7px 4px; text-align: center; font-size: 9px; font-weight: 800; color: white;">Q10 ✓</div>
+          </div>
+          <div style="background: #4f46e5; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px;"><div style="font-size: 16px;">🏆</div><div><div style="font-size: 11px; font-weight: 800; color: white;">Personal best!</div><div style="font-size: 9px; color: rgba(255,255,255,0.7);">Previous best was 7/10</div></div></div>
+          <div style="display: flex; gap: 8px;">
+            <div style="flex: 1; background: #4f46e5; border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">🔄 Again</div>
+            <div style="flex: 1; background: rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">🎮 Hub</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Taking Turns end — podium -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="background: linear-gradient(180deg, #b45309, #1e1b4b); padding: 24px 20px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Taking Turns · Times Tables</div>
+          <div style="font-size: 52px; margin-bottom: 6px;">🦊</div>
+          <div style="font-size: 22px; font-weight: 900; color: white;">Liam wins! 🏆</div>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
+          <div style="background: #b45309; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;"><div style="font-size: 16px;">🥇</div><div style="font-size: 20px;">🦊</div><div style="flex: 1;"><div style="font-size: 12px; font-weight: 800; color: white;">Liam</div><div style="font-size: 9px; color: rgba(255,255,255,0.6);">8/10 correct</div></div><div style="text-align: right;"><div style="font-size: 14px; font-weight: 900; color: #fbbf24;">8,340</div><div style="font-size: 9px; color: rgba(255,255,255,0.5);">pts</div></div></div>
+          <div style="background: rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;"><div style="font-size: 16px;">🥈</div><div style="font-size: 20px;">🐱</div><div style="flex: 1;"><div style="font-size: 12px; font-weight: 800; color: white;">Mia</div><div style="font-size: 9px; color: rgba(255,255,255,0.4);">6/10 correct</div></div><div style="text-align: right;"><div style="font-size: 14px; font-weight: 900; color: rgba(255,255,255,0.7);">5,210</div><div style="font-size: 9px; color: rgba(255,255,255,0.4);">pts</div></div></div>
+        </div>
+        <div style="padding: 0 16px 16px; display: flex; gap: 8px;">
+          <div style="flex: 1; background: #4f46e5; border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">🔄 Again</div>
+          <div style="flex: 1; background: rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">🎮 Hub</div>
+        </div>
+      </div>
+
+      <!-- Multiplayer end — full podium + points -->
+      <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 40px rgba(79,70,229,0.4);">
+        <div style="background: linear-gradient(180deg, #b45309, #1e1b4b); padding: 24px 20px 16px; text-align: center;">
+          <div style="font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Multiplayer · Times Tables</div>
+          <div style="font-size: 52px; margin-bottom: 6px;">🦊</div>
+          <div style="font-size: 22px; font-weight: 900; color: white;">Liam wins! 🏆</div>
+          <div style="font-size: 11px; color: #fbbf24; font-weight: 800; margin-top: 4px;">4,850 points</div>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px;">
+          <div style="background: #b45309; border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;"><div style="font-size: 16px;">🥇</div><div style="font-size: 20px;">🦊</div><div style="flex: 1;"><div style="font-size: 12px; font-weight: 800; color: white;">Liam</div><div style="font-size: 9px; color: rgba(255,255,255,0.5);">9/10 correct</div></div><div style="font-size: 13px; font-weight: 900; color: #fbbf24;">4,850</div></div>
+          <div style="background: rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;"><div style="font-size: 16px;">🥈</div><div style="font-size: 20px;">🐱</div><div style="flex: 1;"><div style="font-size: 12px; font-weight: 800; color: white;">Mia</div><div style="font-size: 9px; color: rgba(255,255,255,0.5);">7/10 correct</div></div><div style="font-size: 13px; font-weight: 900; color: rgba(255,255,255,0.6);">3,200</div></div>
+        </div>
+        <div style="padding: 0 16px 16px; display: flex; gap: 8px;">
+          <div style="flex: 1; background: #4f46e5; border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">🔄 Again</div>
+          <div style="flex: 1; background: rgba(255,255,255,0.1); border-radius: 10px; padding: 10px; text-align: center; font-size: 11px; font-weight: 800; color: white; cursor: pointer;">🎮 Hub</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

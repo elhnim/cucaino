@@ -291,7 +291,10 @@ function FrequencyCard({
       window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
     }
     startTransition(async () => {
-      await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
+      const result = await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
+      if (result.ok && result.newTiers && result.newTiers.length > 0) {
+        window.dispatchEvent(new CustomEvent("badge-unlocked", { detail: { badges: result.newTiers } }));
+      }
     });
   };
 
@@ -393,7 +396,7 @@ function TimerCard({
       </div>
       {isToday && (
         <Link
-          href={`/kid/${kidId}/practice/${task.id}`}
+          href={`/kid/${kidId}/practice/${task.id}?from=todo`}
           className="shrink-0 flex items-center gap-1 px-4 py-2.5 rounded-xl font-bold text-sm text-white shadow-sm"
           style={{ background: accentColor }}
         >
@@ -456,6 +459,8 @@ export default function TodoTaskCard({
       if (!result.ok) {
         setDone(false);
         setCelebrating(false);
+      } else if (result.newTiers && result.newTiers.length > 0) {
+        window.dispatchEvent(new CustomEvent("badge-unlocked", { detail: { badges: result.newTiers } }));
       }
     });
   };

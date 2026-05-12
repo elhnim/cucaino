@@ -1,19 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
-import type { Kid } from "@/lib/domain/types";
+import type { Kid, BadgeProgress, UnlockedBadge } from "@/lib/domain/types";
 import { getTheme } from "@/lib/themes/presets";
 import KidOverridesApplier from "@/components/kid/KidOverridesApplier";
+import NavIcon from "@/components/ui/NavIcon";
+import BadgeUnlockModal from "@/components/kid/BadgeUnlockModal";
 
 type NavKey = "home" | "todo" | "rewards" | "play";
 
-const NAV_ITEMS: { key: NavKey; label: string; icon: string; href: (kidId: string) => string }[] = [
-  { key: "home",    label: "Home",     icon: "🏠", href: (id) => `/kid/${id}/home` },
-  { key: "todo",    label: "Schedule", icon: "📅", href: (id) => `/kid/${id}/todo` },
-  { key: "rewards", label: "Rewards",  icon: "🎁", href: (id) => `/kid/${id}/rewards` },
-  { key: "play",    label: "Play",     icon: "🎮", href: (id) => `/play?kid=${id}` },
+const BADGE_ICONS: Record<string, string> = {
+  champion: "🧹", athlete: "🏃", musician: "🎵",
+  self_care: "✨", explorer: "🗺️", scholar: "📚",
+  streak: "🔥", star_collector: "⭐", task_titan: "⚡",
+};
+
+function wmoIcon(code: number): string {
+  if (code === 0) return "☀️";
+  if (code <= 2) return "🌤️";
+  if (code <= 3) return "☁️";
+  if (code <= 49) return "🌫️";
+  if (code <= 59) return "🌦️";
+  if (code <= 69) return "🌧️";
+  if (code <= 79) return "🌨️";
+  if (code <= 82) return "🌧️";
+  if (code <= 89) return "⛈️";
+  return "🌩️";
+}
+
+const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "play"; href: (kidId: string) => string }[] = [
+  { key: "home",    label: "Home",     icon: "home",     href: (id) => `/kid/${id}/home` },
+  { key: "todo",    label: "Schedule", icon: "calendar", href: (id) => `/kid/${id}/todo` },
+  { key: "rewards", label: "Store",    icon: "gift",     href: (id) => `/kid/${id}/rewards` },
+  { key: "play",    label: "Play",     icon: "play",     href: (id) => `/play?kid=${id}` },
 ];
 
 export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
@@ -29,11 +50,11 @@ export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
   }, []);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative flex-shrink-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-12 h-12 rounded-full flex items-center justify-center text-3xl border-2 border-white/40"
+        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
         style={{ background: "rgba(255,255,255,0.2)" }}
       >
         <span data-kid-avatar={kid.id}>{kid.avatar}</span>
@@ -41,7 +62,7 @@ export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 bg-white rounded-2xl overflow-hidden z-50"
+          className="absolute left-0 top-full mt-2 bg-white rounded-2xl overflow-hidden z-50"
           style={{ minWidth: 180, boxShadow: "0 8px 32px -4px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)" }}
         >
           <Link
@@ -51,13 +72,6 @@ export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
           >
             <span className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-sm">✏️</span>
             Edit profile
-          </Link>
-          <Link
-            href={`/kid/${kid.id}/timetable`}
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 active:bg-gray-100 border-t border-gray-100"
-          >
-            📚 My timetable
           </Link>
           <Link
             href="/select-kid"
@@ -78,52 +92,178 @@ export default function KidShell({
   active,
   children,
   familyGoal,
-  customHeader,
+  headerExtra,
+  todayProgress,
+  badges,
+  weatherLocation,
+  headerSubtitle,
 }: {
   kid: Kid;
   active: NavKey;
   children: ReactNode;
   familyGoal?: { name: string; emoji: string; current: number; target: number };
-  customHeader?: ReactNode;
+  headerExtra?: ReactNode;
+  todayProgress?: { done: number; total: number };
+  badges?: BadgeProgress[];
+  weatherLocation?: { lat: number; lon: number };
+  headerSubtitle?: string;
 }) {
   const theme = getTheme(kid.themeId);
+  const progressPct = todayProgress && todayProgress.total > 0
+    ? Math.round((todayProgress.done / todayProgress.total) * 100)
+    : null;
+
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const [unlockedBadges, setUnlockedBadges] = useState<UnlockedBadge[]>([]);
+  const handleBadgeUnlocked = useCallback((e: Event) => {
+    const badges = (e as CustomEvent).detail?.badges as UnlockedBadge[];
+    if (badges?.length) setUnlockedBadges(badges);
+  }, []);
+  useEffect(() => {
+    window.addEventListener("badge-unlocked", handleBadgeUnlocked);
+    return () => window.removeEventListener("badge-unlocked", handleBadgeUnlocked);
+  }, [handleBadgeUnlocked]);
+
+  const [weather, setWeather] = useState<{ icon: string; temp: number } | null>(null);
+  useEffect(() => {
+    const doFetch = async (latitude: number, longitude: number) => {
+      try {
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`
+        );
+        const json = await res.json();
+        const code: number = json.current_weather?.weathercode ?? 0;
+        const temp: number = Math.round(json.current_weather?.temperature ?? 0);
+        setWeather({ icon: wmoIcon(code), temp });
+      } catch {}
+    };
+    if (weatherLocation) {
+      doFetch(weatherLocation.lat, weatherLocation.lon);
+    } else if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(({ coords }) =>
+        doFetch(coords.latitude, coords.longitude)
+      );
+    }
+  }, [weatherLocation?.lat, weatherLocation?.lon]);
 
   return (
-    <main className={`min-h-screen bg-gradient-to-br ${theme.pageGradient} font-fun flex flex-col`}>
+    <main className={`h-dvh bg-gradient-to-br ${theme.pageGradient} font-fun flex flex-col`}>
 
-      {customHeader ?? (
-        <header
-          className={`bg-gradient-to-br ${theme.headerGradient} text-white flex-shrink-0`}
-          style={{ paddingTop: 36, paddingLeft: 20, paddingRight: 20, paddingBottom: 20 }}
-        >
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <div className="text-sm font-semibold opacity-75">Good morning,</div>
-              <div className="text-[22px] font-black leading-tight mt-0.5">
-                <span data-kid-name={kid.id}>{kid.name}</span> {kid.avatar}
-              </div>
+      <header
+        className={`bg-gradient-to-br ${theme.headerGradient} text-white flex-shrink-0`}
+        style={{ paddingTop: 32, paddingLeft: 16, paddingRight: 16, paddingBottom: headerExtra ? 12 : 16 }}
+      >
+        <div className="flex items-center gap-3">
+          {/* Avatar — opens dropdown menu */}
+          <KidAvatarMenu kid={kid} accent={theme.accent} />
+
+          {/* Greeting + name + date/time/weather */}
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-semibold opacity-70 leading-none">{headerSubtitle ?? "Good morning,"}</div>
+            <div className="text-xl font-black leading-tight mt-0.5 truncate">
+              <span data-kid-name={kid.id}>{kid.name}</span>
             </div>
-            <KidAvatarMenu kid={kid} accent={theme.accent} />
+            {now && (
+              <div className="flex items-center gap-1.5 text-[10px] font-bold opacity-75 mt-0.5 flex-wrap">
+                <span>{now.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}</span>
+                <span>·</span>
+                <span>{now.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" })}</span>
+                {weather && (
+                  <>
+                    <span>·</span>
+                    <span>{weather.icon} {weather.temp}°</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
-          {familyGoal && (
-            <>
-              <div className="text-[11px] font-semibold opacity-70 mb-1.5">
-                Family goal — {familyGoal.emoji} {familyGoal.name} · {familyGoal.current.toLocaleString()} / {familyGoal.target.toLocaleString()} ⭐
-              </div>
-              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.25)" }}>
+          {/* Stats */}
+          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+              >
+                ⭐ {kid.pointsBalance.toLocaleString()}
+              </span>
+              <span
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+              >
+                🔥 {kid.currentStreak}d
+              </span>
+            </div>
+            {todayProgress && todayProgress.total > 0 && (
+              <div className="flex items-center gap-2 w-full justify-end">
                 <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.min(100, (familyGoal.current / familyGoal.target) * 100)}%`,
-                    background: "rgba(255,255,255,0.85)",
-                  }}
-                />
+                  className="h-2 rounded-full overflow-hidden"
+                  style={{ width: 80, background: "rgba(255,255,255,0.25)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${progressPct}%`,
+                      background: progressPct === 100 ? "#86efac" : "rgba(255,255,255,0.85)",
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] font-bold opacity-80 leading-none">
+                  {todayProgress.done}/{todayProgress.total}
+                </span>
               </div>
-            </>
-          )}
-        </header>
-      )}
+            )}
+            {badges && badges.filter((b) => b.currentTier !== "none").length > 0 && (
+              <div className="flex items-center gap-1 flex-wrap justify-end">
+                {badges
+                  .filter((b) => b.currentTier !== "none")
+                  .map((b) => {
+                    const icon = BADGE_ICONS[b.category] ?? "⭐";
+                    const tierColor =
+                      b.currentTier === "gold" ? "#f59e0b"
+                      : b.currentTier === "silver" ? "#9ca3af"
+                      : "#cd7c3f";
+                    return (
+                      <span
+                        key={b.id}
+                        className="text-sm leading-none"
+                        title={`${b.category} – ${b.currentTier}`}
+                        style={{ filter: `drop-shadow(0 0 2px ${tierColor})` }}
+                      >
+                        {icon}
+                      </span>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {familyGoal && (
+          <div className="mt-3">
+            <div className="text-[10px] font-semibold opacity-70 mb-1">
+              {familyGoal.emoji} {familyGoal.name} · {familyGoal.current.toLocaleString()} / {familyGoal.target.toLocaleString()} ⭐
+            </div>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.25)" }}>
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(100, (familyGoal.current / familyGoal.target) * 100)}%`,
+                  background: "rgba(255,255,255,0.85)",
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        {headerExtra}
+      </header>
 
       <KidOverridesApplier kid={kid} />
 
@@ -140,7 +280,9 @@ export default function KidShell({
               prefetch={false}
               className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5"
             >
-              <span className="text-xl leading-none">{item.icon}</span>
+              <span style={{ color: isActive ? theme.accent : "#9ca3af" }}>
+                <NavIcon name={item.icon} size={22} />
+              </span>
               <span
                 className="text-[10px] font-bold tracking-wide"
                 style={{ color: isActive ? theme.accent : "#9ca3af" }}
@@ -151,6 +293,13 @@ export default function KidShell({
           );
         })}
       </nav>
+
+      {unlockedBadges.length > 0 && (
+        <BadgeUnlockModal
+          badges={unlockedBadges}
+          onDismiss={() => setUnlockedBadges([])}
+        />
+      )}
     </main>
   );
 }

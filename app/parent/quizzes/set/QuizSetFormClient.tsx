@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createQuizSet, updateQuizSet, deleteQuizSet } from "@/lib/actions/quizzes";
-import type { QuizSet } from "@/lib/data/queries";
+import type { QuizSet } from "@/lib/domain/types";
 
 const THEMES = [
   { id: "maths",        label: "Maths",        emoji: "🧮" },

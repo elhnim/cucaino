@@ -1,0 +1,178 @@
+<h2>Parent — Tasks Screen</h2>
+<p class="subtitle">Where parents manage the task library. Does this feel right?</p>
+
+<div style="max-width: 680px; margin: 0 auto; background: #1a1a1a; border-radius: 28px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);">
+
+  <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+    <div style="width: 10px; height: 10px; background: #333; border-radius: 50%; border: 1.5px solid #444;"></div>
+  </div>
+
+  <div style="background: #f8fafc; border-radius: 16px; overflow: hidden;">
+
+    <!-- Header -->
+    <div style="background: #4338ca; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="position: relative; cursor: pointer;">
+          <div style="width: 52px; height: 52px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; border: 2.5px solid rgba(255,255,255,0.6);">🧙</div>
+          <div style="position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 1px 4px rgba(0,0,0,0.2);">✏️</div>
+        </div>
+        <div>
+          <div style="color: white; font-weight: 900; font-size: 20px; line-height: 1.1;">Hi Mum</div>
+          <div style="color: rgba(255,255,255,0.7); font-size: 13px; margin-top: 2px;">Thursday, 8 May 2026</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nav: Tasks active -->
+    <div style="background: white; padding: 12px 24px; display: flex; gap: 12px; justify-content: space-between; border-bottom: 2px solid #f3f4f6;">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1;">
+        <div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <span style="font-size: 11px; color: #9ca3af;">Home</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1;">
+        <div style="width: 52px; height: 52px; background: #4338ca; border-radius: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(67,56,202,0.4);">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        </div>
+        <span style="font-size: 11px; font-weight: 700; color: #4338ca;">Tasks</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1;">
+        <div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+        </div>
+        <span style="font-size: 11px; color: #9ca3af;">Rewards</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1;">
+        <div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <span style="font-size: 11px; color: #9ca3af;">Quizzes</span>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1;">
+        <div style="width: 52px; height: 52px; background: #f3f4f6; border-radius: 16px; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+        <span style="font-size: 11px; color: #9ca3af;">Settings</span>
+      </div>
+    </div>
+
+    <!-- Page content -->
+    <div style="padding: 20px 24px; background: #f8fafc;">
+
+      <!-- Kid filter tabs + Add button -->
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+        <div style="display: flex; gap: 8px;">
+          <div style="background: #4338ca; color: white; border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer;">All</div>
+          <div style="background: white; color: #6b7280; border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid #e5e7eb;">🦊 Liam</div>
+          <div style="background: white; color: #6b7280; border-radius: 20px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid #e5e7eb;">🐼 Mia</div>
+        </div>
+        <div style="background: #4338ca; color: white; border-radius: 12px; padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Task
+        </div>
+      </div>
+
+      <!-- Morning section -->
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">Morning</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; background: #fef3c7; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🛏️</div>
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #374151;">Make bed</div>
+                <div style="font-size: 11px; color: #9ca3af;">🦊 Liam · 🐼 Mia · ⭐ 5 pts</div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; background: #dbeafe; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🦷</div>
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #374151;">Brush teeth</div>
+                <div style="font-size: 11px; color: #9ca3af;">🦊 Liam · 🐼 Mia · ⭐ 5 pts</div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; background: #dcfce7; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🎒</div>
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #374151;">Pack school bag</div>
+                <div style="font-size: 11px; color: #9ca3af;">🦊 Liam · ⭐ 10 pts</div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Afternoon section -->
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">Afternoon</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; background: #fce7f3; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🎹</div>
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #374151;">Piano practice</div>
+                <div style="font-size: 11px; color: #9ca3af;">🦊 Liam · ⭐ 20 pts · 15 min</div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; background: #fef3c7; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">📚</div>
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #374151;">Read for 20 minutes</div>
+                <div style="font-size: 11px; color: #9ca3af;">🦊 Liam · 🐼 Mia · ⭐ 15 pts</div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Evening section -->
+      <div>
+        <div style="font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">Evening</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 36px; height: 36px; background: #ede9fe; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🧹</div>
+              <div>
+                <div style="font-weight: 700; font-size: 13px; color: #374151;">Tidy bedroom</div>
+                <div style="font-size: 11px; color: #9ca3af;">🦊 Liam · 🐼 Mia · ⭐ 10 pts</div>
+              </div>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <div style="display: flex; justify-content: center; margin-top: 10px;">
+    <div style="width: 36px; height: 36px; background: #333; border-radius: 50%; border: 2px solid #444;"></div>
+  </div>
+
+</div>
+
+<div style="margin-top: 14px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151;">
+  Tasks grouped by time of day · Filter by kid · Tap ··· to edit or delete · Add Task button top right
+</div>

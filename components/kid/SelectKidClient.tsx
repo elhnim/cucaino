@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import PinPad from "@/components/kid/PinPad";
 import { setKidPin } from "@/lib/actions/kids";
+import { signOut, verifyParentPin } from "@/lib/actions/auth";
 import type { Kid } from "@/lib/domain/types";
 import type { Theme } from "@/lib/themes/presets";
 
@@ -16,7 +17,7 @@ type Modal =
 export default function SelectKidClient({
   kids,
   themes,
-  parentPin,
+  hasParentPin,
   familyName,
   parentDisplayName,
   parentAvatar,
@@ -24,7 +25,7 @@ export default function SelectKidClient({
 }: {
   kids: Kid[];
   themes: Theme[];
-  parentPin: string | null;
+  hasParentPin: boolean;
   familyName: string | null;
   parentDisplayName?: string | null;
   parentAvatar?: string;
@@ -46,7 +47,7 @@ export default function SelectKidClient({
   };
 
   const goToParent = () => {
-    if (parentPin) {
+    if (hasParentPin) {
       setModal({ kind: "parent-verify" });
     } else {
       router.push("/parent");
@@ -63,7 +64,7 @@ export default function SelectKidClient({
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col px-6 md:px-10 pb-8 max-w-2xl mx-auto w-full">
+      <div className="flex-1 flex flex-col px-6 md:px-10 pb-8 max-w-4xl mx-auto w-full">
         {/* Family name sub-heading */}
         {familyName ? (
           <p className="text-base md:text-lg text-indigo-700 font-semibold mt-2 mb-1">
@@ -73,22 +74,18 @@ export default function SelectKidClient({
 
         {/* Heading */}
         <div className="mt-4 md:mt-6 mb-6 md:mb-8">
-          <h1 className="text-4xl md:text-5xl font-black text-indigo-900 leading-tight">
-            Knock knock... 🚪
-            <br />
-            Who&apos;s there?
-          </h1>
+          <div className="space-y-2">
+            <h1 className="text-4xl md:text-5xl font-black text-indigo-900">
+              Knock knock... 🚪
+            </h1>
+            <p className="text-3xl md:text-4xl font-black text-indigo-700">
+              Who&apos;s there?
+            </p>
+          </div>
         </div>
 
         {/* Kid cards grid + parent card */}
-        <div
-          className="mb-8"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "1rem",
-          }}
-        >
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-8">
           {kids.map((kid) => {
             const theme = themeById.get(kid.themeId);
             if (!theme) return null;
@@ -150,9 +147,14 @@ export default function SelectKidClient({
           <button
             type="button"
             onClick={goToParent}
-            className="bg-white rounded-3xl p-3 md:p-4 shadow-xl hover:scale-105 active:scale-100 transition-transform"
+            className="bg-white rounded-3xl p-3 md:p-4 shadow-xl hover:scale-105 active:scale-100 transition-transform relative"
             style={{ aspectRatio: "1" }}
           >
+            {hasParentPin ? (
+              <span className="absolute top-2 right-2 bg-gray-100 text-gray-600 text-[10px] px-2 py-0.5 rounded-full font-bold">
+                🔒 PIN
+              </span>
+            ) : null}
             <div className="flex flex-col items-center justify-center h-full gap-2">
               <div
                 className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-4xl md:text-5xl"
@@ -174,6 +176,17 @@ export default function SelectKidClient({
         </div>
       </div>
 
+      <div className="mt-4 flex justify-center">
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="text-xs font-bold text-gray-400 hover:text-gray-600 px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+          >
+            Sign out
+          </button>
+        </form>
+      </div>
+
       {modal ? (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start justify-center overflow-y-auto p-4 py-8 z-50">
           <div className="w-full max-w-sm">
@@ -189,7 +202,10 @@ export default function SelectKidClient({
             ) : modal.kind === "parent-verify" ? (
               <PinPad
                 mode="verify"
-                expected={parentPin ?? ""}
+                onVerify={async (pin) => {
+                  const { ok } = await verifyParentPin(pin);
+                  return ok;
+                }}
                 accent="#4f46e5"
                 prompt="Enter parent PIN"
                 onCancel={() => setModal(null)}

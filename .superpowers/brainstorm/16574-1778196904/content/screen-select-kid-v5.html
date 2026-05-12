@@ -1,0 +1,64 @@
+<h2>Home Screen — Fun Parent Card</h2>
+<p class="subtitle">Pick which parent card style you prefer.</p>
+
+<div style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px;">
+
+  <!-- Option A -->
+  <div class="option" data-choice="parent-a" onclick="toggleSelect(this)" style="padding: 0; border: none; background: transparent;">
+    <div class="label" style="text-align:center; margin-bottom: 8px;">A — Superhero</div>
+    <div style="background: linear-gradient(135deg, #6366f1, #818cf8); border-radius: 14px; width: 110px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;">
+      <div style="font-size: 36px;">🦸</div>
+      <div style="color: white; font-weight: 700; font-size: 13px; margin-top: 6px;">Parent</div>
+      <div style="color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 2px;">🤫 Shhh!</div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="option" data-choice="parent-b" onclick="toggleSelect(this)" style="padding: 0; border: none; background: transparent;">
+    <div class="label" style="text-align:center; margin-bottom: 8px;">B — Crown</div>
+    <div style="background: linear-gradient(135deg, #f59e0b, #fbbf24); border-radius: 14px; width: 110px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;">
+      <div style="font-size: 36px;">👑</div>
+      <div style="color: white; font-weight: 700; font-size: 13px; margin-top: 6px;">Parent</div>
+      <div style="color: rgba(255,255,255,0.85); font-size: 11px; margin-top: 2px;">The boss 😄</div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="option" data-choice="parent-c" onclick="toggleSelect(this)" style="padding: 0; border: none; background: transparent;">
+    <div class="label" style="text-align:center; margin-bottom: 8px;">C — Top secret</div>
+    <div style="background: linear-gradient(135deg, #ec4899, #f472b6); border-radius: 14px; width: 110px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;">
+      <div style="font-size: 36px;">🕵️</div>
+      <div style="color: white; font-weight: 700; font-size: 13px; margin-top: 6px;">Parent</div>
+      <div style="color: rgba(255,255,255,0.85); font-size: 11px; margin-top: 2px;">Top secret!</div>
+    </div>
+  </div>
+
+  <!-- Option D -->
+  <div class="option" data-choice="parent-d" onclick="toggleSelect(this)" style="padding: 0; border: none; background: transparent;">
+    <div class="label" style="text-align:center; margin-bottom: 8px;">D — Wizard</div>
+    <div style="background: linear-gradient(135deg, #7c3aed, #a78bfa); border-radius: 14px; width: 110px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;">
+      <div style="font-size: 36px;">🧙</div>
+      <div style="color: white; font-weight: 700; font-size: 13px; margin-top: 6px;">Parent</div>
+      <div style="color: rgba(255,255,255,0.85); font-size: 11px; margin-top: 2px;">Magic zone ✨</div>
+    </div>
+  </div>
+
+</div>
+
+<div style="max-width: 400px; margin: 0 auto; opacity: 0.5;">
+  <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden;">
+    <div style="padding: 20px 20px 10px; text-align: center;">
+      <div style="color: rgba(255,255,255,0.6); font-weight: 800; font-size: 13px; letter-spacing: 2px;">✨ CUCAINO</div>
+      <div style="color: white; font-weight: 900; font-size: 24px; margin-top: 8px; line-height: 1.2;">Knock knock... 🚪<br><span style="font-size: 18px; opacity: 0.85;">Who's there?</span></div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 10px 16px 18px;">
+      <div style="background: linear-gradient(135deg, #f97316, #fb923c); border-radius: 14px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:28px;">🦊</div><div style="color:white;font-weight:700;font-size:12px;margin-top:4px;">Liam</div></div>
+      <div style="background: linear-gradient(135deg, #a855f7, #c084fc); border-radius: 14px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:28px;">🐼</div><div style="color:white;font-weight:700;font-size:12px;margin-top:4px;">Mia</div></div>
+      <div style="background: linear-gradient(135deg, #0ea5e9, #38bdf8); border-radius: 14px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:28px;">🐯</div><div style="color:white;font-weight:700;font-size:12px;margin-top:4px;">Jake</div></div>
+      <div style="background: linear-gradient(135deg, #10b981, #34d399); border-radius: 14px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:28px;">🦋</div><div style="color:white;font-weight:700;font-size:12px;margin-top:4px;">Ella</div></div>
+      <div></div>
+      <div style="background: linear-gradient(135deg, #f59e0b, #fbbf24); border-radius: 14px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:28px;">👑</div><div style="color:white;font-weight:700;font-size:12px;margin-top:4px;">Parent</div><div style="color:rgba(255,255,255,0.85);font-size:10px;margin-top:2px;">The boss 😄</div></div>
+    </div>
+  </div>
+  <div style="text-align:center; margin-top:8px; font-size:12px; color:#9ca3af;">Preview uses Option B</div>
+</div>

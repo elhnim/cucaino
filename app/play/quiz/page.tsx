@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listQuizSets, listQuizBanks, listQuizQuestions2, getKid } from "@/lib/data/stub";
+import KidShell from "@/components/kid/KidShell";
 import QuizFilters from "@/components/play/QuizFilters";
 
 const THEME_LABEL: Record<string, { icon: string; label: string }> = {
@@ -57,7 +58,7 @@ export default async function QuizSetsPage({
 
   // Filter sets by theme
   const filteredSets = sets.filter((set) => {
-    if (theme && !set.themes.includes(theme as string)) return false;
+    if (theme && !set.themes.includes(theme as typeof set.themes[number])) return false;
     if (difficulty && set.maxDifficulty) {
       const setMaxIdx = DIFFICULTY_ORDER[set.maxDifficulty] ?? 2;
       const filterIdx = DIFFICULTY_ORDER[difficulty] ?? 0;
@@ -75,27 +76,17 @@ export default async function QuizSetsPage({
   const kidParam2 = kidParam ?? "";
   const backHref = kidParam ? `/play?kid=${kidParam}` : "/play";
 
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100 font-fun p-6">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-4 gap-3">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-black text-fuchsia-900">
-              🎮 Quiz battles
-            </h1>
-            {kid && (
-              <p className="text-sm text-fuchsia-700">
-                👤 {kid.avatar} {kid.name} · Age {kid.age}
-              </p>
-            )}
-          </div>
-          <Link
-            href={backHref}
-            className="text-sm bg-white/70 hover:bg-white px-4 py-2 rounded-full shadow shrink-0"
-          >
-            ← Games
-          </Link>
-        </div>
+  const content = (
+    <div className="max-w-3xl mx-auto p-4">
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <h1 className="text-2xl font-black text-gray-900">🎮 Quiz Battles</h1>
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1.5 bg-fuchsia-100 hover:bg-fuchsia-200 text-fuchsia-700 font-bold text-sm px-4 py-2 rounded-2xl transition-colors shrink-0"
+        >
+          ← Games
+        </Link>
+      </div>
 
         <QuizFilters theme={theme} difficulty={difficulty} kidParam={kidParam2} />
 
@@ -107,7 +98,7 @@ export default async function QuizSetsPage({
                 const firstTheme = set.themes[0] ?? "custom";
                 const cat = THEME_LABEL[firstTheme] ?? { icon: "🎯", label: firstTheme };
                 // Age-matched count for this set
-                const setQuestions = allQ.filter((q) => set.themes.includes(q.theme as string));
+                const setQuestions = allQ.filter((q) => set.themes.includes(q.theme as typeof set.themes[number]));
                 const forYouCount = kidAge !== null
                   ? ageMatchedCount(setQuestions, kidAge, difficulty || set.maxDifficulty)
                   : setQuestions.filter((q) => q.choices && q.choices.length > 0).length;
@@ -124,12 +115,11 @@ export default async function QuizSetsPage({
                       <div className="text-4xl">{set.emoji || cat.icon}</div>
                       <div className="flex-1">
                         <div className="font-bold">{set.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {set.themes.map((t) => THEME_LABEL[t]?.label ?? t).join(", ")}
-                        </div>
-                        {kidAge !== null && (
-                          <div className="text-xs text-indigo-600 font-semibold mt-0.5">
-                            {forYouCount} for you
+                        {set.description ? (
+                          <div className="text-xs text-gray-500 mt-0.5">{set.description}</div>
+                        ) : (
+                          <div className="text-xs text-gray-400">
+                            {set.themes.map((t) => THEME_LABEL[t]?.label ?? t).join(", ")}
                           </div>
                         )}
                       </div>
@@ -148,11 +138,6 @@ export default async function QuizSetsPage({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {filteredBanks.map((bank) => {
                 const cat = THEME_LABEL[bank.category] ?? { icon: "🎯", label: bank.category };
-                const forYouCount = kidAge !== null && kidAge >= bank.minAge
-                  ? "Available for you"
-                  : kidAge !== null
-                  ? `For ages ${bank.minAge}+`
-                  : null;
                 const href = kidParam
                   ? `/play/quiz/${bank.id}?kid=${kidParam}`
                   : `/play/quiz/${bank.id}`;
@@ -166,12 +151,11 @@ export default async function QuizSetsPage({
                       <div className="text-4xl">{cat.icon}</div>
                       <div className="flex-1">
                         <div className="font-bold">{bank.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {cat.label} · ages {bank.minAge}–{bank.maxAge}
-                        </div>
-                        {forYouCount && (
-                          <div className="text-xs text-indigo-600 font-semibold mt-0.5">
-                            {forYouCount}
+                        {bank.description ? (
+                          <div className="text-xs text-gray-500 mt-0.5">{bank.description}</div>
+                        ) : (
+                          <div className="text-xs text-gray-400">
+                            {cat.label} · ages {bank.minAge}–{bank.maxAge}
                           </div>
                         )}
                       </div>
@@ -189,7 +173,16 @@ export default async function QuizSetsPage({
             No quizzes match your filters. Try changing the theme or difficulty!
           </p>
         )}
-      </div>
+    </div>
+  );
+
+  if (kid) {
+    return <KidShell kid={kid} active="play">{content}</KidShell>;
+  }
+
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100 font-fun">
+      {content}
     </main>
   );
 }

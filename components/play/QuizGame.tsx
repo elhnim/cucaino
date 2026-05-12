@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getTheme } from "@/lib/themes/presets";
 import type { ThemeId } from "@/lib/domain/types";
@@ -51,6 +51,7 @@ export default function QuizGame({
   const [chosen, setChosen] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const gameQuestions = mode === "setup" ? [] : activeQuestions;
   const currentQuestion = gameQuestions[questionIndex];
@@ -67,13 +68,15 @@ export default function QuizGame({
       setSecondsLeft((s) => {
         if (s <= 1) {
           clearInterval(interval);
+          intervalRef.current = null;
           if (!revealed) handleAnswer(null);
           return 0;
         }
         return s - 1;
       });
     }, 1000);
-    return () => clearInterval(interval);
+    intervalRef.current = interval;
+    return () => { clearInterval(interval); intervalRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [questionIndex, mode]);
 
@@ -96,6 +99,10 @@ export default function QuizGame({
 
   const handleAnswer = (choiceIndex: number | null) => {
     if (revealed) return;
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     setChosen(choiceIndex);
     setRevealed(true);
     if (choiceIndex !== null && currentQuestion?.choices[choiceIndex]?.isCorrect) {
@@ -128,13 +135,13 @@ export default function QuizGame({
   // ---------- SETUP ----------
   if (mode === "setup") {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100 font-fun p-6">
+      <div className="p-4 pb-6">
         <div className="max-w-2xl mx-auto">
           <Link
             href={backHref}
-            className="text-sm bg-white/70 hover:bg-white px-4 py-2 rounded-full shadow inline-block mb-4"
+            className="inline-flex items-center gap-1.5 bg-fuchsia-100 hover:bg-fuchsia-200 text-fuchsia-700 font-bold text-sm px-4 py-2 rounded-2xl transition-colors mb-4"
           >
-            ← Back
+            ← Back to quizzes
           </Link>
           <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
             <div className="text-xs font-bold text-fuchsia-600 mb-1">QUIZ</div>
@@ -147,10 +154,13 @@ export default function QuizGame({
             <div className="grid grid-cols-2 gap-2 mb-6">
               <button
                 type="button"
-                onClick={() => setGameMode("turns")}
-                className={`rounded-2xl p-4 border-2 transition-colors ${
+                onClick={() => {
+                  setGameMode("turns");
+                  if (activePlayers.length < 2) setActivePlayers(players);
+                }}
+                className={`rounded-2xl p-4 border-[3px] transition-all ${
                   gameMode === "turns"
-                    ? "border-fuchsia-500 bg-fuchsia-50"
+                    ? "border-fuchsia-500 bg-fuchsia-50 shadow-md"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
@@ -162,10 +172,13 @@ export default function QuizGame({
               </button>
               <button
                 type="button"
-                onClick={() => setGameMode("solo")}
-                className={`rounded-2xl p-4 border-2 transition-colors ${
+                onClick={() => {
+                  setGameMode("solo");
+                  if (activePlayers.length !== 1) setActivePlayers([activePlayers[0]]);
+                }}
+                className={`rounded-2xl p-4 border-[3px] transition-all ${
                   gameMode === "solo"
-                    ? "border-fuchsia-500 bg-fuchsia-50"
+                    ? "border-fuchsia-500 bg-fuchsia-50 shadow-md"
                     : "border-gray-200 hover:border-gray-300"
                 }`}
               >
@@ -237,7 +250,7 @@ export default function QuizGame({
             </button>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -245,19 +258,21 @@ export default function QuizGame({
   if (mode === "playing" && currentQuestion && currentPlayer) {
     const theme = getTheme(currentPlayer.themeId);
     return (
-      <main className={`min-h-screen bg-gradient-to-br ${theme.pageGradient} font-fun p-4 md:p-8 flex flex-col`}>
+      <div className="p-4 md:p-6 flex flex-col gap-4">
         {/* Top bar */}
-        <div className="max-w-3xl mx-auto w-full flex items-center justify-between mb-6 gap-2">
+        <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
           <Link
             href={backHref}
-            className="bg-white rounded-full w-10 h-10 shadow flex items-center justify-center text-lg shrink-0"
+            className="bg-white/90 hover:bg-white rounded-2xl px-3 py-2 shadow flex items-center gap-1.5 text-sm font-bold text-fuchsia-700 shrink-0 transition-colors"
             title="Quit quiz"
           >
-            ✕
+            ← Quit
           </Link>
           <div className="bg-white rounded-full px-3 py-2 shadow flex items-center gap-2 min-w-0">
             <span className="text-xl">{currentPlayer.avatar}</span>
-            <span className="font-bold truncate text-sm md:text-base">{currentPlayer.name}&apos;s turn</span>
+            <span className="font-bold truncate text-sm md:text-base">
+              {gameMode === "solo" ? `${currentPlayer.name} 🎯` : `${currentPlayer.name}'s turn`}
+            </span>
           </div>
           <div className="text-xs md:text-sm font-bold bg-white rounded-full px-3 py-2 shadow shrink-0">
             Q {questionIndex + 1}/{gameQuestions.length}
@@ -344,13 +359,13 @@ export default function QuizGame({
             ))}
           </div>
         ) : null}
-      </main>
+      </div>
     );
   }
 
   // ---------- FINISHED ----------
   return (
-    <main className="min-h-screen bg-gradient-to-br from-violet-100 via-fuchsia-100 to-orange-100 font-fun p-6 flex flex-col items-center justify-center">
+    <div className="p-4 flex flex-col items-center justify-center min-h-[60vh]">
       <div className="max-w-xl w-full bg-white rounded-3xl shadow-xl p-8 text-center">
         <div className="text-6xl mb-4">🏆</div>
         <h1 className="text-3xl font-black mb-2">
@@ -392,6 +407,6 @@ export default function QuizGame({
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

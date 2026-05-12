@@ -1,14 +1,17 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import KidShell from "@/components/kid/KidShell";
+import BadgeTile from "@/components/kid/BadgeTile";
 import {
   getKid,
   listRewardsForKid,
-  listKids,
   listBadgeProgress,
-  listWeeklyStarsByKid,
+  listWishlistItems,
 } from "@/lib/data/stub";
-import type { Reward, Kid, BadgeProgress } from "@/lib/domain/types";
+import { addToWishlist, removeFromWishlist } from "@/lib/actions/rewards";
+import { BADGE_META } from "@/lib/domain/badge-config";
+import type { Reward, Kid, BadgeProgress, WishlistItem, BadgeCategory } from "@/lib/domain/types";
+// Kid is used in BadgesTab props
 
 const LEVELS = [
   { min: 0,    max: 99,       emoji: "🌱", name: "Seedling",  color: "#16a34a" },
@@ -31,65 +34,35 @@ function getLevelProgress(stars: number) {
   return { pct: Math.min(1, pct), next };
 }
 
-const BADGE_META: Record<string, { icon: string; label: string }> = {
-  hygiene:     { icon: "🦷", label: "Hygiene" },
-  physical:    { icon: "🏃", label: "Active" },
-  learning:    { icon: "📚", label: "Learning" },
-  chores:      { icon: "🧹", label: "Chores" },
-  music:       { icon: "🎵", label: "Music" },
-  mindfulness: { icon: "🧘", label: "Mindful" },
-};
-
-const TIER_ORDER = ["none", "bronze", "silver", "gold"] as const;
-const TIER_THRESHOLDS = { bronze: 10, silver: 50, gold: 100 };
-
-function TierBadge({ tier }: { tier: string }) {
-  if (tier === "gold")   return <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">🥇 Gold</span>;
-  if (tier === "silver") return <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">🥈 Silver</span>;
-  if (tier === "bronze") return <span className="text-[10px] font-bold bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">🥉 Bronze</span>;
-  return null;
-}
+const ALL_BADGE_CATEGORIES: BadgeCategory[] = [
+  "champion", "athlete", "musician", "self_care", "explorer", "scholar",
+  "streak", "star_collector", "task_titan",
+];
 
 function BadgesTab({
   kid,
-  allKids,
   badges,
-  weeklyStars,
 }: {
   kid: Kid;
-  allKids: Kid[];
   badges: BadgeProgress[];
-  weeklyStars: Record<string, number>;
 }) {
   const level = getLevel(kid.totalStarsEarned);
   const { pct: levelPct, next: nextLevel } = getLevelProgress(kid.totalStarsEarned);
 
-  // Sibling leaderboard — rank all kids by this-week stars
-  const ranked = allKids
-    .map((k) => ({ kid: k, stars: weeklyStars[k.id] ?? 0 }))
-    .sort((a, b) => b.stars - a.stars);
-  const leader = ranked[0]?.stars ?? 0;
-
-  // Categorise badges
+  const progressByCategory = new Map(badges.map((b) => [b.category, b]));
   const earned = badges.filter((b) => b.currentTier !== "none");
-  const inProgress = badges
-    .filter((b) => b.completionCount > 0)
-    .sort((a, b) => {
-      const nextA = TIER_THRESHOLDS[TIER_ORDER[TIER_ORDER.indexOf(a.currentTier) + 1] as keyof typeof TIER_THRESHOLDS] ?? Infinity;
-      const nextB = TIER_THRESHOLDS[TIER_ORDER[TIER_ORDER.indexOf(b.currentTier) + 1] as keyof typeof TIER_THRESHOLDS] ?? Infinity;
-      return (nextA - a.completionCount) - (nextB - b.completionCount);
-    })
-    .slice(0, 3);
-
   const earnedCount = earned.length;
 
   return (
     <div className="space-y-4">
-      {/* Level card */}
+      {/* Profile Level card + all levels horizontal roadmap */}
       <div className="bg-white rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center gap-3 mb-3">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Profile Level</div>
+
+        {/* Current level summary row */}
+        <div className="flex items-center gap-3 mb-4">
           <span
-            className="text-3xl w-12 h-12 rounded-full flex items-center justify-center"
+            className="text-3xl w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
             style={{ background: level.color + "22" }}
           >
             {level.emoji}
@@ -101,131 +74,162 @@ function BadgesTab({
                 ? `${nextLevel.min - kid.totalStarsEarned} ⭐ to ${nextLevel.name}`
                 : "Maximum level! 🎉"}
             </div>
+            <div className="bg-gray-100 rounded-full h-2 mt-1.5 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${Math.round(levelPct * 100)}%`, background: level.color }}
+              />
+            </div>
           </div>
         </div>
-        <div className="bg-gray-100 rounded-full h-2.5 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{ width: `${Math.round(levelPct * 100)}%`, background: level.color }}
+
+        {/* Horizontal levels track */}
+        <div className="relative flex items-start justify-between gap-1">
+          {/* Connecting line */}
+          <div className="absolute top-7 left-7 right-7 h-0.5 bg-gray-200 z-0" />
+          {/* Filled portion */}
+          {(() => {
+            const currentIdx = LEVELS.findIndex((l, i) =>
+              kid.totalStarsEarned >= l.min && (i === LEVELS.length - 1 || kid.totalStarsEarned < LEVELS[i + 1].min)
+            );
+            const fillPct = currentIdx === 0
+              ? 0
+              : `${Math.round((currentIdx / (LEVELS.length - 1)) * 100)}%`;
+            return (
+              <div
+                className="absolute top-7 left-7 h-0.5 z-0"
+                style={{ width: fillPct, background: level.color }}
+              />
+            );
+          })()}
+
+          {LEVELS.map((l, idx) => {
+            const isUnlocked = kid.totalStarsEarned >= l.min;
+            const isCurrent = kid.totalStarsEarned >= l.min && (idx === LEVELS.length - 1 || kid.totalStarsEarned < LEVELS[idx + 1].min);
+            return (
+              <div key={l.name} className="relative z-10 flex flex-col items-center gap-1 flex-1">
+                {/* Node circle */}
+                <div
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-3xl border-2 transition-all"
+                  style={{
+                    background: isUnlocked ? l.color + "22" : "#f3f4f6",
+                    borderColor: isCurrent ? l.color : isUnlocked ? l.color + "88" : "#e5e7eb",
+                    boxShadow: isCurrent ? `0 0 0 3px ${l.color}33` : "none",
+                    opacity: isUnlocked ? 1 : 0.5,
+                  }}
+                >
+                  {l.emoji}
+                </div>
+                {/* Label */}
+                <span
+                  className="text-[9px] font-black text-center leading-tight"
+                  style={{ color: isUnlocked ? l.color : "#9ca3af" }}
+                >
+                  {l.name}
+                </span>
+                {/* Star threshold */}
+                <span className="text-[8px] text-gray-400 font-semibold">
+                  {idx === 0 ? "Start" : `${l.min}⭐`}
+                </span>
+                {/* "YOU" pin on current */}
+                {isCurrent && (
+                  <span
+                    className="text-[8px] font-black px-1 py-0.5 rounded-full text-white leading-none"
+                    style={{ background: l.color }}
+                  >
+                    YOU
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* My Collection — earned badges only */}
+      {earned.length > 0 ? (
+        <div
+          className="rounded-2xl p-4 shadow-sm"
+          style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-white text-sm tracking-wide">✨ My Collection</h3>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>
+              {earned.length} / {ALL_BADGE_CATEGORIES.length}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-5 justify-center">
+            {earned
+              .sort((a, b) => {
+                const tierOrder = { gold: 0, silver: 1, bronze: 2, none: 3 };
+                return tierOrder[a.currentTier] - tierOrder[b.currentTier];
+              })
+              .map((b) => (
+                <BadgeTile
+                  key={b.category}
+                  category={b.category}
+                  completionCount={b.completionCount}
+                  size="md"
+                  showProgress={false}
+                />
+              ))}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white/60 rounded-2xl px-4 py-6 text-center">
+          <div className="text-3xl mb-2">🏅</div>
+          <div className="text-sm font-bold text-gray-500">No badges yet</div>
+          <div className="text-xs text-gray-400 mt-1">Complete tasks to earn your first badge!</div>
+        </div>
+      )}
+
+      {/* Full badge grid — task badges */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <h3 className="font-bold text-gray-800 mb-4">🏅 Task Badges</h3>
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 justify-items-center">
+          {(["champion","athlete","musician","self_care","explorer","scholar"] as BadgeCategory[]).map((cat) => {
+            const b = progressByCategory.get(cat);
+            return (
+              <BadgeTile
+                key={cat}
+                category={cat}
+                completionCount={b?.completionCount ?? 0}
+                size="sm"
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Streak badge */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <h3 className="font-bold text-gray-800 mb-4">🔥 Streak Badge</h3>
+        <div className="flex justify-center">
+          <BadgeTile
+            category="streak"
+            completionCount={progressByCategory.get("streak")?.completionCount ?? kid.currentStreak}
+            size="md"
           />
         </div>
       </div>
 
-      {/* Stats strip */}
-      <div className="grid grid-cols-3 gap-2">
-        {[
-          { label: "Total ⭐", value: kid.totalStarsEarned },
-          { label: "🔥 Streak", value: `${kid.currentStreak}d` },
-          { label: "Badges", value: earnedCount },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl p-3 shadow-sm text-center">
-            <div className="text-xl font-black">{s.value}</div>
-            <div className="text-[10px] text-gray-400 font-bold tracking-wider">{s.label}</div>
-          </div>
-        ))}
+      {/* Milestone badges */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm">
+        <h3 className="font-bold text-gray-800 mb-4">⚡ Milestone Badges</h3>
+        <div className="grid grid-cols-2 gap-4 justify-items-center">
+          {(["star_collector","task_titan"] as BadgeCategory[]).map((cat) => {
+            const b = progressByCategory.get(cat);
+            return (
+              <BadgeTile
+                key={cat}
+                category={cat}
+                completionCount={b?.completionCount ?? 0}
+                size="md"
+              />
+            );
+          })}
+        </div>
       </div>
-
-      {/* Sibling competition */}
-      {allKids.length > 1 && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-3">🏁 This week&apos;s family race</h3>
-          <div className="space-y-2">
-            {ranked.map(({ kid: k, stars }, idx) => {
-              const isMe = k.id === kid.id;
-              const barPct = leader > 0 ? (stars / leader) * 100 : 0;
-              const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉";
-              const gap = leader - stars;
-              return (
-                <div key={k.id} className={`flex items-center gap-2 p-2 rounded-xl ${isMe ? "bg-indigo-50" : ""}`}>
-                  <span className="text-lg w-6 text-center">{medal}</span>
-                  <span className="text-xl w-8 text-center">{k.avatar}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1 mb-0.5">
-                      <span className={`text-sm font-bold ${isMe ? "text-indigo-700" : "text-gray-700"}`}>
-                        {k.name}{isMe && " (you)"}
-                      </span>
-                    </div>
-                    <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${barPct}%`, background: isMe ? "#4f46e5" : "#d1d5db" }}
-                      />
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-bold">⭐ {stars}</div>
-                    {gap > 0 && (
-                      <div className="text-[10px] text-gray-400">{gap} behind</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Badges in progress */}
-      {inProgress.length > 0 && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-3">⚡ Badges in progress</h3>
-          <div className="space-y-3">
-            {inProgress.map((b) => {
-              const meta = BADGE_META[b.category] ?? { icon: "⭐", label: b.category };
-              const tierIdx = TIER_ORDER.indexOf(b.currentTier);
-              const nextTierKey = TIER_ORDER[tierIdx + 1] as keyof typeof TIER_THRESHOLDS | undefined;
-              const nextThreshold = nextTierKey ? TIER_THRESHOLDS[nextTierKey] : null;
-              const pct = nextThreshold ? Math.min(100, (b.completionCount / nextThreshold) * 100) : 100;
-              return (
-                <div key={b.id} className="flex items-center gap-3">
-                  <span className="text-2xl">{meta.icon}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-bold text-gray-700">{meta.label}</span>
-                      <TierBadge tier={b.currentTier} />
-                    </div>
-                    <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-indigo-400"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">
-                      {b.completionCount}{nextThreshold ? `/${nextThreshold}` : ""} completions
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Earned badges */}
-      {earned.length > 0 && (
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-3">🏆 Earned badges</h3>
-          <div className="grid grid-cols-4 gap-3">
-            {earned.map((b) => {
-              const meta = BADGE_META[b.category] ?? { icon: "⭐", label: b.category };
-              return (
-                <div key={b.id} className="flex flex-col items-center gap-1">
-                  <span className="text-3xl">{meta.icon}</span>
-                  <TierBadge tier={b.currentTier} />
-                  <span className="text-[10px] text-gray-500 text-center">{meta.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {earned.length === 0 && inProgress.length === 0 && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm text-center">
-          <div className="text-4xl mb-2">🎯</div>
-          <p className="text-sm text-gray-500">Complete tasks to earn your first badge!</p>
-        </div>
-      )}
     </div>
   );
 }
@@ -233,78 +237,92 @@ function BadgesTab({
 function RewardCard({
   reward: r,
   pointsBalance,
+  isWishlisted,
+  wishlistFull,
+  kidId,
 }: {
   reward: Reward;
   pointsBalance: number;
+  isWishlisted: boolean;
+  wishlistFull: boolean;
+  kidId: string;
 }) {
   const canAfford = pointsBalance >= r.costPoints;
   const progress = Math.min(100, (pointsBalance / r.costPoints) * 100);
 
   if (r.who === "team") {
     return (
-      <div className="relative bg-white border-l-4 border-purple-400 rounded-2xl p-3 shadow">
-        <span className="inline-flex items-center bg-purple-100 text-purple-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full mb-2">
-          👥 TEAM
+      <div className="relative bg-purple-50 rounded-2xl overflow-hidden shadow-sm border border-purple-100 flex flex-col h-[160px]">
+        <span className="absolute top-2 right-2 bg-white text-purple-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+          ⭐{r.costPoints}
         </span>
-        <div className="text-4xl text-center mb-1">{r.icon}</div>
-        <div className="font-bold text-sm text-center mb-1">{r.name}</div>
-        <div className="text-xs text-center mb-2">⭐ {r.costPoints}</div>
-        <button
-          type="button"
-          className="w-full rounded-lg text-sm text-white font-semibold py-1.5"
-          style={{ backgroundColor: "#7c3aed" }}
-        >
-          Contribute ⭐
-        </button>
+        <span className="absolute top-2 left-2 text-[9px] font-bold text-purple-400">👥</span>
+        <div className="flex flex-col items-center px-2 pt-6 pb-2.5 flex-1">
+          <div className="text-4xl mb-1.5">{r.icon}</div>
+          <div className="font-black text-[12px] text-center text-gray-800 leading-tight mb-2.5 px-1">{r.name}</div>
+          <button type="button" className="w-full rounded-xl text-[11px] text-white font-bold py-1.5 mt-auto" style={{ backgroundColor: "#7c3aed" }}>
+            Contribute ⭐
+          </button>
+        </div>
       </div>
     );
   }
 
+  const heartDisabled = !isWishlisted && wishlistFull;
+
+  const wishlistAction = async () => {
+    "use server";
+    if (isWishlisted) await removeFromWishlist(kidId, r.id);
+    else await addToWishlist(kidId, r.id);
+  };
+
   if (canAfford) {
     return (
-      <div className="relative bg-white rounded-2xl p-3 shadow">
-        <div className="text-4xl text-center mb-1">{r.icon}</div>
-        <div className="font-bold text-sm text-center mb-1">{r.name}</div>
-        <div className="text-center mb-2">
-          <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
-            ⭐ {r.costPoints}
-          </span>
+      <div className="relative bg-orange-50 rounded-2xl overflow-hidden shadow-sm border border-orange-100 flex flex-col h-[160px]">
+        {/* Star cost — top-right */}
+        <span className="absolute top-2 right-2 bg-white text-amber-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+          ⭐{r.costPoints}
+        </span>
+        {/* Heart — top-left */}
+        <form action={wishlistAction} className="absolute top-1.5 left-2">
+          <button type="submit" disabled={heartDisabled} className="text-sm leading-none disabled:opacity-30">
+            {isWishlisted ? "❤️" : "🤍"}
+          </button>
+        </form>
+        <div className="flex flex-col items-center px-2 pt-6 pb-2.5 flex-1">
+          <div className="text-4xl mb-1.5">{r.icon}</div>
+          <div className="font-black text-[12px] text-center text-gray-800 leading-tight mb-2.5 px-1">{r.name}</div>
+          <button type="button" className="w-full rounded-xl text-[11px] text-white font-bold py-1.5 mt-auto bg-orange-500">
+            {r.requiresApproval ? "Request →" : "Get it! →"}
+          </button>
         </div>
-        <button
-          type="button"
-          className="w-full rounded-lg text-sm text-white font-semibold py-1.5 bg-orange-500"
-        >
-          {r.requiresApproval ? "Request →" : "Get it! →"}
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="relative bg-white rounded-2xl p-3 shadow opacity-70">
-      <div className="text-4xl text-center mb-1">{r.icon}</div>
-      <div className="font-bold text-sm text-center mb-1">{r.name}</div>
-      <div className="text-center mb-1">
-        <span className="inline-block bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
-          ⭐ {r.costPoints}
-        </span>
+    <div className="relative bg-gray-50 rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col h-[160px]">
+      {/* Star cost — top-right */}
+      <span className="absolute top-2 right-2 bg-white text-amber-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+        ⭐{r.costPoints}
+      </span>
+      {/* Heart — top-left */}
+      <form action={wishlistAction} className="absolute top-1.5 left-2">
+        <button type="submit" disabled={heartDisabled} className="text-sm leading-none disabled:opacity-30">
+          {isWishlisted ? "❤️" : "🤍"}
+        </button>
+      </form>
+      <div className="flex flex-col items-center px-2 pt-6 pb-2.5 flex-1">
+        <div className="text-4xl mb-1.5 opacity-60">{r.icon}</div>
+        <div className="font-black text-[12px] text-center text-gray-500 leading-tight mb-1.5 px-1">{r.name}</div>
+        <div className="w-full bg-gray-200 rounded-full h-1 mb-1.5">
+          <div className="h-1 rounded-full bg-orange-300" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="text-[10px] text-gray-400 mb-2">{r.costPoints - pointsBalance} more ⭐</div>
+        <button type="button" disabled className="w-full rounded-xl text-[11px] text-gray-400 font-bold py-1.5 mt-auto bg-gray-200 cursor-not-allowed">
+          Saving up…
+        </button>
       </div>
-      <div className="text-xs text-center text-gray-400 mb-1">
-        Need {r.costPoints - pointsBalance} more ⭐
-      </div>
-      <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2">
-        <div
-          className="h-1.5 rounded-full bg-orange-300"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      <button
-        type="button"
-        disabled
-        className="w-full rounded-lg text-sm text-gray-500 font-semibold py-1.5 bg-gray-200 cursor-not-allowed"
-      >
-        Saving up...
-      </button>
     </div>
   );
 }
@@ -323,23 +341,33 @@ export default async function RewardsPage({
 
   const isBadgesTab = tab === "badges";
 
-  const [rewards, allKids, badges, weeklyStars] = await Promise.all([
+  const [rewards, badges, wishlist] = await Promise.all([
     listRewardsForKid(kid.id),
-    isBadgesTab ? listKids() : Promise.resolve([]),
-    isBadgesTab ? listBadgeProgress(kid.id) : Promise.resolve([]),
-    isBadgesTab ? listWeeklyStarsByKid() : Promise.resolve({}),
+    listBadgeProgress(kid.id),
+    listWishlistItems(kid.id),
   ]);
 
   const activeRewards = rewards.filter((r) => r.active);
+  const wishlistRewardIds = new Set(wishlist.map((w) => w.rewardId));
+  const wishlistFull = wishlist.length >= 3;
+
+  // Sort wishlist slots 1-3
+  const wishlistSlots: (WishlistItem & { reward: Reward | undefined })[] = [1, 2, 3].map((pos) => {
+    const item = wishlist.find((w) => w.position === pos);
+    return {
+      ...(item ?? { id: "", kidId: kid.id, rewardId: "", addedAt: "", position: pos }),
+      reward: item ? rewards.find((r) => r.id === item.rewardId) : undefined,
+    };
+  });
 
   return (
-    <KidShell kid={kid} active="rewards">
+    <KidShell kid={kid} active="rewards" badges={badges.filter((b) => b.currentTier !== "none")}>
       <div className="p-4 md:p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-2xl font-black">
-              {isBadgesTab ? "🏅 Badges" : "🛒 Reward Shop"}
+              {isBadgesTab ? "🏅 Badges" : "🎁 Rewards"}
             </h2>
             <p className="text-sm text-gray-400">⭐ {kid.pointsBalance} stars</p>
           </div>
@@ -353,7 +381,7 @@ export default async function RewardsPage({
               !isBadgesTab ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
             }`}
           >
-            🛒 Shop
+            🎁 Rewards
           </Link>
           <Link
             href={`/kid/${kid.id}/rewards?tab=badges`}
@@ -368,21 +396,59 @@ export default async function RewardsPage({
         {isBadgesTab ? (
           <BadgesTab
             kid={kid}
-            allKids={allKids}
             badges={badges}
-            weeklyStars={weeklyStars}
           />
         ) : (
           <>
+            {/* Wishlist */}
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-gray-700">💛 My Wishlist</h3>
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{wishlist.length}/3</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              {wishlistSlots.map((slot) =>
+                slot.reward ? (
+                  <div
+                    key={slot.position}
+                    className="rounded-2xl p-3 min-h-[80px] flex flex-col items-center justify-center gap-1 bg-amber-50 relative"
+                    style={{ border: "1.5px solid #fcd34d" }}
+                  >
+                    <form action={async () => { "use server"; await removeFromWishlist(kid.id, slot.rewardId); }} className="absolute top-1.5 right-1.5">
+                      <button type="submit" className="text-xs text-gray-400 hover:text-red-400 leading-none font-bold">×</button>
+                    </form>
+                    <span className="text-2xl">{slot.reward.icon}</span>
+                    <span className="text-[11px] font-bold text-gray-700 text-center leading-tight">{slot.reward.name}</span>
+                    <span className="text-[10px] text-amber-600 font-bold">⭐ {slot.reward.costPoints}</span>
+                  </div>
+                ) : (
+                  <div
+                    key={slot.position}
+                    className="rounded-2xl p-3 min-h-[80px] flex flex-col items-center justify-center gap-1"
+                    style={{ border: "1.5px dashed #d1d5db" }}
+                  >
+                    <span className="text-base">🤍</span>
+                    <span className="text-xs text-gray-400">Add a reward</span>
+                  </div>
+                )
+              )}
+            </div>
+
             {/* Reward grid */}
             {activeRewards.length === 0 ? (
               <p className="text-center text-gray-400 py-12">
                 No rewards yet — ask a parent to add some! 🎁
               </p>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {activeRewards.map((r) => (
-                  <RewardCard key={r.id} reward={r} pointsBalance={kid.pointsBalance} />
+                  <RewardCard
+                    key={r.id}
+                    reward={r}
+                    pointsBalance={kid.pointsBalance}
+                    isWishlisted={wishlistRewardIds.has(r.id)}
+                    wishlistFull={wishlistFull}
+                    kidId={kid.id}
+                  />
                 ))}
               </div>
             )}

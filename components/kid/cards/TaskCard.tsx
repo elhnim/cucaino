@@ -30,7 +30,7 @@ export default function TaskCard({
     setDone(next); // optimistic update
     startTransition(async () => {
       if (next) {
-        await completeTask(task.id, kidId, task.points, task.familyPointsContribution);
+        await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
       } else {
         await uncompleteTask(task.id, kidId);
       }
@@ -68,7 +68,7 @@ export default function TaskCard({
         </div>
       </div>
       <div className="flex flex-col sm:flex-row gap-1.5 shrink-0">
-        {task.category === "music" && kidId ? (
+        {task.category === "music" && kidId && !isPianoTask(task.name) ? (
           <Link
             href={`/kid/${kidId}/tuner`}
             className="bg-purple-100 hover:bg-purple-200 text-purple-800 font-bold px-3 py-1.5 rounded-xl text-sm text-center"
@@ -78,7 +78,7 @@ export default function TaskCard({
         ) : null}
         {task.requiresTimer && kidId ? (
           <Link
-            href={`/kid/${kidId}/practice/${task.id}`}
+            href={`/kid/${kidId}/practice/${task.id}?from=todo`}
             className="text-white font-bold px-3 py-1.5 rounded-xl text-sm text-center"
             style={{ background: accent }}
           >
@@ -88,6 +88,11 @@ export default function TaskCard({
       </div>
     </div>
   );
+}
+
+function isPianoTask(name: string): boolean {
+  const n = name.toLowerCase();
+  return n.includes("piano") || n.includes("keyboard");
 }
 
 function ActivityCard({ task }: { task: Task }) {

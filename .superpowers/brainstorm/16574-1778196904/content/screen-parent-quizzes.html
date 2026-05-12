@@ -1,0 +1,163 @@
+<h2>Parent — Quizzes Screen</h2>
+<p class="subtitle">Manage quiz banks. Kids play from the Play screen. Feel right?</p>
+
+<div style="max-width: 760px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+
+  <!-- Left: Quiz bank list -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 13px; color: #374151; margin-bottom: 10px;">Parent — quiz banks</div>
+    <div style="background: #1a1a1a; border-radius: 28px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.4);">
+      <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+        <div style="width: 10px; height: 10px; background: #333; border-radius: 50%; border: 1.5px solid #444;"></div>
+      </div>
+
+      <div style="background: #f8fafc; border-radius: 16px; overflow: hidden;">
+        <div style="background: #4338ca; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="color: white; font-weight: 900; font-size: 15px;">Quizzes</div>
+        </div>
+
+        <!-- Nav: Quizzes active -->
+        <div style="background: white; padding: 8px 14px; display: flex; gap: 6px; justify-content: space-between; border-bottom: 2px solid #f3f4f6;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 38px; height: 38px; background: #f3f4f6; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <span style="font-size: 9px; color: #9ca3af;">Home</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 38px; height: 38px; background: #f3f4f6; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <span style="font-size: 9px; color: #9ca3af;">Tasks</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 38px; height: 38px; background: #f3f4f6; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/></svg>
+            </div>
+            <span style="font-size: 9px; color: #9ca3af;">Rewards</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 38px; height: 38px; background: #4338ca; border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(67,56,202,0.4);">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <span style="font-size: 9px; font-weight: 700; color: #4338ca;">Quizzes</span>
+          </div>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1;">
+            <div style="width: 38px; height: 38px; background: #f3f4f6; border-radius: 10px; display: flex; align-items: center; justify-content: center;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </div>
+            <span style="font-size: 9px; color: #9ca3af;">Settings</span>
+          </div>
+        </div>
+
+        <div style="padding: 14px 16px; background: #f8fafc; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="font-weight: 800; font-size: 13px; color: #374151;">Quiz Banks</div>
+            <div style="background: #4338ca; color: white; border-radius: 10px; padding: 6px 12px; font-size: 11px; font-weight: 700;">+ Add Bank</div>
+          </div>
+
+          <!-- Bank cards -->
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 38px; height: 38px; background: #dbeafe; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🔢</div>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Times Tables</div>
+                <div style="font-size: 10px; color: #9ca3af;">24 questions · 🦊 🐼 · Active</div>
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 38px; height: 38px; background: #dcfce7; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🌍</div>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">World Capitals</div>
+                <div style="font-size: 10px; color: #9ca3af;">18 questions · 🦊 · Active</div>
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 38px; height: 38px; background: #fce7f3; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🔤</div>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Spelling — Year 2</div>
+                <div style="font-size: 10px; color: #9ca3af;">32 questions · 🐼 · Active</div>
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+
+          <div style="background: white; border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; opacity: 0.5;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="width: 38px; height: 38px; background: #f3f4f6; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🗺️</div>
+              <div>
+                <div style="font-weight: 700; font-size: 12px; color: #374151;">Australian States</div>
+                <div style="font-size: 10px; color: #9ca3af;">8 questions · 🦊 🐼 · Paused</div>
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Edit bank — questions list -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 13px; color: #374151; margin-bottom: 10px;">Tap a bank → edit questions</div>
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+      <div style="background: #4338ca; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div style="color: white; font-weight: 900; font-size: 15px;">🔢 Times Tables</div>
+          <div style="color: rgba(255,255,255,0.7); font-size: 10px;">24 questions · 🦊 Liam · 🐼 Mia</div>
+        </div>
+        <div style="background: rgba(255,255,255,0.2); color: white; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 700;">+ Add Q</div>
+      </div>
+
+      <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
+
+        <div style="background: #f8fafc; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 12px; font-weight: 700; color: #374151;">What is 6 × 7?</div>
+            <div style="font-size: 10px; color: #22c55e; font-weight: 700; margin-top: 2px;">✓ 42</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        </div>
+
+        <div style="background: #f8fafc; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 12px; font-weight: 700; color: #374151;">What is 8 × 9?</div>
+            <div style="font-size: 10px; color: #22c55e; font-weight: 700; margin-top: 2px;">✓ 72</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        </div>
+
+        <div style="background: #f8fafc; border-radius: 10px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 12px; font-weight: 700; color: #374151;">What is 7 × 7?</div>
+            <div style="font-size: 10px; color: #22c55e; font-weight: 700; margin-top: 2px;">✓ 49</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+        </div>
+
+        <div style="background: #eef2ff; border-radius: 10px; padding: 10px 12px; border: 1.5px dashed #818cf8; display: flex; flex-direction: column; gap: 8px;">
+          <input style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 8px 10px; font-size: 12px; width: 100%; box-sizing: border-box;" placeholder="Question…" />
+          <input style="border: 1.5px solid #22c55e; border-radius: 8px; padding: 8px 10px; font-size: 12px; width: 100%; box-sizing: border-box; color: #16a34a;" placeholder="Answer…" />
+          <div style="background: #4338ca; color: white; border-radius: 8px; padding: 8px; text-align: center; font-size: 11px; font-weight: 700; cursor: pointer;">Save Question</div>
+        </div>
+
+        <div style="text-align: center; font-size: 10px; color: #9ca3af;">+ 20 more questions</div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 14px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151; max-width: 760px; margin-left: auto; margin-right: auto;">
+  Parent creates quiz banks with Q&amp;A pairs, assigns to kids, active/paused toggle. Kids play from their Play screen — questions drawn randomly from active banks assigned to them.
+</div>

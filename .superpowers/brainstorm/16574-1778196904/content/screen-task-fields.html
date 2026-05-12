@@ -1,0 +1,188 @@
+<h2>Task Fields — Full Rethink</h2>
+<p class="subtitle">Every field a task could have, grouped by section. Tell me what to keep, change, cut, or add.</p>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 860px; margin: 0 auto;">
+
+  <!-- Section 1: Identity -->
+  <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #eef2ff; color: #4338ca; border-radius: 8px; padding: 4px 8px; font-size: 11px;">1</span> Identity
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #374151;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🏷️ <strong>Name</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">e.g. "Brush teeth"</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>😀 <strong>Emoji</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">visual identity for kids</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>📋 <strong>Description</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">optional instructions for kid</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🗂️ <strong>Category</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">Hygiene / Learning / Chores / Practice…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: Rule -->
+  <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #eef2ff; color: #4338ca; border-radius: 8px; padding: 4px 8px; font-size: 11px;">2</span> Rule
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #374151;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🔴 <strong>Strict</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">parent sets days + time slot, auto-appears</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🟡 <strong>Flexible</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">kid schedules it — min 0 = bonus, min 1+ = expected</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Schedule (Strict) -->
+  <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); border-left: 3px solid #ef4444;">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #fee2e2; color: #ef4444; border-radius: 8px; padding: 4px 8px; font-size: 11px;">3</span> Schedule <span style="font-size: 10px; color: #ef4444; font-weight: 600;">STRICT only</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #374151;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>📅 <strong>Days</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">Every day / Weekdays / Weekends / Custom</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🕐 <strong>Time slot(s)</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">Morning · Afternoon · Evening (multi-select)</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; opacity: 0.5;">
+        <span>⏰ <strong>Specific time?</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">e.g. 7:30am — probably overkill?</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4: Weekly minimum (Flexible) -->
+  <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); border-left: 3px solid #f59e0b;">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #fef3c7; color: #d97706; border-radius: 8px; padding: 4px 8px; font-size: 11px;">4</span> Schedule <span style="font-size: 10px; color: #d97706; font-weight: 600;">FLEXIBLE only</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #374151;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🔢 <strong>Minimum times per week</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">0 = bonus / optional, 1+ = expected</span>
+      </div>
+      <div style="background: #f8fafc; border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #6b7280;">
+        e.g. Piano → 3× &nbsp;·&nbsp; Basketball throws → 5× &nbsp;·&nbsp; Tidy room → 0 (bonus)
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4b: Target & Music (all rule types) -->
+  <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #eef2ff; color: #4338ca; border-radius: 8px; padding: 4px 8px; font-size: 11px;">5</span> Features <span style="font-size: 10px; color: #6b7280; font-weight: 600;">all task types</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px; font-size: 12px; color: #374151;">
+
+      <!-- Target type selector -->
+      <div>
+        <div style="font-weight: 700; color: #374151; margin-bottom: 6px;">🎯 Target</div>
+        <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 600;">None</div>
+          <div style="background: #4338ca; color: white; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 700;">⏱ Time</div>
+          <div style="background: #f3f4f6; color: #9ca3af; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 600;">🔢 Reps</div>
+        </div>
+        <!-- Time target shown when Time is selected -->
+        <div style="background: #f8fafc; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px;">
+          <div style="background: white; border: 1.5px solid #e5e7eb; border-radius: 6px; padding: 4px 12px; font-size: 13px; font-weight: 700; color: #374151;">20</div>
+          <span style="font-size: 12px; color: #6b7280;">minutes</span>
+        </div>
+        <div style="background: #fef3c7; border-radius: 8px; padding: 8px 12px; margin-top: 6px; font-size: 11px; color: #92400e; display: flex; flex-direction: column; gap: 3px;">
+          <div>⏳ Kid sees a countdown — <strong>cannot mark done until timer reaches zero</strong></div>
+          <div>⏸ Kid can pause the timer between sessions — progress is saved</div>
+          <div>✅ Done button unlocks automatically when time is up</div>
+        </div>
+        <!-- Reps target (shown for reference) -->
+        <div style="background: #f8fafc; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+          <div style="background: white; border: 1.5px solid #e5e7eb; border-radius: 6px; padding: 4px 12px; font-size: 13px; font-weight: 700; color: #374151;">100</div>
+          <div>
+            <span style="font-size: 12px; color: #6b7280;">reps — label: </span>
+            <span style="font-size: 12px; font-weight: 600; color: #374151;">basketball throws</span>
+          </div>
+        </div>
+        <div style="background: #fef3c7; border-radius: 8px; padding: 8px 12px; margin-top: 6px; font-size: 11px; color: #92400e; display: flex; flex-direction: column; gap: 3px;">
+          <div>🔢 Kid sees a big <strong>+1 tap button</strong> — easy to press repeatedly</div>
+          <div>⏸ Counter is saved — they can stop and come back later</div>
+          <div>✅ Done button unlocks when they reach the target rep count</div>
+        </div>
+      </div>
+
+      <!-- Music toggle -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <span>🎵 <strong>Music / Metronome</strong></span>
+          <div style="width: 36px; height: 20px; background: #e5e7eb; border-radius: 20px; position: relative;">
+            <div style="position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; background: white; border-radius: 50%;"></div>
+          </div>
+        </div>
+        <div style="font-size: 10px; color: #9ca3af;">When on, the app opens the metronome when the kid starts this task</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Section 6: Rewards -->
+  <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #eef2ff; color: #4338ca; border-radius: 8px; padding: 4px 8px; font-size: 11px;">6</span> Rewards
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #374151;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>⭐ <strong>Stars per completion</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">e.g. 10 stars</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; opacity: 0.5;">
+        <span>🔥 <strong>Streak bonus</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">bonus stars after X days in a row?</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; opacity: 0.5;">
+        <span>✅ <strong>Proof required?</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">photo before stars awarded?</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 7: Assignment -->
+  <div style="background: white; border-radius: 16px; padding: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div style="font-weight: 800; font-size: 13px; color: #374151; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+      <span style="background: #eef2ff; color: #4338ca; border-radius: 8px; padding: 4px 8px; font-size: 11px;">7</span> Assignment
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #374151;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>👦 <strong>Assigned to</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">one or more kids</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; opacity: 0.5;">
+        <span>📅 <strong>Active from / until</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">seasonal tasks? probably too complex</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span>🔘 <strong>Active / Paused</strong></span>
+        <span style="color: #9ca3af; font-size: 11px;">hide without deleting</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 16px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151; max-width: 860px; margin-left: auto; margin-right: auto;">
+  <strong>Rule summary:</strong><br>
+  🔴 <strong>Strict</strong> — Parent sets days + time slot. Appears automatically, no kid input.<br>
+  🟡 <strong>Flexible</strong> — Kid self-schedules. Weekly minimum = 0 means bonus/optional; 1+ means expected. One rule type, one number.<br><br>
+  <strong>Faded rows</strong> = might be overkill. Tell me which ones to keep, cut, or change.
+</div>

@@ -1,0 +1,249 @@
+<h2>Quiz Set Editor</h2>
+<p class="subtitle">Creating / editing a quiz set. Two states — empty new set (left) and configured set with pool preview (right).</p>
+
+<div style="max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+
+  <!-- ══════════════════════════════ -->
+  <!-- STATE 1: New / empty          -->
+  <!-- ══════════════════════════════ -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 10px;">New Quiz Set</div>
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+
+      <div style="background: #4338ca; padding: 14px 18px; display: flex; align-items: center; gap: 10px;">
+        <div style="color: rgba(255,255,255,0.7); font-size: 13px; cursor: pointer;">←</div>
+        <div style="color: white; font-weight: 800; font-size: 14px;">New Quiz Set</div>
+      </div>
+
+      <div style="padding: 18px; display: flex; flex-direction: column; gap: 18px;">
+
+        <!-- Name + Emoji -->
+        <div style="display: flex; gap: 10px; align-items: flex-end;">
+          <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Name</div>
+            <input style="border: 1.5px solid #d1d5db; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #9ca3af; width: 100%; box-sizing: border-box;" placeholder="e.g. Times Tables" readonly />
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Emoji</div>
+            <div style="border: 1.5px solid #d1d5db; border-radius: 10px; padding: 10px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; box-sizing: border-box; color: #d1d5db;">➕</div>
+          </div>
+        </div>
+
+        <!-- Theme -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Theme</div>
+          <select style="border: 1.5px solid #d1d5db; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #9ca3af; background: white; width: 100%;">
+            <option value="" selected>Select a theme…</option>
+            <option>➕ Maths</option>
+            <option>🔬 Science</option>
+            <option>📚 English &amp; Reading</option>
+            <option>🌍 Geography</option>
+            <option>🏛️ History</option>
+            <option>⚽ Sports &amp; Health</option>
+            <option>🎵 Music</option>
+            <option>🌟 Fun Facts</option>
+            <option>🎮 Pop Culture</option>
+            <option>💻 Technology</option>
+            <option>🍜 Food &amp; Culture</option>
+            <option>🇫🇷 French</option>
+            <option>🇪🇸 Spanish</option>
+            <option>🇨🇳 Mandarin</option>
+          </select>
+        </div>
+
+        <!-- Age band + Difficulty -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Age band</div>
+            <select style="border: 1.5px solid #d1d5db; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #374151; background: white; width: 100%;">
+              <option selected>All ages</option>
+              <option>5–6</option>
+              <option>7–8</option>
+              <option>9–10</option>
+              <option>11–12</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Difficulty</div>
+            <select style="border: 1.5px solid #d1d5db; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #374151; background: white; width: 100%;">
+              <option selected>All difficulties</option>
+              <option>Easy</option>
+              <option>Medium</option>
+              <option>Hard</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Question types -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Question types <span style="font-weight: 400; text-transform: none; color: #9ca3af;">— leave both on for a mix</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #4338ca; border-radius: 10px; background: #ede9fe; cursor: pointer;">
+              <input type="checkbox" checked readonly style="accent-color: #4338ca; width: 16px; height: 16px; flex-shrink: 0;" />
+              <div>
+                <div style="font-size: 11px; font-weight: 700; color: #374151;">Multiple Choice</div>
+                <div style="font-size: 9px; color: #7c3aed;">incl. True / False</div>
+              </div>
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #4338ca; border-radius: 10px; background: #ede9fe; cursor: pointer;">
+              <input type="checkbox" checked readonly style="accent-color: #4338ca; width: 16px; height: 16px; flex-shrink: 0;" />
+              <div>
+                <div style="font-size: 11px; font-weight: 700; color: #374151;">Fill in Blank</div>
+                <div style="font-size: 9px; color: #7c3aed;">typed answer</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Questions per session -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Questions per session</div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 36px; height: 36px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #374151; cursor: pointer;">−</div>
+            <div style="flex: 1; border: 1.5px solid #d1d5db; border-radius: 10px; padding: 10px; font-size: 20px; font-weight: 800; color: #374151; text-align: center;">10</div>
+            <div style="width: 36px; height: 36px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #374151; cursor: pointer;">+</div>
+          </div>
+        </div>
+
+        <!-- Empty pool state -->
+        <div style="background: #fafafa; border-radius: 12px; padding: 16px; text-align: center; border: 1.5px dashed #e5e7eb;">
+          <div style="font-size: 24px; margin-bottom: 6px;">🔍</div>
+          <div style="font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">No questions yet</div>
+          <div style="font-size: 11px; color: #9ca3af;">Select a theme above to see how many questions match your filters.</div>
+        </div>
+
+        <div style="background: #e5e7eb; color: #9ca3af; border-radius: 12px; padding: 12px; text-align: center; font-size: 13px; font-weight: 800; cursor: not-allowed;">Save Quiz Set</div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ -->
+  <!-- STATE 2: Configured + pool ready  -->
+  <!-- ══════════════════════════════════ -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 10px;">Configured — pool ready</div>
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+
+      <div style="background: #4338ca; padding: 14px 18px; display: flex; align-items: center; gap: 10px;">
+        <div style="color: rgba(255,255,255,0.7); font-size: 13px; cursor: pointer;">←</div>
+        <div style="color: white; font-weight: 800; font-size: 14px;">Edit Quiz Set</div>
+      </div>
+
+      <div style="padding: 18px; display: flex; flex-direction: column; gap: 18px;">
+
+        <!-- Name + Emoji — filled -->
+        <div style="display: flex; gap: 10px; align-items: flex-end;">
+          <div style="display: flex; flex-direction: column; gap: 5px; flex: 1;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Name</div>
+            <input style="border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #374151; font-weight: 600; width: 100%; box-sizing: border-box;" value="Times Tables" readonly />
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Emoji</div>
+            <div style="border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; box-sizing: border-box;">➕</div>
+          </div>
+        </div>
+
+        <!-- Theme — selected -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Theme</div>
+          <select style="border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #374151; font-weight: 600; background: white; width: 100%;">
+            <option selected>➕ Maths</option>
+          </select>
+        </div>
+
+        <!-- Age band + Difficulty -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Age band</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #374151; background: white; width: 100%;">
+              <option selected>All ages</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Difficulty</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: #374151; background: white; width: 100%;">
+              <option selected>All difficulties</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Question types -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Question types <span style="font-weight: 400; text-transform: none; color: #9ca3af;">— leave both on for a mix</span></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #4338ca; border-radius: 10px; background: #ede9fe; cursor: pointer;">
+              <input type="checkbox" checked readonly style="accent-color: #4338ca; width: 16px; height: 16px; flex-shrink: 0;" />
+              <div>
+                <div style="font-size: 11px; font-weight: 700; color: #374151;">Multiple Choice</div>
+                <div style="font-size: 9px; color: #7c3aed;">incl. True / False</div>
+              </div>
+            </label>
+            <label style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; background: #f8fafc; cursor: pointer;">
+              <input type="checkbox" readonly style="width: 16px; height: 16px; flex-shrink: 0;" />
+              <div>
+                <div style="font-size: 11px; font-weight: 700; color: #374151;">Fill in Blank</div>
+                <div style="font-size: 9px; color: #9ca3af;">typed answer</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Questions per session -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Questions per session</div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 36px; height: 36px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #374151; cursor: pointer;">−</div>
+            <div style="flex: 1; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px; font-size: 20px; font-weight: 800; color: #374151; text-align: center;">10</div>
+            <div style="width: 36px; height: 36px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: #374151; cursor: pointer;">+</div>
+          </div>
+        </div>
+
+        <!-- Pool summary — live preview -->
+        <div style="background: #eff6ff; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; border: 1.5px solid #bfdbfe;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="font-size: 20px;">📚</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 800; color: #1d4ed8;">36 questions in pool</div>
+              <div style="font-size: 11px; color: #3b82f6;">Each session randomly draws 10, matched to each player's age</div>
+            </div>
+          </div>
+          <!-- Breakdown -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;">
+            <div style="background: white; border-radius: 8px; padding: 7px 10px; text-align: center;">
+              <div style="font-size: 14px; font-weight: 800; color: #374151;">24</div>
+              <div style="font-size: 9px; color: #6b7280;">Multiple Choice</div>
+            </div>
+            <div style="background: white; border-radius: 8px; padding: 7px 10px; text-align: center;">
+              <div style="font-size: 14px; font-weight: 800; color: #374151;">12</div>
+              <div style="font-size: 9px; color: #6b7280;">Fill in Blank</div>
+            </div>
+            <div style="background: white; border-radius: 8px; padding: 7px 10px; text-align: center;">
+              <div style="font-size: 14px; font-weight: 800; color: #374151;">3×</div>
+              <div style="font-size: 9px; color: #6b7280;">pool vs session</div>
+            </div>
+          </div>
+          <!-- Age breakdown -->
+          <div style="display: flex; gap: 6px;">
+            <div style="background: white; border-radius: 6px; padding: 4px 8px; font-size: 10px; color: #374151; font-weight: 600;">5–6: 8 qs</div>
+            <div style="background: white; border-radius: 6px; padding: 4px 8px; font-size: 10px; color: #374151; font-weight: 600;">7–8: 12 qs</div>
+            <div style="background: white; border-radius: 6px; padding: 4px 8px; font-size: 10px; color: #374151; font-weight: 600;">9–10: 10 qs</div>
+            <div style="background: white; border-radius: 6px; padding: 4px 8px; font-size: 10px; color: #374151; font-weight: 600;">11–12: 6 qs</div>
+          </div>
+        </div>
+
+        <!-- Save -->
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1; background: #4338ca; color: white; border-radius: 12px; padding: 12px; text-align: center; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(67,56,202,0.3);">Save Quiz Set</div>
+          <div style="background: #fee2e2; color: #dc2626; border-radius: 12px; padding: 12px 16px; font-size: 13px; font-weight: 700; cursor: pointer;">Delete</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 16px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151; max-width: 900px; margin-left: auto; margin-right: auto;">
+  The pool preview updates live as filters change — shows total questions, type breakdown, and age band split so the parent/guardian knows if the set is rich enough before saving. Save is disabled until a theme is chosen.
+</div>

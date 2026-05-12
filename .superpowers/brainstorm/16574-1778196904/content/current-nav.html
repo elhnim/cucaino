@@ -1,0 +1,92 @@
+<h2>Current Navigation Structure</h2>
+<p class="subtitle">Where does it feel messy? Click any area that's a pain point.</p>
+
+<div style="display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px;">
+
+  <!-- Select Kid -->
+  <div style="flex: 1; min-width: 220px;">
+    <div class="label" style="margin-bottom: 8px;">Home Screen</div>
+    <div style="background: #f0fdf4; border: 2px solid #86efac; border-radius: 12px; padding: 16px;">
+      <div style="font-weight: 700; margin-bottom: 8px;">📱 /select-kid</div>
+      <div style="font-size: 13px; color: #374151; line-height: 1.6;">
+        Kid avatar cards<br>
+        🔒 Parent area button<br>
+        🎮 Play together button
+      </div>
+    </div>
+    <div style="text-align: center; margin: 8px 0; color: #9ca3af; font-size: 20px;">↓</div>
+    <div style="background: #fffbeb; border: 2px dashed #fbbf24; border-radius: 8px; padding: 10px; font-size: 12px; color: #92400e;">
+      PIN modal on tap → redirects to kid or parent
+    </div>
+  </div>
+
+  <!-- Kid Side -->
+  <div class="option" data-choice="kid-nav" onclick="toggleSelect(this)" style="flex: 2; min-width: 280px; cursor: pointer; padding: 0; border: none; background: transparent;">
+    <div class="label" style="margin-bottom: 8px; color: #6366f1;">Kid Side — click if this feels messy</div>
+    <div style="background: #eef2ff; border: 2px solid #a5b4fc; border-radius: 12px; padding: 16px; transition: box-shadow 0.2s;">
+      <div style="font-weight: 700; margin-bottom: 12px;">👦 /kid/[kidId]/*</div>
+      <div style="background: white; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 6px;">THEMED HEADER</div>
+        <div style="font-size: 13px;">Avatar → /select-kid &nbsp;|&nbsp; ⭐ Points &nbsp;|&nbsp; 🔥 Streak</div>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 6px;">BOTTOM NAV (6 items)</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <span style="background: #e0e7ff; padding: 4px 8px; border-radius: 6px; font-size: 12px;">🏠 Today</span>
+          <span style="background: #e0e7ff; padding: 4px 8px; border-radius: 6px; font-size: 12px;">📅 Week</span>
+          <span style="background: #e0e7ff; padding: 4px 8px; border-radius: 6px; font-size: 12px;">🎁 Rewards</span>
+          <span style="background: #e0e7ff; padding: 4px 8px; border-radius: 6px; font-size: 12px;">🏆 Progress</span>
+          <span style="background: #e0e7ff; padding: 4px 8px; border-radius: 6px; font-size: 12px;">🎮 Play</span>
+          <span style="background: #e0e7ff; padding: 4px 8px; border-radius: 6px; font-size: 12px;">⚙️ Profile</span>
+        </div>
+      </div>
+      <div style="background: #fef3c7; border-radius: 8px; padding: 8px; font-size: 12px; color: #92400e;">
+        ⚠️ Hidden pages (not in nav): Timetable, Tuner, Practice
+      </div>
+    </div>
+  </div>
+
+  <!-- Parent Side -->
+  <div class="option" data-choice="parent-nav" onclick="toggleSelect(this)" style="flex: 2; min-width: 280px; cursor: pointer; padding: 0; border: none; background: transparent;">
+    <div class="label" style="margin-bottom: 8px; color: #6366f1;">Parent Side — click if this feels messy</div>
+    <div style="background: #f0f9ff; border: 2px solid #7dd3fc; border-radius: 12px; padding: 16px; transition: box-shadow 0.2s;">
+      <div style="font-weight: 700; margin-bottom: 12px;">👨 /parent/*</div>
+      <div style="background: white; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 6px;">INDIGO HEADER</div>
+        <div style="font-size: 13px;">← Back &nbsp;|&nbsp; Page title &nbsp;|&nbsp; 🔔 Bell &nbsp;|&nbsp; Kids view &nbsp;|&nbsp; Sign out</div>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+        <div style="font-size: 12px; color: #6b7280; margin-bottom: 6px;">GRID NAV (6 items, text-[10px])</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <span style="background: #dbeafe; padding: 4px 8px; border-radius: 6px; font-size: 12px;">🏠 Home</span>
+          <span style="background: #dbeafe; padding: 4px 8px; border-radius: 6px; font-size: 12px;">✅ Tasks</span>
+          <span style="background: #dbeafe; padding: 4px 8px; border-radius: 6px; font-size: 12px;">🎁 Rewards</span>
+          <span style="background: #dbeafe; padding: 4px 8px; border-radius: 6px; font-size: 12px;">🔔 Requests</span>
+          <span style="background: #dbeafe; padding: 4px 8px; border-radius: 6px; font-size: 12px;">👧 Kids</span>
+          <span style="background: #dbeafe; padding: 4px 8px; border-radius: 6px; font-size: 12px;">⚙️ Settings</span>
+        </div>
+      </div>
+      <div style="background: #fef3c7; border-radius: 8px; padding: 8px; font-size: 12px; color: #92400e;">
+        ⚠️ Hidden pages (not in nav): Quizzes, School Items, Feedback
+      </div>
+    </div>
+  </div>
+
+  <!-- Play -->
+  <div class="option" data-choice="play-nav" onclick="toggleSelect(this)" style="flex: 1; min-width: 200px; cursor: pointer; padding: 0; border: none; background: transparent;">
+    <div class="label" style="margin-bottom: 8px; color: #6366f1;">Play/Quiz — click if this feels messy</div>
+    <div style="background: #fdf4ff; border: 2px solid #d8b4fe; border-radius: 12px; padding: 16px;">
+      <div style="font-weight: 700; margin-bottom: 8px;">🎮 /play</div>
+      <div style="font-size: 13px; color: #374151; line-height: 1.6;">
+        Quiz hub<br>
+        /play/[bankId]<br>
+        <span style="font-size: 12px; color: #7c3aed;">Shared experience — no shell</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 20px; padding: 12px 16px; background: #f9fafb; border-radius: 8px; font-size: 13px; color: #6b7280;">
+  💡 You can select multiple areas. Or just describe in the terminal what feels off.
+</div>

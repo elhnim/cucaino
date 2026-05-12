@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 export default function PinPad({
   mode,
   expected,
+  onVerify,
   accent,
   prompt,
   onSuccess,
@@ -19,6 +20,7 @@ export default function PinPad({
 }: {
   mode: "verify" | "set";
   expected?: string;
+  onVerify?: (pin: string) => Promise<boolean>;
   accent: string;
   prompt?: string;
   onSuccess?: () => void;
@@ -30,6 +32,22 @@ export default function PinPad({
   const [firstEntry, setFirstEntry] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
+  const [failCount, setFailCount] = useState(0);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [cooldownSecs, setCooldownSecs] = useState(0);
+
+  // Cooldown countdown ticker
+  useEffect(() => {
+    if (!cooldownUntil) return;
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownSecs(remaining);
+      if (remaining === 0) setCooldownUntil(null);
+    };
+    update();
+    const id = setInterval(update, 500);
+    return () => clearInterval(id);
+  }, [cooldownUntil]);
 
   // Keep callbacks in refs so prop identity changes don't re-trigger the
   // submit effect (which would call onSet/onSuccess in a loop).
@@ -49,20 +67,41 @@ export default function PinPad({
     if (pin.length !== 4 || submittedRef.current) return;
     const timer = setTimeout(() => {
       if (submittedRef.current) return;
-      if (mode === "verify" && expected) {
-        if (pin === expected) {
-          submittedRef.current = true;
-          setError(null);
-          setPin("");
-          onSuccessRef.current?.();
-        } else {
-          setError("Wrong PIN — try again");
-          setShake(true);
-          setTimeout(() => {
+      if (mode === "verify") {
+        const attemptPin = pin;
+        const checkCorrect = (): Promise<boolean> => {
+          if (onVerify) return onVerify(attemptPin);
+          return Promise.resolve(attemptPin === expected);
+        };
+        void checkCorrect().then((correct) => {
+          if (correct) {
+            submittedRef.current = true;
+            setError(null);
+            setFailCount(0);
             setPin("");
-            setShake(false);
-          }, 600);
-        }
+            onSuccessRef.current?.();
+          } else {
+            const newCount = failCount + 1;
+            setFailCount(newCount);
+            if (newCount >= 10) {
+              setError("Too many attempts — please reload the page");
+              setPin("");
+              return;
+            }
+            if (newCount >= 3) {
+              const lockSecs = 30;
+              setCooldownUntil(Date.now() + lockSecs * 1000);
+              setError(`Too many wrong tries — wait ${lockSecs}s`);
+            } else {
+              setError(`Wrong PIN — ${3 - newCount} attempt${3 - newCount === 1 ? "" : "s"} left`);
+            }
+            setShake(true);
+            setTimeout(() => {
+              setPin("");
+              setShake(false);
+            }, 600);
+          }
+        });
         return;
       }
       if (mode === "set") {
@@ -95,8 +134,10 @@ export default function PinPad({
     return () => clearTimeout(timer);
   }, [pin, mode, expected, stage, firstEntry]);
 
+  const isLocked = cooldownUntil !== null || failCount >= 10;
+
   const tap = (digit: string) => {
-    if (pin.length >= 4) return;
+    if (pin.length >= 4 || isLocked) return;
     setPin((p) => p + digit);
     setError(null);
   };
@@ -116,6 +157,9 @@ export default function PinPad({
         </div>
         {error ? (
           <div className="text-sm text-red-600 font-bold mt-1">{error}</div>
+        ) : null}
+        {cooldownUntil && cooldownSecs > 0 ? (
+          <div className="text-2xl font-black text-red-500 mt-2">{cooldownSecs}s</div>
         ) : null}
       </div>
 
@@ -140,7 +184,7 @@ export default function PinPad({
       </div>
 
       {/* Number pad */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid grid-cols-3 gap-2 ${isLocked ? "opacity-40 pointer-events-none" : ""}`}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
           <PadButton key={n} onClick={() => tap(String(n))}>
             {n}

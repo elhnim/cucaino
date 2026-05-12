@@ -62,6 +62,23 @@ export async function updateFamilyName(name: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+export async function updateWeatherLocation(
+  city: string,
+  lat: number,
+  lon: number,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const familyId = await getFamilyId(supabase);
+  if (!familyId) return { ok: false, error: "Family not found" };
+  const { error } = await supabase
+    .from("families")
+    .update({ weather_city: city, weather_lat: lat, weather_lon: lon })
+    .eq("id", familyId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/parent/settings");
+  return { ok: true };
+}
+
 export async function clearParentPinDb(): Promise<ActionResult> {
   const supabase = await createClient();
   const familyId = await getFamilyId(supabase);

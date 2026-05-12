@@ -40,7 +40,7 @@ export default async function ParentQuizzesPage({
   ]);
 
   const filteredSets = sets.filter((s) => {
-    if (activeTheme && !s.themes.includes(activeTheme)) return false;
+    if (activeTheme && !s.themes.includes(activeTheme as typeof s.themes[number])) return false;
     if (activeDifficulty && s.maxDifficulty !== activeDifficulty) return false;
     return true;
   });
@@ -124,7 +124,7 @@ export default async function ParentQuizzesPage({
               </div>
             ) : (
               filteredSets.map((s) => {
-                const themeEmoji = THEMES.find((t) => s.themes.includes(t.id))?.emoji ?? "🎯";
+                const themeEmoji = THEMES.find((t) => s.themes.includes(t.id as typeof s.themes[number]))?.emoji ?? "🎯";
                 const diffStyle = DIFFICULTY_STYLE[s.maxDifficulty] ?? { bg: "#f3f4f6", color: "#374151" };
                 return (
                   <Link

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { upsertSchoolSubjectTask, deleteTask } from "@/lib/actions/tasks";
@@ -24,6 +24,7 @@ interface DraftClass {
   endTime: string;
   room: string;
   teacher: string;
+  packingList: string[];
 }
 
 function taskToDraft(t: Task): DraftClass {
@@ -36,6 +37,7 @@ function taskToDraft(t: Task): DraftClass {
     endTime: t.endTime ?? "10:00",
     room: t.room ?? "",
     teacher: t.teacher ?? "",
+    packingList: t.packingList ?? [],
   };
 }
 
@@ -43,16 +45,22 @@ export default function TimetableEditor({
   kidId,
   accent,
   initialTasks,
+  initialDay = 1,
 }: {
   kidId: string;
   accent: string;
   initialTasks: Task[];
+  initialDay?: DayOfWeek;
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [activeDay, setActiveDay] = useState<DayOfWeek>(1);
+  const [activeDay, setActiveDay] = useState<DayOfWeek>(initialDay);
   const [draft, setDraft] = useState<DraftClass | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setTasks(initialTasks);
+  }, [initialTasks]);
 
   const dayTasks = useMemo(
     () =>
@@ -72,6 +80,7 @@ export default function TimetableEditor({
       endTime: "10:00",
       room: "",
       teacher: "",
+      packingList: [],
     });
   };
 
@@ -94,6 +103,7 @@ export default function TimetableEditor({
         endTime: draft.endTime,
         room: draft.room.trim() || null,
         teacher: draft.teacher.trim() || null,
+        packingList: draft.packingList.length > 0 ? draft.packingList : null,
       });
       if (result.ok) {
         router.refresh();
@@ -114,11 +124,13 @@ export default function TimetableEditor({
     });
   };
 
-  const resetAll = () => {
-    if (!confirm("Delete your entire timetable? This cannot be undone.")) return;
+  const clearDay = () => {
+    if (dayTasks.length === 0) return;
+    const dayLabel = DAYS.find((d) => d.dow === activeDay)?.full ?? "this day";
+    if (!confirm(`Clear all classes for ${dayLabel}?`)) return;
     startTransition(async () => {
-      await Promise.all(tasks.map((t) => deleteTask(t.id)));
-      setTasks([]);
+      await Promise.all(dayTasks.map((t) => deleteTask(t.id)));
+      setTasks((ts) => ts.filter((t) => !t.daysOfWeek.includes(activeDay)));
       router.refresh();
     });
   };
@@ -186,6 +198,11 @@ export default function TimetableEditor({
                         {t.room ? ` · 🚪 ${t.room}` : ""}
                         {t.teacher ? ` · 👤 ${t.teacher}` : ""}
                       </div>
+                      {t.packingList && t.packingList.length > 0 && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          🎒 {t.packingList.join(", ")}
+                        </div>
+                      )}
                     </div>
                     <span className="text-gray-400 text-sm shrink-0">edit</span>
                   </div>
@@ -205,18 +222,28 @@ export default function TimetableEditor({
         </button>
       </section>
 
-      {/* Reset */}
-      {tasks.length > 0 ? (
-        <div className="flex justify-end">
+      {/* Bottom actions */}
+      <div className="flex justify-between items-center">
+        {dayTasks.length > 0 ? (
           <button
             type="button"
-            onClick={resetAll}
-            className="text-xs text-red-400 hover:text-red-600 font-bold underline"
+            onClick={clearDay}
+            disabled={isPending}
+            className="text-sm font-bold text-red-500 border-2 border-red-200 hover:border-red-400 hover:bg-red-50 px-4 py-2 rounded-xl transition-colors disabled:opacity-50"
           >
-            Clear entire timetable
+            🗑 Clear {DAYS.find((d) => d.dow === activeDay)?.short}
           </button>
-        </div>
-      ) : null}
+        ) : (
+          <div />
+        )}
+        <Link
+          href={`/kid/${kidId}/todo`}
+          className="block text-center text-white font-black text-base px-6 py-3 rounded-2xl shadow-md"
+          style={{ background: accent }}
+        >
+          ← Back to Schedule
+        </Link>
+      </div>
 
       {/* Edit modal */}
       {draft ? (
@@ -230,12 +257,6 @@ export default function TimetableEditor({
           onDelete={draft.id ? removeDraft : undefined}
         />
       ) : null}
-
-      <div className="flex justify-end">
-        <Link href={`/kid/${kidId}/home`} className="text-sm text-gray-500 hover:text-gray-700">
-          Done →
-        </Link>
-      </div>
     </div>
   );
 }
@@ -257,13 +278,20 @@ function ClassEditor({
   onCancel: () => void;
   onDelete?: () => void;
 }) {
+  const selectedSubject = getSubject(draft.subject);
+
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-3xl shadow-xl p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-black mb-3">
-          {draft.id ? "Edit class" : "New class"}
-        </h3>
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-3xl">{selectedSubject.icon}</span>
+          <h3 className="text-xl font-black flex-1">
+            {draft.id ? "Edit class" : "New class"}
+          </h3>
+        </div>
 
+        {/* Day */}
         <Field label="Day">
           <div className="grid grid-cols-5 gap-1">
             {DAYS.map((d) => {
@@ -283,8 +311,9 @@ function ClassEditor({
           </div>
         </Field>
 
+        {/* Subject */}
         <Field label="Subject">
-          <div className="grid grid-cols-3 gap-1.5 max-h-44 overflow-y-auto pr-1">
+          <div className="grid grid-cols-4 gap-1.5 max-h-72 overflow-y-auto pr-1">
             {listSubjects().map((s) => {
               const active = draft.subject === s.id;
               return (
@@ -305,27 +334,17 @@ function ClassEditor({
           </div>
         </Field>
 
+        {/* Time */}
         <div className="grid grid-cols-2 gap-2">
           <Field label="Start">
-            <input
-              type="time"
-              step="300"
-              value={draft.startTime}
-              onChange={(e) => onChange({ ...draft, startTime: e.target.value })}
-              className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm"
-            />
+            <TimeSelect value={draft.startTime} onChange={(v) => onChange({ ...draft, startTime: v })} />
           </Field>
           <Field label="End">
-            <input
-              type="time"
-              step="300"
-              value={draft.endTime}
-              onChange={(e) => onChange({ ...draft, endTime: e.target.value })}
-              className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm"
-            />
+            <TimeSelect value={draft.endTime} onChange={(v) => onChange({ ...draft, endTime: v })} />
           </Field>
         </div>
 
+        {/* Custom label */}
         {draft.subject === "other" ? (
           <div className="mb-3">
             <label className="text-xs font-black text-gray-700 block mb-1">
@@ -354,6 +373,7 @@ function ClassEditor({
           </Field>
         )}
 
+        {/* Room + Teacher */}
         <div className="grid grid-cols-2 gap-2">
           <Field label="Room">
             <input
@@ -377,6 +397,15 @@ function ClassEditor({
           </Field>
         </div>
 
+        {/* Packing list */}
+        <Field label="🎒 Materials needed (e.g. book, instrument, gym kit)">
+          <PackingListInput
+            items={draft.packingList}
+            onChange={(v) => onChange({ ...draft, packingList: v })}
+          />
+        </Field>
+
+        {/* Actions */}
         <div className="grid grid-cols-2 gap-2 mt-3">
           <button
             type="button"
@@ -405,6 +434,89 @@ function ClassEditor({
             🗑 Delete this class
           </button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function TimeSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const options: string[] = [];
+  for (let h = 7; h <= 18; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      options.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full border-2 border-gray-200 rounded-lg px-2 py-2 text-sm"
+    >
+      {options.map((t) => (
+        <option key={t} value={t}>{t}</option>
+      ))}
+    </select>
+  );
+}
+
+function PackingListInput({
+  items,
+  onChange,
+}: {
+  items: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [input, setInput] = useState("");
+
+  const add = () => {
+    const trimmed = input.trim();
+    if (!trimmed || items.includes(trimmed)) return;
+    onChange([...items, trimmed]);
+    setInput("");
+  };
+
+  return (
+    <div>
+      <div className="flex gap-1.5 flex-wrap mb-2">
+        {items.map((item) => (
+          <span
+            key={item}
+            className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs font-bold px-2.5 py-1 rounded-full"
+          >
+            {item}
+            <button
+              type="button"
+              onClick={() => onChange(items.filter((i) => i !== item))}
+              className="leading-none opacity-60 hover:opacity-100"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder="Type item and press Add"
+          className="flex-1 border-2 border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+          maxLength={40}
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="bg-indigo-100 text-indigo-700 font-bold text-sm px-3 py-1.5 rounded-lg hover:bg-indigo-200"
+        >
+          Add
+        </button>
       </div>
     </div>
   );

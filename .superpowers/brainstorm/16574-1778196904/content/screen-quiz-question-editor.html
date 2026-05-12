@@ -1,0 +1,224 @@
+<h2>Question Editor</h2>
+<p class="subtitle">Two question types — Multiple Choice (left) and Fill in the Blank (right). Both shown in the inline-expanded state.</p>
+
+<div style="max-width: 1000px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+
+  <!-- ══════════════════════════════ -->
+  <!-- TYPE 1: Multiple Choice       -->
+  <!-- ══════════════════════════════ -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 10px;">Multiple Choice (incl. True / False)</div>
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+
+      <div style="background: #4338ca; padding: 14px 18px; display: flex; align-items: center; gap: 10px;">
+        <div style="color: rgba(255,255,255,0.7); font-size: 13px; cursor: pointer;">←</div>
+        <div style="color: white; font-weight: 800; font-size: 14px;">New Question</div>
+      </div>
+
+      <div style="padding: 18px; display: flex; flex-direction: column; gap: 16px;">
+
+        <!-- Type selector -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Question type</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: #4338ca; color: white; border-radius: 10px; padding: 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 16px; margin-bottom: 3px;">☑️</div>
+              <div style="font-size: 11px; font-weight: 800;">Multiple Choice</div>
+              <div style="font-size: 9px; opacity: 0.8; margin-top: 1px;">incl. True / False</div>
+            </div>
+            <div style="background: #f3f4f6; color: #6b7280; border-radius: 10px; padding: 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 16px; margin-bottom: 3px;">✏️</div>
+              <div style="font-size: 11px; font-weight: 700;">Fill in Blank</div>
+              <div style="font-size: 9px; margin-top: 1px;">typed answer</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Question text -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Question</div>
+          <textarea style="border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #374151; width: 100%; box-sizing: border-box; resize: none; height: 56px; font-family: inherit;" readonly>Which of the following is NOT a mammal?</textarea>
+        </div>
+
+        <!-- Options -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Options</div>
+            <div style="font-size: 10px; color: #9ca3af;">Tap radio to mark correct</div>
+          </div>
+
+          <!-- Option A — correct -->
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fdf4; border-radius: 10px; border: 1.5px solid #22c55e;">
+            <input type="radio" name="mc1" checked readonly style="accent-color: #22c55e; width: 16px; height: 16px; flex-shrink: 0;" />
+            <input style="flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; font-weight: 600; outline: none;" value="Crocodile" readonly />
+            <div style="font-size: 10px; background: #22c55e; color: white; font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap;">✓ Correct</div>
+          </div>
+
+          <!-- Option B -->
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 10px; border: 1.5px solid #e5e7eb;">
+            <input type="radio" name="mc1" readonly style="width: 16px; height: 16px; flex-shrink: 0;" />
+            <input style="flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; outline: none;" value="Dog" readonly />
+          </div>
+
+          <!-- Option C -->
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 10px; border: 1.5px solid #e5e7eb;">
+            <input type="radio" name="mc1" readonly style="width: 16px; height: 16px; flex-shrink: 0;" />
+            <input style="flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; outline: none;" value="Whale" readonly />
+          </div>
+
+          <!-- Option D -->
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 10px; border: 1.5px solid #e5e7eb;">
+            <input type="radio" name="mc1" readonly style="width: 16px; height: 16px; flex-shrink: 0;" />
+            <input style="flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; outline: none;" value="Bat" readonly />
+          </div>
+
+          <!-- Add/remove option -->
+          <div style="display: flex; gap: 8px;">
+            <div style="flex: 1; border: 1.5px dashed #d1d5db; border-radius: 10px; padding: 8px 12px; font-size: 11px; color: #9ca3af; text-align: center; cursor: pointer;">+ Add option</div>
+          </div>
+
+          <!-- True/False shortcut -->
+          <div style="background: #f8fafc; border-radius: 10px; padding: 8px 12px; display: flex; align-items: center; gap: 8px;">
+            <div style="font-size: 10px; color: #6b7280;">Shortcut:</div>
+            <div style="background: #e5e7eb; border-radius: 6px; padding: 4px 10px; font-size: 10px; font-weight: 700; color: #374151; cursor: pointer;">Set to True / False</div>
+          </div>
+        </div>
+
+        <!-- Metadata -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Theme</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 8px; font-size: 11px; color: #374151;">
+              <option selected>🔬 Science</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Age band</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 8px; font-size: 11px; color: #374151;">
+              <option selected>7–8</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Difficulty</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 8px; font-size: 11px; color: #374151;">
+              <option selected>Medium</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Save -->
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1; background: #4338ca; color: white; border-radius: 12px; padding: 12px; text-align: center; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(67,56,202,0.3);">Save Question</div>
+          <div style="background: #fee2e2; color: #dc2626; border-radius: 12px; padding: 12px 16px; font-size: 13px; font-weight: 700; cursor: pointer;">Delete</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════ -->
+  <!-- TYPE 2: Fill in the Blank     -->
+  <!-- ══════════════════════════════ -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 10px;">Fill in the Blank</div>
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+
+      <div style="background: #4338ca; padding: 14px 18px; display: flex; align-items: center; gap: 10px;">
+        <div style="color: rgba(255,255,255,0.7); font-size: 13px; cursor: pointer;">←</div>
+        <div style="color: white; font-weight: 800; font-size: 14px;">Edit Question</div>
+      </div>
+
+      <div style="padding: 18px; display: flex; flex-direction: column; gap: 16px;">
+
+        <!-- Type selector -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Question type</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: #f3f4f6; color: #6b7280; border-radius: 10px; padding: 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 16px; margin-bottom: 3px;">☑️</div>
+              <div style="font-size: 11px; font-weight: 700;">Multiple Choice</div>
+              <div style="font-size: 9px; margin-top: 1px;">incl. True / False</div>
+            </div>
+            <div style="background: #4338ca; color: white; border-radius: 10px; padding: 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 16px; margin-bottom: 3px;">✏️</div>
+              <div style="font-size: 11px; font-weight: 800;">Fill in Blank</div>
+              <div style="font-size: 9px; opacity: 0.8; margin-top: 1px;">typed answer</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Question with ___ -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Question <span style="font-weight: 400; text-transform: none; color: #9ca3af;">— use ___ for the blank</span></div>
+          <textarea style="border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #374151; width: 100%; box-sizing: border-box; resize: none; height: 56px; font-family: inherit;" readonly>The largest planet in our solar system is ___</textarea>
+          <!-- Preview -->
+          <div style="background: #f8fafc; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #374151;">
+            Preview: <em>The largest planet in our solar system is <span style="display:inline-block; min-width:60px; border-bottom: 2px solid #4338ca; padding-bottom: 1px;">&nbsp;</span></em>
+          </div>
+        </div>
+
+        <!-- Accepted answers -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Accepted answers</div>
+          <div style="font-size: 10px; color: #9ca3af; margin-top: -4px;">Matching is case-insensitive. Add variants so kids aren't penalised for different phrasings.</div>
+
+          <!-- Answer 1 — primary -->
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f0fdf4; border-radius: 10px; border: 1.5px solid #22c55e;">
+            <div style="font-size: 10px; background: #22c55e; color: white; font-weight: 700; padding: 2px 6px; border-radius: 6px; white-space: nowrap;">Primary</div>
+            <input style="flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; font-weight: 600; outline: none;" value="Jupiter" readonly />
+          </div>
+
+          <!-- Answer 2 — variant -->
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 10px; border: 1.5px solid #e5e7eb;">
+            <div style="font-size: 10px; background: #f3f4f6; color: #6b7280; font-weight: 700; padding: 2px 6px; border-radius: 6px; white-space: nowrap;">Variant</div>
+            <input style="flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; outline: none;" value="the planet Jupiter" readonly />
+            <div style="font-size: 14px; color: #d1d5db; cursor: pointer; padding: 0 2px;">✕</div>
+          </div>
+
+          <!-- Answer 3 — variant -->
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f8fafc; border-radius: 10px; border: 1.5px solid #e5e7eb;">
+            <div style="font-size: 10px; background: #f3f4f6; color: #6b7280; font-weight: 700; padding: 2px 6px; border-radius: 6px; white-space: nowrap;">Variant</div>
+            <input style="flex: 1; border: none; background: transparent; font-size: 13px; color: #374151; outline: none;" value="jupiter" readonly />
+            <div style="font-size: 14px; color: #d1d5db; cursor: pointer; padding: 0 2px;">✕</div>
+          </div>
+
+          <div style="border: 1.5px dashed #d1d5db; border-radius: 10px; padding: 8px 12px; font-size: 11px; color: #9ca3af; text-align: center; cursor: pointer;">+ Add another accepted answer</div>
+        </div>
+
+        <!-- Metadata -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Theme</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 8px; font-size: 11px; color: #374151;">
+              <option selected>🔬 Science</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Age band</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 8px; font-size: 11px; color: #374151;">
+              <option selected>7–8</option>
+            </select>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Difficulty</div>
+            <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 8px; font-size: 11px; color: #374151;">
+              <option selected>Medium</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Save -->
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1; background: #4338ca; color: white; border-radius: 12px; padding: 12px; text-align: center; font-size: 13px; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(67,56,202,0.3);">Save Question</div>
+          <div style="background: #fee2e2; color: #dc2626; border-radius: 12px; padding: 12px 16px; font-size: 13px; font-weight: 700; cursor: pointer;">Delete</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 16px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151; max-width: 1000px; margin-left: auto; margin-right: auto;">
+  <strong>MC:</strong> 2–4 options, one marked correct. "Set to True / False" shortcut pre-fills options. &nbsp;|&nbsp; <strong>Fill:</strong> Primary answer + optional variants. All matching is case-insensitive and whitespace-trimmed — kids typing "jupiter" or "Jupiter" both pass.
+</div>

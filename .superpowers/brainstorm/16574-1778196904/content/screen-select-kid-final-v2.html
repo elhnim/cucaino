@@ -1,0 +1,56 @@
+<h2>Home Screen — Family Welcome</h2>
+<p class="subtitle">Where should the family name sit? Pick the layout you prefer.</p>
+
+<div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+
+  <!-- Option A: Family name above knock knock -->
+  <div class="option" data-choice="family-a" onclick="toggleSelect(this)" style="padding: 0; border: none; background: transparent; flex: 1; min-width: 220px; max-width: 280px;">
+    <div class="label" style="text-align:center; margin-bottom: 8px;">A — Above heading</div>
+    <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden;">
+      <div style="padding: 22px 20px 12px; text-align: center;">
+        <div style="color: rgba(255,255,255,0.5); font-size: 12px; letter-spacing: 1px;">✨ CUCAINO</div>
+        <div style="color: rgba(255,255,255,0.9); font-size: 15px; font-weight: 700; margin-top: 8px;">Welcome to the<br><span style="color: #fbbf24;">Nguyen family!</span> 🏠</div>
+        <div style="color: white; font-weight: 900; font-size: 22px; margin-top: 10px; line-height: 1.2;">Knock knock... 🚪<br><span style="font-size: 17px; opacity: 0.85;">Who's there?</span></div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 14px 16px;">
+        <div style="background: linear-gradient(135deg, #f97316, #fb923c); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🦊</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Liam</div></div>
+        <div style="background: linear-gradient(135deg, #a855f7, #c084fc); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🐼</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Mia</div></div>
+        <div style="background: linear-gradient(135deg, #7c3aed, #a78bfa); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🧙</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Parent</div><div style="color:rgba(255,255,255,0.8);font-size:9px;">Magic zone ✨</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Family name replaces CUCAINO brand -->
+  <div class="option" data-choice="family-b" onclick="toggleSelect(this)" style="padding: 0; border: none; background: transparent; flex: 1; min-width: 220px; max-width: 280px;">
+    <div class="label" style="text-align:center; margin-bottom: 8px;">B — Replaces brand label</div>
+    <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden;">
+      <div style="padding: 22px 20px 12px; text-align: center;">
+        <div style="color: #fbbf24; font-weight: 800; font-size: 16px;">🏠 The Nguyen Family</div>
+        <div style="color: white; font-weight: 900; font-size: 22px; margin-top: 10px; line-height: 1.2;">Knock knock... 🚪<br><span style="font-size: 17px; opacity: 0.85;">Who's there?</span></div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 14px 16px;">
+        <div style="background: linear-gradient(135deg, #f97316, #fb923c); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🦊</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Liam</div></div>
+        <div style="background: linear-gradient(135deg, #a855f7, #c084fc); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🐼</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Mia</div></div>
+        <div style="background: linear-gradient(135deg, #7c3aed, #a78bfa); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🧙</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Parent</div><div style="color:rgba(255,255,255,0.8);font-size:9px;">Magic zone ✨</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Below knock knock, above cards -->
+  <div class="option" data-choice="family-c" onclick="toggleSelect(this)" style="padding: 0; border: none; background: transparent; flex: 1; min-width: 220px; max-width: 280px;">
+    <div class="label" style="text-align:center; margin-bottom: 8px;">C — Between heading &amp; cards</div>
+    <div style="background: #1e1b4b; border-radius: 20px; overflow: hidden;">
+      <div style="padding: 22px 20px 6px; text-align: center;">
+        <div style="color: rgba(255,255,255,0.5); font-size: 12px; letter-spacing: 1px;">✨ CUCAINO</div>
+        <div style="color: white; font-weight: 900; font-size: 22px; margin-top: 8px; line-height: 1.2;">Knock knock... 🚪<br><span style="font-size: 17px; opacity: 0.85;">Who's there?</span></div>
+        <div style="display: inline-block; background: rgba(251,191,36,0.2); border: 1px solid rgba(251,191,36,0.4); border-radius: 20px; padding: 4px 14px; margin-top: 10px; color: #fbbf24; font-size: 12px; font-weight: 700;">🏠 The Nguyen Family</div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px 14px 16px;">
+        <div style="background: linear-gradient(135deg, #f97316, #fb923c); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🦊</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Liam</div></div>
+        <div style="background: linear-gradient(135deg, #a855f7, #c084fc); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🐼</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Mia</div></div>
+        <div style="background: linear-gradient(135deg, #7c3aed, #a78bfa); border-radius: 12px; aspect-ratio: 1; display:flex; flex-direction:column; align-items:center; justify-content:center;"><div style="font-size:26px;">🧙</div><div style="color:white;font-weight:700;font-size:11px;margin-top:4px;">Parent</div><div style="color:rgba(255,255,255,0.8);font-size:9px;">Magic zone ✨</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>

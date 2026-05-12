@@ -1,0 +1,653 @@
+<h2>Quiz System</h2>
+<p class="subtitle">Question Library → Quiz Sets → Live Play. Three screens shown.</p>
+
+<div style="max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px;">
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SCREEN 1: Parent — Question Library tab        -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 12px;">1 — Parent/Guardian · Quizzes · Question Library tab</div>
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+
+      <!-- header -->
+      <div style="background: #4338ca; padding: 14px 18px;">
+        <div style="color: white; font-weight: 800; font-size: 14px;">Quizzes</div>
+      </div>
+
+      <!-- tabs -->
+      <div style="display: flex; border-bottom: 1.5px solid #e5e7eb;">
+        <div style="padding: 12px 20px; font-size: 12px; font-weight: 800; color: #4338ca; border-bottom: 2.5px solid #4338ca; margin-bottom: -1.5px;">Question Library</div>
+        <div style="padding: 12px 20px; font-size: 12px; font-weight: 600; color: #9ca3af;">Quiz Sets</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 200px 1fr; min-height: 500px;">
+
+        <!-- LEFT: Filters panel -->
+        <div style="border-right: 1.5px solid #e5e7eb; padding: 16px; display: flex; flex-direction: column; gap: 14px; background: #fafafa;">
+
+          <div style="background: #4338ca; color: white; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 700; text-align: center; cursor: pointer;">+ Add Question</div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Theme</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option>All themes</option>
+                <option selected>➕ Maths</option>
+                <option>🔬 Science</option>
+                <option>📚 English &amp; Reading</option>
+                <option>🌍 Geography</option>
+                <option>🏛️ History</option>
+                <option>⚽ Sports &amp; Health</option>
+                <option>🎵 Music</option>
+                <option>🇫🇷 French</option>
+                <option>🇪🇸 Spanish</option>
+                <option>🇨🇳 Mandarin</option>
+                <option>🌟 Fun Facts</option>
+                <option>🎮 Pop Culture</option>
+                <option>💻 Technology</option>
+                <option>🍜 Food &amp; Culture</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Age band</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option>All ages</option>
+                <option>5–6</option>
+                <option selected>7–8</option>
+                <option>9–10</option>
+                <option>11–12</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Difficulty</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option selected>All difficulties</option>
+                <option>Easy</option>
+                <option>Medium</option>
+                <option>Hard</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Type</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option selected>All types</option>
+                <option>Multiple Choice</option>
+                <option>Fill in Blank</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Source</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option selected>All sources</option>
+                <option>Built-in</option>
+                <option>My questions</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- RIGHT: Scrollable question list -->
+        <div style="display: flex; flex-direction: column;">
+
+          <div style="padding: 10px 16px; border-bottom: 1.5px solid #f3f4f6; font-size: 11px; color: #6b7280;">24 questions · Maths · Age 7–8 &nbsp;·&nbsp; <strong>12 themes total</strong></div>
+
+          <div style="overflow-y: scroll; height: 480px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
+
+            <!-- Row: collapsed -->
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">What is 7 × 8?</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 6px;">Medium</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <!-- Row: EXPANDED custom question -->
+            <div style="border-radius: 12px; border: 1.5px solid #7c3aed; overflow: hidden;">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #ede9fe; cursor: pointer;">
+                <div style="font-size: 10px; background: #7c3aed; color: white; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+                <div style="flex: 1; font-size: 12px; font-weight: 700; color: #374151;">What is 12 × 12?</div>
+                <div style="display: flex; gap: 5px; align-items: center;">
+                  <div style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 6px;">Medium</div>
+                  <div style="background: #7c3aed; border-radius: 6px; padding: 4px 9px; font-size: 10px; font-weight: 700; color: white;">✏️ Editing</div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                </div>
+              </div>
+              <!-- Inline editor -->
+              <div style="padding: 14px 16px; background: white; display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Question</div>
+                    <input style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 12px; color: #374151; width: 100%; box-sizing: border-box;" value="What is 12 × 12?" readonly />
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Options <span style="font-weight:400;color:#9ca3af;">(tick correct)</span></div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <input type="radio" name="cx" checked readonly style="accent-color:#4338ca;" />
+                      <input style="flex:1;border:1.5px solid #4338ca;border-radius:8px;padding:6px 8px;font-size:12px;background:#ede9fe;color:#374151;" value="144" readonly />
+                      <span style="font-size:10px;color:#4338ca;font-weight:700;">✓</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <input type="radio" name="cx" readonly /><input style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:6px 8px;font-size:12px;color:#374151;" value="124" readonly />
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <input type="radio" name="cx" readonly /><input style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:6px 8px;font-size:12px;color:#374151;" value="132" readonly />
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <input type="radio" name="cx" readonly /><input style="flex:1;border:1.5px solid #e5e7eb;border-radius:8px;padding:6px 8px;font-size:12px;color:#374151;" value="156" readonly />
+                    </div>
+                  </div>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px;">
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Theme</div>
+                      <select style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:11px;"><option selected>Maths</option></select>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Age band</div>
+                      <select style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:11px;"><option selected>7–8</option></select>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Difficulty</div>
+                      <select style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:11px;"><option selected>Medium</option></select>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Type</div>
+                      <select style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:11px;"><option selected>Multiple Choice</option><option>Fill in Blank</option></select>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 7px; margin-top: auto;">
+                    <div style="flex:1;background:#4338ca;color:white;border-radius:10px;padding:9px;text-align:center;font-size:12px;font-weight:800;cursor:pointer;">Save</div>
+                    <div style="background:#fee2e2;color:#dc2626;border-radius:10px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;">Delete</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- More rows -->
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">A square has 4 equal sides. <span style="font-size:10px;color:#9ca3af;">[True / False]</span></div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #d1fae5; color: #059669; padding: 2px 6px; border-radius: 6px;">Easy</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #fef3c7; color: #d97706; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">Fill</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">6 × ___ = 42</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 6px;">Medium</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #fef3c7; color: #d97706; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">Fill</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">The largest planet in our solar system is ___</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 6px;">Medium</div>
+                <div style="font-size: 10px; color: #7c3aed; font-weight: 700;">Custom</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">How many sides does a hexagon have?</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #d1fae5; color: #059669; padding: 2px 6px; border-radius: 6px;">Easy</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #fef3c7; color: #d97706; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">Fill</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">9 × 9 = ___</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 6px;">Medium</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">Which is larger: ½ or ¾?</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 6px;">Hard</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">What is 25% of 200?</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 6px;">Hard</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #fef3c7; color: #d97706; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">Fill</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">A triangle has ___ sides</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #d1fae5; color: #059669; padding: 2px 6px; border-radius: 6px;">Easy</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">Which number is a prime? 4, 6, 7, 9</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 6px;">Medium</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #fef3c7; color: #d97706; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">Fill</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">100 ÷ 4 = ___</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #d1fae5; color: #059669; padding: 2px 6px; border-radius: 6px;">Easy</div>
+                <div style="font-size: 10px; color: #7c3aed; font-weight: 700;">Custom</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #dbeafe; color: #1d4ed8; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">MC</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">Is 0.5 greater than ½? <span style="font-size:10px;color:#9ca3af;">[True / False]</span></div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fef3c7; color: #d97706; padding: 2px 6px; border-radius: 6px;">Medium</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 10px; background: #fef3c7; color: #d97706; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap;">Fill</div>
+              <div style="flex: 1; font-size: 12px; font-weight: 600; color: #374151;">The perimeter of a square with sides of 5 is ___</div>
+              <div style="display: flex; gap: 5px; align-items: center;">
+                <div style="font-size: 10px; background: #fee2e2; color: #dc2626; padding: 2px 6px; border-radius: 6px;">Hard</div>
+                <div style="font-size: 10px; color: #9ca3af;">Built-in</div>
+                <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+              </div>
+            </div>
+
+            <div style="text-align: center; font-size: 11px; color: #9ca3af; padding: 10px 0;">— end of results —</div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SCREEN 2: Parent — Quiz Sets tab              -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 12px;">2 — Parent/Guardian · Quizzes · Quiz Sets tab + Set Editor</div>
+    <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+
+      <div style="background: #4338ca; padding: 14px 18px;">
+        <div style="color: white; font-weight: 800; font-size: 14px;">Quizzes</div>
+      </div>
+
+      <div style="display: flex; border-bottom: 1.5px solid #e5e7eb;">
+        <div style="padding: 12px 20px; font-size: 12px; font-weight: 600; color: #9ca3af;">Question Library</div>
+        <div style="padding: 12px 20px; font-size: 12px; font-weight: 800; color: #4338ca; border-bottom: 2.5px solid #4338ca; margin-bottom: -1.5px;">Quiz Sets</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 200px 1fr; min-height: 500px;">
+
+        <!-- LEFT: Filters -->
+        <div style="border-right: 1.5px solid #e5e7eb; padding: 16px; display: flex; flex-direction: column; gap: 14px; background: #fafafa;">
+
+          <div style="background: #4338ca; color: white; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 700; text-align: center; cursor: pointer;">+ New Quiz Set</div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Theme</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option selected>All themes</option>
+                <option>➕ Maths</option>
+                <option>🔬 Science</option>
+                <option>📚 English &amp; Reading</option>
+                <option>🌍 Geography</option>
+                <option>🏛️ History</option>
+                <option>⚽ Sports &amp; Health</option>
+                <option>🎵 Music</option>
+                <option>🌟 Fun Facts</option>
+                <option>🎮 Pop Culture</option>
+                <option>💻 Technology</option>
+                <option>🍜 Food &amp; Culture</option>
+                <option>🇫🇷 French</option>
+                <option>🇪🇸 Spanish</option>
+                <option>🇨🇳 Mandarin</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Age band</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option selected>All ages</option>
+                <option>5–6</option>
+                <option>7–8</option>
+                <option>9–10</option>
+                <option>11–12</option>
+              </select>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Difficulty</div>
+              <select style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 11px; color: #374151; background: white; width: 100%;">
+                <option selected>All difficulties</option>
+                <option>Easy</option>
+                <option>Medium</option>
+                <option>Hard</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- RIGHT: Scrollable quiz set list -->
+        <div style="display: flex; flex-direction: column;">
+
+          <div style="padding: 10px 16px; border-bottom: 1.5px solid #f3f4f6; font-size: 11px; color: #6b7280;">6 quiz sets</div>
+
+          <div style="overflow-y: scroll; height: 480px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;">
+
+            <!-- Row: collapsed -->
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 22px;">➕</div>
+              <div style="flex: 1;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151;">Times Tables</div>
+                <div style="font-size: 10px; color: #6b7280;">Maths · All ages · 36 questions · 10/session</div>
+              </div>
+              <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+            </div>
+
+            <!-- Row: EXPANDED with inline editor -->
+            <div style="border-radius: 12px; border: 1.5px solid #7c3aed; overflow: hidden;">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #ede9fe; cursor: pointer;">
+                <div style="font-size: 22px;">📐</div>
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; font-weight: 700; color: #374151;">Shapes &amp; Geometry</div>
+                  <div style="font-size: 10px; color: #7c3aed;">Maths · 7–8 · 18 questions · 8/session</div>
+                </div>
+                <div style="background: #7c3aed; border-radius: 6px; padding: 4px 9px; font-size: 10px; font-weight: 700; color: white;">✏️ Editing</div>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+              </div>
+              <!-- Inline editor -->
+              <div style="padding: 14px 16px; background: white; display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end;">
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Name</div>
+                    <input style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 12px; color: #374151; width: 100%; box-sizing: border-box;" value="Shapes &amp; Geometry" readonly />
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Emoji</div>
+                    <input style="border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 7px 10px; font-size: 18px; width: 52px; text-align: center;" value="📐" readonly />
+                  </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                  <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Filters <span style="font-weight:400;color:#9ca3af;">— question pool built automatically from these</span></div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;">
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 9px; font-weight: 600; color: #9ca3af;">Theme</div>
+                      <select style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:11px;"><option selected>Maths</option></select>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 9px; font-weight: 600; color: #9ca3af;">Age band</div>
+                      <select style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:11px;"><option selected>7–8</option></select>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 9px; font-weight: 600; color: #9ca3af;">Difficulty</div>
+                      <select style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:11px;"><option selected>All</option></select>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 3px;">
+                      <div style="font-size: 9px; font-weight: 600; color: #9ca3af;">Questions/session</div>
+                      <input style="border:1.5px solid #e5e7eb;border-radius:8px;padding:5px 7px;font-size:12px;font-weight:700;color:#374151;width:100%;box-sizing:border-box;" value="8" readonly />
+                    </div>
+                  </div>
+                </div>
+
+                <div style="background: #eff6ff; border-radius: 10px; padding: 9px 12px; font-size: 11px; color: #1d4ed8; font-weight: 600;">
+                  📚 18 questions match these filters. Each session randomly draws 8, matched to each player's age.
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                  <div style="font-size: 10px; font-weight: 700; color: #6b7280;">Question types <span style="font-weight:400;color:#9ca3af;">(leave unchecked for any type)</span></div>
+                  <div style="display: flex; gap: 12px;">
+                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#374151;cursor:pointer;"><input type="checkbox" checked readonly style="accent-color:#4338ca;" /> Multiple Choice</label>
+                    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:#374151;cursor:pointer;"><input type="checkbox" checked readonly style="accent-color:#4338ca;" /> Fill in Blank</label>
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                  <div style="flex:1;background:#4338ca;color:white;border-radius:10px;padding:9px;text-align:center;font-size:12px;font-weight:800;cursor:pointer;">Save</div>
+                  <div style="background:#fee2e2;color:#dc2626;border-radius:10px;padding:9px 14px;font-size:12px;font-weight:700;cursor:pointer;">Delete</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- More rows -->
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 22px;">🔬</div>
+              <div style="flex: 1;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151;">Animals &amp; Habitats</div>
+                <div style="font-size: 10px; color: #6b7280;">Science · All ages · 42 questions · 12/session</div>
+              </div>
+              <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 22px;">🇫🇷</div>
+              <div style="flex: 1;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151;">French Basics</div>
+                <div style="font-size: 10px; color: #6b7280;">French · 5–6 · 20 questions · 10/session</div>
+              </div>
+              <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 22px;">🌍</div>
+              <div style="flex: 1;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151;">World Capitals</div>
+                <div style="font-size: 10px; color: #6b7280;">Geography · 9–10 · 55 questions · 15/session</div>
+              </div>
+              <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1.5px solid #e5e7eb; cursor: pointer;">
+              <div style="font-size: 22px;">🎮</div>
+              <div style="flex: 1;">
+                <div style="font-size: 12px; font-weight: 700; color: #374151;">Pokémon Who's That?</div>
+                <div style="font-size: 10px; color: #6b7280;">Pop Culture · All ages · 30 questions · 10/session</div>
+              </div>
+              <div style="background: #f3f4f6; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 700; color: #6b7280; cursor: pointer;">✏️ Edit</div>
+            </div>
+
+            <div style="text-align: center; font-size: 11px; color: #9ca3af; padding: 10px 0;">— end of results —</div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- SCREEN 3: Kid Play — Theme browser + Session -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div>
+    <div style="text-align: center; font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 12px;">3 — Kid · Play tab · Theme browser + Live session</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; align-items: start;">
+
+      <!-- 3a: Theme browser -->
+      <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #7c3aed, #a78bfa); padding: 14px 18px;">
+          <div style="color: white; font-weight: 800; font-size: 14px;">Play 🎮</div>
+        </div>
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 11px; font-weight: 700; color: #374151;">Pick a theme</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: #fef3c7; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 22px;">➕</div>
+              <div style="font-size: 11px; font-weight: 800; color: #374151; margin-top: 4px;">Maths</div>
+              <div style="font-size: 9px; color: #6b7280;">2 quiz sets</div>
+            </div>
+            <div style="background: #d1fae5; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 22px;">🔬</div>
+              <div style="font-size: 11px; font-weight: 800; color: #374151; margin-top: 4px;">Science</div>
+              <div style="font-size: 9px; color: #6b7280;">1 quiz set</div>
+            </div>
+            <div style="background: #dbeafe; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 22px;">📚</div>
+              <div style="font-size: 11px; font-weight: 800; color: #374151; margin-top: 4px;">English</div>
+              <div style="font-size: 9px; color: #6b7280;">3 quiz sets</div>
+            </div>
+            <div style="background: #fce7f3; border-radius: 14px; padding: 14px 10px; text-align: center; cursor: pointer;">
+              <div style="font-size: 22px;">🌍</div>
+              <div style="font-size: 11px; font-weight: 800; color: #374151; margin-top: 4px;">Geography</div>
+              <div style="font-size: 9px; color: #6b7280;">1 quiz set</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3b: Quiz set picker + mode selection -->
+      <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #7c3aed, #a78bfa); padding: 14px 18px; display: flex; align-items: center; gap: 10px;">
+          <div style="color: rgba(255,255,255,0.7); font-size: 13px; cursor: pointer;">←</div>
+          <div style="color: white; font-weight: 800; font-size: 14px;">Maths</div>
+        </div>
+        <div style="padding: 14px; display: flex; flex-direction: column; gap: 10px;">
+
+          <div style="background: #fef3c7; border-radius: 14px; padding: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; border: 2px solid #f59e0b;">
+            <div style="font-size: 28px;">➕</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 800; color: #374151;">Times Tables</div>
+              <div style="font-size: 10px; color: #6b7280;">10 questions per session · All ages</div>
+            </div>
+          </div>
+
+          <div style="background: #f8fafc; border-radius: 14px; padding: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; border: 2px solid #e5e7eb;">
+            <div style="font-size: 28px;">📐</div>
+            <div>
+              <div style="font-size: 13px; font-weight: 800; color: #374151;">Shapes & Geometry</div>
+              <div style="font-size: 10px; color: #6b7280;">8 questions per session · All ages</div>
+            </div>
+          </div>
+
+          <!-- Mode selection appears after tapping a set -->
+          <div style="border-top: 1.5px solid #e5e7eb; padding-top: 10px;">
+            <div style="font-size: 11px; font-weight: 700; color: #374151; margin-bottom: 8px;">Times Tables — how do you want to play?</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+              <div style="background: #ede9fe; border-radius: 12px; padding: 12px; text-align: center; cursor: pointer; border: 2px solid #7c3aed;">
+                <div style="font-size: 20px;">🎯</div>
+                <div style="font-size: 11px; font-weight: 800; color: #7c3aed; margin-top: 4px;">Solo</div>
+              </div>
+              <div style="background: #fef3c7; border-radius: 12px; padding: 12px; text-align: center; cursor: pointer; border: 2px solid #f59e0b;">
+                <div style="font-size: 20px;">👨‍👩‍👧</div>
+                <div style="font-size: 11px; font-weight: 800; color: #d97706; margin-top: 4px;">Family Game</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 3c: Live session — MC question -->
+      <div style="background: white; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
+        <div style="background: linear-gradient(135deg, #f59e0b, #fbbf24); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="color: white; font-weight: 800; font-size: 14px;">Times Tables 🎮</div>
+          <div style="color: rgba(255,255,255,0.85); font-size: 11px; font-weight: 700;">Q 3 of 10</div>
+        </div>
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+
+          <!-- Current player -->
+          <div style="display: flex; align-items: center; gap: 10px; background: #fef3c7; border-radius: 12px; padding: 10px 14px;">
+            <div style="width: 36px; height: 36px; background: #fde68a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px;">🦊</div>
+            <div>
+              <div style="font-size: 11px; font-weight: 800; color: #374151;">Liam's turn</div>
+              <div style="font-size: 10px; color: #6b7280;">Score: 2/2 🎯</div>
+            </div>
+            <div style="margin-left: auto; font-size: 10px; background: #4338ca; color: white; border-radius: 6px; padding: 2px 8px; font-weight: 700;">Age 8 · Medium</div>
+          </div>
+
+          <!-- Question -->
+          <div style="background: #1a1a2e; border-radius: 14px; padding: 20px; text-align: center;">
+            <div style="color: rgba(255,255,255,0.6); font-size: 11px; margin-bottom: 6px;">What is...</div>
+            <div style="color: white; font-size: 28px; font-weight: 900;">7 × 8 = ?</div>
+          </div>
+
+          <!-- MC options -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: #f8fafc; border: 2px solid #e5e7eb; border-radius: 14px; padding: 14px; text-align: center; cursor: pointer;">
+              <div style="font-size: 20px; font-weight: 900; color: #374151;">48</div>
+            </div>
+            <div style="background: #f8fafc; border: 2px solid #e5e7eb; border-radius: 14px; padding: 14px; text-align: center; cursor: pointer;">
+              <div style="font-size: 20px; font-weight: 900; color: #374151;">54</div>
+            </div>
+            <div style="background: #f8fafc; border: 2px solid #e5e7eb; border-radius: 14px; padding: 14px; text-align: center; cursor: pointer;">
+              <div style="font-size: 20px; font-weight: 900; color: #374151;">56</div>
+            </div>
+            <div style="background: #f8fafc; border: 2px solid #e5e7eb; border-radius: 14px; padding: 14px; text-align: center; cursor: pointer;">
+              <div style="font-size: 20px; font-weight: 900; color: #374151;">64</div>
+            </div>
+          </div>
+
+          <!-- Player scores -->
+          <div style="display: flex; gap: 6px;">
+            <div style="flex: 1; background: #fef3c7; border-radius: 8px; padding: 6px 8px; text-align: center;">
+              <div style="font-size: 14px;">🦊</div>
+              <div style="font-size: 10px; font-weight: 800; color: #374151;">Liam</div>
+              <div style="font-size: 11px; font-weight: 700; color: #d97706;">2/2</div>
+            </div>
+            <div style="flex: 1; background: #f8fafc; border-radius: 8px; padding: 6px 8px; text-align: center;">
+              <div style="font-size: 14px;">🌈</div>
+              <div style="font-size: 10px; font-weight: 800; color: #374151;">Ava</div>
+              <div style="font-size: 11px; font-weight: 700; color: #6b7280;">1/2</div>
+            </div>
+            <div style="flex: 1; background: #f8fafc; border-radius: 8px; padding: 6px 8px; text-align: center;">
+              <div style="font-size: 14px;">🧙</div>
+              <div style="font-size: 10px; font-weight: 800; color: #374151;">Mum</div>
+              <div style="font-size: 11px; font-weight: 700; color: #6b7280;">2/2</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 16px; background: #f0fdf4; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #374151; max-width: 1100px; margin-left: auto; margin-right: auto;">
+  <strong>Themes (14):</strong> Maths · English & Reading · Science · History · Geography · Sports & Health · Music · Fun Facts · Pop Culture & Characters · Technology · Food & Culture · French · Spanish · Mandarin — Each language is its own theme so they can never mix in a quiz set. Questions tagged with one theme + age band (5–6 / 7–8 / 9–10 / 11–12) + difficulty (Easy / Medium / Hard).
+</div>

@@ -13,12 +13,15 @@ const LEVELS = [
 ];
 
 const BADGE_CATEGORIES: { key: BadgeCategory; emoji: string; label: string; bronze: string; silver: string; gold: string }[] = [
-  { key: "hygiene",     emoji: "🪥", label: "Hygiene",     bronze: "Clean Start",  silver: "Squeaky Clean", gold: "Hygiene Hero" },
-  { key: "physical",   emoji: "💪", label: "Physical",    bronze: "On the Move",  silver: "Athlete",        gold: "Sports Star"  },
-  { key: "learning",   emoji: "📚", label: "Learning",    bronze: "Bookworm",     silver: "Scholar",        gold: "Genius"       },
-  { key: "chores",     emoji: "🧹", label: "Chores",      bronze: "Helper",       silver: "House Pro",      gold: "Home Hero"    },
-  { key: "music",      emoji: "🎵", label: "Music",       bronze: "First Notes",  silver: "Musician",       gold: "Maestro"      },
-  { key: "mindfulness",emoji: "🧘", label: "Mindfulness", bronze: "Good Rest",    silver: "Calm Mind",      gold: "Zen Master"   },
+  { key: "champion",      emoji: "🧹", label: "Chores",      bronze: "Helping Hand",    silver: "Chore Crusher",   gold: "House Hero"        },
+  { key: "athlete",       emoji: "🏃", label: "Exercise",    bronze: "Warm Up",         silver: "Power Player",    gold: "MVP"               },
+  { key: "musician",      emoji: "🎵", label: "Music",       bronze: "Beat Keeper",     silver: "Rhythm Rider",    gold: "Melody Master"     },
+  { key: "self_care",     emoji: "✨", label: "Self Care",   bronze: "Fresh Start",     silver: "Glow Getter",     gold: "Level 100"         },
+  { key: "explorer",      emoji: "🗺️", label: "Activities",  bronze: "Curious Cat",     silver: "Adventure Seeker",gold: "World Wanderer"    },
+  { key: "scholar",       emoji: "📚", label: "School",      bronze: "Bookworm",        silver: "Brain Box",       gold: "Genius"            },
+  { key: "streak",        emoji: "🔥", label: "Streak",      bronze: "Spark",           silver: "Flame",           gold: "Inferno"           },
+  { key: "star_collector",emoji: "⭐", label: "Stars",       bronze: "Star Dust",       silver: "Star Burst",      gold: "Supernova"         },
+  { key: "task_titan",    emoji: "⚡", label: "Tasks Done",  bronze: "Getting Started", silver: "Task Warrior",    gold: "Legend Status"     },
 ];
 
 const MEDALS = ["🥇", "🥈", "🥉"];
