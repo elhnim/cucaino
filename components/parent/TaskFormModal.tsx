@@ -12,7 +12,13 @@ import type {
   TaskRule,
   TaskTarget,
 } from "@/lib/domain/types";
-import { SUBJECTS } from "@/lib/registry/subject-registry";
+import { PARENT_CATEGORIES } from "@/lib/registry/category-registry";
+
+const COMMON_ICONS = [
+  "🛁","🦷","🪥","🍽️","📚","🎵","🏃","🛏️","🎒","🧹","🐕","🎮",
+  "✏️","🥗","💊","🧘","🚿","👕","💪","🎸","🎹","⚽","🏊","🚴",
+  "🌱","⭐","🎯","🤸","📖","🧠","🍳","🥤",
+];
 
 function PackingListEditor({
   items,
@@ -56,14 +62,6 @@ function PackingListEditor({
   );
 }
 
-const CATEGORIES: { value: TaskCategory; label: string; icon: string }[] = [
-  { value: "chore", label: "Chore", icon: "🧹" },
-  { value: "exercise", label: "Exercise", icon: "🏃" },
-  { value: "music", label: "Music", icon: "🎹" },
-  { value: "activity", label: "Activity", icon: "🎒" },
-  { value: "personal", label: "Personal", icon: "⭐" },
-  { value: "school_subject", label: "School Subject", icon: "📚" },
-];
 
 const TIME_BLOCKS: { value: TimeBlock; label: string }[] = [
   { value: "before_school", label: "Before school" },
@@ -128,6 +126,7 @@ export default function TaskFormModal({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
 
   const set = <K extends keyof TaskFormData>(k: K, v: TaskFormData[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -151,12 +150,9 @@ export default function TaskFormModal({
     }
     setError(null);
     startTransition(async () => {
-      const payload = isSchoolSubject
-        ? { ...form, requiresCompletion: false, points: 0, familyPointsContribution: 0, kidCanAdd: false }
-        : form;
       const result = task
-        ? await updateTask(task.id, payload)
-        : await createTask(payload);
+        ? await updateTask(task.id, form)
+        : await createTask(form);
       if (result.ok) {
         onClose();
       } else {
@@ -173,10 +169,8 @@ export default function TaskFormModal({
     });
   };
 
-  const isSchoolSubject = form.category === "school_subject";
   const showPackingList = form.category === "activity";
   const showLocation = form.category === "activity";
-  const showMusicToggle = form.category === "music";
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -204,15 +198,16 @@ export default function TaskFormModal({
 
           {/* Name + icon */}
           <div className="flex gap-2">
-            <div className="w-16">
+            <div className="w-16 flex-shrink-0">
               <label className="text-xs font-bold text-gray-500">Icon</label>
-              <input
-                type="text"
-                value={form.icon}
-                onChange={(e) => set("icon", e.target.value)}
-                className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-center text-2xl focus:outline-none focus:border-indigo-400"
-                maxLength={4}
-              />
+              <button
+                type="button"
+                onClick={() => setShowIconPicker((v) => !v)}
+                className="w-full mt-1 h-[42px] border-2 rounded-xl text-2xl flex items-center justify-center transition-colors hover:bg-gray-50"
+                style={{ borderColor: showIconPicker ? "#6366f1" : "#e5e7eb" }}
+              >
+                {form.icon}
+              </button>
             </div>
             <div className="flex-1">
               <label className="text-xs font-bold text-gray-500">Task name *</label>
@@ -226,120 +221,83 @@ export default function TaskFormModal({
             </div>
           </div>
 
+          {/* Icon picker grid */}
+          {showIconPicker && (
+            <div className="bg-gray-50 rounded-2xl p-3 -mt-1">
+              <div className="grid grid-cols-8 gap-1.5">
+                {COMMON_ICONS.map((ic) => (
+                  <button
+                    key={ic}
+                    type="button"
+                    onClick={() => { set("icon", ic); setShowIconPicker(false); }}
+                    className={`h-9 rounded-xl text-xl flex items-center justify-center transition-colors ${
+                      form.icon === ic ? "bg-indigo-100 ring-2 ring-indigo-400" : "hover:bg-white"
+                    }`}
+                  >
+                    {ic}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={form.icon}
+                onChange={(e) => { if (e.target.value) set("icon", e.target.value); }}
+                placeholder="Or type any emoji…"
+                className="w-full mt-2 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-indigo-400"
+                maxLength={4}
+              />
+            </div>
+          )}
+
           {/* Category */}
           <div>
             <label className="text-xs font-bold text-gray-500">Category</label>
             <div className="flex flex-wrap gap-1.5 mt-1">
-              {CATEGORIES.map((c) => (
+              {PARENT_CATEGORIES.map((c) => (
                 <button
-                  key={c.value}
+                  key={c.id}
                   type="button"
-                  onClick={() => set("category", c.value)}
+                  onClick={() => set("category", c.id)}
                   className={`px-3 py-1.5 rounded-full text-sm font-bold border transition-colors ${
-                    form.category === c.value
+                    form.category === c.id
                       ? "bg-indigo-600 text-white border-indigo-600"
                       : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
                   }`}
                 >
-                  {c.icon} {c.label}
+                  {c.emoji} {c.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* School Subject fields */}
-          {isSchoolSubject ? (
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-gray-500">Subject *</label>
-                <div className="grid grid-cols-3 gap-1.5 mt-1">
-                  {Object.values(SUBJECTS).map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => set("subject", s.id)}
-                      className={`py-2 px-1 rounded-xl text-xs font-bold border text-center transition-colors ${
-                        form.subject === s.id
-                          ? "bg-indigo-600 text-white border-indigo-600"
-                          : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-                      }`}
-                    >
-                      <div className="text-base">{s.icon}</div>
-                      <div>{s.label}</div>
-                    </button>
-                  ))}
-                </div>
-                {form.subject === "other" ? (
-                  <input
-                    type="text"
-                    value={form.customLabel ?? ""}
-                    onChange={(e) => set("customLabel", e.target.value || null)}
-                    placeholder="e.g. Drama, Woodwork…"
-                    className="w-full mt-2 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-                  />
-                ) : null}
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-gray-500">Start time</label>
-                  <input
-                    type="time"
-                    step="300"
-                    value={form.startTime ?? ""}
-                    onChange={(e) => set("startTime", e.target.value || null)}
-                    className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-gray-500">End time</label>
-                  <input
-                    type="time"
-                    step="300"
-                    value={form.endTime ?? ""}
-                    onChange={(e) => set("endTime", e.target.value || null)}
-                    className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-gray-500">Room (optional)</label>
-                  <input
-                    type="text"
-                    value={form.room ?? ""}
-                    onChange={(e) => set("room", e.target.value || null)}
-                    placeholder="e.g. 4A"
-                    className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs font-bold text-gray-500">Teacher (optional)</label>
-                  <input
-                    type="text"
-                    value={form.teacher ?? ""}
-                    onChange={(e) => set("teacher", e.target.value || null)}
-                    placeholder="e.g. Ms Lee"
-                    className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500">🎒 Things to bring (optional)</label>
+          {/* Activity: location + packing list — shown right after category when Activity selected */}
+          {showLocation && (
+            <div>
+              <label className="text-xs font-bold text-gray-500">Location (optional)</label>
+              <input
+                type="text"
+                value={form.location ?? ""}
+                onChange={(e) => set("location", e.target.value || null)}
+                placeholder="e.g. City Pool"
+                className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
+              />
+            </div>
+          )}
+          {showPackingList && (
+            <div>
+              <label className="text-xs font-bold text-gray-500">🎒 Packing list</label>
+              <div className="mt-1">
                 <PackingListEditor
                   items={form.packingList}
                   onChange={(v) => set("packingList", v)}
                   placeholder="Add item… (press Enter)"
                 />
-                <p className="text-xs text-gray-400 mt-1">e.g. Recorder, PE uniform, Library book</p>
               </div>
-              <p className="text-xs text-indigo-600 font-semibold bg-indigo-50 rounded-xl px-3 py-2">
-                📚 School subjects are info-only — no completion, no points.
-              </p>
+              <p className="text-xs text-gray-400 mt-1">Items to pack — shown as a reminder the evening before</p>
             </div>
-          ) : null}
+          )}
 
           {/* Rule */}
-          {!isSchoolSubject ? (
           <div>
             <label className="text-xs font-bold text-gray-500">Rule</label>
             <div className="grid grid-cols-2 gap-2 mt-1">
@@ -381,7 +339,6 @@ export default function TaskFormModal({
               </div>
             ) : null}
           </div>
-          ) : null}
 
           {/* Assigned to */}
           <div>
@@ -459,8 +416,8 @@ export default function TaskFormModal({
             </div>
           ) : null}
 
-          {/* Times per day */}
-          {!isSchoolSubject ? (
+          {/* Times per day — strict tasks only */}
+          {form.rule === "strict" ? (
             <div>
               <label className="text-xs font-bold text-gray-500">Times per day</label>
               <div className="grid grid-cols-4 gap-1.5 mt-1">
@@ -526,7 +483,7 @@ export default function TaskFormModal({
           </div>
 
           {/* Target */}
-          {!isSchoolSubject ? (<div>
+          <div>
             <label className="text-xs font-bold text-gray-500">Target</label>
             <div className="grid grid-cols-4 gap-1.5 mt-1">
               {(
@@ -617,58 +574,12 @@ export default function TaskFormModal({
                 />
               </div>
             ) : null}
-          </div>) : null}
-
-          {/* Music/metronome toggle */}
-          {showMusicToggle ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="music-enabled"
-                  checked={form.musicEnabled ?? false}
-                  onChange={(e) => set("musicEnabled", e.target.checked)}
-                  className="rounded"
-                />
-                <label htmlFor="music-enabled" className="text-sm font-bold text-gray-700">
-                  🎵 Show metronome when kid starts
-                </label>
-              </div>
-              {form.musicEnabled ? (
-                <div className="flex gap-2 pl-6">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-gray-500">Default BPM</label>
-                    <input
-                      type="number"
-                      min={40}
-                      max={240}
-                      value={form.defaultBpm ?? 80}
-                      onChange={(e) => set("defaultBpm", Number(e.target.value) || null)}
-                      className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-gray-500">Time signature</label>
-                    <select
-                      value={form.defaultTimeSignature ?? "4/4"}
-                      onChange={(e) => set("defaultTimeSignature", e.target.value)}
-                      className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400 bg-white"
-                    >
-                      <option value="2/4">2/4</option>
-                      <option value="3/4">3/4</option>
-                      <option value="4/4">4/4</option>
-                      <option value="6/8">6/8</option>
-                    </select>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          </div>
 
           {/* Points */}
-          {!isSchoolSubject ? (<div className="flex gap-2">
+          <div className="flex gap-2">
             <div className="flex-1">
-              <label className="text-xs font-bold text-gray-500">Points ⭐</label>
+              <label className="text-xs font-bold text-gray-500">Kid ⭐</label>
               <input
                 type="number"
                 min={0}
@@ -679,7 +590,7 @@ export default function TaskFormModal({
               />
             </div>
             <div className="flex-1">
-              <label className="text-xs font-bold text-gray-500">Family points</label>
+              <label className="text-xs font-bold text-gray-500">Family ⭐</label>
               <input
                 type="number"
                 min={0}
@@ -689,37 +600,10 @@ export default function TaskFormModal({
                 className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
               />
             </div>
-          </div>) : null}
-
-          {/* Activity fields */}
-          {showLocation ? (
-            <div>
-              <label className="text-xs font-bold text-gray-500">Location (optional)</label>
-              <input
-                type="text"
-                value={form.location ?? ""}
-                onChange={(e) => set("location", e.target.value || null)}
-                placeholder="e.g. City Pool"
-                className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-              />
-            </div>
-          ) : null}
-          {showPackingList ? (
-            <div>
-              <label className="text-xs font-bold text-gray-500">🎒 Packing list</label>
-              <div className="mt-1">
-                <PackingListEditor
-                  items={form.packingList}
-                  onChange={(v) => set("packingList", v)}
-                  placeholder="Add item… (press Enter)"
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Items to pack — shown as a reminder the evening before</p>
-            </div>
-          ) : null}
+          </div>
 
           {/* Completion required */}
-          {!isSchoolSubject ? (<div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="requires-completion"
@@ -730,10 +614,10 @@ export default function TaskFormModal({
             <label htmlFor="requires-completion" className="text-sm font-bold text-gray-700">
               Requires completion (uncheck for info-only activities)
             </label>
-          </div>) : null}
+          </div>
 
           {/* Kids can add */}
-          {!isSchoolSubject ? (<div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="kid-can-add"
@@ -744,7 +628,7 @@ export default function TaskFormModal({
             <label htmlFor="kid-can-add" className="text-sm font-bold text-gray-700">
               Kids can add this task themselves
             </label>
-          </div>) : null}
+          </div>
 
           {/* Actions */}
           <div className="pt-2 flex gap-2">

@@ -133,12 +133,15 @@ export default function ParentShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const dateStr = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const [dateStr, setDateStr] = useState<string | null>(null);
+  useEffect(() => {
+    setDateStr(new Date().toLocaleDateString(undefined, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }));
+  }, []);
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
@@ -151,9 +154,11 @@ export default function ParentShell({
           <div className="font-extrabold text-gray-900" style={{ fontSize: 18, lineHeight: 1.2 }}>
             Good morning, {displayName || "Parent"}! 👋
           </div>
-          <div className="text-gray-400 font-medium mt-0.5" style={{ fontSize: 12 }}>
-            {dateStr}
-          </div>
+          {dateStr && (
+            <div className="text-gray-400 font-medium mt-0.5" style={{ fontSize: 12 }}>
+              {dateStr}
+            </div>
+          )}
         </div>
         <ParentAvatarMenu avatar={avatar ?? "🧙"} />
       </header>
@@ -174,7 +179,6 @@ export default function ParentShell({
             <Link
               key={item.key}
               href={item.path}
-              prefetch={false}
               className="flex-1 flex flex-col items-center justify-center gap-0.5"
               style={{ padding: "10px 4px 12px" }}
             >

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { Kid, BadgeProgress, UnlockedBadge } from "@/lib/domain/types";
@@ -29,7 +30,7 @@ const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift
   { key: "home",    label: "Home",     icon: "home",     href: (id) => `/kid/${id}/home` },
   { key: "todo",    label: "Schedule", icon: "calendar", href: (id) => `/kid/${id}/todo` },
   { key: "rewards", label: "Store",    icon: "gift",     href: (id) => `/kid/${id}/rewards` },
-  { key: "play",    label: "Play",     icon: "play",     href: (id) => `/play?kid=${id}` },
+  { key: "play",    label: "Play",     icon: "play",     href: (id) => `/kid/${id}/play` },
 ];
 
 export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
@@ -84,25 +85,30 @@ export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
 
 export default function KidShell({
   kid,
-  active,
+  active: activeProp,
   children,
   familyGoal,
   headerExtra,
   todayProgress,
   badges,
   weatherLocation,
-  headerSubtitle,
 }: {
   kid: Kid;
-  active: NavKey;
+  active?: NavKey;
   children: ReactNode;
   familyGoal?: { name: string; emoji: string; current: number; target: number };
   headerExtra?: ReactNode;
   todayProgress?: { done: number; total: number };
   badges?: BadgeProgress[];
   weatherLocation?: { lat: number; lon: number };
-  headerSubtitle?: string;
 }) {
+  const pathname = usePathname();
+  const active: NavKey = activeProp ?? (
+    pathname.includes("/todo") ? "todo"
+    : pathname.includes("/rewards") ? "rewards"
+    : pathname.includes("/play") ? "play"
+    : "home"
+  );
   const theme = getTheme(kid.themeId);
   const progressPct = todayProgress && todayProgress.total > 0
     ? Math.round((todayProgress.done / todayProgress.total) * 100)
@@ -160,7 +166,13 @@ export default function KidShell({
 
           {/* Greeting + name + date/time/weather */}
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold opacity-70 leading-none">{headerSubtitle ?? "Good morning,"}</div>
+            <div className="text-xs font-semibold opacity-70 leading-none">
+              {now
+                ? now.getHours() < 12 ? "Good morning,"
+                  : now.getHours() < 17 ? "Good afternoon,"
+                  : "Good evening,"
+                : "Good morning,"}
+            </div>
             <div className="text-xl font-black leading-tight mt-0.5 truncate">
               <span data-kid-name={kid.id}>{kid.name}</span>
             </div>
@@ -272,7 +284,6 @@ export default function KidShell({
             <Link
               key={item.key}
               href={item.href(kid.id)}
-              prefetch={false}
               className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5"
             >
               <span style={{ color: isActive ? theme.accent : "#9ca3af" }}>

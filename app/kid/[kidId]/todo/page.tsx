@@ -1,7 +1,6 @@
 import React from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import KidShell from "@/components/kid/KidShell";
 import TodoTaskCard from "@/components/kid/TodoTaskCard";
 import AddTaskButton from "@/components/kid/AddTaskButton";
 import PrefetchDays from "@/components/kid/PrefetchDays";
@@ -11,8 +10,6 @@ import {
   listTasksForKid,
   listCompletionsToday,
   listKidDailyAdditions,
-  listBadgeProgress,
-  getFamily,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -78,12 +75,10 @@ export default async function TodoPage({
     return dt.toISOString().slice(0, 10);
   })();
 
-  const [tasks, completions, addedTasks, badges, family] = await Promise.all([
+  const [tasks, completions, addedTasks] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
     listKidDailyAdditions(kid.id, activeDateStr),
-    listBadgeProgress(kid.id),
-    getFamily(),
   ]);
 
   const theme = getTheme(kid.themeId);
@@ -187,19 +182,7 @@ export default async function TodoPage({
   );
 
   return (
-    <KidShell
-      kid={kid}
-      active="todo"
-      todayProgress={!isPast && dayTasks.length > 0 ? { done: isToday ? completions.length : 0, total: dayTasks.length } : undefined}
-      badges={badges}
-      weatherLocation={
-        family?.weatherLat != null && family?.weatherLon != null
-          ? { lat: family.weatherLat, lon: family.weatherLon }
-          : undefined
-      }
-      headerSubtitle={isFuture ? `Planning ${DAY_LABELS[activeDow]},` : undefined}
-    >
-      <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full">
 
         {/* Sections */}
         <div className="flex-1 px-4 py-4 space-y-5">
@@ -318,7 +301,6 @@ export default async function TodoPage({
           </Section>
 
         </div>
-      </div>
 
       {isToday && (
         <AllDoneDetector
@@ -332,6 +314,6 @@ export default async function TodoPage({
           accentColor={theme.accent}
         />
       )}
-    </KidShell>
+    </div>
   );
 }

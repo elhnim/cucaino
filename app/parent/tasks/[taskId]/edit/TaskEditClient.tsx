@@ -4,15 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, Kid, TaskCategory, TimeBlock, ScheduleType, TaskRule, TaskTarget } from "@/lib/domain/types";
 import { createTask, updateTask, deleteTask } from "@/lib/actions/tasks";
-
-const CATEGORIES: { value: TaskCategory; label: string }[] = [
-  { value: "chore", label: "🧹 Chore" },
-  { value: "exercise", label: "💪 Exercise" },
-  { value: "music", label: "🎵 Music" },
-  { value: "activity", label: "🎨 Activity" },
-  { value: "personal", label: "🧴 Personal" },
-  { value: "school_subject", label: "📚 School Subject" },
-];
+import { PARENT_CATEGORIES } from "@/lib/registry/category-registry";
 
 const TIME_BLOCKS: { value: TimeBlock; label: string }[] = [
   { value: "before_school", label: "🌅 Before school" },
@@ -25,7 +17,7 @@ const TIME_BLOCKS: { value: TimeBlock; label: string }[] = [
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const COMMON_ICONS = ["🛁", "🦷", "🍽️", "📚", "🎵", "🏃", "🛏️", "🎒", "🧹", "🐕", "🎮", "✏️", "🥗", "💊", "🧘"];
+const COMMON_ICONS = ["🛁", "🦷", "🪥", "🍽️", "📚", "🎵", "🏃", "🛏️", "🎒", "🧹", "🐕", "🎮", "✏️", "🥗", "💊", "🧘"];
 
 export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[] }) {
   const router = useRouter();
@@ -49,8 +41,10 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
   const [checklistItems, setChecklistItems] = useState<string[]>(task?.checklistItems ?? [""]);
   const [points, setPoints] = useState(task?.points ?? 5);
   const [kidId, setKidId] = useState<string | null>(task?.kidId ?? null);
-  const [musicEnabled, setMusicEnabled] = useState(task?.musicEnabled ?? false);
   const [description, setDescription] = useState(task?.description ?? "");
+  const [location, setLocation] = useState(task?.location ?? "");
+  const [packingList, setPackingList] = useState<string[]>(task?.packingList ?? []);
+  const [packingInput, setPackingInput] = useState("");
 
   const toggleDay = (d: number) => {
     setDaysOfWeek((prev) =>
@@ -72,19 +66,19 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
     requiresTimer: target === "time",
     durationMinutes: target === "time" ? durationMinutes : null,
     requiresCompletion: category === "school_subject" ? false : true,
-    location: task?.location ?? null,
-    packingList: task?.packingList ?? null,
-    defaultBpm: musicEnabled ? (task?.defaultBpm ?? 120) : null,
-    defaultTimeSignature: musicEnabled ? (task?.defaultTimeSignature ?? "4/4") : null,
+    location: location.trim() || null,
+    packingList: packingList.length > 0 ? packingList : null,
+    defaultBpm: category === "music" ? (task?.defaultBpm ?? 120) : null,
+    defaultTimeSignature: category === "music" ? (task?.defaultTimeSignature ?? "4/4") : null,
     kidId,
-    kidCanAdd: category === "school_subject" ? false : (task?.kidCanAdd ?? false),
+    kidCanAdd: task?.kidCanAdd ?? false,
     flexibleMinPerWeek: rule === "flexible" ? flexMin : null,
     target,
     targetDurationMinutes: target === "time" ? durationMinutes : null,
     targetReps: target === "reps" ? reps : null,
     targetRepLabel: target === "reps" ? repLabel : null,
     checklistItems: target === "checklist" ? checklistItems.filter(Boolean) : null,
-    musicEnabled,
+    musicEnabled: category === "music",
     description: description.trim() || null,
     timeSlots: task?.timeSlots ?? [],
     subject: task?.subject ?? null,
@@ -193,22 +187,84 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
       <div className="bg-white rounded-2xl shadow p-4 space-y-2">
         <div className="text-sm font-bold text-gray-700">Category</div>
         <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => (
+          {PARENT_CATEGORIES.map((c) => (
             <button
-              key={c.value}
+              key={c.id}
               type="button"
-              onClick={() => setCategory(c.value)}
+              onClick={() => setCategory(c.id)}
               className={`px-3 py-1.5 rounded-full text-sm font-semibold transition-colors ${
-                category === c.value
+                category === c.id
                   ? "bg-indigo-600 text-white"
                   : "bg-gray-100 text-gray-600"
               }`}
             >
-              {c.label}
+              {c.emoji} {c.label}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Activity: location + packing list */}
+      {category === "activity" && (
+        <div className="bg-white rounded-2xl shadow p-4 space-y-3">
+          <div className="text-sm font-bold text-gray-700">🎒 Activity details</div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 block mb-1">Location (optional)</label>
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. City Pool"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-500 block mb-1">Packing list</label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {packingList.map((item) => (
+                <span
+                  key={item}
+                  className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full"
+                >
+                  {item}
+                  <button
+                    type="button"
+                    onClick={() => setPackingList(packingList.filter((i) => i !== item))}
+                    className="leading-none opacity-60 hover:opacity-100"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={packingInput}
+                onChange={(e) => setPackingInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const v = packingInput.trim();
+                    if (v && !packingList.includes(v)) { setPackingList([...packingList, v]); setPackingInput(""); }
+                  }
+                }}
+                placeholder="Add item…"
+                className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const v = packingInput.trim();
+                  if (v && !packingList.includes(v)) { setPackingList([...packingList, v]); setPackingInput(""); }
+                }}
+                className="bg-indigo-100 text-indigo-700 font-bold text-sm px-3 py-2 rounded-xl"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Assigned to */}
       <div className="bg-white rounded-2xl shadow p-4 space-y-2">
@@ -447,24 +503,6 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
         </div>
       </div>
 
-      {/* Music */}
-      <div className="bg-white rounded-2xl shadow p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-bold text-gray-700">🎵 Music / Metronome</div>
-            <div className="text-xs text-gray-400">Opens metronome when kid starts task</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setMusicEnabled((v) => !v)}
-            className={`w-12 h-6 rounded-full transition-colors ${musicEnabled ? "bg-indigo-600" : "bg-gray-200"}`}
-          >
-            <span
-              className={`block w-5 h-5 rounded-full bg-white shadow mx-0.5 transition-transform ${musicEnabled ? "translate-x-6" : ""}`}
-            />
-          </button>
-        </div>
-      </div>
 
       {/* Save */}
       <button

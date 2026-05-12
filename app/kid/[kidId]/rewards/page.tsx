@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import KidShell from "@/components/kid/KidShell";
 import BadgeTile from "@/components/kid/BadgeTile";
 import {
   getKid,
@@ -368,8 +367,7 @@ export default async function RewardsPage({
   });
 
   return (
-    <KidShell kid={kid} active="rewards" badges={badges.filter((b) => b.currentTier !== "none")}>
-      <div className="p-4 md:p-5">
+    <div className="p-4 md:p-5">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -462,6 +460,5 @@ export default async function RewardsPage({
           </>
         )}
       </div>
-    </KidShell>
   );
 }

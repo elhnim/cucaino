@@ -26,24 +26,25 @@ export default function AllDoneDetector({
   const [doneCount, setDoneCount] = useState(initialDone);
   const [starsToday, setStarsToday] = useState(0);
   const [shown, setShown] = useState(false);
+  const [completedInSession, setCompletedInSession] = useState(false);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ points: number }>).detail;
       setDoneCount((n) => n + 1);
       setStarsToday((s) => s + (detail?.points ?? 0));
+      setCompletedInSession(true);
     };
     window.addEventListener("task-completed", handler);
     return () => window.removeEventListener("task-completed", handler);
   }, []);
 
   useEffect(() => {
-    if (total > 0 && doneCount >= total && !shown) {
-      // Small delay so the task-done sheet can auto-dismiss first
+    if (total > 0 && doneCount >= total && completedInSession && !shown) {
       const t = setTimeout(() => setShown(true), 4500);
       return () => clearTimeout(t);
     }
-  }, [doneCount, total, shown]);
+  }, [doneCount, total, shown, completedInSession]);
 
   if (!shown) return null;
 

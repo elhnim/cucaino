@@ -1,67 +1,72 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-
-const CATEGORIES = [
-  { value: "", label: "All Categories" },
-  { value: "chore", label: "Chores" },
-  { value: "exercise", label: "Exercise" },
-  { value: "music", label: "Music" },
-  { value: "activity", label: "Activity" },
-  { value: "personal", label: "Personal" },
-  { value: "school_subject", label: "School Subject" },
-];
+import { PARENT_CATEGORIES } from "@/lib/registry/category-registry";
 
 export default function TaskFilterBar({
-  category,
-  kidId,
+  categories,
+  kidIds,
   kids,
 }: {
-  category: string;
-  kidId: string;
+  categories: string[];
+  kidIds: string[];
   kids: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
 
-  function push(newCategory: string, newKidId: string) {
+  function push(cats: string[], kIds: string[]) {
     const params = new URLSearchParams();
-    if (newCategory) params.set("category", newCategory);
-    if (newKidId) params.set("kid", newKidId);
-    router.push(`/parent/tasks?${params.toString()}`);
+    if (cats.length) params.set("category", cats.join(","));
+    if (kIds.length) params.set("kid", kIds.join(","));
+    const qs = params.toString();
+    router.push(`/parent/tasks${qs ? `?${qs}` : ""}`);
   }
 
-  const selectClass =
-    "flex-1 flex items-center border-[1.5px] border-gray-200 rounded-xl bg-white text-sm font-semibold text-gray-800 px-3 py-2 appearance-none cursor-pointer focus:outline-none focus:border-indigo-400";
+  const toggleCategory = (value: string) => {
+    const next = categories.includes(value)
+      ? categories.filter((c) => c !== value)
+      : [...categories, value];
+    push(next, kidIds);
+  };
+
+  const toggleKid = (id: string) => {
+    const next = kidIds.includes(id)
+      ? kidIds.filter((k) => k !== id)
+      : [...kidIds, id];
+    push(categories, next);
+  };
 
   return (
-    <div className="flex gap-2 px-4 py-2.5 bg-white border-b border-gray-100">
-      <div className="flex-1 relative">
-        <select
-          className={selectClass}
-          value={category}
-          onChange={(e) => push(e.target.value, kidId)}
-          style={{ width: "100%" }}
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
-        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
-      </div>
-
-      <div className="flex-1 relative">
-        <select
-          className={selectClass}
-          value={kidId}
-          onChange={(e) => push(category, e.target.value)}
-          style={{ width: "100%" }}
-        >
-          <option value="">All Kids</option>
-          {kids.map((k) => (
-            <option key={k.id} value={k.id}>{k.name}</option>
-          ))}
-        </select>
-        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+    <div className="px-4 py-2.5 bg-white border-b border-gray-100">
+      <div className="flex gap-1.5 flex-wrap">
+        {PARENT_CATEGORIES.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => toggleCategory(c.id)}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+              categories.includes(c.id)
+                ? "bg-indigo-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {c.emoji} {c.label}
+          </button>
+        ))}
+        {kids.length > 1 && kids.map((k) => (
+          <button
+            key={k.id}
+            type="button"
+            onClick={() => toggleKid(k.id)}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+              kidIds.includes(k.id)
+                ? "bg-indigo-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {k.name}
+          </button>
+        ))}
       </div>
     </div>
   );

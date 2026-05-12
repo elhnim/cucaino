@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import KidShell from "@/components/kid/KidShell";
 import Metronome from "@/components/kid/Metronome";
 import PracticeTimer from "@/components/kid/PracticeTimer";
 import { getKid, listTasksForKid } from "@/lib/data/stub";
@@ -29,8 +28,7 @@ export default async function PracticePage({
   const backHref = from === "home" ? `/kid/${kid.id}/home` : `/kid/${kid.id}/todo`;
 
   return (
-    <KidShell kid={kid} active="home">
-      <div className="p-4 md:p-6 max-w-3xl mx-auto">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-4">
           <Link
             href={backHref}
@@ -88,7 +86,6 @@ export default async function PracticePage({
           </div>
         ) : null}
       </div>
-    </KidShell>
   );
 }
 

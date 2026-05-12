@@ -339,7 +339,7 @@ export type QuizTheme =
   | "fun_facts" | "pop_culture" | "technology" | "food_culture";
 
 export type QuizAgeBand = "5_6" | "7_8" | "9_10" | "11_12";
-export type QuizDifficulty = "easy" | "medium" | "hard";
+export type QuizDifficulty = "easy" | "medium" | "hard" | "genius";
 export type QuizQuestionType = "multiple_choice" | "fill_in_blank";
 
 export interface QuizSet {

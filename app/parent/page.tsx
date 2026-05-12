@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   getFamily,
@@ -107,7 +106,7 @@ export default async function ParentOverviewPage() {
           <span className="text-[11px] font-semibold text-gray-400">{kids.length} kids</span>
         </div>
         <div className="space-y-2.5">
-          {kidData.map(({ kid, done, total }) => {
+          {kidData.map(({ kid, done, total, todayTasks, completedIds, activityTasks }) => {
             const theme = getTheme(kid.themeId);
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             const allDone = total > 0 && done >= total;
@@ -158,7 +157,7 @@ export default async function ParentOverviewPage() {
                     />
                   </div>
                   <span className="text-xs font-bold flex-shrink-0" style={{ color: allDone ? "#16a34a" : theme.accent }}>
-                    {allDone ? "✓ Done" : `${done} / ${total}`}
+                    {done} / {total}
                   </span>
                 </div>
 
@@ -166,6 +165,57 @@ export default async function ParentOverviewPage() {
                 {allDone && (
                   <div className="mt-2 bg-green-50 rounded-xl px-3 py-1.5 text-xs font-bold text-green-700">
                     🎉 All tasks done!
+                  </div>
+                )}
+
+                {/* Task breakdown */}
+                {(todayTasks.length > 0 || activityTasks.length > 0) && (
+                  <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: `1px solid ${theme.accentSoft}` }}>
+                    {todayTasks.map((task) => {
+                      const isDone = completedIds.has(task.id);
+                      return (
+                        <div key={task.id} className="flex items-center gap-2">
+                          <span className="text-sm leading-none flex-shrink-0">{task.icon}</span>
+                          <span
+                            className="text-[12px] font-semibold flex-1 min-w-0 truncate"
+                            style={{ color: isDone ? "#d1d5db" : "#374151", textDecoration: isDone ? "line-through" : "none" }}
+                          >
+                            {task.name}
+                          </span>
+                          {isDone && <span className="text-[10px] text-green-500 flex-shrink-0 font-bold">✓</span>}
+                        </div>
+                      );
+                    })}
+
+                    {activityTasks.length > 0 && (
+                      <>
+                        {todayTasks.length > 0 && <div className="h-px my-1" style={{ background: theme.accentSoft }} />}
+                        {activityTasks.map((task) => (
+                          <div key={task.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm leading-none flex-shrink-0">{task.icon}</span>
+                              <span className="text-[12px] font-semibold text-gray-700 flex-1 min-w-0 truncate">{task.name}</span>
+                              {task.location && (
+                                <span className="text-[10px] text-gray-400 flex-shrink-0 truncate max-w-[100px]">📍 {task.location}</span>
+                              )}
+                            </div>
+                            {task.packingList && task.packingList.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5 ml-6">
+                                {task.packingList.map((item, i) => (
+                                  <span
+                                    key={i}
+                                    className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                    style={{ background: theme.accentSoft, color: theme.accent }}
+                                  >
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -190,34 +240,6 @@ export default async function ParentOverviewPage() {
             );
           })}
         </div>
-      </div>
-
-      {/* Quick links */}
-      <div className="grid grid-cols-2 gap-3">
-        <Link
-          href="/parent/requests"
-          className="bg-white rounded-2xl p-4 border-[1.5px] border-gray-200 flex items-center gap-3"
-          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-        >
-          <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-lg flex-shrink-0">🔔</div>
-          <div>
-            <div className="text-sm font-bold text-gray-800">Requests</div>
-            {pending.length > 0 && (
-              <div className="text-xs text-amber-600 font-semibold">{pending.length} pending</div>
-            )}
-          </div>
-        </Link>
-        <Link
-          href="/parent/kids"
-          className="bg-white rounded-2xl p-4 border-[1.5px] border-gray-200 flex items-center gap-3"
-          style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
-        >
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-lg flex-shrink-0">👧</div>
-          <div>
-            <div className="text-sm font-bold text-gray-800">Kids</div>
-            <div className="text-xs text-gray-400 font-semibold">{kids.length} profiles</div>
-          </div>
-        </Link>
       </div>
 
     </div>

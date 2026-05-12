@@ -4,26 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createQuestion, updateQuestion, deleteQuestion } from "@/lib/actions/quizzes";
 import type { QuizQuestion2 } from "@/lib/data/queries";
-
-const THEMES = [
-  { id: "maths",        label: "Maths",        emoji: "🧮" },
-  { id: "english",      label: "English",      emoji: "📖" },
-  { id: "science",      label: "Science",      emoji: "🔬" },
-  { id: "history",      label: "History",      emoji: "🏛" },
-  { id: "geography",    label: "Geography",    emoji: "🌍" },
-  { id: "sports",       label: "Sports",       emoji: "⚽" },
-  { id: "music",        label: "Music",        emoji: "🎵" },
-  { id: "french",       label: "French",       emoji: "🥖" },
-  { id: "spanish",      label: "Spanish",      emoji: "💃" },
-  { id: "mandarin",     label: "Mandarin",     emoji: "🀄" },
-  { id: "fun_facts",    label: "Fun Facts",    emoji: "🤩" },
-  { id: "pop_culture",  label: "Pop Culture",  emoji: "⭐" },
-  { id: "technology",   label: "Technology",   emoji: "💻" },
-  { id: "food_culture", label: "Food & Culture", emoji: "🍜" },
-];
-
-const AGE_BANDS = ["5-6", "7-8", "9-10", "11-12"];
-const DIFFICULTIES = ["easy", "medium", "hard"];
+import { ACTIVE_QUIZ_THEMES } from "@/lib/registry/quiz-theme-registry";
+import { QUIZ_DIFFICULTIES } from "@/lib/registry/quiz-difficulty-registry";
+import { QUIZ_AGE_BANDS } from "@/lib/registry/quiz-age-band-registry";
 
 export default function QuestionFormClient({ question }: { question?: QuizQuestion2 }) {
   const router = useRouter();
@@ -34,7 +17,7 @@ export default function QuestionFormClient({ question }: { question?: QuizQuesti
   const [type, setType] = useState<"mc" | "fill_blank">(question?.type ?? "mc");
   const [questionText, setQuestionText] = useState(question?.questionText ?? "");
   const [theme, setTheme] = useState(question?.theme ?? "maths");
-  const [ageBand, setAgeBand] = useState(question?.ageBand ?? "7-8");
+  const [ageBand, setAgeBand] = useState(question?.ageBand ?? "7_8");
   const [difficulty, setDifficulty] = useState(question?.difficulty ?? "easy");
   const [explanation, setExplanation] = useState(question?.explanation ?? "");
 
@@ -212,7 +195,7 @@ export default function QuestionFormClient({ question }: { question?: QuizQuesti
         <div>
           <div className="text-sm font-bold text-gray-700 mb-2">Theme</div>
           <div className="flex flex-wrap gap-1.5">
-            {THEMES.map((t) => (
+            {ACTIVE_QUIZ_THEMES.map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -228,14 +211,14 @@ export default function QuestionFormClient({ question }: { question?: QuizQuesti
         <div>
           <div className="text-sm font-bold text-gray-700 mb-2">Age band</div>
           <div className="flex gap-2">
-            {AGE_BANDS.map((b) => (
+            {QUIZ_AGE_BANDS.map((b) => (
               <button
-                key={b}
+                key={b.id}
                 type="button"
-                onClick={() => setAgeBand(b)}
-                className={`flex-1 py-1.5 rounded-xl text-sm font-bold ${ageBand === b ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500"}`}
+                onClick={() => setAgeBand(b.id)}
+                className={`flex-1 py-1.5 rounded-xl text-sm font-bold ${ageBand === b.id ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-500"}`}
               >
-                {b}
+                {b.label}
               </button>
             ))}
           </div>
@@ -244,18 +227,15 @@ export default function QuestionFormClient({ question }: { question?: QuizQuesti
         <div>
           <div className="text-sm font-bold text-gray-700 mb-2">Difficulty</div>
           <div className="flex gap-2">
-            {DIFFICULTIES.map((d) => (
+            {QUIZ_DIFFICULTIES.map((d) => (
               <button
-                key={d}
+                key={d.id}
                 type="button"
-                onClick={() => setDifficulty(d)}
-                className={`flex-1 py-1.5 rounded-xl text-sm font-bold capitalize ${
-                  difficulty === d
-                    ? d === "easy" ? "bg-green-500 text-white" : d === "medium" ? "bg-amber-500 text-white" : "bg-red-500 text-white"
-                    : "bg-gray-100 text-gray-500"
-                }`}
+                onClick={() => setDifficulty(d.id)}
+                className="flex-1 py-1.5 rounded-xl text-sm font-bold transition-colors"
+                style={difficulty === d.id ? { background: d.activeBg, color: "#fff" } : { background: "#f3f4f6", color: "#6b7280" }}
               >
-                {d}
+                {d.stars} {d.label}
               </button>
             ))}
           </div>

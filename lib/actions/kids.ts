@@ -6,6 +6,29 @@ import type { ThemeId } from "@/lib/domain/types";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+export async function createKid(data: {
+  name: string;
+  avatar: string;
+  themeId: ThemeId;
+  dateOfBirth: string | null;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: fam } = await supabase.from("families").select("id").maybeSingle();
+  if (!fam) return { ok: false, error: "Family not found" };
+  const { error } = await supabase.from("kids").insert({
+    family_id: fam.id,
+    name: data.name,
+    avatar: data.avatar,
+    theme_id: data.themeId,
+    date_of_birth: data.dateOfBirth,
+  });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/select-kid");
+  revalidatePath("/parent/settings");
+  revalidatePath("/parent/kids");
+  return { ok: true };
+}
+
 export async function updateKidProfile(
   kidId: string,
   data: {

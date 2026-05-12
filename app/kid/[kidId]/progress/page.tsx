@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import KidShell from "@/components/kid/KidShell";
 import { getKid, listKids, listBadgeProgress } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 import type { BadgeCategory } from "@/lib/domain/types";
@@ -51,8 +50,7 @@ export default async function ProgressPage({
   const sortedKids = [...allKids].sort((a, b) => b.pointsBalance - a.pointsBalance);
 
   return (
-    <KidShell kid={kid} active="home">
-      <div className="p-4 space-y-5">
+    <div className="p-4 space-y-5">
 
         {/* Level card */}
         <div
@@ -183,7 +181,6 @@ export default async function ProgressPage({
         </div>
 
       </div>
-    </KidShell>
   );
 }
 

@@ -1,54 +1,68 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-
-const TYPES = [
-  { value: "", label: "All Types" },
-  { value: "treat", label: "🍬 Treat" },
-  { value: "privilege", label: "🔓 Privilege" },
-  { value: "experience", label: "✨ Experience" },
-  { value: "prize", label: "🎀 Prize" },
-];
+import { REWARD_TYPES } from "@/lib/registry/reward-type-registry";
 
 export default function RewardFilterBar({
-  type,
-  kidId,
+  types,
+  kidIds,
   kids,
 }: {
-  type: string;
-  kidId: string;
+  types: string[];
+  kidIds: string[];
   kids: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
 
-  function push(newType: string, newKidId: string) {
+  function push(t: string[], k: string[]) {
     const params = new URLSearchParams();
-    if (newType) params.set("type", newType);
-    if (newKidId) params.set("kid", newKidId);
-    router.push(`/parent/rewards?${params.toString()}`);
+    if (t.length) params.set("type", t.join(","));
+    if (k.length) params.set("kid", k.join(","));
+    const qs = params.toString();
+    router.push(`/parent/rewards${qs ? `?${qs}` : ""}`);
   }
 
-  const selectClass =
-    "flex-1 w-full border-[1.5px] border-gray-200 rounded-xl bg-white text-sm font-semibold text-gray-800 px-3 py-2 appearance-none cursor-pointer focus:outline-none focus:border-indigo-400";
+  const toggleType = (v: string) => {
+    const next = types.includes(v) ? types.filter((t) => t !== v) : [...types, v];
+    push(next, kidIds);
+  };
+
+  const toggleKid = (id: string) => {
+    const next = kidIds.includes(id) ? kidIds.filter((k) => k !== id) : [...kidIds, id];
+    push(types, next);
+  };
 
   return (
-    <div className="flex gap-2 px-4 py-2.5 bg-white border-b border-gray-100">
-      <div className="flex-1 relative">
-        <select className={selectClass} value={type} onChange={(e) => push(e.target.value, kidId)}>
-          {TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
-        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
-      </div>
-      <div className="flex-1 relative">
-        <select className={selectClass} value={kidId} onChange={(e) => push(type, e.target.value)}>
-          <option value="">All Kids</option>
-          {kids.map((k) => (
-            <option key={k.id} value={k.id}>{k.name}</option>
-          ))}
-        </select>
-        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
+    <div className="px-4 py-2.5 bg-white border-b border-gray-100">
+      <div className="flex gap-1.5 flex-wrap">
+        {REWARD_TYPES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => toggleType(t.id)}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+              types.includes(t.id)
+                ? "bg-indigo-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {t.emoji} {t.label}
+          </button>
+        ))}
+        {kids.length > 1 && kids.map((k) => (
+          <button
+            key={k.id}
+            type="button"
+            onClick={() => toggleKid(k.id)}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+              kidIds.includes(k.id)
+                ? "bg-indigo-600 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {k.name}
+          </button>
+        ))}
       </div>
     </div>
   );

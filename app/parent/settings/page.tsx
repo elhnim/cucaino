@@ -72,13 +72,30 @@ export default async function ParentSettingsPage() {
               <FamilyNameEditor initialName={family.name} />
             </div>
           </div>
-          <SettingsRow
-            icon="👤"
-            iconBg="#fef3c7"
-            label="Parents & Guardians"
-            value="1 member"
+          <Link
             href="/parent/profile"
-          />
+            className="flex items-center gap-2.5 px-3.5 py-3 border-t border-gray-100 bg-white"
+          >
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-[18px] flex-shrink-0" style={{ background: "#fef3c7" }}>
+              {family.parentAvatar}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-semibold text-gray-800 truncate">
+                {family.parentDisplayName || "Your profile"}
+              </div>
+              <div className="text-[11px] text-gray-400 font-medium">Parent / Guardian</div>
+            </div>
+            <span className="text-gray-300 text-xl">›</span>
+          </Link>
+          <div className="flex items-center gap-2.5 px-3.5 py-3 border-t border-gray-100 bg-white opacity-50">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-[18px] flex-shrink-0 bg-gray-100">
+              ✉️
+            </div>
+            <div className="flex-1">
+              <div className="text-[14px] font-semibold text-indigo-600">Invite a parent or guardian</div>
+              <div className="text-[11px] text-gray-400">Coming soon</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -109,7 +126,7 @@ export default async function ParentSettingsPage() {
             );
           })}
           <Link
-            href="/parent/kids"
+            href="/parent/kids/new"
             className="flex items-center gap-2.5 px-3.5 py-3 border-t border-gray-100 bg-white"
           >
             <div className="w-9 h-9 rounded-full flex items-center justify-center text-[18px] flex-shrink-0 bg-gray-100">

@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import PrefetchRoutes from "@/components/kid/PrefetchRoutes";
 import Link from "next/link";
-import KidShell from "@/components/kid/KidShell";
 import {
   getKid,
   listTasksForKid,
@@ -9,7 +8,6 @@ import {
   listBadgeProgress,
   listKids,
   listWeeklyStarsByKid,
-  getFamily,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -60,11 +58,10 @@ export default async function KidHomePage({
   const now = new Date();
   const dow = isoWeekday(now);
 
-  const [tasks, completions, badges, family, allKids, weeklyStars] = await Promise.all([
+  const [tasks, completions, badges, allKids, weeklyStars] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
     listBadgeProgress(kid.id),
-    getFamily(),
     listKids(),
     listWeeklyStarsByKid(),
   ]);
@@ -104,27 +101,8 @@ export default async function KidHomePage({
   const encouragement = ENCOURAGEMENTS[kid.currentStreak % 5];
   const allDone = total > 0 && done >= total;
 
-  const familyGoal = family ? {
-    name: family.name,
-    emoji: "⭐",
-    current: family.familyPointsBalance,
-    target: 2000,
-  } : undefined;
-
   return (
-    <KidShell
-      kid={kid}
-      active="home"
-      familyGoal={familyGoal}
-      todayProgress={{ done, total }}
-      badges={badges}
-      weatherLocation={
-        family?.weatherLat != null && family?.weatherLon != null
-          ? { lat: family.weatherLat, lon: family.weatherLon }
-          : undefined
-      }
-    >
-      <div className="p-4 space-y-3">
+    <div className="p-4 space-y-3">
         <PrefetchRoutes routes={[`/kid/${kid.id}/todo`, `/kid/${kid.id}/rewards`, `/play`]} />
 
         {/* 1. Profile Level strip */}
@@ -387,6 +365,5 @@ export default async function KidHomePage({
         </div>
 
       </div>
-    </KidShell>
   );
 }

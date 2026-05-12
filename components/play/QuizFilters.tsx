@@ -1,40 +1,19 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-
-const THEMES = [
-  { value: "", label: "All themes" },
-  { value: "maths", label: "🧮 Maths" },
-  { value: "english", label: "📖 English" },
-  { value: "science", label: "🔬 Science" },
-  { value: "history", label: "🏛️ History" },
-  { value: "geography", label: "🌍 Geography" },
-  { value: "sports", label: "⚽ Sports" },
-  { value: "music", label: "🎵 Music" },
-  { value: "fun_facts", label: "🎉 Fun Facts" },
-  { value: "pop_culture", label: "🎬 Pop Culture" },
-  { value: "technology", label: "💻 Technology" },
-  { value: "food_culture", label: "🍜 Food & Culture" },
-  { value: "french", label: "🇫🇷 French" },
-  { value: "spanish", label: "🇪🇸 Spanish" },
-  { value: "mandarin", label: "🇨🇳 Mandarin" },
-];
-
-const DIFFICULTIES = [
-  { value: "", label: "Any difficulty" },
-  { value: "easy", label: "⭐ Easy" },
-  { value: "medium", label: "⭐⭐ Medium" },
-  { value: "hard", label: "⭐⭐⭐ Hard" },
-];
+import { ACTIVE_QUIZ_THEMES } from "@/lib/registry/quiz-theme-registry";
+import { QUIZ_DIFFICULTIES } from "@/lib/registry/quiz-difficulty-registry";
 
 export default function QuizFilters({
   theme,
   difficulty,
   kidParam,
+  basePath = "/play/quiz",
 }: {
   theme: string;
   difficulty: string;
   kidParam: string;
+  basePath?: string;
 }) {
   const router = useRouter();
 
@@ -48,7 +27,8 @@ export default function QuizFilters({
       if (theme) params.set("theme", theme);
       if (value) params.set("diff", value);
     }
-    router.push(`/play/quiz?${params.toString()}`);
+    const qs = params.toString();
+    router.push(`${basePath}${qs ? `?${qs}` : ""}`);
   };
 
   return (
@@ -58,8 +38,9 @@ export default function QuizFilters({
         onChange={(e) => update("theme", e.target.value)}
         className="flex-1 bg-white border border-gray-200 rounded-2xl px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm"
       >
-        {THEMES.map((t) => (
-          <option key={t.value} value={t.value}>{t.label}</option>
+        <option value="">All themes</option>
+        {ACTIVE_QUIZ_THEMES.map((t) => (
+          <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
         ))}
       </select>
       <select
@@ -67,8 +48,9 @@ export default function QuizFilters({
         onChange={(e) => update("diff", e.target.value)}
         className="flex-1 bg-white border border-gray-200 rounded-2xl px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm"
       >
-        {DIFFICULTIES.map((d) => (
-          <option key={d.value} value={d.value}>{d.label}</option>
+        <option value="">Any difficulty</option>
+        {QUIZ_DIFFICULTIES.map((d) => (
+          <option key={d.id} value={d.id}>{d.stars} {d.label}</option>
         ))}
       </select>
     </div>

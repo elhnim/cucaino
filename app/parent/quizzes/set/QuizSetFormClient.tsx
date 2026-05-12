@@ -4,25 +4,9 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createQuizSet, updateQuizSet, deleteQuizSet } from "@/lib/actions/quizzes";
 import type { QuizSet } from "@/lib/domain/types";
-
-const THEMES = [
-  { id: "maths",        label: "Maths",        emoji: "🧮" },
-  { id: "english",      label: "English",      emoji: "📖" },
-  { id: "science",      label: "Science",      emoji: "🔬" },
-  { id: "history",      label: "History",      emoji: "🏛" },
-  { id: "geography",    label: "Geography",    emoji: "🌍" },
-  { id: "sports",       label: "Sports",       emoji: "⚽" },
-  { id: "music",        label: "Music",        emoji: "🎵" },
-  { id: "french",       label: "French",       emoji: "🥖" },
-  { id: "spanish",      label: "Spanish",      emoji: "💃" },
-  { id: "mandarin",     label: "Mandarin",     emoji: "🀄" },
-  { id: "fun_facts",    label: "Fun Facts",    emoji: "🤩" },
-  { id: "pop_culture",  label: "Pop Culture",  emoji: "⭐" },
-  { id: "technology",   label: "Technology",   emoji: "💻" },
-  { id: "food_culture", label: "Food & Culture", emoji: "🍜" },
-];
-
-const AGE_BANDS = ["5-6", "7-8", "9-10", "11-12"];
+import { ACTIVE_QUIZ_THEMES } from "@/lib/registry/quiz-theme-registry";
+import { QUIZ_DIFFICULTIES } from "@/lib/registry/quiz-difficulty-registry";
+import { QUIZ_AGE_BANDS } from "@/lib/registry/quiz-age-band-registry";
 const SET_EMOJIS = ["🎯", "🧠", "🏆", "⚡", "🌟", "🎓", "🔥", "🎪", "🎲", "🌍", "🧮", "📖"];
 
 export default function QuizSetFormClient({ quizSet }: { quizSet?: QuizSet }) {
@@ -109,7 +93,7 @@ export default function QuizSetFormClient({ quizSet }: { quizSet?: QuizSet }) {
       <div className="bg-white rounded-2xl shadow p-4 space-y-2">
         <div className="text-sm font-bold text-gray-700">Themes <span className="font-normal text-gray-400">(pick one or more)</span></div>
         <div className="flex flex-wrap gap-1.5">
-          {THEMES.map((t) => (
+          {ACTIVE_QUIZ_THEMES.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -133,14 +117,14 @@ export default function QuizSetFormClient({ quizSet }: { quizSet?: QuizSet }) {
           >
             Auto (per kid)
           </button>
-          {AGE_BANDS.map((b) => (
+          {QUIZ_AGE_BANDS.map((b) => (
             <button
-              key={b}
+              key={b.id}
               type="button"
-              onClick={() => setAgeBandFilter(b)}
-              className={`px-3 py-1.5 rounded-full text-sm font-semibold ${ageBandFilter === b ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}
+              onClick={() => setAgeBandFilter(b.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-semibold ${ageBandFilter === b.id ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}
             >
-              {b}
+              {b.label}
             </button>
           ))}
         </div>
@@ -150,20 +134,20 @@ export default function QuizSetFormClient({ quizSet }: { quizSet?: QuizSet }) {
       <div className="bg-white rounded-2xl shadow p-4 space-y-2">
         <div className="text-sm font-bold text-gray-700">Max difficulty</div>
         <div className="flex gap-2">
-          {(["easy", "medium", "hard"] as const).map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => setMaxDifficulty(d)}
-              className={`flex-1 py-1.5 rounded-xl text-sm font-bold capitalize ${
-                maxDifficulty === d
-                  ? d === "easy" ? "bg-green-500 text-white" : d === "medium" ? "bg-amber-500 text-white" : "bg-red-500 text-white"
-                  : "bg-gray-100 text-gray-500"
-              }`}
-            >
-              {d === "easy" ? "Easy only" : d === "medium" ? "Easy + Medium" : "All levels"}
-            </button>
-          ))}
+          {QUIZ_DIFFICULTIES.map((d) => {
+            const active = maxDifficulty === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setMaxDifficulty(d.id)}
+                className="flex-1 py-1.5 rounded-xl text-sm font-bold transition-colors"
+                style={active ? { background: d.activeBg, color: "#fff" } : { background: "#f3f4f6", color: "#6b7280" }}
+              >
+                {d.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -7,12 +7,7 @@ import { createReward, updateReward, deleteReward } from "@/lib/actions/rewards"
 
 const COMMON_ICONS = ["🎮", "🍦", "🎬", "🍕", "🧸", "🎡", "🎯", "🏊", "🎂", "🍫", "📱", "🎠", "🛒", "✈️", "🎪"];
 
-const REWARD_TYPES: { value: RewardType; label: string; color: string }[] = [
-  { value: "treat",      label: "🍦 Treat",      color: "bg-pink-600" },
-  { value: "privilege",  label: "⭐ Privilege",   color: "bg-blue-600" },
-  { value: "experience", label: "🎡 Experience",  color: "bg-green-600" },
-  { value: "prize",      label: "🏆 Prize",       color: "bg-amber-600" },
-];
+import { REWARD_TYPES } from "@/lib/registry/reward-type-registry";
 
 const PERIOD_LIMITS: { value: RewardPeriodLimit; label: string }[] = [
   { value: "none",  label: "No limit" },
@@ -159,14 +154,14 @@ export default function RewardFormClient({
         <div className="grid grid-cols-2 gap-2">
           {REWARD_TYPES.map((rt) => (
             <button
-              key={rt.value}
+              key={rt.id}
               type="button"
-              onClick={() => setRewardType(rt.value)}
+              onClick={() => setRewardType(rt.id)}
               className={`py-2 rounded-xl text-sm font-bold transition-colors ${
-                rewardType === rt.value ? `${rt.color} text-white` : "bg-gray-100 text-gray-600"
+                rewardType === rt.id ? `${rt.buttonClass} text-white` : "bg-gray-100 text-gray-600"
               }`}
             >
-              {rt.label}
+              {rt.emoji} {rt.label}
             </button>
           ))}
         </div>

@@ -1,17 +1,11 @@
 import Link from "next/link";
 import { listKids, listRewardsForKid } from "@/lib/data/stub";
 import RewardFilterBar from "@/components/parent/RewardFilterBar";
+import { getRewardType } from "@/lib/registry/reward-type-registry";
 import type { Reward, Kid } from "@/lib/domain/types";
 
-const REWARD_TYPE_STYLE: Record<Reward["rewardType"], { bg: string; color: string; label: string }> = {
-  treat:      { bg: "#fce7f3", color: "#9d174d",  label: "🍬 Treat"       },
-  privilege:  { bg: "#ede9fe", color: "#5b21b6",  label: "🔓 Privilege"   },
-  experience: { bg: "#d1fae5", color: "#065f46",  label: "✨ Experience"  },
-  prize:      { bg: "#fef3c7", color: "#92400e",  label: "🎀 Prize"       },
-};
-
 function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
-  const typeStyle = REWARD_TYPE_STYLE[reward.rewardType];
+  const typeStyle = getRewardType(reward.rewardType);
   const kidNames =
     reward.availableTo.length === 0
       ? "All kids"
@@ -49,7 +43,7 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
             className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold"
             style={{ background: typeStyle.bg, color: typeStyle.color }}
           >
-            {typeStyle.label}
+            {typeStyle.emoji} {typeStyle.label}
           </span>
           <span className="inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold bg-gray-100 text-gray-600">
             {reward.who === "team" ? "👨‍👩‍👧‍👦 Team" : "👤 Individual"}
@@ -80,7 +74,7 @@ export default async function ParentRewardsPage({
 }: {
   searchParams: Promise<{ type?: string; kid?: string }>;
 }) {
-  const { type = "", kid: kidId = "" } = await searchParams;
+  const { type = "", kid: kidParam = "" } = await searchParams;
   const kids = await listKids();
   const all = (await Promise.all(kids.map((k) => listRewardsForKid(k.id)))).flat();
   const seen = new Set<string>();
@@ -90,9 +84,12 @@ export default async function ParentRewardsPage({
     return true;
   });
 
+  const types = type ? type.split(",").filter(Boolean) : [];
+  const kidIds = kidParam ? kidParam.split(",").filter(Boolean) : [];
+
   const filtered = rewards.filter((r) => {
-    if (type && r.rewardType !== type) return false;
-    if (kidId && r.availableTo.length > 0 && !r.availableTo.includes(kidId)) return false;
+    if (types.length > 0 && !types.includes(r.rewardType)) return false;
+    if (kidIds.length > 0 && r.availableTo.length > 0 && !kidIds.some((id) => r.availableTo.includes(id))) return false;
     return true;
   });
 
@@ -101,15 +98,8 @@ export default async function ParentRewardsPage({
 
   return (
     <div className="flex flex-col min-h-full">
-      {/* Filter bar */}
-      <RewardFilterBar
-        type={type}
-        kidId={kidId}
-        kids={kids.map((k) => ({ id: k.id, name: k.name }))}
-      />
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+      {/* Header + add */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
         <h1 className="text-base font-extrabold text-gray-900">🎁 Rewards</h1>
         <Link
           href="/parent/rewards/new"
@@ -118,6 +108,13 @@ export default async function ParentRewardsPage({
           + Add Reward
         </Link>
       </div>
+
+      {/* Filter bar */}
+      <RewardFilterBar
+        types={types}
+        kidIds={kidIds}
+        kids={kids.map((k) => ({ id: k.id, name: k.name }))}
+      />
 
       {/* List */}
       <div className="px-4 pb-4">
