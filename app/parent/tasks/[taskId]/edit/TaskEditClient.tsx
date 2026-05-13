@@ -45,6 +45,7 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
   const [location, setLocation] = useState(task?.location ?? "");
   const [packingList, setPackingList] = useState<string[]>(task?.packingList ?? []);
   const [packingInput, setPackingInput] = useState("");
+  const [frequencyPerDay, setFrequencyPerDay] = useState(task?.frequencyPerDay ?? 1);
 
   const toggleDay = (d: number) => {
     setDaysOfWeek((prev) =>
@@ -72,6 +73,7 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
     defaultTimeSignature: category === "music" ? (task?.defaultTimeSignature ?? "4/4") : null,
     kidId,
     kidCanAdd: task?.kidCanAdd ?? false,
+    frequencyPerDay,
     flexibleMinPerWeek: rule === "flexible" ? flexMin : null,
     target,
     targetDurationMinutes: target === "time" ? durationMinutes : null,
@@ -369,6 +371,28 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-gray-500 mb-1">Times per day</div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[1, 2, 3, 4].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setFrequencyPerDay(n)}
+                    className={`py-2 rounded-xl text-sm font-bold border text-center transition-colors ${
+                      frequencyPerDay === n
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                    }`}
+                  >
+                    {n}×
+                  </button>
+                ))}
+              </div>
+              {frequencyPerDay > 1 && (
+                <p className="text-xs text-gray-400 mt-1">Kid sees a 0 / {frequencyPerDay} counter — tap to increment each time</p>
+              )}
             </div>
           </>
         )}
