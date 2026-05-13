@@ -18,6 +18,7 @@ export async function completeTask(
   pointsAwarded: number,
   familyPointsAwarded: number,
   taskCategory?: string,
+  maxCompletions = 1,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -28,15 +29,14 @@ export async function completeTask(
     .maybeSingle();
   if (famErr || !fam) return { ok: false, error: "Family not found." };
 
-  // Idempotent — skip if already completed today
-  const { data: existing } = await supabase
+  // For frequency tasks allow multiple completions up to maxCompletions; otherwise idempotent
+  const { count } = await supabase
     .from("task_completions")
-    .select("id")
+    .select("id", { count: "exact", head: true })
     .eq("task_id", taskId)
     .eq("kid_id", kidId)
-    .eq("date", today)
-    .maybeSingle();
-  if (existing) return { ok: true };
+    .eq("date", today);
+  if ((count ?? 0) >= maxCompletions) return { ok: true };
 
   const { error } = await supabase.from("task_completions").insert({
     family_id: fam.id,

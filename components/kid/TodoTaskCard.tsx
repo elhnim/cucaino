@@ -291,7 +291,7 @@ function FrequencyCard({
       window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
     }
     startTransition(async () => {
-      const result = await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
+      const result = await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category, target);
       if (result.ok && result.newTiers && result.newTiers.length > 0) {
         window.dispatchEvent(new CustomEvent("badge-unlocked", { detail: { badges: result.newTiers } }));
       }
