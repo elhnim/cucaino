@@ -186,6 +186,26 @@ export interface RewardRequest {
 }
 
 // ----------------------------------------------------------------------------
+// History
+// ----------------------------------------------------------------------------
+
+export type HistoryEntry =
+  | {
+      kind: "task";
+      date: string;           // YYYY-MM-DD
+      taskName: string;
+      taskIcon: string;
+      pointsAwarded: number;
+    }
+  | {
+      kind: "reward";
+      date: string;           // YYYY-MM-DD (extracted from requested_at)
+      rewardName: string;
+      rewardIcon: string;
+      pointsSpent: number;
+    };
+
+// ----------------------------------------------------------------------------
 // Wishlist
 // ----------------------------------------------------------------------------
 
