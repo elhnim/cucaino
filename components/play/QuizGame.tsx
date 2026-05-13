@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getTheme } from "@/lib/themes/presets";
 import type { ThemeId } from "@/lib/domain/types";
 
@@ -32,12 +33,15 @@ export default function QuizGame({
   questions,
   players,
   backHref = "/play/quiz",
+  soloPlayerId,
 }: {
   bankName: string;
   questions: Question[];
   players: Player[];
   backHref?: string;
+  soloPlayerId?: string;
 }) {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("setup");
   const [gameMode, setGameMode] = useState<"solo" | "turns">("turns");
   const [activePlayers, setActivePlayers] = useState<Player[]>(players);
@@ -128,6 +132,12 @@ export default function QuizGame({
       .sort((a, b) => b.score - a.score);
   }, [scores, activePlayers]);
 
+  const handleQuit = useCallback(() => {
+    if (window.confirm("Quit the quiz? Your progress will be lost.")) {
+      router.push(backHref);
+    }
+  }, [router, backHref]);
+
   // ---------- SETUP ----------
   if (mode === "setup") {
     return (
@@ -170,7 +180,10 @@ export default function QuizGame({
                 type="button"
                 onClick={() => {
                   setGameMode("solo");
-                  if (activePlayers.length !== 1) setActivePlayers([activePlayers[0]]);
+                  const solo = soloPlayerId
+                    ? (players.find((p) => p.id === soloPlayerId) ?? players[0])
+                    : players[0];
+                  setActivePlayers([solo]);
                 }}
                 className={`rounded-2xl p-4 border-[3px] transition-all ${
                   gameMode === "solo"
@@ -186,37 +199,42 @@ export default function QuizGame({
               </button>
             </div>
 
-            <div className="text-sm font-bold text-gray-700 mb-2">PLAYERS</div>
-            <div className="flex gap-2 flex-wrap mb-6">
-              {players.map((p) => {
-                const enabled = activePlayers.some((ap) => ap.id === p.id);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      if (gameMode === "solo") {
-                        setActivePlayers([p]);
-                      } else {
-                        setActivePlayers((prev) =>
+            {/* Hide player picker in solo mode when locked to a specific kid */}
+            {!(gameMode === "solo" && soloPlayerId) && (
+              <>
+                <div className="text-sm font-bold text-gray-700 mb-2">PLAYERS</div>
+                <div className="flex gap-2 flex-wrap mb-6">
+                  {players.map((p) => {
+                    const enabled = activePlayers.some((ap) => ap.id === p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          if (gameMode === "solo") {
+                            setActivePlayers([p]);
+                          } else {
+                            setActivePlayers((prev) =>
+                              enabled
+                                ? prev.filter((x) => x.id !== p.id)
+                                : [...prev, p],
+                            );
+                          }
+                        }}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-colors ${
                           enabled
-                            ? prev.filter((x) => x.id !== p.id)
-                            : [...prev, p],
-                        );
-                      }
-                    }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 transition-colors ${
-                      enabled
-                        ? "border-fuchsia-500 bg-fuchsia-50"
-                        : "border-gray-200 opacity-50"
-                    }`}
-                  >
-                    <span className="text-2xl">{p.avatar}</span>
-                    <span className="font-bold">{p.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+                            ? "border-fuchsia-500 bg-fuchsia-50"
+                            : "border-gray-200 opacity-50"
+                        }`}
+                      >
+                        <span className="text-2xl">{p.avatar}</span>
+                        <span className="font-bold">{p.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             <button
               type="button"
@@ -239,13 +257,13 @@ export default function QuizGame({
       <div className="p-4 md:p-6 flex flex-col gap-4">
         {/* Top bar */}
         <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
-          <Link
-            href={backHref}
+          <button
+            type="button"
+            onClick={handleQuit}
             className="bg-white/90 hover:bg-white rounded-2xl px-3 py-2 shadow flex items-center gap-1.5 text-sm font-bold text-fuchsia-700 shrink-0 transition-colors"
-            title="Quit quiz"
           >
             ← Quit
-          </Link>
+          </button>
           <div className="bg-white rounded-full px-3 py-2 shadow flex items-center gap-2 min-w-0">
             <span className="text-xl">{currentPlayer.avatar}</span>
             <span className="font-bold truncate text-sm md:text-base">

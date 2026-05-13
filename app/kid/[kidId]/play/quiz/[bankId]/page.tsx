@@ -65,6 +65,7 @@ export default async function KidQuizGamePage({
         themeId: k.themeId,
       }))}
       backHref={`/kid/${kidId}/play/quiz`}
+      soloPlayerId={kidId}
     />
   );
 }
