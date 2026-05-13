@@ -43,7 +43,7 @@ export default async function QuizGamePage({
     questions = drawn.map((q) => ({
       id: q.id,
       prompt: q.questionText,
-      choices: (q.choices ?? []).map((c) => ({ label: c.label, isCorrect: c.isCorrect })),
+      choices: [...(q.choices ?? [])].sort(() => Math.random() - 0.5).map((c) => ({ label: c.label, isCorrect: c.isCorrect })),
       timeLimitSeconds: 30,
     }));
   } else if (bank) {
@@ -53,7 +53,7 @@ export default async function QuizGamePage({
     questions = shuffled.map((q) => ({
       id: q.id,
       prompt: q.prompt,
-      choices: q.choices.map((c) => ({ label: c.label, isCorrect: c.isCorrect })),
+      choices: [...q.choices].sort(() => Math.random() - 0.5).map((c) => ({ label: c.label, isCorrect: c.isCorrect })),
       timeLimitSeconds: q.timeLimitSeconds,
     }));
   } else {
