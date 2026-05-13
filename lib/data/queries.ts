@@ -18,6 +18,7 @@ import type {
   BadgeTier,
   BadgeProgress,
   Family,
+  HistoryEntry,
   Kid,
   QuizBank,
   QuizCategory,
@@ -667,3 +668,56 @@ export async function listWishlistItems(kidId: string): Promise<WishlistItem[]> 
     position: row.position,
   }));
 }
+
+export const listKidHistory = timed(
+  "listKidHistory",
+  async (kidId: string, days: number): Promise<HistoryEntry[]> => {
+    const supabase = await createClient();
+
+    // Calculate the start date
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const fromDate = from.toISOString().slice(0, 10); // YYYY-MM-DD
+    const fromDatetime = from.toISOString();           // full ISO for timestamp column
+
+    const [{ data: completions, error: cErr }, { data: requests, error: rErr }] =
+      await Promise.all([
+        supabase
+          .from("task_completions")
+          .select("date, points_awarded, tasks(name, icon)")
+          .eq("kid_id", kidId)
+          .gte("date", fromDate)
+          .order("date", { ascending: false }),
+        supabase
+          .from("reward_requests")
+          .select("requested_at, rewards(name, icon, cost_points)")
+          .eq("kid_id", kidId)
+          .in("status", ["approved", "delivered"])
+          .gte("requested_at", fromDatetime)
+          .order("requested_at", { ascending: false }),
+      ]);
+
+    if (cErr || rErr) return [];
+
+    const taskEntries: HistoryEntry[] = (completions ?? []).map((row: any) => ({
+      kind: "task",
+      date: row.date as string,
+      taskName: (row.tasks as any)?.name ?? "Task",
+      taskIcon: (row.tasks as any)?.icon ?? "✅",
+      pointsAwarded: row.points_awarded ?? 0,
+    }));
+
+    const rewardEntries: HistoryEntry[] = (requests ?? []).map((row: any) => ({
+      kind: "reward",
+      date: (row.requested_at as string).slice(0, 10),
+      rewardName: (row.rewards as any)?.name ?? "Reward",
+      rewardIcon: (row.rewards as any)?.icon ?? "🎁",
+      pointsSpent: (row.rewards as any)?.cost_points ?? 0,
+    }));
+
+    // Merge and sort newest first
+    return [...taskEntries, ...rewardEntries].sort((a, b) =>
+      b.date.localeCompare(a.date),
+    );
+  },
+);
