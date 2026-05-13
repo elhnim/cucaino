@@ -12,6 +12,7 @@ export async function createFeatureRequest(data: {
   title: string;
   description: string;
   category: Category;
+  kidId?: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: fam, error: famErr } = await supabase
@@ -26,6 +27,7 @@ export async function createFeatureRequest(data: {
     description: data.description,
     category: data.category,
     status: "new",
+    ...(data.kidId ? { kid_id: data.kidId } : {}),
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/feedback");

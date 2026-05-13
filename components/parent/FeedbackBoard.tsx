@@ -50,6 +50,9 @@ export default function FeedbackBoard({
       category,
       status: "new",
       createdAt: new Date().toISOString(),
+      kidId: null,
+      kidName: null,
+      kidAvatar: null,
     };
     setItems((prev) => [optimistic, ...prev]);
     setTitle("");
@@ -238,8 +241,9 @@ function FeatureCard({
               <div className="font-bold">{item.title}</div>
               <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${status.class}`}>{status.label}</span>
             </div>
-            <div className="text-xs text-gray-500 mt-0.5">
-              {meta.label} · {formatAgo(item.createdAt)}
+            <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+              {item.kidAvatar && <span>{item.kidAvatar} {item.kidName} ·</span>}
+              <span>{meta.label} · {formatAgo(item.createdAt)}</span>
             </div>
             {item.description ? (
               <div className={`text-sm text-gray-700 mt-1 ${open ? "" : "line-clamp-2"}`}>

@@ -70,6 +70,14 @@ export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
             My history
           </Link>
           <Link
+            href={`/kid/${kid.id}/feedback`}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-4 py-3.5 text-sm font-bold text-gray-800 border-b border-gray-50 hover:bg-gray-50"
+          >
+            <span className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-sm">💬</span>
+            Send feedback
+          </Link>
+          <Link
             href={`/kid/${kid.id}/profile`}
             onClick={() => setOpen(false)}
             className="flex items-center gap-2.5 px-4 py-3.5 text-sm font-bold text-gray-800 border-b border-gray-50 hover:bg-gray-50"

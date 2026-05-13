@@ -457,13 +457,16 @@ export type FeatureRequest = {
   category: "kid_view" | "parent_view" | "quiz" | "rewards" | "music" | "other";
   status: "new" | "considering" | "in_progress" | "shipped" | "wont_do";
   createdAt: string;
+  kidId: string | null;
+  kidName: string | null;
+  kidAvatar: string | null;
 };
 
 export async function listFeatureRequests(): Promise<FeatureRequest[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("feature_requests")
-    .select("*")
+    .select("*, kids(name, avatar)")
     .order("created_at", { ascending: false });
   if (error || !data) return [];
   return data.map((row) => ({
@@ -473,6 +476,9 @@ export async function listFeatureRequests(): Promise<FeatureRequest[]> {
     category: row.category as FeatureRequest["category"],
     status: row.status as FeatureRequest["status"],
     createdAt: row.created_at,
+    kidId: (row as any).kid_id ?? null,
+    kidName: (row as any).kids?.name ?? null,
+    kidAvatar: (row as any).kids?.avatar ?? null,
   }));
 }
 
