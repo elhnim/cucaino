@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   getFamily,
@@ -236,6 +237,17 @@ export default async function ParentOverviewPage() {
                     <RequestActions requestId={req.id} />
                   </div>
                 )}
+
+                {/* History link */}
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.accentSoft}` }}>
+                  <Link
+                    href={`/parent/history/${kid.id}`}
+                    className="text-[12px] font-bold"
+                    style={{ color: theme.accent }}
+                  >
+                    View history →
+                  </Link>
+                </div>
               </div>
             );
           })}
