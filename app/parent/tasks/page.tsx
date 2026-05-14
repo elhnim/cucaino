@@ -115,7 +115,7 @@ export default async function TasksPage({
   const filtered = tasks.filter((t) => {
     if (t.category === "school_subject") return false;
     if (categories.length > 0 && !categories.includes(t.category)) return false;
-    if (kidIds.length > 0 && t.kidId !== null && !kidIds.includes(t.kidId)) return false;
+    if (kidIds.length > 0 && t.kidIds !== null && !t.kidIds.some((id) => kidIds.includes(id))) return false;
     return true;
   });
 
