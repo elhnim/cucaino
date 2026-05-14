@@ -132,6 +132,13 @@ export default function QuizGame({
       .sort((a, b) => b.score - a.score);
   }, [scores, activePlayers]);
 
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("quiz-active", { detail: { active: mode === "playing" } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("quiz-active", { detail: { active: false } }));
+    };
+  }, [mode]);
+
   const handleQuit = useCallback(() => {
     if (window.confirm("Quit the quiz? Your progress will be lost.")) {
       router.push(backHref);

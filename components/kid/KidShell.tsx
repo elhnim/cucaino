@@ -147,6 +147,13 @@ export default function KidShell({
     return () => window.removeEventListener("badge-unlocked", handleBadgeUnlocked);
   }, [handleBadgeUnlocked]);
 
+  const [isQuizActive, setIsQuizActive] = useState(false);
+  useEffect(() => {
+    const handler = (e: Event) => setIsQuizActive((e as CustomEvent).detail?.active ?? false);
+    window.addEventListener("quiz-active", handler);
+    return () => window.removeEventListener("quiz-active", handler);
+  }, []);
+
   const [weather, setWeather] = useState<{ icon: string; temp: number } | null>(null);
   useEffect(() => {
     const doFetch = async (latitude: number, longitude: number) => {
@@ -300,6 +307,11 @@ export default function KidShell({
             <Link
               key={item.key}
               href={item.href(kid.id)}
+              onClick={(e) => {
+                if (isQuizActive && !window.confirm("Leave the quiz? Your progress will be lost.")) {
+                  e.preventDefault();
+                }
+              }}
               className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5"
             >
               <span style={{ color: isActive ? theme.accent : "#9ca3af" }}>
