@@ -41,8 +41,16 @@ export default function TasksClient({
       <div className="p-4 space-y-2">
         {tasks.map((t) => {
           const cat = getCategory(t.category);
-          const kid = t.kidId ? kidById.get(t.kidId) : null;
-          const audience = kid ? `${kid.avatar} ${kid.name}` : "All kids";
+          const audience =
+            t.kidIds === null
+              ? "All kids"
+              : t.kidIds
+                  .map((id) => {
+                    const k = kidById.get(id);
+                    return k ? `${k.avatar} ${k.name}` : "";
+                  })
+                  .filter(Boolean)
+                  .join(", ");
           return (
             <div
               key={t.id}
