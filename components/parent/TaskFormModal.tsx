@@ -102,7 +102,7 @@ function defaultForm(task?: Task): TaskFormData {
     packingList: task?.packingList ?? null,
     defaultBpm: task?.defaultBpm ?? null,
     defaultTimeSignature: task?.defaultTimeSignature ?? null,
-    kidId: task?.kidId ?? null,
+    kidIds: task?.kidIds ?? null,
     kidCanAdd: task?.kidCanAdd ?? false,
     frequencyPerDay: task?.frequencyPerDay ?? 1,
     subject: task?.subject ?? null,
@@ -343,32 +343,41 @@ export default function TaskFormModal({
           {/* Assigned to */}
           <div>
             <label className="text-xs font-bold text-gray-500">Assigned to</label>
-            <div className="flex gap-2 mt-1">
+            <div className="flex gap-2 mt-1 flex-wrap">
               <button
                 type="button"
-                onClick={() => set("kidId", null)}
+                onClick={() => set("kidIds", null)}
                 className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${
-                  form.kidId === null
+                  form.kidIds === null
                     ? "bg-indigo-600 text-white border-indigo-600"
                     : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
                 }`}
               >
                 All kids
               </button>
-              {kids.map((kid) => (
-                <button
-                  key={kid.id}
-                  type="button"
-                  onClick={() => set("kidId", kid.id)}
-                  className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${
-                    form.kidId === kid.id
-                      ? "bg-indigo-600 text-white border-indigo-600"
-                      : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
-                  }`}
-                >
-                  {kid.avatar} {kid.name}
-                </button>
-              ))}
+              {kids.map((kid) => {
+                const selected = form.kidIds?.includes(kid.id) ?? false;
+                return (
+                  <button
+                    key={kid.id}
+                    type="button"
+                    onClick={() => {
+                      const current = form.kidIds ?? [];
+                      const next = current.includes(kid.id)
+                        ? current.filter((id) => id !== kid.id)
+                        : [...current, kid.id];
+                      set("kidIds", next.length === 0 ? null : next);
+                    }}
+                    className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                      selected
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                    }`}
+                  >
+                    {kid.avatar} {kid.name}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
