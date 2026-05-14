@@ -77,7 +77,7 @@ export interface Kid {
 export interface Task {
   id: string;
   familyId: string;
-  kidId: string | null; // null = both kids
+  kidIds: string[] | null; // null = all kids
   name: string;
   category: TaskCategory;
   icon: string;

@@ -100,7 +100,7 @@ export function mapTask(row: DbTaskRow): Task {
   return {
     id: row.id,
     familyId: row.family_id,
-    kidId: row.kid_id,
+    kidIds: (row as any).kid_ids ?? null,
     name: row.name,
     category: row.category as Task["category"],
     icon: row.icon,
@@ -187,7 +187,7 @@ export const listTasksForKid = timed("listTasksForKid", async (kidId: string): P
   const { data, error } = await supabase
     .from("tasks")
     .select("*")
-    .or(`kid_id.is.null,kid_id.eq.${kidId}`)
+    .or(`kid_ids.is.null,kid_ids.cs.{${kidId}}`)
     .eq("active", true);
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);
