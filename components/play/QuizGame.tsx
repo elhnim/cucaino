@@ -261,7 +261,7 @@ export default function QuizGame({
   if (mode === "playing" && currentQuestion && currentPlayer) {
     const theme = getTheme(currentPlayer.themeId);
     return (
-      <div className="p-4 md:p-6 flex flex-col gap-4">
+      <div className="p-3 md:p-6 flex flex-col gap-2 md:gap-4">
         {/* Top bar */}
         <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
           <button
@@ -291,12 +291,12 @@ export default function QuizGame({
         </div>
 
         {/* Question */}
-        <div className="max-w-3xl mx-auto w-full bg-white rounded-3xl shadow-xl p-6 md:p-8 mb-6 text-center">
-          <p className="text-2xl md:text-3xl font-black">{currentQuestion.prompt}</p>
+        <div className="max-w-3xl mx-auto w-full bg-white rounded-3xl shadow-xl p-3 md:p-8 text-center">
+          <p className="text-xl md:text-3xl font-black">{currentQuestion.prompt}</p>
         </div>
 
         {/* Tiles */}
-        <div className="max-w-3xl mx-auto w-full grid grid-cols-2 gap-3 md:gap-4">
+        <div className="max-w-3xl mx-auto w-full grid grid-cols-2 gap-2 md:gap-4">
           {currentQuestion.choices.map((choice, i) => {
             const tile = TILE_COLORS[i];
             const isChosen = chosen === i;
@@ -313,15 +313,15 @@ export default function QuizGame({
                 type="button"
                 disabled={revealed}
                 onClick={() => handleAnswer(i)}
-                className="text-white font-black text-lg md:text-2xl rounded-2xl p-6 md:p-8 shadow-lg disabled:cursor-not-allowed transition-transform active:scale-95"
+                className="text-white font-black text-base md:text-2xl rounded-2xl p-4 md:p-8 shadow-lg disabled:cursor-not-allowed transition-transform active:scale-95"
                 style={style}
               >
-                <span className="block text-sm opacity-70 mb-1">
+                <span className="block text-xs md:text-sm opacity-70 mb-0.5 md:mb-1">
                   {tile.label}
                 </span>
                 {choice.label}
                 {revealed && isCorrect ? (
-                  <span className="block text-2xl mt-2">✓</span>
+                  <span className="block text-xl md:text-2xl mt-1 md:mt-2">✓</span>
                 ) : null}
               </button>
             );
@@ -330,7 +330,7 @@ export default function QuizGame({
 
         {/* Reveal panel */}
         {revealed ? (
-          <div className="max-w-3xl mx-auto w-full mt-6 bg-white rounded-2xl shadow p-4 flex items-center justify-between">
+          <div className="max-w-3xl mx-auto w-full bg-white rounded-2xl shadow p-3 md:p-4 flex items-center justify-between">
             <div className="text-sm">
               {chosen !== null && currentQuestion.choices[chosen].isCorrect
                 ? `🎉 Correct! +${10 + secondsLeft} ⭐`
@@ -350,7 +350,7 @@ export default function QuizGame({
 
         {/* Mini scoreboard */}
         {gameMode === "turns" ? (
-          <div className="max-w-3xl mx-auto w-full mt-4 flex justify-center gap-4">
+          <div className="max-w-3xl mx-auto w-full flex justify-center gap-4">
             {activePlayers.map((p) => (
               <div
                 key={p.id}
