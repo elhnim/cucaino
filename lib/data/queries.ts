@@ -631,7 +631,7 @@ export async function listKidAddableTasks(): Promise<Task[]> {
     .select("*")
     .eq("rule", "flexible")
     .eq("active", true)
-    .is("kid_id", null)
+    .is("kid_ids", null)
     .order("name");
   if (error || !data) return [];
   return (data as DbTaskRow[]).map(mapTask);

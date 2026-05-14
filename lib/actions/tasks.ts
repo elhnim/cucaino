@@ -94,7 +94,7 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
-  data.kidIds?.forEach((id) => revalidatePath(`/kid/${id}/today`));
+  data.kidIds?.forEach((id) => revalidatePath(`/kid/${id}/todo`));
   return { ok: true };
 }
 
@@ -144,6 +144,7 @@ export async function updateTask(
     .eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
+  data.kidIds?.forEach((id) => revalidatePath(`/kid/${id}/todo`));
   return { ok: true };
 }
 
@@ -212,7 +213,7 @@ export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise
   } else {
     const { data: row, error } = await supabase.from("tasks").insert({
       family_id: fam.id,
-      kid_id: data.kidId,
+      kid_ids: [data.kidId],
       name: taskName,
       icon: "📚",
       category: "school_subject",
