@@ -5,7 +5,7 @@ import TaskFilterBar from "@/components/parent/TaskFilterBar";
 import type { Task, Kid } from "@/lib/domain/types";
 
 function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
-  const kid = task.kidId ? kids.find((k) => k.id === task.kidId) : null;
+  const assignedKids = task.kidIds ? kids.filter((k) => task.kidIds!.includes(k.id)) : [];
   const catMeta = CATEGORIES[task.category];
 
   const targetLabel = (() => {
@@ -76,7 +76,7 @@ function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
           )}
           {/* Kid + schedule */}
           <span className="text-[10px] text-gray-400 font-medium">
-            {kid ? kid.name : "All kids"} · {scheduleLabel}
+            {assignedKids.length > 0 ? assignedKids.map((k) => k.name).join(", ") : "All kids"} · {scheduleLabel}
           </span>
         </div>
         {/* Activity packing list */}
