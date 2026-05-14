@@ -5,7 +5,8 @@ import TaskFilterBar from "@/components/parent/TaskFilterBar";
 import type { Task, Kid } from "@/lib/domain/types";
 
 function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
-  const assignedKids = task.kidIds ? kids.filter((k) => task.kidIds!.includes(k.id)) : [];
+  const kidIdsList = task.kidIds;
+  const assignedKids = kidIdsList ? kids.filter((k) => kidIdsList.includes(k.id)) : [];
   const catMeta = CATEGORIES[task.category];
 
   const targetLabel = (() => {
@@ -110,12 +111,12 @@ export default async function TasksPage({
   const [tasks, kids] = await Promise.all([listAllTasks(), listKids()]);
 
   const categories = category ? category.split(",").filter(Boolean) : [];
-  const kidIds = kidParam ? kidParam.split(",").filter(Boolean) : [];
+  const selectedKidIds = kidParam ? kidParam.split(",").filter(Boolean) : [];
 
   const filtered = tasks.filter((t) => {
     if (t.category === "school_subject") return false;
     if (categories.length > 0 && !categories.includes(t.category)) return false;
-    if (kidIds.length > 0 && t.kidIds !== null && !t.kidIds.some((id) => kidIds.includes(id))) return false;
+    if (selectedKidIds.length > 0 && t.kidIds !== null && !t.kidIds.some((id) => selectedKidIds.includes(id))) return false;
     return true;
   });
 
@@ -135,7 +136,7 @@ export default async function TasksPage({
       {/* Filter bar */}
       <TaskFilterBar
         categories={categories}
-        kidIds={kidIds}
+        kidIds={selectedKidIds}
         kids={kids.map((k) => ({ id: k.id, name: k.name }))}
       />
 
