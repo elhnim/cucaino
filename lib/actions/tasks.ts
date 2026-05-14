@@ -22,7 +22,7 @@ export interface TaskFormData {
   packingList: string[] | null;
   defaultBpm: number | null;
   defaultTimeSignature: string | null;
-  kidId: string | null;
+  kidIds: string[] | null;
   kidCanAdd: boolean;
   frequencyPerDay?: number;
   // New fields
@@ -56,7 +56,7 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
 
   const { error } = await supabase.from("tasks").insert({
     family_id: fam.id,
-    kid_id: data.kidId,
+    kid_ids: data.kidIds,
     name: data.name,
     icon: data.icon,
     category: data.category,
@@ -94,7 +94,7 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
-  if (data.kidId) revalidatePath(`/kid/${data.kidId}/today`);
+  data.kidIds?.forEach((id) => revalidatePath(`/kid/${id}/today`));
   return { ok: true };
 }
 
@@ -106,7 +106,7 @@ export async function updateTask(
   const { error } = await supabase
     .from("tasks")
     .update({
-      kid_id: data.kidId,
+      kid_ids: data.kidIds,
       name: data.name,
       icon: data.icon,
       category: data.category,
