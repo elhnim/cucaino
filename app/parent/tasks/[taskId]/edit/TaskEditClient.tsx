@@ -40,7 +40,7 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
   const [repLabel, setRepLabel] = useState(task?.targetRepLabel ?? "reps");
   const [checklistItems, setChecklistItems] = useState<string[]>(task?.checklistItems ?? [""]);
   const [points, setPoints] = useState(task?.points ?? 5);
-  const [kidId, setKidId] = useState<string | null>(task?.kidId ?? null);
+  const [kidIds, setKidIds] = useState<string[] | null>(task?.kidIds ?? null);
   const [description, setDescription] = useState(task?.description ?? "");
   const [location, setLocation] = useState(task?.location ?? "");
   const [packingList, setPackingList] = useState<string[]>(task?.packingList ?? []);
@@ -71,7 +71,7 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
     packingList: packingList.length > 0 ? packingList : null,
     defaultBpm: category === "music" ? (task?.defaultBpm ?? 120) : null,
     defaultTimeSignature: category === "music" ? (task?.defaultTimeSignature ?? "4/4") : null,
-    kidId,
+    kidIds,
     kidCanAdd: task?.kidCanAdd ?? false,
     frequencyPerDay,
     flexibleMinPerWeek: rule === "flexible" ? flexMin : null,
@@ -274,25 +274,36 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setKidId(null)}
+            onClick={() => setKidIds(null)}
             className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
-              kidId === null ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+              kidIds === null ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
             }`}
           >
             All kids
           </button>
-          {kids.map((k) => (
-            <button
-              key={k.id}
-              type="button"
-              onClick={() => setKidId(k.id)}
-              className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
-                kidId === k.id ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
-              }`}
-            >
-              {k.avatar} {k.name}
-            </button>
-          ))}
+          {kids.map((k) => {
+            const selected = kidIds?.includes(k.id) ?? false;
+            return (
+              <button
+                key={k.id}
+                type="button"
+                onClick={() =>
+                  setKidIds((prev) => {
+                    const current = prev ?? [];
+                    const next = current.includes(k.id)
+                      ? current.filter((id) => id !== k.id)
+                      : [...current, k.id];
+                    return next.length === 0 ? null : next;
+                  })
+                }
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold ${
+                  selected ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                {k.avatar} {k.name}
+              </button>
+            );
+          })}
         </div>
       </div>
 
