@@ -51,7 +51,7 @@ type DbKidRow = {
 type DbTaskRow = {
   id: string;
   family_id: string;
-  kid_id: string | null;
+  kid_ids: string[] | null;
   name: string;
   category: string;
   icon: string;
@@ -100,7 +100,7 @@ export function mapTask(row: DbTaskRow): Task {
   return {
     id: row.id,
     familyId: row.family_id,
-    kidIds: (row as any).kid_ids ?? null,
+    kidIds: row.kid_ids,
     name: row.name,
     category: row.category as Task["category"],
     icon: row.icon,
