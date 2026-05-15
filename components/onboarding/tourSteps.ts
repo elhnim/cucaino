@@ -8,7 +8,7 @@ export interface TourStep {
 
 export const PARENT_TOUR_STEPS: TourStep[] = [
   {
-    route: "/parent/overview",
+    route: "/parent",
     label: "📊 Overview",
     description:
       "Your daily snapshot — see which kids have completed tasks and the family star balance at a glance.",
