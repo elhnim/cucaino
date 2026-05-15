@@ -14,11 +14,8 @@ export default async function HomePage({
   const { data: { user } } = await supabase.auth.getUser();
   if (user) redirect("/select-kid");
 
-  const { count } = await supabase
-    .from("families")
-    .select("*", { count: "exact", head: true })
-    .eq("is_founder", true);
-  const founderCount = Math.min(count ?? 0, 20);
+  const { data: countData } = await supabase.rpc("founder_count");
+  const founderCount = Math.min((countData as number | null) ?? 0, 20);
 
   return <LandingPage founderCount={founderCount} />;
 }
