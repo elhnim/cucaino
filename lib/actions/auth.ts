@@ -231,73 +231,58 @@ async function seedNewFamily({
     return kidsErr?.message ?? "Could not add kids.";
   }
 
-  // Starter tasks (shared)
+  // Starter tasks (shared — no kid assigned, visible to all kids)
   const sharedTasks = [
-    {
-      family_id: familyId,
-      name: "Make bed",
-      icon: "🛏️",
-      category: "chore",
-      time_block: "morning",
-      start_time: "07:30",
-      points: 5,
-    },
-    {
-      family_id: familyId,
-      name: "Brush teeth",
-      icon: "🦷",
-      category: "chore",
-      time_block: "morning",
-      start_time: "07:45",
-      points: 3,
-    },
-    {
-      family_id: familyId,
-      name: "Read 15 minutes",
-      icon: "📖",
-      category: "personal",
-      time_block: "evening",
-      start_time: "19:30",
-      duration_minutes: 15,
-      points: 5,
-    },
-    {
-      family_id: familyId,
-      name: "Help with dinner",
-      icon: "🍽️",
-      category: "chore",
-      time_block: "evening",
-      start_time: "18:30",
-      points: 8,
-    },
+    // Before school
+    { family_id: familyId, name: "Make bed", icon: "🛏️", category: "personal", time_block: "before_school", start_time: "07:30", points: 2, rule: "strict" },
+    { family_id: familyId, name: "Morning Routine", icon: "🦷", category: "personal", time_block: "before_school", points: 5, rule: "strict" },
+    // After school
+    { family_id: familyId, name: "Unpack School Bag", icon: "🎒", category: "personal", time_block: "after_school", points: 2, rule: "strict" },
+    { family_id: familyId, name: "Homework", icon: "📚", category: "personal", time_block: "after_school", duration_minutes: 20, points: 5, rule: "strict" },
+    // Evening
+    { family_id: familyId, name: "Read 15 minutes", icon: "📖", category: "personal", time_block: "evening", start_time: "19:30", duration_minutes: 15, points: 5, rule: "strict" },
+    { family_id: familyId, name: "Pack School Bag", icon: "🎒", category: "personal", time_block: "evening", points: 2, rule: "strict" },
+    { family_id: familyId, name: "Put dirty clothes in the laundry", icon: "👕", category: "chore", time_block: "evening", points: 2, rule: "strict" },
+    // Flexible chores
+    { family_id: familyId, name: "Set the table", icon: "🍽️", category: "chore", time_block: "anytime", points: 4, rule: "flexible" },
+    { family_id: familyId, name: "Clear the table", icon: "🫧", category: "chore", time_block: "anytime", points: 4, rule: "flexible" },
+    { family_id: familyId, name: "Tidy my room", icon: "🧹", category: "chore", time_block: "anytime", duration_minutes: 10, points: 7, rule: "flexible" },
+    { family_id: familyId, name: "Put away folded clothes", icon: "🧺", category: "chore", time_block: "anytime", points: 3, rule: "flexible" },
+    { family_id: familyId, name: "Help cook dinner", icon: "🍳", category: "chore", time_block: "anytime", duration_minutes: 20, points: 10, rule: "flexible" },
+    { family_id: familyId, name: "Load the dishwasher", icon: "🍽️", category: "chore", time_block: "anytime", points: 7, rule: "flexible" },
+    { family_id: familyId, name: "Unload the dishwasher", icon: "✨", category: "chore", time_block: "anytime", points: 7, rule: "flexible" },
+    { family_id: familyId, name: "Vacuum the carpet", icon: "🌀", category: "chore", time_block: "anytime", duration_minutes: 10, points: 8, rule: "flexible" },
+    { family_id: familyId, name: "Sweep the floor", icon: "🧹", category: "chore", time_block: "anytime", duration_minutes: 10, points: 6, rule: "flexible" },
+    { family_id: familyId, name: "Wipe the counters", icon: "🧽", category: "chore", time_block: "anytime", points: 4, rule: "flexible" },
+    { family_id: familyId, name: "Clean bathroom sink", icon: "🚿", category: "chore", time_block: "anytime", points: 6, rule: "flexible" },
+    { family_id: familyId, name: "Take out the trash", icon: "🗑️", category: "chore", time_block: "anytime", points: 5, rule: "flexible" },
+    { family_id: familyId, name: "Sort recycling", icon: "♻️", category: "chore", time_block: "anytime", points: 4, rule: "flexible" },
+    { family_id: familyId, name: "Water the plants", icon: "🌱", category: "chore", time_block: "anytime", points: 4, rule: "flexible" },
+    { family_id: familyId, name: "Feed the pet", icon: "🐾", category: "chore", time_block: "anytime", points: 3, rule: "flexible" },
   ];
   const { error: tasksErr } = await supabase.from("tasks").insert(sharedTasks);
   if (tasksErr) return tasksErr.message;
 
   // Starter rewards
   const starterRewards = [
-    {
-      family_id: familyId,
-      name: "Ice cream",
-      icon: "🍦",
-      cost_points: 100,
-      type: "individual",
-    },
-    {
-      family_id: familyId,
-      name: "Extra 30min screen time",
-      icon: "📱",
-      cost_points: 50,
-      type: "individual",
-    },
-    {
-      family_id: familyId,
-      name: "Movie night",
-      description: "Whole family movie + popcorn",
-      icon: "🎬",
-      cost_points: 400,
-      type: "family",
-    },
+    { family_id: familyId, name: "Pick the music in the car", icon: "🎵", description: "DJ for the whole car ride", cost_points: 5, type: "individual", requires_approval: false },
+    { family_id: familyId, name: "Choose the game tonight", icon: "🎲", description: "Pick the board game or card game for family night", cost_points: 15, type: "individual", requires_approval: false },
+    { family_id: familyId, name: "15 min extra screen time", icon: "📱", description: "Bonus screen time on any device", cost_points: 20, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Choose dinner tonight", icon: "🍕", description: "You pick what the family eats for dinner", cost_points: 30, type: "individual", requires_approval: false },
+    { family_id: familyId, name: "Special breakfast", icon: "🥞", description: "Pick your dream breakfast — pancakes? waffles?", cost_points: 30, type: "individual", requires_approval: false },
+    { family_id: familyId, name: "Takeaway night pick", icon: "🥡", description: "You choose the takeaway restaurant", cost_points: 40, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Breakfast in bed", icon: "☕", description: "Wake up to your breakfast delivered!", cost_points: 40, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "New book", icon: "📚", description: "Pick any book you'd like to read", cost_points: 50, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "1 hour extra screen time", icon: "📺", description: "A whole extra hour on your favourite screen", cost_points: 80, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Small toy or craft kit", icon: "🧩", description: "Choose a small toy or activity kit", cost_points: 110, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "New app or game download", icon: "🎮", description: "Pick one new app or mobile game", cost_points: 120, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Play date", icon: "👫", cost_points: 150, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Ice cream outing", icon: "🍦", description: "A trip to your favourite ice cream spot", cost_points: 150, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Park or playground trip", icon: "🌳", description: "A special trip to your favourite outdoor spot", cost_points: 150, type: "family", requires_approval: true },
+    { family_id: familyId, name: "Sleepover", icon: "🛌", description: "Have a friend sleep over at your place", cost_points: 200, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Dinner outside", icon: "🍽️", description: "Request for a dining out night", cost_points: 250, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Movie night", icon: "🎬", description: "Whole family movie + popcorn", cost_points: 300, type: "individual", requires_approval: true },
+    { family_id: familyId, name: "Bowling trip", icon: "🎳", description: "Head to the bowling alley for a game", cost_points: 300, type: "individual", requires_approval: true },
   ];
   const { error: rewErr } = await supabase.from("rewards").insert(starterRewards);
   if (rewErr) return rewErr.message;
