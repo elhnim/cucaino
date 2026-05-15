@@ -176,13 +176,13 @@ export default function SelectKidClient({
         </div>
       </div>
 
-      <div className="mt-4 flex justify-center">
+      <div className="pb-8 flex justify-center">
         <form action={signOut}>
           <button
             type="submit"
-            className="text-xs font-bold text-gray-400 hover:text-gray-600 px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors"
+            className="flex items-center gap-1.5 text-sm font-bold text-indigo-400 hover:text-indigo-600 bg-white/70 hover:bg-white px-4 py-2 rounded-xl shadow-sm transition-colors"
           >
-            Sign out
+            <span>↩</span> Sign out
           </button>
         </form>
       </div>
