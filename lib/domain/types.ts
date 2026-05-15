@@ -51,6 +51,7 @@ export interface Family {
   weatherCity: string | null;
   weatherLat: number | null;
   weatherLon: number | null;
+  isFounder: boolean;
 }
 
 export interface Kid {

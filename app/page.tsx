@@ -14,16 +14,25 @@ export default async function HomePage({
   const { data: { user } } = await supabase.auth.getUser();
   if (user) redirect("/select-kid");
 
-  return <LandingPage />;
+  const { count } = await supabase
+    .from("families")
+    .select("*", { count: "exact", head: true })
+    .eq("is_founder", true);
+  const founderCount = Math.min(count ?? 0, 20);
+
+  return <LandingPage founderCount={founderCount} />;
 }
 
-function LandingPage() {
+function LandingPage({ founderCount }: { founderCount: number }) {
+  const spotsLeft = 20 - founderCount;
   return (
     <div className="font-fun text-gray-900 bg-white">
 
       {/* ── FOUNDING BANNER ── */}
       <div className="bg-orange-500 text-white text-center py-2.5 px-5 text-sm font-bold">
-        ⚡ 20 families get Cucaino free — forever. 3 spots remaining.
+        {spotsLeft > 0
+          ? `⚡ 20 families get Cucaino free — forever. ${spotsLeft} spot${spotsLeft === 1 ? "" : "s"} remaining.`
+          : "⚡ 20 founding family spots are now full — join the waitlist below."}
       </div>
 
       {/* ── NAV ── */}
@@ -185,11 +194,11 @@ function LandingPage() {
         <div className="inline-flex items-center gap-4 bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-6 py-3.5 mb-8 font-extrabold text-indigo-900 text-sm">
           <span>Spots claimed:</span>
           <div className="flex gap-1.5">
-            {[...Array(10)].map((_, i) => (
-              <div key={i} className={`w-3 h-3 rounded-full ${i < 3 ? "bg-indigo-500" : "bg-gray-200"}`} />
+            {[...Array(20)].map((_, i) => (
+              <div key={i} className={`w-3 h-3 rounded-full ${i < founderCount ? "bg-indigo-500" : "bg-gray-200"}`} />
             ))}
           </div>
-          <span>3 of 20 claimed</span>
+          <span>{founderCount} of 20 claimed</span>
         </div>
         <br />
         <Link

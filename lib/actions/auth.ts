@@ -175,6 +175,13 @@ async function seedNewFamily({
 }): Promise<string | null> {
   const supabase = await createClient();
 
+  // Determine founder status — first 20 families get free-forever access
+  const { count: founderCount } = await supabase
+    .from("families")
+    .select("*", { count: "exact", head: true })
+    .eq("is_founder", true);
+  const isFounder = (founderCount ?? 0) < 20;
+
   // Family
   const { data: fam, error: famErr } = await supabase
     .from("families")
@@ -182,6 +189,7 @@ async function seedNewFamily({
       owner_user_id: userId,
       name: familyName,
       family_points_balance: 0,
+      is_founder: isFounder,
     })
     .select("id")
     .single();

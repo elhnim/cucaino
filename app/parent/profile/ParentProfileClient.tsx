@@ -17,11 +17,13 @@ export default function ParentProfileClient({
   hasPin,
   displayName,
   avatar,
+  isFounder,
 }: {
   email: string;
   hasPin: boolean;
   displayName: string;
   avatar: string;
+  isFounder: boolean;
 }) {
   const [view, setView] = useState<View>("main");
   const [name, setName] = useState(displayName);
@@ -97,6 +99,11 @@ export default function ParentProfileClient({
         </div>
         <div className="text-xl font-black text-gray-900">{name || "Parent"}</div>
         <div className="text-sm text-gray-500 mt-0.5">{email}</div>
+        {isFounder && (
+          <div className="mt-3 inline-flex items-center gap-1.5 bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-3 py-1 text-xs font-black tracking-wide">
+            ⚡ Founding Family · Free Forever
+          </div>
+        )}
       </div>
 
       {/* Avatar picker (expandable) */}

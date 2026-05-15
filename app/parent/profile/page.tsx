@@ -19,6 +19,7 @@ export default async function ParentProfilePage() {
       hasPin={!!parentPin}
       displayName={family?.parentDisplayName ?? ""}
       avatar={family?.parentAvatar ?? "🧙"}
+      isFounder={family?.isFounder ?? false}
     />
   );
 }

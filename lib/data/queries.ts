@@ -156,6 +156,7 @@ export async function getFamily(): Promise<Family | null> {
     weatherCity: (data as any).weather_city ?? null,
     weatherLat: (data as any).weather_lat ?? null,
     weatherLon: (data as any).weather_lon ?? null,
+    isFounder: (data as any).is_founder ?? false,
   };
 }
 
