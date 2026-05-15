@@ -12,6 +12,7 @@ import {
   saveKidInterests,
   markKidTourSeen,
 } from "@/lib/actions/onboarding";
+import type { ThemeId } from "@/lib/domain/types";
 
 const KID_GOALS_OPTIONS: GoalsOption[] = [
   { key: "prizes", emoji: "🎁", label: "Get awesome prizes" },
@@ -30,7 +31,7 @@ interface KidOnboardingWrapperProps {
   kidId: string;
   kidName: string;
   kidAvatar: string;
-  themeId?: string;
+  themeId: ThemeId;
   children: React.ReactNode;
 }
 
@@ -39,6 +40,7 @@ export function KidOnboardingWrapper({
   kidId,
   kidName,
   kidAvatar,
+  themeId,
   children,
 }: KidOnboardingWrapperProps) {
   const [phase, setPhase] = useState<Phase>(tourSeen ? "done" : "goals");
