@@ -47,15 +47,17 @@ export function TourProvider({
   }, [steps, router]);
 
   const next = useCallback(() => {
-    if (currentStep < steps.length - 1) {
-      const nextStep = currentStep + 1;
-      setCurrentStep(nextStep);
-      router.push(steps[nextStep].route);
-    } else {
+    setCurrentStep((prev) => {
+      if (prev < steps.length - 1) {
+        const nextIdx = prev + 1;
+        router.push(steps[nextIdx].route);
+        return nextIdx;
+      }
       setActive(false);
       onCompleteRef.current();
-    }
-  }, [currentStep, steps, router]);
+      return prev;
+    });
+  }, [steps, router]);
 
   const skip = useCallback(() => {
     setActive(false);
@@ -90,8 +92,12 @@ export function useTour(): TourContextValue {
  *  direct access to the context. */
 export function TourAutoStart() {
   const { start } = useTour();
+  const startedRef = useRef(false);
   useEffect(() => {
-    start();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!startedRef.current) {
+      startedRef.current = true;
+      start();
+    }
+  }, [start]);
   return null;
 }
