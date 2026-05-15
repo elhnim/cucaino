@@ -1,6 +1,7 @@
 import { getParentPinFromDb, listPendingRequests, getFamily } from "@/lib/data/queries";
 import ParentPinGateClient from "@/components/parent/ParentPinGateClient";
 import ParentShell from "@/components/parent/ParentShell";
+import { ParentOnboardingWrapper } from "@/components/onboarding/ParentOnboardingWrapper";
 
 export default async function ParentLayout({
   children,
@@ -19,7 +20,12 @@ export default async function ParentLayout({
         displayName={family?.parentDisplayName ?? null}
         avatar={family?.parentAvatar ?? "🧙"}
       >
-        {children}
+        <ParentOnboardingWrapper
+          parentTourSeen={family?.parentTourSeen ?? true}
+          familyName={family?.name ?? ""}
+        >
+          {children}
+        </ParentOnboardingWrapper>
       </ParentShell>
     </ParentPinGateClient>
   );
