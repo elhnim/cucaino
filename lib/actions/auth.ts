@@ -3,7 +3,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export type AuthResult = { ok: true } | { ok: false; error: string };
+export type AuthResult =
+  | { ok: true; info?: string }
+  | { ok: false; error: string };
 
 export async function signIn({
   email,
@@ -39,6 +41,7 @@ export async function signUp({
   const cleanKidNames = kidNames.length > 0 ? kidNames : ["Kid 1"];
 
   const supabase = await createClient();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.cucaino.com";
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -46,6 +49,7 @@ export async function signUp({
       // Stash setup details on the user so we can seed the family on first
       // authenticated visit even if email confirmation delays the session.
       data: { family_name: familyName, kid_names: cleanKidNames },
+      emailRedirectTo: `${siteUrl}/auth/callback`,
     },
   });
   if (error || !data.user) {
@@ -59,10 +63,8 @@ export async function signUp({
     await supabase.auth.signInWithPassword({ email, password });
     if (!(await currentUserId(supabase))) {
       return {
-        ok: true, // signup itself succeeded
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore - augmenting AuthResult shape for the rare email-confirm path
-        info: "Account created — please check your email to confirm, then sign in.",
+        ok: true,
+        info: "Account created! Please check your email to confirm, then sign in.",
       };
     }
   }
@@ -112,6 +114,26 @@ async function currentUserId(
 ): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
   return data.user?.id ?? null;
+}
+
+export async function requestPasswordReset(email: string): Promise<AuthResult> {
+  const supabase = await createClient();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.cucaino.com";
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function updatePassword(password: string): Promise<AuthResult> {
+  if (password.length < 6) {
+    return { ok: false, error: "Password must be at least 6 characters." };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function signOut() {

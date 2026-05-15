@@ -47,7 +47,11 @@ export async function updateSession(request: NextRequest) {
 
   // Public paths
   const isAuthRoute =
-    url === "/login" || url === "/signup" || url === "/onboarding";
+    url === "/login" ||
+    url === "/signup" ||
+    url === "/forgot-password" ||
+    url === "/reset-password" ||
+    url === "/onboarding";
 
   if (!user && requiresAuth) {
     const loginUrl = request.nextUrl.clone();

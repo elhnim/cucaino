@@ -1,28 +1,27 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { signIn } from "@/lib/actions/auth";
+import { useRouter } from "next/navigation";
+import { updatePassword } from "@/lib/actions/auth";
 
-export default function LoginForm() {
+export default function ResetPasswordForm() {
   const router = useRouter();
-  const search = useSearchParams();
-  const next = search.get("next") ?? "/select-kid";
-  const urlError = search.get("error");
-
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(urlError);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
     startTransition(async () => {
-      const result = await signIn({ email, password });
+      const result = await updatePassword(password);
       if (result.ok) {
-        router.push(next);
+        router.push("/select-kid");
       } else {
         setError(result.error);
       }
@@ -30,36 +29,31 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={submit} className="space-y-3">
-      <Field label="Email">
-        <input
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500"
-        />
-      </Field>
-      <Field label="Password">
+    <form onSubmit={submit} className="space-y-4">
+      <label className="block">
+        <div className="text-xs font-bold text-gray-700 mb-1">New password (6+ characters)</div>
         <input
           type="password"
-          autoComplete="current-password"
+          autoComplete="new-password"
           required
+          minLength={6}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500"
         />
-      </Field>
-
-      <div className="text-right -mt-1">
-        <Link
-          href="/forgot-password"
-          className="text-xs font-bold text-indigo-500 hover:text-indigo-700"
-        >
-          Forgot password?
-        </Link>
-      </div>
+      </label>
+      <label className="block">
+        <div className="text-xs font-bold text-gray-700 mb-1">Confirm new password</div>
+        <input
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={6}
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-indigo-500"
+        />
+      </label>
 
       {error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 text-sm text-red-800">
@@ -75,22 +69,13 @@ export default function LoginForm() {
         {pending ? (
           <>
             <Spinner />
-            Signing in…
+            Updating…
           </>
         ) : (
-          "Sign in"
+          "Set new password"
         )}
       </button>
     </form>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <div className="text-xs font-bold text-gray-700 mb-1">{label}</div>
-      {children}
-    </label>
   );
 }
 
