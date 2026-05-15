@@ -52,6 +52,9 @@ export interface Family {
   weatherLat: number | null;
   weatherLon: number | null;
   isFounder: boolean;
+  parentTourSeen: boolean;
+  parentGoals: string[];
+  parentGoalsOther: string | null;
 }
 
 export interface Kid {
@@ -73,6 +76,11 @@ export interface Kid {
   totalCompletions: number;
   selectedAvatarEmoji: string | null;
   selectedFrame: "none" | "blue_glow" | "gold" | "fire" | "rainbow" | null;
+  tourSeen: boolean;
+  goals: string[];
+  goalsOther: string | null;
+  interests: string[];
+  interestsOther: string | null;
 }
 
 export interface Task {

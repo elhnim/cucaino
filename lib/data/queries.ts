@@ -93,6 +93,11 @@ function mapKid(row: DbKidRow): Kid {
     totalCompletions: (row as any).total_completions ?? 0,
     selectedAvatarEmoji: (row as any).selected_avatar_emoji ?? null,
     selectedFrame: (row as any).selected_frame ?? null,
+    tourSeen: (row as any).tour_seen ?? false,
+    goals: (row as any).goals ?? [],
+    goalsOther: (row as any).goals_other ?? null,
+    interests: (row as any).interests ?? [],
+    interestsOther: (row as any).interests_other ?? null,
   };
 }
 
@@ -157,6 +162,9 @@ export async function getFamily(): Promise<Family | null> {
     weatherLat: (data as any).weather_lat ?? null,
     weatherLon: (data as any).weather_lon ?? null,
     isFounder: (data as any).is_founder ?? false,
+    parentTourSeen: (data as any).parent_tour_seen ?? false,
+    parentGoals: (data as any).parent_goals ?? [],
+    parentGoalsOther: (data as any).parent_goals_other ?? null,
   };
 }
 
