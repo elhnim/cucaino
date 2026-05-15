@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import type { ThemeId } from "@/lib/domain/types";
 
 export interface GoalsOption {
   key: string;
@@ -15,7 +14,6 @@ interface GoalsScreenProps {
   familyName?: string;
   kidName?: string;
   kidAvatar?: string;
-  themeId?: ThemeId;
   options: GoalsOption[];
   onContinue: (selected: string[], otherText: string) => void;
   onSkip?: () => void;
@@ -98,7 +96,7 @@ export function GoalsScreen({
         )}
 
         <button
-          onClick={() => onContinue(Array.from(selected), otherText)}
+          onClick={() => onContinue(Array.from(selected), selected.has("other") ? otherText : "")}
           className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           {ctaLabel}
