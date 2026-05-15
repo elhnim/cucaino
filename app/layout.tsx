@@ -19,6 +19,16 @@ const nunito = Nunito({
 export const metadata: Metadata = {
   title: "Cucaino",
   description: "Daily routine, chores, music practice, rewards & quizzes for kids",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Cucaino",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon-192.png",
+  },
 };
 
 export const viewport: Viewport = {

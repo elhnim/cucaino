@@ -47,6 +47,14 @@ export function WelcomeScreen({
             ))}
           </div>
 
+          <div className="bg-indigo-50 rounded-xl p-3 mb-4 text-left">
+            <p className="text-xs font-bold text-indigo-700 mb-1">📲 Best on your home screen</p>
+            <p className="text-xs text-indigo-500 leading-relaxed">
+              <strong>iPhone:</strong> tap Share <span className="select-none">⬆️</span> → "Add to Home Screen"<br />
+              <strong>Android:</strong> tap Menu → "Add to Home Screen"
+            </p>
+          </div>
+
           <button
             onClick={onContinue}
             className="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl text-sm transition-colors"
@@ -102,6 +110,14 @@ export function WelcomeScreen({
           ].map((line) => (
             <p key={line} className="text-xs text-slate-600">{line}</p>
           ))}
+        </div>
+
+        <div className="bg-amber-50 rounded-xl p-3 mb-4 text-left">
+          <p className="text-xs font-bold text-amber-700 mb-1">📲 Add Cucaino to your home screen!</p>
+          <p className="text-xs text-amber-600 leading-relaxed">
+            <strong>iPhone:</strong> tap Share → "Add to Home Screen"<br />
+            <strong>Android:</strong> tap Menu → "Add to Home Screen"
+          </p>
         </div>
 
         <button
