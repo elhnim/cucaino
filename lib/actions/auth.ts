@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { hashPin, verifyPin, isPinHashed } from "@/lib/utils/pin";
 
 export type AuthResult =
   | { ok: true; info?: string }
@@ -148,10 +149,20 @@ export async function verifyParentPin(enteredPin: string): Promise<{ ok: boolean
   const supabase = await createClient();
   const { data } = await supabase
     .from("families")
-    .select("parent_pin")
+    .select("id, parent_pin")
     .maybeSingle();
   if (!data?.parent_pin) return { ok: true }; // no PIN set → always passes
-  return { ok: data.parent_pin === enteredPin };
+
+  const matches = await verifyPin(enteredPin, data.parent_pin);
+  if (!matches) return { ok: false };
+
+  // Migrate plain-text PIN to hashed on first successful verify
+  if (!isPinHashed(data.parent_pin)) {
+    const hashed = await hashPin(enteredPin);
+    await supabase.from("families").update({ parent_pin: hashed }).eq("id", data.id);
+  }
+
+  return { ok: true };
 }
 
 // ----- Helpers -----

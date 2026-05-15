@@ -103,6 +103,8 @@ export async function updateTask(
   data: TaskFormData,
 ): Promise<ActionResult> {
   const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
   const { error } = await supabase
     .from("tasks")
     .update({
@@ -141,7 +143,8 @@ export async function updateTask(
       room: data.room ?? null,
       teacher: data.teacher ?? null,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
   data.kidIds?.forEach((id) => revalidatePath(`/kid/${id}/todo`));
@@ -259,10 +262,13 @@ export async function upsertSchoolSubjectTask(data: SchoolSubjectInput): Promise
 
 export async function deleteTask(id: string): Promise<ActionResult> {
   const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
   const { error } = await supabase
     .from("tasks")
     .update({ active: false })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
   return { ok: true };

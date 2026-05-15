@@ -39,6 +39,8 @@ export async function updateKidProfile(
   },
 ): Promise<ActionResult> {
   const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
   const { error } = await supabase
     .from("kids")
     .update({
@@ -47,7 +49,8 @@ export async function updateKidProfile(
       theme_id: data.themeId,
       date_of_birth: data.dateOfBirth,
     })
-    .eq("id", kidId);
+    .eq("id", kidId)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/kid/${kidId}/profile`);
   revalidatePath(`/select-kid`);
@@ -59,11 +62,15 @@ export async function setKidPin(
   kidId: string,
   pin: string,
 ): Promise<ActionResult> {
+  if (!/^\d{4}$/.test(pin)) return { ok: false, error: "PIN must be exactly 4 digits." };
   const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
   const { error } = await supabase
     .from("kids")
     .update({ pin_hash: pin })
-    .eq("id", kidId);
+    .eq("id", kidId)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/select-kid`);
   revalidatePath(`/kid/${kidId}/profile`);
@@ -72,10 +79,13 @@ export async function setKidPin(
 
 export async function clearKidPin(kidId: string): Promise<ActionResult> {
   const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
   const { error } = await supabase
     .from("kids")
     .update({ pin_hash: null })
-    .eq("id", kidId);
+    .eq("id", kidId)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/select-kid`);
   revalidatePath(`/kid/${kidId}/profile`);

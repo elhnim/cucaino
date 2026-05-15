@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { hashPin } from "@/lib/utils/pin";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -11,12 +12,14 @@ async function getFamilyId(supabase: Awaited<ReturnType<typeof createClient>>): 
 }
 
 export async function setParentPinDb(pin: string): Promise<ActionResult> {
+  if (!/^\d{4}$/.test(pin)) return { ok: false, error: "PIN must be exactly 4 digits." };
   const supabase = await createClient();
   const familyId = await getFamilyId(supabase);
   if (!familyId) return { ok: false, error: "Family not found" };
+  const hashed = await hashPin(pin);
   const { error } = await supabase
     .from("families")
-    .update({ parent_pin: pin })
+    .update({ parent_pin: hashed })
     .eq("id", familyId);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent", "layout");

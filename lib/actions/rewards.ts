@@ -57,6 +57,8 @@ export async function updateReward(
   data: RewardFormData,
 ): Promise<ActionResult> {
   const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
   const { error } = await supabase
     .from("rewards")
     .update({
@@ -74,7 +76,8 @@ export async function updateReward(
       requires_approval: data.requiresApproval,
       available_to: data.availableTo,
     })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/rewards");
   return { ok: true };
@@ -82,10 +85,13 @@ export async function updateReward(
 
 export async function deleteReward(id: string): Promise<ActionResult> {
   const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
   const { error } = await supabase
     .from("rewards")
     .update({ active: false })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/rewards");
   return { ok: true };
@@ -93,13 +99,39 @@ export async function deleteReward(id: string): Promise<ActionResult> {
 
 export async function approveRequest(requestId: string): Promise<ActionResult> {
   const supabase = await createClient();
-  const { error } = await supabase
+
+  const { data: req, error: reqErr } = await supabase
     .from("reward_requests")
-    .update({ status: "approved" })
-    .eq("id", requestId);
-  if (error) return { ok: false, error: error.message };
+    .select("kid_id, reward_id")
+    .eq("id", requestId)
+    .single();
+  if (reqErr || !req) return { ok: false, error: "Request not found." };
+
+  const [{ data: kid, error: kErr }, { data: reward, error: rErr }] = await Promise.all([
+    supabase.from("kids").select("points_balance").eq("id", req.kid_id).single(),
+    supabase.from("rewards").select("cost_points").eq("id", req.reward_id).single(),
+  ]);
+  if (kErr || !kid) return { ok: false, error: "Kid not found." };
+  if (rErr || !reward) return { ok: false, error: "Reward not found." };
+
+  const now = new Date().toISOString();
+
+  const [{ error: deductErr }, { error: updateErr }] = await Promise.all([
+    supabase
+      .from("kids")
+      .update({ points_balance: Math.max(0, kid.points_balance - reward.cost_points) })
+      .eq("id", req.kid_id),
+    supabase
+      .from("reward_requests")
+      .update({ status: "approved", points_deducted_at: now, resolved_at: now })
+      .eq("id", requestId),
+  ]);
+  if (deductErr) return { ok: false, error: deductErr.message };
+  if (updateErr) return { ok: false, error: updateErr.message };
+
   revalidatePath("/parent");
   revalidatePath("/parent/requests");
+  revalidatePath(`/kid/${req.kid_id}/rewards`);
   return { ok: true };
 }
 
