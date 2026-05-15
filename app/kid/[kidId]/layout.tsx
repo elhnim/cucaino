@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import KidShell from "@/components/kid/KidShell";
 import { getKid, listTasksForKid, listCompletionsToday, listBadgeProgress, getFamily } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
+import { KidOnboardingWrapper } from "@/components/onboarding/KidOnboardingWrapper";
 
 export default async function KidLayout({
   children,
@@ -45,7 +46,15 @@ export default async function KidLayout({
           : undefined
       }
     >
-      {children}
+      <KidOnboardingWrapper
+        tourSeen={kid.tourSeen}
+        kidId={kid.id}
+        kidName={kid.name}
+        kidAvatar={kid.avatar}
+        themeId={kid.themeId}
+      >
+        {children}
+      </KidOnboardingWrapper>
     </KidShell>
   );
 }
