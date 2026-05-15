@@ -71,6 +71,7 @@ export async function signUp({
 
   // We have a session — seed immediately
   const seedError = await seedNewFamily({
+    supabase,
     userId: data.user.id,
     familyName,
     kidNames: cleanKidNames,
@@ -100,6 +101,7 @@ export async function ensureFamilySeeded(): Promise<void> {
     | { family_name?: string; kid_names?: string[] }
     | undefined;
   await seedNewFamily({
+    supabase,
     userId: user.id,
     familyName: meta?.family_name ?? "My family",
     kidNames:
@@ -165,15 +167,16 @@ function friendlyAuthError(raw: string): string {
 }
 
 async function seedNewFamily({
+  supabase,
   userId,
   familyName,
   kidNames,
 }: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
   userId: string;
   familyName: string;
   kidNames: string[];
 }): Promise<string | null> {
-  const supabase = await createClient();
 
   // Determine founder status — first 20 families get free-forever access
   const { count: founderCount } = await supabase
