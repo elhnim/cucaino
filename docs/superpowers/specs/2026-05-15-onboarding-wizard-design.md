@@ -8,15 +8,32 @@
 
 ## Overview
 
-Two independent first-run flows — one for parents, one for each kid. Both consist of a welcome screen (sells the benefits) followed by a guided tour (floating card overlay per page). Both are skippable. Completion is persisted in the DB so the flow never re-triggers.
+Two independent first-run flows — one for parents, one for each kid. Each flow has three steps: goals screen → welcome screen → guided tour. All steps are skippable. Completion and goals are persisted in the DB — goals for product insight and future personalisation, flags so the flow never re-triggers.
 
 ---
 
 ## Parent Flow
 
-### Welcome Screen
+### Step 1: Goals Screen
 
-Shown immediately on the parent's first authenticated visit to `/parent/overview`.
+First thing shown on the parent's first authenticated visit to `/parent/overview`.
+
+- Full-screen card, centred
+- Heading: "What do you want for your family?" 
+- Subtext: "Pick everything that applies."
+- Multi-select — parent can choose any combination
+- Options:
+  - 🌟 "Build habits my kids stick to on their own"
+  - ☀️ "Create a calm, smooth morning routine"
+  - 📱 "Take the battle out of screen time"
+  - 🎵 "Make music practice a daily habit"
+  - 📚 "Stay on top of schoolwork together"
+  - 💰 "Teach my kids the value of earning things"
+  - ✏️ "Other" — reveals a free-text input
+- CTA: "Continue →" (saves goals, advances to welcome screen)
+- Secondary: "Skip" (saves nothing, advances)
+
+### Step 2: Welcome Screen
 
 - Full-screen card centred over a gradient backdrop
 - Personalised: "Welcome to Cucaino, [Family Name]! 👋"
@@ -28,7 +45,7 @@ Shown immediately on the parent's first authenticated visit to `/parent/overview
 - Primary CTA: "Show me around →" (starts tour)
 - Secondary: "Skip intro" (marks tour seen, goes straight to dashboard)
 
-### Tour
+### Step 3: Tour
 
 5-stop floating card overlay. Starts immediately after welcome screen CTA.
 
@@ -53,22 +70,37 @@ Shown immediately on the parent's first authenticated visit to `/parent/overview
 
 ## Kid Flow
 
-### Welcome Screen
+### Step 1: Goals Screen
 
-Shown on the kid's first visit to `/kid/[kidId]/home`.
+First thing shown on the kid's first visit to `/kid/[kidId]/home`.
+
+- Full-screen card, uses the kid's theme colour as backdrop
+- Kid's avatar (large) + "Hey [Kid Name]! What are you here for? 🤩"
+- Multi-select — kid can choose any combination
+- Options:
+  - 🎁 "Get awesome prizes"
+  - 🏆 "Collect all the badges"
+  - 🔥 "Never break my streak"
+  - 🎵 "Become a music superstar"
+  - 💪 "Be my family's hero"
+  - 🎮 "Dominate the quizzes"
+  - ✏️ "Something else" — reveals a free-text input
+- CTA: "Let's go! 🚀" (saves goals, advances to welcome screen)
+
+### Step 2: Welcome Screen
 
 - Full-screen card centred on screen, uses the kid's theme colour as backdrop
-- Kid's avatar (large, e.g. 52px emoji) + "Hey [Kid Name]! 👋"
+- Kid's avatar + "Hey [Kid Name]! 👋"
 - Subtext: "Ready to earn some stars?"
 - Story arc row: 📋 Do tasks → ⭐ Earn stars → 🎁 Get rewards
 - Motivating bullets:
   - 🏅 Build streaks by doing tasks every day
   - 🏆 Unlock badges as you level up
   - 🎯 Save stars for the rewards you want most
-- Primary CTA: "Let's go! 🚀" (starts tour)
-- No explicit skip — tapping outside or the CTA both advance
+- Primary CTA: "Show me around! →" (starts tour)
+- Secondary: "Skip" 
 
-### Tour
+### Step 3: Tour
 
 4-stop floating card overlay. Starts immediately after welcome screen CTA.
 
@@ -88,32 +120,73 @@ Shown on the kid's first visit to `/kid/[kidId]/home`.
 
 ## Data Model
 
-Two new boolean columns, both default `false`:
+New columns on `families`:
 
 ```sql
-alter table public.families add column parent_tour_seen boolean not null default false;
-alter table public.kids add column tour_seen boolean not null default false;
+alter table public.families
+  add column parent_tour_seen boolean not null default false,
+  add column parent_goals text[] not null default '{}',
+  add column parent_goals_other text;
 ```
 
-No RLS changes needed — existing family-scoped policies cover both columns.
+New columns on `kids`:
+
+```sql
+alter table public.kids
+  add column tour_seen boolean not null default false,
+  add column goals text[] not null default '{}',
+  add column goals_other text;
+```
+
+No RLS changes needed — existing family-scoped policies cover all new columns.
+
+**Parent goal keys** (stored in `parent_goals` array):
+`habits`, `morning`, `screen_time`, `music`, `school`, `value`, `other`
+
+**Kid goal keys** (stored in `goals` array):
+`prizes`, `badges`, `streak`, `music`, `hero`, `quizzes`, `other`
 
 ---
 
 ## Components
 
+### `GoalsScreen`
+
+Shown first for both parent and kid flows.
+
+```ts
+interface GoalsOption {
+  key: string
+  emoji: string
+  label: string
+}
+
+interface GoalsScreenProps {
+  variant: 'parent' | 'kid'
+  kidName?: string
+  kidAvatar?: string
+  themeId?: ThemeId
+  options: GoalsOption[]
+  onContinue: (selected: string[], otherText: string) => void
+  onSkip?: () => void
+}
+```
+
+Location: `components/onboarding/GoalsScreen.tsx`
+
 ### `WelcomeScreen`
 
-Shared layout component, configured per side via props.
+Shown after goals screen.
 
 ```ts
 interface WelcomeScreenProps {
   variant: 'parent' | 'kid'
-  familyName?: string   // parent variant
-  kidName?: string      // kid variant
-  kidAvatar?: string    // kid variant
-  themeColor?: string   // kid variant — backdrop colour
+  familyName?: string
+  kidName?: string
+  kidAvatar?: string
+  themeId?: ThemeId
   onContinue: () => void
-  onSkip?: () => void   // parent only
+  onSkip?: () => void
 }
 ```
 
@@ -121,72 +194,106 @@ Location: `components/onboarding/WelcomeScreen.tsx`
 
 ### `TourProvider` + `useTour`
 
-React context that owns tour state. Wraps the parent layout and the kid shell independently.
+React context that owns tour state. Wraps the parent layout and kid layout independently.
 
 ```ts
-interface TourConfig {
-  steps: TourStep[]
-}
-
 interface TourStep {
   route: string
   label: string
   description: string
 }
 
-// Context value
 interface TourContextValue {
   active: boolean
   currentStep: number
   totalSteps: number
+  start: () => void
   next: () => void
   skip: () => void
 }
 ```
 
-- `next()`: advances step, calls `router.push(steps[currentStep + 1].route)`, or calls `finish()` on last step
+- `start()`: sets `active = true`, navigates to step 0 route
+- `next()`: advances step and navigates, or calls `finish()` on last step
 - `skip()` / `finish()`: sets `active = false`, calls server action to mark tour seen
-- Location: `components/onboarding/TourProvider.tsx`
+
+Location: `components/onboarding/TourContext.tsx`
 
 ### `TourCard`
 
-Fixed-position overlay rendered by `TourProvider` when `active === true`.
+Fixed-position overlay rendered when `active === true`.
 
 - Renders backdrop + card
-- Reads current step from context
+- Reads current step from `useTour()` context
 - Location: `components/onboarding/TourCard.tsx`
+
+### `ParentOnboardingWrapper`
+
+Client wrapper placed in parent layout. Manages the three-step flow.
+
+```ts
+interface ParentOnboardingWrapperProps {
+  parentTourSeen: boolean
+  familyName: string
+  children: React.ReactNode
+}
+```
+
+Internal state: `phase: 'goals' | 'welcome' | 'touring' | 'done'`
+
+Location: `components/onboarding/ParentOnboardingWrapper.tsx`
+
+### `KidOnboardingWrapper`
+
+Client wrapper placed in kid layout. Same state machine as parent wrapper.
+
+```ts
+interface KidOnboardingWrapperProps {
+  tourSeen: boolean
+  kidId: string
+  kidName: string
+  kidAvatar: string
+  themeId: ThemeId
+  children: React.ReactNode
+}
+```
+
+Internal state: `phase: 'goals' | 'welcome' | 'touring' | 'done'`
+
+Location: `components/onboarding/KidOnboardingWrapper.tsx`
 
 ---
 
 ## Server Actions
 
-Two new actions in `lib/actions/onboarding.ts`:
+New file `lib/actions/onboarding.ts`:
 
 ```ts
+saveParentGoals(goals: string[], goalsOther: string): Promise<ActionResult>
 markParentTourSeen(): Promise<ActionResult>
+saveKidGoals(kidId: string, goals: string[], goalsOther: string): Promise<ActionResult>
 markKidTourSeen(kidId: string): Promise<ActionResult>
 ```
-
-Both update the respective DB flag and call `revalidatePath` on the relevant layout route.
 
 ---
 
 ## Integration Points
 
 **Parent layout** (`app/parent/layout.tsx`):
-- Fetch `family.parent_tour_seen` server-side
-- Pass as prop to a client wrapper that initialises `TourProvider` if false
-- Show `WelcomeScreen` before rendering children on first visit
+- Fetch `family.parent_tour_seen` + `family.name` server-side
+- Wrap children with `ParentOnboardingWrapper`; if `!parent_tour_seen`, wrapper shows goals → welcome → tour
 
-**Kid home page** (`app/kid/[kidId]/home/page.tsx`):
-- Fetch `kid.tour_seen` server-side
-- Pass to a client component that shows `WelcomeScreen` then initialises `TourProvider` if false
+**Kid layout** (`app/kid/[kidId]/layout.tsx`):
+- Fetch `kid.tour_seen`, `kid.name`, `kid.avatar`, `kid.theme_id` server-side
+- Wrap children with `KidOnboardingWrapper`; if `!tour_seen`, wrapper shows goals → welcome → tour
 
 ---
 
 ## Edge Cases
 
-- **Multiple kids:** Each kid has their own `tour_seen` flag — the tour runs independently per kid on their first login
-- **Parent skips welcome:** Skipping the welcome screen also skips the tour (marks complete in one action)
-- **Kid refreshes mid-tour:** Tour restarts from step 1 (in-memory state) — acceptable UX; the flag is only set on completion or skip
-- **Tour navigates away from current page:** If a parent manually navigates during the tour, the card follows (TourProvider is in the layout, persists across nav)
+- **Multiple kids:** Each kid has their own `tour_seen` flag — the flow runs independently per kid on their first login
+- **Parent skips goals:** Goals saved as empty array, flow advances to welcome screen
+- **Parent skips welcome:** Marks tour seen in one action, goes straight to dashboard
+- **Kid refreshes mid-tour:** Tour restarts from step 1 (in-memory state) — acceptable; flag only set on completion or skip
+- **Tour navigates away:** Card follows (TourProvider is in the layout, persists across nav)
+- **"Other" field empty:** Saved as empty string, not stored if blank
