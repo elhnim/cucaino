@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  NODE_OPTIONS = "--max-http-header-size=32768"
 
 [functions]
   directory = "netlify/functions"
