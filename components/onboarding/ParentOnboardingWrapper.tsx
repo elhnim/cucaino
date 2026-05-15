@@ -48,13 +48,13 @@ export function ParentOnboardingWrapper({
   const handleWelcomeContinue = useCallback(() => setPhase("touring"), []);
 
   const handleWelcomeSkip = useCallback(async () => {
-    await markParentTourSeen();
-    setPhase("done");
+    const result = await markParentTourSeen();
+    if (result.ok) setPhase("done");
   }, []);
 
   const handleTourComplete = useCallback(async () => {
-    await markParentTourSeen();
-    setPhase("done");
+    const result = await markParentTourSeen();
+    if (result.ok) setPhase("done");
   }, []);
 
   return (
