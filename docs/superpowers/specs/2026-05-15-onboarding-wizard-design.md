@@ -85,9 +85,40 @@ First thing shown on the kid's first visit to `/kid/[kidId]/home`.
   - 💪 "Be my family's hero"
   - 🎮 "Dominate the quizzes"
   - ✏️ "Something else" — reveals a free-text input
-- CTA: "Let's go! 🚀" (saves goals, advances to welcome screen)
+- CTA: "Next →" (saves goals, advances to interests screen)
 
-### Step 2: Welcome Screen
+### Step 2: Interests Screen
+
+- Full-screen card, same theme backdrop
+- Kid's avatar + "What are you into? 🤩"
+- Subtext: "Pick everything you love!"
+- Multi-select — one merged list, tagged internally as `task`, `reward`, or `both`
+- Options:
+
+| Key | Emoji | Label | Tag |
+|-----|-------|-------|-----|
+| `sports` | ⚽ | Sports & fitness | task |
+| `music` | 🎵 | Music | task |
+| `art` | 🎨 | Art & crafts | task |
+| `reading` | 📚 | Reading & books | task |
+| `gaming` | 🎮 | Video games | both |
+| `cooking` | 🍳 | Cooking & baking | task |
+| `outdoors` | 🌿 | Outdoors & nature | task |
+| `tech` | 💻 | Technology & coding | task |
+| `animals` | 🐾 | Animals & pets | task |
+| `drama` | 🎭 | Drama & performance | task |
+| `treats` | 🍦 | Treats & sweets | reward |
+| `screen_time` | 📱 | Screen time & devices | reward |
+| `movies` | 🎬 | Movies & TV shows | reward |
+| `shopping` | 🛍️ | Shopping & new stuff | reward |
+| `days_out` | 🎡 | Days out & adventures | reward |
+| `other` | ✏️ | Something else | both |
+
+- "Something else" reveals a free-text input
+- CTA: "Next →" (saves interests, advances to welcome screen)
+- Secondary: "Skip"
+
+### Step 3: Welcome Screen
 
 - Full-screen card centred on screen, uses the kid's theme colour as backdrop
 - Kid's avatar + "Hey [Kid Name]! 👋"
@@ -98,9 +129,9 @@ First thing shown on the kid's first visit to `/kid/[kidId]/home`.
   - 🏆 Unlock badges as you level up
   - 🎯 Save stars for the rewards you want most
 - Primary CTA: "Show me around! →" (starts tour)
-- Secondary: "Skip" 
+- Secondary: "Skip"
 
-### Step 3: Tour
+### Step 4: Tour
 
 4-stop floating card overlay. Starts immediately after welcome screen CTA.
 
@@ -135,7 +166,9 @@ New columns on `kids`:
 alter table public.kids
   add column tour_seen boolean not null default false,
   add column goals text[] not null default '{}',
-  add column goals_other text;
+  add column goals_other text,
+  add column interests text[] not null default '{}',
+  add column interests_other text;
 ```
 
 No RLS changes needed — existing family-scoped policies cover all new columns.
@@ -174,9 +207,33 @@ interface GoalsScreenProps {
 
 Location: `components/onboarding/GoalsScreen.tsx`
 
+### `InterestsScreen`
+
+Shown after goals screen, kid flow only.
+
+```ts
+interface InterestOption {
+  key: string
+  emoji: string
+  label: string
+  tag: 'task' | 'reward' | 'both'
+}
+
+interface InterestsScreenProps {
+  kidName: string
+  kidAvatar: string
+  themeId: ThemeId
+  options: InterestOption[]
+  onContinue: (selected: string[], otherText: string) => void
+  onSkip: () => void
+}
+```
+
+Location: `components/onboarding/InterestsScreen.tsx`
+
 ### `WelcomeScreen`
 
-Shown after goals screen.
+Shown after goals screen (parent) or interests screen (kid).
 
 ```ts
 interface WelcomeScreenProps {
@@ -258,7 +315,7 @@ interface KidOnboardingWrapperProps {
 }
 ```
 
-Internal state: `phase: 'goals' | 'welcome' | 'touring' | 'done'`
+Internal state: `phase: 'goals' | 'interests' | 'welcome' | 'touring' | 'done'`
 
 Location: `components/onboarding/KidOnboardingWrapper.tsx`
 
@@ -272,6 +329,7 @@ New file `lib/actions/onboarding.ts`:
 saveParentGoals(goals: string[], goalsOther: string): Promise<ActionResult>
 markParentTourSeen(): Promise<ActionResult>
 saveKidGoals(kidId: string, goals: string[], goalsOther: string): Promise<ActionResult>
+saveKidInterests(kidId: string, interests: string[], interestsOther: string): Promise<ActionResult>
 markKidTourSeen(kidId: string): Promise<ActionResult>
 ```
 
