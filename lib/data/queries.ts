@@ -236,6 +236,27 @@ export async function listAllTasks(): Promise<Task[]> {
   return (data as DbTaskRow[]).map(mapTask);
 }
 
+export const listWeeklyCompletionCounts = timed(
+  "listWeeklyCompletionCounts",
+  async (kidId: string): Promise<Record<string, number>> => {
+    const supabase = await createClient();
+    const since = new Date();
+    since.setDate(since.getDate() - 6);
+    const sinceStr = since.toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from("task_completions")
+      .select("date")
+      .eq("kid_id", kidId)
+      .gte("date", sinceStr);
+    if (error || !data) return {};
+    const counts: Record<string, number> = {};
+    for (const row of data) {
+      counts[row.date] = (counts[row.date] ?? 0) + 1;
+    }
+    return counts;
+  },
+);
+
 export const listCompletionsToday = timed("listCompletionsToday", async (kidId: string): Promise<TaskCompletion[]> => {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);

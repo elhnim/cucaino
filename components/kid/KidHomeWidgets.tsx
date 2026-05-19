@@ -25,7 +25,7 @@ import CustomBadgeTile from "@/components/kid/CustomBadgeTile";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
-const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement"];
+const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement", "streak"];
 const WIDGET_LABELS: Record<string, string> = {
   tasks: "✅ Today's Tasks",
   school: "📚 School Today",
@@ -34,6 +34,7 @@ const WIDGET_LABELS: Record<string, string> = {
   race: "🏁 Family Race",
   level: "🌱 Profile Level",
   encouragement: "💬 Encouragement",
+  streak: "🔥 Streak Calendar",
 };
 const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   tasks: "full",
@@ -43,6 +44,7 @@ const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   race: "full",
   level: "half",
   encouragement: "half",
+  streak: "full",
 };
 
 interface LevelData {
@@ -69,6 +71,7 @@ export interface KidHomeWidgetsProps {
   customBadgeProgress: CustomBadgeProgress[];
   allKids: Kid[];
   weeklyStars: Record<string, number>;
+  weeklyCompletions: Record<string, number>;
   level: LevelData;
   encouragement: string;
   activeStrikes?: Strike[];
@@ -78,7 +81,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
   const {
     kid, theme, done, total, allDone, ringOffset, taskPct,
     incompleteTasks, todaySchoolTasks, tomorrowActivityTasks,
-    badgesInProgress, customBadgeProgress, allKids, weeklyStars, level, encouragement,
+    badgesInProgress, customBadgeProgress, allKids, weeklyStars, weeklyCompletions, level, encouragement,
     activeStrikes,
   } = props;
 
@@ -273,7 +276,7 @@ function SortableWidget({
 // ─── Widget content dispatcher ───────────────────────────────────────────────
 
 function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }) {
-  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, customBadgeProgress, allKids, weeklyStars, level, encouragement } = props;
+  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, customBadgeProgress, allKids, weeklyStars, weeklyCompletions, level, encouragement } = props;
 
   switch (id) {
     case "tasks":
@@ -436,9 +439,70 @@ function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }
         </div>
       );
 
+    case "streak":
+      return <StreakCalendarWidget completions={weeklyCompletions} streak={kid.currentStreak} accent={theme.accent} />;
+
     default:
       return null;
   }
+}
+
+// ─── Streak calendar widget ───────────────────────────────────────────────────
+
+function StreakCalendarWidget({
+  completions,
+  streak,
+  accent,
+}: {
+  completions: Record<string, number>;
+  streak: number;
+  accent: string;
+}) {
+  const days: { date: string; label: string; short: string; count: number; isToday: boolean }[] = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const label = d.toLocaleDateString("en-AU", { weekday: "short" });
+    const short = d.getDate().toString();
+    days.push({ date: dateStr, label, short, count: completions[dateStr] ?? 0, isToday: i === 0 });
+  }
+
+  const maxCount = Math.max(...days.map((d) => d.count), 1);
+
+  return (
+    <div className="bg-white rounded-2xl p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">7-Day Streak</span>
+        <span className="flex items-center gap-1 text-xs font-black" style={{ color: accent }}>
+          🔥 {streak} day{streak !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="flex gap-1.5 items-end justify-between">
+        {days.map((d) => {
+          const filled = d.count > 0;
+          const height = filled ? Math.max(24, Math.round((d.count / maxCount) * 48)) : 8;
+          return (
+            <div key={d.date} className="flex flex-col items-center gap-1 flex-1">
+              <div
+                className="w-full rounded-full transition-all"
+                style={{
+                  height,
+                  background: filled ? accent : "#e5e7eb",
+                  opacity: d.isToday ? 1 : filled ? 0.75 : 1,
+                  outline: d.isToday ? `2px solid ${accent}` : "none",
+                  outlineOffset: 1,
+                }}
+              />
+              <span className="text-[9px] font-bold text-gray-400">{d.label.slice(0, 1)}</span>
+              <span className="text-[9px] text-gray-300">{d.short}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ─── Pinned widgets ──────────────────────────────────────────────────────────
