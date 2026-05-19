@@ -36,6 +36,7 @@ export default function MoodJarWidget({ kidId, initialCounts, accent }: MoodJarW
   const JAR_BOTTOM = 130;
   const JAR_HEIGHT = 105;
   const fillY = JAR_BOTTOM - JAR_HEIGHT * fillPct;
+  const clipId = `moodJarClip-${kidId}`;
 
   function handleTap(mood: string) {
     setCounts((prev) => ({ ...prev, [mood]: (prev[mood] ?? 0) + 1 }));
@@ -57,13 +58,13 @@ export default function MoodJarWidget({ kidId, initialCounts, accent }: MoodJarW
       <div style={{ position: "relative", width: 120, height: 140 }}>
         <svg width="120" height="140" viewBox="0 0 120 140" fill="none" xmlns="http://www.w3.org/2000/svg">
           {/* Lid */}
-          <rect x="30" y="6" width="60" height="10" rx="4" fill="#d97706" />
+          <rect x="30" y="6" width="60" height="10" rx="4" fill={accent} />
           {/* Neck */}
-          <rect x="35" y="12" width="50" height="16" rx="5" fill="white" stroke="#d97706" strokeWidth="2.5" />
+          <rect x="35" y="12" width="50" height="16" rx="5" fill="white" stroke={accent} strokeWidth="2.5" />
           {/* Body */}
-          <rect x="15" y="25" width="90" height="105" rx="12" fill="white" stroke="#d97706" strokeWidth="2.5" />
+          <rect x="15" y="25" width="90" height="105" rx="12" fill="white" stroke={accent} strokeWidth="2.5" />
           {/* Fill level */}
-          <clipPath id="moodJarClip">
+          <clipPath id={clipId}>
             <rect x="16" y="26" width="88" height="103" rx="11" />
           </clipPath>
           <rect
@@ -72,7 +73,7 @@ export default function MoodJarWidget({ kidId, initialCounts, accent }: MoodJarW
             width="88"
             height={JAR_BOTTOM - fillY}
             fill="#fef3c7"
-            clipPath="url(#moodJarClip)"
+            clipPath={`url(#${clipId})`}
           />
         </svg>
 
