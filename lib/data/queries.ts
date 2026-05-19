@@ -15,6 +15,7 @@ import { timed } from "@/lib/data/perf";
 import { getTierFromCount } from "@/lib/domain/badge-config";
 import type {
   BadgeCategory,
+  BadgeConfigOverride,
   BadgeTier,
   BadgeProgress,
   CashTransaction,
@@ -895,5 +896,25 @@ export const listTasksForFamily = timed(
       .order("name", { ascending: true });
     if (error || !data) return [];
     return (data as DbTaskRow[]).map(mapTask);
+  },
+);
+
+export const listBadgeConfigOverrides = timed(
+  "listBadgeConfigOverrides",
+  async (): Promise<BadgeConfigOverride[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("badge_config_overrides")
+      .select("*");
+    if (error || !data) return [];
+    return data.map((row: any) => ({
+      category: row.category,
+      bronzeThreshold: row.bronze_threshold ?? null,
+      silverThreshold: row.silver_threshold ?? null,
+      goldThreshold: row.gold_threshold ?? null,
+      bronzeName: row.bronze_name ?? null,
+      silverName: row.silver_name ?? null,
+      goldName: row.gold_name ?? null,
+    }));
   },
 );

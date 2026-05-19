@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listKids, listRewardsForKid, listCustomBadges, listTasksForFamily } from "@/lib/data/stub";
+import { listKids, listRewardsForKid, listCustomBadges, listTasksForFamily, listBadgeConfigOverrides } from "@/lib/data/stub";
 import RewardFilterBar from "@/components/parent/RewardFilterBar";
 import BadgesClient from "@/components/parent/BadgesClient";
 import { getRewardType } from "@/lib/registry/reward-type-registry";
@@ -122,11 +122,12 @@ export default async function ParentRewardsPage({
 }
 
 async function BadgesTabContent({ kids }: { kids: Kid[] }) {
-  const [badges, tasks] = await Promise.all([
+  const [badges, tasks, overrides] = await Promise.all([
     listCustomBadges(),
     listTasksForFamily(),
+    listBadgeConfigOverrides(),
   ]);
-  return <BadgesClient badges={badges} tasks={tasks} kids={kids} />;
+  return <BadgesClient badges={badges} tasks={tasks} kids={kids} overrides={overrides} />;
 }
 
 async function RewardsTabContent({

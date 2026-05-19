@@ -476,3 +476,13 @@ export interface CustomBadgeProgress {
   silverEarnedAt: string | null;
   goldEarnedAt: string | null;
 }
+
+export interface BadgeConfigOverride {
+  category: string;
+  bronzeThreshold: number | null;
+  silverThreshold: number | null;
+  goldThreshold: number | null;
+  bronzeName: string | null;
+  silverName: string | null;
+  goldName: string | null;
+}
