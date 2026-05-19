@@ -291,7 +291,7 @@ function FrequencyCard({
       window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
     }
     startTransition(async () => {
-      const result = await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category, target);
+      const result = await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category, target, task.cashValueCents, task.requiresParentApproval);
       if (result.ok && result.newTiers && result.newTiers.length > 0) {
         window.dispatchEvent(new CustomEvent("badge-unlocked", { detail: { badges: result.newTiers } }));
       }
@@ -416,6 +416,7 @@ export default function TodoTaskCard({
   isFuture,
   kidId,
   accentColor,
+  initiallyPending,
 }: {
   task: Task;
   initialCompletion: TaskCompletion | undefined;
@@ -425,6 +426,7 @@ export default function TodoTaskCard({
   isFuture: boolean;
   kidId: string;
   accentColor: string;
+  initiallyPending?: boolean;
 }) {
   if ((task.frequencyPerDay ?? 1) > 1) {
     return (
@@ -442,6 +444,7 @@ export default function TodoTaskCard({
   const [celebrating, setCelebrating] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [pending, setPending] = useState(initiallyPending ?? false);
 
   useEffect(() => {
     if (!celebrating) return;
@@ -450,19 +453,33 @@ export default function TodoTaskCard({
   }, [celebrating]);
 
   const complete = () => {
-    setDone(true);
-    setCelebrating(true);
-    setShowSheet(true);
-    window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
-    startTransition(async () => {
-      const result = await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
-      if (!result.ok) {
-        setDone(false);
-        setCelebrating(false);
-      } else if (result.newTiers && result.newTiers.length > 0) {
-        window.dispatchEvent(new CustomEvent("badge-unlocked", { detail: { badges: result.newTiers } }));
-      }
-    });
+    if (task.requiresParentApproval) {
+      setPending(true);
+      startTransition(async () => {
+        const result = await completeTask(
+          task.id, kidId, task.points, task.familyPointsContribution,
+          task.category, 1, task.cashValueCents, true,
+        );
+        if (!result.ok) setPending(false);
+      });
+    } else {
+      setDone(true);
+      setCelebrating(true);
+      setShowSheet(true);
+      window.dispatchEvent(new CustomEvent("task-completed", { detail: { points: task.points } }));
+      startTransition(async () => {
+        const result = await completeTask(
+          task.id, kidId, task.points, task.familyPointsContribution,
+          task.category, 1, task.cashValueCents, false,
+        );
+        if (!result.ok) {
+          setDone(false);
+          setCelebrating(false);
+        } else if (result.newTiers && result.newTiers.length > 0) {
+          window.dispatchEvent(new CustomEvent("badge-unlocked", { detail: { badges: result.newTiers } }));
+        }
+      });
+    }
   };
 
   const uncomplete = () => {
@@ -535,7 +552,19 @@ export default function TodoTaskCard({
       </div>
 
       <div className="shrink-0">
-        {done ? (
+        {pending ? (
+          <div className="flex items-center gap-2">
+            <span
+              className="flex items-center justify-center w-9 h-9 rounded-full"
+              style={{ background: "#fef3c7" }}
+            >
+              ✋
+            </span>
+            <span className="text-xs font-semibold text-amber-700 bg-amber-50 rounded-full px-2 py-0.5">
+              Pending approval
+            </span>
+          </div>
+        ) : done ? (
           <span
             className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${celebrating ? "scale-125" : ""}`}
             style={{ background: celebrating ? accentColor + "33" : "#dcfce7" }}

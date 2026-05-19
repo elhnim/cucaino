@@ -30,7 +30,7 @@ export default function TaskCard({
     setDone(next); // optimistic update
     startTransition(async () => {
       if (next) {
-        await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category);
+        await completeTask(task.id, kidId, task.points, task.familyPointsContribution, task.category, 1, task.cashValueCents, task.requiresParentApproval);
       } else {
         await uncompleteTask(task.id, kidId);
       }

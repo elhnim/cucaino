@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Metronome from "@/components/kid/Metronome";
-import PracticeTimer from "@/components/kid/PracticeTimer";
+import PracticeTimerClient from "@/components/kid/PracticeTimerClient";
 import { getKid, listTasksForKid } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 
@@ -63,10 +63,18 @@ export default async function PracticePage({
         </header>
 
         <div className={`grid gap-4 ${isMusic ? "md:grid-cols-2" : ""}`}>
-          <PracticeTimer
+          <PracticeTimerClient
+            taskId={task.id}
+            kidId={kid.id}
+            points={task.points}
+            familyPoints={task.familyPointsContribution ?? 0}
+            category={task.category}
             durationMinutes={duration}
             accent={theme.accent}
             storageKey={`cucaino-timer:${kid.id}:${task.id}`}
+            backHref={backHref}
+            cashValueCents={task.cashValueCents}
+            requiresParentApproval={task.requiresParentApproval}
           />
 
           {isMusic ? (

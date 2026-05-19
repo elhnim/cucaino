@@ -228,6 +228,9 @@ export default async function TodoPage({
                     isFuture={isFuture}
                     kidId={kid.id}
                     accentColor={theme.accent}
+                    initiallyPending={completions.some(
+                      (c) => c.taskId === task.id && c.pendingParentApproval,
+                    )}
                   />
                 ))}
               </div>
@@ -295,6 +298,9 @@ export default async function TodoPage({
                   isFuture={isFuture}
                   kidId={kid.id}
                   accentColor={theme.accent}
+                  initiallyPending={completions.some(
+                    (c) => c.taskId === task.id && c.pendingParentApproval,
+                  )}
                 />
               ))}
             </div>
