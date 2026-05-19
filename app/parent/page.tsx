@@ -26,19 +26,19 @@ export default async function ParentOverviewPage() {
   ]);
   if (!family) redirect("/login");
 
-  const dow = isoWeekday();
-  const today = new Date();
-  const todayLabel = today.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  const tz = family.timezone;
+  const dow = isoWeekday(new Date(), tz);
+  const todayLabel = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: tz }).format(new Date());
 
   const kidData = await Promise.all(
     kids.map(async (kid) => {
       const [tasks, completions, rewards, activeStrikes, allStrikes, moodCounts] = await Promise.all([
         listTasksForKid(kid.id),
-        listCompletionsToday(kid.id),
+        listCompletionsToday(kid.id, tz),
         listRewardsForKid(kid.id),
         listActiveStrikes(kid.id),
         listAllStrikes(kid.id),
-        listTodayMoodCounts(kid.id),
+        listTodayMoodCounts(kid.id, tz),
       ]);
       const todayTasks = tasksForDay(tasks, dow).filter((t) => t.requiresCompletion);
       const completedIds = new Set(completions.map((c) => c.taskId));

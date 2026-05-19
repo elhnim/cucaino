@@ -6,6 +6,7 @@ import { signOut } from "@/lib/actions/auth";
 import FamilyNameEditor from "@/components/parent/FamilyNameEditor";
 import WeatherLocationPicker from "@/components/parent/WeatherLocationPicker";
 import InviteParentSection from "@/components/parent/InviteParentSection";
+import TimezoneSelector from "@/components/parent/TimezoneSelector";
 
 const commit = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
@@ -150,15 +151,7 @@ export default async function ParentSettingsPage() {
             <div className="w-8 h-8 rounded-[9px] flex items-center justify-center text-base flex-shrink-0 bg-blue-50">🌍</div>
             <div className="flex-1">
               <label className="text-[14px] font-semibold text-gray-800">Timezone</label>
-              <select defaultValue="Australia/Sydney" className="block w-full text-[12px] text-gray-400 border-none bg-transparent p-0 mt-0.5 focus:outline-none">
-                <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
-                <option value="Australia/Melbourne">Australia/Melbourne (AEST)</option>
-                <option value="Australia/Brisbane">Australia/Brisbane (AEST)</option>
-                <option value="America/New_York">America/New York (EST)</option>
-                <option value="America/Los_Angeles">America/Los Angeles (PST)</option>
-                <option value="Europe/London">Europe/London (GMT)</option>
-                <option value="UTC">UTC</option>
-              </select>
+              <TimezoneSelector current={family.timezone} />
             </div>
           </div>
           <div className="px-3.5 py-3.5 border-b border-gray-100 flex items-center justify-between">

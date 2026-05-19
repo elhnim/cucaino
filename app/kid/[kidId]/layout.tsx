@@ -15,13 +15,14 @@ export default async function KidLayout({
   const kid = await getKid(kidId);
   if (!kid) notFound();
 
-  const dow = isoWeekday();
+  const family = await getFamily();
+  const tz = family?.timezone ?? "Australia/Sydney";
+  const dow = isoWeekday(new Date(), tz);
 
-  const [tasks, completions, badges, family] = await Promise.all([
+  const [tasks, completions, badges] = await Promise.all([
     listTasksForKid(kid.id),
-    listCompletionsToday(kid.id),
+    listCompletionsToday(kid.id, tz),
     listBadgeProgress(kid.id),
-    getFamily(),
   ]);
 
   const todayTasks = tasksForDay(tasks, dow);

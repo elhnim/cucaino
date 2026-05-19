@@ -36,8 +36,15 @@ export function getTimeBlockLabel(block: TimeBlock) {
   return TIME_BLOCK_LABELS[block];
 }
 
-/** ISO weekday: Mon=1..Sun=7. JS getDay() returns Sun=0..Sat=6. */
-export function isoWeekday(d: Date = new Date()): DayOfWeek {
+/** ISO weekday: Mon=1..Sun=7. Pass timezone (IANA) for server-side timezone-correct results. */
+export function isoWeekday(d: Date = new Date(), timezone?: string): DayOfWeek {
+  if (timezone) {
+    const dayName = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: timezone }).format(d);
+    const map: Record<string, DayOfWeek> = {
+      Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6, Sunday: 7,
+    };
+    return (map[dayName] ?? 1) as DayOfWeek;
+  }
   const js = d.getDay();
   return (js === 0 ? 7 : js) as DayOfWeek;
 }

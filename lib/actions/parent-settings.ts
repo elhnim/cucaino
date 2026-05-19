@@ -82,6 +82,21 @@ export async function updateWeatherLocation(
   return { ok: true };
 }
 
+export async function updateTimezone(timezone: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const familyId = await getFamilyId(supabase);
+  if (!familyId) return { ok: false, error: "Family not found" };
+  const { error } = await supabase
+    .from("families")
+    .update({ timezone })
+    .eq("id", familyId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/parent", "layout");
+  revalidatePath("/parent/settings");
+  revalidatePath("/select-kid");
+  return { ok: true };
+}
+
 export async function clearParentPinDb(): Promise<ActionResult> {
   const supabase = await createClient();
   const familyId = await getFamilyId(supabase);

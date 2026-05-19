@@ -56,6 +56,7 @@ export interface Family {
   parentTourSeen: boolean;
   parentGoals: string[];
   parentGoalsOther: string | null;
+  timezone: string;
 }
 
 export interface Kid {

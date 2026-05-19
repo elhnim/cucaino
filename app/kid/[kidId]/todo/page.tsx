@@ -7,9 +7,11 @@ import PrefetchDays from "@/components/kid/PrefetchDays";
 import AllDoneDetector from "@/components/kid/AllDoneDetector";
 import {
   getKid,
+  getFamily,
   listTasksForKid,
   listCompletionsToday,
   listKidDailyAdditions,
+  localDateString,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -61,23 +63,25 @@ export default async function TodoPage({
   const kid = await getKid(kidId);
   if (!kid) notFound();
 
-  const today = isoWeekday();
+  const family = await getFamily();
+  const tz = family?.timezone ?? "Australia/Sydney";
+  const today = isoWeekday(new Date(), tz);
   const activeDow = day
     ? (Math.max(1, Math.min(7, parseInt(day))) as DayOfWeek)
     : today;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = localDateString(tz);
 
   // Compute the ISO date string for the active day within the current week
   const activeDateStr = (() => {
-    const dt = new Date();
-    dt.setDate(dt.getDate() - (today - activeDow));
-    return dt.toISOString().slice(0, 10);
+    const todayDate = new Date(todayStr + "T12:00:00");
+    todayDate.setDate(todayDate.getDate() - (today - activeDow));
+    return todayDate.toISOString().slice(0, 10);
   })();
 
   const [tasks, completions, addedTasks] = await Promise.all([
     listTasksForKid(kid.id),
-    listCompletionsToday(kid.id),
+    listCompletionsToday(kid.id, tz),
     listKidDailyAdditions(kid.id, activeDateStr),
   ]);
 

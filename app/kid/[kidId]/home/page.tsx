@@ -3,6 +3,7 @@ import PrefetchRoutes from "@/components/kid/PrefetchRoutes";
 import WhatsNewModal from "@/components/WhatsNewModal";
 import {
   getKid,
+  getFamily,
   listTasksForKid,
   listCompletionsToday,
   listBadgeProgress,
@@ -46,22 +47,24 @@ export default async function KidHomePage({
   const kid = await getKid(kidId);
   if (!kid) notFound();
 
+  const family = await getFamily();
+  const tz = family?.timezone ?? "Australia/Sydney";
   const now = new Date();
-  const dow = isoWeekday(now);
+  const dow = isoWeekday(now, tz);
 
   const [tasks, completions, badges, allKids, weeklyStars, customBadgeProgress, activeStrikes, weeklyCompletions, moodCounts] = await Promise.all([
     listTasksForKid(kid.id),
-    listCompletionsToday(kid.id),
+    listCompletionsToday(kid.id, tz),
     listBadgeProgress(kid.id),
     listKids(),
     listWeeklyStarsByKid(),
     listCustomBadgeProgress(kid.id),
     listActiveStrikes(kid.id),
     listWeeklyCompletionCounts(kid.id),
-    listTodayMoodCounts(kid.id),
+    listTodayMoodCounts(kid.id, tz),
   ]);
 
-  const todayTasks = tasksForDay(tasks, dow);
+  const todayTasks = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow);
   const completableTasks = todayTasks.filter((t) => t.requiresCompletion);
   const completedIds = new Set(completions.map((c) => c.taskId));
   const done = completableTasks.filter((t) => completedIds.has(t.id)).length;

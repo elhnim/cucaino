@@ -157,6 +157,11 @@ export function mapTask(row: DbTaskRow): Task {
 
 // ----- Public queries -----
 
+/** Returns today's date as YYYY-MM-DD in the given IANA timezone. */
+export function localDateString(timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+}
+
 export async function getFamily(): Promise<Family | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -177,6 +182,7 @@ export async function getFamily(): Promise<Family | null> {
     parentTourSeen: (data as any).parent_tour_seen ?? false,
     parentGoals: (data as any).parent_goals ?? [],
     parentGoalsOther: (data as any).parent_goals_other ?? null,
+    timezone: (data as any).timezone ?? "Australia/Sydney",
   };
 }
 
@@ -258,9 +264,9 @@ export const listWeeklyCompletionCounts = timed(
   },
 );
 
-export const listCompletionsToday = timed("listCompletionsToday", async (kidId: string): Promise<TaskCompletion[]> => {
+export const listCompletionsToday = timed("listCompletionsToday", async (kidId: string, timezone?: string): Promise<TaskCompletion[]> => {
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = timezone ? localDateString(timezone) : new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from("task_completions")
     .select("*")
@@ -989,9 +995,9 @@ export const listAllStrikes = timed(
 
 export const listTodayMoodCounts = timed(
   "listTodayMoodCounts",
-  async (kidId: string): Promise<Record<string, number>> => {
+  async (kidId: string, timezone?: string): Promise<Record<string, number>> => {
     const supabase = await createClient();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = timezone ? localDateString(timezone) : new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from("mood_entries")
       .select("mood")

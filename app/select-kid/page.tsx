@@ -13,14 +13,15 @@ export default async function SelectKidPage() {
     getFamily(),
   ]);
 
-  const dow = isoWeekday();
+  const tz = family?.timezone ?? "Australia/Sydney";
+  const dow = isoWeekday(new Date(), tz);
   const kidProgress = await Promise.all(
     kids.map(async (kid) => {
       const [tasks, completions] = await Promise.all([
         listTasksForKid(kid.id),
-        listCompletionsToday(kid.id),
+        listCompletionsToday(kid.id, tz),
       ]);
-      const todayTasks = tasksForDay(tasks, dow).filter((t) => t.requiresCompletion);
+      const todayTasks = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow).filter((t) => t.requiresCompletion);
       return { kidId: kid.id, done: completions.length, total: todayTasks.length };
     })
   );
