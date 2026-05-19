@@ -9,8 +9,10 @@ interface Props {
   rewardName: string;
   rewardIcon: string;
   costPoints: number;
+  costCashCents: number;
   requiresApproval: boolean;
   currentStars: number;
+  currentCash: number;
 }
 
 export default function RewardClaimButton({
@@ -19,36 +21,81 @@ export default function RewardClaimButton({
   rewardName,
   rewardIcon,
   costPoints,
+  costCashCents,
   requiresApproval,
   currentStars,
+  currentCash,
 }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [requested, setRequested] = useState(false);
   const [celebration, setCelebration] = useState<{
     newStars: number;
+    newCash: number;
     isRequest: boolean;
+    usedCash: boolean;
   } | null>(null);
+
+  const hasCash = costCashCents > 0;
+  const hasStars = costPoints > 0;
+  const [paymentType, setPaymentType] = useState<"stars" | "cash">(
+    hasStars ? "stars" : "cash",
+  );
 
   const handleClaim = () => {
     startTransition(async () => {
-      const result = await claimReward(kidId, rewardId);
+      const result = await claimReward(kidId, rewardId, paymentType);
       if (result.ok) {
         setCelebration({
-          newStars: requiresApproval ? currentStars : currentStars - costPoints,
+          newStars: requiresApproval || paymentType === "cash"
+            ? currentStars
+            : currentStars - costPoints,
+          newCash: requiresApproval || paymentType === "stars"
+            ? currentCash
+            : currentCash - costCashCents,
           isRequest: requiresApproval,
+          usedCash: paymentType === "cash",
         });
+        if (requiresApproval) setRequested(true);
       }
     });
   };
 
   return (
     <>
+      {hasCash && hasStars && (
+        <div className="flex gap-1 mb-2">
+          <button
+            type="button"
+            onClick={() => setPaymentType("stars")}
+            className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+              paymentType === "stars"
+                ? "bg-amber-500 text-white border-amber-500"
+                : "bg-gray-100 text-gray-500 border-gray-200"
+            }`}
+          >
+            ⭐ {costPoints} stars
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentType("cash")}
+            className={`flex-1 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+              paymentType === "cash"
+                ? "bg-green-600 text-white border-green-600"
+                : "bg-gray-100 text-gray-500 border-gray-200"
+            }`}
+          >
+            💵 ${(costCashCents / 100).toFixed(2)}
+          </button>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={handleClaim}
-        disabled={isPending}
+        disabled={isPending || requested}
         className="w-full rounded-xl text-[11px] text-white font-bold py-1.5 bg-orange-500 disabled:opacity-60"
       >
-        {isPending ? "…" : requiresApproval ? "Request →" : "Get it! →"}
+        {isPending ? "…" : requested ? "Pending ⏳" : requiresApproval ? "Request →" : "Get it! →"}
       </button>
 
       {celebration && (
@@ -89,17 +136,26 @@ export default function RewardClaimButton({
               </>
             )}
 
-            {/* New star balance */}
-            <div
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl"
-              style={{ background: "#fef3c7" }}
-            >
-              <span className="text-xl">⭐</span>
-              <div>
-                <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Your stars</div>
-                <div className="text-xl font-black text-amber-900">{celebration.newStars.toLocaleString()}</div>
+            {/* New balance */}
+            {celebration.usedCash ? (
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl" style={{ background: "#dcfce7" }}>
+                <span className="text-xl">💵</span>
+                <div>
+                  <div className="text-[10px] font-bold text-green-700 uppercase tracking-wider">Your cash</div>
+                  <div className="text-xl font-black text-green-900">
+                    ${(celebration.newCash / 100).toFixed(2)}
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center gap-2 px-5 py-2.5 rounded-2xl" style={{ background: "#fef3c7" }}>
+                <span className="text-xl">⭐</span>
+                <div>
+                  <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Your stars</div>
+                  <div className="text-xl font-black text-amber-900">{celebration.newStars.toLocaleString()}</div>
+                </div>
+              </div>
+            )}
 
             <button
               type="button"

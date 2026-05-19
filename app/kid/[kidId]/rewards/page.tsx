@@ -237,17 +237,21 @@ function BadgesTab({
 function RewardCard({
   reward: r,
   pointsBalance,
+  cashBalance,
   isWishlisted,
   wishlistFull,
   kidId,
 }: {
   reward: Reward;
   pointsBalance: number;
+  cashBalance: number;
   isWishlisted: boolean;
   wishlistFull: boolean;
   kidId: string;
 }) {
-  const canAfford = pointsBalance >= r.costPoints;
+  const canAfford =
+    (r.costPoints > 0 && pointsBalance >= r.costPoints) ||
+    (r.costCashCents > 0 && cashBalance >= r.costCashCents);
   const progress = Math.min(100, (pointsBalance / r.costPoints) * 100);
 
   if (r.who === "team") {
@@ -298,8 +302,10 @@ function RewardCard({
             rewardName={r.name}
             rewardIcon={r.icon}
             costPoints={r.costPoints}
+            costCashCents={r.costCashCents}
             requiresApproval={r.requiresApproval}
             currentStars={pointsBalance}
+            currentCash={cashBalance}
           />
         </div>
       </div>
@@ -374,7 +380,17 @@ export default async function RewardsPage({
             <h2 className="text-2xl font-black">
               {isBadgesTab ? "🏅 Badges" : "🎁 Rewards"}
             </h2>
-            <p className="text-sm text-gray-400">⭐ {kid.pointsBalance} stars</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-sm text-gray-400">⭐ {kid.pointsBalance} stars</p>
+              {kid.cashBalance > 0 && (
+                <div
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-black"
+                  style={{ background: "#dcfce7", color: "#15803d" }}
+                >
+                  💵 ${(kid.cashBalance / 100).toFixed(2)}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -450,6 +466,7 @@ export default async function RewardsPage({
                     key={r.id}
                     reward={r}
                     pointsBalance={kid.pointsBalance}
+                    cashBalance={kid.cashBalance}
                     isWishlisted={wishlistRewardIds.has(r.id)}
                     wishlistFull={wishlistFull}
                     kidId={kid.id}
