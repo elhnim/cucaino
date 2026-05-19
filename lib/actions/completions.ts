@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { localDateString } from "@/lib/data/queries";
 import {
   TASK_CATEGORY_TO_BADGE,
   BADGE_META,
@@ -23,13 +24,13 @@ export async function completeTask(
   requiresParentApproval = false,
 ): Promise<ActionResult> {
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
 
   const { data: fam, error: famErr } = await supabase
     .from("families")
-    .select("id")
+    .select("id, timezone")
     .maybeSingle();
   if (famErr || !fam) return { ok: false, error: "Family not found." };
+  const today = localDateString((fam as any).timezone ?? "Australia/Sydney");
 
   // For frequency tasks allow multiple completions up to maxCompletions; otherwise idempotent
   const { count } = await supabase
@@ -237,7 +238,8 @@ export async function uncompleteTask(
   kidId: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const { data: fam } = await supabase.from("families").select("timezone").maybeSingle();
+  const today = localDateString((fam as any)?.timezone ?? "Australia/Sydney");
 
   const { data: completion } = await supabase
     .from("task_completions")
