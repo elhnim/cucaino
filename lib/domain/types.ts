@@ -136,6 +136,7 @@ export interface Task {
   teacher: string | null;
   cashValueCents: number;
   requiresParentApproval: boolean;
+  isBuiltin?: boolean;
 }
 
 export interface TaskCompletion {

@@ -149,6 +149,7 @@ export function mapTask(row: DbTaskRow): Task {
     teacher: (row as any).teacher ?? null,
     cashValueCents: (row as any).cash_value_cents ?? 0,
     requiresParentApproval: (row as any).requires_parent_approval ?? false,
+    isBuiltin: (row as any).is_builtin ?? false,
   };
 }
 
