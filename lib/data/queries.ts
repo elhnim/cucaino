@@ -18,6 +18,9 @@ import type {
   BadgeTier,
   BadgeProgress,
   CashTransaction,
+  CustomBadge,
+  CustomBadgeProgress,
+  CustomBadgeTrackType,
   Family,
   HistoryEntry,
   Kid,
@@ -798,5 +801,99 @@ export const listPendingCompletions = timed(
       completedAt: row.completed_at,
       date: row.date,
     }));
+  },
+);
+
+export const listCustomBadges = timed(
+  "listCustomBadges",
+  async (): Promise<CustomBadge[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("custom_badges")
+      .select("*, tasks(name, icon)")
+      .eq("active", true)
+      .order("created_at", { ascending: true });
+    if (error || !data) return [];
+    return (data as any[]).map((row) => ({
+      id: row.id,
+      familyId: row.family_id,
+      name: row.name,
+      icon: row.icon,
+      description: row.description ?? null,
+      taskId: row.task_id,
+      taskName: row.tasks?.name ?? "Task",
+      taskIcon: row.tasks?.icon ?? "✅",
+      trackType: row.track_type as CustomBadgeTrackType,
+      bronzeThreshold: row.bronze_threshold,
+      silverThreshold: row.silver_threshold,
+      goldThreshold: row.gold_threshold,
+      kidIds: row.kid_ids ?? null,
+      active: row.active,
+      createdAt: row.created_at,
+    }));
+  },
+);
+
+export const listCustomBadgeProgress = timed(
+  "listCustomBadgeProgress",
+  async (kidId: string): Promise<CustomBadgeProgress[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("custom_badge_progress")
+      .select("*, custom_badges(*, tasks(name, icon))")
+      .eq("kid_id", kidId)
+      .order("created_at", { ascending: true });
+    if (error || !data) return [];
+    return (data as any[]).map((row) => {
+      const b = row.custom_badges;
+      const badge: CustomBadge = {
+        id: b.id,
+        familyId: b.family_id,
+        name: b.name,
+        icon: b.icon,
+        description: b.description ?? null,
+        taskId: b.task_id,
+        taskName: b.tasks?.name ?? "Task",
+        taskIcon: b.tasks?.icon ?? "✅",
+        trackType: b.track_type as CustomBadgeTrackType,
+        bronzeThreshold: b.bronze_threshold,
+        silverThreshold: b.silver_threshold,
+        goldThreshold: b.gold_threshold,
+        kidIds: b.kid_ids ?? null,
+        active: b.active,
+        createdAt: b.created_at,
+      };
+      const count = row.current_count ?? 0;
+      const tier = count >= badge.goldThreshold ? "gold"
+                 : count >= badge.silverThreshold ? "silver"
+                 : count >= badge.bronzeThreshold ? "bronze"
+                 : "none";
+      return {
+        id: row.id,
+        kidId: row.kid_id,
+        badgeId: row.badge_id,
+        badge,
+        currentCount: count,
+        currentTier: tier as BadgeTier,
+        lastCompletedDate: row.last_completed_date ?? null,
+        bronzeEarnedAt: row.bronze_earned_at ?? null,
+        silverEarnedAt: row.silver_earned_at ?? null,
+        goldEarnedAt: row.gold_earned_at ?? null,
+      };
+    });
+  },
+);
+
+export const listTasksForFamily = timed(
+  "listTasksForFamily",
+  async (): Promise<Task[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("active", true)
+      .order("name", { ascending: true });
+    if (error || !data) return [];
+    return (data as DbTaskRow[]).map(mapTask);
   },
 );

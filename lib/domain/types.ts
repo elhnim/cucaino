@@ -288,6 +288,8 @@ export interface UnlockedBadge {
   tier: "bronze" | "silver" | "gold";
   tierName: string;
   icon: string;
+  isCustom?: boolean;
+  name?: string;
 }
 
 // ----------------------------------------------------------------------------
@@ -436,4 +438,41 @@ export interface QuizQuestion2 {
   sentenceTemplate: string | null;  // e.g. "The capital of France is ___"
   acceptedAnswers: string[] | null; // e.g. ["Paris", "paris"]
   explanation: string | null;
+}
+
+// ----------------------------------------------------------------------------
+// Custom badges
+// ----------------------------------------------------------------------------
+
+export type CustomBadgeTrackType = "count" | "streak";
+
+export interface CustomBadge {
+  id: string;
+  familyId: string;
+  name: string;
+  icon: string;
+  description: string | null;
+  taskId: string;
+  taskName: string;
+  taskIcon: string;
+  trackType: CustomBadgeTrackType;
+  bronzeThreshold: number;
+  silverThreshold: number;
+  goldThreshold: number;
+  kidIds: string[] | null;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CustomBadgeProgress {
+  id: string;
+  kidId: string;
+  badgeId: string;
+  badge: CustomBadge;
+  currentCount: number;
+  currentTier: BadgeTier;
+  lastCompletedDate: string | null;
+  bronzeEarnedAt: string | null;
+  silverEarnedAt: string | null;
+  goldEarnedAt: string | null;
 }
