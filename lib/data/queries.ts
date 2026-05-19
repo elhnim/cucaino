@@ -38,7 +38,6 @@ import type {
   TaskCompletion,
   ThemeId,
   Strike,
-  MoodEntry,
   WishlistItem,
 } from "@/lib/domain/types";
 
