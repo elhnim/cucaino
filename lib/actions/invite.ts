@@ -50,7 +50,13 @@ export async function inviteParent(email: string): Promise<ActionResult> {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/accept-invite`,
   });
   if (inviteErr) {
-    // Roll back the invite row so the owner can try again
+    const alreadyExists = inviteErr.message.toLowerCase().includes("already registered");
+    if (alreadyExists) {
+      // Invite row stays — existing user can accept by signing in and visiting /accept-invite
+      revalidatePath("/parent/settings");
+      return { ok: false, error: `${trimmed} already has an account. Ask them to sign in and visit the app — the invite will be waiting.` };
+    }
+    // Unexpected error — roll back the invite row so the owner can try again
     await supabase.from("family_invites").delete().eq("invited_email", trimmed).eq("family_id", fam.id).eq("status", "pending");
     return { ok: false, error: inviteErr.message };
   }
