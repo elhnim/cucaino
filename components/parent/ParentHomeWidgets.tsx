@@ -318,7 +318,7 @@ function KidCard({ cardData, allKids, compact = false, onIssueStrike, onViewStri
               🔥 {kid.currentStreak}
             </span>
           )}
-          {(() => {
+          {!compact && (() => {
             const entries = Object.entries(moodCounts);
             if (entries.length === 0) return null;
             const [topMood, topCount] = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
