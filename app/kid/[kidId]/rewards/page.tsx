@@ -55,7 +55,8 @@ function BadgesTab({
 
   const progressByCategory = new Map(badges.map((b) => [b.category, b]));
   const earned = badges.filter((b) => b.currentTier !== "none");
-  const earnedCount = earned.length;
+  const earnedCustom = customBadgeProgress.filter((p) => p.currentTier !== "none");
+  const inProgressCustom = customBadgeProgress.filter((p) => p.currentTier === "none");
 
   return (
     <div className="space-y-4">
@@ -150,8 +151,8 @@ function BadgesTab({
         </div>
       </div>
 
-      {/* My Collection — earned badges only */}
-      {earned.length > 0 ? (
+      {/* My Collection — all earned badges (built-in + custom) */}
+      {earned.length > 0 || earnedCustom.length > 0 ? (
         <div
           className="rounded-2xl p-4 shadow-sm"
           style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" }}
@@ -159,7 +160,7 @@ function BadgesTab({
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-black text-white text-sm tracking-wide">✨ My Collection</h3>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}>
-              {earned.length} / {ALL_BADGE_CATEGORIES.length}
+              {earned.length + earnedCustom.length} / {ALL_BADGE_CATEGORIES.length + customBadgeProgress.length}
             </span>
           </div>
           <div className="flex flex-wrap gap-5 justify-center">
@@ -177,6 +178,9 @@ function BadgesTab({
                   showProgress={false}
                 />
               ))}
+            {earnedCustom.map((p) => (
+              <CustomBadgeTile key={p.badgeId} progress={p} size="md" />
+            ))}
           </div>
         </div>
       ) : (
@@ -235,11 +239,11 @@ function BadgesTab({
         </div>
       </div>
 
-      {customBadgeProgress.length > 0 && (
+      {inProgressCustom.length > 0 && (
         <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4">⭐ My Goal Badges</h3>
+          <h3 className="font-bold text-gray-800 mb-4">🎯 Goal Badges</h3>
           <div className="grid grid-cols-3 gap-3">
-            {customBadgeProgress.map((p) => (
+            {inProgressCustom.map((p) => (
               <CustomBadgeTile key={p.badgeId} progress={p} />
             ))}
           </div>
