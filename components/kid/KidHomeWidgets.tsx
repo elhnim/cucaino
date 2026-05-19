@@ -20,7 +20,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { useWidgetPrefs } from "@/lib/hooks/useWidgetPrefs";
 import { SUBJECTS } from "@/lib/registry/subject-registry";
 import { BADGE_META, BADGE_THRESHOLDS, getTierFromCount } from "@/lib/domain/badge-config";
-import type { Kid, Task, BadgeProgress } from "@/lib/domain/types";
+import type { Kid, Task, BadgeProgress, CustomBadgeProgress } from "@/lib/domain/types";
+import CustomBadgeTile from "@/components/kid/CustomBadgeTile";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
@@ -65,6 +66,7 @@ export interface KidHomeWidgetsProps {
   todaySchoolTasks: Task[];
   tomorrowActivityTasks: Task[];
   badgesInProgress: BadgeProgress[];
+  customBadgeProgress: CustomBadgeProgress[];
   allKids: Kid[];
   weeklyStars: Record<string, number>;
   level: LevelData;
@@ -75,7 +77,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
   const {
     kid, theme, done, total, allDone, ringOffset, taskPct,
     incompleteTasks, todaySchoolTasks, tomorrowActivityTasks,
-    badgesInProgress, allKids, weeklyStars, level, encouragement,
+    badgesInProgress, customBadgeProgress, allKids, weeklyStars, level, encouragement,
   } = props;
 
   const storageKey = `kid-home:${kid.id}`;
@@ -90,7 +92,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
     switch (id) {
       case "school": return todaySchoolTasks.length > 0;
       case "tomorrow": return tomorrowActivityTasks.length > 0;
-      case "badges": return badgesInProgress.length > 0;
+      case "badges": return badgesInProgress.length > 0 || customBadgeProgress.length > 0;
       case "race": return allKids.length > 1;
       case "tasks": return total > 0;
       default: return true;
@@ -249,7 +251,7 @@ function SortableWidget({
 // ─── Widget content dispatcher ───────────────────────────────────────────────
 
 function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }) {
-  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, allKids, weeklyStars, level, encouragement } = props;
+  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, customBadgeProgress, allKids, weeklyStars, level, encouragement } = props;
 
   switch (id) {
     case "tasks":
@@ -341,6 +343,9 @@ function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }
                 </div>
               );
             })}
+            {customBadgeProgress.slice(0, 3).map((p) => (
+              <CustomBadgeTile key={p.badgeId} progress={p} size="sm" />
+            ))}
           </div>
         </div>
       );

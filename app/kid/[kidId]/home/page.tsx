@@ -7,6 +7,7 @@ import {
   listBadgeProgress,
   listKids,
   listWeeklyStarsByKid,
+  listCustomBadgeProgress,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -44,12 +45,13 @@ export default async function KidHomePage({
   const now = new Date();
   const dow = isoWeekday(now);
 
-  const [tasks, completions, badges, allKids, weeklyStars] = await Promise.all([
+  const [tasks, completions, badges, allKids, weeklyStars, customBadgeProgress] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id),
     listBadgeProgress(kid.id),
     listKids(),
     listWeeklyStarsByKid(),
+    listCustomBadgeProgress(kid.id),
   ]);
 
   const todayTasks = tasksForDay(tasks, dow);
@@ -105,6 +107,7 @@ export default async function KidHomePage({
         todaySchoolTasks={todaySchoolTasks}
         tomorrowActivityTasks={tomorrowActivityTasks}
         badgesInProgress={badgesInProgress}
+        customBadgeProgress={customBadgeProgress}
         allKids={allKids}
         weeklyStars={weeklyStars}
         level={{

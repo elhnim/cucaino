@@ -1,16 +1,18 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import BadgeTile from "@/components/kid/BadgeTile";
+import CustomBadgeTile from "@/components/kid/CustomBadgeTile";
 import {
   getKid,
   listRewardsForKid,
   listBadgeProgress,
   listWishlistItems,
+  listCustomBadgeProgress,
 } from "@/lib/data/stub";
 import { addToWishlist, removeFromWishlist } from "@/lib/actions/rewards";
 import RewardClaimButton from "@/components/kid/RewardClaimButton";
 import { BADGE_META } from "@/lib/domain/badge-config";
-import type { Reward, Kid, BadgeProgress, WishlistItem, BadgeCategory } from "@/lib/domain/types";
+import type { Reward, Kid, BadgeProgress, WishlistItem, BadgeCategory, CustomBadgeProgress } from "@/lib/domain/types";
 // Kid is used in BadgesTab props
 
 const LEVELS = [
@@ -42,9 +44,11 @@ const ALL_BADGE_CATEGORIES: BadgeCategory[] = [
 function BadgesTab({
   kid,
   badges,
+  customBadgeProgress,
 }: {
   kid: Kid;
   badges: BadgeProgress[];
+  customBadgeProgress: CustomBadgeProgress[];
 }) {
   const level = getLevel(kid.totalStarsEarned);
   const { pct: levelPct, next: nextLevel } = getLevelProgress(kid.totalStarsEarned);
@@ -230,6 +234,17 @@ function BadgesTab({
           })}
         </div>
       </div>
+
+      {customBadgeProgress.length > 0 && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <h3 className="font-bold text-gray-800 mb-4">⭐ My Goal Badges</h3>
+          <div className="grid grid-cols-3 gap-3">
+            {customBadgeProgress.map((p) => (
+              <CustomBadgeTile key={p.badgeId} progress={p} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -353,10 +368,11 @@ export default async function RewardsPage({
 
   const isBadgesTab = tab === "badges";
 
-  const [rewards, badges, wishlist] = await Promise.all([
+  const [rewards, badges, wishlist, customBadgeProgress] = await Promise.all([
     listRewardsForKid(kid.id),
     listBadgeProgress(kid.id),
     listWishlistItems(kid.id),
+    listCustomBadgeProgress(kid.id),
   ]);
 
   const activeRewards = rewards.filter((r) => r.active);
@@ -418,6 +434,7 @@ export default async function RewardsPage({
           <BadgesTab
             kid={kid}
             badges={badges}
+            customBadgeProgress={customBadgeProgress}
           />
         ) : (
           <>
