@@ -46,6 +46,8 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
   const [packingList, setPackingList] = useState<string[]>(task?.packingList ?? []);
   const [packingInput, setPackingInput] = useState("");
   const [frequencyPerDay, setFrequencyPerDay] = useState(task?.frequencyPerDay ?? 1);
+  const [cashValueCents, setCashValueCents] = useState(task?.cashValueCents ?? 0);
+  const [requiresParentApproval, setRequiresParentApproval] = useState(task?.requiresParentApproval ?? false);
 
   const toggleDay = (d: number) => {
     setDaysOfWeek((prev) =>
@@ -88,6 +90,8 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
     endTime: task?.endTime ?? null,
     room: task?.room ?? null,
     teacher: task?.teacher ?? null,
+    cashValueCents,
+    requiresParentApproval,
   });
 
   const handleSave = () => {
@@ -522,7 +526,7 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setPoints((v) => Math.max(1, v - 1))}
+            onClick={() => setPoints((v) => Math.max(0, v - 1))}
             className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold"
           >
             −
@@ -538,6 +542,39 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
         </div>
       </div>
 
+
+      {/* Cash + approval */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-4">
+        <div>
+          <label className="text-sm font-bold text-gray-700 block mb-1">
+            💵 Cash per completion ($) — optional
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            placeholder="0.00"
+            value={cashValueCents === 0 ? "" : (cashValueCents / 100).toFixed(2)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setCashValueCents(v === "" ? 0 : Math.round(parseFloat(v) * 100));
+            }}
+            className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="requires-parent-approval"
+            checked={requiresParentApproval}
+            onChange={(e) => setRequiresParentApproval(e.target.checked)}
+            className="rounded"
+          />
+          <label htmlFor="requires-parent-approval" className="text-sm font-bold text-gray-700">
+            Requires parent approval before stars/cash are awarded
+          </label>
+        </div>
+      </div>
 
       {/* Save */}
       <button
