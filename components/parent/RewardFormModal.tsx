@@ -34,6 +34,9 @@ export default function RewardFormModal({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<RewardFormData>(defaultForm(reward));
+  const [costCashStr, setCostCashStr] = useState(() =>
+    (form.costCashCents ?? 0) > 0 ? ((form.costCashCents ?? 0) / 100).toFixed(2) : "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -148,10 +151,11 @@ export default function RewardFormModal({
               min={0}
               step={0.01}
               placeholder="0.00"
-              value={form.costCashCents === 0 ? "" : (form.costCashCents / 100).toFixed(2)}
+              value={costCashStr}
               onChange={(e) => {
                 const v = e.target.value;
-                set("costCashCents", v === "" ? 0 : Math.round(parseFloat(v) * 100));
+                setCostCashStr(v);
+                set("costCashCents", v === "" || isNaN(parseFloat(v)) ? 0 : Math.round(parseFloat(v) * 100));
               }}
               className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
             />

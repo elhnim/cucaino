@@ -47,6 +47,9 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
   const [packingInput, setPackingInput] = useState("");
   const [frequencyPerDay, setFrequencyPerDay] = useState(task?.frequencyPerDay ?? 1);
   const [cashValueCents, setCashValueCents] = useState(task?.cashValueCents ?? 0);
+  const [cashStr, setCashStr] = useState(() =>
+    (task?.cashValueCents ?? 0) > 0 ? ((task?.cashValueCents ?? 0) / 100).toFixed(2) : "",
+  );
   const [requiresParentApproval, setRequiresParentApproval] = useState(task?.requiresParentApproval ?? false);
 
   const toggleDay = (d: number) => {
@@ -553,10 +556,11 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
               min={0}
               step={0.01}
               placeholder="0.00"
-              value={cashValueCents === 0 ? "" : (cashValueCents / 100).toFixed(2)}
+              value={cashStr}
               onChange={(e) => {
                 const v = e.target.value;
-                setCashValueCents(v === "" ? 0 : Math.round(parseFloat(v) * 100));
+                setCashStr(v);
+                setCashValueCents(v === "" || isNaN(parseFloat(v)) ? 0 : Math.round(parseFloat(v) * 100));
               }}
               className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
             />

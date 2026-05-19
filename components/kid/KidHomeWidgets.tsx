@@ -24,8 +24,9 @@ import type { Kid, Task, BadgeProgress } from "@/lib/domain/types";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
-const SORTABLE_IDS = ["info", "badges", "race", "level", "encouragement"];
+const SORTABLE_IDS = ["tasks", "info", "badges", "race", "level", "encouragement"];
 const WIDGET_LABELS: Record<string, string> = {
+  tasks: "✅ Today's Tasks",
   info: "📚 School & Tomorrow",
   badges: "🎖 My Badges",
   race: "🏁 Family Race",
@@ -33,6 +34,7 @@ const WIDGET_LABELS: Record<string, string> = {
   encouragement: "💬 Encouragement",
 };
 const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
+  tasks: "full",
   info: "full",
   badges: "full",
   race: "full",
@@ -87,6 +89,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
       case "info": return todaySchoolTasks.length > 0 || tomorrowActivityTasks.length > 0;
       case "badges": return badgesInProgress.length > 0;
       case "race": return allKids.length > 1;
+      case "tasks": return total > 0;
       default: return true;
     }
   }
@@ -112,9 +115,6 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
     <>
       {/* PINNED: Stats */}
       <StatsWidget kid={kid} theme={theme} done={done} total={total} allDone={allDone} ringOffset={ringOffset} />
-
-      {/* PINNED: Today's tasks */}
-      <TasksWidget kid={kid} theme={theme} done={done} total={total} allDone={allDone} taskPct={taskPct} incompleteTasks={incompleteTasks} />
 
       {/* SORTABLE widgets — 2-column grid */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -246,9 +246,12 @@ function SortableWidget({
 // ─── Widget content dispatcher ───────────────────────────────────────────────
 
 function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }) {
-  const { kid, theme, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, allKids, weeklyStars, level, encouragement } = props;
+  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, allKids, weeklyStars, level, encouragement } = props;
 
   switch (id) {
+    case "tasks":
+      return <TasksWidget kid={kid} theme={theme} done={done} total={total} allDone={allDone} taskPct={taskPct} incompleteTasks={incompleteTasks} />;
+
     case "info":
       return (
         <div className={`grid gap-3 ${todaySchoolTasks.length > 0 && tomorrowActivityTasks.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>

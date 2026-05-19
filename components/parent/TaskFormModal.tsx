@@ -125,6 +125,9 @@ export default function TaskFormModal({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<TaskFormData>(defaultForm(task));
+  const [cashStr, setCashStr] = useState(() =>
+    (form.cashValueCents ?? 0) > 0 ? ((form.cashValueCents ?? 0) / 100).toFixed(2) : "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -623,10 +626,11 @@ export default function TaskFormModal({
               min={0}
               step={0.01}
               placeholder="0.00"
-              value={form.cashValueCents === 0 ? "" : (form.cashValueCents! / 100).toFixed(2)}
+              value={cashStr}
               onChange={(e) => {
                 const v = e.target.value;
-                set("cashValueCents", v === "" ? 0 : Math.round(parseFloat(v) * 100));
+                setCashStr(v);
+                set("cashValueCents", v === "" || isNaN(parseFloat(v)) ? 0 : Math.round(parseFloat(v) * 100));
               }}
               className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
             />
