@@ -176,17 +176,19 @@ function StarsTab({
                     <div className="text-[13px] font-bold text-gray-900 truncate">
                       {entry.kind === "task" ? entry.taskName : entry.rewardName}
                     </div>
+                  </div>
+                  <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+                    <div
+                      className="text-[13px] font-black"
+                      style={{ color: entry.kind === "task" ? "#16a34a" : "#ef4444" }}
+                    >
+                      {entry.kind === "task" ? `+${entry.pointsAwarded}` : `−${entry.pointsSpent}`} ⭐
+                    </div>
                     {balance !== null && (
-                      <div className="text-[10px] text-gray-400">
-                        Balance: {balance.toLocaleString()} ⭐
+                      <div className="text-[10px] text-gray-400 font-semibold">
+                        {balance.toLocaleString()} ⭐
                       </div>
                     )}
-                  </div>
-                  <div
-                    className="text-[13px] font-black flex-shrink-0"
-                    style={{ color: entry.kind === "task" ? "#16a34a" : "#ef4444" }}
-                  >
-                    {entry.kind === "task" ? `+${entry.pointsAwarded}` : `−${entry.pointsSpent}`} ⭐
                   </div>
                 </div>
               ))}
@@ -271,17 +273,19 @@ function CashTab({
                     <div className="text-[13px] font-bold text-gray-900 truncate">
                       {txn.description}
                     </div>
+                  </div>
+                  <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+                    <div
+                      className="text-[13px] font-black"
+                      style={{ color: txn.type === "credit" ? "#16a34a" : "#ef4444" }}
+                    >
+                      {txn.type === "credit" ? "+" : "−"}${(Math.abs(txn.amountCents) / 100).toFixed(2)}
+                    </div>
                     {balance !== null && (
-                      <div className="text-[10px] text-gray-400">
-                        Balance: ${(balance / 100).toFixed(2)}
+                      <div className="text-[10px] text-gray-400 font-semibold">
+                        ${(balance / 100).toFixed(2)}
                       </div>
                     )}
-                  </div>
-                  <div
-                    className="text-[13px] font-black flex-shrink-0"
-                    style={{ color: txn.type === "credit" ? "#16a34a" : "#ef4444" }}
-                  >
-                    {txn.type === "credit" ? "+" : "−"}${(Math.abs(txn.amountCents) / 100).toFixed(2)}
                   </div>
                 </div>
               ))}
