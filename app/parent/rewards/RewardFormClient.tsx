@@ -177,7 +177,16 @@ export default function RewardFormClient({
           <label className="text-sm font-bold text-gray-700 block">Star cost</label>
           <div className="flex items-center gap-3">
             <button type="button" onClick={() => setCostPoints((v) => Math.max(0, v - 5))} className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold">−</button>
-            <span className="text-2xl font-black w-16 text-center">⭐ {costPoints}</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xl">⭐</span>
+              <input
+                type="number"
+                min={0}
+                value={costPoints}
+                onChange={(e) => setCostPoints(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-16 text-center text-2xl font-black border border-gray-200 rounded-xl py-1 focus:outline-none focus:border-indigo-400"
+              />
+            </div>
             <button type="button" onClick={() => setCostPoints((v) => v + 5)} className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold">+</button>
           </div>
         </div>
