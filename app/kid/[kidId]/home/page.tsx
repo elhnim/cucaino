@@ -105,105 +105,83 @@ export default async function KidHomePage({
     <div className="p-4 space-y-3">
         <PrefetchRoutes routes={[`/kid/${kid.id}/todo`, `/kid/${kid.id}/rewards`, `/play`]} />
 
-        {/* 1. Profile Level strip */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Profile Level</span>
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black"
-              style={{ background: level.color + "20", color: level.color }}
-            >
-              {level.emoji} {level.name}
-            </span>
+        {/* 1. Stats grid — 2×2 when cash balance, 3-col otherwise */}
+        {kid.cashBalance > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+              <span className="text-xl font-black">⭐ {kid.pointsBalance}</span>
+              <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Stars</span>
+            </div>
+            <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1" style={{ background: "#f0fdf4" }}>
+              <span className="text-xl font-black" style={{ color: "#15803d" }}>💵 ${(kid.cashBalance / 100).toFixed(2)}</span>
+              <span className="text-[9px] font-bold tracking-widest uppercase" style={{ color: "#16a34a" }}>Cash</span>
+            </div>
+            <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+              <span className="text-xl font-black">🔥 {kid.currentStreak}d</span>
+              <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Streak</span>
+            </div>
+            <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+              <svg width={50} height={50} viewBox="0 0 52 52">
+                <circle cx={26} cy={26} r={20} fill="none" stroke="#e5e7eb" strokeWidth={5} />
+                {total > 0 && (
+                  <circle
+                    cx={26} cy={26} r={20}
+                    fill="none"
+                    stroke={allDone ? "#22c55e" : theme.accent}
+                    strokeWidth={5}
+                    strokeLinecap="round"
+                    strokeDasharray={CIRCUMFERENCE}
+                    strokeDashoffset={ringOffset}
+                    transform="rotate(-90 26 26)"
+                  />
+                )}
+                <text x={26} y={30} textAnchor="middle" fontSize={11} fontWeight="bold"
+                  fill={total > 0 ? (allDone ? "#22c55e" : theme.accent) : "#9ca3af"}>
+                  {total > 0 ? `${done}/${total}` : "—"}
+                </text>
+              </svg>
+              <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Tasks</span>
+            </div>
           </div>
-          <div className="bg-gray-100 rounded-full h-2 overflow-hidden mb-1.5">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${Math.round(levelPct * 100)}%`, background: level.color }}
-            />
-          </div>
-          <p className="text-[11px] text-gray-400 font-semibold">
-            {nextLevel
-              ? `${nextLevel.min - kid.totalStarsEarned} more ⭐ to ${nextLevel.name}`
-              : "Maximum level reached! 🎉"}
-          </p>
-        </div>
-
-        {/* 2. Stats row */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
-            <span className="text-xl font-black">⭐ {kid.pointsBalance}</span>
-            <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Stars</span>
-          </div>
-
-          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
-            <span className="text-xl font-black">🔥 {kid.currentStreak}d</span>
-            <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Streak</span>
-          </div>
-
-          <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
-            <svg width={50} height={50} viewBox="0 0 52 52">
-              <circle cx={26} cy={26} r={20} fill="none" stroke="#e5e7eb" strokeWidth={5} />
-              {total > 0 && (
-                <circle
-                  cx={26} cy={26} r={20}
-                  fill="none"
-                  stroke={allDone ? "#22c55e" : theme.accent}
-                  strokeWidth={5}
-                  strokeLinecap="round"
-                  strokeDasharray={CIRCUMFERENCE}
-                  strokeDashoffset={ringOffset}
-                  transform="rotate(-90 26 26)"
-                />
-              )}
-              <text x={26} y={30} textAnchor="middle" fontSize={11} fontWeight="bold"
-                fill={total > 0 ? (allDone ? "#22c55e" : theme.accent) : "#9ca3af"}>
-                {total > 0 ? `${done}/${total}` : "—"}
-              </text>
-            </svg>
-            <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Tasks</span>
-          </div>
-        </div>
-
-        {/* 3. Tomorrow's reminders */}
-        {tomorrowActivityTasks.length > 0 && (
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <div className="text-sm font-black text-gray-800 mb-3">🗓 Tomorrow's reminders</div>
-            <div className="space-y-3">
-              {tomorrowActivityTasks.map((t) => (
-                <div key={t.id}>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-base flex-shrink-0">
-                      {t.icon}
-                    </div>
-                    <div>
-                      <div className="text-[13px] font-black text-gray-900">{t.name}</div>
-                      {(t.location || t.startTime) && (
-                        <div className="text-[10px] text-gray-400 font-semibold">
-                          {t.startTime && `${t.startTime} · `}{t.location && `📍 ${t.location}`}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {t.packingList && t.packingList.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pl-10">
-                      {t.packingList.map((item, i) => (
-                        <span key={i} className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold">
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+              <span className="text-xl font-black">⭐ {kid.pointsBalance}</span>
+              <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Stars</span>
+            </div>
+            <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+              <span className="text-xl font-black">🔥 {kid.currentStreak}d</span>
+              <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Streak</span>
+            </div>
+            <div className="bg-white rounded-2xl p-3 shadow-sm flex flex-col items-center gap-1">
+              <svg width={50} height={50} viewBox="0 0 52 52">
+                <circle cx={26} cy={26} r={20} fill="none" stroke="#e5e7eb" strokeWidth={5} />
+                {total > 0 && (
+                  <circle
+                    cx={26} cy={26} r={20}
+                    fill="none"
+                    stroke={allDone ? "#22c55e" : theme.accent}
+                    strokeWidth={5}
+                    strokeLinecap="round"
+                    strokeDasharray={CIRCUMFERENCE}
+                    strokeDashoffset={ringOffset}
+                    transform="rotate(-90 26 26)"
+                  />
+                )}
+                <text x={26} y={30} textAnchor="middle" fontSize={11} fontWeight="bold"
+                  fill={total > 0 ? (allDone ? "#22c55e" : theme.accent) : "#9ca3af"}>
+                  {total > 0 ? `${done}/${total}` : "—"}
+                </text>
+              </svg>
+              <span className="text-[9px] font-bold text-gray-400 tracking-widest uppercase">Tasks</span>
             </div>
           </div>
         )}
 
-        {/* 4. Today's tasks */}
+        {/* 2. Today's tasks */}
         <div className="bg-white rounded-2xl p-4 shadow-sm" style={allDone ? { background: "#f0fdf4", border: "2px solid #86efac" } : {}}>
           <div className="flex items-center justify-between mb-2.5">
-            <div className="text-sm font-black text-gray-800">Today's tasks</div>
+            <div className="text-sm font-black text-gray-800">Today&apos;s tasks</div>
             {total > 0 && (
               <span className="text-xs font-bold" style={{ color: allDone ? "#16a34a" : theme.accent }}>
                 {done} / {total} done
@@ -219,7 +197,6 @@ export default async function KidHomePage({
             </div>
           )}
 
-          {/* Incomplete tasks inline */}
           {incompleteTasks.length > 0 && (
             <div className="space-y-2 mb-3">
               {incompleteTasks.slice(0, 3).map((task) => (
@@ -229,7 +206,10 @@ export default async function KidHomePage({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-bold text-gray-900 truncate">{task.name}</div>
-                    <div className="text-[10px] text-gray-400 font-semibold">+{task.points} ⭐</div>
+                    <div className="text-[10px] text-gray-400 font-semibold">
+                      {task.points > 0 && `+${task.points} ⭐`}
+                      {task.cashValueCents > 0 && ` +$${(task.cashValueCents / 100).toFixed(2)}`}
+                    </div>
                   </div>
                   <div className="w-6 h-6 rounded-full border-2 border-gray-200 flex-shrink-0" />
                 </div>
@@ -251,28 +231,65 @@ export default async function KidHomePage({
           </Link>
         </div>
 
-        {/* 5. School today — weekdays only */}
-        {todaySchoolTasks.length > 0 && (
-          <div className="bg-white rounded-2xl p-4 shadow-sm">
-            <div className="text-sm font-black text-gray-800 mb-3">📚 School today</div>
-            <div className="flex flex-wrap gap-2">
-              {todaySchoolTasks.map((t) => {
-                const subj = t.subject && t.subject in SUBJECTS ? SUBJECTS[t.subject as keyof typeof SUBJECTS] : null;
-                return (
-                  <span
-                    key={t.id}
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "text-white"}`}
-                    style={!subj ? { background: theme.accent } : undefined}
-                  >
-                    {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
-                  </span>
-                );
-              })}
-            </div>
+        {/* 3. School today + Tomorrow's reminders — side by side when both present */}
+        {(todaySchoolTasks.length > 0 || tomorrowActivityTasks.length > 0) && (
+          <div className={`grid gap-3 ${todaySchoolTasks.length > 0 && tomorrowActivityTasks.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+            {todaySchoolTasks.length > 0 && (
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <div className="text-sm font-black text-gray-800 mb-3">📚 School today</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {todaySchoolTasks.map((t) => {
+                    const subj = t.subject && t.subject in SUBJECTS ? SUBJECTS[t.subject as keyof typeof SUBJECTS] : null;
+                    return (
+                      <span
+                        key={t.id}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "text-white"}`}
+                        style={!subj ? { background: theme.accent } : undefined}
+                      >
+                        {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {tomorrowActivityTasks.length > 0 && (
+              <div className="bg-white rounded-2xl p-4 shadow-sm">
+                <div className="text-sm font-black text-gray-800 mb-3">🗓 Tomorrow</div>
+                <div className="space-y-2.5">
+                  {tomorrowActivityTasks.map((t) => (
+                    <div key={t.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-xl bg-blue-50 flex items-center justify-center text-sm flex-shrink-0">
+                          {t.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[12px] font-black text-gray-900 truncate">{t.name}</div>
+                          {(t.location || t.startTime) && (
+                            <div className="text-[10px] text-gray-400 font-semibold truncate">
+                              {t.startTime && `${t.startTime} · `}{t.location && `📍 ${t.location}`}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {t.packingList && t.packingList.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5 pl-9">
+                          {t.packingList.map((item, i) => (
+                            <span key={i} className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold">
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* 6. Badge highlights — top 3 in progress */}
+        {/* 4. Badge highlights — top 3 in progress */}
         {badgesInProgress.length > 0 && (
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -318,7 +335,7 @@ export default async function KidHomePage({
           </div>
         )}
 
-        {/* 7. Family race this week */}
+        {/* 5. Family race this week */}
         {allKids.length > 1 && (() => {
           const ranked = allKids
             .map((k) => ({ kid: k, stars: weeklyStars[k.id] ?? 0 }))
@@ -359,7 +376,31 @@ export default async function KidHomePage({
           );
         })()}
 
-        {/* 8. Encouragement */}
+        {/* 6. Profile Level — informational, below the fold */}
+        <div className="bg-white rounded-2xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2.5">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Profile Level</span>
+            <span
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black"
+              style={{ background: level.color + "20", color: level.color }}
+            >
+              {level.emoji} {level.name}
+            </span>
+          </div>
+          <div className="bg-gray-100 rounded-full h-2 overflow-hidden mb-1.5">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${Math.round(levelPct * 100)}%`, background: level.color }}
+            />
+          </div>
+          <p className="text-[11px] text-gray-400 font-semibold">
+            {nextLevel
+              ? `${nextLevel.min - kid.totalStarsEarned} more ⭐ to ${nextLevel.name}`
+              : "Maximum level reached! 🎉"}
+          </p>
+        </div>
+
+        {/* 7. Encouragement */}
         <div className="bg-white/60 rounded-2xl px-4 py-3 text-center text-sm text-gray-500 font-medium">
           {encouragement}
         </div>

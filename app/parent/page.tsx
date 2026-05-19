@@ -108,10 +108,10 @@ export default async function ParentOverviewPage() {
       <div>
         <div className="flex items-center justify-between mb-2.5 px-1">
           <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Today</span>
-          <span className="text-[11px] font-semibold text-gray-400">{kids.length} kids</span>
+          <span className="text-[11px] font-semibold text-gray-400">{todayLabel}</span>
         </div>
         <div className="space-y-2.5">
-          {kidData.map(({ kid, done, total, todayTasks, completedIds, activityTasks }) => {
+          {kidData.map(({ kid, done, total }) => {
             const theme = getTheme(kid.themeId);
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             const allDone = total > 0 && done >= total;
@@ -174,61 +174,14 @@ export default async function ParentOverviewPage() {
                   </span>
                 </div>
 
-                {/* All done banner */}
-                {allDone && (
+                {/* All done / tasks remaining */}
+                {allDone ? (
                   <div className="mt-2 bg-green-50 rounded-xl px-3 py-1.5 text-xs font-bold text-green-700">
                     🎉 All tasks done!
                   </div>
-                )}
-
-                {/* Task breakdown */}
-                {(todayTasks.length > 0 || activityTasks.length > 0) && (
-                  <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: `1px solid ${theme.accentSoft}` }}>
-                    {todayTasks.map((task) => {
-                      const isDone = completedIds.has(task.id);
-                      return (
-                        <div key={task.id} className="flex items-center gap-2">
-                          <span className="text-sm leading-none flex-shrink-0">{task.icon}</span>
-                          <span
-                            className="text-[12px] font-semibold flex-1 min-w-0 truncate"
-                            style={{ color: isDone ? "#d1d5db" : "#374151", textDecoration: isDone ? "line-through" : "none" }}
-                          >
-                            {task.name}
-                          </span>
-                          {isDone && <span className="text-[10px] text-green-500 flex-shrink-0 font-bold">✓</span>}
-                        </div>
-                      );
-                    })}
-
-                    {activityTasks.length > 0 && (
-                      <>
-                        {todayTasks.length > 0 && <div className="h-px my-1" style={{ background: theme.accentSoft }} />}
-                        {activityTasks.map((task) => (
-                          <div key={task.id}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm leading-none flex-shrink-0">{task.icon}</span>
-                              <span className="text-[12px] font-semibold text-gray-700 flex-1 min-w-0 truncate">{task.name}</span>
-                              {task.location && (
-                                <span className="text-[10px] text-gray-400 flex-shrink-0 truncate max-w-[100px]">📍 {task.location}</span>
-                              )}
-                            </div>
-                            {task.packingList && task.packingList.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5 ml-6">
-                                {task.packingList.map((item, i) => (
-                                  <span
-                                    key={i}
-                                    className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                                    style={{ background: theme.accentSoft, color: theme.accent }}
-                                  >
-                                    {item}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </>
-                    )}
+                ) : total > 0 && (
+                  <div className="mt-1.5 text-[11px] text-gray-400 font-semibold">
+                    {total - done} task{total - done !== 1 ? "s" : ""} remaining
                   </div>
                 )}
 
