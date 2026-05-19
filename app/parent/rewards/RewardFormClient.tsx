@@ -33,6 +33,9 @@ export default function RewardFormClient({
   const [customIcon, setCustomIcon] = useState(reward ? !COMMON_ICONS.includes(reward.icon) : false);
   const [description, setDescription] = useState(reward?.description ?? "");
   const [costPoints, setCostPoints] = useState(reward?.costPoints ?? 10);
+  const [costCashStr, setCostCashStr] = useState(
+    reward?.costCashCents ? (reward.costCashCents / 100).toFixed(2) : ""
+  );
   const [rewardType, setRewardType] = useState<RewardType>(reward?.rewardType ?? "treat");
   const [who, setWho] = useState<RewardWho>(reward?.who ?? "individual");
   const [recurrence, setRecurrence] = useState<RewardRecurrence>(reward?.recurrence ?? "recurring");
@@ -60,7 +63,7 @@ export default function RewardFormClient({
     redemptionPeriod,
     requiresApproval,
     availableTo,
-    costCashCents: reward?.costCashCents ?? 0,
+    costCashCents: Math.round((parseFloat(costCashStr) || 0) * 100),
   });
 
   const handleSave = () => {
@@ -168,13 +171,37 @@ export default function RewardFormClient({
         </div>
       </div>
 
-      {/* Stars */}
-      <div className="bg-white rounded-2xl shadow p-4 space-y-2">
-        <label className="text-sm font-bold text-gray-700 block">Star cost</label>
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => setCostPoints((v) => Math.max(1, v - 5))} className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold">−</button>
-          <span className="text-2xl font-black w-16 text-center">⭐ {costPoints}</span>
-          <button type="button" onClick={() => setCostPoints((v) => v + 5)} className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold">+</button>
+      {/* Stars + Cash cost */}
+      <div className="bg-white rounded-2xl shadow p-4 space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-gray-700 block">Star cost</label>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setCostPoints((v) => Math.max(0, v - 5))} className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold">−</button>
+            <span className="text-2xl font-black w-16 text-center">⭐ {costPoints}</span>
+            <button type="button" onClick={() => setCostPoints((v) => v + 5)} className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold">+</button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-gray-700 block">
+            Cash cost <span className="font-normal text-gray-400">(optional)</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">💵</span>
+            <span className="text-sm font-bold text-gray-500">$</span>
+            <input
+              type="number"
+              min={0}
+              step={0.50}
+              placeholder="0.00"
+              value={costCashStr}
+              onChange={(e) => setCostCashStr(e.target.value)}
+              className="w-28 border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold focus:outline-none focus:border-indigo-400"
+            />
+            {costCashStr && parseFloat(costCashStr) > 0 && (
+              <button type="button" onClick={() => setCostCashStr("")} className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">Kids can pay with their cash balance instead of stars.</p>
         </div>
       </div>
 
