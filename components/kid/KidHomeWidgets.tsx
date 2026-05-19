@@ -24,10 +24,11 @@ import type { Kid, Task, BadgeProgress } from "@/lib/domain/types";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
-const SORTABLE_IDS = ["tasks", "info", "badges", "race", "level", "encouragement"];
+const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement"];
 const WIDGET_LABELS: Record<string, string> = {
   tasks: "✅ Today's Tasks",
-  info: "📚 School & Tomorrow",
+  school: "📚 School Today",
+  tomorrow: "🗓 School Tomorrow",
   badges: "🎖 My Badges",
   race: "🏁 Family Race",
   level: "🌱 Profile Level",
@@ -35,7 +36,8 @@ const WIDGET_LABELS: Record<string, string> = {
 };
 const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   tasks: "full",
-  info: "full",
+  school: "half",
+  tomorrow: "half",
   badges: "full",
   race: "full",
   level: "half",
@@ -86,7 +88,8 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
 
   function isAvailable(id: string): boolean {
     switch (id) {
-      case "info": return todaySchoolTasks.length > 0 || tomorrowActivityTasks.length > 0;
+      case "school": return todaySchoolTasks.length > 0;
+      case "tomorrow": return tomorrowActivityTasks.length > 0;
       case "badges": return badgesInProgress.length > 0;
       case "race": return allKids.length > 1;
       case "tasks": return total > 0;
@@ -252,61 +255,59 @@ function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }
     case "tasks":
       return <TasksWidget kid={kid} theme={theme} done={done} total={total} allDone={allDone} taskPct={taskPct} incompleteTasks={incompleteTasks} />;
 
-    case "info":
+    case "school":
       return (
-        <div className={`grid gap-3 ${todaySchoolTasks.length > 0 && tomorrowActivityTasks.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {todaySchoolTasks.length > 0 && (
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="text-sm font-black text-gray-800 mb-3">📚 School today</div>
-              <div className="flex flex-wrap gap-1.5">
-                {todaySchoolTasks.map((t) => {
-                  const subj = t.subject && t.subject in SUBJECTS ? SUBJECTS[t.subject as keyof typeof SUBJECTS] : null;
-                  return (
-                    <span
-                      key={t.id}
-                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "text-white"}`}
-                      style={!subj ? { background: theme.accent } : undefined}
-                    >
-                      {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          {tomorrowActivityTasks.length > 0 && (
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="text-sm font-black text-gray-800 mb-3">🗓 Tomorrow</div>
-              <div className="space-y-2.5">
-                {tomorrowActivityTasks.map((t) => (
-                  <div key={t.id}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-xl bg-blue-50 flex items-center justify-center text-sm flex-shrink-0">
-                        {t.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12px] font-black text-gray-900 truncate">{t.name}</div>
-                        {(t.location || t.startTime) && (
-                          <div className="text-[10px] text-gray-400 font-semibold truncate">
-                            {t.startTime && `${t.startTime} · `}{t.location && `📍 ${t.location}`}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {t.packingList && t.packingList.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5 pl-9">
-                        {t.packingList.map((item, i) => (
-                          <span key={i} className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold">
-                            {item}
-                          </span>
-                        ))}
+        <div className="bg-white rounded-2xl p-4 shadow-sm h-full">
+          <div className="text-sm font-black text-gray-800 mb-3">📚 School today</div>
+          <div className="flex flex-wrap gap-1.5">
+            {todaySchoolTasks.map((t) => {
+              const subj = t.subject && t.subject in SUBJECTS ? SUBJECTS[t.subject as keyof typeof SUBJECTS] : null;
+              return (
+                <span
+                  key={t.id}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "text-white"}`}
+                  style={!subj ? { background: theme.accent } : undefined}
+                >
+                  {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      );
+
+    case "tomorrow":
+      return (
+        <div className="bg-white rounded-2xl p-4 shadow-sm h-full">
+          <div className="text-sm font-black text-gray-800 mb-3">🗓 Tomorrow</div>
+          <div className="space-y-2.5">
+            {tomorrowActivityTasks.map((t) => (
+              <div key={t.id}>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-xl bg-blue-50 flex items-center justify-center text-sm flex-shrink-0">
+                    {t.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-black text-gray-900 truncate">{t.name}</div>
+                    {(t.location || t.startTime) && (
+                      <div className="text-[10px] text-gray-400 font-semibold truncate">
+                        {t.startTime && `${t.startTime} · `}{t.location && `📍 ${t.location}`}
                       </div>
                     )}
                   </div>
-                ))}
+                </div>
+                {t.packingList && t.packingList.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5 pl-9">
+                    {t.packingList.map((item, i) => (
+                      <span key={i} className="px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </div>
       );
 

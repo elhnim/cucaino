@@ -223,14 +223,12 @@ export default function KidShell({
               >
                 ⭐ {kid.pointsBalance.toLocaleString()}
               </span>
-              {kid.cashBalance > 0 && (
-                <span
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black"
-                  style={{ background: "rgba(255,255,255,0.2)" }}
-                >
-                  💵 ${(kid.cashBalance / 100).toFixed(2)}
-                </span>
-              )}
+              <span
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+              >
+                💵 ${(kid.cashBalance / 100).toFixed(2)}
+              </span>
               <span
                 className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black"
                 style={{ background: "rgba(255,255,255,0.2)" }}
