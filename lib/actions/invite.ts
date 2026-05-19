@@ -105,10 +105,13 @@ export async function acceptInvite(): Promise<
   }
 
   // Mark accepted
-  await admin
+  const { error: acceptErr } = await admin
     .from("family_invites")
     .update({ status: "accepted" })
     .eq("id", invite.id);
+  if (acceptErr) {
+    return { ok: false, error: "Could not accept the invite. Please try again." };
+  }
 
   // Append user to co_parent_user_ids (read-then-write)
   const { data: family, error: famReadErr } = await admin
