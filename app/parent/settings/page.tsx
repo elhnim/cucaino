@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getFamily, listKids, getParentPinFromDb } from "@/lib/data/stub";
+import { getFamily, listKids, getParentPinFromDb, listFamilyInvites } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 import { signOut } from "@/lib/actions/auth";
 import FamilyNameEditor from "@/components/parent/FamilyNameEditor";
 import WeatherLocationPicker from "@/components/parent/WeatherLocationPicker";
+import InviteParentSection from "@/components/parent/InviteParentSection";
 
 const commit = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
@@ -48,7 +49,7 @@ function SettingsRow({
 }
 
 export default async function ParentSettingsPage() {
-  const [family, kids] = await Promise.all([getFamily(), listKids()]);
+  const [family, kids, invites] = await Promise.all([getFamily(), listKids(), listFamilyInvites()]);
   await getParentPinFromDb();
 
   if (!family) redirect("/login");
@@ -87,14 +88,17 @@ export default async function ParentSettingsPage() {
             </div>
             <span className="text-gray-300 text-xl">›</span>
           </Link>
-          <div className="flex items-center gap-2.5 px-3.5 py-3 border-t border-gray-100 bg-white opacity-50">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-[18px] flex-shrink-0 bg-gray-100">
-              ✉️
+          <div className="border-t border-gray-100 px-3.5 py-3.5">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-[18px] flex-shrink-0 bg-indigo-50">
+                ✉️
+              </div>
+              <div>
+                <div className="text-[14px] font-semibold text-gray-800">Invite a parent or guardian</div>
+                <div className="text-[11px] text-gray-400">They&apos;ll get full access to the parent dashboard</div>
+              </div>
             </div>
-            <div className="flex-1">
-              <div className="text-[14px] font-semibold text-indigo-600">Invite a parent or guardian</div>
-              <div className="text-[11px] text-gray-400">Coming soon</div>
-            </div>
+            <InviteParentSection initialInvites={invites} />
           </div>
         </div>
       </div>
