@@ -12,6 +12,7 @@ import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
 import type { Task } from "@/lib/domain/types";
 import ParentHomeWidgets, { type KidCardData, type HeadsUpItem } from "@/components/parent/ParentHomeWidgets";
+import WhatsNewModal from "@/components/WhatsNewModal";
 
 export default async function ParentOverviewPage() {
   const [family, kids, pending, pendingCompletions] = await Promise.all([
@@ -81,6 +82,7 @@ export default async function ParentOverviewPage() {
 
   return (
     <div className="p-4 space-y-4 pt-5">
+      <WhatsNewModal />
       <ParentHomeWidgets
         allKids={kids}
         kidCards={kidCards}

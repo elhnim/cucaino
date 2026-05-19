@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import PrefetchRoutes from "@/components/kid/PrefetchRoutes";
+import WhatsNewModal from "@/components/WhatsNewModal";
 import {
   getKid,
   listTasksForKid,
@@ -94,6 +95,7 @@ export default async function KidHomePage({
 
   return (
     <div className="p-4 space-y-3">
+      <WhatsNewModal />
       <PrefetchRoutes routes={[`/kid/${kid.id}/todo`, `/kid/${kid.id}/rewards`, `/play`]} />
       <KidHomeWidgets
         kid={kid}
