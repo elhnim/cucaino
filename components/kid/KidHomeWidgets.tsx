@@ -22,10 +22,11 @@ import { SUBJECTS } from "@/lib/registry/subject-registry";
 import { BADGE_META, BADGE_THRESHOLDS, getTierFromCount } from "@/lib/domain/badge-config";
 import type { Kid, Task, BadgeProgress, CustomBadgeProgress, Strike } from "@/lib/domain/types";
 import CustomBadgeTile from "@/components/kid/CustomBadgeTile";
+import MoodJarWidget from "@/components/kid/MoodJarWidget";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
-const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement", "streak"];
+const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement", "streak", "mood"];
 const WIDGET_LABELS: Record<string, string> = {
   tasks: "✅ Today's Tasks",
   school: "📚 School Today",
@@ -35,6 +36,7 @@ const WIDGET_LABELS: Record<string, string> = {
   level: "🌱 Profile Level",
   encouragement: "💬 Encouragement",
   streak: "🔥 Streak Calendar",
+  mood: "🫙 Mood Jar",
 };
 const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   tasks: "full",
@@ -45,6 +47,7 @@ const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   level: "half",
   encouragement: "half",
   streak: "full",
+  mood: "full",
 };
 
 interface LevelData {
@@ -72,6 +75,7 @@ export interface KidHomeWidgetsProps {
   allKids: Kid[];
   weeklyStars: Record<string, number>;
   weeklyCompletions: Record<string, number>;
+  moodCounts: Record<string, number>;
   level: LevelData;
   encouragement: string;
   activeStrikes?: Strike[];
@@ -276,7 +280,7 @@ function SortableWidget({
 // ─── Widget content dispatcher ───────────────────────────────────────────────
 
 function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }) {
-  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, customBadgeProgress, allKids, weeklyStars, weeklyCompletions, level, encouragement } = props;
+  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, customBadgeProgress, allKids, weeklyStars, weeklyCompletions, moodCounts, level, encouragement } = props;
 
   switch (id) {
     case "tasks":
@@ -441,6 +445,9 @@ function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }
 
     case "streak":
       return <StreakCalendarWidget completions={weeklyCompletions} streak={kid.currentStreak} accent={theme.accent} />;
+
+    case "mood":
+      return <MoodJarWidget kidId={kid.id} initialCounts={moodCounts} accent={theme.accent} />;
 
     default:
       return null;
