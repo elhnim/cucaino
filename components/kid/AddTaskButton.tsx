@@ -137,6 +137,11 @@ export default function AddTaskButton({
                     <span className="text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5 shrink-0">
                       ⭐ {task.points}
                     </span>
+                    {task.cashValueCents > 0 && (
+                      <span className="text-xs font-semibold rounded-full px-2 py-0.5 shrink-0" style={{ background: "#f0fdf4", color: "#15803d" }}>
+                        💵 ${(task.cashValueCents / 100).toFixed(2)}
+                      </span>
+                    )}
                   </button>
                 ))
               )}

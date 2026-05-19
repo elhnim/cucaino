@@ -71,6 +71,15 @@ function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
               {task.points} ⭐
             </span>
           )}
+          {/* Cash value */}
+          {task.cashValueCents > 0 && (
+            <span
+              className="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style={{ background: "#f0fdf4", color: "#15803d" }}
+            >
+              💵 ${(task.cashValueCents / 100).toFixed(2)}
+            </span>
+          )}
           {/* Target */}
           {targetLabel && (
             <span className="text-[10px] text-gray-400">{targetLabel}</span>

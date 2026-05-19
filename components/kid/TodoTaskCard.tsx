@@ -95,9 +95,16 @@ function RepsCard({
             <div className="text-xs text-gray-400 mt-0.5 truncate">{task.description}</div>
           )}
         </div>
-        <span className="text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5 shrink-0">
-          ⭐ {task.points}
-        </span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span className="text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
+            ⭐ {task.points}
+          </span>
+          {task.cashValueCents > 0 && (
+            <span className="text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "#f0fdf4", color: "#15803d" }}>
+              💵 ${(task.cashValueCents / 100).toFixed(2)}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="h-2 rounded-full bg-gray-100 mb-2 overflow-hidden">
@@ -213,6 +220,13 @@ function ChecklistCard({
           <span className="text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
             ⭐ {task.points}
           </span>
+          {task.cashValueCents > 0 && (
+            <div className="mt-1">
+              <span className="text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "#f0fdf4", color: "#15803d" }}>
+                💵 ${(task.cashValueCents / 100).toFixed(2)}
+              </span>
+            </div>
+          )}
           <div className="text-xs text-gray-400 mt-1">{doneCount}/{total}</div>
         </div>
       </div>
@@ -327,9 +341,16 @@ function FrequencyCard({
         </button>
       )}
       {done && (
-        <span className="shrink-0 text-xs font-semibold text-green-600 bg-green-50 rounded-full px-2 py-1">
-          +{task.points * target} ⭐
-        </span>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <span className="text-xs font-semibold text-green-600 bg-green-50 rounded-full px-2 py-1">
+            +{task.points * target} ⭐
+          </span>
+          {task.cashValueCents > 0 && (
+            <span className="text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "#f0fdf4", color: "#15803d" }}>
+              💵 ${(task.cashValueCents / 100).toFixed(2)}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
@@ -390,9 +411,16 @@ function TimerCard({
         {task.description && (
           <div className="text-xs text-gray-400 mt-0.5 truncate">{task.description}</div>
         )}
-        <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
-          ⭐ {task.points}
-        </span>
+        <div className="flex flex-wrap gap-1 mt-1">
+          <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
+            ⭐ {task.points}
+          </span>
+          {task.cashValueCents > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "#f0fdf4", color: "#15803d" }}>
+              💵 ${(task.cashValueCents / 100).toFixed(2)}
+            </span>
+          )}
+        </div>
       </div>
       {isToday && (
         <Link
@@ -540,14 +568,28 @@ export default function TodoTaskCard({
           <div className="text-xs text-gray-400 mt-0.5 truncate">{task.description}</div>
         )}
         {!done && (
-          <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
-            ⭐ {task.points}
-          </span>
+          <div className="flex flex-wrap gap-1 mt-1">
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
+              ⭐ {task.points}
+            </span>
+            {task.cashValueCents > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "#f0fdf4", color: "#15803d" }}>
+                💵 ${(task.cashValueCents / 100).toFixed(2)}
+              </span>
+            )}
+          </div>
         )}
         {done && (
-          <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-semibold text-green-600 bg-green-50 rounded-full px-2 py-0.5">
-            +{task.points} ⭐ earned!
-          </span>
+          <div className="flex flex-wrap gap-1 mt-1">
+            <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-green-600 bg-green-50 rounded-full px-2 py-0.5">
+              +{task.points} ⭐ earned!
+            </span>
+            {task.cashValueCents > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-xs font-semibold rounded-full px-2 py-0.5" style={{ background: "#f0fdf4", color: "#15803d" }}>
+                💵 ${(task.cashValueCents / 100).toFixed(2)}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
