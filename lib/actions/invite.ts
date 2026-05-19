@@ -49,7 +49,11 @@ export async function inviteParent(email: string): Promise<ActionResult> {
   const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(trimmed, {
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/accept-invite`,
   });
-  if (inviteErr) return { ok: false, error: inviteErr.message };
+  if (inviteErr) {
+    // Roll back the invite row so the owner can try again
+    await supabase.from("family_invites").delete().eq("invited_email", trimmed).eq("family_id", fam.id).eq("status", "pending");
+    return { ok: false, error: inviteErr.message };
+  }
 
   revalidatePath("/parent/settings");
   return { ok: true };
