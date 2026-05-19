@@ -32,6 +32,7 @@ AS $$
   SELECT id FROM public.families
   WHERE owner_user_id = auth.uid()
      OR auth.uid() = ANY(co_parent_user_ids)
+  ORDER BY id
   LIMIT 1;
 $$;
 
