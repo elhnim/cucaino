@@ -520,48 +520,50 @@ export default function TaskEditClient({ task, kids }: { task?: Task; kids: Kid[
         )}
       </div>
 
-      {/* Stars */}
-      <div className="bg-white rounded-2xl shadow p-4 space-y-2">
-        <label className="text-sm font-bold text-gray-700 block">Stars per completion</label>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => setPoints((v) => Math.max(0, v - 1))}
-            className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold"
-          >
-            −
-          </button>
-          <span className="text-2xl font-black w-10 text-center">⭐{points}</span>
-          <button
-            type="button"
-            onClick={() => setPoints((v) => v + 1)}
-            className="w-10 h-10 rounded-full bg-gray-100 text-lg font-bold"
-          >
-            +
-          </button>
-        </div>
-      </div>
-
-
-      {/* Cash + approval */}
+      {/* Stars + Cash inline */}
       <div className="bg-white rounded-2xl shadow p-4 space-y-4">
-        <div>
-          <label className="text-sm font-bold text-gray-700 block mb-1">
-            💵 Cash per completion ($) — optional
-          </label>
-          <input
-            type="number"
-            min={0}
-            step={0.01}
-            placeholder="0.00"
-            value={cashValueCents === 0 ? "" : (cashValueCents / 100).toFixed(2)}
-            onChange={(e) => {
-              const v = e.target.value;
-              setCashValueCents(v === "" ? 0 : Math.round(parseFloat(v) * 100));
-            }}
-            className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
-          />
+        <div className="flex items-end gap-6">
+          {/* Stars stepper */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-bold text-gray-700 block">⭐ Stars</label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPoints((v) => Math.max(0, v - 1))}
+                className="w-9 h-9 rounded-full bg-gray-100 text-lg font-bold flex items-center justify-center"
+              >
+                −
+              </button>
+              <span className="text-xl font-black min-w-[2.5rem] text-center tabular-nums">{points}</span>
+              <button
+                type="button"
+                onClick={() => setPoints((v) => v + 1)}
+                className="w-9 h-9 rounded-full bg-gray-100 text-lg font-bold flex items-center justify-center"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Cash input */}
+          <div className="flex-1 space-y-1.5">
+            <label className="text-sm font-bold text-gray-700 block">💵 Cash ($)</label>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="0.00"
+              value={cashValueCents === 0 ? "" : (cashValueCents / 100).toFixed(2)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setCashValueCents(v === "" ? 0 : Math.round(parseFloat(v) * 100));
+              }}
+              className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
+            />
+          </div>
         </div>
+
+        {/* Parent approval */}
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
