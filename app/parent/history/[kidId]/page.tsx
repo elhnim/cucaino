@@ -39,7 +39,17 @@ export default async function ParentKidHistoryPage({
             <p className="text-xs text-gray-400">Last 30 days</p>
           </div>
         </div>
-        <CashTransactionButton kids={allKids} defaultKidId={kid.id} />
+        <div className="flex items-center gap-2">
+          {kid.cashBalance > 0 && (
+            <div
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-black"
+              style={{ background: "#dcfce7", color: "#15803d" }}
+            >
+              💵 ${(kid.cashBalance / 100).toFixed(2)}
+            </div>
+          )}
+          <CashTransactionButton kids={allKids} defaultKidId={kid.id} />
+        </div>
       </div>
 
       <HistoryTabs

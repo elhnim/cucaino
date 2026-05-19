@@ -5,29 +5,9 @@ import type { HistoryEntry, CashTransaction } from "@/lib/domain/types";
 
 type Theme = { accentSoft: string; accent: string };
 
-function groupByDate<T>(
-  items: T[],
-  getDate: (item: T) => string,
-): { date: string; items: T[] }[] {
-  const map = new Map<string, T[]>();
-  for (const item of items) {
-    const d = getDate(item);
-    const group = map.get(d) ?? [];
-    group.push(item);
-    map.set(d, group);
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, items]) => ({ date, items }));
-}
-
-function formatDate(dateStr: string): string {
-  const today = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-  if (dateStr === today) return "Today";
-  if (dateStr === yesterday) return "Yesterday";
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+function formatRowDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return `${d}/${m}/${y.slice(2)}`;
 }
 
 export default function HistoryTabs({
@@ -107,28 +87,7 @@ function StarsTab({
   emptyDaysLabel: string;
   currentStars?: number;
 }) {
-  // Compute running balance for bank-statement style display.
-  // entries are newest-first. Walk from newest to oldest, carrying currentStars
-  // down as we go — each row shows the balance AFTER that transaction.
-  const withBalance: { entry: HistoryEntry; balance: number | null }[] = [];
-
-  if (currentStars !== undefined) {
-    let running = currentStars;
-    for (const entry of entries) {
-      withBalance.push({ entry, balance: running });
-      // undo this entry to get balance before it
-      if (entry.kind === "task") running -= entry.pointsAwarded;
-      else running += entry.pointsSpent;
-    }
-  } else {
-    for (const entry of entries) {
-      withBalance.push({ entry, balance: null });
-    }
-  }
-
-  const groups = groupByDate(withBalance, (item) => item.entry.date);
-
-  if (groups.length === 0) {
+  if (entries.length === 0) {
     return (
       <div className="text-center text-sm text-gray-400 py-16">
         No activity in the last {emptyDaysLabel} days.
@@ -136,66 +95,54 @@ function StarsTab({
     );
   }
 
+  // Compute running balance: entries are newest-first
+  let running = currentStars ?? null;
+  const rows = entries.map((entry) => {
+    const balance = running;
+    if (running !== null) {
+      running = entry.kind === "task"
+        ? running - entry.pointsAwarded
+        : running + entry.pointsSpent;
+    }
+    return { entry, balance };
+  });
+
   return (
-    <div className="space-y-4">
-      {groups.map(({ date, items: dayItems }) => {
-        const net = dayItems.reduce((sum, { entry }) =>
-          entry.kind === "task" ? sum + entry.pointsAwarded : sum - entry.pointsSpent, 0);
-        return (
-          <div key={date}>
-            <div className="flex items-center justify-between mb-2 px-1">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
-                {formatDate(date)}
-              </span>
-              <span
-                className="text-[11px] font-bold"
-                style={{ color: net >= 0 ? "#16a34a" : "#ef4444" }}
-              >
-                {net >= 0 ? "+" : ""}{net} ⭐
-              </span>
-            </div>
-            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-              {dayItems.map(({ entry, balance }, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 px-4 py-3"
-                  style={{
-                    borderBottom: i < dayItems.length - 1 ? "1px solid #f3f4f6" : undefined,
-                    background: entry.kind === "reward" ? "#fffbeb" : undefined,
-                  }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                    style={{
-                      background: entry.kind === "reward" ? "#fef3c7" : theme.accentSoft,
-                    }}
-                  >
-                    {entry.kind === "task" ? entry.taskIcon : entry.rewardIcon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-bold text-gray-900 truncate">
-                      {entry.kind === "task" ? entry.taskName : entry.rewardName}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
-                    <div
-                      className="text-[13px] font-black"
-                      style={{ color: entry.kind === "task" ? "#16a34a" : "#ef4444" }}
-                    >
-                      {entry.kind === "task" ? `+${entry.pointsAwarded}` : `−${entry.pointsSpent}`} ⭐
-                    </div>
-                    {balance !== null && (
-                      <div className="text-[10px] text-gray-400 font-semibold">
-                        {balance.toLocaleString()} ⭐
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+    <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+      {rows.map(({ entry, balance }, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-2 px-3 py-2.5"
+          style={{
+            borderBottom: i < rows.length - 1 ? "1px solid #f3f4f6" : undefined,
+            background: entry.kind === "reward" ? "#fffbeb" : undefined,
+          }}
+        >
+          <span className="text-[11px] text-gray-400 font-mono w-12 flex-shrink-0">
+            {formatRowDate(entry.date)}
+          </span>
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+            style={{ background: entry.kind === "reward" ? "#fef3c7" : theme.accentSoft }}
+          >
+            {entry.kind === "task" ? entry.taskIcon : entry.rewardIcon}
           </div>
-        );
-      })}
+          <div className="flex-1 min-w-0 text-[12px] font-bold text-gray-800 truncate">
+            {entry.kind === "task" ? entry.taskName : entry.rewardName}
+          </div>
+          <div
+            className="text-[12px] font-black flex-shrink-0 w-14 text-right"
+            style={{ color: entry.kind === "task" ? "#16a34a" : "#ef4444" }}
+          >
+            {entry.kind === "task" ? `+${entry.pointsAwarded}` : `−${entry.pointsSpent}`} ⭐
+          </div>
+          {balance !== null && (
+            <div className="text-[11px] text-gray-400 font-semibold flex-shrink-0 w-14 text-right">
+              {balance.toLocaleString()} ⭐
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -209,25 +156,7 @@ function CashTab({
   emptyDaysLabel: string;
   currentCash?: number;
 }) {
-  // Bank-statement style: show running balance after each transaction.
-  // txns are newest-first. Carry currentCash down, undoing each txn to get prior balance.
-  const withBalance: { txn: CashTransaction; balance: number | null }[] = [];
-
-  if (currentCash !== undefined) {
-    let running = currentCash;
-    for (const txn of txns) {
-      withBalance.push({ txn, balance: running });
-      running -= txn.amountCents;
-    }
-  } else {
-    for (const txn of txns) {
-      withBalance.push({ txn, balance: null });
-    }
-  }
-
-  const groups = groupByDate(withBalance, (item) => item.txn.createdAt.slice(0, 10));
-
-  if (groups.length === 0) {
+  if (txns.length === 0) {
     return (
       <div className="text-center text-sm text-gray-400 py-16">
         No cash activity in the last {emptyDaysLabel} days.
@@ -235,64 +164,46 @@ function CashTab({
     );
   }
 
+  let running = currentCash ?? null;
+  const rows = txns.map((txn) => {
+    const balance = running;
+    if (running !== null) running -= txn.amountCents;
+    return { txn, balance };
+  });
+
   return (
-    <div className="space-y-4">
-      {groups.map(({ date, items: dayItems }) => {
-        const net = dayItems.reduce((sum, { txn }) => sum + txn.amountCents, 0);
-        return (
-          <div key={date}>
-            <div className="flex items-center justify-between mb-2 px-1">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
-                {formatDate(date)}
-              </span>
-              <span
-                className="text-[11px] font-bold"
-                style={{ color: net >= 0 ? "#16a34a" : "#ef4444" }}
-              >
-                {net >= 0 ? "+" : "−"}${(Math.abs(net) / 100).toFixed(2)}
-              </span>
-            </div>
-            <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
-              {dayItems.map(({ txn, balance }, i) => (
-                <div
-                  key={txn.id}
-                  className="flex items-center gap-3 px-4 py-3"
-                  style={{
-                    borderBottom: i < dayItems.length - 1 ? "1px solid #f3f4f6" : undefined,
-                  }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                    style={{
-                      background: txn.type === "credit" ? "#dcfce7" : "#fee2e2",
-                    }}
-                  >
-                    {txn.type === "credit" ? "💵" : "🛒"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-bold text-gray-900 truncate">
-                      {txn.description}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
-                    <div
-                      className="text-[13px] font-black"
-                      style={{ color: txn.type === "credit" ? "#16a34a" : "#ef4444" }}
-                    >
-                      {txn.type === "credit" ? "+" : "−"}${(Math.abs(txn.amountCents) / 100).toFixed(2)}
-                    </div>
-                    {balance !== null && (
-                      <div className="text-[10px] text-gray-400 font-semibold">
-                        ${(balance / 100).toFixed(2)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+    <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
+      {rows.map(({ txn, balance }, i) => (
+        <div
+          key={txn.id}
+          className="flex items-center gap-2 px-3 py-2.5"
+          style={{ borderBottom: i < rows.length - 1 ? "1px solid #f3f4f6" : undefined }}
+        >
+          <span className="text-[11px] text-gray-400 font-mono w-12 flex-shrink-0">
+            {formatRowDate(txn.createdAt.slice(0, 10))}
+          </span>
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+            style={{ background: txn.type === "credit" ? "#dcfce7" : "#fee2e2" }}
+          >
+            {txn.type === "credit" ? "💵" : "🛒"}
           </div>
-        );
-      })}
+          <div className="flex-1 min-w-0 text-[12px] font-bold text-gray-800 truncate">
+            {txn.description}
+          </div>
+          <div
+            className="text-[12px] font-black flex-shrink-0 w-16 text-right"
+            style={{ color: txn.type === "credit" ? "#16a34a" : "#ef4444" }}
+          >
+            {txn.type === "credit" ? "+" : "−"}${(Math.abs(txn.amountCents) / 100).toFixed(2)}
+          </div>
+          {balance !== null && (
+            <div className="text-[11px] text-gray-400 font-semibold flex-shrink-0 w-14 text-right">
+              ${(balance / 100).toFixed(2)}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

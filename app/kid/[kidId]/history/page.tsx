@@ -22,7 +22,17 @@ export default async function KidHistoryPage({
 
   return (
     <div className="p-4 space-y-4">
-      <h2 className="text-xl font-black">📋 My History</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-black">📋 My History</h2>
+        {kid.cashBalance > 0 && (
+          <div
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-black"
+            style={{ background: "#dcfce7", color: "#15803d" }}
+          >
+            💵 ${(kid.cashBalance / 100).toFixed(2)}
+          </div>
+        )}
+      </div>
       <HistoryTabs
         entries={entries}
         cashTxns={cashTxns}
