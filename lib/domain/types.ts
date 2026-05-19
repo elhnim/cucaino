@@ -81,6 +81,7 @@ export interface Kid {
   goalsOther: string | null;
   interests: string[];
   interestsOther: string | null;
+  cashBalance: number;
 }
 
 export interface Task {
@@ -133,6 +134,8 @@ export interface Task {
   endTime: string | null;
   room: string | null;
   teacher: string | null;
+  cashValueCents: number;
+  requiresParentApproval: boolean;
 }
 
 export interface TaskCompletion {
@@ -143,6 +146,9 @@ export interface TaskCompletion {
   completedAt: string; // ISO
   durationActualSeconds: number | null;
   pointsAwarded: number;
+  cashAwardedCents: number;
+  pendingParentApproval: boolean;
+  parentApprovedAt: string | null;
 }
 
 export interface SchoolItem {
@@ -183,6 +189,7 @@ export interface Reward {
   redemptionPeriod: RewardPeriodLimit;       // period for the limit
   requiresApproval: boolean;                 // default true
   availableTo: string[];                     // array of kidIds; empty = all kids
+  costCashCents: number;
 }
 
 export interface RewardRequest {
@@ -192,6 +199,7 @@ export interface RewardRequest {
   requestedAt: string;
   status: "pending" | "approved" | "denied" | "delivered";
   parentNote: string | null;
+  paymentType: "stars" | "cash";
 }
 
 // ----------------------------------------------------------------------------
@@ -213,6 +221,34 @@ export type HistoryEntry =
       rewardIcon: string;
       pointsSpent: number;
     };
+
+// ----------------------------------------------------------------------------
+// Cash
+// ----------------------------------------------------------------------------
+
+export interface CashTransaction {
+  id: string;
+  kidId: string;
+  amountCents: number;     // positive = credit, negative = debit
+  description: string;
+  type: "credit" | "debit";
+  createdAt: string;
+}
+
+export interface PendingCompletion {
+  id: string;
+  kidId: string;
+  kidName: string;
+  kidAvatar: string;
+  taskId: string;
+  taskName: string;
+  taskIcon: string;
+  taskCategory: string;
+  pointsAwarded: number;
+  cashAwardedCents: number;
+  completedAt: string;
+  date: string;
+}
 
 // ----------------------------------------------------------------------------
 // Wishlist
