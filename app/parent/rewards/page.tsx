@@ -57,10 +57,15 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
           {kidNames}{limitStr ? ` · ${limitStr}` : ""}
         </div>
       </div>
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <span className="text-[14px] font-extrabold text-amber-500">{reward.costPoints} ⭐</span>
-        <span className="text-gray-300 text-xl">›</span>
+      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+        {reward.costPoints > 0 && (
+          <span className="text-[13px] font-extrabold text-amber-500">{reward.costPoints} ⭐</span>
+        )}
+        {reward.costCashCents > 0 && (
+          <span className="text-[13px] font-extrabold text-green-700">💵 ${(reward.costCashCents / 100).toFixed(2)}</span>
+        )}
       </div>
+      <span className="text-gray-300 text-xl flex-shrink-0">›</span>
     </Link>
   );
 }
