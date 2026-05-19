@@ -38,6 +38,7 @@ import type {
   TaskCompletion,
   ThemeId,
   Strike,
+  MoodEntry,
   WishlistItem,
 } from "@/lib/domain/types";
 
@@ -983,5 +984,24 @@ export const listAllStrikes = timed(
       .order("created_at", { ascending: false });
     if (error || !data) return [];
     return data.map(mapStrike);
+  },
+);
+
+export const listTodayMoodCounts = timed(
+  "listTodayMoodCounts",
+  async (kidId: string): Promise<Record<string, number>> => {
+    const supabase = await createClient();
+    const today = new Date().toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from("mood_entries")
+      .select("mood")
+      .eq("kid_id", kidId)
+      .eq("date", today);
+    if (error || !data) return {};
+    const counts: Record<string, number> = {};
+    for (const row of data) {
+      counts[row.mood] = (counts[row.mood] ?? 0) + 1;
+    }
+    return counts;
   },
 );

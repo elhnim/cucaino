@@ -311,6 +311,19 @@ export interface Strike {
   createdAt: string;
 }
 
+// ----------------------------------------------------------------------------
+// Mood entries
+// ----------------------------------------------------------------------------
+
+export interface MoodEntry {
+  id: string;
+  familyId: string;
+  kidId: string;
+  mood: string;
+  date: string;
+  loggedAt: string;
+}
+
 export type Subject =
   | "math"
   | "english"
