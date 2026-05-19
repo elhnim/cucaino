@@ -39,6 +39,7 @@ import type {
   ThemeId,
   Strike,
   WishlistItem,
+  FamilyInvite,
 } from "@/lib/domain/types";
 
 type DbKidRow = {
@@ -1002,5 +1003,29 @@ export const listTodayMoodCounts = timed(
       counts[row.mood] = (counts[row.mood] ?? 0) + 1;
     }
     return counts;
+  },
+);
+
+function mapFamilyInvite(row: any): FamilyInvite {
+  return {
+    id: row.id,
+    familyId: row.family_id,
+    invitedEmail: row.invited_email,
+    status: row.status,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+  };
+}
+
+export const listFamilyInvites = timed(
+  "listFamilyInvites",
+  async (): Promise<FamilyInvite[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("family_invites")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+    return data.map(mapFamilyInvite);
   },
 );

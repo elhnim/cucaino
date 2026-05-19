@@ -324,6 +324,19 @@ export interface MoodEntry {
   loggedAt: string;
 }
 
+// ----------------------------------------------------------------------------
+// Family invites
+// ----------------------------------------------------------------------------
+
+export interface FamilyInvite {
+  id: string;
+  familyId: string;
+  invitedEmail: string;
+  status: "pending" | "accepted" | "revoked";
+  createdAt: string;
+  expiresAt: string;
+}
+
 export type Subject =
   | "math"
   | "english"
