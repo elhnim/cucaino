@@ -1,4 +1,5 @@
 import { listKids, listPendingRequests, listRewardsForKid } from "@/lib/data/stub";
+import RequestActions from "@/components/parent/RequestActions";
 
 export default async function ParentRequestsPage() {
   const [kids, requests] = await Promise.all([listKids(), listPendingRequests()]);
@@ -43,30 +44,14 @@ export default async function ParentRequestsPage() {
                     <div className="flex-1">
                       <div className="font-bold">{reward.name}</div>
                       <div className="text-xs text-gray-600">
-                        Cost: {reward.costPoints} ⭐ · Has {kid.pointsBalance} ⭐
+                        {req.paymentType === "cash"
+                          ? `Cost: $${(reward.costCashCents / 100).toFixed(2)} 💵 · Has $${(kid.cashBalance / 100).toFixed(2)}`
+                          : `Cost: ${reward.costPoints} ⭐ · Has ${kid.pointsBalance} ⭐`}
                       </div>
                     </div>
                   </div>
                 </div>
-                <input
-                  type="text"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-3"
-                  placeholder="Note (optional)..."
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className="bg-gray-100 hover:bg-red-100 text-gray-700 hover:text-red-700 font-bold py-2 rounded-lg"
-                  >
-                    ✕ Deny
-                  </button>
-                  <button
-                    type="button"
-                    className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg"
-                  >
-                    ✓ Approve
-                  </button>
-                </div>
+                <RequestActions requestId={req.id} />
               </div>
             );
           })

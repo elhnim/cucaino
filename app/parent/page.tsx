@@ -7,17 +7,21 @@ import {
   listTasksForKid,
   listCompletionsToday,
   listRewardsForKid,
+  listPendingCompletions,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
 import RequestActions from "@/components/parent/RequestActions";
+import CashTransactionButton from "@/components/parent/CashTransactionButton";
+import CompletionActions from "@/components/parent/CompletionActions";
 import type { Task, DayOfWeek } from "@/lib/domain/types";
 
 export default async function ParentOverviewPage() {
-  const [family, kids, pending] = await Promise.all([
+  const [family, kids, pending, pendingCompletions] = await Promise.all([
     getFamily(),
     listKids(),
     listPendingRequests(),
+    listPendingCompletions(),
   ]);
   if (!family) redirect("/login");
 
@@ -143,6 +147,14 @@ export default async function ParentOverviewPage() {
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "#fef3c7", color: "#92400e" }}>
                       {kid.pointsBalance} ⭐
                     </span>
+                    {kid.cashBalance > 0 && (
+                      <span
+                        className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-black"
+                        style={{ background: "#dcfce7", color: "#15803d" }}
+                      >
+                        💵 ${(kid.cashBalance / 100).toFixed(2)}
+                      </span>
+                    )}
                     <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "#fff7ed", color: "#9a3412" }}>
                       🔥 {kid.currentStreak}
                     </span>
@@ -238,8 +250,37 @@ export default async function ParentOverviewPage() {
                   </div>
                 )}
 
+                {/* Pending completions awaiting parent approval */}
+                {pendingCompletions.filter((c) => c.kidId === kid.id).map((comp) => {
+                  const ago = Math.round(
+                    (Date.now() - new Date(comp.completedAt).getTime()) / 60_000,
+                  );
+                  return (
+                    <div
+                      key={comp.id}
+                      className="mt-3 rounded-xl p-3"
+                      style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="text-2xl">{comp.taskIcon}</div>
+                        <div className="flex-1">
+                          <div className="text-sm font-bold">{comp.taskName}</div>
+                          <div className="text-xs text-gray-500">
+                            {ago < 2 ? "just now" : `${ago} min ago`}
+                            {comp.pointsAwarded > 0 ? ` · +${comp.pointsAwarded} ⭐` : ""}
+                            {comp.cashAwardedCents > 0
+                              ? ` · +$${(comp.cashAwardedCents / 100).toFixed(2)}`
+                              : ""}
+                          </div>
+                        </div>
+                      </div>
+                      <CompletionActions completionId={comp.id} />
+                    </div>
+                  );
+                })}
+
                 {/* History link */}
-                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${theme.accentSoft}` }}>
+                <div className="mt-3 pt-3 flex items-center" style={{ borderTop: `1px solid ${theme.accentSoft}` }}>
                   <Link
                     href={`/parent/history/${kid.id}`}
                     className="text-[12px] font-bold"
@@ -247,6 +288,14 @@ export default async function ParentOverviewPage() {
                   >
                     View history →
                   </Link>
+                  <Link
+                    href={`/parent/history/${kid.id}?tab=cash`}
+                    className="text-[12px] font-bold ml-4"
+                    style={{ color: theme.accent }}
+                  >
+                    Cash history →
+                  </Link>
+                  <CashTransactionButton kids={kids} defaultKidId={kid.id} />
                 </div>
               </div>
             );
