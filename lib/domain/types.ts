@@ -24,7 +24,8 @@ export type TaskCategory =
   | "music"
   | "activity"
   | "personal"
-  | "school_subject";
+  | "school_subject"
+  | "brainy";
 
 export type ThemeId =
   | "adventure"

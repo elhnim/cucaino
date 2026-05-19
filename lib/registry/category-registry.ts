@@ -83,6 +83,18 @@ export const CATEGORIES: Record<TaskCategory, CategoryDisplay> = {
     isInfoByDefault: false,
     kidManaged: false,
   },
+  brainy: {
+    id: "brainy",
+    label: "Brainny",
+    emoji: "🧠",
+    defaultIcon: "🧠",
+    bg: "#dbeafe",
+    color: "#1d4ed8",
+    badgeClass: "bg-blue-100 text-blue-700",
+    borderClass: "border-blue-300",
+    isInfoByDefault: false,
+    kidManaged: false,
+  },
   school_subject: {
     id: "school_subject",
     label: "School Subject",
