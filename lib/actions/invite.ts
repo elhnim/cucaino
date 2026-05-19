@@ -57,10 +57,19 @@ export async function inviteParent(email: string): Promise<ActionResult> {
 
 export async function revokeInvite(inviteId: string): Promise<ActionResult> {
   const supabase = await createClient();
+
+  // Scope to caller's family (defence-in-depth on top of RLS)
+  const { data: fam } = await supabase
+    .from("families")
+    .select("id")
+    .maybeSingle();
+  if (!fam) return { ok: false, error: "Family not found." };
+
   const { error } = await supabase
     .from("family_invites")
     .update({ status: "revoked" })
-    .eq("id", inviteId);
+    .eq("id", inviteId)
+    .eq("family_id", fam.id);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/parent/settings");
@@ -102,19 +111,26 @@ export async function acceptInvite(): Promise<
     .eq("id", invite.id);
 
   // Append user to co_parent_user_ids (read-then-write)
-  const { data: family } = await admin
+  const { data: family, error: famReadErr } = await admin
     .from("families")
     .select("co_parent_user_ids, name")
     .eq("id", invite.family_id)
     .single();
 
-  const existing: string[] = family?.co_parent_user_ids ?? [];
+  if (famReadErr || !family) {
+    return { ok: false, error: "Could not load family data. Please try again." };
+  }
+
+  const existing: string[] = family.co_parent_user_ids ?? [];
   if (!existing.includes(user.id)) {
-    await admin
+    const { error: famUpdateErr } = await admin
       .from("families")
       .update({ co_parent_user_ids: [...existing, user.id] })
       .eq("id", invite.family_id);
+    if (famUpdateErr) {
+      return { ok: false, error: "Could not join the family. Please try again." };
+    }
   }
 
-  return { ok: true, familyName: family?.name ?? "your family" };
+  return { ok: true, familyName: family.name ?? "your family" };
 }
