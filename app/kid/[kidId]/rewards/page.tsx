@@ -279,9 +279,18 @@ function RewardCard({
   if (r.who === "team") {
     return (
       <div className="relative bg-purple-50 rounded-2xl overflow-hidden shadow-sm border border-purple-100 flex flex-col h-[160px]">
-        <span className="absolute top-2 right-2 bg-white text-purple-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
-          ⭐{r.costPoints}
-        </span>
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-0.5">
+          {r.costPoints > 0 && (
+            <span className="bg-white text-purple-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+              ⭐{r.costPoints}
+            </span>
+          )}
+          {r.costCashCents > 0 && (
+            <span className="bg-white text-green-700 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+              💵${(r.costCashCents / 100).toFixed(2)}
+            </span>
+          )}
+        </div>
         <span className="absolute top-2 left-2 text-[9px] font-bold text-purple-400">👥</span>
         <div className="flex flex-col items-center px-2 pt-6 pb-2.5 flex-1">
           <div className="text-4xl mb-1.5">{r.icon}</div>
@@ -305,10 +314,19 @@ function RewardCard({
   if (canAfford) {
     return (
       <div className="relative bg-orange-50 rounded-2xl overflow-hidden shadow-sm border border-orange-100 flex flex-col h-[160px]">
-        {/* Star cost — top-right */}
-        <span className="absolute top-2 right-2 bg-white text-amber-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
-          ⭐{r.costPoints}
-        </span>
+        {/* Cost badges — top-right */}
+        <div className="absolute top-2 right-2 flex flex-col items-end gap-0.5">
+          {r.costPoints > 0 && (
+            <span className="bg-white text-amber-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+              ⭐{r.costPoints}
+            </span>
+          )}
+          {r.costCashCents > 0 && (
+            <span className="bg-white text-green-700 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+              💵${(r.costCashCents / 100).toFixed(2)}
+            </span>
+          )}
+        </div>
         {/* Heart — top-left */}
         <form action={wishlistAction} className="absolute top-1.5 left-2">
           <button type="submit" disabled={heartDisabled} className="text-sm leading-none disabled:opacity-30">
@@ -337,10 +355,19 @@ function RewardCard({
 
   return (
     <div className="relative bg-gray-50 rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col h-[160px]">
-      {/* Star cost — top-right */}
-      <span className="absolute top-2 right-2 bg-white text-amber-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
-        ⭐{r.costPoints}
-      </span>
+      {/* Cost badges — top-right */}
+      <div className="absolute top-2 right-2 flex flex-col items-end gap-0.5">
+        {r.costPoints > 0 && (
+          <span className="bg-white text-amber-600 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+            ⭐{r.costPoints}
+          </span>
+        )}
+        {r.costCashCents > 0 && (
+          <span className="bg-white text-green-700 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-sm">
+            💵${(r.costCashCents / 100).toFixed(2)}
+          </span>
+        )}
+      </div>
       {/* Heart — top-left */}
       <form action={wishlistAction} className="absolute top-1.5 left-2">
         <button type="submit" disabled={heartDisabled} className="text-sm leading-none disabled:opacity-30">
