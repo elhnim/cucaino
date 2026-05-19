@@ -17,9 +17,11 @@ import type {
   BadgeCategory,
   BadgeTier,
   BadgeProgress,
+  CashTransaction,
   Family,
   HistoryEntry,
   Kid,
+  PendingCompletion,
   QuizBank,
   QuizCategory,
   QuizQuestion,
@@ -98,6 +100,7 @@ function mapKid(row: DbKidRow): Kid {
     goalsOther: (row as any).goals_other ?? null,
     interests: (row as any).interests ?? [],
     interestsOther: (row as any).interests_other ?? null,
+    cashBalance: (row as any).cash_balance ?? 0,
   };
 }
 
@@ -140,6 +143,8 @@ export function mapTask(row: DbTaskRow): Task {
     endTime: (row as any).end_time ?? null,
     room: (row as any).room ?? null,
     teacher: (row as any).teacher ?? null,
+    cashValueCents: (row as any).cash_value_cents ?? 0,
+    requiresParentApproval: (row as any).requires_parent_approval ?? false,
   };
 }
 
@@ -242,6 +247,9 @@ export const listCompletionsToday = timed("listCompletionsToday", async (kidId: 
     completedAt: row.completed_at,
     durationActualSeconds: row.duration_actual_seconds,
     pointsAwarded: row.points_awarded,
+    cashAwardedCents: row.cash_awarded_cents ?? 0,
+    pendingParentApproval: row.pending_parent_approval ?? false,
+    parentApprovedAt: row.parent_approved_at ?? null,
   }));
 });
 
@@ -330,6 +338,7 @@ export async function getReward(id: string): Promise<Reward | null> {
     redemptionPeriod: (data as any).redemption_period ?? "none",
     requiresApproval: (data as any).requires_approval ?? true,
     availableTo: (data as any).available_to ?? [],
+    costCashCents: (data as any).cost_cash_cents ?? 0,
   };
 }
 
@@ -358,6 +367,7 @@ export const listRewardsForKid = timed("listRewardsForKid", async (kidId: string
     redemptionPeriod: (row as any).redemption_period ?? "none",
     requiresApproval: (row as any).requires_approval ?? true,
     availableTo: (row as any).available_to ?? [],
+    costCashCents: (row as any).cost_cash_cents ?? 0,
   }));
 });
 
@@ -376,6 +386,7 @@ export const listPendingRequests = timed("listPendingRequests", async (): Promis
     requestedAt: row.requested_at,
     status: row.status as RewardRequest["status"],
     parentNote: row.parent_note,
+    paymentType: ((row as any).payment_type ?? "stars") as "stars" | "cash",
   }));
 });
 
@@ -734,5 +745,58 @@ export const listKidHistory = timed(
     return [...taskEntries, ...rewardEntries].sort((a, b) =>
       b.date.localeCompare(a.date),
     );
+  },
+);
+
+export const listCashTransactions = timed(
+  "listCashTransactions",
+  async (kidId: string, days: number): Promise<CashTransaction[]> => {
+    const supabase = await createClient();
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    const { data, error } = await supabase
+      .from("cash_transactions")
+      .select("*")
+      .eq("kid_id", kidId)
+      .gte("created_at", from.toISOString())
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+    return data.map((row) => ({
+      id: row.id,
+      kidId: row.kid_id,
+      amountCents: row.amount_cents,
+      description: row.description,
+      type: row.type as "credit" | "debit",
+      createdAt: row.created_at,
+    }));
+  },
+);
+
+export const listPendingCompletions = timed(
+  "listPendingCompletions",
+  async (): Promise<PendingCompletion[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("task_completions")
+      .select(
+        "id, kid_id, task_id, points_awarded, cash_awarded_cents, completed_at, date, kids(name, avatar), tasks(name, icon, category)",
+      )
+      .eq("pending_parent_approval", true)
+      .order("completed_at", { ascending: false });
+    if (error || !data) return [];
+    return (data as any[]).map((row) => ({
+      id: row.id,
+      kidId: row.kid_id,
+      kidName: row.kids?.name ?? "Kid",
+      kidAvatar: row.kids?.avatar ?? "🦊",
+      taskId: row.task_id,
+      taskName: row.tasks?.name ?? "Task",
+      taskIcon: row.tasks?.icon ?? "✅",
+      taskCategory: row.tasks?.category ?? "chore",
+      pointsAwarded: row.points_awarded ?? 0,
+      cashAwardedCents: row.cash_awarded_cents ?? 0,
+      completedAt: row.completed_at,
+      date: row.date,
+    }));
   },
 );
