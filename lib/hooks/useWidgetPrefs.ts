@@ -5,15 +5,19 @@ import { useState, useEffect, useCallback } from "react";
 export interface WidgetPrefs {
   order: string[];
   hidden: string[];
+  widths: Record<string, "full" | "half">;
 }
 
-function loadPrefs(storageKey: string, defaults: string[]): WidgetPrefs {
-  if (typeof window === "undefined") return { order: defaults, hidden: [] };
+function loadPrefs(
+  storageKey: string,
+  defaults: string[],
+  defaultWidths: Record<string, "full" | "half">,
+): WidgetPrefs {
+  if (typeof window === "undefined") return { order: defaults, hidden: [], widths: defaultWidths };
   try {
     const raw = localStorage.getItem(storageKey);
-    if (!raw) return { order: defaults, hidden: [] };
+    if (!raw) return { order: defaults, hidden: [], widths: defaultWidths };
     const parsed = JSON.parse(raw) as Partial<WidgetPrefs>;
-    // Merge: keep saved order but add any new defaults that aren't present yet
     const savedOrder = Array.isArray(parsed.order) ? parsed.order : [];
     const merged = [
       ...savedOrder.filter((id) => defaults.includes(id)),
@@ -22,19 +26,27 @@ function loadPrefs(storageKey: string, defaults: string[]): WidgetPrefs {
     return {
       order: merged,
       hidden: Array.isArray(parsed.hidden) ? parsed.hidden.filter((id) => defaults.includes(id)) : [],
+      widths: { ...defaultWidths, ...(typeof parsed.widths === "object" ? parsed.widths : {}) },
     };
   } catch {
-    return { order: defaults, hidden: [] };
+    return { order: defaults, hidden: [], widths: defaultWidths };
   }
 }
 
-export function useWidgetPrefs(storageKey: string, defaults: string[]) {
-  const [prefs, setPrefs] = useState<WidgetPrefs>(() => ({ order: defaults, hidden: [] }));
+export function useWidgetPrefs(
+  storageKey: string,
+  defaults: string[],
+  defaultWidths: Record<string, "full" | "half"> = {},
+) {
+  const [prefs, setPrefs] = useState<WidgetPrefs>(() => ({
+    order: defaults,
+    hidden: [],
+    widths: defaultWidths,
+  }));
   const [editing, setEditing] = useState(false);
 
-  // Hydrate from localStorage after mount
   useEffect(() => {
-    setPrefs(loadPrefs(storageKey, defaults));
+    setPrefs(loadPrefs(storageKey, defaults, defaultWidths));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
@@ -56,5 +68,11 @@ export function useWidgetPrefs(storageKey: string, defaults: string[]) {
     save({ ...prefs, hidden });
   }, [prefs, save]);
 
-  return { prefs, editing, setEditing, reorder, toggleHidden };
+  const toggleWidth = useCallback((id: string) => {
+    const current = prefs.widths[id] ?? defaultWidths[id] ?? "full";
+    save({ ...prefs, widths: { ...prefs.widths, [id]: current === "full" ? "half" : "full" } });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefs, save]);
+
+  return { prefs, editing, setEditing, reorder, toggleHidden, toggleWidth };
 }

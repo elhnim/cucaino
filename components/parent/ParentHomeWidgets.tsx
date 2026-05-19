@@ -13,7 +13,7 @@ import {
 import {
   SortableContext,
   useSortable,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -51,22 +51,23 @@ export interface ParentHomeWidgetsProps {
   todayLabel: string;
 }
 
-// Top-level widget IDs (excluding per-kid cards which have their own order)
-// headsup is the only non-kid widget that can be hidden
 const TOP_WIDGET_DEFAULTS = ["headsup"];
-// Kid card IDs are generated dynamically
+// Kid cards default to full-width; user can compress to half for a 2-up grid
+const KID_DEFAULT_WIDTHS: Record<string, "full" | "half"> = {}; // populated dynamically per kid
 
 export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
   const { allKids, kidCards, headsUpBefore, headsUpAfter, todayLabel } = props;
   const hasHeadsUp = headsUpBefore.length > 0 || headsUpAfter.length > 0;
 
   const kidIds = kidCards.map((c) => c.kid.id);
-  const DEFAULT_KID_ORDER = kidIds;
+  // All kids default to full-width
+  const defaultKidWidths = Object.fromEntries(kidIds.map((id) => [id, "full" as const]));
 
-  // Prefs for kid card order
-  const { prefs: kidPrefs, editing, setEditing, reorder: reorderKids } = useWidgetPrefs(
+  // Prefs for kid card order + widths
+  const { prefs: kidPrefs, editing, setEditing, reorder: reorderKids, toggleWidth: toggleKidWidth } = useWidgetPrefs(
     "parent-home:kids",
-    DEFAULT_KID_ORDER,
+    kidIds,
+    defaultKidWidths,
   );
 
   // Prefs for top widgets (headsup visibility)
@@ -153,16 +154,21 @@ export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
         </div>
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={kidPrefs.order} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2.5">
-              {orderedCards.map((cardData) => (
-                <SortableKidCard
-                  key={cardData.kid.id}
-                  cardData={cardData}
-                  allKids={allKids}
-                  editing={editing}
-                />
-              ))}
+          <SortableContext items={kidPrefs.order} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-2 gap-2.5">
+              {orderedCards.map((cardData) => {
+                const isHalf = (kidPrefs.widths[cardData.kid.id] ?? "full") === "half";
+                return (
+                  <SortableKidCard
+                    key={cardData.kid.id}
+                    cardData={cardData}
+                    allKids={allKids}
+                    editing={editing}
+                    colSpan={isHalf ? 1 : 2}
+                    onToggleWidth={() => toggleKidWidth(cardData.kid.id)}
+                  />
+                );
+              })}
             </div>
           </SortableContext>
         </DndContext>
@@ -192,7 +198,13 @@ export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
 
 // ─── Sortable kid card wrapper ────────────────────────────────────────────────
 
-function SortableKidCard({ cardData, allKids, editing }: { cardData: KidCardData; allKids: Kid[]; editing: boolean }) {
+function SortableKidCard({ cardData, allKids, editing, colSpan, onToggleWidth }: {
+  cardData: KidCardData;
+  allKids: Kid[];
+  editing: boolean;
+  colSpan: 1 | 2;
+  onToggleWidth: () => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: cardData.kid.id,
     disabled: !editing,
@@ -205,13 +217,15 @@ function SortableKidCard({ cardData, allKids, editing }: { cardData: KidCardData
     position: isDragging ? "relative" : undefined,
   };
 
+  const colClass = colSpan === 1 ? "col-span-1" : "col-span-2";
+
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className={colClass}>
       {editing ? (
-        <div className="flex items-stretch gap-2">
+        <div className="flex items-stretch gap-1.5">
           <button
             type="button"
-            className="flex items-center justify-center w-9 rounded-2xl bg-gray-100 text-gray-400 text-lg cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+            className="flex items-center justify-center w-8 rounded-xl bg-gray-100 text-gray-400 text-lg cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
             aria-label={`Drag to reorder ${cardData.kid.name}`}
             {...attributes}
             {...listeners}
@@ -219,11 +233,19 @@ function SortableKidCard({ cardData, allKids, editing }: { cardData: KidCardData
             ⠿
           </button>
           <div className="flex-1 min-w-0">
-            <KidCard cardData={cardData} allKids={allKids} />
+            <KidCard cardData={cardData} allKids={allKids} compact={colSpan === 1} />
           </div>
+          <button
+            type="button"
+            onClick={onToggleWidth}
+            className="flex items-center justify-center w-8 rounded-xl bg-gray-100 text-gray-500 text-[11px] font-black flex-shrink-0"
+            aria-label={colSpan === 2 ? "Make half-width" : "Make full-width"}
+          >
+            {colSpan === 2 ? "½" : "↔"}
+          </button>
         </div>
       ) : (
-        <KidCard cardData={cardData} allKids={allKids} />
+        <KidCard cardData={cardData} allKids={allKids} compact={colSpan === 1} />
       )}
     </div>
   );
@@ -231,66 +253,67 @@ function SortableKidCard({ cardData, allKids, editing }: { cardData: KidCardData
 
 // ─── Kid card ────────────────────────────────────────────────────────────────
 
-function KidCard({ cardData, allKids }: { cardData: KidCardData; allKids: Kid[] }) {
+function KidCard({ cardData, allKids, compact = false }: { cardData: KidCardData; allKids: Kid[]; compact?: boolean }) {
   const { kid, done, total, allDone, themeAccent, themeAccentSoft, pendingRequest, pendingReward, pendingCompletions, agoMin } = cardData;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const hasPending = (pendingRequest && pendingReward) || pendingCompletions.length > 0;
 
   return (
     <div
-      className="bg-white rounded-[20px] p-3.5"
+      className="bg-white rounded-[20px] p-3"
       style={{ border: `1.5px solid ${themeAccentSoft}`, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
     >
       {/* Top row */}
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-11 h-11 rounded-full flex items-center justify-center text-[22px] flex-shrink-0" style={{ background: themeAccentSoft }}>
+      <div className={`flex items-center gap-2 mb-2.5 ${compact ? "flex-wrap" : ""}`}>
+        <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0" style={{ background: themeAccentSoft }}>
           {kid.avatar}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-extrabold text-gray-900 leading-tight" style={{ fontSize: 15 }}>{kid.name}</div>
-          <div className="text-gray-400 font-medium" style={{ fontSize: 11 }}>Age {kid.age}</div>
+          <div className="font-extrabold text-gray-900 leading-tight truncate" style={{ fontSize: 14 }}>{kid.name}</div>
+          {!compact && <div className="text-gray-400 font-medium" style={{ fontSize: 11 }}>Age {kid.age}</div>}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "#fef3c7", color: "#92400e" }}>
+        <div className={`flex items-center gap-1.5 flex-shrink-0 ${compact ? "flex-wrap justify-end" : ""}`}>
+          <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "#fef3c7", color: "#92400e" }}>
             {kid.pointsBalance} ⭐
           </span>
           {kid.cashBalance > 0 && (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-black" style={{ background: "#dcfce7", color: "#15803d" }}>
+            <span className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-black" style={{ background: "#dcfce7", color: "#15803d" }}>
               💵 ${(kid.cashBalance / 100).toFixed(2)}
             </span>
           )}
-          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold" style={{ background: "#fff7ed", color: "#9a3412" }}>
-            🔥 {kid.currentStreak}
-          </span>
+          {!compact && (
+            <span className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: "#fff7ed", color: "#9a3412" }}>
+              🔥 {kid.currentStreak}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Progress */}
-      <div className="flex items-center gap-2.5">
-        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: themeAccent }} />
         </div>
-        <span className="text-xs font-bold flex-shrink-0" style={{ color: allDone ? "#16a34a" : themeAccent }}>
-          {done} / {total}
+        <span className="text-[11px] font-bold flex-shrink-0" style={{ color: allDone ? "#16a34a" : themeAccent }}>
+          {done}/{total}
         </span>
       </div>
 
       {allDone ? (
-        <div className="mt-2 bg-green-50 rounded-xl px-3 py-1.5 text-xs font-bold text-green-700">🎉 All tasks done!</div>
+        <div className="mt-1.5 bg-green-50 rounded-lg px-2 py-1 text-[11px] font-bold text-green-700">🎉 All done!</div>
       ) : total > 0 && (
-        <div className="mt-1.5 text-[11px] text-gray-400 font-semibold">{total - done} task{total - done !== 1 ? "s" : ""} remaining</div>
+        <div className="mt-1 text-[11px] text-gray-400 font-semibold">{total - done} remaining</div>
       )}
 
-      {/* Pending reward request */}
-      {pendingRequest && pendingReward && (
-        <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
-          <div className="flex items-center gap-2 mb-2.5">
-            <span className="text-lg">{pendingReward.icon}</span>
+      {/* Pending items — hidden in compact mode if no room */}
+      {!compact && pendingRequest && pendingReward && (
+        <div className="mt-2.5 pt-2.5" style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-base">{pendingReward.icon}</span>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-bold text-gray-900 truncate">Wants {pendingReward.name}</div>
-              <div className="text-[11px] text-gray-400">
-                Costs {pendingReward.costPoints} ⭐ ·{" "}
-                <span className="text-green-600 font-semibold">Has {kid.pointsBalance} ⭐</span>{" "}
-                · {agoMin < 1 ? "just now" : `${agoMin} min ago`}
+              <div className="text-[12px] font-bold text-gray-900 truncate">Wants {pendingReward.name}</div>
+              <div className="text-[10px] text-gray-400">
+                {pendingReward.costPoints} ⭐ · Has {kid.pointsBalance} ⭐ · {agoMin < 1 ? "just now" : `${agoMin}m ago`}
               </div>
             </div>
           </div>
@@ -298,17 +321,16 @@ function KidCard({ cardData, allKids }: { cardData: KidCardData; allKids: Kid[] 
         </div>
       )}
 
-      {/* Pending task completions */}
-      {pendingCompletions.map((comp) => {
+      {!compact && pendingCompletions.map((comp) => {
         const ago = Math.round((Date.now() - new Date(comp.completedAt).getTime()) / 60_000);
         return (
-          <div key={comp.id} className="mt-3 rounded-xl p-3" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-2xl">{comp.taskIcon}</div>
-              <div className="flex-1">
-                <div className="text-sm font-bold">{comp.taskName}</div>
-                <div className="text-xs text-gray-500">
-                  {ago < 2 ? "just now" : `${ago} min ago`}
+          <div key={comp.id} className="mt-2.5 rounded-xl p-2.5" style={{ background: "#fffbeb", border: "1px solid #fde68a" }}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <div className="text-xl">{comp.taskIcon}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-bold truncate">{comp.taskName}</div>
+                <div className="text-[10px] text-gray-500">
+                  {ago < 2 ? "just now" : `${ago}m ago`}
                   {comp.pointsAwarded > 0 ? ` · +${comp.pointsAwarded} ⭐` : ""}
                   {comp.cashAwardedCents > 0 ? ` · +$${(comp.cashAwardedCents / 100).toFixed(2)}` : ""}
                 </div>
@@ -319,14 +341,23 @@ function KidCard({ cardData, allKids }: { cardData: KidCardData; allKids: Kid[] 
         );
       })}
 
-      {/* Footer links */}
-      <div className="mt-3 pt-3 flex items-center" style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
-        <Link href={`/parent/history/${kid.id}`} className="text-[12px] font-bold" style={{ color: themeAccent }}>
-          View history →
+      {/* Compact pending badge */}
+      {compact && hasPending && (
+        <div className="mt-1.5 text-[11px] font-bold text-amber-600">
+          ⏳ {(pendingRequest ? 1 : 0) + pendingCompletions.length} pending
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className={`mt-2.5 pt-2.5 flex items-center flex-wrap gap-x-3 gap-y-1 ${compact ? "" : ""}`} style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
+        <Link href={`/parent/history/${kid.id}`} className="text-[11px] font-bold" style={{ color: themeAccent }}>
+          History →
         </Link>
-        <Link href={`/parent/history/${kid.id}?tab=cash`} className="text-[12px] font-bold ml-4" style={{ color: themeAccent }}>
-          Cash history →
-        </Link>
+        {!compact && (
+          <Link href={`/parent/history/${kid.id}?tab=cash`} className="text-[11px] font-bold" style={{ color: themeAccent }}>
+            Cash →
+          </Link>
+        )}
         <CashTransactionButton kids={allKids} defaultKidId={kid.id} />
       </div>
     </div>

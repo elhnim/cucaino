@@ -13,7 +13,7 @@ import {
 import {
   SortableContext,
   useSortable,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -31,6 +31,13 @@ const WIDGET_LABELS: Record<string, string> = {
   race: "🏁 Family Race",
   level: "🌱 Profile Level",
   encouragement: "💬 Encouragement",
+};
+const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
+  info: "full",
+  badges: "full",
+  race: "full",
+  level: "half",
+  encouragement: "half",
 };
 
 interface LevelData {
@@ -68,7 +75,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
   } = props;
 
   const storageKey = `kid-home:${kid.id}`;
-  const { prefs, editing, setEditing, reorder, toggleHidden } = useWidgetPrefs(storageKey, SORTABLE_IDS);
+  const { prefs, editing, setEditing, reorder, toggleHidden, toggleWidth } = useWidgetPrefs(storageKey, SORTABLE_IDS, DEFAULT_WIDTHS);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -109,22 +116,27 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
       {/* PINNED: Today's tasks */}
       <TasksWidget kid={kid} theme={theme} done={done} total={total} allDone={allDone} taskPct={taskPct} incompleteTasks={incompleteTasks} />
 
-      {/* SORTABLE widgets */}
+      {/* SORTABLE widgets — 2-column grid */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={availableIds} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3">
-            {displayIds.map((id) => (
-              <SortableWidget
-                key={id}
-                id={id}
-                editing={editing}
-                hidden={prefs.hidden.includes(id)}
-                onToggleHide={() => toggleHidden(id)}
-                label={WIDGET_LABELS[id] ?? id}
-              >
-                <WidgetContent id={id} props={props} />
-              </SortableWidget>
-            ))}
+        <SortableContext items={availableIds} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-2 gap-3">
+            {displayIds.map((id) => {
+              const isHalf = (prefs.widths[id] ?? DEFAULT_WIDTHS[id] ?? "full") === "half";
+              return (
+                <SortableWidget
+                  key={id}
+                  id={id}
+                  editing={editing}
+                  hidden={prefs.hidden.includes(id)}
+                  colSpan={isHalf ? 1 : 2}
+                  onToggleHide={() => toggleHidden(id)}
+                  onToggleWidth={() => toggleWidth(id)}
+                  label={WIDGET_LABELS[id] ?? id}
+                >
+                  <WidgetContent id={id} props={props} />
+                </SortableWidget>
+              );
+            })}
           </div>
         </SortableContext>
       </DndContext>
@@ -157,14 +169,18 @@ function SortableWidget({
   id,
   editing,
   hidden,
+  colSpan,
   onToggleHide,
+  onToggleWidth,
   label,
   children,
 }: {
   id: string;
   editing: boolean;
   hidden: boolean;
+  colSpan: 1 | 2;
   onToggleHide: () => void;
+  onToggleWidth: () => void;
   label: string;
   children: React.ReactNode;
 }) {
@@ -178,17 +194,19 @@ function SortableWidget({
     position: isDragging ? "relative" : undefined,
   };
 
+  const colClass = colSpan === 1 ? "col-span-1" : "col-span-2";
+
   if (!editing) {
-    return <div>{children}</div>;
+    return <div className={colClass}>{children}</div>;
   }
 
   return (
-    <div ref={setNodeRef} style={style}>
-      <div className="flex items-stretch gap-2">
+    <div ref={setNodeRef} style={style} className={colClass}>
+      <div className="flex items-stretch gap-1.5">
         {/* Drag handle */}
         <button
           type="button"
-          className="flex items-center justify-center w-9 rounded-2xl bg-gray-100 text-gray-400 text-lg cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+          className="flex items-center justify-center w-8 rounded-xl bg-gray-100 text-gray-400 text-lg cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
           aria-label={`Drag to reorder ${label}`}
           {...attributes}
           {...listeners}
@@ -201,11 +219,21 @@ function SortableWidget({
           {children}
         </div>
 
+        {/* Width toggle */}
+        <button
+          type="button"
+          onClick={onToggleWidth}
+          className="flex items-center justify-center w-8 rounded-xl bg-gray-100 text-gray-500 text-[11px] font-black flex-shrink-0"
+          aria-label={colSpan === 2 ? `Make ${label} half-width` : `Make ${label} full-width`}
+        >
+          {colSpan === 2 ? "½" : "↔"}
+        </button>
+
         {/* Visibility toggle */}
         <button
           type="button"
           onClick={onToggleHide}
-          className={`flex items-center justify-center w-9 rounded-2xl text-sm flex-shrink-0 ${hidden ? "bg-gray-100 text-gray-400" : "bg-gray-100 text-gray-600"}`}
+          className={`flex items-center justify-center w-8 rounded-xl text-sm flex-shrink-0 ${hidden ? "bg-gray-100 text-gray-400" : "bg-gray-100 text-gray-600"}`}
           aria-label={hidden ? `Show ${label}` : `Hide ${label}`}
         >
           {hidden ? "🚫" : "👁"}
