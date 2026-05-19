@@ -20,6 +20,7 @@ function defaultForm(reward?: Reward): RewardFormData {
     redemptionPeriod: reward?.redemptionPeriod ?? "none",
     requiresApproval: reward?.requiresApproval ?? true,
     availableTo: reward?.availableTo ?? [],
+    costCashCents: reward?.costCashCents ?? 0,
   };
 }
 
@@ -133,6 +134,25 @@ export default function RewardFormModal({
               max={10000}
               value={form.costPoints}
               onChange={(e) => set("costPoints", Number(e.target.value))}
+              className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
+            />
+          </div>
+
+          {/* Cash cost */}
+          <div>
+            <label className="text-xs font-bold text-gray-500">
+              💵 Cash cost ($) — optional
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="0.00"
+              value={form.costCashCents === 0 ? "" : (form.costCashCents / 100).toFixed(2)}
+              onChange={(e) => {
+                const v = e.target.value;
+                set("costCashCents", v === "" ? 0 : Math.round(parseFloat(v) * 100));
+              }}
               className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
             />
           </div>

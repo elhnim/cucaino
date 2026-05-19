@@ -60,6 +60,7 @@ export default function RewardFormClient({
     redemptionPeriod,
     requiresApproval,
     availableTo,
+    costCashCents: reward?.costCashCents ?? 0,
   });
 
   const handleSave = () => {

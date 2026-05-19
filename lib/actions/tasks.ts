@@ -42,6 +42,8 @@ export interface TaskFormData {
   endTime?: string | null;
   room?: string | null;
   teacher?: string | null;
+  cashValueCents?: number;
+  requiresParentApproval?: boolean;
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -91,6 +93,8 @@ export async function createTask(data: TaskFormData): Promise<ActionResult> {
     end_time: data.endTime ?? null,
     room: data.room ?? null,
     teacher: data.teacher ?? null,
+    cash_value_cents: data.cashValueCents ?? 0,
+    requires_parent_approval: data.requiresParentApproval ?? false,
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/tasks");
@@ -142,6 +146,8 @@ export async function updateTask(
       end_time: data.endTime ?? null,
       room: data.room ?? null,
       teacher: data.teacher ?? null,
+      cash_value_cents: data.cashValueCents ?? 0,
+      requires_parent_approval: data.requiresParentApproval ?? false,
     })
     .eq("id", id)
     .eq("family_id", fam.id);

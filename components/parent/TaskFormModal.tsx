@@ -85,7 +85,7 @@ function defaultForm(task?: Task): TaskFormData {
     daysOfWeek: task?.daysOfWeek ?? [],
     timeBlock: task?.timeBlock ?? "morning",
     startTime: task?.startTime ?? null,
-    points: task?.points ?? 5,
+    points: task?.points ?? 0,
     familyPointsContribution: task?.familyPointsContribution ?? 0,
     target: task?.target ?? "none",
     targetDurationMinutes: task?.targetDurationMinutes ?? null,
@@ -110,6 +110,8 @@ function defaultForm(task?: Task): TaskFormData {
     endTime: task?.endTime ?? null,
     room: task?.room ?? null,
     teacher: task?.teacher ?? null,
+    cashValueCents: task?.cashValueCents ?? 0,
+    requiresParentApproval: task?.requiresParentApproval ?? false,
   };
 }
 
@@ -609,6 +611,42 @@ export default function TaskFormModal({
                 className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
               />
             </div>
+          </div>
+
+          {/* Cash per completion */}
+          <div>
+            <label className="text-xs font-bold text-gray-500">
+              💵 Cash per completion ($) — optional
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="0.00"
+              value={form.cashValueCents === 0 ? "" : (form.cashValueCents! / 100).toFixed(2)}
+              onChange={(e) => {
+                const v = e.target.value;
+                set("cashValueCents", v === "" ? 0 : Math.round(parseFloat(v) * 100));
+              }}
+              className="w-full mt-1 border border-gray-200 rounded-xl p-2 text-sm focus:outline-none focus:border-indigo-400"
+            />
+          </div>
+
+          {/* Parent approval */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="requires-parent-approval"
+              checked={form.requiresParentApproval ?? false}
+              onChange={(e) => set("requiresParentApproval", e.target.checked)}
+              className="rounded"
+            />
+            <label
+              htmlFor="requires-parent-approval"
+              className="text-sm font-bold text-gray-700"
+            >
+              Requires parent approval before stars/cash are awarded
+            </label>
           </div>
 
           {/* Completion required */}
