@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { listKids, listRewardsForKid } from "@/lib/data/stub";
+import { listKids, listRewardsForKid, listCustomBadges, listTasksForFamily } from "@/lib/data/stub";
 import RewardFilterBar from "@/components/parent/RewardFilterBar";
+import BadgesClient from "@/components/parent/BadgesClient";
 import { getRewardType } from "@/lib/registry/reward-type-registry";
 import type { Reward, Kid } from "@/lib/domain/types";
 
@@ -27,15 +28,12 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
         opacity: reward.active ? 1 : 0.55,
       }}
     >
-      {/* Icon */}
       <div
         className="w-11 h-11 rounded-[13px] flex items-center justify-center text-2xl flex-shrink-0"
         style={{ background: typeStyle.bg }}
       >
         {reward.icon}
       </div>
-
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="font-extrabold text-gray-900 truncate text-[14px] mb-1">{reward.name}</div>
         <div className="flex flex-wrap gap-1 mb-1">
@@ -59,8 +57,6 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
           {kidNames}{limitStr ? ` · ${limitStr}` : ""}
         </div>
       </div>
-
-      {/* Cost + arrow */}
       <div className="flex items-center gap-1 flex-shrink-0">
         <span className="text-[14px] font-extrabold text-amber-500">{reward.costPoints} ⭐</span>
         <span className="text-gray-300 text-xl">›</span>
@@ -72,10 +68,76 @@ function RewardCard({ reward, kids }: { reward: Reward; kids: Kid[] }) {
 export default async function ParentRewardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; kid?: string }>;
+  searchParams: Promise<{ type?: string; kid?: string; tab?: string }>;
 }) {
-  const { type = "", kid: kidParam = "" } = await searchParams;
+  const { type = "", kid: kidParam = "", tab } = await searchParams;
+  const isBadgesTab = tab === "badges";
+
   const kids = await listKids();
+
+  return (
+    <div className="flex flex-col min-h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
+        <h1 className="text-base font-extrabold text-gray-900">
+          {isBadgesTab ? "🏅 Badges" : "🎁 Rewards"}
+        </h1>
+        {!isBadgesTab && (
+          <Link
+            href="/parent/rewards/new"
+            className="bg-indigo-600 text-white rounded-full px-4 py-2 text-sm font-bold hover:bg-indigo-700"
+          >
+            + Add Reward
+          </Link>
+        )}
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-2 px-4 pb-3">
+        <Link
+          href="/parent/rewards"
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+            !isBadgesTab ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+          }`}
+        >
+          🎁 Rewards
+        </Link>
+        <Link
+          href="/parent/rewards?tab=badges"
+          className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors ${
+            isBadgesTab ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"
+          }`}
+        >
+          🏅 Badges
+        </Link>
+      </div>
+
+      {isBadgesTab ? (
+        <BadgesTabContent kids={kids} />
+      ) : (
+        <RewardsTabContent type={type} kidParam={kidParam} kids={kids} />
+      )}
+    </div>
+  );
+}
+
+async function BadgesTabContent({ kids }: { kids: Kid[] }) {
+  const [badges, tasks] = await Promise.all([
+    listCustomBadges(),
+    listTasksForFamily(),
+  ]);
+  return <BadgesClient badges={badges} tasks={tasks} kids={kids} />;
+}
+
+async function RewardsTabContent({
+  type,
+  kidParam,
+  kids,
+}: {
+  type: string;
+  kidParam: string;
+  kids: Kid[];
+}) {
   const all = (await Promise.all(kids.map((k) => listRewardsForKid(k.id)))).flat();
   const seen = new Set<string>();
   const rewards = all.filter((r) => {
@@ -97,26 +159,12 @@ export default async function ParentRewardsPage({
   const paused = filtered.filter((r) => !r.active);
 
   return (
-    <div className="flex flex-col min-h-full">
-      {/* Header + add */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
-        <h1 className="text-base font-extrabold text-gray-900">🎁 Rewards</h1>
-        <Link
-          href="/parent/rewards/new"
-          className="bg-indigo-600 text-white rounded-full px-4 py-2 text-sm font-bold hover:bg-indigo-700"
-        >
-          + Add Reward
-        </Link>
-      </div>
-
-      {/* Filter bar */}
+    <>
       <RewardFilterBar
         types={types}
         kidIds={kidIds}
         kids={kids.map((k) => ({ id: k.id, name: k.name }))}
       />
-
-      {/* List */}
       <div className="px-4 pb-4">
         {filtered.length === 0 ? (
           <p className="text-center text-gray-400 py-16">No rewards yet. Add your first! 🎁</p>
@@ -141,6 +189,6 @@ export default async function ParentRewardsPage({
           </>
         )}
       </div>
-    </div>
+    </>
   );
 }
