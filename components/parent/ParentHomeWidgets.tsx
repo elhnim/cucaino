@@ -39,6 +39,7 @@ export interface KidCardData {
   agoMin: number;
   activeStrikes: Strike[];
   allStrikes: Strike[];
+  moodCounts: Record<string, number>;
 }
 
 export interface HeadsUpItem {
@@ -285,7 +286,7 @@ function KidCard({ cardData, allKids, compact = false, onIssueStrike, onViewStri
   onIssueStrike: () => void;
   onViewStrikes: () => void;
 }) {
-  const { kid, done, total, allDone, themeAccent, themeAccentSoft, pendingRequest, pendingReward, pendingCompletions, agoMin, activeStrikes } = cardData;
+  const { kid, done, total, allDone, themeAccent, themeAccentSoft, pendingRequest, pendingReward, pendingCompletions, agoMin, activeStrikes, moodCounts } = cardData;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const hasPending = (pendingRequest && pendingReward) || pendingCompletions.length > 0;
 
@@ -317,6 +318,19 @@ function KidCard({ cardData, allKids, compact = false, onIssueStrike, onViewStri
               🔥 {kid.currentStreak}
             </span>
           )}
+          {(() => {
+            const entries = Object.entries(moodCounts);
+            if (entries.length === 0) return null;
+            const [topMood, topCount] = entries.reduce((a, b) => (b[1] > a[1] ? b : a));
+            return (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                style={{ background: "#fef3c7", color: "#92400e" }}
+              >
+                {topMood} ×{topCount}
+              </span>
+            );
+          })()}
         </div>
       </div>
 

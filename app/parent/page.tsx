@@ -9,6 +9,7 @@ import {
   listPendingCompletions,
   listActiveStrikes,
   listAllStrikes,
+  listTodayMoodCounts,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -31,26 +32,27 @@ export default async function ParentOverviewPage() {
 
   const kidData = await Promise.all(
     kids.map(async (kid) => {
-      const [tasks, completions, rewards, activeStrikes, allStrikes] = await Promise.all([
+      const [tasks, completions, rewards, activeStrikes, allStrikes, moodCounts] = await Promise.all([
         listTasksForKid(kid.id),
         listCompletionsToday(kid.id),
         listRewardsForKid(kid.id),
         listActiveStrikes(kid.id),
         listAllStrikes(kid.id),
+        listTodayMoodCounts(kid.id),
       ]);
       const todayTasks = tasksForDay(tasks, dow).filter((t) => t.requiresCompletion);
       const completedIds = new Set(completions.map((c) => c.taskId));
       const done = todayTasks.filter((t) => completedIds.has(t.id)).length;
       const total = todayTasks.length;
       const activityTasks = tasksForDay(tasks.filter((t) => t.category === "activity"), dow);
-      return { kid, todayTasks, completedIds, done, total, activityTasks, rewards, activeStrikes, allStrikes };
+      return { kid, todayTasks, completedIds, done, total, activityTasks, rewards, activeStrikes, allStrikes, moodCounts };
     }),
   );
 
   const rewardById = new Map(kidData.flatMap((d) => d.rewards).map((r) => [r.id, r]));
 
   // Build per-kid card data
-  const kidCards: KidCardData[] = kidData.map(({ kid, done, total, activeStrikes, allStrikes }) => {
+  const kidCards: KidCardData[] = kidData.map(({ kid, done, total, activeStrikes, allStrikes, moodCounts }) => {
     const theme = getTheme(kid.themeId);
     const allDone = total > 0 && done >= total;
     const kidPending = pending.filter((r) => r.kidId === kid.id);
@@ -70,6 +72,7 @@ export default async function ParentOverviewPage() {
       agoMin,
       activeStrikes,
       allStrikes,
+      moodCounts,
     };
   });
 
