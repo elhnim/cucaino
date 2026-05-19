@@ -19,6 +19,8 @@ export async function completeTask(
   familyPointsAwarded: number,
   taskCategory?: string,
   maxCompletions = 1,
+  cashValueCents = 0,
+  requiresParentApproval = false,
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -47,8 +49,16 @@ export async function completeTask(
     points_awarded: pointsAwarded,
     family_points_awarded: familyPointsAwarded,
     duration_actual_seconds: null,
+    cash_awarded_cents: cashValueCents,
+    pending_parent_approval: requiresParentApproval,
   });
   if (error) return { ok: false, error: error.message };
+
+  // When parent approval is required, skip all RPCs — parent awards on approval
+  if (requiresParentApproval) {
+    revalidatePath(`/kid/${kidId}/todo`);
+    return { ok: true };
+  }
 
   // Atomic point increments
   if (pointsAwarded > 0) {
@@ -56,6 +66,22 @@ export async function completeTask(
   }
   if (familyPointsAwarded > 0) {
     await supabase.rpc("increment_family_points", { p_kid_id: kidId, p_amount: familyPointsAwarded });
+  }
+
+  if (cashValueCents > 0) {
+    await Promise.all([
+      supabase.from("cash_transactions").insert({
+        family_id: fam.id,
+        kid_id: kidId,
+        amount_cents: cashValueCents,
+        description: "Earned from task",
+        type: "credit",
+      }),
+      supabase.rpc("increment_kid_cash", {
+        p_kid_id: kidId,
+        p_amount_cents: cashValueCents,
+      }),
+    ]);
   }
 
   // Update total_stars_earned + streak
@@ -178,13 +204,17 @@ export async function uncompleteTask(
 
   const { data: completion } = await supabase
     .from("task_completions")
-    .select("id, points_awarded")
+    .select("id, points_awarded, cash_awarded_cents, pending_parent_approval")
     .eq("task_id", taskId)
     .eq("kid_id", kidId)
     .eq("date", today)
     .maybeSingle();
 
   if (!completion) return { ok: true };
+
+  if (completion.pending_parent_approval) {
+    return { ok: false, error: "Waiting for parent approval." };
+  }
 
   const { error } = await supabase
     .from("task_completions")
@@ -193,10 +223,85 @@ export async function uncompleteTask(
   if (error) return { ok: false, error: error.message };
 
   if (completion.points_awarded > 0) {
-    await supabase.rpc("decrement_kid_points", { p_kid_id: kidId, p_amount: completion.points_awarded });
-    await supabase.rpc("decrement_kid_stars", { p_kid_id: kidId, p_amount: completion.points_awarded });
+    await supabase.rpc("decrement_kid_points", {
+      p_kid_id: kidId,
+      p_amount: completion.points_awarded,
+    });
+    await supabase.rpc("decrement_kid_stars", {
+      p_kid_id: kidId,
+      p_amount: completion.points_awarded,
+    });
+  }
+
+  if (completion.cash_awarded_cents > 0) {
+    await supabase.rpc("increment_kid_cash", {
+      p_kid_id: kidId,
+      p_amount_cents: -(completion.cash_awarded_cents),
+    });
   }
 
   revalidatePath(`/kid/${kidId}/todo`);
+  return { ok: true };
+}
+
+export async function approveCompletion(completionId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { data: completion, error: cErr } = await supabase
+    .from("task_completions")
+    .select("kid_id, points_awarded, cash_awarded_cents, family_points_awarded")
+    .eq("id", completionId)
+    .maybeSingle();
+  if (cErr || !completion) return { ok: false, error: "Completion not found." };
+
+  const { data: fam, error: famErr } = await supabase
+    .from("families")
+    .select("id")
+    .maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
+
+  await supabase
+    .from("task_completions")
+    .update({ pending_parent_approval: false, parent_approved_at: new Date().toISOString() })
+    .eq("id", completionId);
+
+  const { kid_id, points_awarded, family_points_awarded, cash_awarded_cents } = completion;
+
+  if (points_awarded > 0) {
+    await supabase.rpc("increment_kid_points", { p_kid_id: kid_id, p_amount: points_awarded });
+    await supabase.rpc("update_kid_gamification", { p_kid_id: kid_id, p_points: points_awarded });
+  }
+  if (family_points_awarded > 0) {
+    await supabase.rpc("increment_family_points", { p_kid_id: kid_id, p_amount: family_points_awarded });
+  }
+  if (cash_awarded_cents > 0) {
+    await Promise.all([
+      supabase.from("cash_transactions").insert({
+        family_id: fam.id,
+        kid_id: kid_id,
+        amount_cents: cash_awarded_cents,
+        description: "Task approved by parent",
+        type: "credit",
+      }),
+      supabase.rpc("increment_kid_cash", {
+        p_kid_id: kid_id,
+        p_amount_cents: cash_awarded_cents,
+      }),
+    ]);
+  }
+
+  revalidatePath("/parent");
+  revalidatePath(`/kid/${kid_id}/todo`);
+  return { ok: true };
+}
+
+export async function denyCompletion(completionId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("task_completions")
+    .delete()
+    .eq("id", completionId);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/parent");
   return { ok: true };
 }
