@@ -18,6 +18,7 @@ export interface RewardFormData {
   redemptionPeriod: RewardPeriodLimit;
   requiresApproval: boolean;
   availableTo: string[];
+  costCashCents: number;
 }
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -37,6 +38,7 @@ export async function createReward(data: RewardFormData): Promise<ActionResult> 
     icon: data.icon,
     description: data.description || null,
     cost_points: data.costPoints,
+    cost_cash_cents: data.costCashCents,
     type: data.type,
     active: true,
     reward_type: data.rewardType,
@@ -67,6 +69,7 @@ export async function updateReward(
       icon: data.icon,
       description: data.description || null,
       cost_points: data.costPoints,
+      cost_cash_cents: data.costCashCents,
       type: data.type,
       reward_type: data.rewardType,
       who: data.who,
@@ -102,32 +105,48 @@ export async function approveRequest(requestId: string): Promise<ActionResult> {
 
   const { data: req, error: reqErr } = await supabase
     .from("reward_requests")
-    .select("kid_id, reward_id")
+    .select("kid_id, reward_id, payment_type")
     .eq("id", requestId)
     .single();
   if (reqErr || !req) return { ok: false, error: "Request not found." };
 
   const [{ data: kid, error: kErr }, { data: reward, error: rErr }] = await Promise.all([
-    supabase.from("kids").select("points_balance").eq("id", req.kid_id).single(),
-    supabase.from("rewards").select("cost_points").eq("id", req.reward_id).single(),
+    supabase.from("kids").select("points_balance, cash_balance").eq("id", req.kid_id).single(),
+    supabase.from("rewards").select("cost_points, cost_cash_cents").eq("id", req.reward_id).single(),
   ]);
   if (kErr || !kid) return { ok: false, error: "Kid not found." };
   if (rErr || !reward) return { ok: false, error: "Reward not found." };
 
+  const paymentType = (req.payment_type ?? "stars") as "stars" | "cash";
   const now = new Date().toISOString();
 
-  const [{ error: deductErr }, { error: updateErr }] = await Promise.all([
-    supabase
-      .from("kids")
-      .update({ points_balance: Math.max(0, kid.points_balance - reward.cost_points) })
-      .eq("id", req.kid_id),
-    supabase
-      .from("reward_requests")
-      .update({ status: "approved", points_deducted_at: now, resolved_at: now })
-      .eq("id", requestId),
-  ]);
-  if (deductErr) return { ok: false, error: deductErr.message };
-  if (updateErr) return { ok: false, error: updateErr.message };
+  if (paymentType === "stars") {
+    const [{ error: deductErr }, { error: updateErr }] = await Promise.all([
+      supabase
+        .from("kids")
+        .update({ points_balance: Math.max(0, kid.points_balance - reward.cost_points) })
+        .eq("id", req.kid_id),
+      supabase
+        .from("reward_requests")
+        .update({ status: "approved", points_deducted_at: now, resolved_at: now })
+        .eq("id", requestId),
+    ]);
+    if (deductErr) return { ok: false, error: deductErr.message };
+    if (updateErr) return { ok: false, error: updateErr.message };
+  } else {
+    const [{ error: deductErr }, { error: updateErr }] = await Promise.all([
+      supabase.rpc("increment_kid_cash", {
+        p_kid_id: req.kid_id,
+        p_amount_cents: -(reward.cost_cash_cents),
+      }),
+      supabase
+        .from("reward_requests")
+        .update({ status: "approved", points_deducted_at: now, resolved_at: now })
+        .eq("id", requestId),
+    ]);
+    if (deductErr) return { ok: false, error: deductErr.message };
+    if (updateErr) return { ok: false, error: updateErr.message };
+  }
 
   revalidatePath("/parent");
   revalidatePath("/parent/requests");
@@ -147,41 +166,57 @@ export async function denyRequest(requestId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function claimReward(kidId: string, rewardId: string): Promise<ActionResult> {
+export async function claimReward(
+  kidId: string,
+  rewardId: string,
+  paymentType: "stars" | "cash" = "stars",
+): Promise<ActionResult> {
   const supabase = await createClient();
 
-  // Get reward + kid in parallel
   const [{ data: reward, error: rErr }, { data: kid, error: kErr }] = await Promise.all([
     supabase.from("rewards").select("*").eq("id", rewardId).single(),
-    supabase.from("kids").select("id, family_id, points_balance").eq("id", kidId).single(),
+    supabase.from("kids").select("id, family_id, points_balance, cash_balance").eq("id", kidId).single(),
   ]);
   if (rErr || !reward) return { ok: false, error: "Reward not found." };
   if (kErr || !kid) return { ok: false, error: "Kid not found." };
-  if (kid.points_balance < reward.cost_points) return { ok: false, error: "Not enough stars." };
+
+  if (paymentType === "stars" && kid.points_balance < reward.cost_points) {
+    return { ok: false, error: "Not enough stars." };
+  }
+  if (paymentType === "cash" && kid.cash_balance < reward.cost_cash_cents) {
+    return { ok: false, error: "Not enough cash." };
+  }
 
   if (reward.requires_approval) {
-    // Create a pending request — parent approves before stars are deducted
     const { error } = await supabase.from("reward_requests").insert({
       family_id: kid.family_id,
       reward_id: rewardId,
       kid_id: kidId,
+      payment_type: paymentType,
     });
     if (error) return { ok: false, error: error.message };
   } else {
-    // Deduct stars immediately
-    const { error: deductErr } = await supabase
-      .from("kids")
-      .update({ points_balance: kid.points_balance - reward.cost_points })
-      .eq("id", kidId);
-    if (deductErr) return { ok: false, error: deductErr.message };
+    if (paymentType === "stars") {
+      const { error } = await supabase
+        .from("kids")
+        .update({ points_balance: kid.points_balance - reward.cost_points })
+        .eq("id", kidId);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await supabase.rpc("increment_kid_cash", {
+        p_kid_id: kidId,
+        p_amount_cents: -(reward.cost_cash_cents),
+      });
+      if (error) return { ok: false, error: error.message };
+    }
 
-    // Record as approved + delivered
     const { error } = await supabase.from("reward_requests").insert({
       family_id: kid.family_id,
       reward_id: rewardId,
       kid_id: kidId,
       status: "delivered",
       points_deducted_at: new Date().toISOString(),
+      payment_type: paymentType,
     });
     if (error) return { ok: false, error: error.message };
   }
