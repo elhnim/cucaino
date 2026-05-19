@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -21,7 +22,9 @@ import { useWidgetPrefs } from "@/lib/hooks/useWidgetPrefs";
 import RequestActions from "@/components/parent/RequestActions";
 import CompletionActions from "@/components/parent/CompletionActions";
 import CashTransactionButton from "@/components/parent/CashTransactionButton";
-import type { Kid, Task, RewardRequest, Reward, PendingCompletion } from "@/lib/domain/types";
+import IssueStrikeModal from "@/components/parent/IssueStrikeModal";
+import KidStrikesSheet from "@/components/parent/KidStrikesSheet";
+import type { Kid, Task, RewardRequest, Reward, PendingCompletion, Strike } from "@/lib/domain/types";
 
 export interface KidCardData {
   kid: Kid;
@@ -34,6 +37,8 @@ export interface KidCardData {
   pendingReward: Reward | null;
   pendingCompletions: PendingCompletion[];
   agoMin: number;
+  activeStrikes: Strike[];
+  allStrikes: Strike[];
 }
 
 export interface HeadsUpItem {
@@ -57,6 +62,8 @@ const KID_DEFAULT_WIDTHS: Record<string, "full" | "half"> = {}; // populated dyn
 
 export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
   const { allKids, kidCards, headsUpBefore, headsUpAfter, todayLabel } = props;
+  const [strikeTarget, setStrikeTarget] = useState<Kid | null>(null);
+  const [viewStrikesFor, setViewStrikesFor] = useState<Kid | null>(null);
   const hasHeadsUp = headsUpBefore.length > 0 || headsUpAfter.length > 0;
 
   const kidIds = kidCards.map((c) => c.kid.id);
@@ -166,6 +173,8 @@ export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
                     editing={editing}
                     colSpan={isHalf ? 1 : 2}
                     onToggleWidth={() => toggleKidWidth(cardData.kid.id)}
+                    onIssueStrike={() => setStrikeTarget(cardData.kid)}
+                    onViewStrikes={() => setViewStrikesFor(cardData.kid)}
                   />
                 );
               })}
@@ -173,6 +182,20 @@ export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
           </SortableContext>
         </DndContext>
       </div>
+
+      {strikeTarget && (
+        <IssueStrikeModal kid={strikeTarget} onClose={() => setStrikeTarget(null)} />
+      )}
+      {viewStrikesFor && (() => {
+        const card = kidCards.find((c) => c.kid.id === viewStrikesFor.id);
+        return card ? (
+          <KidStrikesSheet
+            kid={viewStrikesFor}
+            strikes={card.allStrikes}
+            onClose={() => setViewStrikesFor(null)}
+          />
+        ) : null;
+      })()}
 
       {/* Edit / Done button */}
       {editing ? (
@@ -198,12 +221,14 @@ export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
 
 // ─── Sortable kid card wrapper ────────────────────────────────────────────────
 
-function SortableKidCard({ cardData, allKids, editing, colSpan, onToggleWidth }: {
+function SortableKidCard({ cardData, allKids, editing, colSpan, onToggleWidth, onIssueStrike, onViewStrikes }: {
   cardData: KidCardData;
   allKids: Kid[];
   editing: boolean;
   colSpan: 1 | 2;
   onToggleWidth: () => void;
+  onIssueStrike: () => void;
+  onViewStrikes: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: cardData.kid.id,
@@ -233,7 +258,7 @@ function SortableKidCard({ cardData, allKids, editing, colSpan, onToggleWidth }:
             ⠿
           </button>
           <div className="flex-1 min-w-0">
-            <KidCard cardData={cardData} allKids={allKids} compact={colSpan === 1} />
+            <KidCard cardData={cardData} allKids={allKids} compact={colSpan === 1} onIssueStrike={onIssueStrike} onViewStrikes={onViewStrikes} />
           </div>
           <button
             type="button"
@@ -245,7 +270,7 @@ function SortableKidCard({ cardData, allKids, editing, colSpan, onToggleWidth }:
           </button>
         </div>
       ) : (
-        <KidCard cardData={cardData} allKids={allKids} compact={colSpan === 1} />
+        <KidCard cardData={cardData} allKids={allKids} compact={colSpan === 1} onIssueStrike={onIssueStrike} onViewStrikes={onViewStrikes} />
       )}
     </div>
   );
@@ -253,8 +278,14 @@ function SortableKidCard({ cardData, allKids, editing, colSpan, onToggleWidth }:
 
 // ─── Kid card ────────────────────────────────────────────────────────────────
 
-function KidCard({ cardData, allKids, compact = false }: { cardData: KidCardData; allKids: Kid[]; compact?: boolean }) {
-  const { kid, done, total, allDone, themeAccent, themeAccentSoft, pendingRequest, pendingReward, pendingCompletions, agoMin } = cardData;
+function KidCard({ cardData, allKids, compact = false, onIssueStrike, onViewStrikes }: {
+  cardData: KidCardData;
+  allKids: Kid[];
+  compact?: boolean;
+  onIssueStrike: () => void;
+  onViewStrikes: () => void;
+}) {
+  const { kid, done, total, allDone, themeAccent, themeAccentSoft, pendingRequest, pendingReward, pendingCompletions, agoMin, activeStrikes } = cardData;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const hasPending = (pendingRequest && pendingReward) || pendingCompletions.length > 0;
 
@@ -349,7 +380,7 @@ function KidCard({ cardData, allKids, compact = false }: { cardData: KidCardData
       )}
 
       {/* Footer */}
-      <div className={`mt-2.5 pt-2.5 flex items-center flex-wrap gap-x-3 gap-y-1 ${compact ? "" : ""}`} style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
+      <div className="mt-2.5 pt-2.5 flex items-center flex-wrap gap-x-3 gap-y-1" style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
         <Link href={`/parent/history/${kid.id}`} className="text-[11px] font-bold" style={{ color: themeAccent }}>
           History →
         </Link>
@@ -359,6 +390,24 @@ function KidCard({ cardData, allKids, compact = false }: { cardData: KidCardData
           </Link>
         )}
         <CashTransactionButton kids={allKids} defaultKidId={kid.id} />
+        <div className="ml-auto flex items-center gap-1.5">
+          {activeStrikes.length > 0 && (
+            <button
+              type="button"
+              onClick={onViewStrikes}
+              className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-600"
+            >
+              ⚡ {activeStrikes.length}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onIssueStrike}
+            className="text-[11px] font-bold text-gray-400 hover:text-red-500 transition-colors"
+          >
+            ⚡ Strike
+          </button>
+        </div>
       </div>
     </div>
   );

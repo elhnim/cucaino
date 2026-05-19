@@ -8,6 +8,7 @@ import {
   listBadgeProgress,
   listWishlistItems,
   listCustomBadgeProgress,
+  listActiveStrikes,
 } from "@/lib/data/stub";
 import { addToWishlist, removeFromWishlist } from "@/lib/actions/rewards";
 import RewardClaimButton from "@/components/kid/RewardClaimButton";
@@ -260,6 +261,7 @@ function RewardCard({
   isWishlisted,
   wishlistFull,
   kidId,
+  activeStrikeCount,
 }: {
   reward: Reward;
   pointsBalance: number;
@@ -267,6 +269,7 @@ function RewardCard({
   isWishlisted: boolean;
   wishlistFull: boolean;
   kidId: string;
+  activeStrikeCount: number;
 }) {
   const canAfford =
     (r.costPoints > 0 && pointsBalance >= r.costPoints) ||
@@ -325,6 +328,7 @@ function RewardCard({
             requiresApproval={r.requiresApproval}
             currentStars={pointsBalance}
             currentCash={cashBalance}
+            blockedByStrikes={activeStrikeCount}
           />
         </div>
       </div>
@@ -372,11 +376,12 @@ export default async function RewardsPage({
 
   const isBadgesTab = tab === "badges";
 
-  const [rewards, badges, wishlist, customBadgeProgress] = await Promise.all([
+  const [rewards, badges, wishlist, customBadgeProgress, activeStrikes] = await Promise.all([
     listRewardsForKid(kid.id),
     listBadgeProgress(kid.id),
     listWishlistItems(kid.id),
     listCustomBadgeProgress(kid.id),
+    listActiveStrikes(kid.id),
   ]);
 
   const activeRewards = rewards.filter((r) => r.active);
@@ -491,6 +496,7 @@ export default async function RewardsPage({
                     isWishlisted={wishlistRewardIds.has(r.id)}
                     wishlistFull={wishlistFull}
                     kidId={kid.id}
+                    activeStrikeCount={activeStrikes.length}
                   />
                 ))}
               </div>

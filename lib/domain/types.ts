@@ -299,13 +299,14 @@ export interface UnlockedBadge {
 
 export interface Strike {
   id: string;
+  familyId: string;
   kidId: string;
-  issuedByParentName: string;
+  issuedBy: string;
   reason: string;
-  penaltyStars: number;        // 0 = warning only
-  deductAt: string | null;     // ISO — null means "now", set = deferred
-  deductedAt: string | null;   // ISO — set once deduction occurred
-  clearedAt: string | null;    // ISO — set when parent clears
+  penaltyStars: number;
+  penaltyCashCents: number;
+  deductedAt: string | null;
+  clearedAt: string | null;
   createdAt: string;
 }
 

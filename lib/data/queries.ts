@@ -37,6 +37,7 @@ import type {
   Task,
   TaskCompletion,
   ThemeId,
+  Strike,
   WishlistItem,
 } from "@/lib/domain/types";
 
@@ -917,5 +918,49 @@ export const listBadgeConfigOverrides = timed(
       silverName: row.silver_name ?? null,
       goldName: row.gold_name ?? null,
     }));
+  },
+);
+
+function mapStrike(row: any): Strike {
+  return {
+    id: row.id,
+    familyId: row.family_id ?? "",
+    kidId: row.kid_id,
+    issuedBy: row.issued_by ?? "Parent",
+    reason: row.reason ?? "",
+    penaltyStars: row.penalty_stars ?? 0,
+    penaltyCashCents: row.penalty_cash_cents ?? 0,
+    deductedAt: row.deducted_at ?? null,
+    clearedAt: row.cleared_at ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+export const listActiveStrikes = timed(
+  "listActiveStrikes",
+  async (kidId: string): Promise<Strike[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("strikes")
+      .select("*")
+      .eq("kid_id", kidId)
+      .is("cleared_at", null)
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+    return data.map(mapStrike);
+  },
+);
+
+export const listAllStrikes = timed(
+  "listAllStrikes",
+  async (kidId: string): Promise<Strike[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("strikes")
+      .select("*")
+      .eq("kid_id", kidId)
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+    return data.map(mapStrike);
   },
 );

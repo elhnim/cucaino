@@ -180,6 +180,15 @@ export async function claimReward(
   if (rErr || !reward) return { ok: false, error: "Reward not found." };
   if (kErr || !kid) return { ok: false, error: "Kid not found." };
 
+  const { count: strikeCount } = await supabase
+    .from("strikes")
+    .select("id", { count: "exact", head: true })
+    .eq("kid_id", kidId)
+    .is("cleared_at", null);
+  if ((strikeCount ?? 0) >= 3) {
+    return { ok: false, error: "Rewards are locked — you have 3 or more active strikes. Talk to a parent." };
+  }
+
   if (paymentType === "stars" && kid.points_balance < reward.cost_points) {
     return { ok: false, error: "Not enough stars." };
   }

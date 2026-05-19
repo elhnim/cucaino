@@ -20,7 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useWidgetPrefs } from "@/lib/hooks/useWidgetPrefs";
 import { SUBJECTS } from "@/lib/registry/subject-registry";
 import { BADGE_META, BADGE_THRESHOLDS, getTierFromCount } from "@/lib/domain/badge-config";
-import type { Kid, Task, BadgeProgress, CustomBadgeProgress } from "@/lib/domain/types";
+import type { Kid, Task, BadgeProgress, CustomBadgeProgress, Strike } from "@/lib/domain/types";
 import CustomBadgeTile from "@/components/kid/CustomBadgeTile";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
@@ -71,6 +71,7 @@ export interface KidHomeWidgetsProps {
   weeklyStars: Record<string, number>;
   level: LevelData;
   encouragement: string;
+  activeStrikes?: Strike[];
 }
 
 export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
@@ -78,6 +79,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
     kid, theme, done, total, allDone, ringOffset, taskPct,
     incompleteTasks, todaySchoolTasks, tomorrowActivityTasks,
     badgesInProgress, customBadgeProgress, allKids, weeklyStars, level, encouragement,
+    activeStrikes,
   } = props;
 
   const storageKey = `kid-home:${kid.id}`;
@@ -118,6 +120,26 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
 
   return (
     <>
+      {/* PINNED: Strike alert */}
+      {activeStrikes && activeStrikes.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex gap-3 items-start">
+          <span className="text-2xl flex-shrink-0">⚡</span>
+          <div>
+            <div className="font-black text-red-700 text-sm">
+              {activeStrikes.length} active strike{activeStrikes.length !== 1 ? "s" : ""}
+            </div>
+            <div className="text-xs text-red-500 mt-0.5 leading-snug">
+              {activeStrikes.length >= 3
+                ? "Rewards are locked. Talk to a parent to clear your strikes."
+                : "Talk to a parent about what happened."}
+            </div>
+            {activeStrikes[0]?.reason && (
+              <div className="text-[11px] text-red-400 mt-1 italic">&ldquo;{activeStrikes[0].reason}&rdquo;</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* PINNED: Stats */}
       <StatsWidget kid={kid} theme={theme} done={done} total={total} allDone={allDone} ringOffset={ringOffset} />
 

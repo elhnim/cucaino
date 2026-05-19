@@ -13,6 +13,7 @@ interface Props {
   requiresApproval: boolean;
   currentStars: number;
   currentCash: number;
+  blockedByStrikes?: number;
 }
 
 export default function RewardClaimButton({
@@ -25,6 +26,7 @@ export default function RewardClaimButton({
   requiresApproval,
   currentStars,
   currentCash,
+  blockedByStrikes,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [requested, setRequested] = useState(false);
@@ -59,6 +61,14 @@ export default function RewardClaimButton({
       }
     });
   };
+
+  if (blockedByStrikes !== undefined && blockedByStrikes >= 3) {
+    return (
+      <div className="w-full py-3 rounded-2xl text-sm font-black text-center bg-red-50 border border-red-200 text-red-500">
+        ⚡ Rewards locked — clear strikes with a parent
+      </div>
+    );
+  }
 
   return (
     <>
