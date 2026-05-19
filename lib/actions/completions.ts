@@ -139,6 +139,43 @@ export async function completeTask(
     if (titanUnlock) newTiers.push(titanUnlock);
   }
 
+  // Custom badges — check for any badge tied to this taskId
+  const { data: customBadges } = await supabase
+    .from("custom_badges")
+    .select("id, name, icon, track_type, bronze_threshold, silver_threshold, gold_threshold, kid_ids")
+    .eq("task_id", taskId)
+    .eq("active", true);
+
+  if (customBadges && customBadges.length > 0) {
+    for (const badge of customBadges) {
+      const scope = badge.kid_ids as string[] | null;
+      if (scope && !scope.includes(kidId)) continue;
+
+      const { data: crossedTier } = await supabase.rpc("increment_custom_badge_progress", {
+        p_kid_id: kidId,
+        p_badge_id: badge.id,
+        p_family_id: fam.id,
+        p_today: today,
+      });
+
+      if (crossedTier) {
+        const tierNameMap: Record<string, string> = {
+          bronze: "Bronze",
+          silver: "Silver",
+          gold: "Gold",
+        };
+        newTiers.push({
+          category: badge.id as any,
+          tier: crossedTier as "bronze" | "silver" | "gold",
+          tierName: tierNameMap[crossedTier] ?? crossedTier,
+          icon: badge.icon,
+          isCustom: true,
+          name: badge.name,
+        });
+      }
+    }
+  }
+
   revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true, newTiers: newTiers.length > 0 ? newTiers : undefined };
 }
