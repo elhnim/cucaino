@@ -46,13 +46,11 @@ export default function RewardsClient({
                     {r.type === "family" ? "👨‍👩‍👧‍👦 family" : "👤 individual"}
                   </span>
                 </div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  {r.costPoints} ⭐
-                  {r.kidId
-                    ? ` · specific kid`
-                    : r.type === "individual"
-                      ? " · any kid"
-                      : " · family pool"}
+                <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                  {r.costPoints > 0 && <span>{r.costPoints} ⭐</span>}
+                  {r.costCashCents > 0 && <span className="text-green-700 font-bold">💵 ${(r.costCashCents / 100).toFixed(2)}</span>}
+                  <span>·</span>
+                  <span>{r.kidId ? "specific kid" : r.type === "individual" ? "any kid" : "family pool"}</span>
                 </div>
                 {r.description ? (
                   <div className="text-xs text-gray-500 mt-1">{r.description}</div>
