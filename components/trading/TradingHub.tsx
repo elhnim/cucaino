@@ -71,7 +71,7 @@ export default function TradingHub({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col">
+    <div className="bg-gradient-to-br from-green-50 to-emerald-100 min-h-full">
       {showOnboarding && (
         <div className="fixed inset-0 z-50">
           <TradingOnboarding onDone={handleOnboardingDone} />
@@ -82,8 +82,8 @@ export default function TradingHub({
         <h1 className="text-2xl font-black text-gray-900">📈 Nugget Market</h1>
       </div>
 
-      {/* Tab bar */}
-      <div className="flex border-b border-gray-200 bg-white px-4">
+      {/* Tab bar — sticky so it stays visible while scrolling */}
+      <div className="sticky top-0 z-10 flex border-b border-gray-200 bg-white px-4">
         {visibleTabs.map((tab) => (
           <button
             key={tab.id}
@@ -99,8 +99,8 @@ export default function TradingHub({
         ))}
       </div>
 
-      {/* Active tab content — scrollable */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      {/* Active tab content */}
+      <div className="px-4 py-4 pb-8">
         {activeTab === "portfolio" && kid && (
           <TradingPortfolioTab
             portfolio={portfolio}
