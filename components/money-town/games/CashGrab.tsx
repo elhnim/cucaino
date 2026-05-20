@@ -84,7 +84,7 @@ export default function CashGrab({ onComplete }: Props) {
   }
 
   if (done) {
-    const earned = Math.round((grabbed / 10) * MAX_EARN)
+    const earned = Math.min(MAX_EARN, Math.round((grabbed / 10) * MAX_EARN))
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="text-6xl mb-4">💰</div>
