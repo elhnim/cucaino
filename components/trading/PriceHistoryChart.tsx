@@ -52,9 +52,13 @@ export default function PriceHistoryChart({ priceHistory }: Props) {
   // X-axis labels: show up to 5 evenly spaced dates
   const xLabelCount = Math.min(5, data.length);
   const xLabels = Array.from({ length: xLabelCount }, (_, idx) => {
-    const dataIdx = Math.round((idx / (xLabelCount - 1)) * (data.length - 1));
-    const date = data[dataIdx].priceDate;
-    const label = date ? date.slice(5) : ""; // MM-DD
+    const denom = Math.max(xLabelCount - 1, 1);
+    const dataIdx = Math.min(
+      Math.round((idx / denom) * (data.length - 1)),
+      data.length - 1,
+    );
+    const date = data[dataIdx]?.priceDate ?? "";
+    const label = date ? date.slice(5) : "";
     return { x: toX(dataIdx), label };
   });
 
