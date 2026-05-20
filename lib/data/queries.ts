@@ -1076,9 +1076,9 @@ export async function getTradingPortfolio(kidId: string): Promise<TradingPortfol
   return {
     id: data.id,
     kidId: data.kid_id,
-    nuggetsBalance: data.nuggets_balance,
-    totalDepositedStars: data.total_deposited_stars,
-    totalWithdrawnStars: data.total_withdrawn_stars,
+    nuggetsBalance: Number(data.nuggets_balance),
+    totalDepositedStars: Number(data.total_deposited_stars),
+    totalWithdrawnStars: Number(data.total_withdrawn_stars),
   };
 }
 
