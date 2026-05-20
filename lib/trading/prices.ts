@@ -79,7 +79,7 @@ export async function ensureDailyPrices(supabase: SupabaseClient): Promise<void>
 
   await supabase
     .from("trading_asset_prices")
-    .upsert(rows, { onConflict: "symbol,price_date" });
+    .upsert(rows, { onConflict: "symbol,price_date", ignoreDuplicates: true });
 }
 
 function pickCategory(rng: number): string {

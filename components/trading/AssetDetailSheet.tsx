@@ -7,7 +7,7 @@ import type {
   TradingHolding,
 } from "@/lib/domain/types";
 import { buyAsset, sellAsset } from "@/lib/actions/trading";
-import PriceSparkline from "./PriceSparkline";
+import PriceHistoryChart from "./PriceHistoryChart";
 
 interface Props {
   asset: TradingAsset;
@@ -38,11 +38,6 @@ export default function AssetDetailSheet({
       ? ((currentPrice - yesterdayPrice) / yesterdayPrice) * 100
       : 0;
   const dayChangePositive = dayChangePct >= 0;
-
-  // Sparkline: oldest to newest (reverse)
-  const sparklinePrices = [...priceHistory]
-    .reverse()
-    .map((p) => p.priceNuggets);
 
   // News card styling
   const newsImpact = priceHistory[0]?.newsImpact ?? null;
@@ -136,13 +131,9 @@ export default function AssetDetailSheet({
             </div>
           </div>
 
-          {/* Sparkline */}
+          {/* Price history chart */}
           <div className="w-full mb-4">
-            <PriceSparkline
-              prices={sparklinePrices}
-              width={400}
-              height={64}
-            />
+            <PriceHistoryChart priceHistory={priceHistory} />
           </div>
 
           {/* Today's news card */}
