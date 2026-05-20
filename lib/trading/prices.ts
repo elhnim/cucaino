@@ -61,7 +61,12 @@ export async function ensureDailyPrices(supabase: SupabaseClient): Promise<void>
       // Calculate event_pct for today's news (will affect tomorrow's price)
       const rng4 = seededRandom(asset.symbol + today + "pct");
       const rawPct = template.minPct + rng4 * (template.maxPct - template.minPct);
-      const eventPct = template.impact === 'negative' ? -rawPct : template.impact === 'neutral' ? (rng4 - 0.5) * 2 * rawPct : rawPct;
+      // mixed: 60% chance positive, 40% chance negative
+      const rng5 = seededRandom(asset.symbol + today + "dir");
+      const eventPct = template.impact === 'negative' ? -rawPct
+        : template.impact === 'neutral' ? (rng4 - 0.5) * 2 * rawPct
+        : template.impact === 'mixed' ? (rng5 < 0.60 ? rawPct : -rawPct)
+        : rawPct;
 
       // Generate AI headline + body (falls back to raw text on error)
       const { headline, body } = await generateNews(asset, { text: eventText, impact: template.impact });

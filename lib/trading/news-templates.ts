@@ -1,6 +1,6 @@
 export type NewsTemplate = {
   text: string;
-  impact: 'positive' | 'negative' | 'neutral';
+  impact: 'positive' | 'negative' | 'neutral' | 'mixed';
   minPct: number;
   maxPct: number;
 };
@@ -48,14 +48,25 @@ export const NEWS_TEMPLATES: Record<string, NewsTemplate[]> = {
     { text: "Company donates {X} thousand to local schools this month", impact: 'neutral', minPct: 0, maxPct: 2 },
     { text: "Research team expanded with {X} new scientists joining", impact: 'neutral', minPct: 0, maxPct: 3 },
   ],
+  mixed_news: [
+    { text: "Big merger talks leak — deal could change everything or fall apart", impact: 'mixed', minPct: 8, maxPct: 15 },
+    { text: "Government announces new rules that could help or hurt the industry", impact: 'mixed', minPct: 5, maxPct: 12 },
+    { text: "Mystery investor buys {X}% stake — nobody knows their plans", impact: 'mixed', minPct: 8, maxPct: 14 },
+    { text: "Company enters brand new market for the first time — big risk, big reward", impact: 'mixed', minPct: 6, maxPct: 13 },
+    { text: "CEO unexpectedly steps down after {X} years — replacement unknown", impact: 'mixed', minPct: 7, maxPct: 15 },
+    { text: "Rumours of a secret product launch in {X} weeks — details unclear", impact: 'mixed', minPct: 5, maxPct: 12 },
+    { text: "Major competitor shuts down — could mean more customers or market panic", impact: 'mixed', minPct: 8, maxPct: 14 },
+    { text: "Leaked documents show bold new plan — analysts split on whether it works", impact: 'mixed', minPct: 6, maxPct: 12 },
+  ],
 };
 
 export const CATEGORY_WEIGHTS: Record<string, number> = {
-  sales_up: 0.25,
-  sales_down: 0.25,
+  sales_up: 0.22,
+  sales_down: 0.22,
   product_hit: 0.10,
   product_flop: 0.10,
-  neutral_news: 0.30,
+  neutral_news: 0.24,
+  mixed_news: 0.12,
 };
 
 // Deterministic PRNG using FNV-1a hash — given the same seed returns the same number in [0, 1)
