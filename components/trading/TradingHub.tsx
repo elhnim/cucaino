@@ -1,0 +1,143 @@
+"use client";
+
+import { useState } from "react";
+import type {
+  TradingPortfolio,
+  TradingHolding,
+  TradingTransaction,
+  TradingAssetPrice,
+  TradingAsset,
+} from "@/lib/domain/types";
+import TradingPortfolioTab from "./TradingPortfolioTab";
+import TradingMarketTab from "./TradingMarketTab";
+import TradingLeaderboardTab, {
+  type LeaderboardEntry,
+} from "./TradingLeaderboardTab";
+import DepositWithdrawModal from "./DepositWithdrawModal";
+import AssetDetailSheet from "./AssetDetailSheet";
+
+interface Props {
+  kid: { id: string; name: string; pointsBalance: number } | null;
+  portfolio: TradingPortfolio | null;
+  holdings: TradingHolding[];
+  transactions: TradingTransaction[];
+  currentPrices: Record<string, TradingAssetPrice>;
+  priceHistoryMap: Record<string, TradingAssetPrice[]>;
+  assets: TradingAsset[];
+  leaderboard: LeaderboardEntry[];
+}
+
+type Tab = "portfolio" | "market" | "leaderboard";
+
+export default function TradingHub({
+  kid,
+  portfolio,
+  holdings,
+  transactions,
+  currentPrices,
+  priceHistoryMap,
+  assets,
+  leaderboard,
+}: Props) {
+  const defaultTab: Tab = kid ? "portfolio" : "market";
+  const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
+  const [depositMode, setDepositMode] = useState<"deposit" | "withdraw" | null>(
+    null
+  );
+  const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
+
+  const tabs: { id: Tab; label: string; onlyWithKid?: boolean }[] = [
+    { id: "portfolio", label: "Portfolio", onlyWithKid: true },
+    { id: "market", label: "Market" },
+    { id: "leaderboard", label: "Rankings" },
+  ];
+
+  const visibleTabs = tabs.filter((t) => !t.onlyWithKid || kid != null);
+
+  function handleTabClick(tab: Tab) {
+    setActiveTab(tab);
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col">
+      {/* Page title */}
+      <div className="px-4 pt-4 pb-2">
+        <h1 className="text-2xl font-black text-gray-900">📈 Nugget Market</h1>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex border-b border-gray-200 bg-white px-4">
+        {visibleTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabClick(tab.id)}
+            className={`py-3 px-4 text-sm font-black border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-green-600 text-green-600"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Active tab content — scrollable */}
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        {activeTab === "portfolio" && kid && (
+          <TradingPortfolioTab
+            portfolio={portfolio}
+            holdings={holdings}
+            currentPrices={currentPrices}
+            transactions={transactions}
+            kidStarBalance={kid.pointsBalance}
+            assets={assets}
+            kidId={kid.id}
+            onDepositWithdraw={(mode) => setDepositMode(mode)}
+            onSelectAsset={(symbol) => setSelectedAsset(symbol)}
+          />
+        )}
+        {activeTab === "market" && (
+          <TradingMarketTab
+            assets={assets}
+            currentPrices={currentPrices}
+            priceHistoryMap={priceHistoryMap}
+            holdings={holdings}
+            onSelectAsset={(symbol) => setSelectedAsset(symbol)}
+          />
+        )}
+        {activeTab === "leaderboard" && (
+          <TradingLeaderboardTab
+            leaderboard={leaderboard}
+            currentKidId={kid?.id ?? null}
+          />
+        )}
+      </div>
+
+      {/* Deposit/Withdraw modal */}
+      {depositMode && kid && portfolio && (
+        <DepositWithdrawModal
+          mode={depositMode}
+          availableStars={kid.pointsBalance}
+          availableNuggets={portfolio.nuggetsBalance}
+          kidId={kid.id}
+          onClose={() => setDepositMode(null)}
+        />
+      )}
+
+      {/* Asset detail sheet */}
+      {selectedAsset && (
+        <AssetDetailSheet
+          asset={assets.find((a) => a.symbol === selectedAsset)!}
+          priceHistory={priceHistoryMap[selectedAsset] ?? []}
+          holding={
+            holdings.find((h) => h.assetSymbol === selectedAsset) ?? null
+          }
+          portfolioNuggets={portfolio?.nuggetsBalance ?? 0}
+          kidId={kid?.id ?? null}
+          onClose={() => setSelectedAsset(null)}
+        />
+      )}
+    </div>
+  );
+}
