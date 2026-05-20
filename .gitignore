@@ -42,3 +42,10 @@ docs/perf-screenshots/
 
 # Claude Code worktrees (local agent artifacts)
 .claude/worktrees/
+
+# PWA generated files
+public/sw.js
+public/workbox-*.js
+public/sw.js.map
+public/workbox-*.js.map
+public/swe-worker-*.js
