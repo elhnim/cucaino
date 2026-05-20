@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import AddTaskButton from "@/components/kid/AddTaskButton";
 import type { Task } from "@/lib/domain/types";
@@ -23,7 +24,7 @@ export function TaskDoneSheet({
     return () => clearTimeout(t);
   }, [onContinue]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={onContinue}>
       {/* dim */}
       <div className="absolute inset-0 bg-black/30" />
@@ -50,7 +51,8 @@ export function TaskDoneSheet({
           Keep going →
         </button>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -74,7 +76,7 @@ export function AllDoneScreen({
   selfAddableTasks?: Task[];
   accentColor?: string;
 }) {
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center px-7 text-center"
       style={{ background: "linear-gradient(160deg, #a21caf 0%, #c026d3 50%, #f0abfc 100%)" }}
@@ -142,6 +144,7 @@ export function AllDoneScreen({
       >
         Spend my stars ⭐
       </Link>
-    </div>
+    </div>,
+    document.body,
   );
 }

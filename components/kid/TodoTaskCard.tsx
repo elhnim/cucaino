@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { completeTask, uncompleteTask } from "@/lib/actions/completions";
 import { TaskDoneSheet } from "@/components/kid/CelebrationOverlay";
@@ -473,6 +473,7 @@ export default function TodoTaskCard({
   const [showSheet, setShowSheet] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [pending, setPending] = useState(initiallyPending ?? false);
+  const dismissSheet = useCallback(() => setShowSheet(false), []);
 
   useEffect(() => {
     if (!celebrating) return;
@@ -629,7 +630,7 @@ export default function TodoTaskCard({
         taskIcon={task.icon}
         taskName={task.name}
         points={task.points}
-        onContinue={() => setShowSheet(false)}
+        onContinue={dismissSheet}
       />
     )}
     </>
