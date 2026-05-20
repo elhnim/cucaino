@@ -11,6 +11,7 @@ import {
   listAllStrikes,
   listTodayMoodCounts,
 } from "@/lib/data/stub";
+import { processPayday } from "@/lib/actions/allowance";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
 import type { Task } from "@/lib/domain/types";
@@ -18,6 +19,8 @@ import ParentHomeWidgets, { type KidCardData, type HeadsUpItem } from "@/compone
 import WhatsNewModal from "@/components/WhatsNewModal";
 
 export default async function ParentOverviewPage() {
+  void processPayday();
+
   const [family, kids, pending, pendingCompletions] = await Promise.all([
     getFamily(),
     listKids(),

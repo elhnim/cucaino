@@ -7,6 +7,7 @@ import FamilyNameEditor from "@/components/parent/FamilyNameEditor";
 import WeatherLocationPicker from "@/components/parent/WeatherLocationPicker";
 import InviteParentSection from "@/components/parent/InviteParentSection";
 import TimezoneSelector from "@/components/parent/TimezoneSelector";
+import AllowanceSettings from "@/components/parent/AllowanceSettings";
 
 const commit = process.env.NEXT_PUBLIC_APP_VERSION ?? "dev";
 
@@ -207,6 +208,12 @@ export default async function ParentSettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Allowance & Payday */}
+      <AllowanceSettings
+        payDayOfWeek={family.payDayOfWeek}
+        weeklyAllowanceCents={family.weeklyAllowanceCents}
+      />
 
       {/* Sign out */}
       <form action={signOut}>

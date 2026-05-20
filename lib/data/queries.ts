@@ -187,6 +187,8 @@ export async function getFamily(): Promise<Family | null> {
     parentGoals: (data as any).parent_goals ?? [],
     parentGoalsOther: (data as any).parent_goals_other ?? null,
     timezone: (data as any).timezone ?? "Australia/Sydney",
+    payDayOfWeek: (data as any).pay_day_of_week ?? null,
+    weeklyAllowanceCents: (data as any).weekly_allowance_cents ?? 0,
   };
 }
 

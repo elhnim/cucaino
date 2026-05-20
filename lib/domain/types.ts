@@ -57,6 +57,8 @@ export interface Family {
   parentGoals: string[];
   parentGoalsOther: string | null;
   timezone: string;
+  payDayOfWeek: number | null;    // 0=Sun … 6=Sat; null = not configured
+  weeklyAllowanceCents: number;   // 0 = no allowance set
 }
 
 export interface Kid {
