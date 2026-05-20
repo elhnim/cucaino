@@ -42,6 +42,21 @@ export default async function PlayHubPage({
           </div>
         </Link>
 
+        {/* AI Arcade */}
+        <Link
+          href={`/play/arcade${kidId ? `?kid=${kidId}` : ""}`}
+          className="bg-cyan-50 border-2 border-cyan-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
+        >
+          <div className="text-4xl">🕹️</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-cyan-900">AI Arcade</span>
+              <span className="text-[10px] font-bold bg-cyan-500 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+            </div>
+            <div className="text-xs text-cyan-700 mt-0.5">6 AI games · Spend ⚡ Sparks</div>
+          </div>
+        </Link>
+
         {/* Flashcards */}
         <div className="bg-purple-50 border-2 border-purple-100 rounded-3xl p-5 flex flex-col gap-3 opacity-50">
           <div className="text-4xl">📇</div>
