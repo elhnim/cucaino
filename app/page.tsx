@@ -212,7 +212,7 @@ function LandingPage({ founderCount }: { founderCount: number }) {
       {/* ── FOOTER ── */}
       <footer className="bg-gray-100 border-t border-gray-200 px-[5%] py-7 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm font-semibold text-gray-500">
         <span className="text-xl font-black text-indigo-900">Cucaino</span>
-        <span>© 2026 Cucaino. Built by a parent, for parents.</span>
+        <span>© 2026 Cucaino. Built for kids by kids Cucai and Nơ.</span>
         <div className="flex gap-5">
           <Link href="/login" className="hover:text-indigo-900">Sign in</Link>
           <Link href="/signup" className="hover:text-indigo-900">Sign up</Link>
