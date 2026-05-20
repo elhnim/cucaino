@@ -105,5 +105,6 @@ export type GameAction =
   | { type: 'DISMISS_EXPENSE' }
   | { type: 'DISMISS_BAD_LUCK' }
   | { type: 'MINIGAME_COMPLETE'; cashEarned: number }
+  | { type: 'TRIVIA_COMPLETE'; cashEarned: number; triviaIds: string[] }
   | { type: 'NEXT_TURN' }
   | { type: 'RESTORE'; state: GameState }

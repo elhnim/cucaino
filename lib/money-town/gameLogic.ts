@@ -1,6 +1,6 @@
 import type { GameState, GameAction, Player, Asset, OwnedAsset, TriviaQuestion } from './types'
 import {
-  STARTING_CASH, JOBS, ASSETS, WHEEL_SEGMENTS,
+  ASSETS,
   EXPENSE_EVENTS, BAD_LUCK_EVENTS, TRIVIA_QUESTIONS, REFLEX_GAMES
 } from './constants'
 
@@ -268,6 +268,25 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         i === state.currentPlayerIndex ? updatedPlayer : p
       )
       return { ...state, players: newPlayers, pendingMinigame: null, phase: 'between-turns' }
+    }
+
+    case 'TRIVIA_COMPLETE': {
+      const player = state.players[state.currentPlayerIndex]
+      const updatedPlayer: Player = {
+        ...player,
+        cash: player.cash + action.cashEarned,
+      }
+      const newPlayers = state.players.map((p, i) =>
+        i === state.currentPlayerIndex ? updatedPlayer : p
+      )
+      const newUsedIds = Array.from(new Set([...state.usedTriviaIds, ...action.triviaIds]))
+      return {
+        ...state,
+        players: newPlayers,
+        pendingMinigame: null,
+        usedTriviaIds: newUsedIds,
+        phase: 'between-turns',
+      }
     }
 
     case 'NEXT_TURN': {
