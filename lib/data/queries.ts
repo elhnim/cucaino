@@ -1244,11 +1244,12 @@ export async function listCurrentAndPreviousAssetPrices(): Promise<
   Record<string, { current: TradingAssetPrice; previous: TradingAssetPrice | null }>
 > {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("trading_asset_prices")
     .select("symbol, price_nuggets, price_date, news_headline, news_body, news_impact, event_pct")
     .order("price_date", { ascending: false })
-    .limit(20); // 10 symbols × 2 days
+    .limit(30); // 10 symbols × 2 days, with headroom for symbol additions
+  if (error || !data) return {};
   const map: Record<string, { current: TradingAssetPrice; previous: TradingAssetPrice | null }> = {};
   for (const r of data ?? []) {
     const price: TradingAssetPrice = {
