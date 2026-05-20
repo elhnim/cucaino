@@ -153,8 +153,6 @@ export default function AssetDetailSheet({
                   ? `Positive news often gets investors excited and can push the price up tomorrow. But markets are unpredictable — do you think this is big enough to make a difference?`
                   : newsImpact === "negative"
                   ? `Bad news can spook investors and push the price down tomorrow. Or has the market already priced it in? Is it time to sell, hold, or buy the dip?`
-                  : newsImpact === "mixed"
-                  ? `This one's a mystery! 🤔 Nobody knows if it's good or bad news yet. Prices could go up or down tomorrow. What's your gut feeling?`
                   : `This news could go either way. Neutral stories sometimes hide something bigger — what's your read?`}
               </p>
             </div>
