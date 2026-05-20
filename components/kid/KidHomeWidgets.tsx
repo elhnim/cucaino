@@ -20,13 +20,14 @@ import { CSS } from "@dnd-kit/utilities";
 import { useWidgetPrefs } from "@/lib/hooks/useWidgetPrefs";
 import { SUBJECTS } from "@/lib/registry/subject-registry";
 import { BADGE_META, BADGE_THRESHOLDS, getTierFromCount } from "@/lib/domain/badge-config";
-import type { Kid, Task, BadgeProgress, CustomBadgeProgress, Strike } from "@/lib/domain/types";
+import type { Kid, Task, BadgeProgress, CustomBadgeProgress, Strike, TradingPortfolio, TradingHolding, TradingAssetPrice } from "@/lib/domain/types";
+import { TRADING_ASSETS } from "@/lib/trading/assets";
 import CustomBadgeTile from "@/components/kid/CustomBadgeTile";
 import MoodJarWidget from "@/components/kid/MoodJarWidget";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
-const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement", "streak", "mood"];
+const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement", "streak", "mood", "market"];
 const WIDGET_LABELS: Record<string, string> = {
   tasks: "✅ Today's Tasks",
   school: "📚 School Today",
@@ -37,6 +38,7 @@ const WIDGET_LABELS: Record<string, string> = {
   encouragement: "💬 Encouragement",
   streak: "🔥 Streak Calendar",
   mood: "🫙 Mood Jar",
+  market: "📈 Nugget Market",
 };
 const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   tasks: "full",
@@ -48,6 +50,7 @@ const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   encouragement: "half",
   streak: "full",
   mood: "full",
+  market: "full",
 };
 
 interface LevelData {
@@ -79,6 +82,9 @@ export interface KidHomeWidgetsProps {
   level: LevelData;
   encouragement: string;
   activeStrikes?: Strike[];
+  tradingPortfolio?: TradingPortfolio | null;
+  tradingHoldings?: TradingHolding[];
+  tradingPrices?: Record<string, { current: TradingAssetPrice; previous: TradingAssetPrice | null }>;
 }
 
 export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
@@ -104,6 +110,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
       case "badges": return badgesInProgress.length > 0 || customBadgeProgress.length > 0;
       case "race": return allKids.length > 1;
       case "tasks": return total > 0;
+      case "market": return true;
       default: return true;
     }
   }
@@ -277,10 +284,142 @@ function SortableWidget({
   );
 }
 
+// ─── Nugget Market widget ─────────────────────────────────────────────────────
+
+function NuggetMarketWidget({
+  kidId,
+  portfolio,
+  holdings,
+  prices,
+}: {
+  kidId: string;
+  portfolio: TradingPortfolio | null;
+  holdings: TradingHolding[];
+  prices: Record<string, { current: TradingAssetPrice; previous: TradingAssetPrice | null }>;
+}) {
+  const cardStyle: React.CSSProperties = {
+    background: "linear-gradient(135deg, #052e16 0%, #14532d 100%)",
+    borderRadius: 16,
+    overflow: "hidden",
+  };
+
+  if (!portfolio) {
+    return (
+      <Link href={`/play/trading?kid=${kidId}`} className="block shadow-sm" style={cardStyle}>
+        <div className="p-5 flex flex-col items-center text-center gap-3">
+          <div className="text-4xl">📈</div>
+          <div>
+            <div className="text-base font-black text-white mb-1">Nugget Market</div>
+            <div className="text-xs leading-snug" style={{ color: "#86efac" }}>
+              Buy and sell stocks with your stars.<br />Watch your money grow!
+            </div>
+          </div>
+          <div className="text-xs font-black text-white px-5 py-2 rounded-xl" style={{ background: "#16a34a" }}>
+            Start investing →
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  const holdingsValue = holdings.reduce((sum, h) => {
+    return sum + h.quantity * (prices[h.assetSymbol]?.current.priceNuggets ?? 0);
+  }, 0);
+  const totalValue = Math.round(portfolio.nuggetsBalance + holdingsValue);
+
+  const holdingsByValue = [...holdings]
+    .map((h) => ({
+      symbol: h.assetSymbol,
+      value: h.quantity * (prices[h.assetSymbol]?.current.priceNuggets ?? 0),
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 4)
+    .map((h) => h.symbol);
+
+  const holdingSymbolSet = new Set(holdingsByValue);
+  const fillerSymbols = TRADING_ASSETS
+    .map((a) => a.symbol)
+    .filter((sym) => !holdingSymbolSet.has(sym))
+    .sort((a, b) => {
+      const pa = prices[a];
+      const pb = prices[b];
+      const pctA = pa?.previous ? Math.abs((pa.current.priceNuggets - pa.previous.priceNuggets) / pa.previous.priceNuggets) : 0;
+      const pctB = pb?.previous ? Math.abs((pb.current.priceNuggets - pb.previous.priceNuggets) / pb.previous.priceNuggets) : 0;
+      return pctB - pctA;
+    });
+
+  const tickerSymbols = [...holdingsByValue, ...fillerSymbols].slice(0, 4);
+
+  return (
+    <Link href={`/play/trading?kid=${kidId}`} className="block shadow-sm" style={cardStyle}>
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📈</span>
+            <span className="text-sm font-black text-white">Nugget Market</span>
+          </div>
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ color: "#86efac", background: "rgba(255,255,255,0.1)" }}
+          >
+            Open →
+          </span>
+        </div>
+
+        <div className="flex items-end gap-4 mb-3">
+          <div>
+            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#86efac" }}>
+              Portfolio value
+            </div>
+            <div className="text-2xl font-black text-white">🪙 {totalValue.toLocaleString()}</div>
+          </div>
+          <div className="ml-auto text-right pb-0.5">
+            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "#86efac" }}>
+              Cash
+            </div>
+            <div className="text-sm font-black text-white">
+              🪙 {portfolio.nuggetsBalance.toLocaleString()}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-1.5">
+          {tickerSymbols.map((sym) => {
+            const asset = TRADING_ASSETS.find((a) => a.symbol === sym);
+            const p = prices[sym];
+            const pct = p?.previous
+              ? ((p.current.priceNuggets - p.previous.priceNuggets) / p.previous.priceNuggets) * 100
+              : null;
+            const pctColor = pct === null ? "#9ca3af" : pct >= 0 ? "#86efac" : "#fca5a5";
+            const pctText = pct === null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+            return (
+              <div
+                key={sym}
+                className="rounded-xl px-2 py-1.5 text-center"
+                style={{ background: "rgba(255,255,255,0.1)" }}
+              >
+                <div className="text-base">{asset?.emoji ?? "📊"}</div>
+                <div className="text-[9px] font-black text-white">{sym}</div>
+                <div className="text-[9px] font-bold" style={{ color: pctColor }}>{pctText}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 // ─── Widget content dispatcher ───────────────────────────────────────────────
 
 function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }) {
-  const { kid, theme, done, total, allDone, taskPct, incompleteTasks, todaySchoolTasks, tomorrowActivityTasks, badgesInProgress, customBadgeProgress, allKids, weeklyStars, weeklyCompletions, moodCounts, level, encouragement } = props;
+  const {
+    kid, theme, done, total, allDone, taskPct,
+    incompleteTasks, todaySchoolTasks, tomorrowActivityTasks,
+    badgesInProgress, customBadgeProgress, allKids, weeklyStars,
+    weeklyCompletions, moodCounts, level, encouragement,
+    tradingPortfolio, tradingHoldings, tradingPrices,
+  } = props;
 
   switch (id) {
     case "tasks":
@@ -448,6 +587,16 @@ function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }
 
     case "mood":
       return <MoodJarWidget kidId={kid.id} initialCounts={moodCounts} accent={theme.accent} />;
+
+    case "market":
+      return (
+        <NuggetMarketWidget
+          kidId={kid.id}
+          portfolio={tradingPortfolio ?? null}
+          holdings={tradingHoldings ?? []}
+          prices={tradingPrices ?? {}}
+        />
+      );
 
     default:
       return null;
