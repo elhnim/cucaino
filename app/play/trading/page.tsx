@@ -4,7 +4,7 @@ import {
   listTradingHoldings,
   listTradingTransactions,
   listCurrentAssetPrices,
-  getAssetPriceHistory,
+  listAllAssetPriceHistories,
   listTradingLeaderboard,
 } from "@/lib/data/stub";
 import { ensureDailyPrices } from "@/lib/trading/prices";
@@ -13,7 +13,6 @@ import { creditPendingDividends } from "@/lib/actions/trading";
 import { createClient } from "@/lib/supabase/server";
 import KidShell from "@/components/kid/KidShell";
 import TradingHub from "@/components/trading/TradingHub";
-import type { TradingAssetPrice } from "@/lib/domain/types";
 
 export default async function TradingPage({
   searchParams,
@@ -27,21 +26,17 @@ export default async function TradingPage({
   // Generate today's prices in the background — don't block page load
   void ensureDailyPrices(supabase);
 
-  // Fetch kid
-  const kid = await (kidId ? getKid(kidId) : Promise.resolve(null));
+  const symbols = TRADING_ASSETS.map((a) => a.symbol);
 
-  // Fetch all asset price histories + current prices + leaderboard in parallel
-  const [priceHistories, currentPrices, leaderboard] = await Promise.all([
-    Promise.all(TRADING_ASSETS.map((a) => getAssetPriceHistory(a.symbol, 30))),
+  // Fetch kid + all shared data in parallel (single price-history query for all 10 assets)
+  const [kid, priceHistoryMap, currentPrices] = await Promise.all([
+    kidId ? getKid(kidId) : Promise.resolve(null),
+    listAllAssetPriceHistories(symbols, 30),
     listCurrentAssetPrices(),
-    listTradingLeaderboard(),
   ]);
 
-  // Build price history map
-  const priceHistoryMap: Record<string, TradingAssetPrice[]> = {};
-  TRADING_ASSETS.forEach((a, i) => {
-    priceHistoryMap[a.symbol] = priceHistories[i];
-  });
+  // Leaderboard reuses currentPrices already fetched — no extra query
+  const leaderboard = await listTradingLeaderboard(currentPrices);
 
   // Fetch kid-specific data if kid exists
   let portfolio = null;
@@ -55,7 +50,8 @@ export default async function TradingPage({
       listTradingTransactions(kid.id, 20),
     ]);
 
-    await creditPendingDividends(kid.id);
+    // Fire-and-forget — dividend crediting doesn't affect the page render
+    void creditPendingDividends(kid.id);
   }
 
   const content = (

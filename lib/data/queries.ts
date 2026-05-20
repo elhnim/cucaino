@@ -1116,6 +1116,43 @@ export async function getAssetPriceHistory(symbol: string, days = 30): Promise<T
   }));
 }
 
+// Fetches price history for all given symbols in a single query.
+// Returns a map of symbol → rows (newest first, up to `days` rows per symbol).
+export async function listAllAssetPriceHistories(
+  symbols: string[],
+  days = 30,
+): Promise<Record<string, TradingAssetPrice[]>> {
+  if (symbols.length === 0) return {};
+  const supabase = await createClient();
+  const cutoff = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
+  })();
+  const { data } = await supabase
+    .from("trading_asset_prices")
+    .select("symbol, price_nuggets, price_date, news_headline, news_impact, event_pct")
+    .in("symbol", symbols)
+    .gte("price_date", cutoff)
+    .order("price_date", { ascending: false });
+
+  const map: Record<string, TradingAssetPrice[]> = {};
+  for (const r of data ?? []) {
+    if (!map[r.symbol]) map[r.symbol] = [];
+    if (map[r.symbol].length < days) {
+      map[r.symbol].push({
+        symbol: r.symbol,
+        priceNuggets: r.price_nuggets,
+        priceDate: r.price_date,
+        newsHeadline: r.news_headline,
+        newsImpact: r.news_impact as TradingAssetPrice["newsImpact"],
+        eventPct: r.event_pct !== null ? Number(r.event_pct) : null,
+      });
+    }
+  }
+  return map;
+}
+
 export async function listCurrentAssetPrices(): Promise<Record<string, TradingAssetPrice>> {
   const supabase = await createClient();
   // Get the most recent price row per symbol
@@ -1140,7 +1177,9 @@ export async function listCurrentAssetPrices(): Promise<Record<string, TradingAs
   return map;
 }
 
-export async function listTradingLeaderboard(): Promise<{
+export async function listTradingLeaderboard(
+  currentPrices?: Record<string, TradingAssetPrice>,
+): Promise<{
   kidId: string;
   name: string;
   avatar: string;
@@ -1150,30 +1189,19 @@ export async function listTradingLeaderboard(): Promise<{
 }[]> {
   const supabase = await createClient();
 
-  // Get all kids in the family
-  const { data: kids } = await supabase
-    .from("kids")
-    .select("id, name, avatar");
-
-  // Get all portfolios
-  const { data: portfolios } = await supabase
-    .from("trading_portfolios")
-    .select("kid_id, nuggets_balance, total_deposited_stars, total_withdrawn_stars");
-
-  // Get all holdings with quantity > 0
-  const { data: holdings } = await supabase
-    .from("trading_holdings")
-    .select("kid_id, asset_symbol, quantity")
-    .gt("quantity", 0);
-
-  // Get current prices
-  const currentPrices = await listCurrentAssetPrices();
+  const [{ data: kids }, { data: portfolios }, { data: holdings }, prices] =
+    await Promise.all([
+      supabase.from("kids").select("id, name, avatar"),
+      supabase.from("trading_portfolios").select("kid_id, nuggets_balance, total_deposited_stars, total_withdrawn_stars"),
+      supabase.from("trading_holdings").select("kid_id, asset_symbol, quantity").gt("quantity", 0),
+      currentPrices ? Promise.resolve(currentPrices) : listCurrentAssetPrices(),
+    ]);
 
   return (kids ?? []).map((kid) => {
     const portfolio = (portfolios ?? []).find((p) => p.kid_id === kid.id);
     const kidHoldings = (holdings ?? []).filter((h) => h.kid_id === kid.id);
     const holdingsValue = kidHoldings.reduce((sum, h) => {
-      const price = currentPrices[h.asset_symbol]?.priceNuggets ?? 0;
+      const price = prices[h.asset_symbol]?.priceNuggets ?? 0;
       return sum + Number(h.quantity) * price;
     }, 0);
     return {
