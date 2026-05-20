@@ -89,6 +89,12 @@ export default function BadgeUnlockModal({ badges, onDismiss }: Props) {
           <div className="text-sm font-semibold mt-1" style={{ color }}>
             {badge.tier.charAt(0).toUpperCase() + badge.tier.slice(1)} {badge.icon}
           </div>
+          {(badge.bonusStars || badge.bonusCashCents) ? (
+            <div className="flex gap-3 justify-center text-sm font-black mt-2" style={{ color }}>
+              {badge.bonusStars ? <span>+{badge.bonusStars} ⭐</span> : null}
+              {badge.bonusCashCents ? <span>+${(badge.bonusCashCents / 100).toFixed(2)} 💵</span> : null}
+            </div>
+          ) : null}
         </div>
 
         {/* Countdown bar */}

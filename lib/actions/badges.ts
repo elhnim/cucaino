@@ -15,6 +15,12 @@ export interface BadgeFormData {
   silverThreshold: number;
   goldThreshold: number;
   kidIds: string[] | null;
+  bronzeBonusStars: number;
+  silverBonusStars: number;
+  goldBonusStars: number;
+  bronzeBonusCashCents: number;
+  silverBonusCashCents: number;
+  goldBonusCashCents: number;
 }
 
 export async function createCustomBadge(data: BadgeFormData): Promise<ActionResult> {
@@ -33,6 +39,12 @@ export async function createCustomBadge(data: BadgeFormData): Promise<ActionResu
     silver_threshold: data.silverThreshold,
     gold_threshold: data.goldThreshold,
     kid_ids: data.kidIds,
+    bronze_bonus_stars: data.bronzeBonusStars,
+    silver_bonus_stars: data.silverBonusStars,
+    gold_bonus_stars: data.goldBonusStars,
+    bronze_bonus_cash_cents: data.bronzeBonusCashCents,
+    silver_bonus_cash_cents: data.silverBonusCashCents,
+    gold_bonus_cash_cents: data.goldBonusCashCents,
   });
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/badges");
@@ -51,6 +63,12 @@ export async function updateCustomBadge(id: string, data: BadgeFormData): Promis
     silver_threshold: data.silverThreshold,
     gold_threshold: data.goldThreshold,
     kid_ids: data.kidIds,
+    bronze_bonus_stars: data.bronzeBonusStars,
+    silver_bonus_stars: data.silverBonusStars,
+    gold_bonus_stars: data.goldBonusStars,
+    bronze_bonus_cash_cents: data.bronzeBonusCashCents,
+    silver_bonus_cash_cents: data.silverBonusCashCents,
+    gold_bonus_cash_cents: data.goldBonusCashCents,
   }).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/parent/badges");
@@ -72,6 +90,12 @@ export interface BuiltinBadgeOverrideData {
   bronzeName: string;
   silverName: string;
   goldName: string;
+  bronzeBonusStars: number;
+  silverBonusStars: number;
+  goldBonusStars: number;
+  bronzeBonusCashCents: number;
+  silverBonusCashCents: number;
+  goldBonusCashCents: number;
 }
 
 export async function updateBuiltinBadgeOverride(
@@ -94,6 +118,12 @@ export async function updateBuiltinBadgeOverride(
         bronze_name: data.bronzeName || null,
         silver_name: data.silverName || null,
         gold_name: data.goldName || null,
+        bronze_bonus_stars: data.bronzeBonusStars,
+        silver_bonus_stars: data.silverBonusStars,
+        gold_bonus_stars: data.goldBonusStars,
+        bronze_bonus_cash_cents: data.bronzeBonusCashCents,
+        silver_bonus_cash_cents: data.silverBonusCashCents,
+        gold_bonus_cash_cents: data.goldBonusCashCents,
       },
       { onConflict: "family_id,category" },
     );

@@ -293,6 +293,8 @@ export interface UnlockedBadge {
   icon: string;
   isCustom?: boolean;
   name?: string;
+  bonusStars?: number;
+  bonusCashCents?: number;
 }
 
 // ----------------------------------------------------------------------------
@@ -492,6 +494,12 @@ export interface CustomBadge {
   kidIds: string[] | null;
   active: boolean;
   createdAt: string;
+  bronzeBonusStars: number;
+  silverBonusStars: number;
+  goldBonusStars: number;
+  bronzeBonusCashCents: number;
+  silverBonusCashCents: number;
+  goldBonusCashCents: number;
 }
 
 export interface CustomBadgeProgress {
@@ -515,6 +523,12 @@ export interface BadgeConfigOverride {
   bronzeName: string | null;
   silverName: string | null;
   goldName: string | null;
+  bronzeBonusStars: number;
+  silverBonusStars: number;
+  goldBonusStars: number;
+  bronzeBonusCashCents: number;
+  silverBonusCashCents: number;
+  goldBonusCashCents: number;
 }
 
 // ----------------------------------------------------------------------------

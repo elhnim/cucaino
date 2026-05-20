@@ -19,6 +19,12 @@ function defaultForm(badge?: CustomBadge): BadgeFormData {
     silverThreshold: badge?.silverThreshold ?? 15,
     goldThreshold: badge?.goldThreshold ?? 30,
     kidIds: badge?.kidIds ?? null,
+    bronzeBonusStars: badge?.bronzeBonusStars ?? 0,
+    silverBonusStars: badge?.silverBonusStars ?? 0,
+    goldBonusStars: badge?.goldBonusStars ?? 0,
+    bronzeBonusCashCents: badge?.bronzeBonusCashCents ?? 0,
+    silverBonusCashCents: badge?.silverBonusCashCents ?? 0,
+    goldBonusCashCents: badge?.goldBonusCashCents ?? 0,
   };
 }
 
@@ -174,6 +180,45 @@ export default function BadgeFormModal({
                     onChange={(e) => set(key, Math.max(1, parseInt(e.target.value) || 1))}
                     className="w-full border border-gray-200 rounded-xl p-2 text-sm text-center font-bold focus:outline-none focus:border-indigo-400"
                   />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tier bonuses */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 block mb-2">Tier bonuses (optional)</label>
+            <div className="space-y-2">
+              {[
+                { tier: "bronze" as const, label: "🥉 Bronze", color: "#cd7c3f", starsKey: "bronzeBonusStars" as const, cashKey: "bronzeBonusCashCents" as const },
+                { tier: "silver" as const, label: "🥈 Silver", color: "#9ca3af", starsKey: "silverBonusStars" as const, cashKey: "silverBonusCashCents" as const },
+                { tier: "gold"   as const, label: "🥇 Gold",   color: "#f59e0b", starsKey: "goldBonusStars" as const,   cashKey: "goldBonusCashCents" as const },
+              ].map(({ label, color, starsKey, cashKey }) => (
+                <div key={starsKey} className="flex items-center gap-2">
+                  <label className="text-[10px] font-bold w-14 flex-shrink-0" style={{ color }}>{label}</label>
+                  <div className="flex-1 flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[9px] text-gray-400 block mb-0.5">⭐ Stars</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form[starsKey]}
+                        onChange={(e) => set(starsKey, Math.max(0, parseInt(e.target.value) || 0))}
+                        className="w-full border border-gray-200 rounded-xl p-2 text-sm text-center font-bold focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[9px] text-gray-400 block mb-0.5">💵 Cash ($)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={form[cashKey] / 100}
+                        onChange={(e) => set(cashKey, Math.round((parseFloat(e.target.value) || 0) * 100))}
+                        className="w-full border border-gray-200 rounded-xl p-2 text-sm text-center font-bold focus:outline-none focus:border-indigo-400"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

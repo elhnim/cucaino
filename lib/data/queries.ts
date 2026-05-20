@@ -865,6 +865,12 @@ export const listCustomBadges = timed(
       kidIds: row.kid_ids ?? null,
       active: row.active,
       createdAt: row.created_at,
+      bronzeBonusStars: row.bronze_bonus_stars ?? 0,
+      silverBonusStars: row.silver_bonus_stars ?? 0,
+      goldBonusStars: row.gold_bonus_stars ?? 0,
+      bronzeBonusCashCents: row.bronze_bonus_cash_cents ?? 0,
+      silverBonusCashCents: row.silver_bonus_cash_cents ?? 0,
+      goldBonusCashCents: row.gold_bonus_cash_cents ?? 0,
     }));
   },
 );
@@ -897,6 +903,12 @@ export const listCustomBadgeProgress = timed(
         kidIds: b.kid_ids ?? null,
         active: b.active,
         createdAt: b.created_at,
+        bronzeBonusStars: b.bronze_bonus_stars ?? 0,
+        silverBonusStars: b.silver_bonus_stars ?? 0,
+        goldBonusStars: b.gold_bonus_stars ?? 0,
+        bronzeBonusCashCents: b.bronze_bonus_cash_cents ?? 0,
+        silverBonusCashCents: b.silver_bonus_cash_cents ?? 0,
+        goldBonusCashCents: b.gold_bonus_cash_cents ?? 0,
       };
       const count = row.current_count ?? 0;
       const tier = count >= badge.goldThreshold ? "gold"
@@ -949,6 +961,12 @@ export const listBadgeConfigOverrides = timed(
       bronzeName: row.bronze_name ?? null,
       silverName: row.silver_name ?? null,
       goldName: row.gold_name ?? null,
+      bronzeBonusStars: row.bronze_bonus_stars ?? 0,
+      silverBonusStars: row.silver_bonus_stars ?? 0,
+      goldBonusStars: row.gold_bonus_stars ?? 0,
+      bronzeBonusCashCents: row.bronze_bonus_cash_cents ?? 0,
+      silverBonusCashCents: row.silver_bonus_cash_cents ?? 0,
+      goldBonusCashCents: row.gold_bonus_cash_cents ?? 0,
     }));
   },
 );

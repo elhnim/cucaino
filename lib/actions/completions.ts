@@ -112,6 +112,19 @@ export async function completeTask(
           tierName: BADGE_META[badgeCategory].tierNames[tier],
           icon: BADGE_META[badgeCategory].icon,
         });
+        // Look up bonus for this tier from badge_config_overrides
+        const { data: override } = await supabase
+          .from("badge_config_overrides")
+          .select(`${tier}_bonus_stars, ${tier}_bonus_cash_cents`)
+          .eq("family_id", fam.id)
+          .eq("category", badgeCategory)
+          .maybeSingle();
+        const bonusStars = (override as any)?.[`${tier}_bonus_stars`] ?? 0;
+        const bonusCashCents = (override as any)?.[`${tier}_bonus_cash_cents`] ?? 0;
+        await creditBadgeBonus(supabase, kidId, fam.id, bonusStars, bonusCashCents, `${BADGE_META[badgeCategory].tierNames[tier]} badge bonus`);
+        const last = newTiers[newTiers.length - 1];
+        if (bonusStars > 0) last.bonusStars = bonusStars;
+        if (bonusCashCents > 0) last.bonusCashCents = bonusCashCents;
       }
     }
   }
@@ -127,23 +140,65 @@ export async function completeTask(
     const streakUnlock = await checkMilestoneBadge(
       supabase, kidId, "streak", kidRow.current_streak ?? 0,
     );
-    if (streakUnlock) newTiers.push(streakUnlock);
+    if (streakUnlock) {
+      newTiers.push(streakUnlock);
+      const { data: overrideS } = await supabase
+        .from("badge_config_overrides")
+        .select(`${streakUnlock.tier}_bonus_stars, ${streakUnlock.tier}_bonus_cash_cents`)
+        .eq("family_id", fam.id)
+        .eq("category", "streak")
+        .maybeSingle();
+      const bStars = (overrideS as any)?.[`${streakUnlock.tier}_bonus_stars`] ?? 0;
+      const bCash = (overrideS as any)?.[`${streakUnlock.tier}_bonus_cash_cents`] ?? 0;
+      await creditBadgeBonus(supabase, kidId, fam.id, bStars, bCash, `${BADGE_META["streak"].tierNames[streakUnlock.tier]} badge bonus`);
+      const last = newTiers[newTiers.length - 1];
+      if (bStars > 0) last.bonusStars = bStars;
+      if (bCash > 0) last.bonusCashCents = bCash;
+    }
 
     const starUnlock = await checkMilestoneBadge(
       supabase, kidId, "star_collector", kidRow.total_stars_earned ?? 0,
     );
-    if (starUnlock) newTiers.push(starUnlock);
+    if (starUnlock) {
+      newTiers.push(starUnlock);
+      const { data: overrideSc } = await supabase
+        .from("badge_config_overrides")
+        .select(`${starUnlock.tier}_bonus_stars, ${starUnlock.tier}_bonus_cash_cents`)
+        .eq("family_id", fam.id)
+        .eq("category", "star_collector")
+        .maybeSingle();
+      const bStars = (overrideSc as any)?.[`${starUnlock.tier}_bonus_stars`] ?? 0;
+      const bCash = (overrideSc as any)?.[`${starUnlock.tier}_bonus_cash_cents`] ?? 0;
+      await creditBadgeBonus(supabase, kidId, fam.id, bStars, bCash, `${BADGE_META["star_collector"].tierNames[starUnlock.tier]} badge bonus`);
+      const last = newTiers[newTiers.length - 1];
+      if (bStars > 0) last.bonusStars = bStars;
+      if (bCash > 0) last.bonusCashCents = bCash;
+    }
 
     const titanUnlock = await checkMilestoneBadge(
       supabase, kidId, "task_titan", kidRow.total_completions ?? 0,
     );
-    if (titanUnlock) newTiers.push(titanUnlock);
+    if (titanUnlock) {
+      newTiers.push(titanUnlock);
+      const { data: overrideTt } = await supabase
+        .from("badge_config_overrides")
+        .select(`${titanUnlock.tier}_bonus_stars, ${titanUnlock.tier}_bonus_cash_cents`)
+        .eq("family_id", fam.id)
+        .eq("category", "task_titan")
+        .maybeSingle();
+      const bStars = (overrideTt as any)?.[`${titanUnlock.tier}_bonus_stars`] ?? 0;
+      const bCash = (overrideTt as any)?.[`${titanUnlock.tier}_bonus_cash_cents`] ?? 0;
+      await creditBadgeBonus(supabase, kidId, fam.id, bStars, bCash, `${BADGE_META["task_titan"].tierNames[titanUnlock.tier]} badge bonus`);
+      const last = newTiers[newTiers.length - 1];
+      if (bStars > 0) last.bonusStars = bStars;
+      if (bCash > 0) last.bonusCashCents = bCash;
+    }
   }
 
   // Custom badges — check for any badge tied to this taskId
   const { data: customBadges } = await supabase
     .from("custom_badges")
-    .select("id, name, icon, track_type, bronze_threshold, silver_threshold, gold_threshold, kid_ids")
+    .select("id, name, icon, track_type, bronze_threshold, silver_threshold, gold_threshold, kid_ids, bronze_bonus_stars, silver_bonus_stars, gold_bonus_stars, bronze_bonus_cash_cents, silver_bonus_cash_cents, gold_bonus_cash_cents")
     .eq("task_id", taskId)
     .eq("active", true);
 
@@ -173,12 +228,43 @@ export async function completeTask(
           isCustom: true,
           name: badge.name,
         });
+        const bStars = (badge as any)[`${crossedTier}_bonus_stars`] ?? 0;
+        const bCash = (badge as any)[`${crossedTier}_bonus_cash_cents`] ?? 0;
+        await creditBadgeBonus(supabase, kidId, fam.id, bStars, bCash, `${badge.name} ${crossedTier} badge bonus`);
+        const last = newTiers[newTiers.length - 1];
+        if (bStars > 0) last.bonusStars = bStars;
+        if (bCash > 0) last.bonusCashCents = bCash;
       }
     }
   }
 
   revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true, newTiers: newTiers.length > 0 ? newTiers : undefined };
+}
+
+async function creditBadgeBonus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  kidId: string,
+  familyId: string,
+  bonusStars: number,
+  bonusCashCents: number,
+  description: string,
+) {
+  if (bonusStars > 0) {
+    await supabase.rpc("increment_kid_points", { p_kid_id: kidId, p_amount: bonusStars });
+  }
+  if (bonusCashCents > 0) {
+    await Promise.all([
+      supabase.from("cash_transactions").insert({
+        family_id: familyId,
+        kid_id: kidId,
+        amount_cents: bonusCashCents,
+        description,
+        type: "credit",
+      }),
+      supabase.rpc("increment_kid_cash", { p_kid_id: kidId, p_amount_cents: bonusCashCents }),
+    ]);
+  }
 }
 
 async function checkMilestoneBadge(
