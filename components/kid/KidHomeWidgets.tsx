@@ -91,8 +91,9 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
   const {
     kid, theme, done, total, allDone, ringOffset, taskPct,
     incompleteTasks, todaySchoolTasks, tomorrowActivityTasks,
-    badgesInProgress, customBadgeProgress, allKids, weeklyStars, weeklyCompletions, level, encouragement,
-    activeStrikes,
+    badgesInProgress, customBadgeProgress, allKids, weeklyStars, weeklyCompletions, moodCounts,
+    level, encouragement, activeStrikes,
+    tradingPortfolio, tradingHoldings, tradingPrices,
   } = props;
 
   const storageKey = `kid-home:${kid.id}`;
