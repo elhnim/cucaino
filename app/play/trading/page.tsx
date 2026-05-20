@@ -24,8 +24,8 @@ export default async function TradingPage({
 
   const supabase = await createClient();
 
-  // Ensure today's prices and news are generated
-  await ensureDailyPrices(supabase);
+  // Generate today's prices in the background — don't block page load
+  void ensureDailyPrices(supabase);
 
   // Fetch kid
   const kid = await (kidId ? getKid(kidId) : Promise.resolve(null));
