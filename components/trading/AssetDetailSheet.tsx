@@ -91,7 +91,7 @@ export default function AssetDetailSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -99,9 +99,9 @@ export default function AssetDetailSheet({
       {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
-      {/* Bottom sheet */}
-      <div className="relative z-10 w-full max-w-lg bg-white rounded-t-3xl overflow-y-auto max-h-[90vh] shadow-xl animate-in slide-in-from-bottom-4 duration-300">
-        <div className="px-6 pt-6 pb-10">
+      {/* Centered modal */}
+      <div className="relative z-10 w-full max-w-lg bg-white rounded-3xl overflow-y-auto max-h-[90vh] shadow-2xl">
+        <div className="px-6 pt-6 pb-8">
           {/* Close button */}
           <div className="flex justify-end mb-2">
             <button
@@ -163,7 +163,7 @@ export default function AssetDetailSheet({
           <p className="text-sm text-gray-600 mb-4">{asset.description}</p>
           {asset.paysDividend && (
             <p className="text-xs text-green-700 bg-green-50 rounded-xl px-3 py-1 inline-block mb-4">
-              💰 Pays dividends monthly
+              💰 Pays dividends weekly
             </p>
           )}
 

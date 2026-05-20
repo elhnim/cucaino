@@ -140,11 +140,6 @@ function Slide2Body() {
           <span className="text-lg">🤔</span>
         </div>
       </div>
-      <FactCard
-        icon="🤖"
-        title="Fresh AI news every day at midnight"
-        desc="A robot writes fun headlines each night. Prices update at the same time based on the previous day's news."
-      />
     </div>
   );
 }
@@ -158,7 +153,7 @@ function Slide3Body() {
           <div>
             <p className="font-black text-gray-900 text-sm">Chomp Snacks pays dividends</p>
             <p className="text-gray-600 text-xs mt-1 leading-relaxed">
-              Hold shares for 30 days → earn 2% of your holding value as bonus Nuggets automatically!
+              Hold shares for 7 days → earn 2% of your holding value as bonus Nuggets automatically!
             </p>
           </div>
         </div>
@@ -264,7 +259,7 @@ const SLIDES: SlideConfig[] = [
     heroGradient: "from-[#7c3aed] to-[#c026d3]",
     emoji: "💰",
     headline: "Some Companies Pay You Just for Holding!",
-    tagline: "That's called a dividend — free Nuggets every 30 days",
+    tagline: "That's called a dividend — free Nuggets every week!",
     body: <Slide3Body />,
   },
   {

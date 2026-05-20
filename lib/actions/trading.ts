@@ -291,7 +291,7 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
   for (const p of prices ?? []) priceMap.set(p.symbol, p.price_nuggets);
 
   const now = Date.now();
-  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+  const thirtyDaysMs = 7 * 24 * 60 * 60 * 1000;
   let totalDividend = 0;
 
   type DivTx = {
