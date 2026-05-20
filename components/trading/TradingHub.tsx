@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import type {
   TradingPortfolio,
   TradingHolding,
@@ -72,10 +73,11 @@ export default function TradingHub({
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-emerald-100 min-h-full">
-      {showOnboarding && (
+      {showOnboarding && createPortal(
         <div className="fixed inset-0 z-50">
           <TradingOnboarding onDone={handleOnboardingDone} />
-        </div>
+        </div>,
+        document.body,
       )}
       {/* Page title */}
       <div className="px-4 pt-4 pb-2">
@@ -132,32 +134,31 @@ export default function TradingHub({
         )}
       </div>
 
-      {/* Deposit/Withdraw modal */}
-      {depositMode && kid && (
+      {/* Portals render to document.body — avoids iOS Safari fixed-in-overflow clipping */}
+      {depositMode && kid && createPortal(
         <DepositWithdrawModal
           mode={depositMode}
           availableStars={kid.pointsBalance}
           availableNuggets={portfolio?.nuggetsBalance ?? 0}
           kidId={kid.id}
           onClose={() => setDepositMode(null)}
-        />
+        />,
+        document.body,
       )}
 
-      {/* Asset detail sheet */}
       {selectedAsset && (() => {
         const assetForSheet = assets.find((a) => a.symbol === selectedAsset);
         if (!assetForSheet) return null;
-        return (
+        return createPortal(
           <AssetDetailSheet
             asset={assetForSheet}
             priceHistory={priceHistoryMap[selectedAsset] ?? []}
-            holding={
-              holdings.find((h) => h.assetSymbol === selectedAsset) ?? null
-            }
+            holding={holdings.find((h) => h.assetSymbol === selectedAsset) ?? null}
             portfolioNuggets={portfolio?.nuggetsBalance ?? 0}
             kidId={kid?.id ?? null}
             onClose={() => setSelectedAsset(null)}
-          />
+          />,
+          document.body,
         );
       })()}
     </div>
