@@ -228,7 +228,7 @@ export default function TradingPortfolioTab({
                 <button
                   key={h.assetSymbol}
                   onClick={() => onSelectAsset(h.assetSymbol)}
-                  className="bg-white border border-gray-100 rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3 text-left hover:shadow transition-shadow w-full"
+                  className="bg-white border border-gray-100 rounded-2xl px-4 py-3 shadow-sm flex items-center gap-3 text-left active:bg-gray-50 active:scale-[0.98] transition-all w-full"
                 >
                   <span className="text-3xl">
                     {asset?.emoji ?? "📊"}
@@ -240,6 +240,7 @@ export default function TradingPortfolioTab({
                     <p className="text-xs text-gray-500">
                       {h.quantity} shares · avg 🪙{h.avgCostNuggets.toFixed(0)}
                     </p>
+                    <p className="text-xs text-green-600 font-bold mt-0.5">Tap to trade →</p>
                   </div>
                   <div className="text-right flex flex-col items-end gap-1">
                     <p className="font-black text-gray-900 text-sm">
