@@ -55,7 +55,6 @@ export default async function TradingPage({
       listTradingTransactions(kid.id, 20),
     ]);
 
-    // Credit any pending dividends (fire and forget)
     await creditPendingDividends(kid.id);
   }
 
