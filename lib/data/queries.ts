@@ -1102,7 +1102,7 @@ export async function getAssetPriceHistory(symbol: string, days = 30): Promise<T
   const supabase = await createClient();
   const { data } = await supabase
     .from("trading_asset_prices")
-    .select("symbol, price_nuggets, price_date, news_headline, news_impact, event_pct")
+    .select("symbol, price_nuggets, price_date, news_headline, news_body, news_impact, event_pct")
     .eq("symbol", symbol)
     .order("price_date", { ascending: false })
     .limit(days);
@@ -1111,6 +1111,7 @@ export async function getAssetPriceHistory(symbol: string, days = 30): Promise<T
     priceNuggets: r.price_nuggets,
     priceDate: r.price_date,
     newsHeadline: r.news_headline,
+        newsBody: r.news_body ?? null,
     newsImpact: r.news_impact as TradingAssetPrice["newsImpact"],
     eventPct: r.event_pct !== null ? Number(r.event_pct) : null,
   }));
@@ -1131,7 +1132,7 @@ export async function listAllAssetPriceHistories(
   })();
   const { data } = await supabase
     .from("trading_asset_prices")
-    .select("symbol, price_nuggets, price_date, news_headline, news_impact, event_pct")
+    .select("symbol, price_nuggets, price_date, news_headline, news_body, news_impact, event_pct")
     .in("symbol", symbols)
     .gte("price_date", cutoff)
     .order("price_date", { ascending: false });
@@ -1145,6 +1146,7 @@ export async function listAllAssetPriceHistories(
         priceNuggets: r.price_nuggets,
         priceDate: r.price_date,
         newsHeadline: r.news_headline,
+        newsBody: r.news_body ?? null,
         newsImpact: r.news_impact as TradingAssetPrice["newsImpact"],
         eventPct: r.event_pct !== null ? Number(r.event_pct) : null,
       });
@@ -1158,7 +1160,7 @@ export async function listCurrentAssetPrices(): Promise<Record<string, TradingAs
   // Get the most recent price row per symbol
   const { data } = await supabase
     .from("trading_asset_prices")
-    .select("symbol, price_nuggets, price_date, news_headline, news_impact, event_pct")
+    .select("symbol, price_nuggets, price_date, news_headline, news_body, news_impact, event_pct")
     .order("price_date", { ascending: false })
     .limit(100); // 10 symbols × up to 10 days buffer
   const map: Record<string, TradingAssetPrice> = {};
@@ -1169,6 +1171,7 @@ export async function listCurrentAssetPrices(): Promise<Record<string, TradingAs
         priceNuggets: r.price_nuggets,
         priceDate: r.price_date,
         newsHeadline: r.news_headline,
+        newsBody: r.news_body ?? null,
         newsImpact: r.news_impact as TradingAssetPrice["newsImpact"],
         eventPct: r.event_pct !== null ? Number(r.event_pct) : null,
       };

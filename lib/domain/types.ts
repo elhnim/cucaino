@@ -554,6 +554,7 @@ export interface TradingAssetPrice {
   priceNuggets: number;
   priceDate: string;
   newsHeadline: string | null;
+  newsBody: string | null;
   newsImpact: 'positive' | 'negative' | 'neutral' | null;
   eventPct: number | null;
 }

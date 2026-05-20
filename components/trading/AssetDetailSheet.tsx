@@ -145,11 +145,13 @@ export default function AssetDetailSheet({
                 📰 {priceHistory[0].newsHeadline}
               </p>
               <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                {newsImpact === "positive"
-                  ? `This could be great for ${asset.name}! Positive news often gets investors excited and can push the price up tomorrow. But markets are unpredictable — do you think this is big enough news to make a difference?`
+                {priceHistory[0]?.newsBody
+                  ? priceHistory[0].newsBody
+                  : newsImpact === "positive"
+                  ? `Positive news often gets investors excited and can push the price up tomorrow. But markets are unpredictable — do you think this is big enough to make a difference?`
                   : newsImpact === "negative"
-                  ? `This isn't great news for ${asset.name}. Bad news can spook investors and push the price down tomorrow. Or has the market already priced it in? Think carefully — is it time to sell, hold, or even buy the dip?`
-                  : `This news about ${asset.name} could go either way. Neutral news sometimes hides something bigger, or it might just be a quiet day. What's your read — does this change anything?`}
+                  ? `Bad news can spook investors and push the price down tomorrow. Or has the market already priced it in? Is it time to sell, hold, or buy the dip?`
+                  : `This news could go either way. Neutral stories sometimes hide something bigger — what's your read?`}
               </p>
             </div>
           )}

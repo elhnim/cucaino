@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { TRADING_ASSETS } from "./assets";
 import { NEWS_TEMPLATES, CATEGORY_WEIGHTS, seededRandom } from "./news-templates";
-import { generateNewsHeadline } from "./news-generator";
+import { generateNews } from "./news-generator";
 import { localDateString } from "@/lib/data/queries";
 
 export async function ensureDailyPrices(supabase: SupabaseClient): Promise<void> {
@@ -63,14 +63,15 @@ export async function ensureDailyPrices(supabase: SupabaseClient): Promise<void>
       const rawPct = template.minPct + rng4 * (template.maxPct - template.minPct);
       const eventPct = template.impact === 'negative' ? -rawPct : template.impact === 'neutral' ? (rng4 - 0.5) * 2 * rawPct : rawPct;
 
-      // Generate AI headline (falls back to raw text on error)
-      const headline = await generateNewsHeadline(asset, { text: eventText, impact: template.impact });
+      // Generate AI headline + body (falls back to raw text on error)
+      const { headline, body } = await generateNews(asset, { text: eventText, impact: template.impact });
 
       return {
         symbol: asset.symbol,
         price_nuggets: todayPrice,
         price_date: today,
         news_headline: headline,
+        news_body: body || null,
         news_impact: template.impact,
         event_pct: Math.round(eventPct * 100) / 100,
       };
