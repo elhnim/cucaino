@@ -148,7 +148,10 @@ export default function TradingHub({
 
       {selectedAsset && (() => {
         const assetForSheet = assets.find((a) => a.symbol === selectedAsset);
-        if (!assetForSheet) return null;
+        if (!assetForSheet) {
+          console.warn(`[TradingHub] unknown symbol: ${selectedAsset}`);
+          return null;
+        }
         return createPortal(
           <AssetDetailSheet
             asset={assetForSheet}

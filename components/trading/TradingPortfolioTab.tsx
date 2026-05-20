@@ -201,8 +201,8 @@ export default function TradingPortfolioTab({
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {holdings.map((h) => {
-              const asset = assets.find((a) => a.symbol === h.assetSymbol);
+            {holdings.filter((h) => assets.some((a) => a.symbol === h.assetSymbol)).map((h) => {
+              const asset = assets.find((a) => a.symbol === h.assetSymbol)!
               const price =
                 currentPrices[h.assetSymbol]?.priceNuggets ??
                 asset?.basePriceNuggets ??
