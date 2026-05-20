@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { spendSparks, askStumpQuestion } from "@/lib/actions/arcade";
+import { askStumpQuestion } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "thinking" | "playing" | "ai_won" | "kid_won";
 
@@ -51,12 +51,6 @@ export default function StumpTheAI({ kidId, sparksBalance }: StumpTheAIProps) {
     if (!kidId || sparksBalance < 3) return;
     setError(null);
 
-    const spendResult = await spendSparks(kidId, 3);
-    if (!spendResult.ok) {
-      setError(spendResult.error);
-      return;
-    }
-
     setMessages([]);
     setQuestionCount(0);
     setAiGuess("");
@@ -64,7 +58,7 @@ export default function StumpTheAI({ kidId, sparksBalance }: StumpTheAIProps) {
     setHasRevealed(false);
     setGameState("thinking");
 
-    const result = await askStumpQuestion(category, []);
+    const result = await askStumpQuestion(category, [], kidId);
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { spendSparks, generateEmojiStory } from "@/lib/actions/arcade";
+import { generateEmojiStory } from "@/lib/actions/arcade";
 
 const SAFE_EMOJIS = [
   "🐶","🐱","🐭","🐰","🦊","🐻","🐼","🐨","🐯","🦁",
@@ -49,15 +49,9 @@ export default function EmojiStory({ kidId, sparksBalance }: EmojiStoryProps) {
     if (!kidId || sparksBalance < 1) return;
     setError(null);
 
-    const spendResult = await spendSparks(kidId, 1);
-    if (!spendResult.ok) {
-      setError(spendResult.error);
-      return;
-    }
-
     setGameState("loading");
 
-    const result = await generateEmojiStory(emojis);
+    const result = await generateEmojiStory(emojis, kidId);
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");

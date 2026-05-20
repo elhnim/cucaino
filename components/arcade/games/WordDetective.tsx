@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { spendSparks, generateWordDetective } from "@/lib/actions/arcade";
+import { generateWordDetective } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "loading" | "guessing" | "won" | "lost";
 
@@ -30,14 +30,8 @@ export default function WordDetective({ kidId, sparksBalance }: WordDetectivePro
     if (!kidId || sparksBalance < 1) return;
     setError(null);
 
-    const spendResult = await spendSparks(kidId, 1);
-    if (!spendResult.ok) {
-      setError(spendResult.error);
-      return;
-    }
-
     setGameState("loading");
-    const result = await generateWordDetective();
+    const result = await generateWordDetective(kidId);
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");

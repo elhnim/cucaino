@@ -12,7 +12,8 @@ Always follow these rules:
 - No political, religious, or controversial topics
 - Always end stories and responses on an uplifting note
 - Use simple, fun language suitable for children
-- Be playful, warm, and encouraging at all times`;
+- Be playful, warm, and encouraging at all times
+- Return raw JSON only. Do not wrap your response in markdown code fences.`;
 
 export type ArcadeResult<T = undefined> =
   | { ok: true; data: T }
@@ -22,6 +23,22 @@ export type ArcadeResult<T = undefined> =
 function parseJSON(text: string): any {
   const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   return JSON.parse(stripped);
+}
+
+// Deduct sparks AFTER a successful game call (no validation — UI guards entry)
+async function deductSparks(kidId: string, amount: number): Promise<void> {
+  const supabase = await createClient();
+  const { data: kidRow } = await supabase
+    .from("kids")
+    .select("sparks_balance")
+    .eq("id", kidId)
+    .maybeSingle();
+  const current: number = (kidRow as any)?.sparks_balance ?? 0;
+  await supabase
+    .from("kids")
+    .update({ sparks_balance: Math.max(0, current - amount) })
+    .eq("id", kidId);
+  revalidatePath("/play/arcade");
 }
 
 // ---------------------------------------------------------------------------
@@ -48,14 +65,12 @@ export async function convertStarsToSparks(
     return { ok: false, error: "Not enough stars" };
   }
 
-  // Deduct stars
   const { error: decrErr } = await supabase.rpc("decrement_kid_points", {
     p_kid_id: kidId,
     p_amount: stars,
   });
   if (decrErr) return { ok: false, error: decrErr.message };
 
-  // Credit sparks (5 sparks per star)
   const currentSparks: number = (kidRow as any).sparks_balance ?? 0;
   const { error: updateErr } = await supabase
     .from("kids")
@@ -68,7 +83,7 @@ export async function convertStarsToSparks(
 }
 
 // ---------------------------------------------------------------------------
-// spendSparks
+// spendSparks (kept for legacy / manual use)
 // ---------------------------------------------------------------------------
 
 export async function spendSparks(
@@ -117,11 +132,12 @@ export async function awardArcadeStars(
 }
 
 // ---------------------------------------------------------------------------
-// generateEmojiStory
+// generateEmojiStory — deducts 1 spark AFTER success
 // ---------------------------------------------------------------------------
 
 export async function generateEmojiStory(
   emojis: string[],
+  kidId: string | null,
 ): Promise<ArcadeResult<{ title: string; paragraphs: string[]; twist: string; moral: string }>> {
   try {
     const client = new Anthropic();
@@ -151,6 +167,7 @@ Return valid JSON only, no markdown:
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
     const parsed = parseJSON(block.text);
+    if (kidId) await deductSparks(kidId, 1);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -159,12 +176,12 @@ Return valid JSON only, no markdown:
 }
 
 // ---------------------------------------------------------------------------
-// generateWouldYouRather
+// generateWouldYouRather — deducts 2 sparks AFTER success
 // ---------------------------------------------------------------------------
 
-export async function generateWouldYouRather(): Promise<
-  ArcadeResult<{ option_a: string; option_b: string }>
-> {
+export async function generateWouldYouRather(
+  kidId: string | null,
+): Promise<ArcadeResult<{ option_a: string; option_b: string }>> {
   try {
     const client = new Anthropic();
     const msg = await client.messages.create({
@@ -186,6 +203,7 @@ Return valid JSON only:
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
     const parsed = parseJSON(block.text);
+    if (kidId) await deductSparks(kidId, 2);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -194,7 +212,7 @@ Return valid JSON only:
 }
 
 // ---------------------------------------------------------------------------
-// generateWouldYouRatherArgument
+// generateWouldYouRatherArgument — free (sparks already charged at step 1)
 // ---------------------------------------------------------------------------
 
 export async function generateWouldYouRatherArgument(
@@ -230,11 +248,12 @@ Return valid JSON only:
 }
 
 // ---------------------------------------------------------------------------
-// generateWhatAmI
+// generateWhatAmI — deducts 1 spark AFTER success
 // ---------------------------------------------------------------------------
 
 export async function generateWhatAmI(
   category: string,
+  kidId: string | null,
 ): Promise<ArcadeResult<{ answer: string; clues: string[] }>> {
   try {
     const client = new Anthropic();
@@ -257,6 +276,7 @@ Return valid JSON only:
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
     const parsed = parseJSON(block.text);
+    if (kidId) await deductSparks(kidId, 1);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -265,12 +285,12 @@ Return valid JSON only:
 }
 
 // ---------------------------------------------------------------------------
-// generateWordDetective
+// generateWordDetective — deducts 1 spark AFTER success
 // ---------------------------------------------------------------------------
 
-export async function generateWordDetective(): Promise<
-  ArcadeResult<{ word: string; clues: string[] }>
-> {
+export async function generateWordDetective(
+  kidId: string | null,
+): Promise<ArcadeResult<{ word: string; clues: string[] }>> {
   try {
     const client = new Anthropic();
     const msg = await client.messages.create({
@@ -292,6 +312,7 @@ Return valid JSON only:
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
     const parsed = parseJSON(block.text);
+    if (kidId) await deductSparks(kidId, 1);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -300,13 +321,20 @@ Return valid JSON only:
 }
 
 // ---------------------------------------------------------------------------
-// askStumpQuestion
+// askStumpQuestion — deducts 3 sparks on first turn AFTER success
+// Bug fix: injects starter user message when messages is empty (Anthropic requires ≥1 message)
 // ---------------------------------------------------------------------------
 
 export async function askStumpQuestion(
   category: string,
   messages: { role: "user" | "assistant"; content: string }[],
+  kidId?: string | null,
 ): Promise<ArcadeResult<{ type: "question" | "guess"; content: string }>> {
+  const isFirstTurn = messages.length === 0;
+  const apiMessages = isFirstTurn
+    ? [{ role: "user" as const, content: `I've thought of a ${category}. Ask your first yes/no question.` }]
+    : messages;
+
   try {
     const client = new Anthropic();
     const systemPrompt =
@@ -317,11 +345,12 @@ export async function askStumpQuestion(
       model: "claude-haiku-4-5-20251001",
       max_tokens: 100,
       system: systemPrompt,
-      messages,
+      messages: apiMessages,
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
     const parsed = parseJSON(block.text);
+    if (isFirstTurn && kidId) await deductSparks(kidId, 3);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -330,12 +359,14 @@ export async function askStumpQuestion(
 }
 
 // ---------------------------------------------------------------------------
-// askLieDetectorQuestion
+// askLieDetectorQuestion — deducts 2 sparks on first turn AFTER success
+// Bug fix: injects starter user message when messages is empty
 // ---------------------------------------------------------------------------
 
 export async function askLieDetectorQuestion(
   statements: [string, string, string],
   messages: { role: "user" | "assistant"; content: string }[],
+  kidId?: string | null,
 ): Promise<
   ArcadeResult<{
     type: "question" | "guess";
@@ -343,6 +374,11 @@ export async function askLieDetectorQuestion(
     guessedStatement?: 1 | 2 | 3;
   }>
 > {
+  const isFirstTurn = messages.length === 0;
+  const apiMessages = isFirstTurn
+    ? [{ role: "user" as const, content: "I've entered my three statements. Ask your first question." }]
+    : messages;
+
   try {
     const client = new Anthropic();
     const systemPrompt =
@@ -361,11 +397,12 @@ If guessing: {"type":"guess","content":"I think statement N is the lie!","guesse
       model: "claude-haiku-4-5-20251001",
       max_tokens: 150,
       system: systemPrompt,
-      messages,
+      messages: apiMessages,
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
     const parsed = parseJSON(block.text);
+    if (isFirstTurn && kidId) await deductSparks(kidId, 2);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

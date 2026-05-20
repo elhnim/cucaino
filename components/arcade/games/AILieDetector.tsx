@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { spendSparks, askLieDetectorQuestion } from "@/lib/actions/arcade";
+import { askLieDetectorQuestion } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "playing" | "result_caught" | "result_fooled";
 
@@ -43,12 +43,6 @@ export default function AILieDetector({ kidId, sparksBalance }: AILieDetectorPro
     if (!canStart || !kidId) return;
     setError(null);
 
-    const spendResult = await spendSparks(kidId, 2);
-    if (!spendResult.ok) {
-      setError(spendResult.error);
-      return;
-    }
-
     setMessages([]);
     setQuestionCount(0);
     setAiGuessedStatement(null);
@@ -60,7 +54,7 @@ export default function AILieDetector({ kidId, sparksBalance }: AILieDetectorPro
       statements[1].trim(),
       statements[2].trim(),
     ];
-    const result = await askLieDetectorQuestion(stmts, []);
+    const result = await askLieDetectorQuestion(stmts, [], kidId);
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");

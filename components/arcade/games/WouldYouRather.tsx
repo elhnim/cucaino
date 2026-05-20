@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { spendSparks, generateWouldYouRather, generateWouldYouRatherArgument } from "@/lib/actions/arcade";
+import { generateWouldYouRather, generateWouldYouRatherArgument } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "loading_dilemma" | "choosing" | "loading_argument" | "result";
 
@@ -21,14 +21,8 @@ export default function WouldYouRather({ kidId, sparksBalance }: WouldYouRatherP
     if (!kidId || sparksBalance < 2) return;
     setError(null);
 
-    const spendResult = await spendSparks(kidId, 2);
-    if (!spendResult.ok) {
-      setError(spendResult.error);
-      return;
-    }
-
     setGameState("loading_dilemma");
-    const result = await generateWouldYouRather();
+    const result = await generateWouldYouRather(kidId);
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");

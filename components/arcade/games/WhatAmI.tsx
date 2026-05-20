@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { spendSparks, generateWhatAmI } from "@/lib/actions/arcade";
+import { generateWhatAmI } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "loading" | "guessing" | "won" | "lost";
 
@@ -38,14 +38,8 @@ export default function WhatAmI({ kidId, sparksBalance }: WhatAmIProps) {
     if (!kidId || sparksBalance < 1) return;
     setError(null);
 
-    const spendResult = await spendSparks(kidId, 1);
-    if (!spendResult.ok) {
-      setError(spendResult.error);
-      return;
-    }
-
     setGameState("loading");
-    const result = await generateWhatAmI(category);
+    const result = await generateWhatAmI(category, kidId);
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");
