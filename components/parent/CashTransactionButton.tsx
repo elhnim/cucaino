@@ -16,10 +16,9 @@ export default function CashTransactionButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-[12px] font-bold ml-4"
-        style={{ color: "#4f46e5" }}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-black bg-indigo-500 text-white shadow-sm active:scale-95 transition-transform"
       >
-        💵 Cash
+        💵 Log Cash
       </button>
       {open && (
         <CashTransactionModal

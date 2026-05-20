@@ -49,10 +49,35 @@ export default function IssueStrikeModal({
           )}
 
           <div>
-            <label className="text-xs font-bold text-gray-500 block mb-1">What happened?</label>
+            <label className="text-xs font-bold text-gray-500 block mb-2">What happened?</label>
+            <div className="flex flex-wrap gap-1.5 mb-2.5">
+              {[
+                "Refused to do tasks",
+                "Rude or disrespectful",
+                "Being unkind",
+                "Didn't follow instructions",
+                "Broke a rule",
+                "Lied or was dishonest",
+                "Hurt someone's feelings",
+                "Left out or excluded someone",
+              ].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setReason(preset)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors ${
+                    reason === preset
+                      ? "bg-red-500 text-white border-red-500"
+                      : "bg-gray-50 text-gray-600 border-gray-200 hover:border-red-300 hover:text-red-600"
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
             <textarea
-              rows={3}
-              placeholder="e.g. Refused to tidy room after being asked twice"
+              rows={2}
+              placeholder="Or describe what happened…"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-red-400 resize-none"

@@ -54,7 +54,10 @@ export interface ParentHomeWidgetsProps {
   kidCards: KidCardData[];
   headsUpBefore: HeadsUpItem[];
   headsUpAfter: HeadsUpItem[];
+  headsUpTomorrowBefore: HeadsUpItem[];
+  headsUpTomorrowAfter: HeadsUpItem[];
   todayLabel: string;
+  tomorrowLabel: string;
 }
 
 const TOP_WIDGET_DEFAULTS = ["headsup"];
@@ -62,10 +65,14 @@ const TOP_WIDGET_DEFAULTS = ["headsup"];
 const KID_DEFAULT_WIDTHS: Record<string, "full" | "half"> = {}; // populated dynamically per kid
 
 export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
-  const { allKids, kidCards, headsUpBefore, headsUpAfter, todayLabel } = props;
+  const { allKids, kidCards, headsUpBefore, headsUpAfter, headsUpTomorrowBefore, headsUpTomorrowAfter, todayLabel, tomorrowLabel } = props;
   const [strikeTarget, setStrikeTarget] = useState<Kid | null>(null);
   const [viewStrikesFor, setViewStrikesFor] = useState<Kid | null>(null);
-  const hasHeadsUp = headsUpBefore.length > 0 || headsUpAfter.length > 0;
+  const [prepDay, setPrepDay] = useState<"today" | "tomorrow">("today");
+  const hasHeadsUp = headsUpBefore.length > 0 || headsUpAfter.length > 0 || headsUpTomorrowBefore.length > 0 || headsUpTomorrowAfter.length > 0;
+  const activeBefore = prepDay === "today" ? headsUpBefore : headsUpTomorrowBefore;
+  const activeAfter = prepDay === "today" ? headsUpAfter : headsUpTomorrowAfter;
+  const activeLabel = prepDay === "today" ? todayLabel : tomorrowLabel;
 
   const kidIds = kidCards.map((c) => c.kid.id);
   // All kids default to full-width
@@ -106,19 +113,18 @@ export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
 
   return (
     <>
-      {/* TODAY'S HEADS-UP */}
-      {hasHeadsUp && (!isHeadsUpHidden || editing) && (
+      {/* ACTIVITY PREP WIDGET */}
+      {(!isHeadsUpHidden || editing) && (
         <div className={editing ? "relative" : ""}>
           <div className={`flex items-center justify-between mb-2.5 px-1 ${editing ? "pr-10" : ""}`}>
-            <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Today&apos;s Heads-Up</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">Activity Prep</span>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-semibold text-gray-400">{todayLabel}</span>
               {editing && (
                 <button
                   type="button"
                   onClick={() => toggleTopHidden("headsup")}
                   className={`flex items-center justify-center w-7 h-7 rounded-lg text-sm ${isHeadsUpHidden ? "bg-gray-100 text-gray-400" : "bg-gray-100 text-gray-600"}`}
-                  aria-label={isHeadsUpHidden ? "Show heads-up" : "Hide heads-up"}
+                  aria-label={isHeadsUpHidden ? "Show widget" : "Hide widget"}
                 >
                   {isHeadsUpHidden ? "🚫" : "👁"}
                 </button>
@@ -129,26 +135,56 @@ export default function ParentHomeWidgets(props: ParentHomeWidgetsProps) {
             className={`bg-white rounded-[20px] border-[1.5px] border-gray-200 overflow-hidden transition-opacity ${isHeadsUpHidden ? "opacity-40" : ""}`}
             style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}
           >
-            {headsUpBefore.length > 0 && (
-              <div className="px-3.5 pt-3 pb-2.5">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-orange-500 mb-2">🌅 Before school</div>
-                <div className="space-y-3">
-                  {headsUpBefore.map(({ kid, task, themeAccent, themeAccentSoft }) => (
-                    <HeadsUpRow key={`${kid.id}-${task.id}`} kid={kid} task={task} themeAccent={themeAccent} themeAccentSoft={themeAccentSoft} />
-                  ))}
-                </div>
+            {/* Day toggle */}
+            <div className="flex items-center gap-2 px-3.5 pt-3 pb-2.5 border-b border-gray-100">
+              <div className="flex gap-1 flex-1">
+                {(["today", "tomorrow"] as const).map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => setPrepDay(day)}
+                    className={`px-3 py-1 rounded-full text-[12px] font-black transition-colors ${
+                      prepDay === day
+                        ? "bg-indigo-600 text-white"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                  >
+                    {day === "today" ? "Today" : "Tomorrow"}
+                  </button>
+                ))}
               </div>
-            )}
-            {headsUpBefore.length > 0 && headsUpAfter.length > 0 && <div className="h-px bg-gray-100 mx-3.5" />}
-            {headsUpAfter.length > 0 && (
-              <div className="px-3.5 pt-2.5 pb-3">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-violet-500 mb-2">🎒 After school</div>
-                <div className="space-y-3">
-                  {headsUpAfter.map(({ kid, task, themeAccent, themeAccentSoft }) => (
-                    <HeadsUpRow key={`${kid.id}-${task.id}`} kid={kid} task={task} themeAccent={themeAccent} themeAccentSoft={themeAccentSoft} />
-                  ))}
-                </div>
+              <span className="text-[11px] font-semibold text-gray-400">{activeLabel}</span>
+            </div>
+
+            {activeBefore.length === 0 && activeAfter.length === 0 ? (
+              <div className="px-3.5 py-5 text-center">
+                <div className="text-2xl mb-1">✅</div>
+                <div className="text-[12px] font-bold text-gray-400">No activities {prepDay}</div>
               </div>
+            ) : (
+              <>
+                {activeBefore.length > 0 && (
+                  <div className="px-3.5 pt-3 pb-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-orange-500 mb-2">🌅 Before school</div>
+                    <div className="space-y-3">
+                      {activeBefore.map(({ kid, task, themeAccent, themeAccentSoft }) => (
+                        <HeadsUpRow key={`${kid.id}-${task.id}`} kid={kid} task={task} themeAccent={themeAccent} themeAccentSoft={themeAccentSoft} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {activeBefore.length > 0 && activeAfter.length > 0 && <div className="h-px bg-gray-100 mx-3.5" />}
+                {activeAfter.length > 0 && (
+                  <div className="px-3.5 pt-2.5 pb-3">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-violet-500 mb-2">🎒 After school / Evening</div>
+                    <div className="space-y-3">
+                      {activeAfter.map(({ kid, task, themeAccent, themeAccentSoft }) => (
+                        <HeadsUpRow key={`${kid.id}-${task.id}`} kid={kid} task={task} themeAccent={themeAccent} themeAccentSoft={themeAccentSoft} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -394,30 +430,25 @@ function KidCard({ cardData, allKids, compact = false, onIssueStrike, onViewStri
       )}
 
       {/* Footer */}
-      <div className="mt-2.5 pt-2.5 flex items-center flex-wrap gap-x-3 gap-y-1" style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
+      <div className="mt-2.5 pt-2.5 flex items-center flex-wrap gap-2" style={{ borderTop: `1px solid ${themeAccentSoft}` }}>
         <Link href={`/parent/history/${kid.id}`} className="text-[11px] font-bold" style={{ color: themeAccent }}>
           History →
         </Link>
-        {!compact && (
-          <Link href={`/parent/history/${kid.id}?tab=cash`} className="text-[11px] font-bold" style={{ color: themeAccent }}>
-            Cash →
-          </Link>
-        )}
         <CashTransactionButton kids={allKids} defaultKidId={kid.id} />
         <div className="ml-auto flex items-center gap-1.5">
           {activeStrikes.length > 0 && (
             <button
               type="button"
               onClick={onViewStrikes}
-              className="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-600"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-red-100 text-red-600 border border-red-200"
             >
-              ⚡ {activeStrikes.length}
+              ⚡ {activeStrikes.length} active
             </button>
           )}
           <button
             type="button"
             onClick={onIssueStrike}
-            className="text-[11px] font-bold text-gray-400 hover:text-red-500 transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-black bg-red-500 text-white shadow-sm active:scale-95 transition-transform"
           >
             ⚡ Strike
           </button>

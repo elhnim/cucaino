@@ -30,8 +30,12 @@ export default async function ParentOverviewPage() {
   if (!family) redirect("/login");
 
   const tz = family.timezone;
-  const dow = isoWeekday(new Date(), tz);
-  const todayLabel = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: tz }).format(new Date());
+  const now = new Date();
+  const dow = isoWeekday(now, tz);
+  const tomorrowDow = ((dow % 7) + 1) as typeof dow;
+  const todayLabel = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: tz }).format(now);
+  const tomorrowDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowLabel = new Intl.DateTimeFormat("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: tz }).format(tomorrowDate);
 
   const kidData = await Promise.all(
     kids.map(async (kid) => {
@@ -48,7 +52,8 @@ export default async function ParentOverviewPage() {
       const done = todayTasks.filter((t) => completedIds.has(t.id)).length;
       const total = todayTasks.length;
       const activityTasks = tasksForDay(tasks.filter((t) => t.category === "activity"), dow);
-      return { kid, todayTasks, completedIds, done, total, activityTasks, rewards, activeStrikes, allStrikes, moodCounts };
+      const tomorrowActivityTasks = tasksForDay(tasks.filter((t) => t.category === "activity"), tomorrowDow);
+      return { kid, todayTasks, completedIds, done, total, activityTasks, tomorrowActivityTasks, rewards, activeStrikes, allStrikes, moodCounts };
     }),
   );
 
@@ -79,16 +84,22 @@ export default async function ParentOverviewPage() {
     };
   });
 
-  // Build heads-up items
+  // Build activity prep items (today + tomorrow)
   const headsUpBefore: HeadsUpItem[] = [];
   const headsUpAfter: HeadsUpItem[] = [];
-  for (const { kid, activityTasks } of kidData) {
+  const headsUpTomorrowBefore: HeadsUpItem[] = [];
+  const headsUpTomorrowAfter: HeadsUpItem[] = [];
+  for (const { kid, activityTasks, tomorrowActivityTasks } of kidData) {
     const theme = getTheme(kid.themeId);
     for (const task of activityTasks) {
-      if (!task.location && (!task.packingList || task.packingList.length === 0)) continue;
       const item: HeadsUpItem = { kid, task, themeAccent: theme.accent, themeAccentSoft: theme.accentSoft };
       if (task.timeBlock === "before_school") headsUpBefore.push(item);
       else headsUpAfter.push(item);
+    }
+    for (const task of tomorrowActivityTasks) {
+      const item: HeadsUpItem = { kid, task, themeAccent: theme.accent, themeAccentSoft: theme.accentSoft };
+      if (task.timeBlock === "before_school") headsUpTomorrowBefore.push(item);
+      else headsUpTomorrowAfter.push(item);
     }
   }
 
@@ -100,7 +111,10 @@ export default async function ParentOverviewPage() {
         kidCards={kidCards}
         headsUpBefore={headsUpBefore}
         headsUpAfter={headsUpAfter}
+        headsUpTomorrowBefore={headsUpTomorrowBefore}
+        headsUpTomorrowAfter={headsUpTomorrowAfter}
         todayLabel={todayLabel}
+        tomorrowLabel={tomorrowLabel}
       />
     </div>
   );
