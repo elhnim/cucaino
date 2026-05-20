@@ -115,7 +115,7 @@ export default async function KidHomePage({
   return (
     <div className="p-4 space-y-3">
       <WhatsNewModal />
-      <PrefetchRoutes routes={[`/kid/${kid.id}/todo`, `/kid/${kid.id}/rewards`, `/play`]} />
+      <PrefetchRoutes routes={[`/kid/${kid.id}/todo`, `/kid/${kid.id}/rewards`, `/kid/${kid.id}/play`]} />
       <KidHomeWidgets
         kid={kid}
         theme={{ accent: theme.accent, accentSoft: theme.accentSoft, name: theme.name }}

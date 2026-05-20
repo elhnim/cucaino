@@ -54,7 +54,7 @@ export default async function QuizSetsPage({
   });
 
   const kidParam2 = kidParam ?? "";
-  const backHref = kidParam ? `/play?kid=${kidParam}` : "/play";
+  const backHref = kidParam ? `/kid/${kidParam}/play` : "/select-kid";
 
   const content = (
     <div className="max-w-3xl mx-auto p-4">

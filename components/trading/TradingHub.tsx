@@ -83,7 +83,7 @@ export default function TradingHub({
       {/* Page title */}
       <div className="px-4 pt-4 pb-2 flex items-center gap-3">
         <Link
-          href={kid ? `/play?kid=${kid.id}` : "/play"}
+          href={kid ? `/kid/${kid.id}/play` : "/select-kid"}
           className="text-gray-400 hover:text-gray-600 text-sm font-bold flex items-center gap-1"
         >
           ← Games
