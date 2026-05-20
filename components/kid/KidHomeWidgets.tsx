@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import {
   DndContext,
@@ -73,6 +74,9 @@ export interface KidHomeWidgetsProps {
   incompleteTasks: Task[];
   todaySchoolTasks: Task[];
   tomorrowActivityTasks: Task[];
+  allTodayTasks?: Task[];
+  completedTaskIds?: string[];
+  tomorrowTasks?: Task[];
   badgesInProgress: BadgeProgress[];
   customBadgeProgress: CustomBadgeProgress[];
   allKids: Kid[];
@@ -110,7 +114,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
       case "tomorrow": return tomorrowActivityTasks.length > 0;
       case "badges": return badgesInProgress.length > 0 || customBadgeProgress.length > 0;
       case "race": return allKids.length > 1;
-      case "tasks": return total > 0;
+      case "tasks": return total > 0 || todaySchoolTasks.length > 0;
       case "market": return true;
       default: return true;
     }
@@ -424,7 +428,20 @@ function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }
 
   switch (id) {
     case "tasks":
-      return <TasksWidget kid={kid} theme={theme} done={done} total={total} allDone={allDone} taskPct={taskPct} incompleteTasks={incompleteTasks} />;
+      return (
+        <TasksWidget
+          kid={kid}
+          theme={theme}
+          done={done}
+          total={total}
+          allDone={allDone}
+          taskPct={taskPct}
+          allTodayTasks={props.allTodayTasks ?? incompleteTasks}
+          completedTaskIds={props.completedTaskIds ?? []}
+          todaySchoolTasks={todaySchoolTasks}
+          tomorrowTasks={props.tomorrowTasks ?? tomorrowActivityTasks}
+        />
+      );
 
     case "school":
       return (
@@ -721,51 +738,193 @@ function RingChart({ done, total, allDone, accent, ringOffset }: { done: number;
   );
 }
 
-function TasksWidget({ kid, theme, done, total, allDone, taskPct, incompleteTasks }: {
-  kid: Kid; theme: { accent: string }; done: number; total: number; allDone: boolean; taskPct: number; incompleteTasks: Task[];
+function TasksWidget({
+  kid, theme, done, total, allDone, taskPct,
+  allTodayTasks, completedTaskIds, todaySchoolTasks, tomorrowTasks,
+}: {
+  kid: Kid;
+  theme: { accent: string };
+  done: number;
+  total: number;
+  allDone: boolean;
+  taskPct: number;
+  allTodayTasks: Task[];
+  completedTaskIds: string[];
+  todaySchoolTasks: Task[];
+  tomorrowTasks: Task[];
 }) {
+  const [tab, setTab] = React.useState<"today" | "tomorrow">("today");
+  const completedSet = new Set(completedTaskIds);
+
+  const cardStyle: React.CSSProperties =
+    allDone && tab === "today"
+      ? { background: "#f0fdf4", border: "2px solid #86efac" }
+      : {};
+
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm" style={allDone ? { background: "#f0fdf4", border: "2px solid #86efac" } : {}}>
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="text-sm font-black text-gray-800">Today&apos;s tasks</div>
-        {total > 0 && (
-          <span className="text-xs font-bold" style={{ color: allDone ? "#16a34a" : theme.accent }}>
-            {done} / {total} done
+    <div className="bg-white rounded-2xl shadow-sm overflow-hidden" style={cardStyle}>
+      {/* Toggle + count */}
+      <div className="flex items-center gap-2 px-3 pt-3 pb-2">
+        <div className="flex bg-gray-100 rounded-full p-0.5 flex-1 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setTab("today")}
+            className={`flex-1 py-1 rounded-full transition-all ${tab === "today" ? "bg-white shadow-sm text-gray-900" : "text-gray-400"}`}
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("tomorrow")}
+            className={`flex-1 py-1 rounded-full transition-all ${tab === "tomorrow" ? "bg-white shadow-sm text-gray-900" : "text-gray-400"}`}
+          >
+            Tomorrow
+          </button>
+        </div>
+        {tab === "today" && total > 0 && (
+          <span className="text-xs font-bold shrink-0" style={{ color: allDone ? "#16a34a" : theme.accent }}>
+            {done}/{total} ✓
           </span>
         )}
       </div>
-      {total > 0 && (
-        <div className="bg-gray-100 rounded-full h-2 overflow-hidden mb-3">
-          <div className="h-full rounded-full transition-all" style={{ width: `${taskPct}%`, background: allDone ? "#22c55e" : theme.accent }} />
-        </div>
-      )}
-      {incompleteTasks.length > 0 && (
-        <div className="space-y-2 mb-3">
-          {incompleteTasks.slice(0, 3).map((task) => (
-            <div key={task.id} className="flex items-center gap-2.5 px-3 py-2.5 bg-gray-50 rounded-2xl border border-gray-100">
-              <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg flex-shrink-0 shadow-sm">{task.icon}</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-bold text-gray-900 truncate">{task.name}</div>
-                <div className="text-[10px] text-gray-400 font-semibold">
-                  {task.points > 0 && `+${task.points} ⭐`}
-                  {task.cashValueCents > 0 && ` +$${(task.cashValueCents / 100).toFixed(2)}`}
-                </div>
+
+      {tab === "today" ? (
+        <>
+          {/* Progress bar */}
+          {total > 0 && (
+            <div className="px-3 mb-1.5">
+              <div className="bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${taskPct}%`, background: allDone ? "#22c55e" : theme.accent }}
+                />
               </div>
-              <div className="w-6 h-6 rounded-full border-2 border-gray-200 flex-shrink-0" />
             </div>
-          ))}
-          {incompleteTasks.length > 3 && (
-            <div className="text-xs text-gray-400 font-semibold pl-1">+{incompleteTasks.length - 3} more…</div>
+          )}
+
+          {/* Scrollable task list */}
+          {allTodayTasks.length > 0 && (
+            <div className="max-h-44 overflow-y-auto px-3">
+              {allTodayTasks.map((task) => {
+                const isDone = completedSet.has(task.id);
+                return (
+                  <div
+                    key={task.id}
+                    className={`flex items-center gap-2 py-1.5 ${isDone ? "opacity-50" : ""}`}
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full flex-shrink-0 flex items-center justify-center"
+                      style={isDone ? { background: "#22c55e" } : { border: "2px solid #d1d5db" }}
+                    >
+                      {isDone && <span style={{ color: "white", fontSize: 9 }}>✓</span>}
+                    </div>
+                    <span className="text-sm flex-shrink-0">{task.icon}</span>
+                    <span className={`text-sm flex-1 truncate ${isDone ? "line-through text-gray-400" : "text-gray-800 font-medium"}`}>
+                      {task.name}
+                    </span>
+                    {!isDone && task.points > 0 && (
+                      <span className="text-[10px] text-gray-400 font-bold shrink-0">+{task.points}⭐</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* School subjects */}
+          {todaySchoolTasks.length > 0 && (
+            <div className={`px-3 py-2 ${allTodayTasks.length > 0 ? "border-t border-gray-100 mt-1" : ""}`}>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">📚 School subjects</div>
+              <div className="flex flex-wrap gap-1">
+                {todaySchoolTasks.map((t) => {
+                  const subj = t.subject && t.subject in SUBJECTS
+                    ? SUBJECTS[t.subject as keyof typeof SUBJECTS]
+                    : null;
+                  return (
+                    <span
+                      key={t.id}
+                      className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${subj ? `${subj.bgClass} ${subj.textClass}` : "text-white"}`}
+                      style={!subj ? { background: theme.accent } : undefined}
+                    >
+                      {subj?.icon} {t.customLabel ?? subj?.label ?? t.name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Footer link */}
+          <div className="px-3 pb-3 pt-1">
+            <Link
+              href={`/kid/${kid.id}/todo`}
+              className="inline-flex items-center gap-1 px-4 py-2 rounded-xl font-bold text-white text-sm"
+              style={{ background: allDone ? "#16a34a" : theme.accent }}
+            >
+              {allDone ? "All done! 🎉" : "Open schedule →"}
+            </Link>
+          </div>
+        </>
+      ) : (
+        /* Tomorrow tab */
+        <div className="max-h-64 overflow-y-auto px-3 pb-3 pt-1">
+          {tomorrowTasks.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">Nothing scheduled yet 🌙</p>
+          ) : (
+            <div className="space-y-1">
+              {tomorrowTasks.map((task) => {
+                const hasExtras =
+                  task.category === "activity" &&
+                  (task.location || (task.packingList && task.packingList.length > 0));
+                return (
+                  <div
+                    key={task.id}
+                    className={hasExtras ? "bg-blue-50 rounded-xl p-2.5 mb-2" : "flex items-center gap-2 py-1.5"}
+                  >
+                    {hasExtras ? (
+                      <>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm">{task.icon}</span>
+                          <span className="text-sm font-bold text-gray-900 flex-1">{task.name}</span>
+                          {task.startTime && (
+                            <span className="text-[10px] text-gray-400">{task.startTime}</span>
+                          )}
+                        </div>
+                        {task.location && (
+                          <div className="text-[11px] text-blue-600 font-semibold mb-1.5">📍 {task.location}</div>
+                        )}
+                        {task.packingList && task.packingList.length > 0 && (
+                          <>
+                            <div className="text-[10px] font-bold text-blue-400 uppercase tracking-wide mb-1">🎒 Bring</div>
+                            <div className="flex flex-wrap gap-1">
+                              {task.packingList.map((item, i) => (
+                                <span
+                                  key={i}
+                                  className="px-1.5 py-0.5 rounded-full bg-white text-blue-700 text-[10px] font-bold border border-blue-100"
+                                >
+                                  {item}
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm flex-shrink-0">{task.icon}</span>
+                        <span className="text-sm text-gray-800 font-medium flex-1 truncate">{task.name}</span>
+                        {task.startTime && (
+                          <span className="text-[10px] text-gray-400 shrink-0">{task.startTime}</span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
-      <Link
-        href={`/kid/${kid.id}/todo`}
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-white text-sm"
-        style={{ background: allDone ? "#16a34a" : theme.accent }}
-      >
-        {allDone ? "All done! 🎉" : "Jump in →"}
-      </Link>
     </div>
   );
 }

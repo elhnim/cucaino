@@ -92,6 +92,8 @@ export default async function KidHomePage({
     tomorrowDow,
   ).filter((t) => t.location || (t.packingList && t.packingList.length > 0));
 
+  const tomorrowTasks = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), tomorrowDow);
+
   const badgesInProgress: BadgeProgress[] = badges
     .filter((b) => b.completionCount > 0)
     .sort((a, b) => {
@@ -127,6 +129,9 @@ export default async function KidHomePage({
         incompleteTasks={incompleteTasks}
         todaySchoolTasks={todaySchoolTasks}
         tomorrowActivityTasks={tomorrowActivityTasks}
+        allTodayTasks={completableTasks}
+        completedTaskIds={Array.from(completedIds)}
+        tomorrowTasks={tomorrowTasks}
         badgesInProgress={badgesInProgress}
         customBadgeProgress={customBadgeProgress}
         allKids={allKids}
