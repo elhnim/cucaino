@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS public.trading_transactions (
   id             uuid    PRIMARY KEY DEFAULT gen_random_uuid(),
   family_id      uuid    NOT NULL REFERENCES public.families(id) ON DELETE CASCADE,
   kid_id         uuid    NOT NULL REFERENCES public.kids(id) ON DELETE CASCADE,
-  type           text    NOT NULL,
+  type           text    NOT NULL CHECK (type IN ('buy', 'sell', 'deposit', 'withdraw', 'dividend')),
   asset_symbol   text,
   quantity       numeric,
   price_nuggets  numeric,
@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS public.trading_asset_prices (
   CONSTRAINT trading_asset_prices_symbol_date_key UNIQUE (symbol, price_date)
 );
 
+CREATE INDEX IF NOT EXISTS trading_portfolios_kid_idx      ON public.trading_portfolios (kid_id);
 CREATE INDEX IF NOT EXISTS trading_holdings_kid_idx        ON public.trading_holdings (kid_id);
 CREATE INDEX IF NOT EXISTS trading_transactions_kid_idx    ON public.trading_transactions (kid_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS trading_asset_prices_symbol_idx ON public.trading_asset_prices (symbol, price_date DESC);
@@ -56,12 +57,16 @@ ALTER TABLE public.trading_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.trading_asset_prices ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "family_scope" ON public.trading_portfolios
-  USING (family_id = (SELECT id FROM public.families WHERE owner_user_id = auth.uid()));
+  FOR ALL USING (family_id = public.current_family_id())
+  WITH CHECK (family_id = public.current_family_id());
+
 CREATE POLICY "family_scope" ON public.trading_holdings
-  USING (family_id = (SELECT id FROM public.families WHERE owner_user_id = auth.uid()));
+  FOR ALL USING (family_id = public.current_family_id())
+  WITH CHECK (family_id = public.current_family_id());
+
 CREATE POLICY "family_scope" ON public.trading_transactions
-  USING (family_id = (SELECT id FROM public.families WHERE owner_user_id = auth.uid()));
+  FOR ALL USING (family_id = public.current_family_id())
+  WITH CHECK (family_id = public.current_family_id());
+
 CREATE POLICY "public_read" ON public.trading_asset_prices
   FOR SELECT USING (true);
-CREATE POLICY "authenticated_write" ON public.trading_asset_prices
-  FOR ALL USING (auth.uid() IS NOT NULL);
