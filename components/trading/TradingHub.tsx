@@ -89,6 +89,7 @@ export default function TradingHub({
             portfolio={portfolio}
             holdings={holdings}
             currentPrices={currentPrices}
+            priceHistoryMap={priceHistoryMap}
             transactions={transactions}
             kidStarBalance={kid.pointsBalance}
             assets={assets}
@@ -115,29 +116,33 @@ export default function TradingHub({
       </div>
 
       {/* Deposit/Withdraw modal */}
-      {depositMode && kid && portfolio && (
+      {depositMode && kid && (
         <DepositWithdrawModal
           mode={depositMode}
           availableStars={kid.pointsBalance}
-          availableNuggets={portfolio.nuggetsBalance}
+          availableNuggets={portfolio?.nuggetsBalance ?? 0}
           kidId={kid.id}
           onClose={() => setDepositMode(null)}
         />
       )}
 
       {/* Asset detail sheet */}
-      {selectedAsset && (
-        <AssetDetailSheet
-          asset={assets.find((a) => a.symbol === selectedAsset)!}
-          priceHistory={priceHistoryMap[selectedAsset] ?? []}
-          holding={
-            holdings.find((h) => h.assetSymbol === selectedAsset) ?? null
-          }
-          portfolioNuggets={portfolio?.nuggetsBalance ?? 0}
-          kidId={kid?.id ?? null}
-          onClose={() => setSelectedAsset(null)}
-        />
-      )}
+      {selectedAsset && (() => {
+        const assetForSheet = assets.find((a) => a.symbol === selectedAsset);
+        if (!assetForSheet) return null;
+        return (
+          <AssetDetailSheet
+            asset={assetForSheet}
+            priceHistory={priceHistoryMap[selectedAsset] ?? []}
+            holding={
+              holdings.find((h) => h.assetSymbol === selectedAsset) ?? null
+            }
+            portfolioNuggets={portfolio?.nuggetsBalance ?? 0}
+            kidId={kid?.id ?? null}
+            onClose={() => setSelectedAsset(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

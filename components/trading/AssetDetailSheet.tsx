@@ -28,7 +28,8 @@ export default function AssetDetailSheet({
 }: Props) {
   const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isBuyPending, startBuyTransition] = useTransition();
+  const [isSellPending, startSellTransition] = useTransition();
 
   const currentPrice = priceHistory[0]?.priceNuggets ?? asset.basePriceNuggets;
   const yesterdayPrice = priceHistory[1]?.priceNuggets ?? currentPrice;
@@ -73,7 +74,7 @@ export default function AssetDetailSheet({
   function handleBuy() {
     if (!kidId) return;
     setError(null);
-    startTransition(async () => {
+    startBuyTransition(async () => {
       const result = await buyAsset(kidId, asset.symbol, quantity);
       if (!result.ok) setError(result.error);
     });
@@ -82,7 +83,7 @@ export default function AssetDetailSheet({
   function handleSell() {
     if (!kidId) return;
     setError(null);
-    startTransition(async () => {
+    startSellTransition(async () => {
       const result = await sellAsset(kidId, asset.symbol, quantity);
       if (!result.ok) setError(result.error);
     });
@@ -136,15 +137,13 @@ export default function AssetDetailSheet({
           </div>
 
           {/* Sparkline */}
-          {sparklinePrices.length > 0 && (
-            <div className="w-full mb-4">
-              <PriceSparkline
-                prices={sparklinePrices}
-                width={400}
-                height={64}
-              />
-            </div>
-          )}
+          <div className="w-full mb-4">
+            <PriceSparkline
+              prices={sparklinePrices}
+              width={400}
+              height={64}
+            />
+          </div>
 
           {/* Today's news card */}
           {priceHistory[0]?.newsHeadline && (
@@ -260,20 +259,21 @@ export default function AssetDetailSheet({
                 <button
                   onClick={handleBuy}
                   disabled={
-                    isPending ||
+                    isBuyPending ||
+                    isSellPending ||
                     quantity <= 0 ||
                     buyCost > portfolioNuggets
                   }
                   className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-black rounded-2xl transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isPending ? "…" : "Buy"}
+                  {isBuyPending ? "…" : "Buy"}
                 </button>
                 <button
                   onClick={handleSell}
-                  disabled={isPending || !canSell}
+                  disabled={isSellPending || isBuyPending || !canSell}
                   className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-black rounded-2xl transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isPending ? "…" : "Sell"}
+                  {isSellPending ? "…" : "Sell"}
                 </button>
               </div>
             </div>

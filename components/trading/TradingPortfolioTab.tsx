@@ -7,12 +7,14 @@ import type {
   TradingTransaction,
   TradingAsset,
 } from "@/lib/domain/types";
+import { NUGGETS_PER_STAR } from "@/lib/trading/assets";
 import PriceSparkline from "./PriceSparkline";
 
 interface Props {
   portfolio: TradingPortfolio | null;
   holdings: TradingHolding[];
   currentPrices: Record<string, TradingAssetPrice>;
+  priceHistoryMap: Record<string, TradingAssetPrice[]>;
   transactions: TradingTransaction[];
   kidStarBalance: number;
   assets: TradingAsset[];
@@ -55,6 +57,7 @@ export default function TradingPortfolioTab({
   portfolio,
   holdings,
   currentPrices,
+  priceHistoryMap,
   transactions,
   kidStarBalance,
   assets,
@@ -104,13 +107,13 @@ export default function TradingPortfolioTab({
     return sum + (price - h.avgCostNuggets) * h.quantity;
   }, 0);
 
-  // Overall P/L: (withdrawnStars×1000 + currentTotalValue - depositedStars×1000)
+  // Overall P/L: (withdrawnStars×NUGGETS_PER_STAR + currentTotalValue - depositedStars×NUGGETS_PER_STAR)
   const overallPL =
-    portfolio.totalWithdrawnStars * 1000 +
+    portfolio.totalWithdrawnStars * NUGGETS_PER_STAR +
     currentTotalValue -
-    portfolio.totalDepositedStars * 1000;
+    portfolio.totalDepositedStars * NUGGETS_PER_STAR;
 
-  const recentTx = [...transactions].slice(0, 10);
+  const recentTx = transactions.slice(0, 10);
 
   return (
     <div className="flex flex-col gap-4">
@@ -208,11 +211,18 @@ export default function TradingPortfolioTab({
                 h.avgCostNuggets > 0
                   ? ((price - h.avgCostNuggets) / h.avgCostNuggets) * 100
                   : 0;
-              const sparkPrices = [
-                currentPrices[h.assetSymbol]?.priceNuggets ??
-                  asset?.basePriceNuggets ??
-                  0,
-              ];
+              const history = (priceHistoryMap[h.assetSymbol] ?? [])
+                .slice(0, 7)
+                .map((p) => p.priceNuggets)
+                .reverse();
+              const sparkPrices =
+                history.length > 0
+                  ? history
+                  : [
+                      currentPrices[h.assetSymbol]?.priceNuggets ??
+                        asset?.basePriceNuggets ??
+                        0,
+                    ];
 
               return (
                 <button

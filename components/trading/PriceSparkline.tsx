@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 interface Props {
   prices: number[];
   width?: number;
@@ -13,6 +15,8 @@ export default function PriceSparkline({
   height = 32,
   color,
 }: Props) {
+  const uid = useId().replace(/:/g, "");
+  const gradientId = `sparkline-grad-${uid}`;
   const padding = 4;
   const w = width - padding * 2;
   const h = height - padding * 2;
@@ -68,8 +72,6 @@ export default function PriceSparkline({
     `M ${firstPt[0]},${firstPt[1]} ` +
     points.slice(1).map(([x, y]) => `L ${x},${y}`).join(" ") +
     ` L ${lastPt[0]},${bottomY} L ${firstPt[0]},${bottomY} Z`;
-
-  const gradientId = `sparkline-grad-${strokeColor.replace("#", "")}`;
 
   return (
     <svg
