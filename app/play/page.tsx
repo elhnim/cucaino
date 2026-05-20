@@ -57,6 +57,21 @@ export default async function PlayHubPage({
           </div>
         </Link>
 
+        {/* Money Town */}
+        <Link
+          href={`/play/money-town${kidId ? `?kid=${kidId}` : ""}`}
+          className="bg-yellow-50 border-2 border-yellow-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
+        >
+          <div className="text-4xl">💰</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-yellow-900">Money Town</span>
+              <span className="text-[10px] font-bold bg-yellow-500 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+            </div>
+            <div className="text-xs text-yellow-700 mt-0.5">2–4 players · Learn · Earn · Invest</div>
+          </div>
+        </Link>
+
         {/* Flashcards */}
         <div className="bg-purple-50 border-2 border-purple-100 rounded-3xl p-5 flex flex-col gap-3 opacity-50">
           <div className="text-4xl">📇</div>
