@@ -52,7 +52,7 @@ function LandingPage({ founderCount }: { founderCount: number }) {
           {/* Left */}
           <div>
             <div className="inline-flex items-center gap-2 bg-white text-indigo-700 font-extrabold text-xs px-4 py-2 rounded-full shadow-sm mb-6">
-              ✨ The habit-building app for kids
+              ✨ The habit-building app by kids, for kids
             </div>
             <h1 className="text-4xl md:text-5xl font-black text-indigo-950 leading-[1.1] tracking-tight mb-5">
               Raise a kid who<br />doesn&apos;t need <span className="text-indigo-600">reminding.</span>
