@@ -516,3 +516,54 @@ export interface BadgeConfigOverride {
   silverName: string | null;
   goldName: string | null;
 }
+
+// ----------------------------------------------------------------------------
+// Trading (Nugget Market)
+// ----------------------------------------------------------------------------
+
+export interface TradingPortfolio {
+  id: string;
+  kidId: string;
+  nuggetsBalance: number;
+  totalDepositedStars: number;
+  totalWithdrawnStars: number;
+}
+
+export interface TradingHolding {
+  id: string;
+  kidId: string;
+  assetSymbol: string;
+  quantity: number;
+  avgCostNuggets: number;
+}
+
+export interface TradingTransaction {
+  id: string;
+  kidId: string;
+  type: 'buy' | 'sell' | 'deposit' | 'withdraw' | 'dividend';
+  assetSymbol: string | null;
+  quantity: number | null;
+  priceNuggets: number | null;
+  totalNuggets: number;
+  feeNuggets: number;
+  createdAt: string;
+}
+
+export interface TradingAssetPrice {
+  symbol: string;
+  priceNuggets: number;
+  priceDate: string;
+  newsHeadline: string | null;
+  newsImpact: 'positive' | 'negative' | 'neutral' | null;
+  eventPct: number | null;
+}
+
+export interface TradingAsset {
+  symbol: string;
+  name: string;
+  emoji: string;
+  industry: string;
+  basePriceNuggets: number;
+  paysDividend: boolean;
+  description: string;
+}

@@ -1,0 +1,92 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { TRADING_ASSETS } from "./assets";
+import { NEWS_TEMPLATES, CATEGORY_WEIGHTS, seededRandom } from "./news-templates";
+import { generateNewsHeadline } from "./news-generator";
+import { localDateString } from "@/lib/data/queries";
+
+export async function ensureDailyPrices(supabase: SupabaseClient): Promise<void> {
+  // Get family timezone for the date check (use UTC as fallback — price table is global)
+  const today = localDateString("UTC");
+  const yesterday = (() => {
+    const d = new Date(today + "T12:00:00Z");
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  // Proxy check: if CHOMP already has a row for today, prices are done
+  const { data: existing } = await supabase
+    .from("trading_asset_prices")
+    .select("id")
+    .eq("symbol", "CHOMP")
+    .eq("price_date", today)
+    .maybeSingle();
+  if (existing) return;
+
+  // Fetch all yesterday rows in one query
+  const { data: yesterdayRows } = await supabase
+    .from("trading_asset_prices")
+    .select("symbol, price_nuggets, event_pct")
+    .eq("price_date", yesterday);
+
+  const yesterdayMap = new Map<string, { price: number; eventPct: number }>();
+  for (const row of yesterdayRows ?? []) {
+    yesterdayMap.set(row.symbol, {
+      price: row.price_nuggets,
+      eventPct: row.event_pct ?? 0,
+    });
+  }
+
+  const rows = await Promise.all(
+    TRADING_ASSETS.map(async (asset) => {
+      const prev = yesterdayMap.get(asset.symbol);
+      const prevPrice = prev?.price ?? asset.basePriceNuggets;
+      const prevEventPct = prev?.eventPct ?? 0;
+
+      // Today's price = yesterday's price × (1 + yesterday's event_pct)
+      const rawPrice = prevPrice * (1 + prevEventPct / 100);
+      const minPrice = asset.basePriceNuggets * 0.3;
+      const maxPrice = asset.basePriceNuggets * 4;
+      const todayPrice = Math.round(Math.min(maxPrice, Math.max(minPrice, rawPrice)));
+
+      // Pick today's news event using seeded random
+      const rng1 = seededRandom(asset.symbol + today + "cat");
+      const category = pickCategory(rng1);
+      const templates = NEWS_TEMPLATES[category];
+      const rng2 = seededRandom(asset.symbol + today + "tmpl");
+      const template = templates[Math.floor(rng2 * templates.length)];
+      const rng3 = seededRandom(asset.symbol + today + "x");
+      const x = Math.floor(rng3 * (template.maxPct - template.minPct + 1)) + template.minPct;
+      const eventText = template.text.replace("{X}", String(x));
+
+      // Calculate event_pct for today's news (will affect tomorrow's price)
+      const rng4 = seededRandom(asset.symbol + today + "pct");
+      const rawPct = template.minPct + rng4 * (template.maxPct - template.minPct);
+      const eventPct = template.impact === 'negative' ? -rawPct : template.impact === 'neutral' ? (rng4 - 0.5) * 2 * rawPct : rawPct;
+
+      // Generate AI headline (falls back to raw text on error)
+      const headline = await generateNewsHeadline(asset, { text: eventText, impact: template.impact });
+
+      return {
+        symbol: asset.symbol,
+        price_nuggets: todayPrice,
+        price_date: today,
+        news_headline: headline,
+        news_impact: template.impact,
+        event_pct: Math.round(eventPct * 100) / 100,
+      };
+    }),
+  );
+
+  await supabase
+    .from("trading_asset_prices")
+    .upsert(rows, { onConflict: "symbol,price_date" });
+}
+
+function pickCategory(rng: number): string {
+  let cumulative = 0;
+  for (const [cat, weight] of Object.entries(CATEGORY_WEIGHTS)) {
+    cumulative += weight;
+    if (rng < cumulative) return cat;
+  }
+  return "neutral_news";
+}

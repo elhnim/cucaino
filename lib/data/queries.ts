@@ -40,6 +40,10 @@ import type {
   Strike,
   WishlistItem,
   FamilyInvite,
+  TradingPortfolio,
+  TradingHolding,
+  TradingTransaction,
+  TradingAssetPrice,
 } from "@/lib/domain/types";
 
 type DbKidRow = {
@@ -1035,3 +1039,150 @@ export const listFamilyInvites = timed(
     return data.map(mapFamilyInvite);
   },
 );
+
+// ----------------------------------------------------------------------------
+// Trading (Nugget Market) queries
+// ----------------------------------------------------------------------------
+
+export async function getTradingPortfolio(kidId: string): Promise<TradingPortfolio | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("trading_portfolios")
+    .select("*")
+    .eq("kid_id", kidId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id,
+    kidId: data.kid_id,
+    nuggetsBalance: data.nuggets_balance,
+    totalDepositedStars: data.total_deposited_stars,
+    totalWithdrawnStars: data.total_withdrawn_stars,
+  };
+}
+
+export async function listTradingHoldings(kidId: string): Promise<TradingHolding[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("trading_holdings")
+    .select("*")
+    .eq("kid_id", kidId)
+    .gt("quantity", 0);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    kidId: r.kid_id,
+    assetSymbol: r.asset_symbol,
+    quantity: Number(r.quantity),
+    avgCostNuggets: Number(r.avg_cost_nuggets),
+  }));
+}
+
+export async function listTradingTransactions(kidId: string, limit = 20): Promise<TradingTransaction[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("trading_transactions")
+    .select("*")
+    .eq("kid_id", kidId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    kidId: r.kid_id,
+    type: r.type as TradingTransaction["type"],
+    assetSymbol: r.asset_symbol,
+    quantity: r.quantity !== null ? Number(r.quantity) : null,
+    priceNuggets: r.price_nuggets !== null ? Number(r.price_nuggets) : null,
+    totalNuggets: r.total_nuggets,
+    feeNuggets: r.fee_nuggets,
+    createdAt: r.created_at,
+  }));
+}
+
+export async function getAssetPriceHistory(symbol: string, days = 30): Promise<TradingAssetPrice[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("trading_asset_prices")
+    .select("symbol, price_nuggets, price_date, news_headline, news_impact, event_pct")
+    .eq("symbol", symbol)
+    .order("price_date", { ascending: false })
+    .limit(days);
+  return (data ?? []).map((r) => ({
+    symbol: r.symbol,
+    priceNuggets: r.price_nuggets,
+    priceDate: r.price_date,
+    newsHeadline: r.news_headline,
+    newsImpact: r.news_impact as TradingAssetPrice["newsImpact"],
+    eventPct: r.event_pct !== null ? Number(r.event_pct) : null,
+  }));
+}
+
+export async function listCurrentAssetPrices(): Promise<Record<string, TradingAssetPrice>> {
+  const supabase = await createClient();
+  // Get the most recent price row per symbol
+  const { data } = await supabase
+    .from("trading_asset_prices")
+    .select("symbol, price_nuggets, price_date, news_headline, news_impact, event_pct")
+    .order("price_date", { ascending: false })
+    .limit(50); // at most 10 symbols × a few days buffer
+  const map: Record<string, TradingAssetPrice> = {};
+  for (const r of data ?? []) {
+    if (!map[r.symbol]) {
+      map[r.symbol] = {
+        symbol: r.symbol,
+        priceNuggets: r.price_nuggets,
+        priceDate: r.price_date,
+        newsHeadline: r.news_headline,
+        newsImpact: r.news_impact as TradingAssetPrice["newsImpact"],
+        eventPct: r.event_pct !== null ? Number(r.event_pct) : null,
+      };
+    }
+  }
+  return map;
+}
+
+export async function listTradingLeaderboard(): Promise<{
+  kidId: string;
+  name: string;
+  avatar: string;
+  totalValueNuggets: number;
+  totalDepositedStars: number;
+  totalWithdrawnStars: number;
+}[]> {
+  const supabase = await createClient();
+
+  // Get all kids in the family
+  const { data: kids } = await supabase
+    .from("kids")
+    .select("id, name, avatar");
+
+  // Get all portfolios
+  const { data: portfolios } = await supabase
+    .from("trading_portfolios")
+    .select("kid_id, nuggets_balance, total_deposited_stars, total_withdrawn_stars");
+
+  // Get all holdings with quantity > 0
+  const { data: holdings } = await supabase
+    .from("trading_holdings")
+    .select("kid_id, asset_symbol, quantity")
+    .gt("quantity", 0);
+
+  // Get current prices
+  const currentPrices = await listCurrentAssetPrices();
+
+  return (kids ?? []).map((kid) => {
+    const portfolio = (portfolios ?? []).find((p) => p.kid_id === kid.id);
+    const kidHoldings = (holdings ?? []).filter((h) => h.kid_id === kid.id);
+    const holdingsValue = kidHoldings.reduce((sum, h) => {
+      const price = currentPrices[h.asset_symbol]?.priceNuggets ?? 0;
+      return sum + Number(h.quantity) * price;
+    }, 0);
+    return {
+      kidId: kid.id,
+      name: kid.name,
+      avatar: kid.avatar,
+      totalValueNuggets: Math.round((portfolio?.nuggets_balance ?? 0) + holdingsValue),
+      totalDepositedStars: portfolio?.total_deposited_stars ?? 0,
+      totalWithdrawnStars: portfolio?.total_withdrawn_stars ?? 0,
+    };
+  });
+}
