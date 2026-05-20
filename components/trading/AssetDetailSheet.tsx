@@ -26,6 +26,23 @@ export default function AssetDetailSheet({
   kidId,
   onClose,
 }: Props) {
+  // Next dividend date for this asset
+  const nextDividendDate = asset.paysDividend && asset.dividendDayOfWeek !== undefined
+    ? (() => {
+        const today = new Date();
+        const diff = (asset.dividendDayOfWeek - today.getDay() + 7) % 7 || 7;
+        const next = new Date(today);
+        next.setDate(today.getDate() + diff);
+        return next.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+      })()
+    : null;
+
+  // Days held (for 7-day qualifying check)
+  const daysHeld = holding
+    ? Math.floor((Date.now() - new Date(holding.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+    : 0;
+  const qualifiesForDividend = daysHeld >= 7;
+
   const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isBuyPending, startBuyTransition] = useTransition();
@@ -156,10 +173,27 @@ export default function AssetDetailSheet({
 
           {/* Asset description */}
           <p className="text-sm text-gray-600 mb-4">{asset.description}</p>
-          {asset.paysDividend && (
-            <p className="text-xs text-green-700 bg-green-50 rounded-xl px-3 py-1 inline-block mb-4">
-              💰 Pays dividends weekly
-            </p>
+          {asset.paysDividend && nextDividendDate && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              <span className="text-xs text-green-700 bg-green-50 rounded-xl px-3 py-1">
+                💰 Pays dividend {nextDividendDate}
+              </span>
+              {holding ? (
+                qualifiesForDividend ? (
+                  <span className="text-xs text-green-700 bg-green-50 rounded-xl px-3 py-1">
+                    ✅ You qualify ({daysHeld}d held)
+                  </span>
+                ) : (
+                  <span className="text-xs text-amber-700 bg-amber-50 rounded-xl px-3 py-1">
+                    ⏳ {7 - daysHeld}d until you qualify
+                  </span>
+                )
+              ) : (
+                <span className="text-xs text-gray-500 bg-gray-100 rounded-xl px-3 py-1">
+                  Must hold 7 days to qualify
+                </span>
+              )}
+            </div>
           )}
 
           {/* Current position */}

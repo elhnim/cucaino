@@ -1074,6 +1074,7 @@ export async function listTradingHoldings(kidId: string): Promise<TradingHolding
     assetSymbol: r.asset_symbol,
     quantity: Number(r.quantity),
     avgCostNuggets: Number(r.avg_cost_nuggets),
+    createdAt: r.created_at,
   }));
 }
 

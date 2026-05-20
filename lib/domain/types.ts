@@ -535,6 +535,7 @@ export interface TradingHolding {
   assetSymbol: string;
   quantity: number;
   avgCostNuggets: number;
+  createdAt: string;
 }
 
 export interface TradingTransaction {
@@ -567,4 +568,8 @@ export interface TradingAsset {
   basePriceNuggets: number;
   paysDividend: boolean;
   description: string;
+  /** JS day-of-week (0=Sun … 6=Sat) dividend is paid on. Only set when paysDividend=true. */
+  dividendDayOfWeek?: number;
+  /** Weekly dividend as a decimal, e.g. 0.004 = 0.4%. Only set when paysDividend=true. */
+  dividendPct?: number;
 }

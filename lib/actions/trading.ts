@@ -255,6 +255,8 @@ export async function sellAsset(
   }
 }
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function creditPendingDividends(kidId: string): Promise<void> {
   const supabase = await createClient();
 
@@ -267,12 +269,20 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
 
   const { data: holdings } = await supabase
     .from("trading_holdings")
-    .select("asset_symbol, quantity")
+    .select("asset_symbol, quantity, created_at")
     .eq("kid_id", kidId)
     .gt("quantity", 0);
 
-  const dividendAssets = TRADING_ASSETS.filter((a) => a.paysDividend).map((a) => a.symbol);
-  const eligibleHoldings = (holdings ?? []).filter((h) => dividendAssets.includes(h.asset_symbol));
+  const todayDayOfWeek = new Date().getDay(); // 0=Sun … 6=Sat
+  const dividendAssets = TRADING_ASSETS.filter(
+    (a) => a.paysDividend && a.dividendDayOfWeek === todayDayOfWeek,
+  );
+  if (dividendAssets.length === 0) return;
+
+  const dividendSymbols = dividendAssets.map((a) => a.symbol);
+  const eligibleHoldings = (holdings ?? []).filter((h) =>
+    dividendSymbols.includes(h.asset_symbol),
+  );
   if (eligibleHoldings.length === 0) return;
 
   const { data: lastDividends } = await supabase
@@ -280,7 +290,7 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
     .select("asset_symbol, created_at")
     .eq("kid_id", kidId)
     .eq("type", "dividend")
-    .in("asset_symbol", eligibleHoldings.map((h) => h.asset_symbol))
+    .in("asset_symbol", dividendSymbols)
     .order("created_at", { ascending: false });
 
   const lastDivMap = new Map<string, string>();
@@ -294,14 +304,13 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
   const { data: prices } = await supabase
     .from("trading_asset_prices")
     .select("symbol, price_nuggets")
-    .in("symbol", eligibleHoldings.map((h) => h.asset_symbol))
+    .in("symbol", dividendSymbols)
     .eq("price_date", today);
 
   const priceMap = new Map<string, number>();
   for (const p of prices ?? []) priceMap.set(p.symbol, p.price_nuggets);
 
   const now = Date.now();
-  const thirtyDaysMs = 7 * 24 * 60 * 60 * 1000;
   let totalDividend = 0;
 
   type DivTx = {
@@ -315,11 +324,15 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
   const divTransactions: DivTx[] = [];
 
   for (const holding of eligibleHoldings) {
+    // Must have held for at least 7 days
+    if (now - new Date(holding.created_at).getTime() < SEVEN_DAYS_MS) continue;
+    // Must not have been paid in the last 6 days (prevent same-day double-credit)
     const lastDiv = lastDivMap.get(holding.asset_symbol);
-    if (lastDiv && now - new Date(lastDiv).getTime() < thirtyDaysMs) continue;
+    if (lastDiv && now - new Date(lastDiv).getTime() < 6 * 24 * 60 * 60 * 1000) continue;
 
+    const asset = dividendAssets.find((a) => a.symbol === holding.asset_symbol)!;
     const price = priceMap.get(holding.asset_symbol) ?? 0;
-    const dividend = Math.max(1, Math.round(Number(holding.quantity) * price * 0.02));
+    const dividend = Math.max(1, Math.round(Number(holding.quantity) * price * (asset.dividendPct ?? 0.004)));
     totalDividend += dividend;
     divTransactions.push({
       family_id: portfolio.family_id,
