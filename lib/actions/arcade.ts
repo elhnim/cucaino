@@ -146,8 +146,9 @@ Return valid JSON only, no markdown:
     if (block.type !== "text") throw new Error("no text block");
     const parsed = JSON.parse(block.text.trim());
     return { ok: true, data: parsed };
-  } catch {
-    return { ok: false, error: "Something went wrong, please try again" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
 
@@ -180,8 +181,9 @@ Return valid JSON only:
     if (block.type !== "text") throw new Error("no text block");
     const parsed = JSON.parse(block.text.trim());
     return { ok: true, data: parsed };
-  } catch {
-    return { ok: false, error: "Something went wrong, please try again" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
 
@@ -215,8 +217,9 @@ Return valid JSON only:
     if (block.type !== "text") throw new Error("no text block");
     const parsed = JSON.parse(block.text.trim());
     return { ok: true, data: parsed };
-  } catch {
-    return { ok: false, error: "Something went wrong, please try again" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
 
@@ -249,8 +252,9 @@ Return valid JSON only:
     if (block.type !== "text") throw new Error("no text block");
     const parsed = JSON.parse(block.text.trim());
     return { ok: true, data: parsed };
-  } catch {
-    return { ok: false, error: "Something went wrong, please try again" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
 
@@ -283,8 +287,9 @@ Return valid JSON only:
     if (block.type !== "text") throw new Error("no text block");
     const parsed = JSON.parse(block.text.trim());
     return { ok: true, data: parsed };
-  } catch {
-    return { ok: false, error: "Something went wrong, please try again" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
 
@@ -312,8 +317,9 @@ export async function askStumpQuestion(
     if (block.type !== "text") throw new Error("no text block");
     const parsed = JSON.parse(block.text.trim());
     return { ok: true, data: parsed };
-  } catch {
-    return { ok: false, error: "Something went wrong, please try again" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
 
@@ -355,7 +361,8 @@ If guessing: {"type":"guess","content":"I think statement N is the lie!","guesse
     if (block.type !== "text") throw new Error("no text block");
     const parsed = JSON.parse(block.text.trim());
     return { ok: true, data: parsed };
-  } catch {
-    return { ok: false, error: "Something went wrong, please try again" };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
   }
 }
