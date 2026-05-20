@@ -40,7 +40,7 @@ export default function WinScreen({ winner, round, onPlayAgain }: Props) {
       <div className="relative z-10">
         <div className="text-7xl mb-4">{winner.emoji}</div>
         <h1 className={`text-4xl font-black ${cc.text} mb-2`}>{winner.name}</h1>
-        <h2 className="text-2xl font-black text-gray-800 mb-1">🎉 ESCAPED THE RAT RACE!</h2>
+        <h2 className="text-2xl font-black text-gray-800 mb-1">🎉 YOU ESCAPED THE RAT RACE!</h2>
         <p className="text-gray-500 mb-8">First to build enough passive income</p>
 
         <div className="bg-white rounded-3xl shadow-md p-6 mb-8 space-y-2 text-sm">

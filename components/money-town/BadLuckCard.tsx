@@ -1,6 +1,7 @@
 "use client"
 
 import type { Player, BadLuckEvent, GameAction } from "@/lib/money-town/types"
+import { ASSETS } from "@/lib/money-town/constants"
 
 interface Props {
   player: Player
@@ -13,11 +14,11 @@ function describeEffect(player: Player, event: BadLuckEvent): string {
     return `Lose $${event.amount}`
   }
   if (event.type === 'business-skip') {
-    const hasBusiness = player.assets.some(() => true)
+    const hasBusiness = player.assets.some(a => ASSETS.find(x => x.id === a.assetId)?.type === 'business')
     return hasBusiness ? 'One business earns $0 next round' : 'Lose $100 (no businesses)'
   }
   if (event.type === 'property-repair') {
-    const hasProperty = player.assets.length > 0
+    const hasProperty = player.assets.some(a => ASSETS.find(x => x.id === a.assetId)?.type === 'property')
     return hasProperty ? 'Pay 10% of one property\'s value (min $50)' : 'Lose $100 (no properties)'
   }
   return ''

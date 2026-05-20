@@ -29,7 +29,7 @@ export default function ProgressChart({ players, currentPlayer }: Props) {
                 style={{ width: `${pct}%` }}
               />
               {/* Target line at 100% */}
-              <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-gray-400" />
+              <div className="absolute right-0 top-0 bottom-0 w-0.5 bg-gray-600 z-10" />
             </div>
           </div>
         )
