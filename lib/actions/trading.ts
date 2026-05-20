@@ -23,38 +23,34 @@ export async function depositToTrading(kidId: string, stars: number): Promise<Tr
 
   const nuggets = stars * NUGGETS_PER_STAR;
 
-  // Deduct stars from kid
-  await supabase
-    .from("kids")
-    .update({ points_balance: kid.points_balance - stars })
-    .eq("id", kidId);
-
-  // Check if portfolio exists
   const { data: existing } = await supabase
     .from("trading_portfolios")
     .select("id, nuggets_balance, total_deposited_stars")
     .eq("kid_id", kidId)
     .maybeSingle();
 
+  // Write portfolio first — only deduct stars if this succeeds
   if (existing) {
-    // Increment existing portfolio
-    await supabase
+    const { error } = await supabase
       .from("trading_portfolios")
       .update({
         nuggets_balance: existing.nuggets_balance + nuggets,
         total_deposited_stars: existing.total_deposited_stars + stars,
       })
       .eq("kid_id", kidId);
+    if (error) return { ok: false, error: "Failed to update account." };
   } else {
-    // Create new portfolio
-    await supabase.from("trading_portfolios").insert({
+    const { error } = await supabase.from("trading_portfolios").insert({
       kid_id: kidId,
       family_id: kid.family_id,
       nuggets_balance: nuggets,
       total_deposited_stars: stars,
       total_withdrawn_stars: 0,
     });
+    if (error) return { ok: false, error: "Failed to create account." };
   }
+
+  await supabase.rpc("decrement_kid_points", { p_kid_id: kidId, p_amount: stars });
 
   await supabase.from("trading_transactions").insert({
     family_id: kid.family_id,
@@ -83,7 +79,6 @@ export async function withdrawFromTrading(kidId: string, stars: number): Promise
   const required = stars * NUGGETS_PER_STAR;
   if (portfolio.nuggets_balance < required) return { ok: false, error: "Not enough Nuggets." };
 
-  // Deduct nuggets from portfolio
   await supabase
     .from("trading_portfolios")
     .update({
@@ -92,18 +87,7 @@ export async function withdrawFromTrading(kidId: string, stars: number): Promise
     })
     .eq("kid_id", kidId);
 
-  // Credit stars to kid
-  const { data: kid } = await supabase
-    .from("kids")
-    .select("points_balance")
-    .eq("id", kidId)
-    .maybeSingle();
-  if (kid) {
-    await supabase
-      .from("kids")
-      .update({ points_balance: kid.points_balance + stars })
-      .eq("id", kidId);
-  }
+  await supabase.rpc("increment_kid_points", { p_kid_id: kidId, p_amount: stars });
 
   await supabase.from("trading_transactions").insert({
     family_id: portfolio.family_id,
@@ -118,15 +102,29 @@ export async function withdrawFromTrading(kidId: string, stars: number): Promise
   return { ok: true };
 }
 
+async function fetchTodayPrice(supabase: Awaited<ReturnType<typeof createClient>>, symbol: string): Promise<number | null> {
+  const today = localDateString("UTC");
+  const { data } = await supabase
+    .from("trading_asset_prices")
+    .select("price_nuggets")
+    .eq("symbol", symbol)
+    .eq("price_date", today)
+    .maybeSingle();
+  return data?.price_nuggets ?? null;
+}
+
 export async function buyAsset(
   kidId: string,
   symbol: string,
   quantity: number,
-  priceNuggets: number,
 ): Promise<TradeResult> {
   if (quantity < 0.1) return { ok: false, error: "Minimum purchase is 0.1 shares." };
 
   const supabase = await createClient();
+
+  const serverPrice = await fetchTodayPrice(supabase, symbol);
+  if (serverPrice === null) return { ok: false, error: "Price not available yet. Try again soon." };
+
   const { data: portfolio } = await supabase
     .from("trading_portfolios")
     .select("id, nuggets_balance, family_id")
@@ -134,16 +132,15 @@ export async function buyAsset(
     .maybeSingle();
   if (!portfolio) return { ok: false, error: "No trading account found. Deposit stars first." };
 
-  const cost = Math.ceil(quantity * priceNuggets) + TRADE_FEE_NUGGETS;
-  if (portfolio.nuggets_balance < cost) return { ok: false, error: `Need 🪙 ${cost} Nuggets but only have 🪙 ${portfolio.nuggets_balance}.` };
+  const cost = Math.ceil(quantity * serverPrice) + TRADE_FEE_NUGGETS;
+  if (portfolio.nuggets_balance < cost)
+    return { ok: false, error: `Need 🪙 ${cost} Nuggets but only have 🪙 ${portfolio.nuggets_balance}.` };
 
-  // Deduct nuggets
   await supabase
     .from("trading_portfolios")
     .update({ nuggets_balance: portfolio.nuggets_balance - cost })
     .eq("kid_id", kidId);
 
-  // Upsert holding — update avg cost
   const { data: existing } = await supabase
     .from("trading_holdings")
     .select("quantity, avg_cost_nuggets")
@@ -154,7 +151,7 @@ export async function buyAsset(
   const oldQty = existing ? Number(existing.quantity) : 0;
   const oldAvg = existing ? Number(existing.avg_cost_nuggets) : 0;
   const newQty = oldQty + quantity;
-  const newAvg = (oldQty * oldAvg + quantity * priceNuggets) / newQty;
+  const newAvg = (oldQty * oldAvg + quantity * serverPrice) / newQty;
 
   await supabase.from("trading_holdings").upsert(
     {
@@ -174,7 +171,7 @@ export async function buyAsset(
     type: "buy",
     asset_symbol: symbol,
     quantity,
-    price_nuggets: priceNuggets,
+    price_nuggets: serverPrice,
     total_nuggets: cost,
     fee_nuggets: TRADE_FEE_NUGGETS,
   });
@@ -187,23 +184,36 @@ export async function sellAsset(
   kidId: string,
   symbol: string,
   quantity: number,
-  priceNuggets: number,
 ): Promise<TradeResult> {
   if (quantity <= 0) return { ok: false, error: "Quantity must be positive." };
 
   const supabase = await createClient();
-  const { data: holding } = await supabase
-    .from("trading_holdings")
-    .select("id, quantity, family_id")
-    .eq("kid_id", kidId)
-    .eq("asset_symbol", symbol)
-    .maybeSingle();
+
+  const serverPrice = await fetchTodayPrice(supabase, symbol);
+  if (serverPrice === null) return { ok: false, error: "Price not available yet. Try again soon." };
+
+  // Fetch both holding and portfolio up front before any mutations
+  const [{ data: holding }, { data: portfolio }] = await Promise.all([
+    supabase
+      .from("trading_holdings")
+      .select("id, quantity, family_id")
+      .eq("kid_id", kidId)
+      .eq("asset_symbol", symbol)
+      .maybeSingle(),
+    supabase
+      .from("trading_portfolios")
+      .select("nuggets_balance, family_id")
+      .eq("kid_id", kidId)
+      .maybeSingle(),
+  ]);
+
   if (!holding) return { ok: false, error: "You don't own any shares in this company." };
+  if (!portfolio) return { ok: false, error: "No trading account found." };
 
   const ownedQty = Number(holding.quantity);
   if (ownedQty < quantity) return { ok: false, error: `You only own ${ownedQty} shares.` };
 
-  const proceeds = Math.max(0, Math.floor(quantity * priceNuggets) - TRADE_FEE_NUGGETS);
+  const proceeds = Math.max(0, Math.floor(quantity * serverPrice) - TRADE_FEE_NUGGETS);
   const remaining = ownedQty - quantity;
 
   if (remaining < 0.001) {
@@ -215,28 +225,18 @@ export async function sellAsset(
       .eq("id", holding.id);
   }
 
-  // Credit proceeds to portfolio
-  const { data: portfolio } = await supabase
+  await supabase
     .from("trading_portfolios")
-    .select("nuggets_balance, family_id")
-    .eq("kid_id", kidId)
-    .maybeSingle();
+    .update({ nuggets_balance: portfolio.nuggets_balance + proceeds })
+    .eq("kid_id", kidId);
 
-  if (portfolio) {
-    await supabase
-      .from("trading_portfolios")
-      .update({ nuggets_balance: portfolio.nuggets_balance + proceeds })
-      .eq("kid_id", kidId);
-  }
-
-  const familyId = portfolio?.family_id ?? holding.family_id;
   await supabase.from("trading_transactions").insert({
-    family_id: familyId,
+    family_id: portfolio.family_id,
     kid_id: kidId,
     type: "sell",
     asset_symbol: symbol,
     quantity,
-    price_nuggets: priceNuggets,
+    price_nuggets: serverPrice,
     total_nuggets: proceeds,
     fee_nuggets: TRADE_FEE_NUGGETS,
   });
@@ -265,7 +265,6 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
   const eligibleHoldings = (holdings ?? []).filter((h) => dividendAssets.includes(h.asset_symbol));
   if (eligibleHoldings.length === 0) return;
 
-  // Fetch last dividend tx for each eligible symbol
   const { data: lastDividends } = await supabase
     .from("trading_transactions")
     .select("asset_symbol, created_at")
@@ -281,7 +280,6 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
     }
   }
 
-  // Fetch today's prices
   const today = localDateString("UTC");
   const { data: prices } = await supabase
     .from("trading_asset_prices")
@@ -296,7 +294,16 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
   const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
   let totalDividend = 0;
 
-  const divTransactions: object[] = [];
+  type DivTx = {
+    family_id: string;
+    kid_id: string;
+    type: string;
+    asset_symbol: string;
+    total_nuggets: number;
+    fee_nuggets: number;
+  };
+  const divTransactions: DivTx[] = [];
+
   for (const holding of eligibleHoldings) {
     const lastDiv = lastDivMap.get(holding.asset_symbol);
     if (lastDiv && now - new Date(lastDiv).getTime() < thirtyDaysMs) continue;

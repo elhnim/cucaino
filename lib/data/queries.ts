@@ -1123,7 +1123,7 @@ export async function listCurrentAssetPrices(): Promise<Record<string, TradingAs
     .from("trading_asset_prices")
     .select("symbol, price_nuggets, price_date, news_headline, news_impact, event_pct")
     .order("price_date", { ascending: false })
-    .limit(50); // at most 10 symbols × a few days buffer
+    .limit(100); // 10 symbols × up to 10 days buffer
   const map: Record<string, TradingAssetPrice> = {};
   for (const r of data ?? []) {
     if (!map[r.symbol]) {
