@@ -18,6 +18,12 @@ export type ArcadeResult<T = undefined> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseJSON(text: string): any {
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  return JSON.parse(stripped);
+}
+
 // ---------------------------------------------------------------------------
 // convertStarsToSparks
 // ---------------------------------------------------------------------------
@@ -144,7 +150,7 @@ Return valid JSON only, no markdown:
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
-    const parsed = JSON.parse(block.text.trim());
+    const parsed = parseJSON(block.text);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -179,7 +185,7 @@ Return valid JSON only:
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
-    const parsed = JSON.parse(block.text.trim());
+    const parsed = parseJSON(block.text);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -215,7 +221,7 @@ Return valid JSON only:
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
-    const parsed = JSON.parse(block.text.trim());
+    const parsed = parseJSON(block.text);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -250,7 +256,7 @@ Return valid JSON only:
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
-    const parsed = JSON.parse(block.text.trim());
+    const parsed = parseJSON(block.text);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -285,7 +291,7 @@ Return valid JSON only:
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
-    const parsed = JSON.parse(block.text.trim());
+    const parsed = parseJSON(block.text);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -315,7 +321,7 @@ export async function askStumpQuestion(
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
-    const parsed = JSON.parse(block.text.trim());
+    const parsed = parseJSON(block.text);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -359,7 +365,7 @@ If guessing: {"type":"guess","content":"I think statement N is the lie!","guesse
     });
     const block = msg.content[0];
     if (block.type !== "text") throw new Error("no text block");
-    const parsed = JSON.parse(block.text.trim());
+    const parsed = parseJSON(block.text);
     return { ok: true, data: parsed };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
