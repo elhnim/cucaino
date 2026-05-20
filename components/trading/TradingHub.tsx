@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type {
   TradingPortfolio,
   TradingHolding,
@@ -15,6 +15,7 @@ import TradingLeaderboardTab, {
 } from "./TradingLeaderboardTab";
 import DepositWithdrawModal from "./DepositWithdrawModal";
 import AssetDetailSheet from "./AssetDetailSheet";
+import TradingOnboarding from "./TradingOnboarding";
 
 interface Props {
   kid: { id: string; name: string; pointsBalance: number } | null;
@@ -45,6 +46,17 @@ export default function TradingHub({
     null
   );
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    const seen = localStorage.getItem("nugget-market-tour-seen");
+    if (!seen) setShowOnboarding(true);
+  }, []);
+
+  const handleOnboardingDone = () => {
+    localStorage.setItem("nugget-market-tour-seen", "1");
+    setShowOnboarding(false);
+  };
 
   const tabs: { id: Tab; label: string; onlyWithKid?: boolean }[] = [
     { id: "portfolio", label: "Portfolio", onlyWithKid: true },
@@ -60,6 +72,11 @@ export default function TradingHub({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex flex-col">
+      {showOnboarding && (
+        <div className="fixed inset-0 z-50">
+          <TradingOnboarding onDone={handleOnboardingDone} />
+        </div>
+      )}
       {/* Page title */}
       <div className="px-4 pt-4 pb-2">
         <h1 className="text-2xl font-black text-gray-900">📈 Nugget Market</h1>
