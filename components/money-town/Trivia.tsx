@@ -15,6 +15,7 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
   const [questions] = useState<TriviaQuestion[]>(() => pickTriviaQuestions(usedTriviaIds, 3))
   const [currentQ, setCurrentQ] = useState(0)
   const [states, setStates] = useState<QuestionState[]>(['unanswered', 'unanswered', 'unanswered'])
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
   const [done, setDone] = useState(false)
 
   const q = questions[currentQ]
@@ -22,18 +23,22 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
 
   const answer = useCallback((optionIndex: number) => {
     const correct = optionIndex === q.correctIndex
-    const newStates = [...states]
-    newStates[currentQ] = correct ? 'correct' : 'wrong'
-    setStates(newStates)
+    setSelectedIndex(optionIndex)
+    setStates(prev => {
+      const next = [...prev]
+      next[currentQ] = correct ? 'correct' : 'wrong'
+      return next
+    })
 
     setTimeout(() => {
       if (currentQ < 2) {
         setCurrentQ(prev => prev + 1)
+        setSelectedIndex(null)
       } else {
         setDone(true)
       }
     }, 800)
-  }, [q, currentQ, states])
+  }, [q, currentQ])
 
   if (done) {
     const earned = totalCorrect * 75
@@ -84,7 +89,8 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
           let style = 'border-2 border-gray-200 bg-white text-gray-800'
           if (state !== 'unanswered') {
             if (i === q.correctIndex) style = 'border-2 border-green-400 bg-green-50 text-green-800'
-            else if (state === 'wrong' && i !== q.correctIndex) style = 'border-2 border-gray-200 bg-white text-gray-400'
+            else if (i === selectedIndex) style = 'border-2 border-red-400 bg-red-50 text-red-800'
+            else style = 'border-2 border-gray-200 bg-white text-gray-400'
           }
           return (
             <button
