@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
-import ProfileEditor from "@/components/kid/ProfileEditor";
+import dynamic from "next/dynamic";
 import { getKid } from "@/lib/data/stub";
-import { getTheme } from "@/lib/themes/presets";
-import { listThemes } from "@/lib/themes/presets";
+import { getTheme, listThemes } from "@/lib/themes/presets";
+
+const ProfileEditor = dynamic(() => import("@/components/kid/ProfileEditor"), { ssr: true });
 
 export default async function ProfilePage({
   params,
