@@ -52,8 +52,11 @@ export default function DealCard({ player, asset, dispatch }: Props) {
             onClick={() => dispatch({ type: 'BUY_ASSET', assetId: asset.id, useMortgage: false })}
             className="w-full py-3 bg-green-500 text-white font-black rounded-xl disabled:opacity-40 active:scale-95 transition-transform"
           >
-            {canBuyOutright ? `Buy 💰 $${asset.cost}` : `Need $${asset.cost - player.cash} more`}
+            {`Buy 💰 $${asset.cost}`}
           </button>
+          {!canBuyOutright && !alreadyOwns && (
+            <p className="text-xs text-red-500 font-bold text-center mt-1">Not enough cash 💸</p>
+          )}
         </div>
 
         {/* Mortgage option — properties only */}
@@ -73,8 +76,11 @@ export default function DealCard({ player, asset, dispatch }: Props) {
               onClick={() => dispatch({ type: 'BUY_ASSET', assetId: asset.id, useMortgage: true })}
               className="w-full py-3 bg-blue-500 text-white font-black rounded-xl disabled:opacity-40 active:scale-95 transition-transform"
             >
-              {canMortgage ? `Mortgage 🏦 $${downPayment} down` : `Need $${downPayment - player.cash} more`}
+              {`Mortgage 🏦 $${downPayment} down`}
             </button>
+            {!canMortgage && !alreadyOwns && (
+              <p className="text-xs text-red-500 font-bold text-center mt-1">Not enough cash 💸</p>
+            )}
           </div>
         )}
 
