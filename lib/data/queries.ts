@@ -1239,3 +1239,32 @@ export async function listTradingLeaderboard(
     };
   });
 }
+
+export async function listCurrentAndPreviousAssetPrices(): Promise<
+  Record<string, { current: TradingAssetPrice; previous: TradingAssetPrice | null }>
+> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("trading_asset_prices")
+    .select("symbol, price_nuggets, price_date, news_headline, news_body, news_impact, event_pct")
+    .order("price_date", { ascending: false })
+    .limit(20); // 10 symbols × 2 days
+  const map: Record<string, { current: TradingAssetPrice; previous: TradingAssetPrice | null }> = {};
+  for (const r of data ?? []) {
+    const price: TradingAssetPrice = {
+      symbol: r.symbol,
+      priceNuggets: r.price_nuggets,
+      priceDate: r.price_date,
+      newsHeadline: r.news_headline,
+      newsBody: r.news_body ?? null,
+      newsImpact: r.news_impact as TradingAssetPrice["newsImpact"],
+      eventPct: r.event_pct !== null ? Number(r.event_pct) : null,
+    };
+    if (!map[r.symbol]) {
+      map[r.symbol] = { current: price, previous: null };
+    } else if (!map[r.symbol].previous) {
+      map[r.symbol].previous = price;
+    }
+  }
+  return map;
+}
