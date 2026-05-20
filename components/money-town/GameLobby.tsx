@@ -76,13 +76,15 @@ export default function GameLobby({ kidName, dispatch }: Props) {
                   <div className={`font-black ${cc.text} truncate`}>{p.name}</div>
                   <div className="text-xs text-gray-500">{p.job.emoji} {p.job.name} · ${p.job.salary}/round · ${p.job.expenses} expenses</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removePlayer(p.id)}
-                  className="text-gray-300 hover:text-red-400 text-lg leading-none"
-                >
-                  ✕
-                </button>
+                {!(p.id === 'p1' && kidName !== null) && (
+                  <button
+                    type="button"
+                    onClick={() => removePlayer(p.id)}
+                    className="text-gray-300 hover:text-red-400 text-lg leading-none"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             )
           })}
