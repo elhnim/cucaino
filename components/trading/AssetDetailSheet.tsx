@@ -228,20 +228,24 @@ export default function AssetDetailSheet({
               </div>
 
               {/* Cost preview */}
-              <div className="flex gap-3 mb-3 text-sm text-gray-600">
-                <span>
-                  Buy cost:{" "}
-                  <span className="font-bold text-gray-900">
-                    🪙 {buyCost.toLocaleString()}
-                  </span>
-                </span>
-                <span>·</span>
-                <span>
-                  Sell proceeds:{" "}
-                  <span className="font-bold text-gray-900">
-                    🪙 {sellProceeds.toLocaleString()}
-                  </span>
-                </span>
+              <div className="bg-gray-50 rounded-2xl px-4 py-3 mb-3 flex flex-col gap-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Shares cost</span>
+                  <span className="font-bold text-gray-900">🪙 {(buyCost - 1).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Transaction fee</span>
+                  <span className="font-bold text-gray-500">🪙 1</span>
+                </div>
+                <div className="border-t border-gray-200 my-0.5" />
+                <div className="flex justify-between">
+                  <span className="font-black text-gray-800">You pay (buy)</span>
+                  <span className="font-black text-gray-900">🪙 {buyCost.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-black text-gray-800">You receive (sell)</span>
+                  <span className="font-black text-gray-900">🪙 {sellProceeds.toLocaleString()}</span>
+                </div>
               </div>
 
               {/* Balance */}
