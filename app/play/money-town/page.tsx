@@ -10,7 +10,7 @@ export default async function MoneyTownPage({
   const { kid: kidId } = await searchParams;
   const kid = kidId ? await getKid(kidId) : null;
 
-  const content = <MoneyTownGame kidName={kid?.name ?? null} />;
+  const content = <MoneyTownGame kidName={kid?.name ?? null} kidId={kidId ?? null} />;
 
   if (kid) {
     return <KidShell kid={kid} active="play">{content}</KidShell>;

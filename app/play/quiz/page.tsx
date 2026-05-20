@@ -58,14 +58,14 @@ export default async function QuizSetsPage({
 
   const content = (
     <div className="max-w-3xl mx-auto p-4">
-      <div className="flex items-center justify-between mb-4 gap-3">
-        <h1 className="text-2xl font-black text-gray-900">🎮 Quiz Battles</h1>
+      <div className="flex items-center gap-3 mb-4">
         <Link
           href={backHref}
-          className="inline-flex items-center gap-1.5 bg-fuchsia-100 hover:bg-fuchsia-200 text-fuchsia-700 font-bold text-sm px-4 py-2 rounded-2xl transition-colors shrink-0"
+          className="text-sm font-bold text-gray-500 hover:text-gray-700 flex items-center gap-1 shrink-0"
         >
           ← Games
         </Link>
+        <h1 className="text-2xl font-black text-gray-900">🎮 Quiz Battles</h1>
       </div>
 
         <QuizFilters theme={theme} difficulty={difficulty} kidParam={kidParam2} />

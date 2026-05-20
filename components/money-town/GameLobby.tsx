@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import Link from "next/link"
 import type { Player, GameAction } from "@/lib/money-town/types"
 import { JOBS, PLAYER_COLORS, PLAYER_COLOR_CLASSES, STARTING_CASH } from "@/lib/money-town/constants"
 
@@ -8,10 +9,11 @@ const GUEST_EMOJIS = ['😎', '🤩', '🥳', '😜', '🦊', '🐼', '🦄', '�
 
 interface Props {
   kidName: string | null
+  kidId: string | null
   dispatch: (action: GameAction) => void
 }
 
-export default function GameLobby({ kidName, dispatch }: Props) {
+export default function GameLobby({ kidName, kidId, dispatch }: Props) {
   const [players, setPlayers] = useState<Player[]>(() => {
     if (kidName) {
       return [{
@@ -57,10 +59,20 @@ export default function GameLobby({ kidName, dispatch }: Props) {
     dispatch({ type: 'START_GAME' })
   }
 
+  const backHref = kidId ? `/kid/${kidId}/play` : "/select-kid"
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-green-50 p-4 pb-8">
       <div className="max-w-md mx-auto">
-        <h1 className="text-3xl font-black text-center text-yellow-900 pt-6 mb-1">💰 Money Town</h1>
+        <div className="flex items-center gap-3 pt-4 mb-2">
+          <Link
+            href={backHref}
+            className="text-sm font-bold text-yellow-800/60 hover:text-yellow-900 flex items-center gap-1 shrink-0"
+          >
+            ← Games
+          </Link>
+        </div>
+        <h1 className="text-3xl font-black text-center text-yellow-900 mb-1">💰 Money Town</h1>
         <p className="text-center text-sm text-yellow-700 mb-6">
           Escape the Rat Race! First to build enough passive income wins.
         </p>

@@ -28,12 +28,19 @@ export default function ArcadeHub({ kid }: ArcadeHubProps) {
   const [showConvert, setShowConvert] = useState(false);
 
   const needsSparks = !kid || kid.sparksBalance === 0;
+  const backHref = kid ? `/kid/${kid.id}/play` : "/select-kid";
 
   return (
     <div className="max-w-3xl mx-auto p-4 pt-5">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-black text-gray-900">🕹️ AI Arcade</h1>
+      <div className="flex items-center gap-3 mb-4">
+        <Link
+          href={backHref}
+          className="text-sm font-bold text-gray-500 hover:text-gray-700 flex items-center gap-1 shrink-0"
+        >
+          ← Games
+        </Link>
+        <h1 className="text-2xl font-black text-gray-900 flex-1">🕹️ AI Arcade</h1>
         <div className="flex items-center gap-2">
           {kid && (
             <span className="text-sm font-bold text-cyan-700 bg-cyan-100 px-3 py-1 rounded-full">
@@ -50,6 +57,7 @@ export default function ArcadeHub({ kid }: ArcadeHubProps) {
           )}
         </div>
       </div>
+
 
       {/* Game grid */}
       <div className="grid grid-cols-2 gap-3">

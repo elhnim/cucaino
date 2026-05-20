@@ -22,7 +22,7 @@ export default function GameShell({ kidId, sparksBalance, game, children }: Game
           href={backHref}
           className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1"
         >
-          ← Games
+          ← Arcade
         </Link>
         <div className="flex items-center gap-2">
           <span className="text-xl">{game.emoji}</span>

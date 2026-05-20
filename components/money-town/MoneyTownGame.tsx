@@ -18,9 +18,10 @@ const SAVE_KEY = 'money-town-save'
 
 interface Props {
   kidName: string | null
+  kidId: string | null
 }
 
-export default function MoneyTownGame({ kidName }: Props) {
+export default function MoneyTownGame({ kidName, kidId }: Props) {
   const [state, dispatch] = useReducer(gameReducer, undefined, () => {
     if (typeof window !== 'undefined') {
       try {
@@ -47,7 +48,7 @@ export default function MoneyTownGame({ kidName }: Props) {
   const currentPlayer = state.players[state.currentPlayerIndex]
 
   if (state.phase === 'lobby') {
-    return <GameLobby kidName={kidName} dispatch={dispatch} />
+    return <GameLobby kidName={kidName} kidId={kidId} dispatch={dispatch} />
   }
 
   if (state.phase === 'win' && state.winner) {
