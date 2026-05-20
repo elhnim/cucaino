@@ -11,7 +11,7 @@ interface Props {
 
 export default function PaydayCard({ player, dispatch }: Props) {
   const passive = computePassiveIncome(player.assets)
-  const total = player.job.salary + passive
+  const total = player.job.salary + Math.max(0, passive)
   const cc = PLAYER_COLOR_CLASSES[player.color]
 
   return (
