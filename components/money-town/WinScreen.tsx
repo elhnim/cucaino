@@ -1,7 +1,7 @@
 "use client"
 
 import type { Player } from "@/lib/money-town/types"
-import { computePassiveIncome } from "@/lib/money-town/gameLogic"
+import { computePassiveIncome, sellValue } from "@/lib/money-town/gameLogic"
 import { PLAYER_COLOR_CLASSES } from "@/lib/money-town/constants"
 
 interface Props {
@@ -15,7 +15,7 @@ const CONFETTI_EMOJIS = ['🎉', '⭐', '💰', '🏆', '✨', '🌟', '💎', '
 export default function WinScreen({ winner, round, onPlayAgain }: Props) {
   const passive = computePassiveIncome(winner.assets)
   const cc = PLAYER_COLOR_CLASSES[winner.color]
-  const netWorth = winner.cash + winner.assets.reduce((s, a) => s + Math.round(a.purchasePrice * 0.8), 0)
+  const netWorth = winner.cash + winner.assets.reduce((s, a) => s + sellValue(a), 0)
 
   return (
     <div className={`min-h-screen ${cc.bg} flex flex-col items-center justify-center p-6 text-center`}>
