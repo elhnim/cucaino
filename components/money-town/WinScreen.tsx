@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import type { Player } from "@/lib/money-town/types"
 import { computePassiveIncome, sellValue } from "@/lib/money-town/gameLogic"
 import { PLAYER_COLOR_CLASSES } from "@/lib/money-town/constants"
@@ -7,18 +8,23 @@ import { PLAYER_COLOR_CLASSES } from "@/lib/money-town/constants"
 interface Props {
   winner: Player
   round: number
+  kidId: string | null
   onPlayAgain: () => void
 }
 
 const CONFETTI_EMOJIS = ['🎉', '⭐', '💰', '🏆', '✨', '🌟', '💎', '🎊']
 
-export default function WinScreen({ winner, round, onPlayAgain }: Props) {
+export default function WinScreen({ winner, round, kidId, onPlayAgain }: Props) {
   const passive = computePassiveIncome(winner.assets)
   const cc = PLAYER_COLOR_CLASSES[winner.color]
   const netWorth = winner.cash + winner.assets.reduce((s, a) => s + sellValue(a), 0)
+  const backHref = kidId ? `/kid/${kidId}/play` : "/select-kid"
 
   return (
-    <div className={`min-h-screen ${cc.bg} flex flex-col items-center justify-center p-6 text-center`}>
+    <div className={`min-h-screen ${cc.bg} flex flex-col items-center justify-center p-6 text-center relative`}>
+      <Link href={backHref} className="absolute top-3 left-4 text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1 bg-white/80 px-3 py-1.5 rounded-full">
+        ← Games
+      </Link>
       {/* Confetti rain */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         {CONFETTI_EMOJIS.map((e, i) => (

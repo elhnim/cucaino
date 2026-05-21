@@ -57,6 +57,7 @@ export default function MoneyTownGame({ kidName, kidId }: Props) {
       <WinScreen
         winner={winner}
         round={state.round}
+        kidId={kidId}
         onPlayAgain={() => dispatch({ type: 'RESTORE', state: createInitialState() })}
       />
     )

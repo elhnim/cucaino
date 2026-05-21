@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { generateWordDetective } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "loading" | "guessing" | "won" | "lost";
@@ -14,6 +15,7 @@ interface WordDetectiveProps {
 }
 
 export default function WordDetective({ kidId, sparksBalance }: WordDetectiveProps) {
+  const backHref = `/play/arcade${kidId ? `?kid=${kidId}` : ""}`;
   const [gameState, setGameState] = useState<GameState>("idle");
   const [data, setData] = useState<{ word: string; clues: string[] } | null>(null);
   const [currentClueIndex, setCurrentClueIndex] = useState(0);
@@ -96,6 +98,9 @@ export default function WordDetective({ kidId, sparksBalance }: WordDetectivePro
         className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
         style={{ background: "linear-gradient(160deg, #f59e0b 0%, #f97316 50%, #fbbf24 100%)" }}
       >
+        <Link href={backHref} className="absolute top-3 left-4 text-sm font-bold text-white/90 hover:text-white flex items-center gap-1">
+          ← Arcade
+        </Link>
         <style>{`
           @keyframes float-wd {
             0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 1; }

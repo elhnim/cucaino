@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { generateWhatAmI } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "loading" | "guessing" | "won" | "lost";
@@ -21,6 +22,7 @@ interface WhatAmIProps {
 }
 
 export default function WhatAmI({ kidId, sparksBalance }: WhatAmIProps) {
+  const backHref = `/play/arcade${kidId ? `?kid=${kidId}` : ""}`;
   const [gameState, setGameState] = useState<GameState>("idle");
   const [category, setCategory] = useState("animal");
   const [data, setData] = useState<{ answer: string; clues: string[] } | null>(null);
@@ -104,6 +106,9 @@ export default function WhatAmI({ kidId, sparksBalance }: WhatAmIProps) {
         className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
         style={{ background: "linear-gradient(160deg, #0ea5e9 0%, #06b6d4 50%, #67e8f9 100%)" }}
       >
+        <Link href={backHref} className="absolute top-3 left-4 text-sm font-bold text-white/90 hover:text-white flex items-center gap-1">
+          ← Arcade
+        </Link>
         <style>{`
           @keyframes float {
             0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 1; }

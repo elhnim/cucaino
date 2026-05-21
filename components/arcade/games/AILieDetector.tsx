@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { askLieDetectorQuestion } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "playing" | "result_caught" | "result_fooled";
@@ -16,6 +17,7 @@ interface AILieDetectorProps {
 }
 
 export default function AILieDetector({ kidId, sparksBalance }: AILieDetectorProps) {
+  const backHref = `/play/arcade${kidId ? `?kid=${kidId}` : ""}`;
   const [gameState, setGameState] = useState<GameState>("idle");
   const [statements, setStatements] = useState<[string, string, string]>(["", "", ""]);
   const [lieIndex, setLieIndex] = useState<1 | 2 | 3 | null>(null);
@@ -149,6 +151,9 @@ export default function AILieDetector({ kidId, sparksBalance }: AILieDetectorPro
         className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
         style={{ background: "linear-gradient(160deg, #e11d48 0%, #f43f5e 50%, #fda4af 100%)" }}
       >
+        <Link href={backHref} className="absolute top-3 left-4 text-sm font-bold text-white/90 hover:text-white flex items-center gap-1">
+          ← Arcade
+        </Link>
         <style>{`
           @keyframes float-lie {
             0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 1; }

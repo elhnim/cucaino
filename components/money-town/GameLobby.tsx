@@ -62,17 +62,20 @@ export default function GameLobby({ kidName, kidId, dispatch }: Props) {
   const backHref = kidId ? `/kid/${kidId}/play` : "/select-kid"
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-green-50 p-4 pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-green-50 flex flex-col">
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <Link
+          href={backHref}
+          className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1"
+        >
+          ← Games
+        </Link>
+        <span className="font-black text-gray-900">💰 Money Town</span>
+        <div className="w-16" />
+      </header>
+      <div className="flex-1 overflow-y-auto p-4 pb-8">
       <div className="max-w-md mx-auto">
-        <div className="flex items-center gap-3 pt-4 mb-2">
-          <Link
-            href={backHref}
-            className="text-sm font-bold text-yellow-800/60 hover:text-yellow-900 flex items-center gap-1 shrink-0"
-          >
-            ← Games
-          </Link>
-        </div>
-        <h1 className="text-3xl font-black text-center text-yellow-900 mb-1">💰 Money Town</h1>
+        <h1 className="text-3xl font-black text-center text-yellow-900 mb-1 pt-4">💰 Money Town</h1>
         <p className="text-center text-sm text-yellow-700 mb-6">
           Escape the Rat Race! First to build enough passive income wins.
         </p>
@@ -162,6 +165,7 @@ export default function GameLobby({ kidName, kidId, dispatch }: Props) {
         </button>
 
         <p className="text-center text-xs text-gray-400 mt-3">2–4 players · Pass the device between turns</p>
+      </div>
       </div>
     </div>
   )

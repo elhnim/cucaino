@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { askStumpQuestion } from "@/lib/actions/arcade";
 
 type GameState = "idle" | "thinking" | "playing" | "ai_won" | "kid_won";
@@ -33,6 +34,7 @@ function extractGuess(content: string): string {
 }
 
 export default function StumpTheAI({ kidId, sparksBalance }: StumpTheAIProps) {
+  const backHref = `/play/arcade${kidId ? `?kid=${kidId}` : ""}`;
   const [gameState, setGameState] = useState<GameState>("idle");
   const [category, setCategory] = useState("Animals");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -155,6 +157,9 @@ export default function StumpTheAI({ kidId, sparksBalance }: StumpTheAIProps) {
         className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
         style={{ background: "linear-gradient(160deg, #16a34a 0%, #22c55e 50%, #86efac 100%)" }}
       >
+        <Link href={backHref} className="absolute top-3 left-4 text-sm font-bold text-white/90 hover:text-white flex items-center gap-1">
+          ← Arcade
+        </Link>
         <style>{`
           @keyframes float-stump {
             0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 1; }
