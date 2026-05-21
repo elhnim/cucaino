@@ -121,14 +121,14 @@ export default function KidShell({
   const pathname = usePathname();
   const router = useRouter();
 
-  function navigateWithTransition(href: string) {
+  const navigateWithTransition = useCallback((href: string) => {
     if (typeof document !== "undefined" && "startViewTransition" in document) {
-      (document as Document & { startViewTransition: (cb: () => void) => void })
-        .startViewTransition(() => router.push(href));
+      (document as Document & { startViewTransition: (cb: () => Promise<void>) => void })
+        .startViewTransition(async () => { router.push(href); });
     } else {
       router.push(href);
     }
-  }
+  }, [router]);
 
   const active: NavKey = activeProp ?? (
     pathname.includes("/todo") ? "todo"
