@@ -33,3 +33,23 @@
     100% { transform: translateY(300px) rotate(720deg); opacity: 0; }
   }
 }
+
+/* View transitions for bottom-nav tab switches */
+@supports (view-transition-name: none) {
+  ::view-transition-old(root) {
+    animation: 180ms ease-out both cucaino-fade-out;
+  }
+  ::view-transition-new(root) {
+    animation: 180ms ease-in both cucaino-fade-in;
+  }
+
+  @keyframes cucaino-fade-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+
+  @keyframes cucaino-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
