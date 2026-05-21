@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import type { Kid, BadgeProgress, UnlockedBadge } from "@/lib/domain/types";
@@ -119,6 +119,17 @@ export default function KidShell({
   weatherLocation?: { lat: number; lon: number };
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  function navigateWithTransition(href: string) {
+    if (typeof document !== "undefined" && "startViewTransition" in document) {
+      (document as Document & { startViewTransition: (cb: () => void) => void })
+        .startViewTransition(() => router.push(href));
+    } else {
+      router.push(href);
+    }
+  }
+
   const active: NavKey = activeProp ?? (
     pathname.includes("/todo") ? "todo"
     : pathname.includes("/rewards") ? "rewards"
@@ -309,16 +320,19 @@ export default function KidShell({
       <nav className="bg-white border-t border-gray-100 flex flex-shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {NAV_ITEMS.map((item) => {
           const isActive = item.key === active;
+          const href = item.href(kid.id);
           return (
-            <Link
+            <button
               key={item.key}
-              href={item.href(kid.id)}
-              onClick={(e) => {
+              type="button"
+              onPointerDown={() => router.prefetch(href)}
+              onClick={() => {
                 if (isQuizActive && !window.confirm("Leave the quiz? Your progress will be lost.")) {
-                  e.preventDefault();
+                  return;
                 }
+                navigateWithTransition(href);
               }}
-              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5"
+              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 bg-transparent border-0 cursor-pointer"
             >
               <span style={{ color: isActive ? theme.accent : "#9ca3af" }}>
                 <NavIcon name={item.icon} size={22} />
@@ -329,7 +343,7 @@ export default function KidShell({
               >
                 {item.label}
               </span>
-            </Link>
+            </button>
           );
         })}
       </nav>
