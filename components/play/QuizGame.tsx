@@ -148,14 +148,16 @@ export default function QuizGame({
   // ---------- SETUP ----------
   if (mode === "setup") {
     return (
-      <div className="p-4 pb-6">
-        <div className="max-w-2xl mx-auto">
-          <Link
-            href={backHref}
-            className="inline-flex items-center gap-1.5 bg-fuchsia-100 hover:bg-fuchsia-200 text-fuchsia-700 font-bold text-sm px-4 py-2 rounded-2xl transition-colors mb-4"
-          >
+      <div className="flex flex-col">
+        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+          <Link href={backHref} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
             ← Back to quizzes
           </Link>
+          <span className="font-black text-gray-900 truncate px-2">{bankName}</span>
+          <div className="w-24" />
+        </header>
+        <div className="p-4 pb-6">
+        <div className="max-w-2xl mx-auto">
           <div className="bg-white rounded-3xl shadow-xl p-6 md:p-8">
             <div className="text-xs font-bold text-fuchsia-600 mb-1">QUIZ</div>
             <h1 className="text-3xl md:text-4xl font-black mb-1">{bankName}</h1>
@@ -252,6 +254,7 @@ export default function QuizGame({
               ▶ Start {questions.length} questions
             </button>
           </div>
+        </div>
         </div>
       </div>
     );
@@ -368,46 +371,47 @@ export default function QuizGame({
 
   // ---------- FINISHED ----------
   return (
-    <div className="p-4 flex flex-col items-center justify-center min-h-[60vh]">
-      <div className="max-w-xl w-full bg-white rounded-3xl shadow-xl p-8 text-center">
-        <div className="text-6xl mb-4">🏆</div>
-        <h1 className="text-3xl font-black mb-2">
-          {ranking[0] ? `${ranking[0].player.name} wins!` : "Game over!"}
-        </h1>
-        <p className="text-sm text-gray-600 mb-6">{bankName}</p>
+    <div className="flex flex-col">
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <Link href={backHref} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
+          ← Quizzes
+        </Link>
+        <span className="font-black text-gray-900">{bankName}</span>
+        <div className="w-16" />
+      </header>
+      <div className="p-4 flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="max-w-xl w-full bg-white rounded-3xl shadow-xl p-8 text-center">
+          <div className="text-6xl mb-4">🏆</div>
+          <h1 className="text-3xl font-black mb-2">
+            {ranking[0] ? `${ranking[0].player.name} wins!` : "Game over!"}
+          </h1>
+          <p className="text-sm text-gray-600 mb-6">{bankName}</p>
 
-        <div className="space-y-2 mb-6">
-          {ranking.map((r, idx) => (
-            <div
-              key={r.player.id}
-              className={`flex items-center gap-3 p-3 rounded-xl ${
-                idx === 0
-                  ? "bg-yellow-50 border-2 border-yellow-300"
-                  : "bg-gray-50"
-              }`}
-            >
-              <span className="text-2xl w-8">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</span>
-              <span className="text-3xl">{r.player.avatar}</span>
-              <span className="font-bold flex-1 text-left">{r.player.name}</span>
-              <span className="font-black text-lg">{r.score} ⭐</span>
-            </div>
-          ))}
-        </div>
+          <div className="space-y-2 mb-6">
+            {ranking.map((r, idx) => (
+              <div
+                key={r.player.id}
+                className={`flex items-center gap-3 p-3 rounded-xl ${
+                  idx === 0
+                    ? "bg-yellow-50 border-2 border-yellow-300"
+                    : "bg-gray-50"
+                }`}
+              >
+                <span className="text-2xl w-8">{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</span>
+                <span className="text-3xl">{r.player.avatar}</span>
+                <span className="font-bold flex-1 text-left">{r.player.name}</span>
+                <span className="font-black text-lg">{r.score} ⭐</span>
+              </div>
+            ))}
+          </div>
 
-        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={start}
-            className="bg-gray-100 hover:bg-gray-200 font-bold py-3 rounded-xl"
+            className="w-full bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-black text-lg py-4 rounded-2xl shadow-lg"
           >
             🔁 Play again
           </button>
-          <Link
-            href={backHref}
-            className="bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-bold py-3 rounded-xl text-center"
-          >
-            New quiz →
-          </Link>
         </div>
       </div>
     </div>
