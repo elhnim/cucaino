@@ -1,6 +1,7 @@
 "use client"
 
-import { useReducer, useEffect, useState } from "react"
+import { useReducer, useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { gameReducer, createInitialState } from "@/lib/money-town/gameLogic"
 import type { GameState } from "@/lib/money-town/types"
 import type { Kid } from "@/lib/domain/types"
@@ -32,7 +33,13 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
     return createInitialState()
   })
 
+  const router = useRouter()
   const [rulesOpen, setRulesOpen] = useState(false)
+
+  const handleExit = useCallback(() => {
+    dispatch({ type: 'NEW_GAME' })
+    router.push(activeKidId ? `/kid/${activeKidId}/play` : '/select-kid')
+  }, [activeKidId, dispatch, router])
 
   // Persist state
   useEffect(() => {
@@ -92,6 +99,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
         state={state}
         dispatch={dispatch}
         onHowToPlay={() => setRulesOpen(true)}
+        onExit={handleExit}
       />
 
       {state.phase === 'lever' && (

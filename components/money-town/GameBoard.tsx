@@ -8,9 +8,10 @@ interface Props {
   state: GameState
   dispatch: (action: GameAction) => void
   onHowToPlay: () => void
+  onExit: () => void
 }
 
-export default function GameBoard({ state, dispatch, onHowToPlay }: Props) {
+export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Props) {
   const { players, currentPlayerIndex, round, phase, pendingPayday } = state
   const currentPlayer = players[currentPlayerIndex]
   const [confirmExit, setConfirmExit] = useState(false)
@@ -54,7 +55,7 @@ export default function GameBoard({ state, dispatch, onHowToPlay }: Props) {
             <h2 className="text-xl font-black text-gray-900 mb-2">Quit the game?</h2>
             <p className="text-sm text-gray-500 mb-5">Your progress will be lost.</p>
             <button type="button"
-              onClick={() => dispatch({ type: 'NEW_GAME' })}
+              onClick={onExit}
               className="w-full py-3 bg-red-500 text-white font-black rounded-2xl mb-2 active:scale-95 transition-transform">
               Yes, quit
             </button>
