@@ -35,7 +35,7 @@
 }
 
 /* View transitions for bottom-nav tab switches */
-@supports (view-transition-name: none) {
+@supports selector(::view-transition) {
   ::view-transition-old(root) {
     animation: 180ms ease-out both cucaino-fade-out;
   }
