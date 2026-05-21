@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { pickTriviaQuestions } from "@/lib/money-town/gameLogic"
-import type { TriviaQuestion } from "@/lib/money-town/types"
+import type { TriviaQuestion } from "@/lib/money-town/constants"
 
 interface Props {
   usedTriviaIds: string[]

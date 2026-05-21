@@ -1,6 +1,11 @@
 "use client"
 
-import type { PendingMinigame, GameAction } from "@/lib/money-town/types"
+import type { GameAction, ReflexGameId } from "@/lib/money-town/types"
+
+interface PendingMinigame {
+  type: 'reflex' | 'trivia'
+  reflexGameId?: ReflexGameId
+}
 import Trivia from "./Trivia"
 import CoinRain from "./games/CoinRain"
 import LemonSqueeze from "./games/LemonSqueeze"
