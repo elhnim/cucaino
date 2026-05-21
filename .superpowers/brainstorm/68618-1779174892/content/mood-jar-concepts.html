@@ -1,0 +1,134 @@
+<h2>Mood Jar — Visual Style</h2>
+<p class="subtitle">Three ways to visualise the jar. Which feels right for your kids?</p>
+
+<div class="cards">
+
+  <!-- Option A: Bubble Jar -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 20px; background: #fef9f0; display:flex; flex-direction:column; align-items:center; gap:8px;">
+      <div style="font-size:11px; font-weight:700; color:#92400e; letter-spacing:0.05em; text-transform:uppercase;">Today's Jar</div>
+      <!-- Jar SVG with bubbles -->
+      <div style="position:relative; width:90px; height:110px;">
+        <!-- Jar body -->
+        <svg width="90" height="110" viewBox="0 0 90 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Jar outline -->
+          <rect x="15" y="20" width="60" height="80" rx="8" fill="white" stroke="#d97706" stroke-width="2.5"/>
+          <!-- Jar neck -->
+          <rect x="25" y="10" width="40" height="14" rx="4" fill="white" stroke="#d97706" stroke-width="2.5"/>
+          <!-- Lid -->
+          <rect x="22" y="6" width="46" height="8" rx="4" fill="#d97706"/>
+          <!-- Fill level (70%) -->
+          <clipPath id="jarClip">
+            <rect x="16" y="21" width="58" height="78" rx="7"/>
+          </clipPath>
+          <rect x="16" y="43" width="58" height="56" rx="0" fill="#fde68a" clip-path="url(#jarClip)"/>
+        </svg>
+        <!-- Floating emoji bubbles inside jar -->
+        <div style="position:absolute; top:35px; left:18px; font-size:20px; animation: none;">😊</div>
+        <div style="position:absolute; top:55px; left:38px; font-size:18px;">😢</div>
+        <div style="position:absolute; top:72px; left:22px; font-size:16px;">😠</div>
+        <div style="position:absolute; top:60px; left:55px; font-size:18px;">😊</div>
+        <div style="position:absolute; top:80px; left:48px; font-size:15px;">😌</div>
+      </div>
+      <!-- Tap to add -->
+      <div style="display:flex; gap:6px; margin-top:4px;">
+        <span style="font-size:18px; background:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.15); cursor:pointer;">😊</span>
+        <span style="font-size:18px; background:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.15);">😢</span>
+        <span style="font-size:18px; background:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.15);">😠</span>
+        <span style="font-size:18px; background:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.15);">😌</span>
+        <span style="font-size:18px; background:white; border-radius:50%; width:32px; height:32px; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.15);">🤩</span>
+      </div>
+      <div style="font-size:10px; color:#92400e; font-weight:600;">Tap a mood → drops into jar</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Bubble Jar</h3>
+      <p>Each mood tap drops an emoji bubble into the jar. The jar fills up throughout the day. Playful and literal — you can see the mix of moods at a glance.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Color Wave Jar -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 20px; background: #f0fdf4; display:flex; flex-direction:column; align-items:center; gap:8px;">
+      <div style="font-size:11px; font-weight:700; color:#166534; letter-spacing:0.05em; text-transform:uppercase;">Today's Jar</div>
+      <div style="position:relative; width:90px; height:110px;">
+        <svg width="90" height="110" viewBox="0 0 90 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="15" y="20" width="60" height="80" rx="8" fill="white" stroke="#16a34a" stroke-width="2.5"/>
+          <rect x="25" y="10" width="40" height="14" rx="4" fill="white" stroke="#16a34a" stroke-width="2.5"/>
+          <rect x="22" y="6" width="46" height="8" rx="4" fill="#16a34a"/>
+          <clipPath id="jarClip2">
+            <rect x="16" y="21" width="58" height="78" rx="7"/>
+          </clipPath>
+          <!-- Layered mood colors: angry (red) at bottom, then sad (blue), then calm (green), happy (yellow) on top -->
+          <rect x="16" y="82" width="58" height="16" fill="#fca5a5" clip-path="url(#jarClip2)"/>
+          <rect x="16" y="68" width="58" height="14" fill="#93c5fd" clip-path="url(#jarClip2)"/>
+          <rect x="16" y="52" width="58" height="16" fill="#86efac" clip-path="url(#jarClip2)"/>
+          <rect x="16" y="36" width="58" height="16" fill="#fde68a" clip-path="url(#jarClip2)"/>
+          <!-- Wave line between layers -->
+          <path d="M16 52 Q45 48 74 52" stroke="white" stroke-width="1" opacity="0.5" clip-path="url(#jarClip2)"/>
+          <path d="M16 68 Q45 64 74 68" stroke="white" stroke-width="1" opacity="0.5" clip-path="url(#jarClip2)"/>
+          <path d="M16 82 Q45 78 74 82" stroke="white" stroke-width="1" opacity="0.5" clip-path="url(#jarClip2)"/>
+        </svg>
+        <!-- Emoji labels -->
+        <div style="position:absolute; top:28px; left:50%; transform:translateX(-50%); font-size:14px;">😊</div>
+        <div style="position:absolute; top:46px; left:50%; transform:translateX(-50%); font-size:12px;">😌</div>
+        <div style="position:absolute; top:61px; left:50%; transform:translateX(-50%); font-size:12px;">😢</div>
+        <div style="position:absolute; top:76px; left:50%; transform:translateX(-50%); font-size:12px;">😠</div>
+      </div>
+      <div style="display:flex; gap:4px; margin-top:4px;">
+        <span style="font-size:10px; background:#fde68a; border-radius:999px; padding:2px 8px; font-weight:700;">😊 3×</span>
+        <span style="font-size:10px; background:#86efac; border-radius:999px; padding:2px 8px; font-weight:700;">😌 2×</span>
+        <span style="font-size:10px; background:#93c5fd; border-radius:999px; padding:2px 8px; font-weight:700;">😢 1×</span>
+      </div>
+      <div style="font-size:10px; color:#166534; font-weight:600;">Layers show proportion of each mood</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Colour Layers</h3>
+      <p>Each mood has a colour. The jar fills in coloured layers proportional to how often each mood was logged. Shows the balance of the day at a glance.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Timeline strip -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding: 20px; background: #f5f3ff; display:flex; flex-direction:column; align-items:center; gap:6px;">
+      <div style="font-size:11px; font-weight:700; color:#5b21b6; letter-spacing:0.05em; text-transform:uppercase;">How I felt today</div>
+      <!-- Big current mood -->
+      <div style="font-size:48px; line-height:1;">😊</div>
+      <div style="font-size:12px; font-weight:800; color:#5b21b6;">Happy</div>
+      <!-- Tap row -->
+      <div style="display:flex; gap:6px; margin: 4px 0;">
+        <span style="font-size:22px; background:#ede9fe; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:2px solid #8b5cf6;">😊</span>
+        <span style="font-size:22px; background:white; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:2px solid #e5e7eb;">😢</span>
+        <span style="font-size:22px; background:white; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:2px solid #e5e7eb;">😠</span>
+        <span style="font-size:22px; background:white; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:2px solid #e5e7eb;">😌</span>
+        <span style="font-size:22px; background:white; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border:2px solid #e5e7eb;">🤩</span>
+      </div>
+      <!-- Today's log strip -->
+      <div style="display:flex; gap:4px; align-items:center; background:white; border-radius:12px; padding:6px 10px; width:100%; justify-content:center;">
+        <div style="text-align:center;">
+          <div style="font-size:14px;">😊</div>
+          <div style="font-size:8px; color:#9ca3af;">8am</div>
+        </div>
+        <div style="width:16px; height:1px; background:#e5e7eb;"></div>
+        <div style="text-align:center;">
+          <div style="font-size:14px;">😢</div>
+          <div style="font-size:8px; color:#9ca3af;">11am</div>
+        </div>
+        <div style="width:16px; height:1px; background:#e5e7eb;"></div>
+        <div style="text-align:center;">
+          <div style="font-size:14px;">😌</div>
+          <div style="font-size:8px; color:#9ca3af;">2pm</div>
+        </div>
+        <div style="width:16px; height:1px; background:#e5e7eb;"></div>
+        <div style="text-align:center;">
+          <div style="font-size:14px;">😊</div>
+          <div style="font-size:8px; color:#9ca3af;">4pm</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Mood Timeline</h3>
+      <p>Shows the current mood big and bold. Below it, a timeline strip of today's entries with timestamps. No jar metaphor — cleaner but less whimsical.</p>
+    </div>
+  </div>
+
+</div>

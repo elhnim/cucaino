@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cucaino — Raise a self-directed kid</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --indigo-50:  #eef2ff;
+      --indigo-100: #e0e7ff;
+      --indigo-200: #c7d2fe;
+      --indigo-500: #6366f1;
+      --indigo-600: #4f46e5;
+      --indigo-700: #4338ca;
+      --indigo-900: #312e81;
+      --indigo-950: #1e1b4b;
+      --purple-50:  #faf5ff;
+      --pink-100:   #fce7f3;
+      --orange:     #f97316;
+      --orange-dark: #ea6c06;
+      --orange-light: #fff7ed;
+      --white: #ffffff;
+      --gray-50:  #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --text: #111827;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      color: var(--text);
+      background: var(--white);
+      line-height: 1.6;
+    }
+
+    /* ── FOUNDING BANNER ── */
+    .founding-banner {
+      background: var(--orange);
+      color: white;
+      text-align: center;
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 5%;
+      background: white;
+      border-bottom: 1px solid var(--gray-200);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo {
+      font-size: 1.6rem;
+      font-weight: 900;
+      color: var(--indigo-900);
+      letter-spacing: -0.5px;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .nav-link {
+      color: var(--gray-500);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .nav-link:hover { color: var(--indigo-900); }
+    .btn-nav {
+      background: var(--orange);
+      color: white;
+      padding: 10px 22px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+    .btn-nav:hover { background: var(--orange-dark); }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, var(--indigo-100) 0%, var(--purple-50) 50%, var(--pink-100) 100%);
+      padding: 70px 5% 80px;
+    }
+    .hero-inner {
+      max-width: 1160px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      color: var(--indigo-700);
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 800;
+      margin-bottom: 22px;
+      box-shadow: 0 2px 8px rgba(99,102,241,0.15);
+    }
+    h1 {
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--indigo-950);
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      margin-bottom: 18px;
+    }
+    h1 em {
+      font-style: normal;
+      color: var(--indigo-600);
+    }
+    .hero-sub {
+      font-size: 1.1rem;
+      color: var(--indigo-700);
+      font-weight: 600;
+      max-width: 460px;
+      margin-bottom: 34px;
+      line-height: 1.7;
+    }
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--orange);
+      color: white;
+      padding: 16px 32px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 1.05rem;
+      font-weight: 900;
+      box-shadow: 0 4px 20px rgba(249,115,22,0.35);
+    }
+    .btn-primary:hover { background: var(--orange-dark); }
+    .cta-note {
+      margin-top: 12px;
+      font-size: 0.85rem;
+      color: var(--indigo-700);
+      font-weight: 600;
+      display: flex;
+      gap: 16px;
+    }
+    .cta-note span::before { content: "✓ "; color: #10b981; }
+
+    /* ── TABLET MOCKUP ── */
+    .hero-right { display: flex; justify-content: center; }
+    .tablet-frame {
+      background: #1e1b4b;
+      border-radius: 28px;
+      padding: 14px;
+      box-shadow: 0 30px 70px rgba(30,27,75,0.3);
+      width: 360px;
+    }
+    .tablet-screen {
+      background: var(--gray-100);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .app-bar {
+      background: linear-gradient(135deg, var(--indigo-700), var(--indigo-600));
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .app-bar-name { color: white; font-weight: 800; font-size: 0.95rem; }
+    .app-bar-pts {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+    .app-streak-bar {
+      background: #fff7ed;
+      border-bottom: 1px solid #fed7aa;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: #9a3412;
+    }
+    .app-section-head {
+      padding: 12px 16px 6px;
+      background: white;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    .app-section-head p { font-size: 0.75rem; color: var(--gray-500); font-weight: 600; }
+    .app-section-head h3 { font-size: 1rem; font-weight: 900; color: var(--indigo-950); }
+    .habit-list { padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
+    .habit-row {
+      background: white;
+      border-radius: 14px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1.5px solid var(--gray-200);
+    }
+    .habit-row.done { background: #f0fdf4; border-color: #bbf7d0; }
+    .habit-icon { font-size: 1.2rem; }
+    .habit-name { font-size: 0.83rem; font-weight: 700; flex: 1; color: var(--indigo-950); }
+    .habit-name.struck { color: var(--gray-500); text-decoration: line-through; font-weight: 600; }
+    .habit-streak { font-size: 0.72rem; font-weight: 800; color: var(--orange); }
+    .habit-tick {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--gray-200);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem;
+    }
+    .habit-tick.ticked { background: #10b981; border-color: #10b981; color: white; }
+    .practice-card {
+      margin: 0 12px 12px;
+      background: linear-gradient(135deg, var(--indigo-700), #7c3aed);
+      border-radius: 16px;
+      padding: 14px;
+      color: white;
+    }
+    .practice-card .label { font-size: 0.72rem; font-weight: 700; opacity: 0.75; margin-bottom: 4px; }
+    .practice-card .title { font-size: 0.9rem; font-weight: 900; margin-bottom: 10px; }
+    .bar-bg { background: rgba(255,255,255,0.2); border-radius: 4px; height: 6px; }
+    .bar-fill { background: var(--orange); border-radius: 4px; height: 6px; width: 58%; }
+    .bar-meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.7rem; opacity: 0.8; font-weight: 700; }
+
+    /* ── PAIN ── */
+    .pain {
+      padding: 70px 5%;
+      background: white;
+      text-align: center;
+    }
+    .section-eyebrow {
+      font-size: 0.82rem;
+      font-weight: 800;
+      color: var(--indigo-600);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
+    }
+    .section-title {
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--indigo-950);
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+    .section-sub {
+      font-size: 1rem;
+      color: var(--gray-500);
+      font-weight: 600;
+      margin-bottom: 44px;
+    }
+    .card-row {
+      display: flex;
+      gap: 20px;
+      max-width: 960px;
+      margin: 0 auto;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .pain-card {
+      background: linear-gradient(135deg, var(--indigo-100), var(--purple-50));
+      border-radius: 24px;
+      padding: 28px;
+      flex: 1;
+      min-width: 240px;
+      text-align: left;
+    }
+    .pain-emoji { font-size: 2rem; margin-bottom: 12px; }
+    .pain-card h4 { font-size: 1rem; font-weight: 800; color: var(--indigo-950); margin-bottom: 8px; }
+    .pain-card p { font-size: 0.88rem; color: var(--indigo-700); font-weight: 600; line-height: 1.6; }
+
+    /* ── FEATURES ── */
+    .features {
+      padding: 70px 5%;
+      background: linear-gradient(135deg, var(--indigo-100) 0%, var(--purple-50) 50%, var(--pink-100) 100%);
+    }
+    .features-inner { max-width: 1100px; margin: 0 auto; }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .feature-card {
+      background: white;
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.08);
+    }
+    .feature-icon { font-size: 2rem; margin-bottom: 12px; }
+    .feature-card h3 { font-size: 1rem; font-weight: 800; color: var(--indigo-950); margin-bottom: 8px; }
+    .feature-card p { font-size: 0.88rem; color: var(--gray-600); font-weight: 600; line-height: 1.6; }
+
+    /* ── HOW IT WORKS ── */
+    .how {
+      padding: 70px 5%;
+      background: var(--indigo-950);
+      color: white;
+      text-align: center;
+    }
+    .how .section-eyebrow { color: rgba(255,255,255,0.5); }
+    .how .section-title { color: white; }
+    .how .section-sub { color: rgba(255,255,255,0.6); margin-bottom: 50px; }
+    .steps {
+      display: flex;
+      gap: 20px;
+      max-width: 900px;
+      margin: 0 auto;
+      justify-content: center;
+    }
+    .step {
+      flex: 1;
+      background: rgba(255,255,255,0.07);
+      border-radius: 24px;
+      padding: 32px 24px;
+    }
+    .step-num {
+      width: 44px; height: 44px;
+      background: var(--orange);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 900;
+      margin: 0 auto 16px;
+      color: white;
+    }
+    .step h4 { font-size: 1rem; font-weight: 900; margin-bottom: 10px; }
+    .step p { font-size: 0.88rem; opacity: 0.7; line-height: 1.6; font-weight: 600; }
+
+    /* ── FOUNDING ── */
+    .founding {
+      padding: 80px 5%;
+      background: white;
+      text-align: center;
+    }
+    .founding-pill {
+      display: inline-block;
+      background: var(--orange-light);
+      color: var(--orange);
+      border: 2px solid var(--orange);
+      padding: 6px 18px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 20px;
+    }
+    .founding h2 {
+      font-size: 2.6rem;
+      font-weight: 900;
+      color: var(--indigo-950);
+      letter-spacing: -1px;
+      margin-bottom: 14px;
+    }
+    .founding p {
+      color: var(--gray-500);
+      font-size: 1.05rem;
+      font-weight: 600;
+      max-width: 500px;
+      margin: 0 auto 32px;
+      line-height: 1.7;
+    }
+    .spots-widget {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--indigo-50);
+      border: 2px solid var(--indigo-200);
+      border-radius: 20px;
+      padding: 14px 24px;
+      margin-bottom: 30px;
+      font-weight: 800;
+      color: var(--indigo-900);
+      font-size: 0.9rem;
+    }
+    .dots { display: flex; gap: 6px; }
+    .dot { width: 13px; height: 13px; border-radius: 50%; }
+    .dot.taken { background: var(--indigo-500); }
+    .dot.open { background: var(--gray-200); }
+    .founding .btn-primary { font-size: 1.1rem; padding: 18px 44px; margin-bottom: 14px; display: inline-flex; }
+    .founding-note { font-size: 0.85rem; color: var(--gray-500); font-weight: 600; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--gray-100);
+      padding: 28px 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--gray-500);
+      font-weight: 600;
+    }
+    footer a { color: var(--gray-500); text-decoration: none; }
+    footer a:hover { color: var(--indigo-900); }
+    footer .footer-links { display: flex; gap: 20px; }
+
+    @media (max-width: 768px) {
+      .hero-inner { grid-template-columns: 1fr; gap: 40px; }
+      h1 { font-size: 2.3rem; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .steps { flex-direction: column; }
+      footer { flex-direction: column; gap: 10px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- FOUNDING BANNER -->
+  <div class="founding-banner">
+    ⚡ 20 families get Cucaino free — forever. 3 spots remaining.
+  </div>
+
+  <!-- NAV -->
+  <nav>
+    <div class="logo">Cucaino</div>
+    <div class="nav-links">
+      <a href="#how" class="nav-link">How it works</a>
+      <a href="#features" class="nav-link">Features</a>
+      <a href="/login" class="nav-link">Sign in</a>
+      <a href="/signup" class="btn-nav">Get free access →</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-inner">
+
+      <div class="hero-left">
+        <div class="hero-badge">✨ The habit-building app for kids</div>
+        <h1>Raise a kid who doesn't need <em>reminding.</em></h1>
+        <p class="hero-sub">
+          Mornings without the battle. Piano practice that actually happens. A child who does the right thing — because it's just who they are now. That's what Cucaino builds.
+        </p>
+        <a href="/signup" class="btn-primary">Claim your founding spot — free forever →</a>
+        <div class="cta-note">
+          <span>Free forever for the first 20 families</span>
+          <span>No credit card required</span>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <div class="tablet-frame">
+          <div class="tablet-screen">
+            <div class="app-bar">
+              <span class="app-bar-name">Hey, Lily 👋</span>
+              <span class="app-bar-pts">⭐ 240 pts</span>
+            </div>
+            <div class="app-streak-bar">
+              🔥 14-day streak — You're becoming a musician!
+            </div>
+            <div class="app-section-head">
+              <p>Thursday morning</p>
+              <h3>3 habits to go</h3>
+            </div>
+            <div class="habit-list">
+              <div class="habit-row done">
+                <span class="habit-icon">🎒</span>
+                <span class="habit-name struck">Pack school bag</span>
+                <span class="habit-tick ticked">✓</span>
+              </div>
+              <div class="habit-row done">
+                <span class="habit-icon">🥣</span>
+                <span class="habit-name struck">Breakfast + teeth</span>
+                <span class="habit-tick ticked">✓</span>
+              </div>
+              <div class="habit-row">
+                <span class="habit-icon">🎹</span>
+                <span class="habit-name">Piano practice</span>
+                <span class="habit-streak">🔥 14</span>
+                <span class="habit-tick"></span>
+              </div>
+              <div class="habit-row">
+                <span class="habit-icon">📖</span>
+                <span class="habit-name">Reading (10 min)</span>
+                <span class="habit-streak">🔥 7</span>
+                <span class="habit-tick"></span>
+              </div>
+            </div>
+            <div class="practice-card">
+              <div class="label">TODAY'S PRACTICE</div>
+              <div class="title">🎹 Piano · 15 min timer</div>
+              <div class="bar-bg"><div class="bar-fill"></div></div>
+              <div class="bar-meta"><span>9 min done</span><span>6 min left</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- PAIN -->
+  <section class="pain">
+    <div class="section-eyebrow">You know this feeling</div>
+    <h2 class="section-title">You love them.<br/>You're exhausted.</h2>
+    <p class="section-sub">Nagging doesn't build character. It just drains yours.</p>
+    <div class="card-row">
+      <div class="pain-card">
+        <div class="pain-emoji">😤</div>
+        <h4>It's 5:47pm. They still haven't practiced.</h4>
+        <p>You asked at 4. Again at 5. The piano is right there. You can hear your voice getting louder — and you hate the person this daily battle is slowly turning you into.</p>
+      </div>
+      <div class="pain-card">
+        <div class="pain-emoji">🌪️</div>
+        <h4>It's 8:33am. School starts in 12 minutes.</h4>
+        <p>One shoe is missing. The lunch isn't packed. Someone's still in pyjamas watching YouTube. You're in full survival mode and the day hasn't even started.</p>
+      </div>
+      <div class="pain-card">
+        <div class="pain-emoji">📱</div>
+        <h4>You've tried the apps. They work for three weeks.</h4>
+        <p>Then the points stop feeling exciting. The reminders pile up. You're back where you started — except now you feel guilty for giving up on the app too.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="features-inner">
+      <div style="text-align:center;margin-bottom:44px;">
+        <div class="section-eyebrow">How it works</div>
+        <h2 class="section-title">The doing is the tracking.<br/>No logging. No nagging.</h2>
+        <p class="section-sub" style="max-width:560px;margin:10px auto 0;">Built on one insight: the best habit app disappears. Your child does the thing. The habit builds itself.</p>
+      </div>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🌅</div>
+          <h3>Mornings that run themselves</h3>
+          <p>Your child opens the app, sees exactly what's next, and does it. Bag. Breakfast. Teeth. Out the door — calm, on time, proud of themselves. You drink your coffee while it's still hot.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎹</div>
+          <h3>Practice that actually happens</h3>
+          <p>A timer they start themselves. A streak they fight to protect. The argument you've had every evening for months — quietly disappears.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔥</div>
+          <h3>Habits that become identity</h3>
+          <p>After 14 days of practice, Cucaino tells your child: <em>"You're becoming a musician."</em> Identity beats willpower every time. James Clear proved it. We built it for kids.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📱</div>
+          <h3>Screen time as the reward</h3>
+          <p>Games and quizzes unlock after habits are done. Your child stops fighting for screen time — because they know the deal. You stop guarding it. Everyone breathes.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🏆</div>
+          <h3>Rewards they actually want</h3>
+          <p>A sleepover. A treat. Extra screen time. You set the rewards. They earn them honestly. No gaming the system — the habit has to happen first.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📲</div>
+          <h3>The 30 seconds that matter most</h3>
+          <p>Your phone lights up: <em>"Lily finished her practice. 14-day streak 🔥"</em> You send a heart. She sees it on her screen. Small moment. Massive impact.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how" id="how">
+    <div class="section-eyebrow">Getting started</div>
+    <h2 class="section-title">Five minutes to set up.<br/>A lifetime of payoff.</h2>
+    <p class="section-sub">No complicated onboarding. You'll be done before your coffee gets cold.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h4>Set your family's habits</h4>
+        <p>Add your kids. Pick their habits — morning routine, practice, reading. Five minutes. You'll rarely need to touch it again.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h4>Your kids run their own day</h4>
+        <p>They open the tablet. They see what's next. They do it. No parent required. No reminders. No arguments.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h4>Watch them become who you knew they could be</h4>
+        <p>Thirty days in, you'll notice it. They're not waiting to be asked anymore. That's the moment every parent is working towards.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOUNDING OFFER -->
+  <section class="founding">
+    <div class="founding-pill">⚡ Founding Family Offer</div>
+    <h2>Twenty families.<br/>Free forever.<br/>This is that moment.</h2>
+    <p>We're building Cucaino alongside 20 founding families who help shape what it becomes. Your feedback shapes the roadmap. Your family gets the app free — forever. Not a trial. Not a promotional period. <strong>Forever.</strong></p>
+
+    <div class="spots-widget">
+      <span>Spots claimed:</span>
+      <div class="dots">
+        <div class="dot taken"></div>
+        <div class="dot taken"></div>
+        <div class="dot taken"></div>
+        <div class="dot open"></div>
+        <div class="dot open"></div>
+        <div class="dot open"></div>
+        <div class="dot open"></div>
+        <div class="dot open"></div>
+        <div class="dot open"></div>
+        <div class="dot open"></div>
+      </div>
+      <span>3 of 20 claimed</span>
+    </div>
+    <br/>
+    <a href="/signup" class="btn-primary">I want to be a founding family →</a>
+    <p class="founding-note">After 20 families, Cucaino is $10/month. No credit card needed today.</p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="logo">Cucaino</div>
+    <div>© 2026 Cucaino. Built by a parent, for parents.</div>
+    <div class="footer-links">
+      <a href="/login">Sign in</a>
+      <a href="/privacy">Privacy</a>
+      <a href="mailto:hello@cucaino.com">Contact</a>
+    </div>
+  </footer>
+
+</body>
+</html>

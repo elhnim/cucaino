@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Simulator Mockup</title>
+<script src="/helper.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0fdf4; min-height: 100vh; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 900; color: #111; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #6b7280; margin-bottom: 24px; }
+
+  /* Phone frame */
+  .phone-wrap { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .phone { width: 375px; border-radius: 40px; background: #fff; box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06); overflow: hidden; }
+  .phone-label { text-align: center; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 10px; }
+
+  /* KidShell header */
+  .kid-header { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 16px 16px 12px; color: white; }
+  .kid-header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .kid-name { font-size: 16px; font-weight: 900; }
+  .kid-stats { display: flex; gap: 8px; }
+  .stat-pill { background: rgba(255,255,255,0.2); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+
+  /* Tab bar */
+  .tab-bar { display: flex; background: #fff; border-bottom: 1.5px solid #e5e7eb; }
+  .tab { flex: 1; padding: 10px 4px 8px; text-align: center; font-size: 12px; font-weight: 700; color: #9ca3af; cursor: pointer; border-bottom: 2.5px solid transparent; }
+  .tab.active { color: #16a34a; border-bottom-color: #16a34a; }
+
+  /* Page content */
+  .page { padding: 12px; max-height: 600px; overflow-y: auto; }
+
+  /* Balance card */
+  .balance-card { background: linear-gradient(135deg, #16a34a, #065f46); border-radius: 20px; padding: 16px; color: white; margin-bottom: 12px; }
+  .balance-label { font-size: 10px; font-weight: 700; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; }
+  .balance-amount { font-size: 28px; font-weight: 900; margin: 2px 0 6px; }
+  .balance-sub { font-size: 11px; opacity: 0.8; }
+  .balance-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .bal-btn { flex: 1; background: rgba(255,255,255,0.2); border: none; border-radius: 12px; padding: 8px; font-size: 12px; font-weight: 700; color: white; cursor: pointer; text-align: center; }
+  .bal-btn:hover { background: rgba(255,255,255,0.3); }
+
+  /* P&L row */
+  .pl-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .pl-card { flex: 1; background: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: 16px; padding: 10px 12px; }
+  .pl-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; }
+  .pl-value { font-size: 15px; font-weight: 900; margin-top: 2px; }
+  .pl-value.up { color: #16a34a; }
+  .pl-value.down { color: #dc2626; }
+  .pl-value.neutral { color: #374151; }
+
+  /* Holdings */
+  .section-label { font-size: 10px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .holding-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+  .holding-row:last-child { border-bottom: none; }
+  .holding-emoji { font-size: 24px; width: 36px; text-align: center; }
+  .holding-info { flex: 1; min-width: 0; }
+  .holding-name { font-size: 13px; font-weight: 800; color: #111; }
+  .holding-qty { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  .holding-right { text-align: right; }
+  .holding-price { font-size: 13px; font-weight: 800; color: #111; }
+  .holding-change { font-size: 11px; font-weight: 700; margin-top: 1px; }
+  .holding-change.up { color: #16a34a; }
+  .holding-change.down { color: #dc2626; }
+  .sparkline { display: inline-block; }
+
+  /* Market grid */
+  .market-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .asset-card { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 16px; padding: 12px 10px; cursor: pointer; transition: all 0.15s; }
+  .asset-card:hover { border-color: #16a34a; box-shadow: 0 2px 8px rgba(22,163,74,0.12); }
+  .asset-card.owned { border-color: #bbf7d0; background: #f0fdf4; }
+  .asset-emoji { font-size: 26px; margin-bottom: 6px; }
+  .asset-name { font-size: 12px; font-weight: 800; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .asset-price { font-size: 13px; font-weight: 900; color: #374151; margin-top: 3px; }
+  .asset-change { font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .asset-change.up { color: #16a34a; }
+  .asset-change.down { color: #dc2626; }
+  .owned-badge { font-size: 9px; font-weight: 800; background: #16a34a; color: white; border-radius: 6px; padding: 1px 5px; display: inline-block; margin-top: 4px; }
+  .nugget-icon { font-size: 11px; }
+
+  /* Leaderboard */
+  .lb-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+  .lb-rank { width: 24px; text-align: center; font-size: 18px; }
+  .lb-avatar { font-size: 22px; }
+  .lb-name { flex: 1; font-size: 13px; font-weight: 800; color: #111; }
+  .lb-val { text-align: right; }
+  .lb-nuggets { font-size: 12px; font-weight: 700; color: #374151; }
+  .lb-gain { font-size: 11px; font-weight: 700; }
+  .lb-gain.up { color: #16a34a; }
+  .lb-row.me { background: #f0fdf4; border-radius: 12px; padding: 10px 8px; margin: 0 -8px; }
+
+  /* Bottom nav */
+  .bottom-nav { display: flex; border-top: 1.5px solid #e5e7eb; background: #fff; }
+  .nav-item { flex: 1; padding: 8px 4px 10px; text-align: center; font-size: 9px; font-weight: 700; color: #9ca3af; }
+  .nav-item.active { color: #16a34a; }
+  .nav-icon { font-size: 20px; display: block; margin-bottom: 2px; }
+
+  /* SVG sparklines */
+  svg.spark { display: block; }
+
+  /* Sheet overlay */
+  .sheet-wrap { position: relative; }
+  .sheet-overlay { background: rgba(0,0,0,0.35); position: absolute; inset: 0; border-radius: 40px; display: flex; align-items: flex-end; }
+  .sheet { background: #fff; border-radius: 28px 28px 0 0; padding: 20px 16px 24px; width: 100%; }
+  .sheet-handle { width: 40px; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 0 auto 16px; }
+  .sheet-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+  .sheet-title { font-size: 18px; font-weight: 900; color: #111; }
+  .sheet-price { font-size: 15px; font-weight: 800; color: #374151; margin-top: 2px; }
+  .sheet-close { font-size: 22px; color: #9ca3af; cursor: pointer; line-height: 1; }
+  .news-card { border-radius: 12px; padding: 10px 12px; font-size: 12px; font-weight: 700; margin-bottom: 14px; }
+  .news-card.positive { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .news-card.negative { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .qty-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .qty-label { font-size: 12px; font-weight: 700; color: #6b7280; flex: 1; }
+  .qty-input { width: 80px; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 6px 10px; font-size: 14px; font-weight: 800; text-align: center; }
+  .cost-preview { background: #f9fafb; border-radius: 10px; padding: 8px 12px; font-size: 12px; font-weight: 700; color: #6b7280; margin-bottom: 12px; }
+  .cost-preview span { color: #111; font-weight: 900; }
+  .buy-btn { width: 100%; background: #16a34a; color: white; border: none; border-radius: 14px; padding: 13px; font-size: 14px; font-weight: 900; cursor: pointer; }
+  .sell-btn { width: 100%; background: #dc2626; color: white; border: none; border-radius: 14px; padding: 13px; font-size: 14px; font-weight: 900; cursor: pointer; margin-top: 6px; }
+
+  .screen-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #9ca3af; text-align: center; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<h1>Trading Simulator — Screen Mockups</h1>
+<p class="subtitle">Three views of the trading game inside the Play hub. Let me know what to adjust.</p>
+
+<div class="phone-wrap">
+
+  <!-- SCREEN 1: Portfolio Tab -->
+  <div>
+    <div class="screen-label">Portfolio Tab</div>
+    <div class="phone">
+      <div class="kid-header">
+        <div class="kid-header-top">
+          <span class="kid-name">🦁 Leo's Trading</span>
+          <div class="kid-stats">
+            <span class="stat-pill">⭐ 142</span>
+            <span class="stat-pill">🔥 5</span>
+          </div>
+        </div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab active">💼 Portfolio</div>
+        <div class="tab">📊 Market</div>
+        <div class="tab">🏆 Rankings</div>
+      </div>
+      <div class="page">
+        <!-- Balance -->
+        <div class="balance-card">
+          <div class="balance-label">🪙 Nuggets Balance</div>
+          <div class="balance-amount">2,340</div>
+          <div class="balance-sub">≈ 2 stars available to withdraw</div>
+          <div class="balance-actions">
+            <div class="bal-btn">⭐ Deposit Stars</div>
+            <div class="bal-btn">💸 Withdraw</div>
+          </div>
+        </div>
+
+        <!-- P&L -->
+        <div class="pl-row">
+          <div class="pl-card">
+            <div class="pl-label">Unrealised P/L</div>
+            <div class="pl-value up">+🪙 320</div>
+          </div>
+          <div class="pl-card">
+            <div class="pl-label">Total Gain</div>
+            <div class="pl-value up">+⭐ 0.4 stars</div>
+          </div>
+        </div>
+
+        <!-- Holdings -->
+        <div class="section-label">My Holdings</div>
+        <div class="holding-row">
+          <div class="holding-emoji">🍿</div>
+          <div class="holding-info">
+            <div class="holding-name">Chomp Snacks</div>
+            <div class="holding-qty">10 units · avg 🪙44</div>
+          </div>
+          <div class="holding-right">
+            <div class="holding-price">🪙 490</div>
+            <div class="holding-change up">+🪙 50 (+11%)</div>
+          </div>
+        </div>
+        <div class="holding-row">
+          <div class="holding-emoji">🎮</div>
+          <div class="holding-info">
+            <div class="holding-name">Zapp Gaming</div>
+            <div class="holding-qty">5 units · avg 🪙83</div>
+          </div>
+          <div class="holding-right">
+            <div class="holding-price">🪙 390</div>
+            <div class="holding-change down">−🪙 25 (−6%)</div>
+          </div>
+        </div>
+        <div class="holding-row">
+          <div class="holding-emoji">🐾</div>
+          <div class="holding-info">
+            <div class="holding-name">Pawz Pet Co.</div>
+            <div class="holding-qty">20 units · avg 🪙23</div>
+          </div>
+          <div class="holding-right">
+            <div class="holding-price">🪙 580</div>
+            <div class="holding-change up">+🪙 120 (+26%)</div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px; padding: 10px; background:#fef3c7; border:1px solid #fde68a; border-radius:12px; font-size:11px; font-weight:700; color:#92400e;">
+          🎉 Dividend received! +🪙 12 from Pawz Pet Co. yesterday
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="nav-icon">🏠</span>Home</div>
+        <div class="nav-item"><span class="nav-icon">📋</span>Tasks</div>
+        <div class="nav-item"><span class="nav-icon">🏪</span>Store</div>
+        <div class="nav-item active"><span class="nav-icon">🎮</span>Play</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: Market Tab -->
+  <div>
+    <div class="screen-label">Market Tab</div>
+    <div class="phone">
+      <div class="kid-header">
+        <div class="kid-header-top">
+          <span class="kid-name">🦁 Leo's Trading</span>
+          <div class="kid-stats">
+            <span class="stat-pill">🪙 2,340</span>
+          </div>
+        </div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">💼 Portfolio</div>
+        <div class="tab active">📊 Market</div>
+        <div class="tab">🏆 Rankings</div>
+      </div>
+      <div class="page">
+        <div class="section-label" style="margin-bottom:10px;">Today's Companies</div>
+        <div class="market-grid">
+          <div class="asset-card owned">
+            <div class="asset-emoji">🍿</div>
+            <div class="asset-name">Chomp Snacks</div>
+            <div class="asset-price">🪙 49</div>
+            <div class="asset-change up">▲ 8.9%</div>
+            <div class="owned-badge">● OWNED</div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-emoji">🎮</div>
+            <div class="asset-name">Zapp Gaming</div>
+            <div class="asset-price">🪙 78</div>
+            <div class="asset-change down">▼ 8.2%</div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-emoji">🛴</div>
+            <div class="asset-name">Zoom Wheels</div>
+            <div class="asset-price">🪙 31</div>
+            <div class="asset-change up">▲ 3.3%</div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-emoji">🎬</div>
+            <div class="asset-name">Flick Studios</div>
+            <div class="asset-price">🪙 118</div>
+            <div class="asset-change down">▼ 1.7%</div>
+          </div>
+          <div class="asset-card owned">
+            <div class="asset-emoji">🐾</div>
+            <div class="asset-name">Pawz Pet Co.</div>
+            <div class="asset-price">🪙 29</div>
+            <div class="asset-change up">▲ 16%</div>
+            <div class="owned-badge">● OWNED</div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-emoji">⚽</div>
+            <div class="asset-name">Blast Sports</div>
+            <div class="asset-price">🪙 54</div>
+            <div class="asset-change up">▲ 1.8%</div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-emoji">🍔</div>
+            <div class="asset-name">Yumm Burgers</div>
+            <div class="asset-price">🪙 43</div>
+            <div class="asset-change up">▲ 7.5%</div>
+          </div>
+          <div class="asset-card">
+            <div class="asset-emoji">💡</div>
+            <div class="asset-name">Spark Gadgets</div>
+            <div class="asset-price">🪙 88</div>
+            <div class="asset-change down">▼ 7.4%</div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="nav-icon">🏠</span>Home</div>
+        <div class="nav-item"><span class="nav-icon">📋</span>Tasks</div>
+        <div class="nav-item"><span class="nav-icon">🏪</span>Store</div>
+        <div class="nav-item active"><span class="nav-icon">🎮</span>Play</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: Asset Detail Sheet -->
+  <div>
+    <div class="screen-label">Asset Detail Sheet</div>
+    <div class="phone sheet-wrap">
+      <div class="kid-header">
+        <div class="kid-header-top">
+          <span class="kid-name">🦁 Leo's Trading</span>
+          <div class="kid-stats">
+            <span class="stat-pill">🪙 2,340</span>
+          </div>
+        </div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">💼 Portfolio</div>
+        <div class="tab active">📊 Market</div>
+        <div class="tab">🏆 Rankings</div>
+      </div>
+      <div class="page" style="filter: blur(1px); opacity:0.4; max-height:120px; overflow:hidden;">
+        <div class="market-grid" style="pointer-events:none;">
+          <div class="asset-card"><div class="asset-emoji">🍿</div></div>
+          <div class="asset-card"><div class="asset-emoji">🎮</div></div>
+        </div>
+      </div>
+      <!-- Sheet overlay -->
+      <div class="sheet-overlay">
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-header">
+            <div>
+              <div class="sheet-title">🍿 Chomp Snacks Co.</div>
+              <div class="sheet-price">🪙 49 Nuggets &nbsp;<span style="color:#16a34a;font-weight:800;font-size:13px;">▲ 8.9% today</span></div>
+            </div>
+            <div class="sheet-close">✕</div>
+          </div>
+
+          <!-- Sparkline chart area -->
+          <div style="background:#f9fafb; border-radius:14px; padding:12px; margin-bottom:12px;">
+            <div style="font-size:10px;font-weight:700;color:#9ca3af;margin-bottom:6px;">30-DAY PRICE</div>
+            <svg width="100%" height="60" viewBox="0 0 300 60" class="spark">
+              <defs>
+                <linearGradient id="grad1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#16a34a" stop-opacity="0.3"/>
+                  <stop offset="100%" stop-color="#16a34a" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <polygon points="0,52 20,48 40,50 60,44 80,46 100,40 120,38 140,42 160,36 180,30 200,34 220,28 240,24 260,20 280,16 300,10 300,60 0,60" fill="url(#grad1)"/>
+              <polyline points="0,52 20,48 40,50 60,44 80,46 100,40 120,38 140,42 160,36 180,30 200,34 220,28 240,24 260,20 280,16 300,10" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+
+          <!-- News -->
+          <div class="news-card positive">📰 Chomp launches mystery flavour and fans go wild! 🍿</div>
+
+          <!-- Current position -->
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:12px;">
+            <span style="font-weight:700;color:#6b7280;">YOUR HOLDING</span><br>
+            <span style="font-weight:900;color:#111;">10 units</span>
+            <span style="color:#16a34a;font-weight:800;margin-left:8px;">+🪙 50 (+11%)</span>
+          </div>
+
+          <!-- Buy/Sell -->
+          <div class="qty-row">
+            <span class="qty-label">Units to buy</span>
+            <input class="qty-input" type="number" value="5" min="1">
+          </div>
+          <div class="cost-preview">Cost: <span>🪙 246</span> (5 × 49 + 1 fee)</div>
+          <button class="buy-btn">Buy 5 units — 🪙 246</button>
+          <button class="sell-btn" style="background:#fff;color:#dc2626;border:1.5px solid #fca5a5;">Sell 10 units — 🪙 489</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 4: Leaderboard Tab -->
+  <div>
+    <div class="screen-label">Rankings Tab</div>
+    <div class="phone">
+      <div class="kid-header">
+        <div class="kid-header-top">
+          <span class="kid-name">Family Rankings 🏆</span>
+        </div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab">💼 Portfolio</div>
+        <div class="tab">📊 Market</div>
+        <div class="tab active">🏆 Rankings</div>
+      </div>
+      <div class="page">
+        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:14px;padding:10px 12px;margin-bottom:14px;font-size:12px;font-weight:700;color:#92400e;">
+          🏆 Ranked by % growth — not who deposited most!
+        </div>
+        <div class="section-label">All-Time Portfolio Growth</div>
+
+        <div class="lb-row me">
+          <div class="lb-rank">🥇</div>
+          <div class="lb-avatar">🦁</div>
+          <div class="lb-name">Leo<br><span style="font-size:10px;color:#9ca3af;">You</span></div>
+          <div class="lb-val">
+            <div class="lb-nuggets">🪙 5,180</div>
+            <div class="lb-gain up">+23.4% 🚀</div>
+          </div>
+        </div>
+        <div class="lb-row">
+          <div class="lb-rank">🥈</div>
+          <div class="lb-avatar">🐱</div>
+          <div class="lb-name">Maya</div>
+          <div class="lb-val">
+            <div class="lb-nuggets">🪙 8,900</div>
+            <div class="lb-gain up">+18.7%</div>
+          </div>
+        </div>
+        <div class="lb-row">
+          <div class="lb-rank">🥉</div>
+          <div class="lb-avatar">🐻</div>
+          <div class="lb-name">Noah</div>
+          <div class="lb-val">
+            <div class="lb-nuggets">🪙 1,200</div>
+            <div class="lb-gain down">−4.2%</div>
+          </div>
+        </div>
+        <div class="lb-row" style="opacity:0.5;">
+          <div class="lb-rank" style="font-size:13px;">—</div>
+          <div class="lb-avatar">🐰</div>
+          <div class="lb-name">Ella<br><span style="font-size:10px;color:#9ca3af;">Hasn't started</span></div>
+          <div class="lb-val">
+            <div class="lb-nuggets" style="color:#9ca3af;">🪙 0</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:16px;padding:14px;text-align:center;">
+          <div style="font-size:20px;margin-bottom:4px;">💡</div>
+          <div style="font-size:12px;font-weight:700;color:#15803d;">Earn more ⭐ stars by completing tasks, then deposit Nuggets to invest!</div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="nav-icon">🏠</span>Home</div>
+        <div class="nav-item"><span class="nav-icon">📋</span>Tasks</div>
+        <div class="nav-item"><span class="nav-icon">🏪</span>Store</div>
+        <div class="nav-item active"><span class="nav-icon">🎮</span>Play</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:32px;max-width:760px;margin-left:auto;margin-right:auto;background:#fff;border:1.5px solid #e5e7eb;border-radius:20px;padding:20px 24px;">
+  <div style="font-size:14px;font-weight:900;color:#111;margin-bottom:8px;">📝 Design notes</div>
+  <ul style="font-size:13px;color:#6b7280;line-height:1.7;padding-left:18px;">
+    <li><strong>Nuggets (🪙)</strong> are the in-game currency — 1 star = 1,000 Nuggets</li>
+    <li><strong>Portfolio tab</strong> shows balance, P/L summary, and all holdings</li>
+    <li><strong>Market tab</strong> shows the 10 companies in a 2-column grid — green badge for owned assets</li>
+    <li><strong>Asset detail sheet</strong> slides up — shows 30-day chart, today's news, buy/sell controls</li>
+    <li><strong>Rankings tab</strong> shows family leaderboard sorted by % gain (fair for all deposit sizes)</li>
+    <li>Dividend notifications appear as a toast/banner in the portfolio tab</li>
+  </ul>
+</div>
+
+</body>
+</html>

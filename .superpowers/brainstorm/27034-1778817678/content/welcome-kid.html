@@ -1,0 +1,96 @@
+<h2>Kid welcome screen</h2>
+<p class="subtitle">Shown on the kid's first login — before the tour</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Option A — Story arc (earn → spend)</div>
+    <div class="mockup-body" style="background:linear-gradient(160deg,#fbbf24,#f59e0b);min-height:420px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:24px;">
+      <div style="background:white;border-radius:20px;padding:28px 20px;max-width:280px;text-align:center;">
+        <div style="font-size:52px;margin-bottom:4px;">🦊</div>
+        <div style="font-size:20px;font-weight:800;color:#1e293b;margin-bottom:4px;">Hey Liam! 👋</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Ready to earn some stars?</div>
+
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:20px;">
+          <div style="text-align:center;">
+            <div style="font-size:28px;">📋</div>
+            <div style="font-size:10px;font-weight:700;color:#1e293b;margin-top:2px;">Do tasks</div>
+          </div>
+          <div style="font-size:18px;color:#d1d5db;">→</div>
+          <div style="text-align:center;">
+            <div style="font-size:28px;">⭐</div>
+            <div style="font-size:10px;font-weight:700;color:#1e293b;margin-top:2px;">Earn stars</div>
+          </div>
+          <div style="font-size:18px;color:#d1d5db;">→</div>
+          <div style="text-align:center;">
+            <div style="font-size:28px;">🎁</div>
+            <div style="font-size:10px;font-weight:700;color:#1e293b;margin-top:2px;">Get rewards</div>
+          </div>
+        </div>
+
+        <div style="background:#fffbeb;border-radius:12px;padding:12px;margin-bottom:20px;text-align:left;">
+          <div style="font-size:11px;color:#92400e;font-weight:700;margin-bottom:6px;">⚡ The more you do, the more you earn!</div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <div style="font-size:11px;color:#64748b;">🏅 Build streaks by doing tasks every day</div>
+            <div style="font-size:11px;color:#64748b;">🏆 Unlock badges as you level up</div>
+            <div style="font-size:11px;color:#64748b;">🎯 Save stars for the rewards you want most</div>
+          </div>
+        </div>
+
+        <button style="width:100%;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:white;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,0.4);">Let's go! 🚀</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Option B — Achievement preview</div>
+    <div class="mockup-body" style="background:linear-gradient(160deg,#6366f1,#8b5cf6);min-height:420px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:24px;">
+      <div style="background:white;border-radius:20px;padding:28px 20px;max-width:280px;text-align:center;">
+        <div style="font-size:52px;margin-bottom:4px;">🦊</div>
+        <div style="font-size:20px;font-weight:800;color:#1e293b;margin-bottom:4px;">Welcome, Liam! 🎉</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:20px;">Your adventure starts here.</div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">
+          <div style="background:#f0fdf4;border-radius:12px;padding:12px;">
+            <div style="font-size:24px;margin-bottom:4px;">⭐</div>
+            <div style="font-size:11px;font-weight:700;color:#1e293b;">Earn stars</div>
+            <div style="font-size:10px;color:#64748b;">for every task you complete</div>
+          </div>
+          <div style="background:#eff6ff;border-radius:12px;padding:12px;">
+            <div style="font-size:24px;margin-bottom:4px;">🎁</div>
+            <div style="font-size:11px;font-weight:700;color:#1e293b;">Spend stars</div>
+            <div style="font-size:10px;color:#64748b;">on rewards you actually want</div>
+          </div>
+          <div style="background:#fdf4ff;border-radius:12px;padding:12px;">
+            <div style="font-size:24px;margin-bottom:4px;">🔥</div>
+            <div style="font-size:11px;font-weight:700;color:#1e293b;">Build streaks</div>
+            <div style="font-size:10px;color:#64748b;">show up every day</div>
+          </div>
+          <div style="background:#fff7ed;border-radius:12px;padding:12px;">
+            <div style="font-size:24px;margin-bottom:4px;">🏆</div>
+            <div style="font-size:11px;font-weight:700;color:#1e293b;">Win badges</div>
+            <div style="font-size:10px;color:#64748b;">unlock as you level up</div>
+          </div>
+        </div>
+
+        <button style="width:100%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;border:none;border-radius:12px;padding:13px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(99,102,241,0.4);">Start my adventure! 🚀</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:24px;">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Story arc</h3>
+      <p>Do tasks → earn stars → get rewards. Simple loop, action-oriented</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Achievement preview</h3>
+      <p>Shows all 4 things they can unlock — stars, rewards, streaks, badges</p>
+    </div>
+  </div>
+</div>

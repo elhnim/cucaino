@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Hub — First Screen</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #e5e7eb;
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 24px 16px;
+    gap: 32px;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+  h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* Phone frame */
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: #fff;
+    border-radius: 48px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 32px 64px -8px rgba(0,0,0,0.35), 0 0 0 1px rgba(0,0,0,0.08), inset 0 0 0 1px rgba(255,255,255,0.1);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* Theme header */
+  .header {
+    padding: 40px 16px 16px;
+    flex-shrink: 0;
+    color: white;
+  }
+  .header-galactic { background: linear-gradient(135deg, #4338ca, #06b6d4); }
+  .header-magical { background: linear-gradient(135deg, #c026d3, #ec4899, #14b8a6); }
+  .header-adventure { background: linear-gradient(135deg, #f97316, #f59e0b); }
+  .header-ocean { background: linear-gradient(135deg, #14b8a6, #0ea5e9); }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .avatar {
+    width: 56px; height: 56px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+  .kid-info { flex: 1; min-width: 0; }
+  .greeting { font-size: 11px; font-weight: 600; opacity: 0.7; line-height: 1; }
+  .kid-name { font-size: 20px; font-weight: 900; margin-top: 2px; line-height: 1.2; }
+  .kid-date { font-size: 10px; font-weight: 700; opacity: 0.75; margin-top: 2px; }
+
+  .stats { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+  .stats-row { display: flex; gap: 6px; align-items: center; }
+  .stat-chip {
+    background: rgba(255,255,255,0.2);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 900;
+    color: white;
+    white-space: nowrap;
+  }
+  .progress-row { display: flex; align-items: center; gap: 8px; }
+  .progress-bar {
+    width: 80px; height: 8px; border-radius: 4px;
+    background: rgba(255,255,255,0.25); overflow: hidden;
+  }
+  .progress-fill { height: 100%; border-radius: 4px; background: rgba(255,255,255,0.85); }
+  .progress-label { font-size: 10px; font-weight: 700; opacity: 0.8; color: white; }
+
+  /* Scrollable content */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    background: linear-gradient(135deg, #eef2ff 0%, #ecfeff 100%);
+  }
+  .content-inner {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px 16px 16px;
+  }
+
+  .page-title {
+    font-size: 24px;
+    font-weight: 900;
+    color: #111827;
+    margin-bottom: 16px;
+  }
+
+  /* Game grid */
+  .game-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Active tile */
+  .tile {
+    border-radius: 24px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-width: 2px;
+    border-style: solid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    cursor: pointer;
+    transition: transform 0.1s;
+    text-decoration: none;
+  }
+  .tile:active { transform: scale(0.95); }
+  .tile-emoji { font-size: 40px; line-height: 1; }
+  .tile-name { font-size: 17px; font-weight: 900; }
+  .tile-sub { font-size: 11px; margin-top: 2px; }
+
+  /* Quiz tile */
+  .tile-quiz { background: #fffbeb; border-color: #fde68a; }
+  .tile-quiz .tile-name { color: #78350f; }
+  .tile-quiz .tile-sub { color: #b45309; }
+
+  /* Trading Sim tile — green/emerald */
+  .tile-trading { background: #f0fdf4; border-color: #bbf7d0; }
+  .tile-trading .tile-name { color: #14532d; }
+  .tile-trading .tile-sub { color: #16a34a; }
+
+  /* Coming soon tiles */
+  .tile-soon { opacity: 0.45; cursor: default; }
+  .tile-flashcards { background: #faf5ff; border-color: #e9d5ff; }
+  .tile-flashcards .tile-name { color: #581c87; }
+  .tile-flashcards .tile-sub { color: #7c3aed; }
+  .tile-match { background: #f0fdf4; border-color: #bbf7d0; }
+  .tile-match .tile-name { color: #14532d; }
+  .tile-match .tile-sub { color: #16a34a; }
+  .tile-spelling { background: #fff1f2; border-color: #fecdd3; }
+  .tile-spelling .tile-name { color: #881337; }
+  .tile-spelling .tile-sub { color: #e11d48; }
+
+  /* NEW badge */
+  .new-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    font-size: 9px;
+    font-weight: 900;
+    padding: 2px 7px;
+    border-radius: 999px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  /* Bottom nav */
+  .bottom-nav {
+    background: white;
+    border-top: 1px solid #f3f4f6;
+    display: flex;
+    flex-shrink: 0;
+    padding-bottom: 16px;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 4px;
+    gap: 2px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .nav-label { font-size: 10px; font-weight: 700; letter-spacing: 0.03em; }
+  .nav-icon { font-size: 20px; line-height: 1; }
+  /* Active state uses theme accent */
+  .nav-active-galactic .nav-label, .nav-active-galactic .nav-icon { color: #4f46e5; }
+  .nav-inactive .nav-label, .nav-inactive .nav-icon { color: #9ca3af; }
+
+  /* ---- Side by side themes ---- */
+  .themes-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .theme-label {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    margin-top: 10px;
+  }
+
+  /* Callout */
+  .callout {
+    background: white;
+    border-radius: 16px;
+    padding: 16px 20px;
+    border: 1px solid #e5e7eb;
+    max-width: 820px;
+    width: 100%;
+  }
+  .callout h3 { font-size: 14px; font-weight: 800; color: #111827; margin-bottom: 8px; }
+  .callout ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .callout li { font-size: 13px; color: #374151; font-weight: 600; display: flex; align-items: flex-start; gap: 8px; }
+  .callout li::before { content: "→"; color: #9ca3af; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<h2>Play Hub — first screen a kid sees</h2>
+
+<div class="themes-row">
+
+  <!-- Galactic theme -->
+  <div>
+    <div class="phone">
+      <!-- Header -->
+      <div class="header header-galactic">
+        <div class="header-row">
+          <div class="avatar">🦄</div>
+          <div class="kid-info">
+            <div class="greeting">Good afternoon,</div>
+            <div class="kid-name">Lily</div>
+            <div class="kid-date">Wed 21 May · 3:42 pm · ☀️ 24°</div>
+          </div>
+          <div class="stats">
+            <div class="stats-row">
+              <div class="stat-chip">⭐ 142</div>
+              <div class="stat-chip">🔥 5d</div>
+            </div>
+            <div class="progress-row">
+              <div class="progress-bar"><div class="progress-fill" style="width:70%"></div></div>
+              <div class="progress-label">7/10</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scrollable content -->
+      <div class="content">
+        <div class="content-inner">
+          <div class="page-title">🎮 Play</div>
+          <div class="game-grid">
+
+            <!-- Quiz — active -->
+            <div class="tile tile-quiz">
+              <div class="tile-emoji">🎯</div>
+              <div>
+                <div class="tile-name">Quiz</div>
+                <div class="tile-sub">14 topics · 3 difficulties</div>
+              </div>
+            </div>
+
+            <!-- Trading Sim — NEW active tile -->
+            <div class="tile tile-trading">
+              <div class="tile-emoji">📈</div>
+              <div>
+                <div class="tile-name">Nugget Market<span class="new-badge">New</span></div>
+                <div class="tile-sub">Buy · Sell · Profit 🪙</div>
+              </div>
+            </div>
+
+            <!-- Flashcards — coming soon -->
+            <div class="tile tile-flashcards tile-soon">
+              <div class="tile-emoji">📇</div>
+              <div>
+                <div class="tile-name">Flashcards</div>
+                <div class="tile-sub">Coming soon</div>
+              </div>
+            </div>
+
+            <!-- Match — coming soon -->
+            <div class="tile tile-match tile-soon">
+              <div class="tile-emoji">🧩</div>
+              <div>
+                <div class="tile-name">Match</div>
+                <div class="tile-sub">Coming soon</div>
+              </div>
+            </div>
+
+            <!-- Spelling — coming soon -->
+            <div class="tile tile-spelling tile-soon">
+              <div class="tile-emoji">✏️</div>
+              <div>
+                <div class="tile-name">Spelling</div>
+                <div class="tile-sub">Coming soon</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom nav — Play is active -->
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <span class="nav-icon nav-inactive">🏠</span>
+          <span class="nav-label nav-inactive">Home</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon nav-inactive">📅</span>
+          <span class="nav-label nav-inactive">Schedule</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon nav-inactive">🎁</span>
+          <span class="nav-label nav-inactive">Store</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon" style="color:#4f46e5">🎮</span>
+          <span class="nav-label" style="color:#4f46e5">Play</span>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label">Galactic (blue/cyan)</div>
+  </div>
+
+  <!-- Adventure theme -->
+  <div>
+    <div class="phone">
+      <div class="header header-adventure">
+        <div class="header-row">
+          <div class="avatar">🦊</div>
+          <div class="kid-info">
+            <div class="greeting">Good afternoon,</div>
+            <div class="kid-name">Max</div>
+            <div class="kid-date">Wed 21 May · 3:42 pm · ⛅ 21°</div>
+          </div>
+          <div class="stats">
+            <div class="stats-row">
+              <div class="stat-chip">⭐ 85</div>
+              <div class="stat-chip">🔥 12d</div>
+            </div>
+            <div class="progress-row">
+              <div class="progress-bar"><div class="progress-fill" style="width:40%"></div></div>
+              <div class="progress-label">4/10</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content" style="background: linear-gradient(135deg, #fff7ed 0%, #fffbeb 100%);">
+        <div class="content-inner">
+          <div class="page-title">🎮 Play</div>
+          <div class="game-grid">
+            <div class="tile tile-quiz">
+              <div class="tile-emoji">🎯</div>
+              <div>
+                <div class="tile-name">Quiz</div>
+                <div class="tile-sub">14 topics · 3 difficulties</div>
+              </div>
+            </div>
+            <div class="tile tile-trading">
+              <div class="tile-emoji">📈</div>
+              <div>
+                <div class="tile-name">Nugget Market<span class="new-badge">New</span></div>
+                <div class="tile-sub">Buy · Sell · Profit 🪙</div>
+              </div>
+            </div>
+            <div class="tile tile-flashcards tile-soon">
+              <div class="tile-emoji">📇</div>
+              <div><div class="tile-name">Flashcards</div><div class="tile-sub">Coming soon</div></div>
+            </div>
+            <div class="tile tile-match tile-soon">
+              <div class="tile-emoji">🧩</div>
+              <div><div class="tile-name">Match</div><div class="tile-sub">Coming soon</div></div>
+            </div>
+            <div class="tile tile-spelling tile-soon">
+              <div class="tile-emoji">✏️</div>
+              <div><div class="tile-name">Spelling</div><div class="tile-sub">Coming soon</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-nav">
+        <div class="nav-item">
+          <span class="nav-icon nav-inactive">🏠</span>
+          <span class="nav-label nav-inactive">Home</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon nav-inactive">📅</span>
+          <span class="nav-label nav-inactive">Schedule</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon nav-inactive">🎁</span>
+          <span class="nav-label nav-inactive">Store</span>
+        </div>
+        <div class="nav-item">
+          <span class="nav-icon" style="color:#f97316">🎮</span>
+          <span class="nav-label" style="color:#f97316">Play</span>
+        </div>
+      </div>
+    </div>
+    <div class="theme-label">Adventure (orange/amber)</div>
+  </div>
+
+</div>
+
+<!-- Notes callout -->
+<div class="callout">
+  <h3>What changes in the Play hub</h3>
+  <ul>
+    <li>Trading Sim tile uses <strong>green</strong> colour (bg-green-50 / border-green-200) — distinct from Quiz's amber</li>
+    <li><strong>NEW</strong> badge on the tile (removed after first visit, or can leave it permanent)</li>
+    <li>Tapping the tile navigates to <code>/play/trading?kid=&lt;id&gt;</code> — lands on Portfolio tab (or Market if no portfolio yet)</li>
+    <li>The 3 "coming soon" tiles remain dimmed — no change needed there</li>
+    <li>Everything else — header, bottom nav, progress bar — is unchanged</li>
+  </ul>
+</div>
+
+</body>
+</html>

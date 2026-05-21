@@ -65,15 +65,16 @@ export default function Metronome({
     }
   };
 
-  const start = () => {
+  const start = async () => {
     if (!ctxRef.current) {
       ctxRef.current = new (window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext })
           .webkitAudioContext)();
     }
-    if (ctxRef.current.state === "suspended") ctxRef.current.resume();
+    const ctx = ctxRef.current;
+    if (ctx.state === "suspended") await ctx.resume();
     beatRef.current = 0;
-    nextNoteTimeRef.current = ctxRef.current.currentTime + 0.05;
+    nextNoteTimeRef.current = ctx.currentTime + 0.05;
     schedulerRef.current = window.setInterval(scheduler, 25);
     setPlaying(true);
   };
@@ -109,7 +110,8 @@ export default function Metronome({
     gain.gain.setValueAtTime(0, time);
     gain.gain.linearRampToValueAtTime(peak, time + 0.001);
     gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
     osc.start(time);
     osc.stop(time + 0.06);
 

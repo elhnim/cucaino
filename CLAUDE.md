@@ -24,7 +24,9 @@ No test runner is configured.
 ### Routing
 
 - `/select-kid` — Home screen (tablet kid picker)
-- `/kid/[kidId]/{today,week,rewards,progress,profile,practice,timetable,tuner}` — Kid-side views, all parameterised by kid ID
+- `/kid/[kidId]/{home,todo,rewards,progress,profile,practice,timetable,tuner,play}` — Kid-side views, all parameterised by kid ID
+  - Kid bottom nav (4 tabs in `KidShell`): **Home** · **Schedule** (`/todo`) · **Store** (`/rewards`) · **Play**
+  - `/progress` exists but is NOT linked in the kid nav
 - `/parent/{overview,kids,tasks,rewards,requests,feedback,quizzes}` — Parent dashboard (mobile-first)
 - `/play` and `/play/[bankId]` — Quiz hub and live quiz (nav bar injected via `?kid=<id>` query param so KidShell wraps all play screens)
 - `/auth/callback`, `/login`, `/signup` — Auth flow

@@ -1,0 +1,101 @@
+<h2>Parent history — where does it live?</h2>
+<p class="subtitle">Parent nav is full (5 tabs). Two options for surfacing kid history.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family:sans-serif;background:#f8fafc;border-radius:12px;padding:12px;">
+        <!-- Parent home -->
+        <div style="font-weight:900;font-size:13px;margin-bottom:8px;color:#111;">🏠 Parent Home</div>
+
+        <!-- Kid cards -->
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <div style="flex:1;background:white;border-radius:10px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,0.07);">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+              <span style="font-size:16px;">🦁</span>
+              <span style="font-size:11px;font-weight:800;">Alex</span>
+            </div>
+            <div style="font-size:9px;color:#9ca3af;">3 tasks · +18⭐</div>
+            <div style="font-size:9px;color:#6366f1;font-weight:700;margin-top:4px;">View history →</div>
+          </div>
+          <div style="flex:1;background:white;border-radius:10px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,0.07);">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">
+              <span style="font-size:16px;">🐱</span>
+              <span style="font-size:11px;font-weight:800;">Mia</span>
+            </div>
+            <div style="font-size:9px;color:#9ca3af;">5 tasks · +35⭐</div>
+            <div style="font-size:9px;color:#6366f1;font-weight:700;margin-top:4px;">View history →</div>
+          </div>
+        </div>
+
+        <!-- History drill-down -->
+        <div style="background:white;border-radius:10px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.07);">
+          <div style="font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Alex · Tue 13 May</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:12px;">🛏</span><span style="font-size:10px;flex:1;">Made bed</span><span style="font-size:10px;color:#16a34a;font-weight:700;">+5⭐</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-size:12px;">🎵</span><span style="font-size:10px;flex:1;">Piano</span><span style="font-size:10px;color:#16a34a;font-weight:700;">+10⭐</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;background:#fffbeb;border-radius:6px;padding:3px 4px;">
+            <span style="font-size:12px;">🍦</span><span style="font-size:10px;flex:1;">Ice cream</span><span style="font-size:10px;color:#ef4444;font-weight:700;">−25⭐</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Per-kid history from Home</h3>
+      <p>Each kid card on the parent home page has "View history →". Drills into that kid's history page. Each kid separate.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family:sans-serif;background:#f8fafc;border-radius:12px;padding:12px;">
+        <!-- Parent home with unified feed -->
+        <div style="font-weight:900;font-size:13px;margin-bottom:8px;color:#111;">🏠 Parent Home — Activity feed</div>
+
+        <div style="background:white;border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.07);">
+          <div style="padding:8px 10px;border-bottom:1px solid #f3f4f6;">
+            <div style="font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;margin-bottom:5px;">Today</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span style="font-size:14px;">🦁</span>
+              <span style="font-size:10px;flex:1;"><b>Alex</b> · Made bed</span>
+              <span style="font-size:10px;color:#16a34a;font-weight:700;">+5⭐</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span style="font-size:14px;">🐱</span>
+              <span style="font-size:10px;flex:1;"><b>Mia</b> · Piano</span>
+              <span style="font-size:10px;color:#16a34a;font-weight:700;">+10⭐</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;background:#fffbeb;border-radius:6px;padding:3px 4px;">
+              <span style="font-size:14px;">🦁</span>
+              <span style="font-size:10px;flex:1;"><b>Alex</b> · Ice cream 🎁</span>
+              <span style="font-size:10px;color:#ef4444;font-weight:700;">−25⭐</span>
+            </div>
+          </div>
+          <div style="padding:8px 10px;">
+            <div style="font-size:10px;font-weight:800;color:#6b7280;text-transform:uppercase;margin-bottom:5px;">Yesterday</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span style="font-size:14px;">🐱</span>
+              <span style="font-size:10px;flex:1;"><b>Mia</b> · Reading</span>
+              <span style="font-size:10px;color:#16a34a;font-weight:700;">+8⭐</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:14px;">🦁</span>
+              <span style="font-size:10px;flex:1;"><b>Alex</b> · Exercise</span>
+              <span style="font-size:10px;color:#16a34a;font-weight:700;">+15⭐</span>
+            </div>
+          </div>
+        </div>
+        <div style="text-align:right;margin-top:5px;font-size:9px;color:#6366f1;font-weight:700;">See all →</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Unified family feed on Home</h3>
+      <p>All kids' activity merged into one chronological feed on the parent home page. See everything at a glance. "See all →" goes to a full history page.</p>
+    </div>
+  </div>
+
+</div>

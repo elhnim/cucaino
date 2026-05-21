@@ -1,0 +1,78 @@
+<h2>Where should the history live?</h2>
+<p class="subtitle">Task completions + reward claims — where does a kid find their history?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:12px;padding:16px;font-family:sans-serif;">
+        <div style="font-weight:900;font-size:15px;margin-bottom:10px;">📊 Progress</div>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <div style="flex:1;background:#6366f1;color:white;border-radius:20px;padding:4px 8px;font-size:11px;font-weight:700;text-align:center;">Badges</div>
+          <div style="flex:1;background:#e5e7eb;border-radius:20px;padding:4px 8px;font-size:11px;font-weight:700;text-align:center;color:#6b7280;">Tasks ✓</div>
+          <div style="flex:1;background:#e5e7eb;border-radius:20px;padding:4px 8px;font-size:11px;font-weight:700;text-align:center;color:#6b7280;">Rewards 🎁</div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:10px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <div style="font-size:10px;color:#9ca3af;font-weight:600;margin-bottom:6px;">TODAY</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span>✅</span><span style="font-size:11px;">Made bed</span><span style="margin-left:auto;font-size:10px;color:#f59e0b;">+5 ⭐</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>✅</span><span style="font-size:11px;">Piano practice</span><span style="margin-left:auto;font-size:10px;color:#f59e0b;">+10 ⭐</span>
+          </div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <div style="font-size:10px;color:#9ca3af;font-weight:600;margin-bottom:6px;">YESTERDAY</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>✅</span><span style="font-size:11px;">Brushed teeth</span><span style="margin-left:auto;font-size:10px;color:#f59e0b;">+3 ⭐</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Tabs on Progress page</h3>
+      <p>Add "Tasks ✓" and "Rewards 🎁" tabs alongside the existing Badges tab. History lives in the progress section the kid already visits.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#f8fafc;border-radius:12px;padding:16px;font-family:sans-serif;">
+        <div style="display:flex;justify-content:space-around;background:white;border-radius:10px;padding:10px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <div style="text-align:center;">
+            <div style="font-size:20px;">📊</div>
+            <div style="font-size:9px;color:#9ca3af;font-weight:700;">PROGRESS</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:20px;">📋</div>
+            <div style="font-size:9px;color:#6366f1;font-weight:700;border-bottom:2px solid #6366f1;padding-bottom:1px;">HISTORY</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:20px;">🎁</div>
+            <div style="font-size:9px;color:#9ca3af;font-weight:700;">REWARDS</div>
+          </div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:10px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <div style="font-size:10px;color:#9ca3af;font-weight:600;margin-bottom:6px;">MON 12 MAY</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span>✅</span><span style="font-size:11px;">Made bed</span><span style="margin-left:auto;font-size:10px;color:#f59e0b;">+5 ⭐</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span>🎁</span><span style="font-size:11px;">Got: Ice cream</span><span style="margin-left:auto;font-size:10px;color:#10b981;">claimed</span>
+          </div>
+        </div>
+        <div style="background:white;border-radius:10px;padding:10px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <div style="font-size:10px;color:#9ca3af;font-weight:600;margin-bottom:6px;">SUN 11 MAY</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>✅</span><span style="font-size:11px;">Piano practice</span><span style="margin-left:auto;font-size:10px;color:#f59e0b;">+10 ⭐</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Dedicated History page</h3>
+      <p>New page in the bottom nav combining both task completions and reward claims in one unified chronological feed, grouped by day.</p>
+    </div>
+  </div>
+
+</div>

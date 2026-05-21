@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nugget Market — Game Screens</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #e5e7eb;
+  font-family: 'Nunito', -apple-system, sans-serif;
+  padding: 32px 20px 48px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+h2 { font-size: 12px; font-weight: 700; color: #6b7280; letter-spacing: 0.07em; text-transform: uppercase; margin-top: 16px; }
+.screens-row { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+
+/* Phone */
+.phone {
+  width: 375px; background: #fff; border-radius: 44px; overflow: hidden; flex-shrink: 0;
+  box-shadow: 0 28px 56px -8px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.07);
+  display: flex; flex-direction: column;
+}
+.phone-label { text-align: center; font-size: 11px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 10px; }
+
+/* KidShell header (galactic theme) */
+.kid-header {
+  background: linear-gradient(135deg, #4338ca, #06b6d4);
+  padding: 36px 16px 14px;
+  color: white; flex-shrink: 0;
+}
+.kid-header-row { display: flex; align-items: center; gap: 12px; }
+.kid-avatar { width: 52px; height: 52px; border-radius: 14px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
+.kid-meta { flex: 1; }
+.kid-greeting { font-size: 10px; font-weight: 700; opacity: 0.7; }
+.kid-name { font-size: 19px; font-weight: 900; line-height: 1.2; }
+.kid-date { font-size: 10px; font-weight: 700; opacity: 0.7; margin-top: 1px; }
+.kid-chips { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
+.chips-row { display: flex; gap: 5px; }
+.chip { background: rgba(255,255,255,0.2); border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 900; }
+
+/* Game header bar */
+.game-header {
+  background: #f0fdf4; border-bottom: 1.5px solid #d1fae5;
+  padding: 10px 16px 0; display: flex; flex-direction: column; gap: 0; flex-shrink: 0;
+}
+.game-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.game-icon-sm { width: 36px; height: 36px; }
+.game-title { font-size: 18px; font-weight: 900; color: #14532d; }
+.game-nuggets { font-size: 12px; font-weight: 800; color: #16a34a; }
+
+/* Tab bar */
+.tab-bar { display: flex; border-bottom: 1.5px solid #d1fae5; }
+.tab { flex: 1; padding: 9px 4px 7px; text-align: center; font-size: 12px; font-weight: 800; color: #6b7280; cursor: pointer; border-bottom: 2.5px solid transparent; }
+.tab.active { color: #16a34a; border-bottom-color: #16a34a; }
+
+/* Scrollable page */
+.page { max-height: 560px; overflow-y: auto; padding: 12px; background: #f8fafc; }
+
+/* ===== PORTFOLIO TAB ===== */
+.balance-card {
+  background: linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%);
+  border-radius: 20px; padding: 16px; color: white; margin-bottom: 10px;
+  position: relative; overflow: hidden;
+}
+.balance-card::after {
+  content: ''; position: absolute; right: -20px; top: -20px;
+  width: 120px; height: 120px; border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+}
+.balance-label { font-size: 10px; font-weight: 700; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.07em; }
+.balance-amount { font-size: 30px; font-weight: 900; margin: 3px 0 2px; }
+.balance-sub { font-size: 11px; opacity: 0.75; }
+.balance-btns { display: flex; gap: 8px; margin-top: 12px; }
+.bal-btn {
+  flex: 1; background: rgba(255,255,255,0.18); border: 1.5px solid rgba(255,255,255,0.3);
+  border-radius: 12px; padding: 8px; font-size: 12px; font-weight: 800; color: white;
+  cursor: pointer; text-align: center; font-family: inherit;
+}
+
+.pl-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.pl-card { flex: 1; background: white; border: 1.5px solid #e5e7eb; border-radius: 14px; padding: 10px 12px; }
+.pl-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; }
+.pl-val { font-size: 15px; font-weight: 900; margin-top: 3px; }
+.up { color: #16a34a; } .down { color: #dc2626; } .neutral { color: #374151; }
+.pl-sub { font-size: 10px; color: #9ca3af; margin-top: 1px; font-weight: 600; }
+
+.section-title { font-size: 12px; font-weight: 800; color: #374151; text-transform: uppercase; letter-spacing: 0.06em; margin: 10px 0 6px; }
+
+/* Holding row */
+.holding-row {
+  background: white; border-radius: 14px; padding: 10px 12px; margin-bottom: 6px;
+  display: flex; align-items: center; gap: 10px; border: 1.5px solid #f3f4f6;
+}
+.holding-emoji { font-size: 22px; width: 36px; height: 36px; background: #f0fdf4; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.holding-info { flex: 1; min-width: 0; }
+.holding-name { font-size: 13px; font-weight: 800; color: #111827; }
+.holding-qty { font-size: 11px; color: #6b7280; font-weight: 600; }
+.holding-right { text-align: right; flex-shrink: 0; }
+.holding-val { font-size: 13px; font-weight: 900; color: #111827; }
+.holding-gain { font-size: 11px; font-weight: 700; }
+
+/* Sparkline */
+.sparkline { margin-top: 2px; }
+
+/* ===== MARKET TAB ===== */
+.market-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.asset-card {
+  background: white; border: 1.5px solid #f3f4f6; border-radius: 16px;
+  padding: 12px; cursor: pointer; transition: all 0.15s;
+  position: relative;
+}
+.asset-card:hover { border-color: #bbf7d0; box-shadow: 0 2px 8px rgba(16,185,129,0.12); }
+.asset-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.asset-emoji { font-size: 22px; width: 36px; height: 36px; background: #f9fafb; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.asset-change { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; }
+.change-up { background: #dcfce7; color: #16a34a; }
+.change-down { background: #fee2e2; color: #dc2626; }
+.change-flat { background: #f3f4f6; color: #6b7280; }
+.asset-sym { font-size: 12px; font-weight: 900; color: #374151; }
+.asset-name { font-size: 11px; font-weight: 700; color: #6b7280; }
+.asset-price { font-size: 16px; font-weight: 900; color: #111827; margin: 4px 0 2px; }
+.asset-price-sub { font-size: 10px; color: #9ca3af; font-weight: 600; }
+.owned-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; }
+.div-badge { font-size: 9px; font-weight: 700; color: #d97706; background: #fef9c3; border-radius: 4px; padding: 1px 4px; margin-top: 2px; display: inline-block; }
+
+/* ===== ASSET DETAIL SHEET ===== */
+.sheet-backdrop { background: rgba(0,0,0,0.4); padding: 80px 0 0; display: flex; flex-direction: column; justify-content: flex-end; min-height: 640px; }
+.sheet {
+  background: white; border-radius: 24px 24px 0 0; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.sheet-handle { width: 36px; height: 4px; background: #d1d5db; border-radius: 2px; margin: 10px auto 0; }
+.sheet-scroll { max-height: 560px; overflow-y: auto; padding: 12px 16px 24px; }
+.sheet-header { display: flex; align-items: flex-start; justify-content: space-between; margin: 4px 0 12px; }
+.sheet-asset-info { display: flex; align-items: center; gap: 10px; }
+.sheet-emoji { font-size: 32px; width: 52px; height: 52px; background: #f0fdf4; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sheet-name { font-size: 16px; font-weight: 900; color: #111827; }
+.sheet-industry { font-size: 11px; color: #6b7280; font-weight: 600; margin-top: 1px; }
+.sheet-price { text-align: right; }
+.sheet-price-val { font-size: 20px; font-weight: 900; color: #111827; }
+.sheet-price-change { font-size: 12px; font-weight: 800; margin-top: 2px; }
+
+/* Sparkline chart */
+.chart-area { background: #f0fdf4; border-radius: 14px; padding: 10px; margin-bottom: 10px; }
+.chart-label { font-size: 10px; font-weight: 700; color: #6b7280; margin-bottom: 6px; }
+
+/* News card */
+.news-card { border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; border-left: 3px solid; }
+.news-positive { background: #f0fdf4; border-color: #4ade80; }
+.news-negative { background: #fef2f2; border-color: #f87171; }
+.news-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+.news-label.pos { color: #16a34a; } .news-label.neg { color: #dc2626; }
+.news-text { font-size: 13px; font-weight: 700; color: #111827; }
+
+/* Position card */
+.position-card { background: #f8fafc; border: 1.5px solid #e5e7eb; border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+.position-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.pos-label { font-size: 11px; font-weight: 700; color: #6b7280; }
+.pos-val { font-size: 12px; font-weight: 800; color: #111827; }
+
+/* Buy/sell */
+.trade-section { margin-top: 4px; }
+.trade-label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.qty-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.qty-btn { width: 36px; height: 36px; border-radius: 10px; background: #f0fdf4; border: 1.5px solid #bbf7d0; font-size: 18px; font-weight: 900; color: #16a34a; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.qty-input { flex: 1; background: #f9fafb; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 8px 12px; font-size: 16px; font-weight: 900; text-align: center; font-family: inherit; color: #111827; }
+.cost-preview { background: #fffbeb; border: 1.5px solid #fde68a; border-radius: 10px; padding: 8px 12px; font-size: 12px; font-weight: 700; color: #78350f; margin-bottom: 8px; }
+.trade-btns { display: flex; gap: 8px; }
+.buy-btn { flex: 1; background: linear-gradient(135deg, #16a34a, #15803d); color: white; border: none; border-radius: 14px; padding: 12px; font-size: 14px; font-weight: 900; cursor: pointer; font-family: inherit; }
+.sell-btn { flex: 1; background: white; color: #dc2626; border: 2px solid #fca5a5; border-radius: 14px; padding: 12px; font-size: 14px; font-weight: 900; cursor: pointer; font-family: inherit; }
+
+/* ===== LEADERBOARD ===== */
+.leaderboard-header { background: linear-gradient(135deg, #1e1b4b, #4338ca); border-radius: 16px; padding: 14px 16px; color: white; margin-bottom: 10px; text-align: center; }
+.lb-title { font-size: 16px; font-weight: 900; }
+.lb-sub { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+.lb-row {
+  background: white; border: 1.5px solid #f3f4f6; border-radius: 16px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.lb-row.me { border-color: #4338ca; background: #eef2ff; }
+.lb-rank { font-size: 22px; width: 36px; text-align: center; flex-shrink: 0; }
+.lb-avatar { font-size: 24px; width: 44px; height: 44px; background: #f9fafb; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.lb-info { flex: 1; min-width: 0; }
+.lb-name { font-size: 14px; font-weight: 900; color: #111827; }
+.lb-val { font-size: 11px; color: #6b7280; font-weight: 600; margin-top: 1px; }
+.lb-gain { text-align: right; flex-shrink: 0; }
+.lb-pct { font-size: 16px; font-weight: 900; }
+.lb-pct-sub { font-size: 10px; font-weight: 700; color: #9ca3af; margin-top: 1px; }
+.not-started { opacity: 0.5; }
+.not-started .lb-pct { font-size: 11px; color: #9ca3af; font-weight: 700; }
+
+/* Bottom nav */
+.bottom-nav { background: white; border-top: 1px solid #f3f4f6; display: flex; padding-bottom: 14px; flex-shrink: 0; }
+.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 9px 0 4px; gap: 2px; }
+.nav-icon { font-size: 20px; }
+.nav-lbl { font-size: 10px; font-weight: 800; letter-spacing: 0.03em; }
+.nav-active { color: #4f46e5; }
+.nav-dim { color: #9ca3af; }
+
+/* SVG sparklines */
+svg.spark { display: block; }
+
+/* Rocket icon */
+.rocket-icon { display: inline-flex; }
+</style>
+</head>
+<body>
+
+<h2>Nugget Market — Game Screens</h2>
+
+<div class="screens-row">
+
+<!-- ===== SCREEN 1: PORTFOLIO ===== -->
+<div>
+<div class="phone">
+  <!-- KidShell header -->
+  <div class="kid-header">
+    <div class="kid-header-row">
+      <div class="kid-avatar">🦄</div>
+      <div class="kid-meta">
+        <div class="kid-greeting">Good afternoon,</div>
+        <div class="kid-name">Lily</div>
+        <div class="kid-date">Wed 21 May · 3:42 pm</div>
+      </div>
+      <div class="kid-chips">
+        <div class="chips-row">
+          <div class="chip">⭐ 142</div>
+          <div class="chip">🔥 5d</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game header -->
+  <div class="game-header">
+    <div class="game-title-row">
+      <svg class="game-icon-sm" width="36" height="36" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="bgD1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#10b981"/></linearGradient>
+          <linearGradient id="cD1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+          <linearGradient id="rD1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bgD1)"/>
+        <ellipse cx="32" cy="54" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="51" rx="18" ry="5" fill="url(#cD1)"/>
+        <ellipse cx="32" cy="48" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="45" rx="18" ry="5" fill="url(#cD1)"/>
+        <text x="32" y="49" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="7" fill="#92400e">NUGGETS</text>
+        <path d="M32 8 C28 14 26 22 26 30 L38 30 C38 22 36 14 32 8 Z" fill="url(#rD1)" stroke="#94a3b8" stroke-width="0.5"/>
+        <path d="M32 8 L26 20 L38 20 Z" fill="#ef4444" opacity="0.8"/>
+        <circle cx="32" cy="24" r="4" fill="#bae6fd" stroke="#7dd3fc" stroke-width="1"/>
+        <path d="M26 30 L20 38 L26 36 Z" fill="#f97316"/>
+        <path d="M38 30 L44 38 L38 36 Z" fill="#f97316"/>
+        <ellipse cx="29" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <ellipse cx="32" cy="36" rx="3" ry="5" fill="#f97316" opacity="0.8"/>
+        <ellipse cx="35" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <text x="10" y="16" font-size="9">⭐</text>
+        <text x="48" y="22" font-size="8">✨</text>
+      </svg>
+      <div>
+        <div class="game-title">Nugget Market</div>
+        <div class="game-nuggets">🪙 3,240 Nuggets</div>
+      </div>
+    </div>
+    <div class="tab-bar">
+      <div class="tab active">💼 Portfolio</div>
+      <div class="tab">📊 Market</div>
+      <div class="tab">🏆 Rankings</div>
+    </div>
+  </div>
+
+  <!-- Page content -->
+  <div class="page">
+    <!-- Balance card -->
+    <div class="balance-card">
+      <div class="balance-label">🪙 Nuggets Balance</div>
+      <div class="balance-amount">3,240</div>
+      <div class="balance-sub">≈ 3 stars withdrawable · ⭐ 142 stars available to deposit</div>
+      <div class="balance-btns">
+        <button class="bal-btn">⭐ Deposit Stars</button>
+        <button class="bal-btn">💸 Withdraw</button>
+      </div>
+    </div>
+
+    <!-- P&L cards -->
+    <div class="pl-row">
+      <div class="pl-card">
+        <div class="pl-label">Unrealised P/L</div>
+        <div class="pl-val up">+🪙 820</div>
+        <div class="pl-sub">+4.2% on holdings</div>
+      </div>
+      <div class="pl-card">
+        <div class="pl-label">Total P/L</div>
+        <div class="pl-val up">+⭐ 1.2 stars</div>
+        <div class="pl-sub">Since you started</div>
+      </div>
+    </div>
+
+    <!-- Holdings -->
+    <div class="section-title">My Holdings</div>
+
+    <div class="holding-row">
+      <div class="holding-emoji">🍿</div>
+      <div class="holding-info">
+        <div class="holding-name">Chomp Snacks</div>
+        <div class="holding-qty">12 shares · avg 🪙44</div>
+      </div>
+      <div class="holding-right">
+        <div class="holding-val">🪙 564</div>
+        <div class="holding-gain up">+🪙 36 (+6.8%)</div>
+      </div>
+    </div>
+
+    <div class="holding-row">
+      <div class="holding-emoji">🎮</div>
+      <div class="holding-info">
+        <div class="holding-name">Zapp Gaming</div>
+        <div class="holding-qty">5 shares · avg 🪙88</div>
+      </div>
+      <div class="holding-right">
+        <div class="holding-val">🪙 450</div>
+        <div class="holding-gain down">−🪙 10 (−2.2%)</div>
+      </div>
+    </div>
+
+    <div class="holding-row">
+      <div class="holding-emoji">🐾</div>
+      <div class="holding-info">
+        <div class="holding-name">Pawz Pet Co.</div>
+        <div class="holding-qty">20 shares · avg 🪙24</div>
+      </div>
+      <div class="holding-right">
+        <div class="holding-val">🪙 580</div>
+        <div class="holding-gain up">+🪙 100 (+20.8%) 🔥</div>
+      </div>
+    </div>
+
+    <div class="holding-row">
+      <div class="holding-emoji">🍔</div>
+      <div class="holding-info">
+        <div class="holding-name">Yumm Burgers</div>
+        <div class="holding-qty">8 shares · avg 🪙41</div>
+      </div>
+      <div class="holding-right">
+        <div class="holding-val">🪙 336</div>
+        <div class="holding-gain up">+🪙 8 (+2.4%)</div>
+      </div>
+    </div>
+
+    <!-- Recent transactions -->
+    <div class="section-title">Recent Trades</div>
+    <div style="background:white;border-radius:14px;overflow:hidden;border:1.5px solid #f3f4f6;">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #f9fafb;">
+        <div style="width:28px;height:28px;border-radius:8px;background:#dcfce7;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">📈</div>
+        <div style="flex:1;"><div style="font-size:12px;font-weight:800;color:#111;">Bought 5 ZAPP</div><div style="font-size:10px;color:#9ca3af;">Today 2:14 pm</div></div>
+        <div style="font-size:12px;font-weight:900;color:#dc2626;">−🪙 441</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #f9fafb;">
+        <div style="width:28px;height:28px;border-radius:8px;background:#fef3c7;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">💸</div>
+        <div style="flex:1;"><div style="font-size:12px;font-weight:800;color:#111;">Deposited 5 ⭐</div><div style="font-size:10px;color:#9ca3af;">Yesterday 4:00 pm</div></div>
+        <div style="font-size:12px;font-weight:900;color:#16a34a;">+🪙 5,000</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;">
+        <div style="width:28px;height:28px;border-radius:8px;background:#dbeafe;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;">💰</div>
+        <div style="flex:1;"><div style="font-size:12px;font-weight:800;color:#111;">Dividend — PAWZ</div><div style="font-size:10px;color:#9ca3af;">3 days ago</div></div>
+        <div style="font-size:12px;font-weight:900;color:#16a34a;">+🪙 12</div>
+      </div>
+    </div>
+    <div style="height:16px;"></div>
+  </div>
+
+  <!-- Bottom nav -->
+  <div class="bottom-nav">
+    <div class="nav-item"><div class="nav-icon nav-dim">🏠</div><div class="nav-lbl nav-dim">Home</div></div>
+    <div class="nav-item"><div class="nav-icon nav-dim">📅</div><div class="nav-lbl nav-dim">Schedule</div></div>
+    <div class="nav-item"><div class="nav-icon nav-dim">🎁</div><div class="nav-lbl nav-dim">Store</div></div>
+    <div class="nav-item"><div class="nav-icon nav-active">🎮</div><div class="nav-lbl nav-active">Play</div></div>
+  </div>
+</div>
+<div class="phone-label">1 — Portfolio Tab</div>
+</div>
+
+<!-- ===== SCREEN 2: MARKET ===== -->
+<div>
+<div class="phone">
+  <div class="kid-header">
+    <div class="kid-header-row">
+      <div class="kid-avatar">🦄</div>
+      <div class="kid-meta">
+        <div class="kid-greeting">Good afternoon,</div>
+        <div class="kid-name">Lily</div>
+        <div class="kid-date">Wed 21 May · 3:42 pm</div>
+      </div>
+      <div class="kid-chips">
+        <div class="chips-row"><div class="chip">⭐ 142</div><div class="chip">🔥 5d</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="game-header">
+    <div class="game-title-row">
+      <svg class="game-icon-sm" width="36" height="36" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="bgD3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#10b981"/></linearGradient>
+          <linearGradient id="cD3" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+          <linearGradient id="rD3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bgD3)"/>
+        <ellipse cx="32" cy="54" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="51" rx="18" ry="5" fill="url(#cD3)"/>
+        <ellipse cx="32" cy="48" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="45" rx="18" ry="5" fill="url(#cD3)"/>
+        <text x="32" y="49" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="7" fill="#92400e">NUGGETS</text>
+        <path d="M32 8 C28 14 26 22 26 30 L38 30 C38 22 36 14 32 8 Z" fill="url(#rD3)" stroke="#94a3b8" stroke-width="0.5"/>
+        <path d="M32 8 L26 20 L38 20 Z" fill="#ef4444" opacity="0.8"/>
+        <circle cx="32" cy="24" r="4" fill="#bae6fd" stroke="#7dd3fc" stroke-width="1"/>
+        <path d="M26 30 L20 38 L26 36 Z" fill="#f97316"/>
+        <path d="M38 30 L44 38 L38 36 Z" fill="#f97316"/>
+        <ellipse cx="29" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <ellipse cx="32" cy="36" rx="3" ry="5" fill="#f97316" opacity="0.8"/>
+        <ellipse cx="35" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <text x="10" y="16" font-size="9">⭐</text><text x="48" y="22" font-size="8">✨</text>
+      </svg>
+      <div><div class="game-title">Nugget Market</div><div class="game-nuggets">🪙 3,240 Nuggets</div></div>
+    </div>
+    <div class="tab-bar">
+      <div class="tab">💼 Portfolio</div>
+      <div class="tab active">📊 Market</div>
+      <div class="tab">🏆 Rankings</div>
+    </div>
+  </div>
+
+  <div class="page">
+    <!-- Predict tomorrow banner -->
+    <div style="background:linear-gradient(135deg,#78350f,#f97316);border-radius:14px;padding:10px 14px;margin-bottom:10px;color:white;">
+      <div style="font-size:10px;font-weight:800;opacity:0.85;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;">🔮 Predict Tomorrow's Prices!</div>
+      <div style="font-size:12px;font-weight:800;line-height:1.4;opacity:0.95;">Read today's news below → decide what to buy or sell → prices update tonight at midnight 🌙</div>
+    </div>
+
+    <!-- Today's news strip -->
+    <div style="background:linear-gradient(135deg,#1e1b4b,#4338ca);border-radius:14px;padding:10px 14px;margin-bottom:10px;color:white;">
+      <div style="font-size:10px;font-weight:700;opacity:0.7;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">📰 Today's News — prices update tonight 🌙</div>
+      <div style="font-size:12px;font-weight:800;line-height:1.5;">Kids spotted sneaking Chomp into classrooms nationwide 👀 · Pawz Pet Co. seen testing mysterious new product in the park 🐾</div>
+    </div>
+
+    <div class="market-grid">
+      <!-- CHOMP -->
+      <div class="asset-card">
+        <div class="owned-dot"></div>
+        <div class="asset-header">
+          <div class="asset-emoji">🍿</div>
+          <div class="asset-change change-up">+8.4%</div>
+        </div>
+        <div class="asset-sym">CHOMP</div>
+        <div class="asset-name">Chomp Snacks</div>
+        <div class="asset-price">🪙 48</div>
+        <div class="asset-price-sub">per share</div>
+        <div class="div-badge">💰 Pays dividend</div>
+        <svg class="spark" width="100%" height="24" viewBox="0 0 100 24" style="margin-top:4px;">
+          <defs><linearGradient id="sg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4ade80" stop-opacity="0.3"/><stop offset="100%" stop-color="#4ade80" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,18 L14,16 L28,14 L42,17 L56,12 L70,8 L84,5 L100,2 L100,24 L0,24 Z" fill="url(#sg1)"/>
+          <polyline points="0,18 14,16 28,14 42,17 56,12 70,8 84,5 100,2" stroke="#16a34a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <!-- ZAPP -->
+      <div class="asset-card">
+        <div class="owned-dot"></div>
+        <div class="asset-header">
+          <div class="asset-emoji">🎮</div>
+          <div class="asset-change change-down">−2.1%</div>
+        </div>
+        <div class="asset-sym">ZAPP</div>
+        <div class="asset-name">Zapp Gaming</div>
+        <div class="asset-price">🪙 90</div>
+        <div class="asset-price-sub">per share</div>
+        <svg class="spark" width="100%" height="24" viewBox="0 0 100 24" style="margin-top:4px;margin-bottom:20px;">
+          <defs><linearGradient id="sg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f87171" stop-opacity="0.25"/><stop offset="100%" stop-color="#f87171" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,4 L14,6 L28,4 L42,8 L56,10 L70,7 L84,12 L100,14 L100,24 L0,24 Z" fill="url(#sg2)"/>
+          <polyline points="0,4 14,6 28,4 42,8 56,10 70,7 84,12 100,14" stroke="#ef4444" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <!-- ZOOM -->
+      <div class="asset-card">
+        <div class="asset-header">
+          <div class="asset-emoji">🛴</div>
+          <div class="asset-change change-flat">+0.3%</div>
+        </div>
+        <div class="asset-sym">ZOOM</div>
+        <div class="asset-name">Zoom Wheels</div>
+        <div class="asset-price">🪙 31</div>
+        <div class="asset-price-sub">per share</div>
+        <svg class="spark" width="100%" height="24" viewBox="0 0 100 24" style="margin-top:4px;margin-bottom:20px;">
+          <polyline points="0,12 14,11 28,13 42,12 56,11 70,12 84,11 100,12" stroke="#d1d5db" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <!-- FLICK -->
+      <div class="asset-card">
+        <div class="asset-header">
+          <div class="asset-emoji">🎬</div>
+          <div class="asset-change change-up">+12.3%</div>
+        </div>
+        <div class="asset-sym">FLICK</div>
+        <div class="asset-name">Flick Studios</div>
+        <div class="asset-price">🪙 134</div>
+        <div class="asset-price-sub">per share</div>
+        <div class="div-badge">💰 Pays dividend</div>
+        <svg class="spark" width="100%" height="24" viewBox="0 0 100 24" style="margin-top:4px;">
+          <defs><linearGradient id="sg3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4ade80" stop-opacity="0.3"/><stop offset="100%" stop-color="#4ade80" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,20 L14,18 L28,16 L42,14 L56,11 L70,8 L84,5 L100,1 L100,24 L0,24 Z" fill="url(#sg3)"/>
+          <polyline points="0,20 14,18 28,16 42,14 56,11 70,8 84,5 100,1" stroke="#16a34a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <!-- PAWZ -->
+      <div class="asset-card">
+        <div class="owned-dot"></div>
+        <div class="asset-header">
+          <div class="asset-emoji">🐾</div>
+          <div class="asset-change change-up">+15.2%</div>
+        </div>
+        <div class="asset-sym">PAWZ</div>
+        <div class="asset-name">Pawz Pet Co.</div>
+        <div class="asset-price">🪙 29</div>
+        <div class="asset-price-sub">per share</div>
+        <div class="div-badge">💰 Pays dividend</div>
+        <svg class="spark" width="100%" height="24" viewBox="0 0 100 24" style="margin-top:4px;">
+          <defs><linearGradient id="sg4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4ade80" stop-opacity="0.3"/><stop offset="100%" stop-color="#4ade80" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,22 L14,20 L28,18 L42,16 L56,13 L70,9 L84,5 L100,2 L100,24 L0,24 Z" fill="url(#sg4)"/>
+          <polyline points="0,22 14,20 28,18 42,16 56,13 70,9 84,5 100,2" stroke="#16a34a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <!-- SWEET -->
+      <div class="asset-card">
+        <div class="asset-header">
+          <div class="asset-emoji">🍭</div>
+          <div class="asset-change change-down">−5.6%</div>
+        </div>
+        <div class="asset-sym">SWEET</div>
+        <div class="asset-name">Sweet Street</div>
+        <div class="asset-price">🪙 19</div>
+        <div class="asset-price-sub">per share</div>
+        <div class="div-badge">💰 Pays dividend</div>
+        <svg class="spark" width="100%" height="24" viewBox="0 0 100 24" style="margin-top:4px;">
+          <defs><linearGradient id="sg5" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f87171" stop-opacity="0.25"/><stop offset="100%" stop-color="#f87171" stop-opacity="0"/></linearGradient></defs>
+          <path d="M0,6 L14,8 L28,7 L42,9 L56,11 L70,13 L84,16 L100,18 L100,24 L0,24 Z" fill="url(#sg5)"/>
+          <polyline points="0,6 14,8 28,7 42,9 56,11 70,13 84,16 100,18" stroke="#ef4444" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+    <div style="height:16px;"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item"><div class="nav-icon nav-dim">🏠</div><div class="nav-lbl nav-dim">Home</div></div>
+    <div class="nav-item"><div class="nav-icon nav-dim">📅</div><div class="nav-lbl nav-dim">Schedule</div></div>
+    <div class="nav-item"><div class="nav-icon nav-dim">🎁</div><div class="nav-lbl nav-dim">Store</div></div>
+    <div class="nav-item"><div class="nav-icon nav-active">🎮</div><div class="nav-lbl nav-active">Play</div></div>
+  </div>
+</div>
+<div class="phone-label">2 — Market Tab</div>
+</div>
+
+<!-- ===== SCREEN 3: ASSET DETAIL SHEET ===== -->
+<div>
+<div class="phone">
+  <div class="kid-header">
+    <div class="kid-header-row">
+      <div class="kid-avatar">🦄</div>
+      <div class="kid-meta">
+        <div class="kid-greeting">Good afternoon,</div>
+        <div class="kid-name">Lily</div>
+        <div class="kid-date">Wed 21 May · 3:42 pm</div>
+      </div>
+      <div class="kid-chips">
+        <div class="chips-row"><div class="chip">⭐ 142</div><div class="chip">🔥 5d</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="game-header">
+    <div class="game-title-row">
+      <svg class="game-icon-sm" width="36" height="36" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="bgD4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#10b981"/></linearGradient>
+          <linearGradient id="cD4" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+          <linearGradient id="rD4" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bgD4)"/>
+        <ellipse cx="32" cy="54" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="51" rx="18" ry="5" fill="url(#cD4)"/>
+        <ellipse cx="32" cy="48" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="45" rx="18" ry="5" fill="url(#cD4)"/>
+        <text x="32" y="49" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="7" fill="#92400e">NUGGETS</text>
+        <path d="M32 8 C28 14 26 22 26 30 L38 30 C38 22 36 14 32 8 Z" fill="url(#rD4)" stroke="#94a3b8" stroke-width="0.5"/>
+        <path d="M32 8 L26 20 L38 20 Z" fill="#ef4444" opacity="0.8"/>
+        <circle cx="32" cy="24" r="4" fill="#bae6fd" stroke="#7dd3fc" stroke-width="1"/>
+        <path d="M26 30 L20 38 L26 36 Z" fill="#f97316"/>
+        <path d="M38 30 L44 38 L38 36 Z" fill="#f97316"/>
+        <ellipse cx="29" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <ellipse cx="32" cy="36" rx="3" ry="5" fill="#f97316" opacity="0.8"/>
+        <ellipse cx="35" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <text x="10" y="16" font-size="9">⭐</text><text x="48" y="22" font-size="8">✨</text>
+      </svg>
+      <div><div class="game-title">Nugget Market</div><div class="game-nuggets">🪙 3,240 Nuggets</div></div>
+    </div>
+    <div class="tab-bar">
+      <div class="tab">💼 Portfolio</div>
+      <div class="tab active">📊 Market</div>
+      <div class="tab">🏆 Rankings</div>
+    </div>
+  </div>
+
+  <!-- Sheet overlaid -->
+  <div class="sheet-backdrop">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-scroll">
+        <!-- Header -->
+        <div class="sheet-header">
+          <div class="sheet-asset-info">
+            <div class="sheet-emoji">🍿</div>
+            <div>
+              <div class="sheet-name">Chomp Snacks Co.</div>
+              <div class="sheet-industry">Snack food · CHOMP</div>
+              <div class="div-badge" style="margin-top:4px;">💰 Pays dividend</div>
+            </div>
+          </div>
+          <div class="sheet-price">
+            <div class="sheet-price-val">🪙 48</div>
+            <div class="sheet-price-change up">+8.4% today</div>
+          </div>
+        </div>
+
+        <!-- 30-day chart -->
+        <div class="chart-area">
+          <div class="chart-label">30-day price chart</div>
+          <svg width="100%" height="60" viewBox="0 0 320 60" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#16a34a" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#16a34a" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,52 L11,50 L21,48 L32,46 L43,49 L53,44 L64,42 L75,45 L85,40 L96,38 L107,41 L117,36 L128,34 L139,32 L149,35 L160,28 L171,25 L181,22 L192,19 L203,22 L213,18 L224,15 L235,12 L245,9 L256,11 L267,8 L277,5 L288,7 L299,4 L320,2 L320,60 L0,60 Z" fill="url(#chartFill)"/>
+            <path d="M0,52 L11,50 L21,48 L32,46 L43,49 L53,44 L64,42 L75,45 L85,40 L96,38 L107,41 L117,36 L128,34 L139,32 L149,35 L160,28 L171,25 L181,22 L192,19 L203,22 L213,18 L224,15 L235,12 L245,9 L256,11 L267,8 L277,5 L288,7 L299,4 L320,2" stroke="#16a34a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Today dot -->
+            <circle cx="320" cy="2" r="4" fill="#16a34a"/>
+          </svg>
+        </div>
+
+        <!-- News -->
+        <div class="news-card" style="background:#f8fafc;border:1.5px solid #e5e7eb;border-left:3px solid #6366f1;border-radius:12px;padding:10px 12px;margin-bottom:10px;">
+          <div style="font-size:10px;font-weight:800;color:#6366f1;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">📰 Today's News — prices update tonight 🌙</div>
+          <div class="news-text" style="color:#111827;">Kids spotted sneaking Chomp into classrooms nationwide 👀</div>
+          <div style="font-size:11px;font-weight:700;color:#9ca3af;margin-top:6px;">What do you think happens next? 🤔</div>
+        </div>
+
+        <!-- Current position -->
+        <div class="position-card">
+          <div style="font-size:11px;font-weight:800;color:#374151;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Your Position</div>
+          <div class="position-row"><span class="pos-label">Shares owned</span><span class="pos-val">12 shares</span></div>
+          <div class="position-row"><span class="pos-label">Average cost</span><span class="pos-val">🪙 44 each</span></div>
+          <div class="position-row"><span class="pos-label">Current value</span><span class="pos-val">🪙 576</span></div>
+          <div class="position-row"><span class="pos-label">Unrealised gain</span><span class="pos-val up">+🪙 48 (+9.1%)</span></div>
+        </div>
+
+        <!-- Buy/Sell -->
+        <div class="trade-section">
+          <div class="trade-label">Buy or Sell</div>
+          <div class="qty-row">
+            <div class="qty-btn">−</div>
+            <input class="qty-input" type="number" value="5" readonly>
+            <div class="qty-btn">+</div>
+          </div>
+          <div class="cost-preview">💸 Cost: 🪙 240 + 🪙 1 fee = <strong>🪙 241</strong></div>
+          <div class="trade-btns">
+            <button class="buy-btn">🛒 Buy 5 shares</button>
+            <button class="sell-btn">📤 Sell 5</button>
+          </div>
+          <div style="font-size:10px;font-weight:700;color:#9ca3af;text-align:center;margin-top:8px;">You have 🪙 3,240 · Need 🪙 241 to buy</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="phone-label">3 — Asset Detail Sheet</div>
+</div>
+
+<!-- ===== SCREEN 4: RANKINGS ===== -->
+<div>
+<div class="phone">
+  <div class="kid-header">
+    <div class="kid-header-row">
+      <div class="kid-avatar">🦄</div>
+      <div class="kid-meta">
+        <div class="kid-greeting">Good afternoon,</div>
+        <div class="kid-name">Lily</div>
+        <div class="kid-date">Wed 21 May · 3:42 pm</div>
+      </div>
+      <div class="kid-chips">
+        <div class="chips-row"><div class="chip">⭐ 142</div><div class="chip">🔥 5d</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="game-header">
+    <div class="game-title-row">
+      <svg class="game-icon-sm" width="36" height="36" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="bgD5" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#10b981"/></linearGradient>
+          <linearGradient id="cD5" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+          <linearGradient id="rD5" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bgD5)"/>
+        <ellipse cx="32" cy="54" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="51" rx="18" ry="5" fill="url(#cD5)"/>
+        <ellipse cx="32" cy="48" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="45" rx="18" ry="5" fill="url(#cD5)"/>
+        <text x="32" y="49" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="7" fill="#92400e">NUGGETS</text>
+        <path d="M32 8 C28 14 26 22 26 30 L38 30 C38 22 36 14 32 8 Z" fill="url(#rD5)" stroke="#94a3b8" stroke-width="0.5"/>
+        <path d="M32 8 L26 20 L38 20 Z" fill="#ef4444" opacity="0.8"/>
+        <circle cx="32" cy="24" r="4" fill="#bae6fd" stroke="#7dd3fc" stroke-width="1"/>
+        <path d="M26 30 L20 38 L26 36 Z" fill="#f97316"/>
+        <path d="M38 30 L44 38 L38 36 Z" fill="#f97316"/>
+        <ellipse cx="29" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <ellipse cx="32" cy="36" rx="3" ry="5" fill="#f97316" opacity="0.8"/>
+        <ellipse cx="35" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <text x="10" y="16" font-size="9">⭐</text><text x="48" y="22" font-size="8">✨</text>
+      </svg>
+      <div><div class="game-title">Nugget Market</div><div class="game-nuggets">🪙 3,240 Nuggets</div></div>
+    </div>
+    <div class="tab-bar">
+      <div class="tab">💼 Portfolio</div>
+      <div class="tab">📊 Market</div>
+      <div class="tab active">🏆 Rankings</div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="leaderboard-header">
+      <div class="lb-title">🏆 Family Rankings</div>
+      <div class="lb-sub">Ranked by portfolio growth % — skill beats luck!</div>
+    </div>
+
+    <!-- Rank 1 -->
+    <div class="lb-row">
+      <div class="lb-rank">🥇</div>
+      <div class="lb-avatar">🦊</div>
+      <div class="lb-info">
+        <div class="lb-name">Max</div>
+        <div class="lb-val">🪙 18,420 total value</div>
+      </div>
+      <div class="lb-gain">
+        <div class="lb-pct up">+34.2%</div>
+        <div class="lb-pct-sub">portfolio gain</div>
+      </div>
+    </div>
+
+    <!-- Rank 2 — current user highlighted -->
+    <div class="lb-row me">
+      <div class="lb-rank">🥈</div>
+      <div class="lb-avatar">🦄</div>
+      <div class="lb-info">
+        <div class="lb-name">Lily <span style="font-size:11px;background:#4338ca;color:white;border-radius:6px;padding:1px 6px;margin-left:4px;">You</span></div>
+        <div class="lb-val">🪙 11,930 total value</div>
+      </div>
+      <div class="lb-gain">
+        <div class="lb-pct up">+19.3%</div>
+        <div class="lb-pct-sub">portfolio gain</div>
+      </div>
+    </div>
+
+    <!-- Rank 3 -->
+    <div class="lb-row">
+      <div class="lb-rank">🥉</div>
+      <div class="lb-avatar">🐸</div>
+      <div class="lb-info">
+        <div class="lb-name">Tom</div>
+        <div class="lb-val">🪙 7,200 total value</div>
+      </div>
+      <div class="lb-gain">
+        <div class="lb-pct up">+8.1%</div>
+        <div class="lb-pct-sub">portfolio gain</div>
+      </div>
+    </div>
+
+    <!-- Rank 4 — not started -->
+    <div class="lb-row not-started">
+      <div class="lb-rank" style="font-size:14px;color:#9ca3af;">4</div>
+      <div class="lb-avatar" style="background:#f3f4f6;">🐼</div>
+      <div class="lb-info">
+        <div class="lb-name">Mia</div>
+        <div class="lb-val" style="color:#d1d5db;">Hasn't started yet</div>
+      </div>
+      <div class="lb-gain">
+        <div class="lb-pct">—</div>
+      </div>
+    </div>
+
+    <!-- Info blurb -->
+    <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:14px;padding:12px 14px;margin-top:8px;">
+      <div style="font-size:12px;font-weight:800;color:#78350f;margin-bottom:4px;">💡 How rankings work</div>
+      <div style="font-size:11px;font-weight:700;color:#92400e;line-height:1.5;">Rankings are based on % gain — not total Nuggets. Investing 1 star and doubling it beats investing 10 stars and barely growing! Smart picks matter more than big deposits.</div>
+    </div>
+
+    <div style="height:16px;"></div>
+  </div>
+
+  <div class="bottom-nav">
+    <div class="nav-item"><div class="nav-icon nav-dim">🏠</div><div class="nav-lbl nav-dim">Home</div></div>
+    <div class="nav-item"><div class="nav-icon nav-dim">📅</div><div class="nav-lbl nav-dim">Schedule</div></div>
+    <div class="nav-item"><div class="nav-icon nav-dim">🎁</div><div class="nav-lbl nav-dim">Store</div></div>
+    <div class="nav-item"><div class="nav-icon nav-active">🎮</div><div class="nav-lbl nav-active">Play</div></div>
+  </div>
+</div>
+<div class="phone-label">4 — Rankings Tab</div>
+</div>
+
+</div><!-- end screens-row -->
+</body>
+</html>

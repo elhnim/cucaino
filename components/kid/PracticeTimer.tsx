@@ -25,6 +25,7 @@ export default function PracticeTimer({
   const baseRemainingRef = useRef<number>(totalMs);
   const tickRef = useRef<number | null>(null);
   const completedRef = useRef(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Hydrate from localStorage
   useEffect(() => {
@@ -72,7 +73,7 @@ export default function PracticeTimer({
       setRemainingMs(next);
       if (next === 0 && !completedRef.current) {
         completedRef.current = true;
-        beep();
+        beep(audioCtxRef.current);
         onComplete?.();
         setRunning(false);
         window.localStorage.removeItem(storageKey);
@@ -87,6 +88,15 @@ export default function PracticeTimer({
   }, [running, storageKey, onComplete]);
 
   const start = () => {
+    // Create/unlock AudioContext within the user gesture so iOS allows audio later
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext)();
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
     completedRef.current = false;
     baseRemainingRef.current = remainingMs;
     startedAtRef.current = Date.now();
@@ -203,21 +213,19 @@ function pad(n: number): string {
   return n.toString().padStart(2, "0");
 }
 
-function beep() {
+function beep(ctx: AudioContext | null) {
+  if (!ctx || ctx.state === "closed") return;
   try {
-    const ctx = new (window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext })
-        .webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.frequency.value = 880;
     gain.gain.setValueAtTime(0, ctx.currentTime);
     gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
     osc.start();
     osc.stop(ctx.currentTime + 1);
-    osc.onended = () => ctx.close();
   } catch {
     // ignore
   }

@@ -1,0 +1,85 @@
+<h2>Tour card — two position options</h2>
+<p class="subtitle">Where should the floating card sit on screen?</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Option A — Bottom centre</div>
+    <div class="mockup-body" style="background:#f8f9fa;min-height:340px;position:relative;border-radius:8px;overflow:hidden;">
+      <!-- Simulated parent nav -->
+      <div style="background:#1e293b;color:#94a3b8;font-size:11px;padding:8px 16px;display:flex;gap:20px;">
+        <span style="color:white;font-weight:600;">Overview</span>
+        <span>Tasks</span><span>Rewards</span><span>Requests</span><span>Settings</span>
+      </div>
+      <!-- Page content placeholder -->
+      <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+      </div>
+      <!-- Backdrop -->
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:8px;"></div>
+      <!-- Tour card — bottom centre -->
+      <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);background:white;border-radius:12px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Step 1 of 5</span>
+          <span style="font-size:11px;color:#94a3b8;cursor:pointer;">Skip tour ×</span>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px;">📊 Overview</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:12px;">Your daily snapshot — see which kids have completed tasks and the family star balance at a glance.</div>
+        <div style="display:flex;justify-content:flex-end;">
+          <button style="background:#6366f1;color:white;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Option B — Bottom right corner</div>
+    <div class="mockup-body" style="background:#f8f9fa;min-height:340px;position:relative;border-radius:8px;overflow:hidden;">
+      <!-- Simulated parent nav -->
+      <div style="background:#1e293b;color:#94a3b8;font-size:11px;padding:8px 16px;display:flex;gap:20px;">
+        <span style="color:white;font-weight:600;">Overview</span>
+        <span>Tasks</span><span>Rewards</span><span>Requests</span><span>Settings</span>
+      </div>
+      <!-- Page content placeholder -->
+      <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+        <div style="background:#e2e8f0;border-radius:6px;height:70px;"></div>
+      </div>
+      <!-- Backdrop -->
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);border-radius:8px;"></div>
+      <!-- Tour card — bottom right -->
+      <div style="position:absolute;bottom:16px;right:16px;width:220px;background:white;border-radius:12px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:10px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Step 1 of 5</span>
+          <span style="font-size:11px;color:#94a3b8;cursor:pointer;">×</span>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:4px;">📊 Overview</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:12px;">Your daily snapshot — see which kids have completed tasks and the family star balance.</div>
+        <div style="display:flex;justify-content:flex-end;">
+          <button style="background:#6366f1;color:white;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:24px;">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Bottom centre</h3>
+      <p>Wide card, easy to read, works well on mobile</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Bottom right corner</h3>
+      <p>Less intrusive, page content more visible</p>
+    </div>
+  </div>
+</div>

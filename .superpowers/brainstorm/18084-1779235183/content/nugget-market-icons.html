@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nugget Market — Icon Options</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f1f5f9;
+    font-family: 'Nunito', sans-serif;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    align-items: center;
+  }
+
+  h2 { font-size: 13px; font-weight: 700; color: #6b7280; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  /* Icon options row */
+  .options-row {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .option-label {
+    font-size: 12px;
+    font-weight: 800;
+    color: #374151;
+  }
+  .option-hint {
+    font-size: 11px;
+    font-weight: 600;
+    color: #9ca3af;
+    text-align: center;
+    max-width: 120px;
+  }
+
+  /* Tile preview (matches actual app tile) */
+  .tile-preview {
+    width: 160px;
+    border-radius: 24px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border: 2px solid #bbf7d0;
+    background: #f0fdf4;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .tile-name { font-size: 16px; font-weight: 900; color: #14532d; }
+  .tile-sub { font-size: 11px; color: #16a34a; margin-top: 2px; }
+
+  /* Icon container — 64×64 */
+  .icon { width: 64px; height: 64px; }
+</style>
+</head>
+<body>
+
+<h2>Nugget Market — Icon Options</h2>
+
+<div class="options-row">
+
+  <!-- Option A: Gold coin with rocket chart -->
+  <div class="option">
+    <div class="tile-preview">
+      <div class="icon">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="coinGradA" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#fde68a"/>
+              <stop offset="100%" stop-color="#f59e0b"/>
+            </linearGradient>
+            <linearGradient id="greenGradA" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#4ade80"/>
+              <stop offset="100%" stop-color="#16a34a"/>
+            </linearGradient>
+            <filter id="shadowA">
+              <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#f59e0b" flood-opacity="0.4"/>
+            </filter>
+          </defs>
+          <!-- Background circle - green -->
+          <circle cx="32" cy="32" r="30" fill="url(#greenGradA)"/>
+          <!-- Coin stack bottom -->
+          <ellipse cx="28" cy="46" rx="13" ry="4" fill="#d97706" opacity="0.7"/>
+          <rect x="15" y="38" width="26" height="8" rx="2" fill="#fbbf24"/>
+          <ellipse cx="28" cy="38" rx="13" ry="4" fill="url(#coinGradA)" filter="url(#shadowA)"/>
+          <!-- Coin middle -->
+          <ellipse cx="28" cy="33" rx="13" ry="4" fill="#d97706" opacity="0.7"/>
+          <rect x="15" y="25" width="26" height="8" rx="2" fill="#fcd34d"/>
+          <ellipse cx="28" cy="25" rx="13" ry="4" fill="url(#coinGradA)"/>
+          <!-- Arrow up right -->
+          <polyline points="36,30 44,18 44,24" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <polyline points="44,18 50,18" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- N on coin -->
+          <text x="28" y="29" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="8" fill="#92400e">N</text>
+        </svg>
+      </div>
+      <div>
+        <div class="tile-name">Nugget Market</div>
+        <div class="tile-sub">Buy · Sell · Profit 🪙</div>
+      </div>
+    </div>
+    <div class="option-label">A — Coin Stack + Arrow</div>
+    <div class="option-hint">Classic stocks vibe, stacked nugget coins</div>
+  </div>
+
+  <!-- Option B: Cute market building with coins -->
+  <div class="option">
+    <div class="tile-preview">
+      <div class="icon">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bgGradB" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#86efac"/>
+              <stop offset="100%" stop-color="#059669"/>
+            </linearGradient>
+            <linearGradient id="coinGradB" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#fde68a"/>
+              <stop offset="100%" stop-color="#f59e0b"/>
+            </linearGradient>
+          </defs>
+          <!-- BG -->
+          <rect width="64" height="64" rx="16" fill="url(#bgGradB)"/>
+          <!-- Market stall roof -->
+          <path d="M8 28 L32 14 L56 28 Z" fill="#fbbf24" stroke="#d97706" stroke-width="1.5"/>
+          <!-- Striped awning effect -->
+          <path d="M8 28 L32 14 L56 28 Z" fill="url(#coinGradB)" opacity="0.5"/>
+          <!-- Building body -->
+          <rect x="14" y="28" width="36" height="22" rx="2" fill="white" opacity="0.95"/>
+          <!-- Door -->
+          <rect x="26" y="37" width="12" height="13" rx="3" fill="#bbf7d0" stroke="#4ade80" stroke-width="1.5"/>
+          <circle cx="35" cy="44" r="1.2" fill="#16a34a"/>
+          <!-- Windows -->
+          <rect x="17" y="32" width="8" height="6" rx="2" fill="#bbf7d0"/>
+          <rect x="39" y="32" width="8" height="6" rx="2" fill="#bbf7d0"/>
+          <!-- Coins floating -->
+          <circle cx="46" cy="18" r="5" fill="url(#coinGradB)" stroke="#d97706" stroke-width="1"/>
+          <text x="46" y="21" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="6" fill="#92400e">🪙</text>
+          <!-- Star sparkles -->
+          <text x="53" y="12" font-size="8">✨</text>
+          <text x="8" y="20" font-size="7">⭐</text>
+        </svg>
+      </div>
+      <div>
+        <div class="tile-name">Nugget Market</div>
+        <div class="tile-sub">Buy · Sell · Profit 🪙</div>
+      </div>
+    </div>
+    <div class="option-label">B — Market Stall</div>
+    <div class="option-hint">Kid-friendly storefront, playful & warm</div>
+  </div>
+
+  <!-- Option C: Big gold nugget coin with chart line -->
+  <div class="option">
+    <div class="tile-preview">
+      <div class="icon">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bgGradC" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0%" stop-color="#065f46"/>
+              <stop offset="100%" stop-color="#34d399"/>
+            </linearGradient>
+            <linearGradient id="nuggetC" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#fef08a"/>
+              <stop offset="50%" stop-color="#fbbf24"/>
+              <stop offset="100%" stop-color="#d97706"/>
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+            </filter>
+          </defs>
+          <!-- Dark green background -->
+          <rect width="64" height="64" rx="16" fill="url(#bgGradC)"/>
+          <!-- Chart line behind coin -->
+          <polyline points="6,50 16,40 26,44 38,28 52,16" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.7"/>
+          <!-- Chart area fill -->
+          <path d="M6,50 L16,40 L26,44 L38,28 L52,16 L52,56 L6,56 Z" fill="#4ade80" opacity="0.12"/>
+          <!-- Big coin -->
+          <circle cx="34" cy="34" r="18" fill="#d97706" opacity="0.5"/>
+          <circle cx="32" cy="32" r="18" fill="url(#nuggetC)"/>
+          <circle cx="32" cy="32" r="14" fill="none" stroke="#fef08a" stroke-width="1.5" opacity="0.6"/>
+          <!-- N symbol -->
+          <text x="32" y="38" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="18" fill="#92400e">N</text>
+          <!-- Shine -->
+          <ellipse cx="26" cy="24" rx="4" ry="2.5" fill="white" opacity="0.3" transform="rotate(-30 26 24)"/>
+          <!-- Arrow -->
+          <path d="M47 14 L54 7 M54 7 L54 13 M54 7 L48 7" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="tile-name">Nugget Market</div>
+        <div class="tile-sub">Buy · Sell · Profit 🪙</div>
+      </div>
+    </div>
+    <div class="option-label">C — Big Gold Coin + Chart</div>
+    <div class="option-hint">Bold, premium feel with the "N" branding</div>
+  </div>
+
+  <!-- Option D: Rocket launching from coins -->
+  <div class="option">
+    <div class="tile-preview">
+      <div class="icon">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bgGradD" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#a7f3d0"/>
+              <stop offset="100%" stop-color="#10b981"/>
+            </linearGradient>
+            <linearGradient id="coinGradD" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#fde68a"/>
+              <stop offset="100%" stop-color="#f59e0b"/>
+            </linearGradient>
+            <linearGradient id="rocketGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f1f5f9"/>
+              <stop offset="100%" stop-color="#cbd5e1"/>
+            </linearGradient>
+          </defs>
+          <!-- BG -->
+          <rect width="64" height="64" rx="16" fill="url(#bgGradD)"/>
+          <!-- Coins at bottom -->
+          <ellipse cx="32" cy="54" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+          <ellipse cx="32" cy="51" rx="18" ry="5" fill="url(#coinGradD)"/>
+          <ellipse cx="32" cy="48" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+          <ellipse cx="32" cy="45" rx="18" ry="5" fill="url(#coinGradD)"/>
+          <text x="32" y="49" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="7" fill="#92400e">NUGGETS</text>
+          <!-- Rocket body -->
+          <path d="M32 8 C28 14 26 22 26 30 L38 30 C38 22 36 14 32 8 Z" fill="url(#rocketGrad)" stroke="#94a3b8" stroke-width="0.5"/>
+          <!-- Rocket nose -->
+          <path d="M32 8 L26 20 L38 20 Z" fill="#ef4444" opacity="0.8"/>
+          <!-- Rocket window -->
+          <circle cx="32" cy="24" r="4" fill="#bae6fd" stroke="#7dd3fc" stroke-width="1"/>
+          <circle cx="32" cy="24" r="2" fill="white" opacity="0.6"/>
+          <!-- Rocket fins -->
+          <path d="M26 30 L20 38 L26 36 Z" fill="#f97316"/>
+          <path d="M38 30 L44 38 L38 36 Z" fill="#f97316"/>
+          <!-- Flames -->
+          <ellipse cx="29" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+          <ellipse cx="32" cy="36" rx="3" ry="5" fill="#f97316" opacity="0.8"/>
+          <ellipse cx="35" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+          <!-- Stars -->
+          <text x="10" y="16" font-size="9">⭐</text>
+          <text x="48" y="22" font-size="8">✨</text>
+          <text x="52" y="10" font-size="7">⭐</text>
+        </svg>
+      </div>
+      <div>
+        <div class="tile-name">Nugget Market</div>
+        <div class="tile-sub">Buy · Sell · Profit 🪙</div>
+      </div>
+    </div>
+    <div class="option-label">D — Rocket + Coins</div>
+    <div class="option-hint">"To the moon!" energy, super kid-friendly</div>
+  </div>
+
+</div>
+
+<!-- In-context comparison: all 4 on the Play hub grid -->
+<h2>How each looks in the Play hub grid</h2>
+
+<div style="background:white; border-radius:20px; padding:24px; width:100%; max-width:680px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+  <div style="font-size:22px; font-weight:900; color:#111827; margin-bottom:16px;">🎮 Play</div>
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px;">
+
+    <!-- Quiz reference -->
+    <div style="background:#fffbeb; border:2px solid #fde68a; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+      <div style="font-size:36px;">🎯</div>
+      <div>
+        <div style="font-size:14px; font-weight:900; color:#78350f;">Quiz</div>
+        <div style="font-size:10px; color:#b45309; margin-top:2px;">14 topics</div>
+      </div>
+    </div>
+
+    <!-- A -->
+    <div style="background:#f0fdf4; border:2px solid #bbf7d0; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="cA2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+          <linearGradient id="gA2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#16a34a"/></linearGradient>
+        </defs>
+        <circle cx="32" cy="32" r="30" fill="url(#gA2)"/>
+        <ellipse cx="28" cy="46" rx="13" ry="4" fill="#d97706" opacity="0.7"/>
+        <rect x="15" y="38" width="26" height="8" rx="2" fill="#fbbf24"/>
+        <ellipse cx="28" cy="38" rx="13" ry="4" fill="url(#cA2)"/>
+        <ellipse cx="28" cy="33" rx="13" ry="4" fill="#d97706" opacity="0.7"/>
+        <rect x="15" y="25" width="26" height="8" rx="2" fill="#fcd34d"/>
+        <ellipse cx="28" cy="25" rx="13" ry="4" fill="url(#cA2)"/>
+        <polyline points="36,30 44,18 44,24" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <polyline points="44,18 50,18" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="28" y="29" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="8" fill="#92400e">N</text>
+      </svg>
+      <div>
+        <div style="font-size:13px; font-weight:900; color:#14532d;">Nugget Market</div>
+        <div style="font-size:10px; color:#16a34a; margin-top:2px;">A</div>
+      </div>
+    </div>
+
+    <!-- B -->
+    <div style="background:#f0fdf4; border:2px solid #bbf7d0; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="bgB2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#86efac"/><stop offset="100%" stop-color="#059669"/></linearGradient>
+          <linearGradient id="cB2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bgB2)"/>
+        <path d="M8 28 L32 14 L56 28 Z" fill="#fbbf24" stroke="#d97706" stroke-width="1.5"/>
+        <rect x="14" y="28" width="36" height="22" rx="2" fill="white" opacity="0.95"/>
+        <rect x="26" y="37" width="12" height="13" rx="3" fill="#bbf7d0" stroke="#4ade80" stroke-width="1.5"/>
+        <circle cx="35" cy="44" r="1.2" fill="#16a34a"/>
+        <rect x="17" y="32" width="8" height="6" rx="2" fill="#bbf7d0"/>
+        <rect x="39" y="32" width="8" height="6" rx="2" fill="#bbf7d0"/>
+        <circle cx="46" cy="18" r="5" fill="url(#cB2)" stroke="#d97706" stroke-width="1"/>
+        <text x="53" y="12" font-size="8">✨</text>
+        <text x="8" y="20" font-size="7">⭐</text>
+      </svg>
+      <div>
+        <div style="font-size:13px; font-weight:900; color:#14532d;">Nugget Market</div>
+        <div style="font-size:10px; color:#16a34a; margin-top:2px;">B</div>
+      </div>
+    </div>
+
+    <!-- C -->
+    <div style="background:#f0fdf4; border:2px solid #bbf7d0; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="bgC2" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#065f46"/><stop offset="100%" stop-color="#34d399"/></linearGradient>
+          <linearGradient id="nC2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fef08a"/><stop offset="50%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#d97706"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bgC2)"/>
+        <polyline points="6,50 16,40 26,44 38,28 52,16" stroke="#4ade80" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.7"/>
+        <path d="M6,50 L16,40 L26,44 L38,28 L52,16 L52,56 L6,56 Z" fill="#4ade80" opacity="0.12"/>
+        <circle cx="34" cy="34" r="18" fill="#d97706" opacity="0.5"/>
+        <circle cx="32" cy="32" r="18" fill="url(#nC2)"/>
+        <circle cx="32" cy="32" r="14" fill="none" stroke="#fef08a" stroke-width="1.5" opacity="0.6"/>
+        <text x="32" y="38" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="18" fill="#92400e">N</text>
+        <ellipse cx="26" cy="24" rx="4" ry="2.5" fill="white" opacity="0.3" transform="rotate(-30 26 24)"/>
+        <path d="M47 14 L54 7 M54 7 L54 13 M54 7 L48 7" stroke="#fbbf24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <div style="font-size:13px; font-weight:900; color:#14532d;">Nugget Market</div>
+        <div style="font-size:10px; color:#16a34a; margin-top:2px;">C</div>
+      </div>
+    </div>
+
+    <!-- Row 2 — D plus coming soon -->
+    <!-- D -->
+    <div style="background:#f0fdf4; border:2px solid #bbf7d0; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px;">
+      <svg width="48" height="48" viewBox="0 0 64 64" fill="none">
+        <defs>
+          <linearGradient id="bgD2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#10b981"/></linearGradient>
+          <linearGradient id="cD2" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+          <linearGradient id="rD2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bgD2)"/>
+        <ellipse cx="32" cy="54" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="51" rx="18" ry="5" fill="url(#cD2)"/>
+        <ellipse cx="32" cy="48" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+        <ellipse cx="32" cy="45" rx="18" ry="5" fill="url(#cD2)"/>
+        <text x="32" y="49" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="7" fill="#92400e">NUGGETS</text>
+        <path d="M32 8 C28 14 26 22 26 30 L38 30 C38 22 36 14 32 8 Z" fill="url(#rD2)" stroke="#94a3b8" stroke-width="0.5"/>
+        <path d="M32 8 L26 20 L38 20 Z" fill="#ef4444" opacity="0.8"/>
+        <circle cx="32" cy="24" r="4" fill="#bae6fd" stroke="#7dd3fc" stroke-width="1"/>
+        <path d="M26 30 L20 38 L26 36 Z" fill="#f97316"/>
+        <path d="M38 30 L44 38 L38 36 Z" fill="#f97316"/>
+        <ellipse cx="29" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <ellipse cx="32" cy="36" rx="3" ry="5" fill="#f97316" opacity="0.8"/>
+        <ellipse cx="35" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+        <text x="10" y="16" font-size="9">⭐</text>
+        <text x="48" y="22" font-size="8">✨</text>
+      </svg>
+      <div>
+        <div style="font-size:13px; font-weight:900; color:#14532d;">Nugget Market</div>
+        <div style="font-size:10px; color:#16a34a; margin-top:2px;">D</div>
+      </div>
+    </div>
+
+    <!-- Coming soon placeholders -->
+    <div style="background:#faf5ff; border:2px solid #e9d5ff; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px; opacity:0.45;">
+      <div style="font-size:36px;">📇</div>
+      <div><div style="font-size:14px; font-weight:900; color:#581c87;">Flashcards</div><div style="font-size:10px; color:#7c3aed; margin-top:2px;">Coming soon</div></div>
+    </div>
+    <div style="background:#f0fdf4; border:2px solid #bbf7d0; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px; opacity:0.45;">
+      <div style="font-size:36px;">🧩</div>
+      <div><div style="font-size:14px; font-weight:900; color:#14532d;">Match</div><div style="font-size:10px; color:#16a34a; margin-top:2px;">Coming soon</div></div>
+    </div>
+    <div style="background:#fff1f2; border:2px solid #fecdd3; border-radius:20px; padding:16px; display:flex; flex-direction:column; gap:10px; opacity:0.45;">
+      <div style="font-size:36px;">✏️</div>
+      <div><div style="font-size:14px; font-weight:900; color:#881337;">Spelling</div><div style="font-size:10px; color:#e11d48; margin-top:2px;">Coming soon</div></div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

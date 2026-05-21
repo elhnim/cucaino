@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nugget Market — Welcome & Tour</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #e5e7eb;
+  font-family: 'Nunito', sans-serif;
+  padding: 32px 20px 48px;
+  display: flex; flex-direction: column; align-items: center; gap: 24px;
+  min-height: 100vh;
+}
+h2 { font-size: 12px; font-weight: 700; color: #6b7280; letter-spacing: 0.07em; text-transform: uppercase; }
+
+.phone {
+  width: 375px; height: 812px; background: white; border-radius: 44px; overflow: hidden;
+  box-shadow: 0 28px 56px -8px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.07);
+  display: flex; flex-direction: column; position: relative;
+}
+.phone-label { text-align: center; font-size: 11px; font-weight: 800; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 10px; }
+
+/* ============================================================
+   SCREEN LAYER SYSTEM
+   ============================================================ */
+.screen {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column;
+  transition: opacity 0.25s;
+}
+.screen.active { display: flex; }
+
+/* ============================================================
+   WELCOME SCREEN
+   ============================================================ */
+#welcome {
+  background: linear-gradient(170deg, #064e3b 0%, #065f46 40%, #047857 70%, #10b981 100%);
+  align-items: center; justify-content: flex-start; padding: 0;
+  overflow: hidden;
+}
+.welcome-stars {
+  position: absolute; inset: 0; pointer-events: none;
+}
+.star-dot {
+  position: absolute; border-radius: 50%; background: white;
+  animation: twinkle 3s ease-in-out infinite;
+}
+@keyframes twinkle { 0%,100%{opacity:0.15;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.3)} }
+.welcome-hero {
+  width: 100%; display: flex; flex-direction: column; align-items: center;
+  padding-top: 60px; flex-shrink: 0;
+}
+.welcome-icon-wrap {
+  position: relative; margin-bottom: 8px;
+}
+.welcome-icon-glow {
+  position: absolute; inset: -20px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(167,243,208,0.4) 0%, transparent 70%);
+}
+.welcome-title {
+  font-size: 30px; font-weight: 900; color: white; text-align: center;
+  margin-top: 16px; line-height: 1.1;
+}
+.welcome-sub {
+  font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.75);
+  text-align: center; margin-top: 8px; padding: 0 32px; line-height: 1.5;
+}
+.welcome-cards {
+  display: flex; gap: 10px; padding: 24px 20px 0; width: 100%;
+}
+.welcome-card {
+  flex: 1; background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.2);
+  border-radius: 18px; padding: 14px 10px; text-align: center;
+}
+.welcome-card-icon { font-size: 26px; margin-bottom: 6px; }
+.welcome-card-title { font-size: 12px; font-weight: 900; color: white; }
+.welcome-card-sub { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.65); margin-top: 3px; line-height: 1.3; }
+.welcome-bottom {
+  margin-top: auto; padding: 20px 24px 40px; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.btn-start {
+  width: 100%; background: white; color: #065f46; border: none;
+  border-radius: 18px; padding: 16px; font-size: 17px; font-weight: 900;
+  cursor: pointer; font-family: inherit;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  transition: transform 0.1s;
+}
+.btn-start:active { transform: scale(0.97); }
+.btn-skip-link {
+  font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.6);
+  background: none; border: none; cursor: pointer; font-family: inherit;
+}
+
+/* ============================================================
+   TOUR SCREEN
+   ============================================================ */
+#tour { background: white; }
+
+.tour-inner {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* Slide container */
+.slides-wrap { flex: 1; overflow: hidden; position: relative; }
+.slide {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  opacity: 0; transform: translateX(40px);
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+.slide.active {
+  opacity: 1; transform: translateX(0); pointer-events: auto;
+}
+.slide.exiting {
+  opacity: 0; transform: translateX(-40px);
+}
+
+/* Slide hero area */
+.slide-hero {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 32px 24px 20px;
+  position: relative; overflow: hidden;
+}
+.slide-hero-1 { background: linear-gradient(135deg, #065f46, #10b981); }
+.slide-hero-2 { background: linear-gradient(135deg, #1e1b4b, #4338ca); }
+.slide-hero-3 { background: linear-gradient(135deg, #b45309, #f59e0b); }
+.slide-hero-4 { background: linear-gradient(135deg, #7c3aed, #c026d3); }
+.slide-hero-5 { background: linear-gradient(135deg, #0369a1, #0ea5e9); }
+.slide-hero-6 { background: linear-gradient(135deg, #991b1b, #f97316); }
+
+.slide-hero-graphic { font-size: 80px; line-height: 1; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25)); }
+.slide-step { font-size: 11px; font-weight: 800; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.slide-headline { font-size: 22px; font-weight: 900; color: white; text-align: center; margin-top: 12px; line-height: 1.2; }
+.slide-tagline { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.75); text-align: center; margin-top: 6px; line-height: 1.4; padding: 0 8px; }
+
+/* Slide body */
+.slide-body { flex: 1; padding: 20px 20px 0; overflow-y: auto; }
+.slide-desc { font-size: 14px; font-weight: 700; color: #374151; line-height: 1.6; margin-bottom: 16px; }
+.fact-cards { display: flex; flex-direction: column; gap: 8px; }
+.fact-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  background: #f9fafb; border-radius: 14px; padding: 12px 14px;
+  border: 1.5px solid #f3f4f6;
+}
+.fact-icon { font-size: 24px; flex-shrink: 0; }
+.fact-text { flex: 1; }
+.fact-title { font-size: 13px; font-weight: 900; color: #111827; }
+.fact-sub { font-size: 12px; font-weight: 600; color: #6b7280; margin-top: 2px; line-height: 1.4; }
+
+/* Exchange rate card */
+.exchange-card {
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border: 2px solid #bbf7d0; border-radius: 18px; padding: 16px;
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin-bottom: 14px;
+}
+.exchange-side { text-align: center; }
+.exchange-num { font-size: 28px; font-weight: 900; color: #111827; }
+.exchange-label { font-size: 11px; font-weight: 800; color: #6b7280; margin-top: 2px; }
+.exchange-arrow { font-size: 24px; color: #16a34a; }
+
+/* Company preview grid */
+.company-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+.company-chip {
+  background: white; border: 1.5px solid #f3f4f6; border-radius: 12px;
+  padding: 10px 6px; text-align: center;
+}
+.company-chip-emoji { font-size: 22px; }
+.company-chip-name { font-size: 9px; font-weight: 800; color: #374151; margin-top: 3px; }
+.company-chip-price { font-size: 10px; font-weight: 700; color: #9ca3af; }
+
+/* Price demo */
+.price-demo {
+  background: white; border: 1.5px solid #f3f4f6; border-radius: 16px; padding: 14px; margin-bottom: 10px;
+}
+.price-demo-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.price-demo-asset { display: flex; align-items: center; gap: 8px; }
+.price-demo-emoji { font-size: 24px; }
+.price-demo-name { font-size: 13px; font-weight: 800; color: #111827; }
+.price-demo-news { font-size: 11px; font-weight: 600; color: #6b7280; margin-top: 1px; }
+.price-change-badge { font-size: 14px; font-weight: 900; padding: 4px 10px; border-radius: 10px; }
+.up { color: #16a34a; } .down { color: #dc2626; }
+.price-up-badge { background: #dcfce7; color: #16a34a; }
+.price-down-badge { background: #fee2e2; color: #dc2626; }
+
+/* Warning card */
+.warning-card {
+  background: #fff7ed; border: 2px solid #fed7aa; border-radius: 18px; padding: 16px;
+  margin-bottom: 12px;
+}
+.warning-title { font-size: 16px; font-weight: 900; color: #c2410c; margin-bottom: 6px; }
+.warning-text { font-size: 13px; font-weight: 700; color: #9a3412; line-height: 1.5; }
+
+/* Tour footer */
+.tour-footer {
+  padding: 14px 20px 32px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  background: white; flex-shrink: 0; border-top: 1px solid #f3f4f6;
+}
+.progress-dots { display: flex; gap: 6px; align-items: center; }
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #e5e7eb; transition: all 0.2s;
+}
+.dot.active { width: 22px; border-radius: 4px; background: #16a34a; }
+.tour-btns { display: flex; gap: 10px; width: 100%; }
+.btn-next {
+  flex: 1; background: #16a34a; color: white; border: none;
+  border-radius: 16px; padding: 14px; font-size: 15px; font-weight: 900;
+  cursor: pointer; font-family: inherit;
+}
+.btn-back {
+  width: 48px; height: 48px; background: #f3f4f6; color: #374151; border: none;
+  border-radius: 14px; font-size: 18px; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-back:disabled { opacity: 0.3; cursor: default; }
+
+/* ============================================================
+   DONE SCREEN
+   ============================================================ */
+#done {
+  background: linear-gradient(170deg, #064e3b 0%, #065f46 50%, #10b981 100%);
+  align-items: center; justify-content: center; padding: 40px 28px;
+}
+.done-icon { font-size: 80px; margin-bottom: 20px; }
+.done-title { font-size: 28px; font-weight: 900; color: white; text-align: center; line-height: 1.2; }
+.done-sub { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.75); text-align: center; margin-top: 10px; line-height: 1.5; }
+.done-checklist { background: rgba(255,255,255,0.12); border: 1.5px solid rgba(255,255,255,0.2); border-radius: 20px; padding: 16px 18px; margin: 24px 0; width: 100%; }
+.check-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.check-icon { font-size: 16px; flex-shrink: 0; }
+.check-text { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.9); }
+.btn-launch {
+  width: 100%; background: white; color: #065f46; border: none;
+  border-radius: 18px; padding: 16px; font-size: 17px; font-weight: 900;
+  cursor: pointer; font-family: inherit; margin-top: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: transform 0.1s;
+}
+.btn-launch:active { transform: scale(0.97); }
+</style>
+</head>
+<body>
+
+<h2>Nugget Market — Welcome &amp; Tour (click to advance)</h2>
+
+<div class="phone" id="phone">
+
+  <!-- ===== WELCOME SCREEN ===== -->
+  <div class="screen active" id="welcome">
+    <!-- Twinkling stars -->
+    <div class="welcome-stars" id="stars"></div>
+
+    <div class="welcome-hero">
+      <div class="welcome-icon-wrap">
+        <div class="welcome-icon-glow"></div>
+        <svg width="110" height="110" viewBox="0 0 64 64" fill="none">
+          <defs>
+            <linearGradient id="wbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a7f3d0"/><stop offset="100%" stop-color="#10b981"/></linearGradient>
+            <linearGradient id="wc" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fde68a"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
+            <linearGradient id="wr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f1f5f9"/><stop offset="100%" stop-color="#cbd5e1"/></linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#wbg)"/>
+          <ellipse cx="32" cy="54" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+          <ellipse cx="32" cy="51" rx="18" ry="5" fill="url(#wc)"/>
+          <ellipse cx="32" cy="48" rx="18" ry="5" fill="#d97706" opacity="0.5"/>
+          <ellipse cx="32" cy="45" rx="18" ry="5" fill="url(#wc)"/>
+          <text x="32" y="49" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="900" font-size="7" fill="#92400e">NUGGETS</text>
+          <path d="M32 8 C28 14 26 22 26 30 L38 30 C38 22 36 14 32 8 Z" fill="url(#wr)" stroke="#94a3b8" stroke-width="0.5"/>
+          <path d="M32 8 L26 20 L38 20 Z" fill="#ef4444" opacity="0.8"/>
+          <circle cx="32" cy="24" r="4" fill="#bae6fd" stroke="#7dd3fc" stroke-width="1"/>
+          <circle cx="32" cy="24" r="2" fill="white" opacity="0.6"/>
+          <path d="M26 30 L20 38 L26 36 Z" fill="#f97316"/>
+          <path d="M38 30 L44 38 L38 36 Z" fill="#f97316"/>
+          <ellipse cx="29" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+          <ellipse cx="32" cy="36" rx="3" ry="5" fill="#f97316" opacity="0.8"/>
+          <ellipse cx="35" cy="34" rx="3" ry="4" fill="#fbbf24" opacity="0.9"/>
+          <text x="10" y="16" font-size="9">⭐</text>
+          <text x="48" y="22" font-size="8">✨</text>
+          <text x="52" y="10" font-size="7">⭐</text>
+        </svg>
+      </div>
+      <div class="welcome-title">Welcome to<br>Nugget Market! 🪙</div>
+      <div class="welcome-sub">Turn your task stars into Nuggets and invest in kid-friendly companies. Watch your money grow! 🚀</div>
+    </div>
+
+    <div class="welcome-cards">
+      <div class="welcome-card">
+        <div class="welcome-card-icon">⭐</div>
+        <div class="welcome-card-title">Deposit Stars</div>
+        <div class="welcome-card-sub">Convert task stars into Nuggets to invest</div>
+      </div>
+      <div class="welcome-card">
+        <div class="welcome-card-icon">📊</div>
+        <div class="welcome-card-title">Buy Shares</div>
+        <div class="welcome-card-sub">Pick companies and watch your Nuggets grow</div>
+      </div>
+      <div class="welcome-card">
+        <div class="welcome-card-icon">💸</div>
+        <div class="welcome-card-title">Withdraw</div>
+        <div class="welcome-card-sub">Cash out your profits back to stars!</div>
+      </div>
+    </div>
+
+    <div class="welcome-bottom">
+      <button class="btn-start" onclick="showTour()">🎓 Show me how it works!</button>
+      <button class="btn-skip-link" onclick="showDone()">Skip tour — I know what to do</button>
+    </div>
+  </div>
+
+  <!-- ===== TOUR SCREEN ===== -->
+  <div class="screen" id="tour">
+    <div class="tour-inner">
+      <div class="slides-wrap" id="slidesWrap">
+
+        <!-- SLIDE 1: What are Nuggets? -->
+        <div class="slide active" id="slide-0">
+          <div class="slide-hero slide-hero-1" style="height:240px;">
+            <div class="slide-step">Step 1 of 6</div>
+            <div style="font-size:72px;line-height:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.3));">🪙</div>
+            <div class="slide-headline">Meet the Nugget!</div>
+            <div class="slide-tagline">Your in-game currency for trading</div>
+          </div>
+          <div class="slide-body">
+            <div class="exchange-card">
+              <div class="exchange-side">
+                <div class="exchange-num">⭐ 1</div>
+                <div class="exchange-label">Star</div>
+              </div>
+              <div class="exchange-arrow">→</div>
+              <div class="exchange-side">
+                <div class="exchange-num">🪙 1,000</div>
+                <div class="exchange-label">Nuggets</div>
+              </div>
+            </div>
+            <div class="fact-cards">
+              <div class="fact-card">
+                <div class="fact-icon">💰</div>
+                <div class="fact-text">
+                  <div class="fact-title">Earn stars from tasks first</div>
+                  <div class="fact-sub">Complete your chores and activities to earn ⭐ stars, then deposit them here as Nuggets.</div>
+                </div>
+              </div>
+              <div class="fact-card">
+                <div class="fact-icon">📤</div>
+                <div class="fact-text">
+                  <div class="fact-title">Withdraw profits back to stars</div>
+                  <div class="fact-sub">When your Nuggets grow, cash out at 🪙 1,000 = ⭐ 1 star. Use stars to buy real rewards!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SLIDE 2: The Market -->
+        <div class="slide" id="slide-1">
+          <div class="slide-hero slide-hero-2" style="height:200px;">
+            <div class="slide-step">Step 2 of 6</div>
+            <div style="font-size:64px;line-height:1;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.3));">🏪</div>
+            <div class="slide-headline">10 Companies to Invest In</div>
+            <div class="slide-tagline">Buy shares and own a piece of each one</div>
+          </div>
+          <div class="slide-body">
+            <div class="company-grid">
+              <div class="company-chip"><div class="company-chip-emoji">🍿</div><div class="company-chip-name">Chomp Snacks</div><div class="company-chip-price">🪙 45</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">🎮</div><div class="company-chip-name">Zapp Gaming</div><div class="company-chip-price">🪙 85</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">🛴</div><div class="company-chip-name">Zoom Wheels</div><div class="company-chip-price">🪙 30</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">🎬</div><div class="company-chip-name">Flick Studios</div><div class="company-chip-price">🪙 120</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">🐾</div><div class="company-chip-name">Pawz Pet Co.</div><div class="company-chip-price">🪙 25</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">⚽</div><div class="company-chip-name">Blast Sports</div><div class="company-chip-price">🪙 55</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">🍔</div><div class="company-chip-name">Yumm Burgers</div><div class="company-chip-price">🪙 40</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">💡</div><div class="company-chip-name">Spark Gadgets</div><div class="company-chip-price">🪙 95</div></div>
+              <div class="company-chip"><div class="company-chip-emoji">🌊</div><div class="company-chip-name">Splash Parks</div><div class="company-chip-price">🪙 70</div></div>
+            </div>
+            <div class="fact-card">
+              <div class="fact-icon">💡</div>
+              <div class="fact-text">
+                <div class="fact-title">You can buy fractions!</div>
+                <div class="fact-sub">Can't afford a full share? Buy 0.5 or 0.1 of one. Every Nugget counts.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SLIDE 3: Predict tomorrow -->
+        <div class="slide" id="slide-2">
+          <div class="slide-hero slide-hero-3" style="height:200px;">
+            <div class="slide-step">Step 3 of 6</div>
+            <div style="font-size:64px;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.3));">🔮</div>
+            <div class="slide-headline">Read the News. Predict Tomorrow!</div>
+            <div class="slide-tagline">Today's news moves tomorrow's prices — not today's!</div>
+          </div>
+          <div class="slide-body">
+            <!-- How it works flow -->
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;background:#f0fdf4;border-radius:14px;padding:12px 14px;">
+              <div style="text-align:center;flex:1;">
+                <div style="font-size:20px;">📰</div>
+                <div style="font-size:10px;font-weight:800;color:#065f46;margin-top:4px;">Read<br>today's news</div>
+              </div>
+              <div style="font-size:16px;color:#16a34a;">→</div>
+              <div style="text-align:center;flex:1;">
+                <div style="font-size:20px;">🧠</div>
+                <div style="font-size:10px;font-weight:800;color:#065f46;margin-top:4px;">Predict<br>what happens</div>
+              </div>
+              <div style="font-size:16px;color:#16a34a;">→</div>
+              <div style="text-align:center;flex:1;">
+                <div style="font-size:20px;">🛒</div>
+                <div style="font-size:10px;font-weight:800;color:#065f46;margin-top:4px;">Buy or sell<br>shares</div>
+              </div>
+              <div style="font-size:16px;color:#16a34a;">→</div>
+              <div style="text-align:center;flex:1;">
+                <div style="font-size:20px;">🌅</div>
+                <div style="font-size:10px;font-weight:800;color:#065f46;margin-top:4px;">Check back<br>tomorrow!</div>
+              </div>
+            </div>
+            <div class="price-demo">
+              <div style="font-size:10px;font-weight:800;color:#f97316;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">📰 Today's News — what do YOU think will happen?</div>
+              <div class="price-demo-row">
+                <div class="price-demo-asset">
+                  <div class="price-demo-emoji">🍿</div>
+                  <div>
+                    <div class="price-demo-name">Chomp Snacks</div>
+                    <div class="price-demo-news">"Kids spotted sneaking Chomp into classrooms nationwide 👀"</div>
+                  </div>
+                </div>
+                <div style="font-size:16px;">🤔</div>
+              </div>
+              <div style="height:1px;background:#f3f4f6;margin:10px 0;"></div>
+              <div class="price-demo-row">
+                <div class="price-demo-asset">
+                  <div class="price-demo-emoji">🎮</div>
+                  <div>
+                    <div class="price-demo-name">Zapp Gaming</div>
+                    <div class="price-demo-news">"Zapp CEO says new console needs 'just a little more time' ⏳"</div>
+                  </div>
+                </div>
+                <div style="font-size:16px;">🤔</div>
+              </div>
+            </div>
+            <div class="fact-card">
+              <div class="fact-icon">🤖</div>
+              <div class="fact-text">
+                <div class="fact-title">Fresh AI news every day at midnight</div>
+                <div class="fact-sub">A robot writes fun headlines each night. Prices update at the same time based on the <em>previous</em> day's news.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SLIDE 4: Dividends -->
+        <div class="slide" id="slide-3">
+          <div class="slide-hero slide-hero-4" style="height:200px;">
+            <div class="slide-step">Step 4 of 6</div>
+            <div style="font-size:64px;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.3));">💰</div>
+            <div class="slide-headline">Some Companies Pay You Just for Holding!</div>
+            <div class="slide-tagline">That's called a dividend — free Nuggets every 30 days</div>
+          </div>
+          <div class="slide-body">
+            <div class="fact-cards">
+              <div class="fact-card" style="background:#fef9c3;border-color:#fde68a;">
+                <div class="fact-icon">🍿</div>
+                <div class="fact-text">
+                  <div class="fact-title">Chomp Snacks pays dividends</div>
+                  <div class="fact-sub">Hold shares for 30 days → earn 2% of your holding value as bonus Nuggets automatically!</div>
+                </div>
+              </div>
+              <div class="fact-card" style="background:#fef9c3;border-color:#fde68a;">
+                <div class="fact-icon">🐾</div>
+                <div class="fact-text">
+                  <div class="fact-title">Pawz, Flick, Yumm &amp; Sweet Street too</div>
+                  <div class="fact-sub">Look for the <span style="color:#d97706;font-weight:800;">💰 Pays dividend</span> badge in the Market tab.</div>
+                </div>
+              </div>
+              <div class="fact-card">
+                <div class="fact-icon">⏰</div>
+                <div class="fact-text">
+                  <div class="fact-title">Patience pays off</div>
+                  <div class="fact-sub">The longer you hold dividend stocks, the more free Nuggets you collect. It adds up!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SLIDE 5: Withdraw -->
+        <div class="slide" id="slide-4">
+          <div class="slide-hero slide-hero-5" style="height:220px;">
+            <div class="slide-step">Step 5 of 6</div>
+            <div style="font-size:64px;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.3));">🏧</div>
+            <div class="slide-headline">Turn Profits Back Into Stars</div>
+            <div class="slide-tagline">Withdraw when you're winning and spend on real rewards!</div>
+          </div>
+          <div class="slide-body">
+            <div class="exchange-card" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#93c5fd;">
+              <div class="exchange-side">
+                <div class="exchange-num" style="font-size:22px;">🪙 5,500</div>
+                <div class="exchange-label">Nuggets</div>
+              </div>
+              <div class="exchange-arrow" style="color:#3b82f6;">→</div>
+              <div class="exchange-side">
+                <div class="exchange-num">⭐ 5</div>
+                <div class="exchange-label">Stars (+ 🪙500 stays)</div>
+              </div>
+            </div>
+            <div class="fact-cards">
+              <div class="fact-card">
+                <div class="fact-icon">✂️</div>
+                <div class="fact-text">
+                  <div class="fact-title">Rounds down, leftovers stay</div>
+                  <div class="fact-sub">🪙 5,500 → ⭐ 5 stars. The leftover 🪙 500 stays in your account — no Nuggets wasted!</div>
+                </div>
+              </div>
+              <div class="fact-card">
+                <div class="fact-icon">🎯</div>
+                <div class="fact-text">
+                  <div class="fact-title">Sell shares first</div>
+                  <div class="fact-sub">You can only withdraw Nuggets sitting in your balance — sell holdings first if you need more.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SLIDE 6: Risk warning -->
+        <div class="slide" id="slide-5">
+          <div class="slide-hero slide-hero-6" style="height:200px;">
+            <div class="slide-step">Step 6 of 6</div>
+            <div style="font-size:64px;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.3));">⚠️</div>
+            <div class="slide-headline">One Important Thing...</div>
+            <div class="slide-tagline">Investing has real risk — even with Nuggets!</div>
+          </div>
+          <div class="slide-body">
+            <div class="warning-card">
+              <div class="warning-title">You can lose Nuggets! 😬</div>
+              <div class="warning-text">If companies do badly, your shares drop in value. You could end up with fewer Nuggets than you started with — or even go broke!</div>
+            </div>
+            <div class="fact-cards">
+              <div class="fact-card">
+                <div class="fact-icon">🧠</div>
+                <div class="fact-text">
+                  <div class="fact-title">Only invest what you can risk</div>
+                  <div class="fact-sub">Don't put all your stars in at once. Keep some safe in your star balance.</div>
+                </div>
+              </div>
+              <div class="fact-card">
+                <div class="fact-icon">💪</div>
+                <div class="fact-text">
+                  <div class="fact-title">Broke? Earn more stars!</div>
+                  <div class="fact-sub">Complete tasks to earn stars, deposit again, and try a new strategy. Losing is how you learn!</div>
+                </div>
+              </div>
+              <div class="fact-card">
+                <div class="fact-icon">🌈</div>
+                <div class="fact-text">
+                  <div class="fact-title">Spread your bets</div>
+                  <div class="fact-sub">Buy a mix of companies. If one drops, others might go up — that's called diversifying!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- end slides-wrap -->
+
+      <!-- Tour footer -->
+      <div class="tour-footer">
+        <div class="progress-dots" id="progressDots">
+          <div class="dot active" data-i="0"></div>
+          <div class="dot" data-i="1"></div>
+          <div class="dot" data-i="2"></div>
+          <div class="dot" data-i="3"></div>
+          <div class="dot" data-i="4"></div>
+          <div class="dot" data-i="5"></div>
+        </div>
+        <div class="tour-btns">
+          <button class="btn-back" id="btnBack" onclick="prevSlide()" disabled>←</button>
+          <button class="btn-next" id="btnNext" onclick="nextSlide()">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DONE SCREEN ===== -->
+  <div class="screen" id="done">
+    <div class="done-icon">🚀</div>
+    <div class="done-title">You're ready to trade!</div>
+    <div class="done-sub">You know everything you need to start growing your Nuggets. Good luck — and remember, smart picks beat lucky ones!</div>
+    <div class="done-checklist">
+      <div class="check-item"><div class="check-icon">✅</div><div class="check-text">Stars convert to Nuggets (×1,000)</div></div>
+      <div class="check-item"><div class="check-icon">✅</div><div class="check-text">Prices change with the daily news</div></div>
+      <div class="check-item"><div class="check-icon">✅</div><div class="check-text">Dividend stocks pay you for holding</div></div>
+      <div class="check-item"><div class="check-icon">✅</div><div class="check-text">Profits withdraw back to stars</div></div>
+      <div class="check-item"><div class="check-icon">✅</div><div class="check-text">Spread your bets — don't go all in!</div></div>
+    </div>
+    <button class="btn-launch" onclick="alert('→ Opens Portfolio tab!')">🪙 Open Nugget Market!</button>
+  </div>
+
+</div><!-- end phone -->
+<div class="phone-label" id="phoneLabel">Welcome Screen</div>
+
+<script>
+// Twinkle stars
+const starsEl = document.getElementById('stars');
+for (let i = 0; i < 28; i++) {
+  const s = document.createElement('div');
+  s.className = 'star-dot';
+  const size = Math.random() * 3 + 1.5;
+  s.style.cssText = `
+    width:${size}px;height:${size}px;
+    left:${Math.random()*100}%;top:${Math.random()*100}%;
+    animation-delay:${Math.random()*3}s;
+    animation-duration:${2+Math.random()*2}s;
+  `;
+  starsEl.appendChild(s);
+}
+
+let currentSlide = 0;
+const TOTAL = 6;
+
+function showScreen(id, label) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('phoneLabel').textContent = label;
+}
+
+function showTour() {
+  currentSlide = 0;
+  updateSlide();
+  showScreen('tour', 'Tour — Slide 1 of 6');
+}
+
+function showDone() {
+  showScreen('done', 'All Done!');
+}
+
+function updateSlide() {
+  document.querySelectorAll('.slide').forEach((s, i) => {
+    s.classList.toggle('active', i === currentSlide);
+  });
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.classList.toggle('active', i === currentSlide);
+  });
+  document.getElementById('btnBack').disabled = currentSlide === 0;
+  const btnNext = document.getElementById('btnNext');
+  btnNext.textContent = currentSlide === TOTAL - 1 ? "Let's go! 🚀" : "Next →";
+  document.getElementById('phoneLabel').textContent = `Tour — Slide ${currentSlide+1} of ${TOTAL}`;
+}
+
+function nextSlide() {
+  if (currentSlide < TOTAL - 1) {
+    currentSlide++;
+    updateSlide();
+  } else {
+    showDone();
+  }
+}
+
+function prevSlide() {
+  if (currentSlide > 0) {
+    currentSlide--;
+    updateSlide();
+  }
+}
+</script>
+</body>
+</html>
