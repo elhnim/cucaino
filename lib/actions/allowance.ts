@@ -88,6 +88,13 @@ export async function processPayday(): Promise<void> {
         type: "credit",
       });
     }
+
+    // Clear all active strikes — slate resets each payday
+    await supabase
+      .from("strikes")
+      .update({ cleared_at: new Date().toISOString() })
+      .eq("kid_id", kid.id)
+      .is("cleared_at", null);
   }
 
   revalidatePath("/parent");
