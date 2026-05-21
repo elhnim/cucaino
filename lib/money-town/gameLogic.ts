@@ -69,17 +69,6 @@ function applyBuyAsset(player: Player, defId: string, discount = 1): Player {
   return { ...player, cash: player.cash - cost, assets: [...player.assets, owned] }
 }
 
-function tickStatusEffects(player: Player): Player {
-  return {
-    ...player,
-    stocksFrozen: Math.max(0, player.stocksFrozen - 1),
-    laidOff:      Math.max(0, player.laidOff - 1),
-    recession:    Math.max(0, player.recession - 1),
-    rentSurge:    Math.max(0, player.rentSurge - 1),
-    boom:         Math.max(0, player.boom - 1),
-  }
-}
-
 // ─── Card drawing ────────────────────────────────────────────────────────────
 
 function drawEventCard(player: Player): { player: Player; payload: ResultPayload } {
@@ -90,13 +79,13 @@ function drawEventCard(player: Player): { player: Player; payload: ResultPayload
     { emoji: '🏥', name: 'Medical Bill',        apply: (p) => ({ player: { ...p, cash: Math.max(CASH_FLOOR, p.cash - 450) }, cashDelta: -450 }) },
     { emoji: '📋', name: 'Tax Audit',           apply: (p) => { const d = Math.max(200, Math.floor(p.cash * 0.10)); return { player: { ...p, cash: Math.max(CASH_FLOOR, p.cash - d) }, cashDelta: -d } } },
     { emoji: '🏠', name: 'Roof Leak',           apply: (p) => { const d = p.assets.some(a=>a.isProperty) ? 750 : 500; return { player: { ...p, cash: Math.max(CASH_FLOOR, p.cash - d) }, cashDelta: -d } } },
-    { emoji: '📉', name: 'Stock Market Dip',    apply: (p) => ({ player: { ...p, stocksFrozen: 1 }, cashDelta: 0 }) },
+    { emoji: '📉', name: 'Stock Market Dip',    apply: (p) => ({ player: { ...p, stocksFrozen: 1 }, cashDelta: -1 }) },
     { emoji: '💸', name: 'Unexpected Expense',  apply: (p) => ({ player: { ...p, cash: Math.max(CASH_FLOOR, p.cash - 400) }, cashDelta: -400 }) },
     { emoji: '💰', name: 'Tax Refund',          apply: (p) => ({ player: { ...p, cash: p.cash + 450 }, cashDelta: 450 }) },
     { emoji: '🎉', name: 'Work Bonus',          apply: (p) => { const d = Math.floor(p.salary * 0.35); return { player: { ...p, cash: p.cash + d }, cashDelta: d } } },
     { emoji: '💼', name: 'Side Hustle',         apply: (p) => ({ player: { ...p, cash: p.cash + 350 }, cashDelta: 350 }) },
     { emoji: '🍀', name: 'Lucky Day',           apply: (p) => ({ player: { ...p, cash: p.cash + 400 }, cashDelta: 400 }) },
-    { emoji: '📈', name: 'Rent Surge',          apply: (p) => ({ player: { ...p, rentSurge: 1 }, cashDelta: 0 }) },
+    { emoji: '📈', name: 'Rent Surge',          apply: (p) => ({ player: { ...p, rentSurge: 1 }, cashDelta: 1 }) },
   ]
 
   const card = rand(events)
@@ -353,11 +342,16 @@ function applyStartTurn(state: GameState): GameState {
   const net = salary + passive - updatedForDegree.expenses
   const newCash = Math.max(CASH_FLOOR, updatedForDegree.cash + net)
 
-  const turnedPlayer = tickStatusEffects({
+  const turnedPlayer = {
     ...updatedForDegree,
     cash: newCash,
     turnCount: updatedForDegree.turnCount + 1,
-  })
+    stocksFrozen: 0,
+    laidOff: 0,
+    recession: 0,
+    rentSurge: 0,
+    boom: 0,
+  }
 
   const hasWon = checkWin(turnedPlayer)
 
