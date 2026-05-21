@@ -1,24 +1,13 @@
 import Link from "next/link";
-import { listQuizSets, listQuizBanks, listQuizQuestions2, getKid } from "@/lib/data/stub";
+import { listQuizSets, listQuizBanks, getKid } from "@/lib/data/stub";
 import KidShell from "@/components/kid/KidShell";
 import QuizFilters from "@/components/play/QuizFilters";
 import { getQuizTheme } from "@/lib/registry/quiz-theme-registry";
-import { getAgeBandMin } from "@/lib/registry/quiz-age-band-registry";
 import { QUIZ_DIFFICULTIES } from "@/lib/registry/quiz-difficulty-registry";
 
 const DIFFICULTY_ORDER: Record<string, number> = Object.fromEntries(
   QUIZ_DIFFICULTIES.map((d, i) => [d.id, i])
 );
-
-type Q2Row = { ageBand: string; difficulty: string; choices: unknown[] | null };
-function ageMatchedCount(questions: Q2Row[], kidAge: number, maxDiff?: string): number {
-  const maxDiffIdx = maxDiff ? (DIFFICULTY_ORDER[maxDiff] ?? 2) : 2;
-  return questions.filter((q) => {
-    const minAge = getAgeBandMin(q.ageBand);
-    const qDiff = DIFFICULTY_ORDER[q.difficulty] ?? 0;
-    return kidAge >= minAge && qDiff <= maxDiffIdx && q.choices && q.choices.length > 0;
-  }).length;
-}
 
 export default async function QuizSetsPage({
   searchParams,
@@ -27,14 +16,11 @@ export default async function QuizSetsPage({
 }) {
   const { kid: kidParam, theme = "", diff: difficulty = "" } = await searchParams;
 
-  const [sets, banks, kid, allQ] = await Promise.all([
+  const [sets, banks, kid] = await Promise.all([
     listQuizSets(),
     listQuizBanks(),
     kidParam ? getKid(kidParam) : Promise.resolve(null),
-    listQuizQuestions2(),
   ]);
-
-  const kidAge = kid?.age ?? null;
 
   // Filter sets by theme
   const filteredSets = sets.filter((set) => {
@@ -56,18 +42,20 @@ export default async function QuizSetsPage({
   const kidParam2 = kidParam ?? "";
   const backHref = kidParam ? `/kid/${kidParam}/play` : "/select-kid";
 
-  const content = (
-    <div className="max-w-3xl mx-auto p-4">
-      <div className="flex items-center gap-3 mb-4">
-        <Link
-          href={backHref}
-          className="text-sm font-bold text-gray-500 hover:text-gray-700 flex items-center gap-1 shrink-0"
-        >
-          ← Games
-        </Link>
-        <h1 className="text-2xl font-black text-gray-900">🎮 Quiz Battles</h1>
-      </div>
+  const header = (
+    <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+      <Link href={backHref} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
+        ← Games
+      </Link>
+      <span className="font-black text-gray-900">🎮 Quiz Battles</span>
+      <div className="w-16" />
+    </header>
+  );
 
+  const content = (
+    <div className="flex flex-col">
+      {header}
+      <div className="max-w-3xl mx-auto w-full p-4 pb-8">
         <QuizFilters theme={theme} difficulty={difficulty} kidParam={kidParam2} />
 
         {filteredSets.length > 0 && (
@@ -77,11 +65,6 @@ export default async function QuizSetsPage({
               {filteredSets.map((set) => {
                 const firstTheme = set.themes[0] ?? "custom";
                 const cat = getQuizTheme(firstTheme);
-                // Age-matched count for this set
-                const setQuestions = allQ.filter((q) => set.themes.includes(q.theme as typeof set.themes[number]));
-                const forYouCount = kidAge !== null
-                  ? ageMatchedCount(setQuestions, kidAge, difficulty || set.maxDifficulty)
-                  : setQuestions.filter((q) => q.choices && q.choices.length > 0).length;
                 const href = kidParam
                   ? `/play/quiz/${set.id}?kid=${kidParam}`
                   : `/play/quiz/${set.id}`;
@@ -89,22 +72,14 @@ export default async function QuizSetsPage({
                   <Link
                     key={set.id}
                     href={href}
-                    className="bg-white rounded-2xl p-4 shadow hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                    className="bg-white rounded-2xl p-4 shadow hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-3 min-h-[72px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">{set.emoji || cat.emoji}</div>
-                      <div className="flex-1">
-                        <div className="font-bold">{set.name}</div>
-                        {set.description ? (
-                          <div className="text-xs text-gray-500 mt-0.5">{set.description}</div>
-                        ) : (
-                          <div className="text-xs text-gray-400">
-                            {set.themes.map((t) => getQuizTheme(t).label).join(", ")}
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-fuchsia-500 shrink-0">→</span>
+                    <div className="text-4xl shrink-0">{set.emoji || cat.emoji}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold truncate">{set.name}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{set.description ?? ""}</div>
                     </div>
+                    <span className="text-fuchsia-500 shrink-0">→</span>
                   </Link>
                 );
               })}
@@ -125,22 +100,14 @@ export default async function QuizSetsPage({
                   <Link
                     key={bank.id}
                     href={href}
-                    className="bg-white rounded-2xl p-4 shadow hover:shadow-lg hover:-translate-y-0.5 transition-all"
+                    className="bg-white rounded-2xl p-4 shadow hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-3 min-h-[72px]"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="text-4xl">{cat.emoji}</div>
-                      <div className="flex-1">
-                        <div className="font-bold">{bank.name}</div>
-                        {bank.description ? (
-                          <div className="text-xs text-gray-500 mt-0.5">{bank.description}</div>
-                        ) : (
-                          <div className="text-xs text-gray-400">
-                            {cat.label} · ages {bank.minAge}–{bank.maxAge}
-                          </div>
-                        )}
-                      </div>
-                      <span className="text-fuchsia-500 shrink-0">→</span>
+                    <div className="text-4xl shrink-0">{cat.emoji}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold truncate">{bank.name}</div>
+                      <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{bank.description ?? ""}</div>
                     </div>
+                    <span className="text-fuchsia-500 shrink-0">→</span>
                   </Link>
                 );
               })}
@@ -153,6 +120,7 @@ export default async function QuizSetsPage({
             No quizzes match your filters. Try changing the theme or difficulty!
           </p>
         )}
+      </div>
     </div>
   );
 
