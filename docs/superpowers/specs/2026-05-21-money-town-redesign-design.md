@@ -176,6 +176,16 @@ Players keep the 3 properties when they build the hotel — total passive = $900
 - **Career climber:** degree ($900) → better Chance cards → tier-2 assets → win avg ~14T
 - **Hotel path:** 3 properties → win on property passive (base jobs); Engineer must add hotel (~15T)
 
+**Risk profiles — why there is no dominant strategy:**
+
+| Strategy | Avg turns | Income source | Downside exposure |
+|---|---|---|---|
+| Asset hustler | ~12T | Passive (assets) | High — Stocks freeze on Stock Dip; Recession halves a large passive base; Roof Leak costs more with properties |
+| Career climber | ~14T | Salary + selective assets | Low — salary only disappears for 1 turn (Laid Off); degree Chance cards can deliver sudden salary jumps |
+| Hotel path | ~13T | 3× property passive | Medium — properties are stable but concentrated; needs all 3 before winning |
+
+The hustler's 2-turn average lead is offset by income fragility. A hustler near the finish line who hits Stock Dip followed by Recession loses 2+ turns of momentum while the climber's salary keeps ticking. The degree path trades early speed for a stable, compounding trajectory — which is the real-world lesson the game is teaching.
+
 Simulation benchmark (v7, 500 games): avg 13.9T, range 6–32T, 100% win rate, 0% bankruptcy, 15.8% big events/turn.
 
 ---
