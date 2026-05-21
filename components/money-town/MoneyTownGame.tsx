@@ -70,6 +70,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
   if (state.phase === 'job-spin') {
     return (
       <JobSpinCeremony
+        key={state.jobSpinPlayerIndex}
         players={state.players}
         spinPlayerIndex={state.jobSpinPlayerIndex}
         dispatch={dispatch}
