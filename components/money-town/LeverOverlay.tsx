@@ -43,7 +43,7 @@ export default function LeverOverlay({ player, onResult }: Props) {
     if (spinning || done) return
     const targetIdx = Math.floor(Math.random() * REEL_SEGMENTS.length)
     const targetSegment = REEL_SEGMENTS[targetIdx]
-    const totalDist = (NUM_ROTATIONS * REEL_SEGMENTS.length + targetIdx + 1) * SEGMENT_HEIGHT
+    const totalDist = (NUM_ROTATIONS * REEL_SEGMENTS.length + targetIdx - 1) * SEGMENT_HEIGHT
 
     setSpinning(true)
     setLeverPressed(true)

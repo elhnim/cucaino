@@ -454,7 +454,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'PULL_LEVER': {
-      return { ...state, phase: 'lever' }
+      return { ...state, phase: 'lever', pendingPayday: null }
     }
 
     case 'LEVER_RESULT': {

@@ -40,7 +40,7 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
     if (spinning || result) return
     const targetIdx = Math.floor(Math.random() * segments.length)
     const targetJob = segments[targetIdx]
-    const totalDist = (NUM_ROTATIONS * segments.length + targetIdx + 1) * SEGMENT_HEIGHT
+    const totalDist = (NUM_ROTATIONS * segments.length + targetIdx - 1) * SEGMENT_HEIGHT
 
     setSpinning(true)
     setLeverPressed(true)

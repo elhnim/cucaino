@@ -100,8 +100,7 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
           <button
             type="button"
             onClick={() => dispatch({ type: 'PULL_LEVER' })}
-            disabled={!!pendingPayday}
-            className="w-full py-4 bg-yellow-500 text-white text-xl font-black rounded-2xl shadow-lg disabled:opacity-50 active:scale-95 transition-transform"
+            className="w-full py-4 bg-yellow-500 text-white text-xl font-black rounded-2xl shadow-lg active:scale-95 transition-transform"
           >
             🎰 Pull the Lever — {currentPlayer?.name}'s Turn
           </button>
