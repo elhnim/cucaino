@@ -4,7 +4,10 @@ import { useState } from "react"
 import Link from "next/link"
 import type { Kid } from "@/lib/domain/types"
 import type { Player, GameAction } from "@/lib/money-town/types"
-import { PLAYER_COLORS, PLAYER_COLOR_CLASSES, STARTING_CASH } from "@/lib/money-town/constants"
+import { PLAYER_COLORS, STARTING_CASH } from "@/lib/money-town/constants"
+import RulesModal from "./RulesModal"
+
+const RULES_SEEN_KEY = 'money-town-rules-seen'
 
 const GUEST_EMOJIS = ['😎', '🤩', '🥳', '😜', '🦊', '🐼', '🦄', '🐸']
 
@@ -34,7 +37,15 @@ export default function GameLobby({ kids, activeKid, dispatch }: Props) {
   const [guests, setGuests] = useState<{ id: string; name: string }[]>([])
   const [guestName, setGuestName] = useState('')
   const [addingGuest, setAddingGuest] = useState(false)
-  const [rulesOpen, setRulesOpen] = useState(false)
+  const [rulesOpen, setRulesOpen] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return !localStorage.getItem(RULES_SEEN_KEY)
+  })
+
+  function closeRules() {
+    try { localStorage.setItem(RULES_SEEN_KEY, '1') } catch {}
+    setRulesOpen(false)
+  }
 
   const totalPlayers = selected.size + guests.length
   const canAdd = totalPlayers < 4
@@ -80,7 +91,7 @@ export default function GameLobby({ kids, activeKid, dispatch }: Props) {
         <span className="font-black text-white text-lg">💰 Money Town</span>
         <button type="button" onClick={() => setRulesOpen(true)}
           className="text-sm font-bold text-white/80 hover:text-white">
-          ? Help
+          ? Rules
         </button>
       </header>
 
@@ -148,6 +159,17 @@ export default function GameLobby({ kids, activeKid, dispatch }: Props) {
           </div>
         )}
 
+        {/* Learn how to play */}
+        <button type="button" onClick={() => setRulesOpen(true)}
+          className="w-full flex items-center gap-4 bg-white border-2 border-blue-200 rounded-2xl px-5 py-4 mb-4 hover:border-blue-400 active:scale-95 transition-transform text-left shadow-sm">
+          <span className="text-3xl">📖</span>
+          <div className="flex-1">
+            <div className="font-black text-blue-900 text-base">Learn how to play</div>
+            <div className="text-xs text-blue-500 mt-0.5">Escape the Rat Race · earn passive income · buy assets</div>
+          </div>
+          <span className="text-blue-400 text-lg">›</span>
+        </button>
+
         <button type="button" onClick={startGame} disabled={totalPlayers < 1}
           className="w-full py-4 bg-blue-500 text-white text-xl font-black rounded-2xl shadow-md disabled:opacity-40 active:scale-95 transition-transform">
           {totalPlayers < 1 ? 'Select a player to start' : `Start Game 🚀 (${totalPlayers} player${totalPlayers > 1 ? 's' : ''})`}
@@ -156,19 +178,7 @@ export default function GameLobby({ kids, activeKid, dispatch }: Props) {
         <p className="text-center text-xs text-gray-400 mt-3">Pass the device between turns</p>
       </div>
 
-      {rulesOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center" onClick={() => setRulesOpen(false)}>
-          <div className="bg-white rounded-t-3xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h2 className="text-xl font-black text-center mb-4">💰 How to Play</h2>
-            <p className="text-sm text-gray-700 mb-2"><strong>Goal:</strong> Build passive income ≥ your living expenses to escape the Rat Race.</p>
-            <p className="text-sm text-gray-700 mb-2"><strong>Jobs:</strong> Each player spins to get a starting job. Higher salary = higher expenses.</p>
-            <p className="text-sm text-gray-700 mb-2"><strong>Each turn:</strong> Collect salary + passive income, pull the lever, then take one action.</p>
-            <p className="text-sm text-gray-700 mb-4"><strong>Assets:</strong> Buy assets to earn passive income every turn.</p>
-            <button type="button" onClick={() => setRulesOpen(false)}
-              className="w-full py-3 bg-blue-500 text-white font-black rounded-2xl">Got it!</button>
-          </div>
-        </div>
-      )}
+      {rulesOpen && <RulesModal onClose={closeRules} />}
     </div>
   )
 }

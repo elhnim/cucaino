@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import type { GameState, GameAction } from "@/lib/money-town/types"
 import PlayerCard from "./PlayerCard"
 
@@ -13,6 +13,7 @@ interface Props {
 export default function GameBoard({ state, dispatch, onHowToPlay }: Props) {
   const { players, currentPlayerIndex, round, phase, pendingPayday } = state
   const currentPlayer = players[currentPlayerIndex]
+  const [confirmExit, setConfirmExit] = useState(false)
 
   // Auto-clear payday banner after 2s
   useEffect(() => {
@@ -29,15 +30,43 @@ export default function GameBoard({ state, dispatch, onHowToPlay }: Props) {
     <div className="min-h-screen bg-sky-50 flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 flex items-center justify-between">
-        <span className="font-black text-white text-lg">💰 Money Town</span>
-        <span className="bg-yellow-400 text-yellow-900 font-black text-xs px-3 py-1 rounded-full">
-          ROUND {round}
-        </span>
+        <button type="button" onClick={() => setConfirmExit(true)}
+          className="text-sm font-bold text-white/80 hover:text-white flex items-center gap-1">
+          ✕ Exit
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="font-black text-white text-base">💰 Money Town</span>
+          <span className="bg-yellow-400 text-yellow-900 font-black text-xs px-2 py-0.5 rounded-full">
+            R{round}
+          </span>
+        </div>
         <button type="button" onClick={onHowToPlay}
           className="text-sm font-bold text-white/80 hover:text-white">
           ? Help
         </button>
       </header>
+
+      {/* Exit confirmation */}
+      {confirmExit && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-6">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-xs text-center">
+            <div className="text-4xl mb-3">🚪</div>
+            <h2 className="text-xl font-black text-gray-900 mb-2">Quit the game?</h2>
+            <p className="text-sm text-gray-500 mb-5">Your progress will be lost.</p>
+            <button type="button"
+              onClick={() => dispatch({ type: 'NEW_GAME' })}
+              className="w-full py-3 bg-red-500 text-white font-black rounded-2xl mb-2 active:scale-95 transition-transform">
+              Yes, quit
+            </button>
+            <button type="button"
+              onClick={() => setConfirmExit(false)}
+              className="w-full py-3 border-2 border-gray-200 text-gray-600 font-black rounded-2xl active:scale-95 transition-transform">
+              Keep playing
+            </button>
+          </div>
+        </div>
+      )}
+
 
       {/* Turn banner */}
       <div className="bg-blue-600 text-white text-center py-2 px-4 flex items-center justify-center gap-2">

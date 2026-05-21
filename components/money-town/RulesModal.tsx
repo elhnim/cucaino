@@ -7,38 +7,38 @@ interface Props {
 const RULES = [
   {
     emoji: '🏆',
-    title: 'Goal',
-    body: 'Escape the Rat Race! Build passive income from assets until it equals or exceeds your living expenses. First to do it wins.',
+    title: 'How to WIN',
+    body: "You win by earning money while you sleep! 😴💰 In real life, people who don't have to work to pay their bills are called FINANCIALLY FREE. That's your goal — build up enough \"sleeping money\" (passive income) to cover all your bills!",
   },
   {
     emoji: '💼',
-    title: 'Your Job',
-    body: 'Each turn your salary is collected automatically and your living expenses are deducted. Higher salary = higher expenses. The difference is your starting cushion.',
+    title: 'Your Job & Salary',
+    body: "A job is how most people earn money. You go to work, you get paid — that's called a SALARY. 💵 But you also have LIVING EXPENSES — food, rent, electricity — things you must pay every single month whether you work or not. The tricky part: a bigger salary usually means a fancier lifestyle and bigger bills too!",
+  },
+  {
+    emoji: '📦',
+    title: 'Assets = Money Machines',
+    body: "An ASSET is something you own that makes money for you — even when you're not working! 🏠 A lemonade stand keeps selling while you sleep. A rental property collects rent every month. The goal is to collect so many assets that their income covers all your bills. That's freedom!",
   },
   {
     emoji: '🎰',
-    title: 'The Reel',
-    body: 'Pull the lever each turn. You might get an Event (good or bad things happening in life), a Chance (opportunities), a Mini-game, or a Big Event (major life moments).',
-  },
-  {
-    emoji: '🏠',
-    title: 'Assets',
-    body: 'After the reel, take one action: buy an asset. Assets earn passive income every turn. Tier 1 is cheap to start. Tier 2 is where real money flows. Tier 3 is the Hotel — massive income but needs 3 Investment Properties first.',
+    title: 'The Lever (Life happens!)',
+    body: "Every turn you pull the lever — just like real life throws surprises at you! 🎲 You might get a tax bill (bad!), a work bonus (great!), or a once-in-a-lifetime chance. Sometimes life is good, sometimes it's tough — the key is to keep building your assets no matter what!",
   },
   {
     emoji: '🎓',
-    title: 'Degree',
-    body: 'Pay $900 to enrol. After 2 turns, you graduate. Graduates get much better Chance cards — Promotions, Career Switches, and discounted deals. Risk vs reward!',
+    title: 'University Degree',
+    body: "Going to university costs money ($900) and takes 2 turns. But when you graduate 🎓, you get access to MUCH better jobs — like Engineer ($1,700/turn!) and better opportunities. It's a real-life trade-off: spend now to earn way more later. Is it worth it? YOU decide!",
   },
   {
-    emoji: '🏨',
-    title: 'Hotel',
-    body: 'Own 3 Investment Properties first, then unlock the Hotel ($4,500 → +$900/turn). The ultimate passive income machine — Engineer players NEED it to escape.',
+    emoji: '📈',
+    title: 'Investing',
+    body: "INVESTING means putting your money to work! Instead of spending $2,000, you buy Stocks or a Property that pays you every single turn. The more you invest, the more money flows in — even while you're sleeping. Rich people don't just save money — they put it to work! 💡",
   },
   {
     emoji: '🏁',
-    title: 'Winning',
-    body: "When passive income ≥ living expenses: you're FREE! The game ends immediately. Standings show how far each player got.",
+    title: 'Escaping the Rat Race',
+    body: "The RAT RACE means working just to pay your bills, with nothing left over. Most people are stuck in it! When your asset income ≥ your living expenses — you're OUT! 🏃 You don't NEED a job anymore. First player to escape wins. But everyone learns something real along the way!",
   },
 ]
 
