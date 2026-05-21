@@ -1,6 +1,7 @@
-import { getKid } from "@/lib/data/stub";
+import { getKid, listKids } from "@/lib/data/stub";
 import KidShell from "@/components/kid/KidShell";
 import MoneyTownGame from "@/components/money-town/MoneyTownGame";
+import type { Kid } from "@/lib/domain/types";
 
 export default async function MoneyTownPage({
   searchParams,
@@ -8,16 +9,24 @@ export default async function MoneyTownPage({
   searchParams: Promise<{ kid?: string }>;
 }) {
   const { kid: kidId } = await searchParams;
-  const kid = kidId ? await getKid(kidId) : null;
+  const [kid, kids] = await Promise.all([
+    kidId ? getKid(kidId) : Promise.resolve(null),
+    listKids(),
+  ]);
 
-  const content = <MoneyTownGame kidName={kid?.name ?? null} kidId={kidId ?? null} />;
+  const content = (
+    <MoneyTownGame
+      kids={kids}
+      activeKidId={kidId ?? null}
+    />
+  );
 
   if (kid) {
     return <KidShell kid={kid} active="play">{content}</KidShell>;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-green-50">
+    <div className="min-h-screen bg-sky-50">
       {content}
     </div>
   );
