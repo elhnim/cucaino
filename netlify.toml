@@ -8,7 +8,6 @@
 
 [functions]
   directory = "netlify/functions"
-  timeout = 26
 
 [functions."___netlify-server-handler"]
   timeout = 26
