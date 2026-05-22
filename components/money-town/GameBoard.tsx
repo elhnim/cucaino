@@ -75,11 +75,6 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
         <span className="font-black text-sm">
           {currentPlayer?.name?.toUpperCase()}'S TURN
         </span>
-        {phase === 'board' && !pendingPayday && (
-          <span className="ml-2 bg-yellow-400 text-yellow-900 text-xs font-black px-2 py-0.5 rounded-full">
-            Pull Lever ›
-          </span>
-        )}
       </div>
 
       {/* Player grid */}
@@ -96,7 +91,7 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
 
       {/* Bottom CTA */}
       {phase === 'board' && (
-        <div className="p-4 pb-6">
+        <div className="sticky bottom-0 p-4 pb-6 bg-sky-50/95 backdrop-blur border-t border-sky-200">
           <button
             type="button"
             onClick={() => dispatch({ type: 'PULL_LEVER' })}

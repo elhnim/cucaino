@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Money Town — Phase 1 Sample Script</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f4ff; color: #1a1a2e; }
+
+  .hero {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 60%, #60a5fa 100%);
+    padding: 40px 24px;
+    text-align: center;
+    color: white;
+  }
+  .hero h1 { font-size: 2.4rem; font-weight: 900; letter-spacing: -1px; }
+  .hero .sub { font-size: 1.1rem; opacity: 0.85; margin-top: 8px; }
+  .hero .phase-badge {
+    display: inline-block; margin-top: 16px;
+    background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 999px; padding: 6px 20px; font-weight: 700; font-size: 0.95rem;
+  }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
+
+  /* Player intro */
+  .players-intro { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 40px; }
+  .player-intro-card {
+    background: white; border-radius: 20px; padding: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    border-top: 5px solid var(--color);
+  }
+  .player-intro-card .avatar { font-size: 2.5rem; margin-bottom: 8px; }
+  .player-intro-card h3 { font-size: 1.2rem; font-weight: 900; }
+  .player-intro-card .gig { font-size: 0.95rem; color: #64748b; margin-top: 4px; }
+  .player-intro-card .stats { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .stat-pill {
+    background: #f1f5f9; border-radius: 999px; padding: 4px 12px;
+    font-size: 0.8rem; font-weight: 700; color: #475569;
+  }
+  .stat-pill.green { background: #dcfce7; color: #16a34a; }
+
+  /* Turn */
+  .turn-block { margin-bottom: 48px; }
+  .turn-header {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+  }
+  .turn-number {
+    background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+    color: white; font-weight: 900; font-size: 1.1rem;
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .turn-title { font-size: 1.4rem; font-weight: 900; }
+  .turn-subtitle { font-size: 0.9rem; color: #64748b; margin-top: 2px; }
+
+  .players-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  .player-turn-card {
+    background: white; border-radius: 20px; overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+    border-top: 4px solid var(--color);
+  }
+  .player-turn-header {
+    padding: 14px 18px; display: flex; align-items: center; gap-10px;
+    border-bottom: 1px solid #f1f5f9;
+    background: linear-gradient(135deg, var(--color-light), white);
+  }
+  .player-turn-header .emoji { font-size: 1.6rem; margin-right: 10px; }
+  .player-turn-header .name { font-weight: 900; font-size: 1rem; }
+  .player-turn-header .cash-display {
+    margin-left: auto; font-weight: 900; font-size: 1rem; color: #16a34a;
+  }
+
+  .event-row {
+    padding: 12px 18px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #f8fafc;
+  }
+  .event-row .reel-badge {
+    background: #fef3c7; color: #92400e; font-size: 0.7rem; font-weight: 700;
+    border-radius: 999px; padding: 2px 8px; flex-shrink: 0;
+  }
+  .event-row .event-emoji { font-size: 1.3rem; }
+  .event-row .event-text { font-size: 0.85rem; color: #374151; flex: 1; }
+  .event-row .event-delta {
+    font-weight: 900; font-size: 0.9rem; flex-shrink: 0;
+  }
+  .event-row .event-delta.neg { color: #dc2626; }
+  .event-row .event-delta.pos { color: #16a34a; }
+  .event-row .event-delta.social { color: #7c3aed; }
+
+  .section-label {
+    padding: 8px 18px 4px; font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8;
+  }
+
+  .income-row {
+    padding: 8px 18px 12px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .income-row .label { font-size: 0.85rem; color: #64748b; }
+  .income-row .value { font-weight: 900; font-size: 0.95rem; }
+  .income-row .value.green { color: #16a34a; }
+  .income-row .value.blue { color: #2563eb; }
+
+  .action-row {
+    padding: 10px 18px; background: #f8fafc;
+    display: flex; align-items: center; gap: 8px;
+    border-top: 1px solid #f1f5f9;
+  }
+  .action-row .action-label {
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    color: #94a3b8; margin-right: 4px; flex-shrink: 0;
+  }
+  .action-chip {
+    background: #ede9fe; color: #5b21b6; border-radius: 999px;
+    padding: 4px 12px; font-size: 0.8rem; font-weight: 700;
+  }
+  .action-chip.green { background: #dcfce7; color: #15803d; }
+  .action-chip.orange { background: #ffedd5; color: #c2410c; }
+  .action-chip.blue { background: #dbeafe; color: #1d4ed8; }
+
+  .unlock-row {
+    padding: 6px 18px 10px; display: flex; align-items: center; gap-6px;
+  }
+  .unlock-badge {
+    background: #fef9c3; color: #713f12; font-size: 0.75rem; font-weight: 700;
+    border-radius: 8px; padding: 4px 10px; border: 1px solid #fde68a;
+  }
+
+  .end-state {
+    padding: 14px 18px; background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border-top: 2px solid #86efac;
+  }
+  .end-state .label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #166534; margin-bottom: 8px; }
+  .end-state .wealth-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .wealth-item { background: white; border-radius: 10px; padding: 6px 10px; font-size: 0.8rem; }
+  .wealth-item .wlabel { color: #64748b; font-size: 0.7rem; }
+  .wealth-item .wval { font-weight: 900; color: #166534; }
+
+  .skills-row {
+    padding: 8px 18px; display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid #f1f5f9;
+  }
+  .skill-badge {
+    font-size: 0.75rem; font-weight: 700; padding: 3px 10px;
+    border-radius: 999px; background: #f1f5f9; color: #475569;
+  }
+  .skill-badge.active { background: #ede9fe; color: #5b21b6; }
+
+  /* Social card highlight */
+  .social-highlight {
+    margin: 0 18px 12px; padding: 10px 14px;
+    background: #fdf4ff; border: 1px solid #e9d5ff; border-radius: 12px;
+    font-size: 0.82rem; color: #6b21a8;
+  }
+  .social-highlight strong { font-weight: 900; }
+
+  /* Phase summary */
+  .phase-summary {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%);
+    border-radius: 24px; padding: 32px; color: white; margin-top: 16px;
+  }
+  .phase-summary h2 { font-size: 1.6rem; font-weight: 900; margin-bottom: 20px; }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .summary-player {
+    background: rgba(255,255,255,0.1); border-radius: 16px; padding: 20px;
+  }
+  .summary-player .name { font-weight: 900; font-size: 1.1rem; margin-bottom: 12px; }
+  .summary-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.9rem; }
+  .summary-row .label { opacity: 0.8; }
+  .summary-row .val { font-weight: 700; }
+  .total-wealth { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); }
+  .total-wealth .label { font-size: 0.8rem; opacity: 0.7; }
+  .total-wealth .val { font-size: 1.5rem; font-weight: 900; color: #fbbf24; }
+
+  .lesson-box {
+    background: #fefce8; border: 2px solid #fde047; border-radius: 16px;
+    padding: 20px; margin-top: 24px;
+  }
+  .lesson-box h3 { font-weight: 900; color: #713f12; margin-bottom: 8px; }
+  .lesson-box p { font-size: 0.9rem; color: #92400e; line-height: 1.6; }
+
+  .invest-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #dbeafe; color: #1e40af; border-radius: 999px;
+    padding: 3px 12px; font-size: 0.8rem; font-weight: 700; margin-top: 6px;
+  }
+
+  @media (max-width: 600px) {
+    .players-intro, .players-grid, .summary-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="phase-badge">📖 Phase 1 Sample Script — 5 Turns</div>
+  <h1>💰 Money Town</h1>
+  <p class="sub">Many Lives, One Freedom — Teen Gigs Era (Ages 18–22)</p>
+</div>
+
+<div class="container">
+
+  <!-- Player Intros -->
+  <div class="players-intro">
+    <div class="player-intro-card" style="--color:#3b82f6; --color-light:#eff6ff;">
+      <div class="avatar">🏄</div>
+      <h3>Alex</h3>
+      <div class="gig">📦 Delivery Driver</div>
+      <div class="stats">
+        <span class="stat-pill">Salary $10,400/yr</span>
+        <span class="stat-pill">Expenses $8,200/yr</span>
+        <span class="stat-pill green">Net $2,200/yr</span>
+      </div>
+      <div style="margin-top:10px; font-size:0.8rem; color:#64748b;">
+        Strategy: 💰 <strong>Money Smarts</strong> — invest early, build passive income
+      </div>
+    </div>
+    <div class="player-intro-card" style="--color:#f59e0b; --color-light:#fffbeb;">
+      <div class="avatar">🎨</div>
+      <h3>Mia</h3>
+      <div class="gig">☕ Cafe Barista</div>
+      <div class="stats">
+        <span class="stat-pill">Salary $10,200/yr</span>
+        <span class="stat-pill">Expenses $8,200/yr</span>
+        <span class="stat-pill green">Net $2,000/yr</span>
+      </div>
+      <div style="margin-top:10px; font-size:0.8rem; color:#64748b;">
+        Strategy: 🛡️ <strong>Grit</strong> — grind into better gigs fast
+      </div>
+    </div>
+  </div>
+
+  <!-- TURN 1 -->
+  <div class="turn-block">
+    <div class="turn-header">
+      <div class="turn-number">T1</div>
+      <div>
+        <div class="turn-title">Turn 1 — Age 18</div>
+        <div class="turn-subtitle">Starting cash: $1,000 each · Trust Fund available from day 1</div>
+      </div>
+    </div>
+    <div class="players-grid">
+      <!-- Alex T1 -->
+      <div class="player-turn-card" style="--color:#3b82f6; --color-light:#eff6ff;">
+        <div class="player-turn-header">
+          <span class="emoji">🏄</span>
+          <span class="name">Alex</span>
+          <span class="cash-display">Start: $1,000</span>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🎂</span>
+          <span class="event-text">Friend's birthday — dinner + gift</span>
+          <span class="event-delta neg">−$150</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">📦 Delivery Driver net</span>
+          <span class="value green">+$2,200</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip blue">💰 Money Smarts → Lv2</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Unlocks next turn: Stock Market available</span>
+        </div>
+        <div class="income-row">
+          <span class="label">💼 Invest in Trust Fund</span>
+          <span class="value blue">−$1,000 → 10%/yr</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv2</span>
+          <span class="skill-badge">🏆 Pro Skills Lv1</span>
+          <span class="skill-badge">🛡️ Grit Lv1</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 1</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$2,050</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$1,000</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$3,050</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- Mia T1 -->
+      <div class="player-turn-card" style="--color:#f59e0b; --color-light:#fffbeb;">
+        <div class="player-turn-header">
+          <span class="emoji">🎨</span>
+          <span class="name">Mia</span>
+          <span class="cash-display">Start: $1,000</span>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🎁</span>
+          <span class="event-text">Got a gift card — converted to cash</span>
+          <span class="event-delta pos">+$100</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">☕ Cafe Barista net</span>
+          <span class="value green">+$2,000</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip orange">🛡️ Grit → Lv2</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Unlocks next turn: Grit Tier 2 gigs available</span>
+        </div>
+        <div class="income-row">
+          <span class="label">💼 Invest in Trust Fund</span>
+          <span class="value blue">−$1,000 → 10%/yr</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge">💰 Money Smarts Lv1</span>
+          <span class="skill-badge">🏆 Pro Skills Lv1</span>
+          <span class="skill-badge active">🛡️ Grit Lv2</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 1</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$2,100</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$1,000</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$3,100</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TURN 2 -->
+  <div class="turn-block">
+    <div class="turn-header">
+      <div class="turn-number">T2</div>
+      <div>
+        <div class="turn-title">Turn 2 — Age 19</div>
+        <div class="turn-subtitle">Trust Funds grow 10% · Alex unlocks Stock Market · Mia can switch gigs</div>
+      </div>
+    </div>
+    <div class="players-grid">
+      <!-- Alex T2 -->
+      <div class="player-turn-card" style="--color:#3b82f6; --color-light:#eff6ff;">
+        <div class="player-turn-header">
+          <span class="emoji">🏄</span>
+          <span class="name">Alex</span>
+          <span class="cash-display">Start: $2,050</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund growth (+10%)</span>
+          <span class="value green">$1,000 → $1,100</span>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">📱</span>
+          <span class="event-text">Went over your phone plan</span>
+          <span class="event-delta neg">−$150</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">📦 Delivery Driver net</span>
+          <span class="value green">+$2,200</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip blue">💰 Money Smarts → Lv3</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Money Smarts maxed for Phase 1</span>
+        </div>
+        <div class="income-row">
+          <span class="label">📈 Invest in Stock Market</span>
+          <span class="value blue">−$2,000 → 20%/yr</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv3</span>
+          <span class="skill-badge">🏆 Pro Skills Lv1</span>
+          <span class="skill-badge">🛡️ Grit Lv1</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 2</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$2,100</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$1,100</div></div>
+            <div class="wealth-item"><div class="wlabel">Stock Market</div><div class="wval">$2,000</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$5,200</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- Mia T2 -->
+      <div class="player-turn-card" style="--color:#f59e0b; --color-light:#fffbeb;">
+        <div class="player-turn-header">
+          <span class="emoji">🎨</span>
+          <span class="name">Mia</span>
+          <span class="cash-display">Start: $2,100</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund growth (+10%)</span>
+          <span class="value green">$1,000 → $1,100</span>
+        </div>
+        <div style="margin: 0 18px 8px; padding: 10px 14px; background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; font-size:0.82rem; color:#c2410c;">
+          <strong>🛡️ Grit Tier 2 unlocked!</strong> Mia switches to 🔧 Trades Labourer — penalty year: earns 80% salary ($17,600) − expenses $9,000 = <strong>$8,600 net</strong>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🤒</span>
+          <span class="event-text">Sick week — missed shifts</span>
+          <span class="event-delta neg">−$250</span>
+        </div>
+        <div class="section-label">Income (penalty year)</div>
+        <div class="income-row">
+          <span class="label">🔧 Trades Labourer net (80% salary)</span>
+          <span class="value green">+$8,600</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip">🏆 Pro Skills → Lv2</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Unlocks next turn: Senior role +$2,000/yr salary</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge">💰 Money Smarts Lv1</span>
+          <span class="skill-badge active">🏆 Pro Skills Lv2</span>
+          <span class="skill-badge active">🛡️ Grit Lv2</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 2</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$10,450</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$1,100</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$11,550</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TURN 3 -->
+  <div class="turn-block">
+    <div class="turn-header">
+      <div class="turn-number">T3</div>
+      <div>
+        <div class="turn-title">Turn 3 — Age 20</div>
+        <div class="turn-subtitle">Mia's senior role kicks in · Alex's investments compound · Everyone shares a social card</div>
+      </div>
+    </div>
+
+    <div class="social-highlight" style="margin-bottom:12px;">
+      🎪 <strong>Social Card drawn!</strong> Local festival — everyone picks up extra work. <strong>All players +$200</strong>
+    </div>
+
+    <div class="players-grid">
+      <!-- Alex T3 -->
+      <div class="player-turn-card" style="--color:#3b82f6; --color-light:#eff6ff;">
+        <div class="player-turn-header">
+          <span class="emoji">🏄</span>
+          <span class="name">Alex</span>
+          <span class="cash-display">Start: $2,100</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund (+10%)</span>
+          <span class="value green">$1,100 → $1,210</span>
+        </div>
+        <div class="income-row">
+          <span class="label">📈 Stock Market (+20%)</span>
+          <span class="value green">$2,000 → $2,400</span>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🎪</span>
+          <span class="event-text">Local festival — everyone gets extra work</span>
+          <span class="event-delta social">+$200 (all)</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">📦 Delivery Driver net</span>
+          <span class="value green">+$2,200</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip">🏆 Pro Skills → Lv2</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Unlocks next turn: Senior role +$2,000/yr salary</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv3</span>
+          <span class="skill-badge active">🏆 Pro Skills Lv2</span>
+          <span class="skill-badge">🛡️ Grit Lv1</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 3</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$4,500</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$1,210</div></div>
+            <div class="wealth-item"><div class="wlabel">Stock Market</div><div class="wval">$2,400</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$8,110</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- Mia T3 -->
+      <div class="player-turn-card" style="--color:#f59e0b; --color-light:#fffbeb;">
+        <div class="player-turn-header">
+          <span class="emoji">🎨</span>
+          <span class="name">Mia</span>
+          <span class="cash-display">Start: $10,450</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund (+10%)</span>
+          <span class="value green">$1,100 → $1,210</span>
+        </div>
+        <div style="margin: 0 18px 8px; padding: 8px 14px; background:#f0fdf4; border:1px solid #86efac; border-radius:10px; font-size:0.82rem; color:#166534;">
+          <strong>🏆 Senior role kicks in!</strong> Salary $22,000 + $2,000 raise = $24,000. Expenses $9,000. Net <strong>$15,000/yr</strong>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🎪</span>
+          <span class="event-text">Local festival — everyone gets extra work</span>
+          <span class="event-delta social">+$200 (all)</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">🔧 Senior Labourer net</span>
+          <span class="value green">+$15,000</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip blue">💰 Money Smarts → Lv2</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Unlocks next turn: Stock Market available</span>
+        </div>
+        <div class="income-row">
+          <span class="label">🏦 Invest more in Trust Fund</span>
+          <span class="value blue">−$2,000 → 10%/yr</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv2</span>
+          <span class="skill-badge active">🏆 Pro Skills Lv2</span>
+          <span class="skill-badge active">🛡️ Grit Lv2</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 3</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$23,650</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$3,210</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$26,860</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TURN 4 -->
+  <div class="turn-block">
+    <div class="turn-header">
+      <div class="turn-number">T4</div>
+      <div>
+        <div class="turn-title">Turn 4 — Age 21</div>
+        <div class="turn-subtitle">Alex gets a senior raise · Mia opens Stock Market · Birthday social card!</div>
+      </div>
+    </div>
+    <div class="players-grid">
+      <!-- Alex T4 -->
+      <div class="player-turn-card" style="--color:#3b82f6; --color-light:#eff6ff;">
+        <div class="player-turn-header">
+          <span class="emoji">🏄</span>
+          <span class="name">Alex</span>
+          <span class="cash-display">Start: $4,500</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund (+10%)</span>
+          <span class="value green">$1,210 → $1,331</span>
+        </div>
+        <div class="income-row">
+          <span class="label">📈 Stock Market (+20%)</span>
+          <span class="value green">$2,400 → $2,880</span>
+        </div>
+        <div style="margin: 0 18px 8px; padding: 8px 14px; background:#f0fdf4; border:1px solid #86efac; border-radius:10px; font-size:0.82rem; color:#166534;">
+          <strong>🏆 Senior role kicks in!</strong> Salary $10,400 + $2,000 raise = $12,400. Net <strong>$4,200/yr</strong>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🎂</span>
+          <span class="event-text">It's your birthday! Everyone chips in</span>
+          <span class="event-delta social">+$100 from Mia</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">📦 Senior Delivery Driver net</span>
+          <span class="value green">+$4,200</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip">🏆 Pro Skills → Lv3</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Unlocks next turn: Team Leader +$3,000/yr salary</span>
+        </div>
+        <div class="income-row">
+          <span class="label">📈 Invest more in Stock Market</span>
+          <span class="value blue">−$2,000 added</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv3</span>
+          <span class="skill-badge active">🏆 Pro Skills Lv3</span>
+          <span class="skill-badge">🛡️ Grit Lv1</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 4</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$6,800</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$1,331</div></div>
+            <div class="wealth-item"><div class="wlabel">Stock Market</div><div class="wval">$4,880</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$13,011</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- Mia T4 -->
+      <div class="player-turn-card" style="--color:#f59e0b; --color-light:#fffbeb;">
+        <div class="player-turn-header">
+          <span class="emoji">🎨</span>
+          <span class="name">Mia</span>
+          <span class="cash-display">Start: $23,650</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund (+10%)</span>
+          <span class="value green">$3,210 → $3,531</span>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🎂</span>
+          <span class="event-text">Alex's birthday — chip in $100</span>
+          <span class="event-delta neg">−$100</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">🔧 Senior Labourer net</span>
+          <span class="value green">+$15,000</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">Action</span>
+          <span class="action-chip orange">🛡️ Grit → Lv3</span>
+        </div>
+        <div class="unlock-row">
+          <span class="unlock-badge">🔓 Unlocks next turn: Tier 3 gigs — no switch penalty!</span>
+        </div>
+        <div class="income-row">
+          <span class="label">📈 Invest in Stock Market (unlocked)</span>
+          <span class="value blue">−$5,000 → 20%/yr</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv2</span>
+          <span class="skill-badge active">🏆 Pro Skills Lv2</span>
+          <span class="skill-badge active">🛡️ Grit Lv3</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">End of Turn 4</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$33,550</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$3,531</div></div>
+            <div class="wealth-item"><div class="wlabel">Stock Market</div><div class="wval">$5,000</div></div>
+            <div class="wealth-item"><div class="wlabel">Total</div><div class="wval">$42,081</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TURN 5 -->
+  <div class="turn-block">
+    <div class="turn-header">
+      <div class="turn-number">T5</div>
+      <div>
+        <div class="turn-title">Turn 5 — Age 22 · FINAL PHASE 1 TURN</div>
+        <div class="turn-subtitle">All investments compound · Alex becomes Team Leader · Mia hits Tier 3</div>
+      </div>
+    </div>
+    <div class="players-grid">
+      <!-- Alex T5 -->
+      <div class="player-turn-card" style="--color:#3b82f6; --color-light:#eff6ff;">
+        <div class="player-turn-header">
+          <span class="emoji">🏄</span>
+          <span class="name">Alex</span>
+          <span class="cash-display">Start: $6,800</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund (+10%)</span>
+          <span class="value green">$1,331 → $1,464</span>
+        </div>
+        <div class="income-row">
+          <span class="label">📈 Stock Market (+20%)</span>
+          <span class="value green">$4,880 → $5,856</span>
+        </div>
+        <div style="margin: 0 18px 8px; padding: 8px 14px; background:#f0fdf4; border:1px solid #86efac; border-radius:10px; font-size:0.82rem; color:#166534;">
+          <strong>🏆 Team Leader role kicks in!</strong> $12,400 + $3,000 raise = $15,400. Net <strong>$7,200/yr</strong>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">🔄</span>
+          <span class="event-text">Sold old stuff on Marketplace</span>
+          <span class="event-delta pos">+$200</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">📦 Team Leader Delivery net</span>
+          <span class="value green">+$7,200</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">No more actions</span>
+          <span style="font-size:0.8rem; color:#94a3b8;">Pro Skills already maxed at Lv3</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv3</span>
+          <span class="skill-badge active">🏆 Pro Skills Lv3</span>
+          <span class="skill-badge">🛡️ Grit Lv1</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">🏁 Final Phase 1 Result</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$14,200</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$1,464</div></div>
+            <div class="wealth-item"><div class="wlabel">Stock Market</div><div class="wval">$5,856</div></div>
+            <div class="wealth-item"><div class="wlabel">💰 Total Wealth</div><div class="wval">$21,520</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- Mia T5 -->
+      <div class="player-turn-card" style="--color:#f59e0b; --color-light:#fffbeb;">
+        <div class="player-turn-header">
+          <span class="emoji">🎨</span>
+          <span class="name">Mia</span>
+          <span class="cash-display">Start: $33,550</span>
+        </div>
+        <div class="income-row" style="padding-top:12px;">
+          <span class="label">🏦 Trust Fund (+10%)</span>
+          <span class="value green">$3,531 → $3,884</span>
+        </div>
+        <div class="income-row">
+          <span class="label">📈 Stock Market (+20%)</span>
+          <span class="value green">$5,000 → $6,000</span>
+        </div>
+        <div style="margin: 0 18px 8px; padding: 8px 14px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; font-size:0.82rem; color:#c2410c;">
+          <strong>🛡️ Grit Tier 3 unlocked!</strong> Switches to 🔩 Senior Labourer — salary $25,000, expenses $12,000. <strong>No switch penalty!</strong> Net <strong>$13,000/yr</strong>
+        </div>
+        <div class="event-row">
+          <span class="reel-badge">🎰 REEL</span>
+          <span class="event-emoji">👟</span>
+          <span class="event-text">Limited edition sneakers — you caved</span>
+          <span class="event-delta neg">−$250</span>
+        </div>
+        <div class="section-label">Income</div>
+        <div class="income-row">
+          <span class="label">🔩 Senior Labourer net</span>
+          <span class="value green">+$13,000</span>
+        </div>
+        <div class="action-row">
+          <span class="action-label">No more actions</span>
+          <span style="font-size:0.8rem; color:#94a3b8;">All key skills used up (max 2× each)</span>
+        </div>
+        <div class="skills-row">
+          <span class="skill-badge active">💰 Money Smarts Lv2</span>
+          <span class="skill-badge active">🏆 Pro Skills Lv2</span>
+          <span class="skill-badge active">🛡️ Grit Lv3</span>
+          <span class="skill-badge">🧠 Big Brain Lv1</span>
+        </div>
+        <div class="end-state">
+          <div class="label">🏁 Final Phase 1 Result</div>
+          <div class="wealth-grid">
+            <div class="wealth-item"><div class="wlabel">Cash</div><div class="wval">$46,300</div></div>
+            <div class="wealth-item"><div class="wlabel">Trust Fund</div><div class="wval">$3,884</div></div>
+            <div class="wealth-item"><div class="wlabel">Stock Market</div><div class="wval">$6,000</div></div>
+            <div class="wealth-item"><div class="wlabel">💰 Total Wealth</div><div class="wval">$56,184</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase Summary -->
+  <div class="phase-summary">
+    <h2>📊 Phase 1 Final Scoreboard</h2>
+    <div class="summary-grid">
+      <div class="summary-player">
+        <div class="name">🏄 Alex — The Investor</div>
+        <div class="summary-row"><span class="label">Cash saved</span><span class="val">$14,200</span></div>
+        <div class="summary-row"><span class="label">Trust Fund</span><span class="val">$1,464</span></div>
+        <div class="summary-row"><span class="label">Stock Market</span><span class="val">$5,856</span></div>
+        <div class="summary-row"><span class="label">Skills into Phase 2</span><span class="val">💰Lv3 · 🏆Lv3</span></div>
+        <div class="total-wealth">
+          <div class="label">Total Wealth</div>
+          <div class="val">$21,520</div>
+        </div>
+      </div>
+      <div class="summary-player">
+        <div class="name">🎨 Mia — The Grinder</div>
+        <div class="summary-row"><span class="label">Cash saved</span><span class="val">$46,300</span></div>
+        <div class="summary-row"><span class="label">Trust Fund</span><span class="val">$3,884</span></div>
+        <div class="summary-row"><span class="label">Stock Market</span><span class="val">$6,000</span></div>
+        <div class="summary-row"><span class="label">Skills into Phase 2</span><span class="val">🛡️Lv3 · 🏆Lv2 · 💰Lv2</span></div>
+        <div class="total-wealth">
+          <div class="label">Total Wealth</div>
+          <div class="val">$56,184</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lesson -->
+  <div class="lesson-box">
+    <h3>💡 What This Game Just Taught Us</h3>
+    <p>
+      Mia took a <strong>big income hit in Year 2</strong> by switching to a harder gig — but by Year 3 she was earning <strong>$15,000/yr net</strong> vs Alex's $2,200. That one brave move compounded for 3 years.
+      Alex played it safe, maxed out investments early, and will carry the best <strong>passive income foundation</strong> into Phase 2.
+      Neither path is wrong — both lead to freedom. The lesson: <strong>your decisions today shape your options tomorrow.</strong>
+    </p>
+  </div>
+
+  <div style="text-align:center; margin-top:32px; color:#94a3b8; font-size:0.85rem;">
+    Next → Phase 2: Career Selection &amp; Education/Training
+  </div>
+
+</div>
+</body>
+</html>
