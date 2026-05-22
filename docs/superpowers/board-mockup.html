@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Money Town — Board Mockup</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: 'Segoe UI', sans-serif; }
+
+.screen { height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #1e3a8a; }
+
+/* ── HEADER ── */
+.header {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  padding: 8px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.header-btn { color: rgba(255,255,255,0.75); font-weight: 700; font-size: 13px; }
+.header-center { display: flex; align-items: center; gap: 8px; }
+.header-center span { color: white; font-weight: 900; font-size: 15px; }
+.header-badge { background: #fbbf24; color: #78350f; font-weight: 900; font-size: 11px; padding: 2px 10px; border-radius: 999px; }
+
+/* ── BOARD ── */
+.board-wrap { flex: 1; min-height: 0; padding: 6px; }
+.board {
+  height: 100%;
+  border-radius: 18px;
+  border: 4px solid #fbbf24;
+  background: #1e3a8a;
+  padding: 6px;
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr;
+  grid-template-rows: 1fr 80px 1fr;
+  gap: 6px;
+}
+
+/* ── PLAYER CARD ── */
+.player-card {
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  display: flex; flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.player-card:active { transform: scale(0.97); }
+.player-card.active { box-shadow: 0 0 0 3px white, 0 4px 24px rgba(0,0,0,0.5); }
+
+/* Colored gradient header */
+.card-top {
+  padding: 8px 10px 6px;
+  display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0;
+}
+.p1 .card-top { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.p2 .card-top { background: linear-gradient(135deg, #10b981, #059669); }
+.p3 .card-top { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.p4 .card-top { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+
+.card-avatar { font-size: 30px; flex-shrink: 0; }
+.card-name { font-weight: 900; font-size: 14px; color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.25); line-height: 1.1; }
+.card-job { font-size: 10px; color: rgba(255,255,255,0.8); margin-top: 1px; }
+.card-cash { margin-left: auto; text-align: right; flex-shrink: 0; }
+.card-cash-amount { font-weight: 900; font-size: 18px; color: white; line-height: 1; }
+.card-cash-label { font-size: 9px; color: rgba(255,255,255,0.7); }
+
+/* White body */
+.card-body { background: white; flex: 1; padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; min-height: 0; }
+
+/* Freedom track */
+.freedom-header { display: flex; justify-content: space-between; align-items: center; }
+.freedom-title { font-size: 9px; font-weight: 900; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; }
+.freedom-nums { font-size: 9px; font-weight: 900; color: #2563eb; }
+.freedom-bar {
+  position: relative; height: 14px; margin-top: 3px;
+  background: #e0f2fe; border-radius: 999px; border: 1.5px solid #bae6fd; overflow: hidden;
+}
+.freedom-fill {
+  height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #34d399, #059669);
+}
+.freedom-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.35) 0%, transparent 60%);
+}
+.freedom-runner { position: absolute; top: 50%; transform: translateY(-50%); font-size: 11px; z-index: 2; }
+.freedom-goal { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); font-size: 11px; z-index: 2; }
+
+/* Income / Expense row */
+.card-salary {
+  display: flex; gap: 6px; flex-shrink: 0;
+}
+.salary-badge, .expense-badge {
+  flex: 1; border-radius: 10px; padding: 5px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+}
+.salary-badge { background: #fef9c3; border: 2px solid #fde047; }
+.expense-badge { background: #fee2e2; border: 2px solid #fca5a5; }
+.badge-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.salary-badge .badge-label { color: #92400e; }
+.expense-badge .badge-label { color: #991b1b; }
+.badge-amount { font-size: 15px; font-weight: 900; line-height: 1; }
+.salary-badge .badge-amount { color: #15803d; }
+.expense-badge .badge-amount { color: #dc2626; }
+
+/* Assets */
+.assets-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; flex: 1; align-content: flex-end; }
+.asset-card {
+  background: linear-gradient(160deg, #f0fdf4, #bbf7d0);
+  border: 2px solid #4ade80;
+  border-radius: 12px;
+  padding: 8px 6px 6px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  flex: 1; min-width: 44px; max-width: 70px;
+  box-shadow: 0 3px 0px #16a34a, 0 4px 10px rgba(0,0,0,0.1);
+  position: relative; overflow: hidden;
+}
+.asset-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 40%;
+  background: rgba(255,255,255,0.4);
+  border-radius: 10px 10px 50% 50%;
+}
+.asset-emoji { font-size: 26px; line-height: 1; z-index: 1; }
+.asset-name { font-size: 8px; font-weight: 900; color: #166534; text-align: center; line-height: 1.2; z-index: 1; }
+.asset-income {
+  background: #16a34a; color: white;
+  font-size: 10px; font-weight: 900;
+  padding: 2px 7px; border-radius: 999px;
+  z-index: 1;
+}
+.no-assets {
+  width: 100%; margin-top: auto;
+  text-align: center; font-size: 10px; color: #d1d5db; font-style: italic;
+  padding: 12px 0;
+}
+
+/* YOUR TURN overlay — tapping this = pulling the lever */
+.turn-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.turn-btn {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: white;
+  font-size: 22px; font-weight: 900;
+  padding: 14px 24px; border-radius: 20px;
+  box-shadow: 0 6px 0px #14532d, 0 10px 30px rgba(0,0,0,0.5);
+  text-align: center; line-height: 1.2;
+  letter-spacing: 0.03em;
+  animation: pulse 1.2s infinite;
+  border: 3px solid rgba(255,255,255,0.25);
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1) translateY(0); box-shadow: 0 6px 0px #14532d, 0 10px 30px rgba(0,0,0,0.5); }
+  50% { transform: scale(1.05) translateY(-2px); box-shadow: 0 8px 0px #14532d, 0 14px 36px rgba(22,163,74,0.5); }
+}
+
+/* ── BOARD EDGE CELLS ── */
+.deco-top, .deco-bottom {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+}
+.deco-label { color: rgba(253,230,138,0.7); font-weight: 900; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; }
+.deco-emoji { font-size: 20px; }
+.deco-player { color: white; font-weight: 900; font-size: 13px; }
+.deco-sub { color: rgba(253,230,138,0.4); font-size: 8px; font-weight: 700; letter-spacing: 0.1em; text-align: center; }
+
+.deco-left, .deco-right { display: flex; align-items: center; justify-content: center; }
+.deco-left span, .deco-right span {
+  color: rgba(253,230,138,0.35); font-weight: 900; font-size: 9px;
+  letter-spacing: 0.2em; text-transform: uppercase; white-space: nowrap;
+  writing-mode: vertical-rl;
+}
+.deco-left span { transform: rotate(180deg); }
+
+/* ── CENTER CELL ── */
+.center-cell {
+  background: rgba(255,255,255,0.06);
+  border-radius: 14px;
+  border: 2px solid rgba(251,191,36,0.2);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+}
+.center-icon { font-size: 28px; }
+.center-label { color: rgba(255,255,255,0.4); font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ── REEL POPUP MODAL ── */
+.reel-modal {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.reel-modal.hidden { display: none; }
+
+/* Lever popup — matches LeverOverlay.tsx */
+.lever-popup {
+  background: white;
+  border-radius: 28px;
+  width: 300px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.85);
+}
+.lever-header {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 12px;
+}
+.lever-header-emoji { font-size: 32px; }
+.lever-header-name { font-weight: 900; color: white; font-size: 16px; }
+.lever-header-cash { font-size: 12px; color: rgba(255,255,255,0.75); margin-top: 1px; }
+
+.lever-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+/* Red machine casing */
+.reel-machine {
+  background: #ef4444;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 4px 16px rgba(239,68,68,0.35);
+}
+.machine-label {
+  background: #fbbf24;
+  color: #7f1d1d;
+  font-weight: 900; font-size: 11px; letter-spacing: 0.15em;
+  text-align: center;
+  padding: 4px 0; border-radius: 10px;
+  margin-bottom: 12px;
+}
+/* Slot window */
+.reel-window {
+  background: #0f172a;
+  border-radius: 14px;
+  height: 240px;
+  overflow: hidden;
+  position: relative;
+}
+/* Yellow highlight bar — centre row */
+.reel-highlight {
+  position: absolute; left: 0; right: 0;
+  top: 80px; height: 80px;
+  border: 2.5px solid #fbbf24;
+  border-radius: 10px;
+  z-index: 10; pointer-events: none;
+  box-shadow: 0 0 12px rgba(251,191,36,0.4);
+}
+/* Fade top/bottom */
+.reel-window::before, .reel-window::after {
+  content: ''; position: absolute; left: 0; right: 0; height: 60px; z-index: 5; pointer-events: none;
+}
+.reel-window::before { top: 0; background: linear-gradient(180deg, #0f172a 0%, transparent 100%); }
+.reel-window::after  { bottom: 0; background: linear-gradient(0deg, #0f172a 0%, transparent 100%); }
+
+.reel-strip { position: absolute; top: 0; left: 0; right: 0; will-change: transform; }
+.reel-item {
+  height: 80px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: white;
+}
+.reel-item-emoji { font-size: 28px; line-height: 1; }
+.reel-item-label { font-size: 13px; font-weight: 700; margin-top: 3px; }
+
+/* Result card */
+.result-card {
+  background: linear-gradient(135deg, #fef9c3, #fef3c7);
+  border: 2px solid #fde047;
+  border-radius: 14px;
+  padding: 12px 14px;
+  text-align: center;
+  display: none;
+}
+.result-card.show { display: block; }
+.result-title { font-size: 11px; font-weight: 900; color: #92400e; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.result-body { font-size: 15px; font-weight: 900; color: #78350f; line-height: 1.3; }
+.result-amount { font-size: 22px; font-weight: 900; margin-top: 4px; }
+
+/* Lever button */
+.lever-btn {
+  width: 100%; padding: 16px 0;
+  background: #eab308; color: white;
+  font-size: 18px; font-weight: 900;
+  border-radius: 16px;
+  box-shadow: 0 5px 0px #a16207;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  animation: pulse 1.2s infinite;
+}
+.lever-btn:disabled { opacity: 0.6; cursor: default; animation: none; }
+
+/* Continue button */
+.machine-continue-btn {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white; font-size: 14px; font-weight: 900;
+  padding: 13px 0; border-radius: 12px;
+  box-shadow: 0 4px 0px #1d4ed8;
+  width: 100%; text-align: center; cursor: pointer;
+  display: none;
+}
+.machine-continue-btn.show { display: block; }
+
+/* ── EMPTY PLACEHOLDER ── */
+.empty-cell {
+  background: rgba(30,64,175,0.3); border-radius: 14px;
+  border: 2px dashed rgba(251,191,36,0.12);
+}
+
+/* Switcher */
+.switcher { position: fixed; bottom: 10px; right: 10px; display: flex; gap: 5px; z-index: 100; }
+.sw-btn { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 999px; padding: 4px 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.sw-btn.active { background: #fbbf24; color: #78350f; border-color: #fbbf24; }
+</style>
+</head>
+<body>
+
+<div class="screen">
+  <div class="header">
+    <span class="header-btn">✕ Exit</span>
+    <div class="header-center">
+      <span>💰 Money Town</span>
+      <span class="header-badge">R3</span>
+    </div>
+    <span class="header-btn">? Help</span>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board" id="board">
+
+      <!-- TL: Player 1 (ACTIVE) -->
+      <div class="player-card p1 active" id="p1">
+        <div class="card-top">
+          <span class="card-avatar">🏄</span>
+          <div style="flex:1;min-width:0">
+            <div class="card-name">Alex</div>
+            <div class="card-job">📦 Delivery Driver</div>
+          </div>
+          <div class="card-cash">
+            <div class="card-cash-amount">$4,200</div>
+            <div class="card-cash-label">💰 cash</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div>
+            <div class="freedom-header">
+              <span class="freedom-title">🏝️ Freedom</span>
+              <span class="freedom-nums">$400/$900</span>
+            </div>
+            <div class="freedom-bar">
+              <div class="freedom-fill" style="width:44%"></div>
+              <span class="freedom-runner" style="left:calc(44% - 7px)">🏃</span>
+              <span class="freedom-goal">🏝️</span>
+            </div>
+          </div>
+          <div class="card-salary">
+            <div class="salary-badge">
+              <span class="badge-label">Income</span>
+              <span class="badge-amount">$1,200</span>
+            </div>
+            <div class="expense-badge">
+              <span class="badge-label">Expense</span>
+              <span class="badge-amount">$900</span>
+            </div>
+          </div>
+          <div class="assets-row">
+            <div class="asset-card"><span class="asset-emoji">🅿️</span><span class="asset-name">Parking</span><span class="asset-income">$200/t</span></div>
+            <div class="asset-card"><span class="asset-emoji">📻</span><span class="asset-name">Radio Ad</span><span class="asset-income">$200/t</span></div>
+          </div>
+        </div>
+        <div class="turn-overlay" onclick="openReel()">
+          <div class="turn-btn">▶ GO!<br><span style="font-size:11px;opacity:0.85;font-weight:700">Alex's Turn</span></div>
+        </div>
+      </div>
+
+      <!-- TOP CENTER -->
+      <div class="deco-top">
+        <div class="deco-label">Playing</div>
+        <div class="deco-emoji">🏄</div>
+        <div class="deco-player">ALEX</div>
+      </div>
+
+      <!-- TR: Player 2 -->
+      <div class="player-card p2" id="p2">
+        <div class="card-top">
+          <span class="card-avatar">🎨</span>
+          <div style="flex:1;min-width:0">
+            <div class="card-name">Mia</div>
+            <div class="card-job">☕ Cafe Barista</div>
+          </div>
+          <div class="card-cash">
+            <div class="card-cash-amount">$1,800</div>
+            <div class="card-cash-label">💰 cash</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div>
+            <div class="freedom-header">
+              <span class="freedom-title">🏝️ Freedom</span>
+              <span class="freedom-nums">$0/$700</span>
+            </div>
+            <div class="freedom-bar">
+              <div class="freedom-fill" style="width:0%"></div>
+              <span class="freedom-goal">🏝️</span>
+            </div>
+          </div>
+          <div class="card-salary">
+            <div class="salary-badge">
+              <span class="badge-label">Income</span>
+              <span class="badge-amount">$900</span>
+            </div>
+            <div class="expense-badge">
+              <span class="badge-label">Expense</span>
+              <span class="badge-amount">$700</span>
+            </div>
+          </div>
+          <div class="assets-row"><span class="no-assets">No assets yet</span></div>
+        </div>
+      </div>
+
+      <!-- MIDDLE LEFT -->
+      <div class="deco-left"><span>MONEY TOWN</span></div>
+
+      <!-- CENTER -->
+      <div class="center-cell">
+        <div class="center-icon">🎰</div>
+        <div class="center-label">Round 3</div>
+      </div>
+
+      <!-- MIDDLE RIGHT -->
+      <div class="deco-right"><span>RAT RACE</span></div>
+
+      <!-- BL: Player 4 -->
+      <div class="player-card p4" id="p4">
+        <div class="card-top">
+          <span class="card-avatar">🦊</span>
+          <div style="flex:1;min-width:0">
+            <div class="card-name">Sam</div>
+            <div class="card-job">🛍️ Retail Assistant</div>
+          </div>
+          <div class="card-cash">
+            <div class="card-cash-amount">$3,100</div>
+            <div class="card-cash-label">💰 cash</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div>
+            <div class="freedom-header">
+              <span class="freedom-title">🏝️ Freedom</span>
+              <span class="freedom-nums">$200/$600</span>
+            </div>
+            <div class="freedom-bar">
+              <div class="freedom-fill" style="width:33%"></div>
+              <span class="freedom-runner" style="left:calc(33% - 7px)">🏃</span>
+              <span class="freedom-goal">🏝️</span>
+            </div>
+          </div>
+          <div class="card-salary">
+            <div class="salary-badge">
+              <span class="badge-label">Income</span>
+              <span class="badge-amount">$800</span>
+            </div>
+            <div class="expense-badge">
+              <span class="badge-label">Expense</span>
+              <span class="badge-amount">$600</span>
+            </div>
+          </div>
+          <div class="assets-row">
+            <div class="asset-card"><span class="asset-emoji">🅿️</span><span class="asset-name">Parking</span><span class="asset-income">$200/t</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM CENTER -->
+      <div class="deco-bottom">
+        <div class="deco-sub">MANY LIVES<br>ONE FREEDOM</div>
+      </div>
+
+      <!-- BR: Player 3 -->
+      <div class="player-card p3" id="p3">
+        <div class="card-top">
+          <span class="card-avatar">🐉</span>
+          <div style="flex:1;min-width:0">
+            <div class="card-name">Jay</div>
+            <div class="card-job">🐕 Dog Walker</div>
+          </div>
+          <div class="card-cash">
+            <div class="card-cash-amount">$5,600</div>
+            <div class="card-cash-label">💰 cash</div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div>
+            <div class="freedom-header">
+              <span class="freedom-title">🏝️ Freedom</span>
+              <span class="freedom-nums">$400/$500</span>
+            </div>
+            <div class="freedom-bar">
+              <div class="freedom-fill" style="width:80%"></div>
+              <span class="freedom-runner" style="left:calc(80% - 7px)">🏃</span>
+              <span class="freedom-goal">🏝️</span>
+            </div>
+          </div>
+          <div class="card-salary">
+            <div class="salary-badge">
+              <span class="badge-label">Income</span>
+              <span class="badge-amount">$700</span>
+            </div>
+            <div class="expense-badge">
+              <span class="badge-label">Expense</span>
+              <span class="badge-amount">$500</span>
+            </div>
+          </div>
+          <div class="assets-row">
+            <div class="asset-card"><span class="asset-emoji">🏠</span><span class="asset-name">Property</span><span class="asset-income">$200/t</span></div>
+            <div class="asset-card"><span class="asset-emoji">📻</span><span class="asset-name">Radio Ad</span><span class="asset-income">$200/t</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- REEL POPUP MODAL -->
+<div class="reel-modal hidden" id="reelModal">
+  <div class="lever-popup">
+    <!-- Player header -->
+    <div class="lever-header">
+      <span class="lever-header-emoji">🏄</span>
+      <div>
+        <div class="lever-header-name">Alex</div>
+        <div class="lever-header-cash">$4,200 cash</div>
+      </div>
+    </div>
+    <!-- Body -->
+    <div class="lever-body">
+      <!-- Red machine -->
+      <div class="reel-machine">
+        <div class="machine-label">SPIN TO WIN</div>
+        <div class="reel-window">
+          <div class="reel-highlight"></div>
+          <div class="reel-strip" id="reelStrip"></div>
+        </div>
+      </div>
+      <!-- Result -->
+      <div class="result-card" id="resultCard">
+        <div class="result-title" id="resultTitle"></div>
+        <div class="result-body" id="resultBody"></div>
+        <div class="result-amount" id="resultAmount"></div>
+      </div>
+      <!-- Buttons -->
+      <button class="lever-btn" id="leverBtn" onclick="doSpin()">🎰 Pull the Lever!</button>
+      <div class="machine-continue-btn" id="continueBtn" onclick="closeReel()">✅ Got it — Continue</div>
+    </div>
+  </div>
+</div>
+
+<div class="switcher">
+  <button class="sw-btn" onclick="setPlayers(1)">1P</button>
+  <button class="sw-btn" onclick="setPlayers(2)">2P</button>
+  <button class="sw-btn" onclick="setPlayers(3)">3P</button>
+  <button class="sw-btn active" onclick="setPlayers(4)">4P</button>
+</div>
+
+<script>
+// ── Player switcher ──────────────────────────────────────
+function setPlayers(n) {
+  document.querySelectorAll('.sw-btn').forEach(b => b.classList.remove('active'))
+  event.target.classList.add('active')
+  ;['p1','p2','p3','p4'].forEach((id, i) => {
+    const el = document.getElementById(id)
+    if (el) el.style.display = i < n ? '' : 'none'
+  })
+}
+
+// ── Reel — mirrors LeverOverlay.tsx ─────────────────────
+const REEL_SEGMENTS = [
+  { emoji: '📋', label: 'Event' },
+  { emoji: '🌟', label: 'Chance' },
+  { emoji: '🎮', label: 'Mini-Game' },
+  { emoji: '💥', label: 'Big Event' },
+]
+
+const OUTCOMES = {
+  'Event': [
+    { title: '📱 Phone bill',      body: 'Went over your phone plan this month', amount: '-$150', color: '#dc2626' },
+    { title: '🎵 Concert tickets', body: 'Night out with the crew',              amount: '-$200', color: '#dc2626' },
+    { title: '💰 Birthday cash!',  body: 'Family sent you birthday money',       amount: '+$300', color: '#16a34a' },
+    { title: '🤒 Sick week',       body: 'Missed shifts — no income this week',  amount: '-$250', color: '#dc2626' },
+  ],
+  'Chance': [
+    { title: '🌟 Special Offer!',  body: 'Buy a Parking Spot for only $800 this turn', amount: 'Limited deal!', color: '#7c3aed' },
+    { title: '🏆 Group Bet',       body: 'You won — collect $100 from each player',     amount: '+$100 each',   color: '#16a34a' },
+    { title: '🎓 Study Grant',     body: 'Half off your next degree enrolment',          amount: '-$450 off',    color: '#7c3aed' },
+  ],
+  'Mini-Game': [
+    { title: '🎮 Money Quiz!', body: 'Answer right to win a cash bonus', amount: '+$250 if correct', color: '#0891b2' },
+  ],
+  'Big Event': [
+    { title: '💥 Tax Time!',   body: 'The taxman comes for everyone this round', amount: '-$400', color: '#dc2626' },
+    { title: '💥 Windfall!',   body: 'Unexpected inheritance — lucky you!',      amount: '+$500', color: '#16a34a' },
+  ],
+}
+
+const SEGMENT_HEIGHT = 80
+const SPIN_DURATION  = 5800
+const NUM_ROTATIONS  = 12
+
+let isSpinning = false
+let isDone = false
+let rafId = null
+
+function easeInQuad(t) { return t * t }
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3) }
+
+function getScrolled(elapsed, totalDist) {
+  const t = Math.min(elapsed / SPIN_DURATION, 1)
+  const P1 = 0.06, P2 = 0.41, D1 = 0.05, D2 = 0.65
+  if (t <= P1) return D1 * easeInQuad(t / P1) * totalDist
+  if (t <= P2) return (D1 + (D2 - D1) * ((t - P1) / (P2 - P1))) * totalDist
+  return (D2 + (1 - D2) * easeOutCubic((t - P2) / (1 - P2))) * totalDist
+}
+
+function buildReelStrip() {
+  const maxItems = Math.ceil(
+    ((NUM_ROTATIONS * REEL_SEGMENTS.length + REEL_SEGMENTS.length + 1) * SEGMENT_HEIGHT + 240) / SEGMENT_HEIGHT
+  ) + 6
+  const strip = document.getElementById('reelStrip')
+  strip.innerHTML = ''
+  strip.style.transform = 'translateY(0)'
+  for (let i = 0; i < maxItems; i++) {
+    const seg = REEL_SEGMENTS[i % REEL_SEGMENTS.length]
+    strip.insertAdjacentHTML('beforeend',
+      `<div class="reel-item"><span class="reel-item-emoji">${seg.emoji}</span><span class="reel-item-label">${seg.label}</span></div>`
+    )
+  }
+}
+
+function openReel() {
+  cancelAnimationFrame(rafId)
+  isSpinning = false; isDone = false
+  document.getElementById('reelModal').classList.remove('hidden')
+  document.getElementById('resultCard').classList.remove('show')
+  document.getElementById('continueBtn').classList.remove('show')
+  const btn = document.getElementById('leverBtn')
+  btn.textContent = '🎰 Pull the Lever!'
+  btn.disabled = false
+  btn.style.display = ''
+  buildReelStrip()
+}
+
+function closeReel() {
+  document.getElementById('reelModal').classList.add('hidden')
+}
+
+function doSpin() {
+  if (isSpinning || isDone) return
+  isSpinning = true
+  const btn = document.getElementById('leverBtn')
+  btn.textContent = 'Spinning…'
+  btn.disabled = true
+
+  const targetIdx = Math.floor(Math.random() * REEL_SEGMENTS.length)
+  const totalDist = (NUM_ROTATIONS * REEL_SEGMENTS.length + targetIdx - 1) * SEGMENT_HEIGHT
+  const strip = document.getElementById('reelStrip')
+  const start = performance.now()
+
+  function frame(now) {
+    const elapsed = now - start
+    const scrolled = getScrolled(elapsed, totalDist)
+    strip.style.transform = `translateY(-${scrolled}px)`
+    if (elapsed < SPIN_DURATION) {
+      rafId = requestAnimationFrame(frame)
+    } else {
+      strip.style.transform = `translateY(-${totalDist}px)`
+      isSpinning = false; isDone = true
+      btn.style.display = 'none'
+
+      const landed = REEL_SEGMENTS[targetIdx]
+      const pool = OUTCOMES[landed.label] || OUTCOMES['Event']
+      const result = pool[Math.floor(Math.random() * pool.length)]
+      setTimeout(() => {
+        document.getElementById('resultTitle').textContent = result.title
+        document.getElementById('resultBody').textContent = result.body
+        const amt = document.getElementById('resultAmount')
+        amt.textContent = result.amount
+        amt.style.color = result.color
+        document.getElementById('resultCard').classList.add('show')
+        document.getElementById('continueBtn').classList.add('show')
+      }, 400)
+    }
+  }
+  rafId = requestAnimationFrame(frame)
+}
+
+document.getElementById('reelModal').addEventListener('click', function(e) {
+  if (e.target === this) closeReel()
+})
+</script>
+</body>
+</html>
