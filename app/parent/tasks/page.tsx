@@ -4,7 +4,7 @@ import { CATEGORIES } from "@/lib/registry/category-registry";
 import TaskFilterBar from "@/components/parent/TaskFilterBar";
 import type { Task, Kid } from "@/lib/domain/types";
 
-function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
+function TaskCard({ task, kids, editable }: { task: Task; kids: Kid[]; editable: boolean }) {
   const kidIdsList = task.kidIds;
   const assignedKids = kidIdsList ? kids.filter((k) => kidIdsList.includes(k.id)) : [];
   const catMeta = CATEGORIES[task.category];
@@ -26,12 +26,8 @@ function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
     return task.rule === "flexible" ? "Flexible" : "Scheduled";
   })();
 
-  return (
-    <Link
-      href={`/parent/tasks/${task.id}/edit`}
-      className="bg-white rounded-2xl flex items-center gap-3 p-3.5 hover:shadow-md transition-shadow"
-      style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
-    >
+  const inner = (
+    <>
       {/* Icon */}
       <div
         className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
@@ -105,8 +101,33 @@ function TaskCard({ task, kids }: { task: Task; kids: Kid[] }) {
         )}
       </div>
 
-      {/* Arrow */}
-      <span className="text-gray-300 text-xl flex-shrink-0">›</span>
+      {/* Arrow or built-in badge */}
+      {editable ? (
+        <span className="text-gray-300 text-xl flex-shrink-0">›</span>
+      ) : (
+        <span className="text-[10px] font-bold text-gray-400 flex-shrink-0 bg-gray-100 px-2 py-1 rounded-full">Built-in</span>
+      )}
+    </>
+  );
+
+  if (!editable) {
+    return (
+      <div
+        className="bg-white rounded-2xl flex items-center gap-3 p-3.5 opacity-80"
+        style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+      >
+        {inner}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/parent/tasks/${task.id}/edit`}
+      className="bg-white rounded-2xl flex items-center gap-3 p-3.5 hover:shadow-md transition-shadow"
+      style={{ border: "1.5px solid #e5e7eb", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+    >
+      {inner}
     </Link>
   );
 }
@@ -157,7 +178,7 @@ export default async function TasksPage({
           </p>
         ) : (
           filtered.map((task) => (
-            <TaskCard key={task.id} task={task} kids={kids} />
+            <TaskCard key={task.id} task={task} kids={kids} editable={!task.isBuiltin} />
           ))
         )}
       </div>

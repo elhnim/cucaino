@@ -9,6 +9,6 @@ export default async function TaskEditPage({
 }) {
   const { taskId } = await params;
   const [task, kids] = await Promise.all([getTask(taskId), listKids()]);
-  if (!task) notFound();
+  if (!task || task.isBuiltin) notFound();
   return <TaskEditClient task={task} kids={kids} />;
 }
