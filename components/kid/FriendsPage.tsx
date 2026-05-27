@@ -24,13 +24,24 @@ export default function FriendsPage({
   const [pending, setPending] = useState<FriendRequest[]>(initialPending);
   const [searchValue, setSearchValue] = useState("");
   const [searchMsg, setSearchMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [inflightIds, setInflightIds] = useState<Set<string>>(new Set());
+  const [, startTransition] = useTransition();
+
+  const setInflight = (id: string, active: boolean) => {
+    setInflightIds((prev) => {
+      const next = new Set(prev);
+      active ? next.add(id) : next.delete(id);
+      return next;
+    });
+  };
 
   const handleSend = () => {
     if (!searchValue.trim()) return;
     setSearchMsg(null);
+    setInflight("send", true);
     startTransition(async () => {
       const result = await sendFriendRequest(kidId, searchValue.trim());
+      setInflight("send", false);
       if (result.ok) {
         setSearchMsg({ ok: true, text: "Request sent! ✓" });
         setSearchValue("");
@@ -41,8 +52,10 @@ export default function FriendsPage({
   };
 
   const handleAccept = (requesterId: string) => {
+    setInflight(requesterId, true);
     startTransition(async () => {
       const result = await acceptFriendRequest(kidId, requesterId);
+      setInflight(requesterId, false);
       if (result.ok) {
         const req = pending.find((r) => r.requesterId === requesterId);
         if (req) {
@@ -54,8 +67,10 @@ export default function FriendsPage({
   };
 
   const handleDecline = (requesterId: string) => {
+    setInflight(requesterId, true);
     startTransition(async () => {
       const result = await declineFriendRequest(kidId, requesterId);
+      setInflight(requesterId, false);
       if (result.ok) {
         setPending((p) => p.filter((r) => r.requesterId !== requesterId));
       }
@@ -63,8 +78,10 @@ export default function FriendsPage({
   };
 
   const handleRemove = (friendId: string) => {
+    setInflight(friendId, true);
     startTransition(async () => {
       const result = await removeFriend(kidId, friendId);
+      setInflight(friendId, false);
       if (result.ok) {
         setFriends((f) => f.filter((fr) => fr.id !== friendId));
       }
@@ -92,7 +109,7 @@ export default function FriendsPage({
                 <button
                   type="button"
                   onClick={() => handleAccept(req.requesterId)}
-                  disabled={isPending}
+                  disabled={inflightIds.has(req.requesterId)}
                   className="text-xs font-bold text-white px-3 py-1.5 rounded-xl disabled:opacity-50"
                   style={{ background: accent }}
                 >
@@ -101,7 +118,7 @@ export default function FriendsPage({
                 <button
                   type="button"
                   onClick={() => handleDecline(req.requesterId)}
-                  disabled={isPending}
+                  disabled={inflightIds.has(req.requesterId)}
                   className="text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-xl disabled:opacity-50"
                 >
                   Decline
@@ -133,7 +150,7 @@ export default function FriendsPage({
             <button
               type="button"
               onClick={handleSend}
-              disabled={isPending || !searchValue.trim()}
+              disabled={inflightIds.has("send") || !searchValue.trim()}
               className="text-white font-bold px-4 py-2 rounded-xl text-sm disabled:opacity-50"
               style={{ background: accent }}
             >
@@ -171,7 +188,7 @@ export default function FriendsPage({
                 <button
                   type="button"
                   onClick={() => handleRemove(friend.id)}
-                  disabled={isPending}
+                  disabled={inflightIds.has(friend.id)}
                   className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-xl disabled:opacity-50"
                 >
                   Remove

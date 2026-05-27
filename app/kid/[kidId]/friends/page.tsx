@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getKid } from "@/lib/data/stub";
-import { listFriends, listPendingFriendRequests } from "@/lib/data/queries";
+import { listFriends, listPendingFriendRequests } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 import FriendsPage from "@/components/kid/FriendsPage";
 
