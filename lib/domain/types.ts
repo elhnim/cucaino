@@ -87,6 +87,7 @@ export interface Kid {
   interestsOther: string | null;
   cashBalance: number;
   sparksBalance: number;
+  username: string | null;
 }
 
 export interface Task {
