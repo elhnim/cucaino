@@ -115,6 +115,7 @@ function mapKid(row: DbKidRow): Kid {
     cashBalance: (row as any).cash_balance ?? 0,
     sparksBalance: (row as any).sparks_balance ?? 0,
     username: (row as any).username ?? null,
+    friendsFeatureSeen: (row as any).friends_feature_seen ?? false,
   };
 }
 

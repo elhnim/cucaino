@@ -88,6 +88,7 @@ export interface Kid {
   cashBalance: number;
   sparksBalance: number;
   username: string | null;
+  friendsFeatureSeen: boolean;
 }
 
 export interface FriendKid {

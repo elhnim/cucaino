@@ -7,6 +7,7 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { TourProvider, TourAutoStart } from "./TourContext";
 import { TourCard } from "./TourCard";
 import { kidTourSteps } from "./tourSteps";
+import { FriendsFeatureCard } from "./FriendsFeatureCard";
 import {
   saveKidGoals,
   saveKidInterests,
@@ -28,6 +29,8 @@ type Phase = "goals" | "interests" | "welcome" | "touring" | "done";
 
 interface KidOnboardingWrapperProps {
   tourSeen: boolean;
+  friendsFeatureSeen: boolean;
+  accent: string;
   kidId: string;
   kidName: string;
   kidAvatar: string;
@@ -37,6 +40,8 @@ interface KidOnboardingWrapperProps {
 
 export function KidOnboardingWrapper({
   tourSeen,
+  friendsFeatureSeen,
+  accent,
   kidId,
   kidName,
   kidAvatar,
@@ -87,6 +92,11 @@ export function KidOnboardingWrapper({
       {children}
       <TourCard />
       {phase === "touring" && <TourAutoStart />}
+
+      {/* One-time popup for existing users who haven't seen the Friends feature */}
+      {phase === "done" && !friendsFeatureSeen && (
+        <FriendsFeatureCard kidId={kidId} accent={accent} />
+      )}
 
       {phase === "goals" && (
         <GoalsScreen

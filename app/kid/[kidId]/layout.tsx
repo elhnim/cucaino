@@ -4,6 +4,7 @@ import { getKid, listTasksForKid, listCompletionsToday, listBadgeProgress, getFa
 import { countPendingRequests } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { KidOnboardingWrapper } from "@/components/onboarding/KidOnboardingWrapper";
+import { getTheme } from "@/lib/themes/presets";
 
 export default async function KidLayout({
   children,
@@ -52,6 +53,8 @@ export default async function KidLayout({
     >
       <KidOnboardingWrapper
         tourSeen={kid.tourSeen}
+        friendsFeatureSeen={kid.friendsFeatureSeen}
+        accent={getTheme(kid.themeId).accent}
         kidId={kid.id}
         kidName={kid.name}
         kidAvatar={kid.avatar}

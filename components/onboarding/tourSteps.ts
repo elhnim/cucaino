@@ -65,5 +65,11 @@ export function kidTourSteps(kidId: string): TourStep[] {
       description:
         "Quiz time! Answer questions, beat your score, and earn bonus stars.",
     },
+    {
+      route: `/kid/${kidId}/friends`,
+      label: "👫 Friends",
+      description:
+        "Add friends from other families using their @username. See their requests here and connect!",
+    },
   ];
 }

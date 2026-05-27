@@ -88,6 +88,23 @@ export async function saveKidInterests(
   return { ok: true };
 }
 
+export async function markFriendsFeatureSeen(kidId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase
+    .from("families")
+    .select("id")
+    .maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
+  const { error } = await supabase
+    .from("kids")
+    .update({ friends_feature_seen: true })
+    .eq("id", kidId)
+    .eq("family_id", fam.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/kid/${kidId}`, "layout");
+  return { ok: true };
+}
+
 export async function markKidTourSeen(kidId: string): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: fam, error: famErr } = await supabase
