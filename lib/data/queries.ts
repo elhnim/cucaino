@@ -1325,6 +1325,9 @@ export const countPendingRequests = timed("countPendingRequests", async (kidId: 
 
 export const listMessages = timed("listMessages", async (kidId: string, friendId: string, limit: number = 50): Promise<Message[]> => {
   const supabase = await createClient();
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(kidId) || !UUID_RE.test(friendId)) return [];
+  // Fetch newest-first to respect the limit, then reverse for chronological display
   const { data, error } = await supabase
     .from("messages")
     .select("id, sender_id, recipient_id, body, created_at")
@@ -1361,6 +1364,7 @@ export const listConversationSummaries = timed("listConversationSummaries", asyn
     (readStates ?? []).map((r: any) => [r.other_kid_id as string, r.last_read_at as string])
   );
 
+  // N+1: one count query per friend — acceptable at current scale (<20 friends per kid)
   const summaries = await Promise.all(
     (friendships as any[])
       .map((f) => f.friend)
@@ -1379,7 +1383,7 @@ export const listConversationSummaries = timed("listConversationSummaries", asyn
           friendAvatar: friend.avatar,
           friendUsername: friend.username ?? null,
           unreadCount: count ?? 0,
-          lastMessageAt: null,
+          lastMessageAt: null, // simplified: not tracking last message timestamp
         } satisfies ConversationSummary;
       })
   );
@@ -1407,11 +1411,14 @@ export const listMessageSummariesForParent = timed("listMessageSummariesForParen
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+  // N+1: one count query per friend — acceptable at current scale (<20 friends per kid)
   return Promise.all(
     (friends as any[])
       .map((f) => f.friend)
       .filter(Boolean)
       .map(async (friend) => {
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!UUID_RE.test(kidId) || !UUID_RE.test(friend.id)) return { friendName: friend.name, friendAvatar: friend.avatar, messageCount: 0 };
         const { count } = await supabase
           .from("messages")
           .select("id", { count: "exact", head: true })
