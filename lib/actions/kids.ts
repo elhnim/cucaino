@@ -6,6 +6,8 @@ import type { ThemeId } from "@/lib/domain/types";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/i;
+
 export async function createKid(data: {
   name: string;
   avatar: string;
@@ -36,21 +38,47 @@ export async function updateKidProfile(
     avatar: string;
     themeId: ThemeId;
     dateOfBirth: string | null;
+    username?: string | null;
   },
 ): Promise<ActionResult> {
+  if (data.username != null && data.username !== "" && !USERNAME_RE.test(data.username)) {
+    return { ok: false, error: "Invalid username format." };
+  }
+
   const supabase = await createClient();
   const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
   if (famErr || !fam) return { ok: false, error: "Family not found." };
+
+  // Race-condition guard: check uniqueness server-side before writing
+  if (data.username != null && data.username !== "") {
+    const { data: existing } = await supabase
+      .from("kids")
+      .select("id")
+      .ilike("username", data.username)
+      .neq("id", kidId)
+      .limit(1)
+      .maybeSingle();
+    if (existing) return { ok: false, error: "Username already taken." };
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    name: data.name,
+    avatar: data.avatar,
+    theme_id: data.themeId,
+    date_of_birth: data.dateOfBirth,
+  };
+
+  // Only include username in the update when explicitly provided
+  if (data.username !== undefined) {
+    updatePayload.username = data.username || null;
+  }
+
   const { error } = await supabase
     .from("kids")
-    .update({
-      name: data.name,
-      avatar: data.avatar,
-      theme_id: data.themeId,
-      date_of_birth: data.dateOfBirth,
-    })
+    .update(updatePayload)
     .eq("id", kidId)
     .eq("family_id", fam.id);
+
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/kid/${kidId}/profile`);
   revalidatePath(`/select-kid`);
