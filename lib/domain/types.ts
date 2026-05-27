@@ -90,6 +90,21 @@ export interface Kid {
   username: string | null;
 }
 
+export interface FriendKid {
+  id: string;
+  name: string;
+  avatar: string;
+  username: string | null;
+}
+
+export interface FriendRequest {
+  requesterId: string;
+  name: string;
+  avatar: string;
+  username: string | null;
+  createdAt: string;
+}
+
 export interface Task {
   id: string;
   familyId: string;
