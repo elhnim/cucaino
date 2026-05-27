@@ -16,6 +16,13 @@ export async function sendMessage(
   if (!sanitized) return { ok: false, error: "Message cannot be empty." };
 
   const supabase = await createClient();
+
+  // Verify senderId belongs to the current authenticated family — never trust client-supplied IDs
+  const { data: familyKids } = await supabase.rpc("get_current_family_kid_ids");
+  if (!familyKids || !(familyKids as string[]).includes(senderId)) {
+    return { ok: false, error: "Not authorised." };
+  }
+
   const { error } = await supabase
     .from("messages")
     .insert({ sender_id: senderId, recipient_id: recipientId, body: sanitized });
@@ -29,6 +36,13 @@ export async function markRead(
   friendId: string,
 ): Promise<ActionResult> {
   const supabase = await createClient();
+
+  // Verify kidId belongs to the current authenticated family
+  const { data: familyKids } = await supabase.rpc("get_current_family_kid_ids");
+  if (!familyKids || !(familyKids as string[]).includes(kidId)) {
+    return { ok: false, error: "Not authorised." };
+  }
+
   const { error } = await supabase
     .from("conversation_read_state")
     .upsert(
