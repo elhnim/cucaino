@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { listMessageSummariesForParent } from "@/lib/data/queries";
+import { containsProfanity } from "@/lib/utils/profanity";
 import type { MessageSummaryForParent } from "@/lib/domain/types";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -14,6 +15,7 @@ export async function sendMessage(
 ): Promise<ActionResult> {
   const sanitized = body.trim().replace(/[<>]/g, "").slice(0, 200);
   if (!sanitized) return { ok: false, error: "Message cannot be empty." };
+  if (containsProfanity(sanitized)) return { ok: false, error: "That language isn't allowed. 🙅" };
 
   const supabase = await createClient();
 

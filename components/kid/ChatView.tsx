@@ -25,6 +25,7 @@ export default function ChatView({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +78,7 @@ export default function ChatView({
     if (!trimmed || sending) return;
 
     setSending(true);
+    setSendError(null);
     const optimisticId = `optimistic-${Date.now()}`;
     const optimistic: Message = {
       id: optimisticId,
@@ -93,6 +95,7 @@ export default function ChatView({
       setSending(false);
       if (!result.ok) {
         setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
+        setSendError(result.error);
       }
     });
   };
@@ -144,6 +147,13 @@ export default function ChatView({
         })}
         <div ref={bottomRef} />
       </div>
+
+      {/* Send error */}
+      {sendError && (
+        <div className="px-4 py-2 bg-red-50 border-t border-red-100 text-red-600 text-xs font-semibold text-center">
+          {sendError}
+        </div>
+      )}
 
       {/* Input */}
       <div className="px-4 py-3 border-t border-gray-100 bg-white flex gap-2">
