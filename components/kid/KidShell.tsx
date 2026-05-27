@@ -11,7 +11,7 @@ import NavIcon from "@/components/ui/NavIcon";
 import BadgeUnlockModal from "@/components/kid/BadgeUnlockModal";
 import { BADGE_META } from "@/lib/domain/badge-config";
 
-type NavKey = "home" | "todo" | "rewards" | "play";
+type NavKey = "home" | "todo" | "rewards" | "play" | "friends";
 
 function wmoIcon(code: number): string {
   if (code === 0) return "☀️";
@@ -26,11 +26,12 @@ function wmoIcon(code: number): string {
   return "🌩️";
 }
 
-const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "play"; href: (kidId: string) => string }[] = [
+const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "play" | "users"; href: (kidId: string) => string }[] = [
   { key: "home",    label: "Home",     icon: "home",     href: (id) => `/kid/${id}/home` },
   { key: "todo",    label: "Schedule", icon: "calendar", href: (id) => `/kid/${id}/todo` },
   { key: "rewards", label: "Store",    icon: "gift",     href: (id) => `/kid/${id}/rewards` },
   { key: "play",    label: "Play",     icon: "play",     href: (id) => `/kid/${id}/play` },
+  { key: "friends", label: "Friends",  icon: "users",    href: (id) => `/kid/${id}/friends` },
 ];
 
 export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
@@ -108,6 +109,7 @@ export default function KidShell({
   todayProgress,
   badges,
   weatherLocation,
+  pendingFriendRequests = 0,
 }: {
   kid: Kid;
   active?: NavKey;
@@ -117,6 +119,7 @@ export default function KidShell({
   todayProgress?: { done: number; total: number };
   badges?: BadgeProgress[];
   weatherLocation?: { lat: number; lon: number };
+  pendingFriendRequests?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -134,6 +137,7 @@ export default function KidShell({
     pathname.includes("/todo") ? "todo"
     : pathname.includes("/rewards") ? "rewards"
     : pathname.includes("/play") ? "play"
+    : pathname.includes("/friends") ? "friends"
     : "home"
   );
   const theme = getTheme(kid.themeId);
@@ -207,8 +211,13 @@ export default function KidShell({
                   : "Good evening,"
                 : "Good morning,"}
             </div>
-            <div className="text-xl font-black leading-tight mt-0.5 truncate">
+            <div className="text-xl font-black leading-tight mt-0.5 truncate flex items-center">
               <span data-kid-name={kid.id}>{kid.name}</span>
+              {pendingFriendRequests > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-black">
+                  {pendingFriendRequests}
+                </span>
+              )}
             </div>
             {now && (
               <div className="flex items-center gap-1.5 text-[10px] font-bold opacity-75 mt-0.5 flex-wrap">
@@ -334,8 +343,11 @@ export default function KidShell({
               }}
               className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 bg-transparent border-0 cursor-pointer"
             >
-              <span style={{ color: isActive ? theme.accent : "#9ca3af" }}>
+              <span className="relative" style={{ color: isActive ? theme.accent : "#9ca3af" }}>
                 <NavIcon name={item.icon} size={22} />
+                {item.key === "friends" && pendingFriendRequests > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500" />
+                )}
               </span>
               <span
                 className="text-[10px] font-bold tracking-wide"
