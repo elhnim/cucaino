@@ -25,15 +25,22 @@ export async function sendFriendRequest(
   if (toKid.id === fromKidId) return { ok: false, error: "You can't add yourself." };
 
   // Check for existing relationship in either direction
-  const { data: existing } = await supabase
+  const { data: fwd } = await supabase
     .from("kid_friendships")
-    .select("id, status")
-    .or(`and(kid_id.eq.${fromKidId},friend_id.eq.${toKid.id}),and(kid_id.eq.${toKid.id},friend_id.eq.${fromKidId})`)
-    .limit(1)
+    .select("status")
+    .eq("kid_id", fromKidId)
+    .eq("friend_id", toKid.id)
     .maybeSingle();
 
-  if (existing?.status === "accepted") return { ok: false, error: "Already friends." };
-  if (existing?.status === "pending") return { ok: false, error: "Request already pending." };
+  const { data: rev } = await supabase
+    .from("kid_friendships")
+    .select("status")
+    .eq("kid_id", toKid.id)
+    .eq("friend_id", fromKidId)
+    .maybeSingle();
+
+  if (fwd?.status === "accepted" || rev?.status === "accepted") return { ok: false, error: "Already friends." };
+  if (fwd?.status === "pending" || rev?.status === "pending") return { ok: false, error: "Request already pending." };
 
   const { error } = await supabase
     .from("kid_friendships")
@@ -50,14 +57,16 @@ export async function acceptFriendRequest(
 ): Promise<ActionResult> {
   const supabase = await createClient();
 
-  const { error: updateErr } = await supabase
+  const { data: updated, error: updateErr } = await supabase
     .from("kid_friendships")
     .update({ status: "accepted" })
     .eq("kid_id", requesterId)
     .eq("friend_id", kidId)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .select("id");
 
   if (updateErr) return { ok: false, error: updateErr.message };
+  if (!updated || updated.length === 0) return { ok: false, error: "No pending request found." };
 
   const { error: insertErr } = await supabase
     .from("kid_friendships")
@@ -94,14 +103,21 @@ export async function removeFriend(
   const supabase = await createClient();
 
   // Delete both directions
-  const { error } = await supabase
+  const { error: err1 } = await supabase
     .from("kid_friendships")
     .delete()
-    .or(
-      `and(kid_id.eq.${kidId},friend_id.eq.${friendId}),and(kid_id.eq.${friendId},friend_id.eq.${kidId})`
-    );
+    .eq("kid_id", kidId)
+    .eq("friend_id", friendId);
 
-  if (error) return { ok: false, error: error.message };
+  if (err1) return { ok: false, error: err1.message };
+
+  const { error: err2 } = await supabase
+    .from("kid_friendships")
+    .delete()
+    .eq("kid_id", friendId)
+    .eq("friend_id", kidId);
+
+  if (err2) return { ok: false, error: err2.message };
   revalidatePath(`/kid/${kidId}/friends`);
   revalidatePath(`/kid/${friendId}/friends`);
   return { ok: true };
