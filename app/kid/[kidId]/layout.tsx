@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import KidShell from "@/components/kid/KidShell";
 import { getKid, listTasksForKid, listCompletionsToday, listBadgeProgress, getFamily } from "@/lib/data/stub";
+import { countPendingRequests } from "@/lib/data/queries";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { KidOnboardingWrapper } from "@/components/onboarding/KidOnboardingWrapper";
 
@@ -19,10 +20,11 @@ export default async function KidLayout({
   const tz = family?.timezone ?? "Australia/Sydney";
   const dow = isoWeekday(new Date(), tz);
 
-  const [tasks, completions, badges] = await Promise.all([
+  const [tasks, completions, badges, pendingFriendRequests] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id, tz),
     listBadgeProgress(kid.id),
+    countPendingRequests(kid.id),
   ]);
 
   const todayTasks = tasksForDay(tasks, dow);
@@ -41,6 +43,7 @@ export default async function KidLayout({
       todayProgress={total > 0 ? { done, total } : undefined}
       badges={badges}
       familyGoal={familyGoal}
+      pendingFriendRequests={pendingFriendRequests}
       weatherLocation={
         family?.weatherLat != null && family?.weatherLon != null
           ? { lat: family.weatherLat, lon: family.weatherLon }
