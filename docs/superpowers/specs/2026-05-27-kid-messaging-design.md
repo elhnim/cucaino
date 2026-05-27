@@ -197,6 +197,19 @@ Only INSERT events are listened to (no UPDATE/DELETE since messages are immutabl
 
 ---
 
+## Security
+
+Messages are protected by four layers:
+
+1. **Encryption in transit** — all traffic between the browser, Netlify edge, and Supabase is over HTTPS/TLS. Messages are never sent in plaintext over the network.
+2. **Encryption at rest** — Supabase encrypts all database data at rest by default.
+3. **Row Level Security (RLS)** — the SELECT policy restricts reads to kids in the same family as sender or recipient. No kid or family can read another family's messages. The INSERT policy requires a confirmed friendship — strangers cannot send messages.
+4. **Server-side input sanitization** — `sendMessage` action strips any HTML or control characters from `body` before insert, preventing XSS injection into message bubbles.
+
+**Why not end-to-end encryption (E2EE)?** True E2EE requires client-side key exchange per friendship pair, significant key management complexity, and would prevent the app from computing parent-visible message counts. The four layers above ensure no unauthorized party (including external attackers) can read or send messages — which is the practical goal for this kids app.
+
+---
+
 ## Out of Scope
 
 - Group messaging
