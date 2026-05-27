@@ -10,27 +10,31 @@ create table public.messages (
   check (sender_id <> recipient_id)
 );
 
-create index on public.messages (recipient_id, created_at desc);
-create index on public.messages (sender_id,    created_at desc);
+create index if not exists messages_recipient_created_idx on public.messages (recipient_id, created_at desc);
+create index if not exists messages_sender_created_idx    on public.messages (sender_id,    created_at desc);
+-- Composite index for count_unread_messages efficiency (recipient + sender + time)
+create index if not exists messages_recipient_sender_created_idx
+  on public.messages (recipient_id, sender_id, created_at desc);
 
 alter table public.messages enable row level security;
 
--- Family members can read messages where their kid is sender or recipient
+-- Both sender's family and recipient's family can read message bodies (cross-family design).
+-- The app layer only queries this in the context of an established friendship.
 create policy "messages: family read" on public.messages
   for select using (
     sender_id    = any(array(select public.get_current_family_kid_ids()))
     or recipient_id = any(array(select public.get_current_family_kid_ids()))
   );
 
--- Only insert if sender is in your family AND a confirmed friendship exists
+-- Only insert if sender is in your family AND a confirmed friendship exists (symmetric check)
 create policy "messages: family insert" on public.messages
   for insert with check (
     sender_id = any(array(select public.get_current_family_kid_ids()))
     and exists (
       select 1 from public.kid_friendships
-      where kid_id = sender_id
-        and friend_id = recipient_id
-        and status = 'accepted'
+      where status = 'accepted'
+        and ((kid_id = sender_id and friend_id = recipient_id)
+          or (kid_id = recipient_id and friend_id = sender_id))
     )
   );
 
@@ -64,7 +68,13 @@ as $$
     and (crs.last_read_at is null or m.created_at > crs.last_read_at)
 $$;
 
--- 30-day cleanup via pg_cron (safe no-op if pg_cron not enabled)
+-- 30-day cleanup via pg_cron (idempotent: unschedule first, safe no-op if pg_cron not enabled)
+do $$
+begin
+  perform cron.unschedule('delete-old-messages');
+exception when others then null;
+end $$;
+
 do $$
 begin
   perform cron.schedule(
