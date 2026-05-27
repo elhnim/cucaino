@@ -46,6 +46,9 @@ import type {
   TradingAssetPrice,
   FriendKid,
   FriendRequest,
+  Message,
+  ConversationSummary,
+  MessageSummaryForParent,
 } from "@/lib/domain/types";
 
 type DbKidRow = {
@@ -1318,4 +1321,107 @@ export const countPendingRequests = timed("countPendingRequests", async (kidId: 
     .eq("status", "pending");
   if (error) return 0;
   return count ?? 0;
+});
+
+export const listMessages = timed("listMessages", async (kidId: string, friendId: string, limit: number = 50): Promise<Message[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("messages")
+    .select("id, sender_id, recipient_id, body, created_at")
+    .or(`and(sender_id.eq.${kidId},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${kidId})`)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error || !data) return [];
+  return (data as any[]).reverse().map((row) => ({
+    id: row.id,
+    senderId: row.sender_id,
+    recipientId: row.recipient_id,
+    body: row.body,
+    createdAt: row.created_at,
+  }));
+});
+
+export const listConversationSummaries = timed("listConversationSummaries", async (kidId: string): Promise<ConversationSummary[]> => {
+  const supabase = await createClient();
+
+  const { data: friendships, error } = await supabase
+    .from("kid_friendships")
+    .select("friend:kids!kid_friendships_friend_id_fkey(id, name, avatar, username)")
+    .eq("kid_id", kidId)
+    .eq("status", "accepted");
+
+  if (error || !friendships || friendships.length === 0) return [];
+
+  const { data: readStates } = await supabase
+    .from("conversation_read_state")
+    .select("other_kid_id, last_read_at")
+    .eq("kid_id", kidId);
+
+  const readMap = new Map(
+    (readStates ?? []).map((r: any) => [r.other_kid_id as string, r.last_read_at as string])
+  );
+
+  const summaries = await Promise.all(
+    (friendships as any[])
+      .map((f) => f.friend)
+      .filter(Boolean)
+      .map(async (friend) => {
+        const lastReadAt = readMap.get(friend.id);
+        const baseQuery = supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("sender_id", friend.id)
+          .eq("recipient_id", kidId);
+        const { count } = await (lastReadAt ? baseQuery.gt("created_at", lastReadAt) : baseQuery);
+        return {
+          friendId: friend.id,
+          friendName: friend.name,
+          friendAvatar: friend.avatar,
+          friendUsername: friend.username ?? null,
+          unreadCount: count ?? 0,
+          lastMessageAt: null,
+        } satisfies ConversationSummary;
+      })
+  );
+
+  return summaries.sort((a, b) => a.friendName.localeCompare(b.friendName));
+});
+
+export const countTotalUnread = timed("countTotalUnread", async (kidId: string): Promise<number> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("count_unread_messages", { p_kid_id: kidId });
+  if (error) return 0;
+  return (data as number) ?? 0;
+});
+
+export const listMessageSummariesForParent = timed("listMessageSummariesForParent", async (kidId: string): Promise<MessageSummaryForParent[]> => {
+  const supabase = await createClient();
+
+  const { data: friends, error } = await supabase
+    .from("kid_friendships")
+    .select("friend:kids!kid_friendships_friend_id_fkey(id, name, avatar)")
+    .eq("kid_id", kidId)
+    .eq("status", "accepted");
+
+  if (error || !friends || friends.length === 0) return [];
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  return Promise.all(
+    (friends as any[])
+      .map((f) => f.friend)
+      .filter(Boolean)
+      .map(async (friend) => {
+        const { count } = await supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .or(`and(sender_id.eq.${kidId},recipient_id.eq.${friend.id}),and(sender_id.eq.${friend.id},recipient_id.eq.${kidId})`)
+          .gte("created_at", thirtyDaysAgo);
+        return {
+          friendName: friend.name,
+          friendAvatar: friend.avatar,
+          messageCount: count ?? 0,
+        } satisfies MessageSummaryForParent;
+      })
+  );
 });
