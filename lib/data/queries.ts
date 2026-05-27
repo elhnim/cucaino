@@ -1273,7 +1273,7 @@ export async function listCurrentAndPreviousAssetPrices(): Promise<
   return map;
 }
 
-export async function listFriends(kidId: string): Promise<FriendKid[]> {
+export const listFriends = timed("listFriends", async (kidId: string): Promise<FriendKid[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("kid_friendships")
@@ -1288,9 +1288,9 @@ export async function listFriends(kidId: string): Promise<FriendKid[]> {
     avatar: k.avatar,
     username: k.username ?? null,
   }));
-}
+});
 
-export async function listPendingFriendRequests(kidId: string): Promise<FriendRequest[]> {
+export const listPendingFriendRequests = timed("listPendingFriendRequests", async (kidId: string): Promise<FriendRequest[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("kid_friendships")
@@ -1301,14 +1301,14 @@ export async function listPendingFriendRequests(kidId: string): Promise<FriendRe
   if (error || !data) return [];
   return (data as any[]).map((row) => ({
     requesterId: row.kid_id,
-    name: (row.requester as any)?.name ?? "",
-    avatar: (row.requester as any)?.avatar ?? "🐱",
-    username: (row.requester as any)?.username ?? null,
+    name: row.requester?.name ?? "",
+    avatar: row.requester?.avatar ?? "🐱",
+    username: row.requester?.username ?? null,
     createdAt: row.created_at,
   }));
-}
+});
 
-export async function countPendingRequests(kidId: string): Promise<number> {
+export const countPendingRequests = timed("countPendingRequests", async (kidId: string): Promise<number> => {
   const supabase = await createClient();
   const { count, error } = await supabase
     .from("kid_friendships")
@@ -1317,4 +1317,4 @@ export async function countPendingRequests(kidId: string): Promise<number> {
     .eq("status", "pending");
   if (error) return 0;
   return count ?? 0;
-}
+});
