@@ -44,6 +44,8 @@ import type {
   TradingHolding,
   TradingTransaction,
   TradingAssetPrice,
+  FriendKid,
+  FriendRequest,
 } from "@/lib/domain/types";
 
 type DbKidRow = {
@@ -1269,4 +1271,50 @@ export async function listCurrentAndPreviousAssetPrices(): Promise<
     }
   }
   return map;
+}
+
+export async function listFriends(kidId: string): Promise<FriendKid[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("kid_friendships")
+    .select("friend:kids!kid_friendships_friend_id_fkey(id, name, avatar, username)")
+    .eq("kid_id", kidId)
+    .eq("status", "accepted")
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+  return (data as any[]).map((row) => row.friend).filter(Boolean).map((k: any) => ({
+    id: k.id,
+    name: k.name,
+    avatar: k.avatar,
+    username: k.username ?? null,
+  }));
+}
+
+export async function listPendingFriendRequests(kidId: string): Promise<FriendRequest[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("kid_friendships")
+    .select("kid_id, created_at, requester:kids!kid_friendships_kid_id_fkey(id, name, avatar, username)")
+    .eq("friend_id", kidId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+  return (data as any[]).map((row) => ({
+    requesterId: row.kid_id,
+    name: (row.requester as any)?.name ?? "",
+    avatar: (row.requester as any)?.avatar ?? "🐱",
+    username: (row.requester as any)?.username ?? null,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function countPendingRequests(kidId: string): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("kid_friendships")
+    .select("id", { count: "exact", head: true })
+    .eq("friend_id", kidId)
+    .eq("status", "pending");
+  if (error) return 0;
+  return count ?? 0;
 }
