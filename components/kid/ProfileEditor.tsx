@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import PinPad from "@/components/kid/PinPad";
 import { updateKidProfile, setKidPin, clearKidPin } from "@/lib/actions/kids";
@@ -32,6 +32,10 @@ type PinState =
   | { kind: "verifying-to-change" }
   | { kind: "verifying-to-clear" };
 
+type UsernameStatus = "idle" | "checking" | "available" | "taken" | "invalid";
+
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/i;
+
 function getCurrentLevel(stars: number) {
   return LEVELS.findLast((l) => stars >= l.min) ?? LEVELS[0];
 }
@@ -62,12 +66,48 @@ export default function ProfileEditor({
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [username, setUsername] = useState(serverKid.username ?? "");
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const checkUsername = useCallback(
+    (value: string) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      const trimmed = value.trim();
+      if (trimmed === "") { setUsernameStatus("idle"); return; }
+      if (!USERNAME_RE.test(trimmed)) { setUsernameStatus("invalid"); return; }
+      if (trimmed.toLowerCase() === (serverKid.username ?? "").toLowerCase()) {
+        setUsernameStatus("available");
+        return;
+      }
+      setUsernameStatus("checking");
+      debounceRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `/api/username-check?username=${encodeURIComponent(trimmed)}&kidId=${serverKid.id}`
+          );
+          const json = await res.json();
+          setUsernameStatus(json.available ? "available" : "taken");
+        } catch {
+          // Network error — fail open; server action is the authoritative check
+          setUsernameStatus("idle");
+        }
+      }, 500);
+    },
+    [serverKid.id, serverKid.username],
+  );
+
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
+
   const dirty =
     name !== serverKid.name ||
     avatar !== serverKid.avatar ||
     themeId !== serverKid.themeId ||
     (dob || null) !== (serverKid.dateOfBirth || null) ||
-    selectedFrame !== ((serverKid.selectedFrame as FrameId) ?? "none");
+    selectedFrame !== ((serverKid.selectedFrame as FrameId) ?? "none") ||
+    username.trim() !== (serverKid.username ?? "");
 
   const save = () => {
     if (!name.trim()) return;
@@ -77,6 +117,7 @@ export default function ProfileEditor({
         avatar,
         themeId,
         dateOfBirth: dob || null,
+        username: username.trim() || null,
       });
       // TODO: persist selectedFrame once updateKidProfile supports it
       if (result.ok) {
@@ -173,6 +214,44 @@ export default function ProfileEditor({
           style={{ caretColor: accent }}
           maxLength={20}
         />
+      </Card>
+
+      {/* Username */}
+      <Card title="Username" icon="@">
+        <p className="text-xs text-gray-500 mb-2">
+          Your unique handle — letters, numbers and _ only, 3–20 characters.
+        </p>
+        <div className="relative">
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => {
+              setUsername(e.target.value);
+              checkUsername(e.target.value);
+            }}
+            placeholder="e.g. cool_alex99"
+            maxLength={20}
+            className="w-full border-2 border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:border-current text-lg lowercase"
+            style={{ caretColor: accent }}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+        {usernameStatus === "checking" && (
+          <p className="text-xs text-gray-400 mt-1">Checking…</p>
+        )}
+        {usernameStatus === "available" && (
+          <p className="text-xs text-green-600 font-bold mt-1">✓ Available</p>
+        )}
+        {usernameStatus === "taken" && (
+          <p className="text-xs text-red-600 font-bold mt-1">✗ Already taken</p>
+        )}
+        {usernameStatus === "invalid" && (
+          <p className="text-xs text-orange-500 font-bold mt-1">
+            Only letters, numbers and _ · 3–20 characters
+          </p>
+        )}
       </Card>
 
       {/* Avatar */}
@@ -374,7 +453,7 @@ export default function ProfileEditor({
         <button
           type="button"
           onClick={save}
-          disabled={!dirty || isPending}
+          disabled={!dirty || isPending || usernameStatus === "checking" || usernameStatus === "taken" || usernameStatus === "invalid"}
           className="flex-1 text-white font-black py-2.5 rounded-xl disabled:opacity-50"
           style={{ background: accent }}
         >
