@@ -1287,7 +1287,7 @@ export const listFriends = timed("listFriends", async (kidId: string): Promise<F
     name: k.name,
     avatar: k.avatar,
     username: k.username ?? null,
-  }));
+  })).sort((a, b) => a.name.localeCompare(b.name));
 });
 
 export const listPendingFriendRequests = timed("listPendingFriendRequests", async (kidId: string): Promise<FriendRequest[]> => {

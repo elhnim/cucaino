@@ -48,6 +48,7 @@ export async function sendFriendRequest(
 
   if (error) return { ok: false, error: error.message };
   revalidatePath(`/kid/${fromKidId}/friends`);
+  revalidatePath(`/kid/${toKid.id}/friends`);
   return { ok: true };
 }
 
@@ -120,6 +121,8 @@ export async function removeFriend(
   if (err2) return { ok: false, error: err2.message };
   revalidatePath(`/kid/${kidId}/friends`);
   revalidatePath(`/kid/${friendId}/friends`);
+  revalidatePath(`/parent/kids/${kidId}/edit`);
+  revalidatePath(`/parent/kids/${friendId}/edit`);
   return { ok: true };
 }
 

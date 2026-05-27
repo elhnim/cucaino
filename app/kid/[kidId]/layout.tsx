@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import KidShell from "@/components/kid/KidShell";
 import { getKid, listTasksForKid, listCompletionsToday, listBadgeProgress, getFamily } from "@/lib/data/stub";
-import { countPendingRequests } from "@/lib/data/queries";
+import { countPendingRequests } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { KidOnboardingWrapper } from "@/components/onboarding/KidOnboardingWrapper";
 
