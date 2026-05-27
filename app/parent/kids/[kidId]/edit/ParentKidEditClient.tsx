@@ -4,8 +4,7 @@ import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateKidProfile, setKidPin, clearKidPin } from "@/lib/actions/kids";
 import { listFriendsAction, removeFriend } from "@/lib/actions/friends";
-import type { Kid } from "@/lib/domain/types";
-import type { FriendKid } from "@/lib/domain/types";
+import type { Kid, FriendKid } from "@/lib/domain/types";
 
 
 export default function ParentKidEditClient({ kid }: { kid: Kid }) {
@@ -14,20 +13,23 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
   const [dateOfBirth, setDateOfBirth] = useState(kid.dateOfBirth ?? "");
   const [newPin, setNewPin] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [friendsPending, startFriendsTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [pinCleared, setPinCleared] = useState(false);
   const [friends, setFriends] = useState<FriendKid[]>([]);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
 
   useEffect(() => {
-    listFriendsAction(kid.id).then((data) => {
-      setFriends(data);
-      setFriendsLoaded(true);
-    });
+    listFriendsAction(kid.id)
+      .then((data) => {
+        setFriends(data);
+        setFriendsLoaded(true);
+      })
+      .catch(() => setFriendsLoaded(true));
   }, [kid.id]);
 
   const handleRemoveFriend = (friendId: string) => {
-    startTransition(async () => {
+    startFriendsTransition(async () => {
       const result = await removeFriend(kid.id, friendId);
       if (result.ok) {
         setFriends((f) => f.filter((fr) => fr.id !== friendId));
@@ -140,7 +142,7 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
                 <button
                   type="button"
                   onClick={() => handleRemoveFriend(friend.id)}
-                  disabled={isPending}
+                  disabled={friendsPending}
                   className="text-xs font-bold text-red-600 border border-red-200 rounded-xl px-2 py-1 hover:bg-red-50 disabled:opacity-50"
                 >
                   Remove
