@@ -106,6 +106,29 @@ export interface FriendRequest {
   createdAt: string;
 }
 
+export interface Message {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface ConversationSummary {
+  friendId: string;
+  friendName: string;
+  friendAvatar: string;
+  friendUsername: string | null;
+  unreadCount: number;
+  lastMessageAt: string | null;
+}
+
+export interface MessageSummaryForParent {
+  friendName: string;
+  friendAvatar: string;
+  messageCount: number;
+}
+
 export interface Task {
   id: string;
   familyId: string;
