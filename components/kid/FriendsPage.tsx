@@ -27,6 +27,7 @@ export default function FriendsPage({
   const [searchValue, setSearchValue] = useState("");
   const [searchMsg, setSearchMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [inflightIds, setInflightIds] = useState<Set<string>>(new Set());
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   const setInflight = (id: string, active: boolean) => {
@@ -191,8 +192,13 @@ export default function FriendsPage({
             {conversations.map((conv) => (
               <div
                 key={conv.friendId}
-                className="bg-white rounded-2xl shadow p-3 flex items-center gap-3 cursor-pointer active:opacity-80"
-                onClick={() => router.push(`/kid/${kidId}/friends/${conv.friendId}`)}
+                className={`bg-white rounded-2xl shadow p-3 flex items-center gap-3 cursor-pointer transition-opacity ${navigatingId === conv.friendId ? "opacity-50" : "active:opacity-70"}`}
+                style={{ touchAction: "manipulation" }}
+                onClick={() => {
+                  if (navigatingId) return;
+                  setNavigatingId(conv.friendId);
+                  router.push(`/kid/${kidId}/friends/${conv.friendId}`);
+                }}
               >
                 <span className="text-3xl">{conv.friendAvatar}</span>
                 <div className="flex-1 min-w-0">
