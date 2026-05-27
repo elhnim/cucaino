@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { getKid, listFriends, listMessages } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
-import { markRead } from "@/lib/actions/messages";
 import ChatView from "@/components/kid/ChatView";
 
 export default async function ChatRoute({
@@ -21,8 +20,6 @@ export default async function ChatRoute({
   if (!friend) notFound();
 
   const messages = await listMessages(kidId, friendId);
-
-  await markRead(kidId, friendId);
 
   const theme = getTheme(kid.themeId);
 

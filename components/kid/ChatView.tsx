@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { sendMessage } from "@/lib/actions/messages";
+import { sendMessage, markRead } from "@/lib/actions/messages";
 import type { Message } from "@/lib/domain/types";
 
 export default function ChatView({
@@ -30,7 +30,8 @@ export default function ChatView({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "instant" });
-  }, []);
+    markRead(kidId, friendId);
+  }, [kidId, friendId]);
 
   useEffect(() => {
     if (messages.length > 0) {
