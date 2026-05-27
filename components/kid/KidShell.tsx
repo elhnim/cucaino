@@ -110,6 +110,7 @@ export default function KidShell({
   badges,
   weatherLocation,
   pendingFriendRequests = 0,
+  unreadMessages = 0,
 }: {
   kid: Kid;
   active?: NavKey;
@@ -120,6 +121,7 @@ export default function KidShell({
   badges?: BadgeProgress[];
   weatherLocation?: { lat: number; lon: number };
   pendingFriendRequests?: number;
+  unreadMessages?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -345,7 +347,7 @@ export default function KidShell({
             >
               <span className="relative" style={{ color: isActive ? theme.accent : "#9ca3af" }}>
                 <NavIcon name={item.icon} size={22} />
-                {item.key === "friends" && pendingFriendRequests > 0 && (
+                {item.key === "friends" && (pendingFriendRequests + unreadMessages) > 0 && (
                   <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500" />
                 )}
               </span>

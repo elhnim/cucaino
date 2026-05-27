@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import KidShell from "@/components/kid/KidShell";
 import { getKid, listTasksForKid, listCompletionsToday, listBadgeProgress, getFamily } from "@/lib/data/stub";
-import { countPendingRequests } from "@/lib/data/stub";
+import { countPendingRequests, countTotalUnread } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { KidOnboardingWrapper } from "@/components/onboarding/KidOnboardingWrapper";
 import { getTheme } from "@/lib/themes/presets";
@@ -21,11 +21,12 @@ export default async function KidLayout({
   const tz = family?.timezone ?? "Australia/Sydney";
   const dow = isoWeekday(new Date(), tz);
 
-  const [tasks, completions, badges, pendingFriendRequests] = await Promise.all([
+  const [tasks, completions, badges, pendingFriendRequests, unreadMessages] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id, tz),
     listBadgeProgress(kid.id),
     countPendingRequests(kid.id),
+    countTotalUnread(kid.id),
   ]);
 
   const todayTasks = tasksForDay(tasks, dow);
@@ -45,6 +46,7 @@ export default async function KidLayout({
       badges={badges}
       familyGoal={familyGoal}
       pendingFriendRequests={pendingFriendRequests}
+      unreadMessages={unreadMessages}
       weatherLocation={
         family?.weatherLat != null && family?.weatherLon != null
           ? { lat: family.weatherLat, lon: family.weatherLon }
