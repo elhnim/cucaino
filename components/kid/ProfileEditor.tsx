@@ -106,7 +106,6 @@ export default function ProfileEditor({
     avatar !== serverKid.avatar ||
     themeId !== serverKid.themeId ||
     (dob || null) !== (serverKid.dateOfBirth || null) ||
-    selectedFrame !== ((serverKid.selectedFrame as FrameId) ?? "none") ||
     username.trim() !== (serverKid.username ?? "");
 
   const save = () => {

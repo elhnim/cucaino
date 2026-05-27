@@ -70,7 +70,7 @@ export async function updateKidProfile(
 
   // Only include username in the update when explicitly provided
   if (data.username !== undefined) {
-    updatePayload.username = data.username || null;
+    updatePayload.username = data.username ? data.username.toLowerCase() : null;
   }
 
   const { error } = await supabase
@@ -83,6 +83,7 @@ export async function updateKidProfile(
   revalidatePath(`/kid/${kidId}/profile`);
   revalidatePath(`/select-kid`);
   revalidatePath(`/parent/settings`);
+  revalidatePath(`/parent/kids`);
   return { ok: true };
 }
 
