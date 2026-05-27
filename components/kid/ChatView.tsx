@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { sendMessage, markRead } from "@/lib/actions/messages";
+import { sendMessage } from "@/lib/actions/messages";
 import type { Message } from "@/lib/domain/types";
 
 export default function ChatView({
@@ -37,11 +37,6 @@ export default function ChatView({
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages.length]);
-
-  // Mark conversation as read on mount
-  useEffect(() => {
-    markRead(kidId, friendId);
-  }, [kidId, friendId]);
 
   // Realtime subscription for incoming messages
   useEffect(() => {
@@ -162,6 +157,7 @@ export default function ChatView({
           maxLength={200}
           autoComplete="off"
           autoCorrect="off"
+          disabled={sending}
           className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-current"
           style={{ caretColor: accent }}
         />
