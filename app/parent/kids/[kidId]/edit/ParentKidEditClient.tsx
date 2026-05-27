@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateKidProfile, setKidPin, clearKidPin } from "@/lib/actions/kids";
+import { listFriendsAction, removeFriend } from "@/lib/actions/friends";
 import type { Kid } from "@/lib/domain/types";
+import type { FriendKid } from "@/lib/domain/types";
 
 
 export default function ParentKidEditClient({ kid }: { kid: Kid }) {
@@ -14,6 +16,24 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [pinCleared, setPinCleared] = useState(false);
+  const [friends, setFriends] = useState<FriendKid[]>([]);
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
+
+  useEffect(() => {
+    listFriendsAction(kid.id).then((data) => {
+      setFriends(data);
+      setFriendsLoaded(true);
+    });
+  }, [kid.id]);
+
+  const handleRemoveFriend = (friendId: string) => {
+    startTransition(async () => {
+      const result = await removeFriend(kid.id, friendId);
+      if (result.ok) {
+        setFriends((f) => f.filter((fr) => fr.id !== friendId));
+      }
+    });
+  };
 
   const save = () => {
     if (!name.trim()) { setError("Name is required"); return; }
@@ -97,6 +117,38 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
           )}
         </div>
         <p className="text-xs text-gray-400 mt-1">Leave blank to keep existing PIN unchanged</p>
+      </div>
+
+      {/* Friends */}
+      <div>
+        <label className="block text-sm font-bold text-gray-700 mb-1">Friends</label>
+        {!friendsLoaded ? (
+          <p className="text-xs text-gray-400">Loading…</p>
+        ) : friends.length === 0 ? (
+          <p className="text-xs text-gray-400">No friends yet.</p>
+        ) : (
+          <div className="space-y-1">
+            {friends.map((friend) => (
+              <div key={friend.id} className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2">
+                <span className="text-xl">{friend.avatar}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate">{friend.name}</div>
+                  {friend.username && (
+                    <div className="text-xs text-gray-400">@{friend.username}</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveFriend(friend.id)}
+                  disabled={isPending}
+                  className="text-xs font-bold text-red-600 border border-red-200 rounded-xl px-2 py-1 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Actions */}
