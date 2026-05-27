@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getKid } from "@/lib/data/stub";
-import { listFriends, listPendingFriendRequests } from "@/lib/data/stub";
+import { listConversationSummaries, listPendingFriendRequests } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
 import FriendsPage from "@/components/kid/FriendsPage";
 
@@ -13,8 +13,8 @@ export default async function FriendsRoute({
   const kid = await getKid(kidId);
   if (!kid) notFound();
 
-  const [friends, pendingRequests] = await Promise.all([
-    listFriends(kidId),
+  const [conversations, pendingRequests] = await Promise.all([
+    listConversationSummaries(kidId),
     listPendingFriendRequests(kidId),
   ]);
 
@@ -24,7 +24,7 @@ export default async function FriendsRoute({
     <div className="p-4 max-w-lg mx-auto pb-8">
       <FriendsPage
         kidId={kidId}
-        friends={friends}
+        conversations={conversations}
         pendingRequests={pendingRequests}
         accent={theme.accent}
       />

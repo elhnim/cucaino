@@ -1,26 +1,28 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   sendFriendRequest,
   acceptFriendRequest,
   declineFriendRequest,
   removeFriend,
 } from "@/lib/actions/friends";
-import type { FriendKid, FriendRequest } from "@/lib/domain/types";
+import type { ConversationSummary, FriendRequest } from "@/lib/domain/types";
 
 export default function FriendsPage({
   kidId,
-  friends: initialFriends,
+  conversations: initialConversations,
   pendingRequests: initialPending,
   accent,
 }: {
   kidId: string;
-  friends: FriendKid[];
+  conversations: ConversationSummary[];
   pendingRequests: FriendRequest[];
   accent: string;
 }) {
-  const [friends, setFriends] = useState<FriendKid[]>(initialFriends);
+  const router = useRouter();
+  const [conversations, setConversations] = useState<ConversationSummary[]>(initialConversations);
   const [pending, setPending] = useState<FriendRequest[]>(initialPending);
   const [searchValue, setSearchValue] = useState("");
   const [searchMsg, setSearchMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -60,7 +62,17 @@ export default function FriendsPage({
         const req = pending.find((r) => r.requesterId === requesterId);
         if (req) {
           setPending((p) => p.filter((r) => r.requesterId !== requesterId));
-          setFriends((f) => [...f, { id: requesterId, name: req.name, avatar: req.avatar, username: req.username }]);
+          setConversations((c) => [
+            ...c,
+            {
+              friendId: requesterId,
+              friendName: req.name,
+              friendAvatar: req.avatar,
+              friendUsername: req.username,
+              unreadCount: 0,
+              lastMessageAt: null,
+            },
+          ]);
         }
       }
     });
@@ -83,7 +95,7 @@ export default function FriendsPage({
       const result = await removeFriend(kidId, friendId);
       setInflight(friendId, false);
       if (result.ok) {
-        setFriends((f) => f.filter((fr) => fr.id !== friendId));
+        setConversations((c) => c.filter((conv) => conv.friendId !== friendId));
       }
     });
   };
@@ -168,27 +180,39 @@ export default function FriendsPage({
       {/* Friends list */}
       <section>
         <h2 className="text-xs font-bold text-gray-500 uppercase mb-2">
-          Friends {friends.length > 0 && `(${friends.length})`}
+          Friends {conversations.length > 0 && `(${conversations.length})`}
         </h2>
-        {friends.length === 0 ? (
+        {conversations.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">
             No friends yet — search for a username above
           </p>
         ) : (
           <div className="space-y-2">
-            {friends.map((friend) => (
-              <div key={friend.id} className="bg-white rounded-2xl shadow p-3 flex items-center gap-3">
-                <span className="text-3xl">{friend.avatar}</span>
+            {conversations.map((conv) => (
+              <div
+                key={conv.friendId}
+                className="bg-white rounded-2xl shadow p-3 flex items-center gap-3 cursor-pointer active:opacity-80"
+                onClick={() => router.push(`/kid/${kidId}/friends/${conv.friendId}`)}
+              >
+                <span className="text-3xl">{conv.friendAvatar}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="font-bold text-sm truncate">{friend.name}</div>
-                  {friend.username && (
-                    <div className="text-xs text-gray-400">@{friend.username}</div>
+                  <div className="font-bold text-sm truncate">{conv.friendName}</div>
+                  {conv.friendUsername && (
+                    <div className="text-xs text-gray-400">@{conv.friendUsername}</div>
                   )}
                 </div>
+                {conv.unreadCount > 0 && (
+                  <span
+                    className="inline-flex items-center justify-center min-w-[20px] h-5 rounded-full text-white text-[10px] font-black px-1"
+                    style={{ background: accent }}
+                  >
+                    {conv.unreadCount}
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => handleRemove(friend.id)}
-                  disabled={inflightIds.has(friend.id)}
+                  onClick={(e) => { e.stopPropagation(); handleRemove(conv.friendId); }}
+                  disabled={inflightIds.has(conv.friendId)}
                   className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-xl disabled:opacity-50"
                 >
                   Remove
