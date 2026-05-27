@@ -1,5 +1,4 @@
 -- Adds kid_friendships table for cross-family friend relationships
-alter table public.kids enable row level security;
 
 create table public.kid_friendships (
   id         uuid        primary key default gen_random_uuid(),
@@ -7,7 +6,8 @@ create table public.kid_friendships (
   friend_id  uuid        not null references public.kids(id) on delete cascade,
   status     text        not null check (status in ('pending', 'accepted')),
   created_at timestamptz not null default now(),
-  unique (kid_id, friend_id)
+  unique (kid_id, friend_id),
+  check (kid_id <> friend_id)
 );
 
 create index if not exists kid_friendships_kid_id_idx    on public.kid_friendships (kid_id);
@@ -25,7 +25,10 @@ create policy "kid_friendships: family scope" on public.kid_friendships
     kid_id in (select id from public.kids where family_id = public.current_family_id())
   );
 
--- Allow reading basic kid info for accepted friends across families
+-- NOTE: This policy grants SELECT on the full kids row to accepted friends across families.
+-- Postgres does not support column-level RLS natively. The app layer only ever selects
+-- (id, name, avatar, username) from cross-family reads. Sensitive columns (pin_hash,
+-- date_of_birth) are never queried for friends — enforced by application code, not the DB.
 create policy "kids: friend read" on public.kids
   for select using (
     id in (
