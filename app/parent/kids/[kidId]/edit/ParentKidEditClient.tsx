@@ -4,7 +4,8 @@ import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateKidProfile, setKidPin, clearKidPin } from "@/lib/actions/kids";
 import { listFriendsAction, removeFriend } from "@/lib/actions/friends";
-import type { Kid, FriendKid } from "@/lib/domain/types";
+import { listMessageSummariesForParentAction } from "@/lib/actions/messages";
+import type { Kid, FriendKid, MessageSummaryForParent } from "@/lib/domain/types";
 
 
 export default function ParentKidEditClient({ kid }: { kid: Kid }) {
@@ -18,11 +19,16 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
   const [pinCleared, setPinCleared] = useState(false);
   const [friends, setFriends] = useState<FriendKid[]>([]);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
+  const [messageSummaries, setMessageSummaries] = useState<MessageSummaryForParent[]>([]);
 
   useEffect(() => {
-    listFriendsAction(kid.id)
-      .then((data) => {
-        setFriends(data);
+    Promise.all([
+      listFriendsAction(kid.id),
+      listMessageSummariesForParentAction(kid.id),
+    ])
+      .then(([friendData, summaryData]) => {
+        setFriends(friendData);
+        setMessageSummaries(summaryData);
         setFriendsLoaded(true);
       })
       .catch(() => setFriendsLoaded(true));
@@ -152,6 +158,29 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
           </div>
         )}
       </div>
+
+      {/* Messages */}
+      {messageSummaries.length > 0 && (
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-1">
+            Messages (last 30 days)
+          </label>
+          <div className="space-y-1">
+            {messageSummaries.map((s) => (
+              <div
+                key={s.friendName}
+                className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2"
+              >
+                <span className="text-xl">{s.friendAvatar}</span>
+                <span className="text-sm font-bold flex-1">{s.friendName}</span>
+                <span className="text-xs text-gray-500">
+                  {s.messageCount} {s.messageCount === 1 ? "message" : "messages"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
