@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hashPin, verifyPin, isPinHashed } from "@/lib/utils/pin";
+import { BRAINY_SEEDS } from "@/lib/data/brainy-seeds";
 
 export type AuthResult =
   | { ok: true; info?: string }
@@ -262,6 +263,30 @@ async function seedNewFamily({
   ];
   const { error: tasksErr } = await supabase.from("tasks").insert(sharedTasks);
   if (tasksErr) return tasksErr.message;
+
+  // Brainy tasks (money-smarts & learning challenges) — flexible, kid-addable,
+  // family-owned so parents can edit them. See lib/data/brainy-seeds.ts.
+  const brainyTasks = BRAINY_SEEDS.map((b) => ({
+    family_id: familyId,
+    name: b.name,
+    icon: b.icon,
+    category: "brainy",
+    schedule_type: "daily",
+    days_of_week: [1, 2, 3, 4, 5, 6, 7],
+    time_block: "anytime",
+    points: b.points,
+    family_points_contribution: 0,
+    requires_timer: false,
+    requires_completion: true,
+    active: true,
+    is_builtin: false,
+    rule: "flexible",
+    kid_can_add: true,
+    cash_value_cents: b.cashValueCents,
+    description: b.description,
+  }));
+  const { error: brainyErr } = await supabase.from("tasks").insert(brainyTasks);
+  if (brainyErr) return brainyErr.message;
 
   // Starter rewards
   const starterRewards = [
