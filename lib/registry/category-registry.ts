@@ -85,7 +85,7 @@ export const CATEGORIES: Record<TaskCategory, CategoryDisplay> = {
   },
   brainy: {
     id: "brainy",
-    label: "Brainny",
+    label: "Brainy",
     emoji: "🧠",
     defaultIcon: "🧠",
     bg: "#dbeafe",
