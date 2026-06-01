@@ -23,8 +23,16 @@ export default async function TradingPage({
 
   const supabase = await createClient();
 
-  // Generate today's prices in the background — don't block page load
-  void ensureDailyPrices(supabase);
+  // Ensure today's prices/news exist before we read them. Awaited (not
+  // fire-and-forget) so it can't be killed mid-write by the serverless runtime;
+  // it's a cheap early-return on every load after the row exists. The daily
+  // cron (netlify/functions/daily-prices) is the primary generator — this is a
+  // same-day backup for the first visitor before the cron runs.
+  try {
+    await ensureDailyPrices(supabase);
+  } catch {
+    // best-effort — never block the page on price generation
+  }
 
   const symbols = TRADING_ASSETS.map((a) => a.symbol);
 
