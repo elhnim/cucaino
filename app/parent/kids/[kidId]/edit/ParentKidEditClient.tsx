@@ -20,6 +20,7 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
   const [friends, setFriends] = useState<FriendKid[]>([]);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [messageSummaries, setMessageSummaries] = useState<MessageSummaryForParent[]>([]);
+  const [confirmRemoveFriendId, setConfirmRemoveFriendId] = useState<string | null>(null);
   const [investEnabled, setInvestEnabled] = useState(kid.investingEnabled);
   const [licenceStatus, setLicenceStatus] = useState<{
     passedAt: string | null;
@@ -192,14 +193,40 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
                     <div className="text-xs text-gray-400">@{friend.username}</div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveFriend(friend.id)}
-                  disabled={friendsPending}
-                  className="text-xs font-bold text-red-600 border border-red-200 rounded-xl px-2 py-1 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Remove
-                </button>
+                {confirmRemoveFriendId === friend.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleRemoveFriend(friend.id);
+                        setConfirmRemoveFriendId(null);
+                      }}
+                      disabled={friendsPending}
+                      className="text-xs font-bold text-white bg-red-600 rounded-lg px-2.5 py-1 hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmRemoveFriendId(null)}
+                      disabled={friendsPending}
+                      className="text-xs font-bold text-gray-500 rounded-lg px-2 py-1 hover:bg-gray-100"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmRemoveFriendId(friend.id)}
+                    disabled={friendsPending}
+                    aria-label={`Remove ${friend.name}`}
+                    title="Remove friend"
+                    className="text-gray-300 hover:text-gray-500 disabled:opacity-50 px-1 leading-none text-lg"
+                  >
+                    ×
+                  </button>
+                )}
               </div>
             ))}
           </div>
