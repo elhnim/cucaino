@@ -672,6 +672,7 @@ export interface RealAssetPrice {
   newsBody: string | null;
   newsUrl: string | null;
   newsImpact: string | null;
+  marketCap: number | null; // app-cash whole dollars; null when the source has none (e.g. some ASX)
   priceDate: string;
 }
 

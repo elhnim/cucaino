@@ -19,6 +19,7 @@ type PriceRow = {
   news_body: string | null;
   news_url: string | null;
   news_impact: string | null;
+  market_cap: number | null;
   price_date: string;
 };
 
@@ -110,7 +111,7 @@ async function priceForAsx(asset: RealAsset, priceDate: string): Promise<PriceRo
     const price = valid.at(-1);
     const prev = valid.at(-2) ?? price;
     if (!price || !prev) return null;
-    return baseRow(asset, cents(price), cents(prev), "AUD", 1, priceDate, null);
+    return baseRow(asset, cents(price), cents(prev), "AUD", 1, priceDate, null, null);
   } catch {
     return null;
   }
@@ -120,7 +121,7 @@ async function pricesForCrypto(assets: RealAsset[], usdToCash: number, priceDate
   try {
     const ids = assets.map((asset) => asset.sourceId).join(",");
     const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`,
       { next: { revalidate: 60 * 60 * 6 } },
     );
     if (!res.ok) return [];
@@ -133,8 +134,11 @@ async function pricesForCrypto(assets: RealAsset[], usdToCash: number, priceDate
       const pct = typeof item.usd_24h_change === "number" ? item.usd_24h_change / 100 : 0;
       const priceCents = cents(priceUsd * usdToCash);
       const prevCloseCents = Math.max(1, Math.round(priceCents / (1 + pct)));
+      const marketCap = typeof item.usd_market_cap === "number" && item.usd_market_cap > 0
+        ? Math.round(item.usd_market_cap * usdToCash)
+        : null;
       const news = await fetchKidNews({ symbol: asset.symbol, name: asset.name, assetType: asset.assetType, sourceId: asset.sourceId });
-      rows.push(baseRow(asset, priceCents, prevCloseCents, "USD", usdToCash, priceDate, news));
+      rows.push(baseRow(asset, priceCents, prevCloseCents, "USD", usdToCash, priceDate, news, marketCap));
     }
     return rows;
   } catch {
@@ -153,8 +157,28 @@ async function priceForFinnhub(asset: RealAsset, usdToCash: number, priceDate: s
     if (!res.ok) return null;
     const json = await res.json();
     if (typeof json.c !== "number" || json.c <= 0 || typeof json.pc !== "number" || json.pc <= 0) return null;
+    const marketCap = await fetchFinnhubMarketCap(asset.sourceId, key, usdToCash);
     const news = await fetchKidNews({ symbol: asset.symbol, name: asset.name, assetType: asset.assetType, sourceId: asset.sourceId });
-    return baseRow(asset, cents(json.c * usdToCash), cents(json.pc * usdToCash), "USD", usdToCash, priceDate, news);
+    return baseRow(asset, cents(json.c * usdToCash), cents(json.pc * usdToCash), "USD", usdToCash, priceDate, news, marketCap);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchFinnhubMarketCap(sourceId: string, key: string, usdToCash: number): Promise<number | null> {
+  try {
+    const res = await fetch(
+      `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(sourceId)}&token=${encodeURIComponent(key)}`,
+      { next: { revalidate: 60 * 60 * 24 } },
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    // marketCapitalization is in MILLIONS of the company's reporting currency. Only trust it when
+    // that currency is USD (foreign ADRs like NTDOY/SONY report in JPY, which we can't convert here).
+    const mcMillions = json?.marketCapitalization;
+    if (typeof mcMillions !== "number" || mcMillions <= 0) return null;
+    if (json?.currency && json.currency !== "USD") return null;
+    return Math.round(mcMillions * 1_000_000 * usdToCash);
   } catch {
     return null;
   }
@@ -168,6 +192,7 @@ function baseRow(
   fxRateToCash: number,
   priceDate: string,
   news: { headline: string; body: string; url: string | null } | null,
+  marketCap: number | null,
 ): PriceRow {
   return {
     symbol: asset.symbol,
@@ -181,6 +206,7 @@ function baseRow(
     news_body: news?.body ?? null,
     news_url: news?.url ?? null,
     news_impact: null,
+    market_cap: marketCap,
     price_date: priceDate,
   };
 }

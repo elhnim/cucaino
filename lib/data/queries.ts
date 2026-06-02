@@ -1335,6 +1335,7 @@ function mapRealAssetPrice(row: any): RealAssetPrice {
     newsBody: row.news_body ?? null,
     newsUrl: row.news_url ?? null,
     newsImpact: row.news_impact ?? null,
+    marketCap: row.market_cap !== null && row.market_cap !== undefined ? Number(row.market_cap) : null,
     priceDate: row.price_date,
   };
 }

@@ -7,8 +7,16 @@ import { MIN_TRADE_CENTS } from "@/lib/invest/assets";
 import { holdingValueCents, quantityForAmount, unrealizedPnlCents } from "@/lib/invest/math";
 import InvestAboutSection from "@/components/invest/InvestAboutSection";
 import InvestBuyLockedCard from "@/components/invest/InvestBuyLockedCard";
+import { assetNews } from "@/lib/invest/news-display";
 
 function money(cents: number): string { return `$${(cents / 100).toFixed(2)}`; }
+
+function formatMarketCap(dollars: number): string {
+  if (dollars >= 1e12) return `$${(dollars / 1e12).toFixed(2)}T`;
+  if (dollars >= 1e9) return `$${(dollars / 1e9).toFixed(1)}B`;
+  if (dollars >= 1e6) return `$${(dollars / 1e6).toFixed(1)}M`;
+  return `$${dollars.toLocaleString()}`;
+}
 
 export default function InvestAssetDetailSheet({
   kidId,
@@ -36,6 +44,10 @@ export default function InvestAssetDetailSheet({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const prices = useMemo(() => [...priceHistory].reverse().map((p) => p.priceCents), [priceHistory]);
+  const news = useMemo(
+    () => (price ? assetNews(asset.symbol, asset.name, asset.assetType, price.changePct, price.priceDate) : null),
+    [price, asset.symbol, asset.name, asset.assetType],
+  );
   const ownedValue = holding && price ? holdingValueCents(holding.quantity, price.priceCents) : 0;
   const pnl = holding && price ? unrealizedPnlCents(holding.quantity, price.priceCents, holding.avgCostCents) : 0;
   const canTrade = Boolean(price);
@@ -77,13 +89,19 @@ export default function InvestAssetDetailSheet({
           <div className="mt-4 h-24 rounded-xl bg-slate-50 p-2">
             {prices.length < 2 ? <p className="grid h-full place-items-center text-xs font-bold text-slate-400">Price history starts today</p> : <Spark prices={prices} />}
           </div>
+          {price?.marketCap != null && (
+            <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+              <span className="text-xs font-black uppercase text-slate-400">Market cap</span>
+              <span className="text-sm font-black tabular-nums text-slate-700">{formatMarketCap(price.marketCap)}</span>
+            </div>
+          )}
         </div>
 
-        {price?.newsHeadline && price.newsBody && (
+        {news && (
           <div className="mb-4 rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase text-slate-400">Kid-friendly summary</p>
-            <h3 className="mt-1 text-sm font-black text-slate-950">{price.newsHeadline}</h3>
-            <p className="mt-1 text-sm font-semibold text-slate-600">{price.newsBody}</p>
+            <p className="text-xs font-black uppercase text-slate-400">Today's story</p>
+            <h3 className="mt-1 text-sm font-black text-slate-950">{news.headline}</h3>
+            <p className="mt-1 text-sm font-semibold text-slate-600">{news.body}</p>
           </div>
         )}
 
