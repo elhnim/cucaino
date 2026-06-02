@@ -44,10 +44,16 @@ export default function InvestAssetDetailSheet({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const prices = useMemo(() => [...priceHistory].reverse().map((p) => p.priceCents), [priceHistory]);
-  const news = useMemo(
-    () => (price ? assetNews(asset.symbol, asset.name, asset.assetType, price.changePct, price.priceDate) : null),
-    [price, asset.symbol, asset.name, asset.assetType],
-  );
+  const news = useMemo(() => {
+    if (!price) return null;
+    // Prefer the real, kid-rewritten article cached on the price row; fall back to the
+    // always-available templated story so the card is never empty.
+    if (price.newsHeadline && price.newsBody) {
+      return { headline: price.newsHeadline, body: price.newsBody, url: price.newsUrl, real: true };
+    }
+    const t = assetNews(asset.symbol, asset.name, asset.assetType, price.changePct, price.priceDate);
+    return { headline: t.headline, body: t.body, url: null as string | null, real: false };
+  }, [price, asset.symbol, asset.name, asset.assetType]);
   const ownedValue = holding && price ? holdingValueCents(holding.quantity, price.priceCents) : 0;
   const pnl = holding && price ? unrealizedPnlCents(holding.quantity, price.priceCents, holding.avgCostCents) : 0;
   const canTrade = Boolean(price);
@@ -99,9 +105,12 @@ export default function InvestAssetDetailSheet({
 
         {news && (
           <div className="mb-4 rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase text-slate-400">Today's story</p>
+            <p className="text-xs font-black uppercase text-slate-400">{news.real ? "In the news" : "Today's story"}</p>
             <h3 className="mt-1 text-sm font-black text-slate-950">{news.headline}</h3>
             <p className="mt-1 text-sm font-semibold text-slate-600">{news.body}</p>
+            {news.real && news.url && (
+              <a href={news.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-black text-indigo-600">Read the real story →</a>
+            )}
           </div>
         )}
 

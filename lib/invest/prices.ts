@@ -48,39 +48,71 @@ export async function ensureDailyRealPrices(supabase: SupabaseLike): Promise<voi
     const have = new Set((existingRows ?? []).map((row: { symbol: string }) => row.symbol));
 
     const missing = REAL_ASSETS.filter((asset) => !have.has(asset.symbol));
-    if (missing.length === 0) return;
 
-    const usdToCash = await fetchUsdToAud();
-    const rows: PriceRow[] = [];
+    if (missing.length > 0) {
+      const usdToCash = await fetchUsdToAud();
+      const rows: PriceRow[] = [];
 
-    const asxAssets = missing.filter((asset) => asset.source === "yahoo");
-    const cryptoAssets = missing.filter((asset) => asset.source === "coingecko");
-    const usAssets = missing.filter((asset) => asset.source === "finnhub");
+      const asxAssets = missing.filter((asset) => asset.source === "yahoo");
+      const cryptoAssets = missing.filter((asset) => asset.source === "coingecko");
+      const usAssets = missing.filter((asset) => asset.source === "finnhub");
 
-    for (const asset of asxAssets) {
-      const row = await priceForAsx(asset, priceDate);
-      if (row) rows.push(row);
-    }
-
-    if (usdToCash !== null) {
-      if (cryptoAssets.length > 0) {
-        rows.push(...(await pricesForCrypto(cryptoAssets, usdToCash, priceDate)));
-      }
-
-      for (const asset of usAssets) {
-        const row = await priceForFinnhub(asset, usdToCash, priceDate);
+      for (const asset of asxAssets) {
+        const row = await priceForAsx(asset, priceDate);
         if (row) rows.push(row);
-        await delay(250);
+      }
+
+      if (usdToCash !== null) {
+        if (cryptoAssets.length > 0) {
+          rows.push(...(await pricesForCrypto(cryptoAssets, usdToCash, priceDate)));
+        }
+
+        for (const asset of usAssets) {
+          const row = await priceForFinnhub(asset, usdToCash, priceDate);
+          if (row) rows.push(row);
+          await delay(250);
+        }
+      }
+
+      if (rows.length > 0) {
+        await supabase
+          .from("real_asset_prices")
+          .upsert(rows, { onConflict: "symbol,price_date", ignoreDuplicates: true });
       }
     }
 
-    if (rows.length > 0) {
-      await supabase
-        .from("real_asset_prices")
-        .upsert(rows, { onConflict: "symbol,price_date", ignoreDuplicates: true });
-    }
+    // News self-heal: fill any of today's rows that still lack a kid-rewritten article
+    // (e.g. rows created before the API keys were available). Runs every load until filled.
+    await fillMissingNews(supabase, priceDate);
   } catch (err) {
     console.error("ensureDailyRealPrices failed:", err);
+  }
+}
+
+async function fillMissingNews(supabase: SupabaseLike, priceDate: string): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from("real_asset_prices")
+      .select("symbol")
+      .eq("price_date", priceDate)
+      .is("news_headline", null);
+    const need = new Set((data ?? []).map((row: { symbol: string }) => row.symbol));
+    if (need.size === 0) return;
+    // Only US stocks (finnhub) + crypto (coingecko) have a real-news source; ASX news is deferred.
+    const targets = REAL_ASSETS.filter((asset) => need.has(asset.symbol) && asset.source !== "yahoo");
+    for (const asset of targets) {
+      const news = await fetchKidNews({ symbol: asset.symbol, name: asset.name, assetType: asset.assetType, sourceId: asset.sourceId });
+      if (news) {
+        await supabase
+          .from("real_asset_prices")
+          .update({ news_headline: news.headline, news_body: news.body, news_url: news.url })
+          .eq("symbol", asset.symbol)
+          .eq("price_date", priceDate);
+      }
+      if (asset.source === "finnhub") await delay(250);
+    }
+  } catch {
+    // never throw from the background refresh
   }
 }
 
