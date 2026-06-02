@@ -1447,6 +1447,7 @@ export type Database = {
           created_at: string
           fx_rate_to_cash: number
           id: string
+          market_cap: number | null
           news_body: string | null
           news_headline: string | null
           news_impact: string | null
@@ -1463,6 +1464,7 @@ export type Database = {
           created_at?: string
           fx_rate_to_cash?: number
           id?: string
+          market_cap?: number | null
           news_body?: string | null
           news_headline?: string | null
           news_impact?: string | null
@@ -1479,6 +1481,7 @@ export type Database = {
           created_at?: string
           fx_rate_to_cash?: number
           id?: string
+          market_cap?: number | null
           news_body?: string | null
           news_headline?: string | null
           news_impact?: string | null
