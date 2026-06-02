@@ -29,8 +29,6 @@ export default function InvestMarketTab({
     const matchesCategory = category === "all" || asset.categories.includes(category);
     return matchesQuery && matchesCategory;
   });
-  const stocks = filtered.filter((asset) => asset.assetType === "stock");
-  const crypto = filtered.filter((asset) => asset.assetType === "crypto");
   const noPrices = assets.every((asset) => !prices[asset.symbol]);
 
   if (noPrices) {
@@ -62,20 +60,15 @@ export default function InvestMarketTab({
           🔒 Buying is locked — earn your Investor Licence
         </button>
       )}
-      {filtered.length === 0 && <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm font-bold text-slate-500">No matches — try another search or filter.</div>}
-      {stocks.length > 0 && <AssetGroup title="Stocks" assets={stocks} prices={prices} holdingMap={holdingMap} onSelectAsset={onSelectAsset} />}
-      {crypto.length > 0 && <AssetGroup title="Crypto" assets={crypto} prices={prices} holdingMap={holdingMap} onSelectAsset={onSelectAsset} />}
+      {filtered.length === 0 ? (
+        <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm font-bold text-slate-500">No matches — try another search or filter.</div>
+      ) : (
+        <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-sm">
+          {filtered.map((asset) => (
+            <InvestAssetRow key={asset.symbol} asset={asset} price={prices[asset.symbol]} holding={holdingMap[asset.symbol]} onSelect={() => onSelectAsset(asset.symbol)} />
+          ))}
+        </div>
+      )}
     </div>
-  );
-}
-
-function AssetGroup({ title, assets, prices, holdingMap, onSelectAsset }: { title: string; assets: RealAsset[]; prices: Record<string, RealAssetPrice>; holdingMap: Record<string, InvestHolding>; onSelectAsset: (symbol: string) => void }) {
-  return (
-    <section>
-      <h2 className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">{title}</h2>
-      <div className="overflow-hidden rounded-[14px] border border-slate-200 bg-white shadow-sm">
-        {assets.map((asset) => <InvestAssetRow key={asset.symbol} asset={asset} price={prices[asset.symbol]} holding={holdingMap[asset.symbol]} onSelect={() => onSelectAsset(asset.symbol)} />)}
-      </div>
-    </section>
   );
 }
