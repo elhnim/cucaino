@@ -120,3 +120,37 @@ export async function clearKidPin(kidId: string): Promise<ActionResult> {
   revalidatePath(`/kid/${kidId}/profile`);
   return { ok: true };
 }
+
+export async function setInvestingEnabled(kidId: string, enabled: boolean): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: fam, error: famErr } = await supabase.from("families").select("id").maybeSingle();
+  if (famErr || !fam) return { ok: false, error: "Family not found." };
+  const { error } = await supabase
+    .from("kids")
+    .update({ investing_enabled: enabled })
+    .eq("id", kidId)
+    .eq("family_id", fam.id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/parent/kids/${kidId}/edit`);
+  revalidatePath(`/play/invest`);
+  return { ok: true };
+}
+
+export async function getInvestLicenceStatus(kidId: string): Promise<{
+  passedAt: string | null;
+  bestScore: number;
+  lessonsCompleted: string[];
+} | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("invest_licences")
+    .select("passed_at, best_score, lessons_completed")
+    .eq("kid_id", kidId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    passedAt: (data as any).passed_at ?? null,
+    bestScore: Number((data as any).best_score ?? 0),
+    lessonsCompleted: Array.isArray((data as any).lessons_completed) ? (data as any).lessons_completed : [],
+  };
+}

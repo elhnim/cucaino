@@ -122,6 +122,7 @@ function mapKid(row: DbKidRow): Kid {
     interests: (row as any).interests ?? [],
     interestsOther: (row as any).interests_other ?? null,
     cashBalance: (row as any).cash_balance ?? 0,
+    investingEnabled: (row as any).investing_enabled ?? false,
     sparksBalance: (row as any).sparks_balance ?? 0,
     username: (row as any).username ?? null,
     friendsFeatureSeen: (row as any).friends_feature_seen ?? false,

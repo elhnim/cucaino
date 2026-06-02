@@ -86,6 +86,7 @@ export interface Kid {
   interests: string[];
   interestsOther: string | null;
   cashBalance: number;
+  investingEnabled: boolean;
   sparksBalance: number;
   username: string | null;
   friendsFeatureSeen: boolean;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateKidProfile, setKidPin, clearKidPin } from "@/lib/actions/kids";
+import { updateKidProfile, setKidPin, clearKidPin, setInvestingEnabled, getInvestLicenceStatus } from "@/lib/actions/kids";
 import { listFriendsAction, removeFriend } from "@/lib/actions/friends";
 import { listMessageSummariesForParentAction } from "@/lib/actions/messages";
 import type { Kid, FriendKid, MessageSummaryForParent } from "@/lib/domain/types";
@@ -20,15 +20,23 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
   const [friends, setFriends] = useState<FriendKid[]>([]);
   const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [messageSummaries, setMessageSummaries] = useState<MessageSummaryForParent[]>([]);
+  const [investEnabled, setInvestEnabled] = useState(kid.investingEnabled);
+  const [licenceStatus, setLicenceStatus] = useState<{
+    passedAt: string | null;
+    bestScore: number;
+    lessonsCompleted: string[];
+  } | null>(null);
 
   useEffect(() => {
     Promise.all([
       listFriendsAction(kid.id),
       listMessageSummariesForParentAction(kid.id),
+      getInvestLicenceStatus(kid.id),
     ])
-      .then(([friendData, summaryData]) => {
+      .then(([friendData, summaryData, investStatus]) => {
         setFriends(friendData);
         setMessageSummaries(summaryData);
+        setLicenceStatus(investStatus);
         setFriendsLoaded(true);
       })
       .catch(() => setFriendsLoaded(true));
@@ -65,6 +73,18 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
     startTransition(async () => {
       await clearKidPin(kid.id);
       setPinCleared(true);
+    });
+  };
+
+  const toggleInvest = (enabled: boolean) => {
+    setInvestEnabled(enabled);
+    setError(null);
+    startTransition(async () => {
+      const result = await setInvestingEnabled(kid.id, enabled);
+      if (!result.ok) {
+        setInvestEnabled(!enabled);
+        setError(result.error);
+      }
     });
   };
 
@@ -125,6 +145,33 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
           )}
         </div>
         <p className="text-xs text-gray-400 mt-1">Leave blank to keep existing PIN unchanged</p>
+      </div>
+
+      {/* Invest */}
+      <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <label className="block text-sm font-black text-indigo-950">Invest</label>
+            <p className="mt-1 text-xs font-semibold text-indigo-700">
+              Real cash can move up or down with real stock and crypto prices. You can turn this off anytime.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => toggleInvest(!investEnabled)}
+            disabled={isPending}
+            className={`relative h-7 w-12 rounded-full transition-colors ${investEnabled ? "bg-indigo-600" : "bg-gray-300"}`}
+            aria-pressed={investEnabled}
+          >
+            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${investEnabled ? "translate-x-6" : "translate-x-1"}`} />
+          </button>
+        </div>
+        <div className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-xs font-bold text-indigo-900">
+          🎟️ Investor Licence: {licenceStatus?.passedAt
+            ? `Passed ✓ · ${licenceStatus.bestScore}/5 on ${new Date(licenceStatus.passedAt).toLocaleDateString()}`
+            : `Not passed yet — on lesson ${Math.min(licenceStatus?.lessonsCompleted.length ?? 0, 4)} of 4`}
+        </div>
+        <p className="mt-2 text-[11px] font-semibold text-indigo-600">The licence cannot be skipped; it is always required before buying.</p>
       </div>
 
       {/* Friends */}
