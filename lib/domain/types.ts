@@ -630,3 +630,115 @@ export interface TradingAsset {
   /** Weekly dividend as a decimal, e.g. 0.004 = 0.4%. Only set when paysDividend=true. */
   dividendPct?: number;
 }
+
+// ----------------------------------------------------------------------------
+// Invest (real-money, real-price investing)
+// ----------------------------------------------------------------------------
+
+export type AssetType = "stock" | "crypto";
+export type AssetCategory = "popular" | "games" | "tech" | "food" | "australian" | "crypto";
+
+export interface AssetAbout {
+  story: string;
+  facts: { label: string; value: string }[];
+  whyGreat: { emoji: string; text: string }[];
+  didYouKnow: string;
+}
+
+export interface RealAsset {
+  symbol: string;
+  name: string;
+  ticker: string;
+  exchange: string;
+  emoji: string;
+  assetType: AssetType;
+  categories: AssetCategory[];
+  source: "finnhub" | "yahoo" | "coingecko";
+  sourceId: string;
+  description: string;
+  about?: AssetAbout;
+}
+
+export interface RealAssetPrice {
+  symbol: string;
+  assetType: AssetType;
+  priceCents: number;
+  prevCloseCents: number;
+  changePct: number;
+  quoteCurrency: string;
+  fxRateToCash: number;
+  newsHeadline: string | null;
+  newsBody: string | null;
+  newsUrl: string | null;
+  newsImpact: string | null;
+  priceDate: string;
+}
+
+export interface InvestAccount {
+  kidId: string;
+  familyId: string;
+  cashCents: number;
+  totalDepositedCents: number;
+  totalWithdrawnCents: number;
+}
+
+export interface InvestHolding {
+  kidId: string;
+  familyId: string;
+  assetSymbol: string;
+  quantity: number;
+  avgCostCents: number;
+}
+
+export type InvestTxType = "deposit" | "withdraw" | "buy" | "sell";
+
+export interface InvestTransaction {
+  id: string;
+  kidId: string;
+  familyId: string;
+  type: InvestTxType;
+  assetSymbol: string | null;
+  quantity: number | null;
+  priceCents: number | null;
+  totalCents: number;
+  createdAt: string;
+}
+
+export interface InvestLicence {
+  kidId: string;
+  familyId: string;
+  lessonsCompleted: string[];
+  bestScore: number;
+  attempts: number;
+  passedAt: string | null;
+  rewarded: boolean;
+}
+
+export type LessonSection = "basics" | "deeper" | "safe";
+export type LessonBlock =
+  | { kind: "para"; text: string }
+  | { kind: "illustration"; emoji: string; caption: string }
+  | { kind: "keyIdea"; text: string }
+  | { kind: "example"; emoji: string; text: string }
+  | { kind: "didYouKnow"; text: string };
+
+export interface Lesson {
+  id: string;
+  section: LessonSection;
+  required: boolean;
+  order: number;
+  title: string;
+  emoji: string;
+  minutes: number;
+  blurb: string;
+  body: LessonBlock[];
+  check?: { question: string; options: string[]; correctIndex: number; correctNote: string };
+}
+
+export interface InvestQuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explainer: string;
+}
