@@ -44,6 +44,12 @@ import type {
   TradingHolding,
   TradingTransaction,
   TradingAssetPrice,
+  InvestAccount,
+  InvestHolding,
+  InvestTransaction,
+  InvestLicence,
+  RealAssetPrice,
+  AssetType,
   FriendKid,
   FriendRequest,
   Message,
@@ -1275,6 +1281,164 @@ export async function listCurrentAndPreviousAssetPrices(): Promise<
     }
   }
   return map;
+}
+
+// ----------------------------------------------------------------------------
+// Invest queries
+// ----------------------------------------------------------------------------
+
+function mapInvestAccount(row: any): InvestAccount {
+  return {
+    kidId: row.kid_id,
+    familyId: row.family_id,
+    cashCents: Number(row.cash_cents ?? 0),
+    totalDepositedCents: Number(row.total_deposited_cents ?? 0),
+    totalWithdrawnCents: Number(row.total_withdrawn_cents ?? 0),
+  };
+}
+
+function mapInvestHolding(row: any): InvestHolding {
+  return {
+    kidId: row.kid_id,
+    familyId: row.family_id,
+    assetSymbol: row.asset_symbol,
+    quantity: Number(row.quantity ?? 0),
+    avgCostCents: Number(row.avg_cost_cents ?? 0),
+  };
+}
+
+function mapInvestTransaction(row: any): InvestTransaction {
+  return {
+    id: row.id,
+    kidId: row.kid_id,
+    familyId: row.family_id,
+    type: row.type as InvestTransaction["type"],
+    assetSymbol: row.asset_symbol ?? null,
+    quantity: row.quantity !== null && row.quantity !== undefined ? Number(row.quantity) : null,
+    priceCents: row.price_cents !== null && row.price_cents !== undefined ? Number(row.price_cents) : null,
+    totalCents: Number(row.total_cents ?? 0),
+    createdAt: row.created_at,
+  };
+}
+
+function mapRealAssetPrice(row: any): RealAssetPrice {
+  return {
+    symbol: row.symbol,
+    assetType: row.asset_type as AssetType,
+    priceCents: Number(row.price_cents ?? 0),
+    prevCloseCents: Number(row.prev_close_cents ?? 0),
+    changePct: Number(row.change_pct ?? 0),
+    quoteCurrency: row.quote_currency ?? "USD",
+    fxRateToCash: Number(row.fx_rate_to_cash ?? 1),
+    newsHeadline: row.news_headline ?? null,
+    newsBody: row.news_body ?? null,
+    newsUrl: row.news_url ?? null,
+    newsImpact: row.news_impact ?? null,
+    priceDate: row.price_date,
+  };
+}
+
+function mapInvestLicence(row: any): InvestLicence {
+  const lessons = Array.isArray(row.lessons_completed) ? row.lessons_completed : [];
+  return {
+    kidId: row.kid_id,
+    familyId: row.family_id,
+    lessonsCompleted: lessons.filter((v: unknown): v is string => typeof v === "string"),
+    bestScore: Number(row.best_score ?? 0),
+    attempts: Number(row.attempts ?? 0),
+    passedAt: row.passed_at ?? null,
+    rewarded: Boolean(row.rewarded),
+  };
+}
+
+export async function getInvestAccount(kidId: string): Promise<InvestAccount | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("invest_accounts").select("*").eq("kid_id", kidId).maybeSingle();
+  return data ? mapInvestAccount(data) : null;
+}
+
+export async function ensureInvestAccount(kidId: string): Promise<InvestAccount> {
+  const existing = await getInvestAccount(kidId);
+  if (existing) return existing;
+  const supabase = await createClient();
+  const { data: kid } = await supabase.from("kids").select("family_id").eq("id", kidId).maybeSingle();
+  if (!kid) throw new Error("Kid not found");
+  const { data, error } = await supabase
+    .from("invest_accounts")
+    .insert({ kid_id: kidId, family_id: kid.family_id })
+    .select("*")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Failed to create invest account");
+  return mapInvestAccount(data);
+}
+
+export async function listInvestHoldings(kidId: string): Promise<InvestHolding[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("invest_holdings").select("*").eq("kid_id", kidId).gt("quantity", 0);
+  return (data ?? []).map(mapInvestHolding);
+}
+
+export async function listInvestTransactions(kidId: string, limit = 20): Promise<InvestTransaction[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("invest_transactions")
+    .select("*")
+    .eq("kid_id", kidId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map(mapInvestTransaction);
+}
+
+export async function getTodayRealPrices(): Promise<RealAssetPrice[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("real_asset_prices")
+    .select("*")
+    .order("price_date", { ascending: false })
+    .limit(500);
+  const bySymbol = new Map<string, RealAssetPrice>();
+  for (const row of data ?? []) {
+    if (!bySymbol.has(row.symbol)) bySymbol.set(row.symbol, mapRealAssetPrice(row));
+  }
+  return [...bySymbol.values()];
+}
+
+export async function getRealPriceHistory(symbol: string, days = 30): Promise<RealAssetPrice[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("real_asset_prices")
+    .select("*")
+    .eq("symbol", symbol)
+    .order("price_date", { ascending: false })
+    .limit(days);
+  return (data ?? []).map(mapRealAssetPrice);
+}
+
+export async function getInvestLicence(kidId: string): Promise<InvestLicence | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("invest_licences").select("*").eq("kid_id", kidId).maybeSingle();
+  return data ? mapInvestLicence(data) : null;
+}
+
+export async function ensureInvestLicence(kidId: string): Promise<InvestLicence> {
+  const existing = await getInvestLicence(kidId);
+  if (existing) return existing;
+  const supabase = await createClient();
+  const { data: kid } = await supabase.from("kids").select("family_id").eq("id", kidId).maybeSingle();
+  if (!kid) throw new Error("Kid not found");
+  const { data, error } = await supabase
+    .from("invest_licences")
+    .insert({ kid_id: kidId, family_id: kid.family_id })
+    .select("*")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Failed to create invest licence");
+  return mapInvestLicence(data);
+}
+
+export async function getKidInvestingEnabled(kidId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("kids").select("investing_enabled").eq("id", kidId).maybeSingle();
+  return Boolean((data as any)?.investing_enabled);
 }
 
 export const listFriends = timed("listFriends", async (kidId: string): Promise<FriendKid[]> => {
