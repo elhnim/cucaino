@@ -42,6 +42,7 @@ export default function InvestAssetDetailSheet({
   const [mode, setMode] = useState<"buy" | "sell">(holding ? "sell" : "buy");
   const [amount, setAmount] = useState(100);
   const [error, setError] = useState<string | null>(null);
+  const [newsOpen, setNewsOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const prices = useMemo(() => [...priceHistory].reverse().map((p) => p.priceCents), [priceHistory]);
   const news = useMemo(() => {
@@ -104,14 +105,12 @@ export default function InvestAssetDetailSheet({
         </div>
 
         {news && (
-          <div className="mb-4 rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
+          <button type="button" onClick={() => setNewsOpen(true)} className="mb-4 block w-full rounded-[14px] border border-slate-200 bg-white p-4 text-left shadow-sm active:bg-slate-50">
             <p className="text-xs font-black uppercase text-slate-400">{news.real ? "In the news" : "Today's story"}</p>
             <h3 className="mt-1 text-sm font-black text-slate-950">{news.headline}</h3>
-            <p className="mt-1 text-sm font-semibold text-slate-600">{news.body}</p>
-            {news.real && news.url && (
-              <a href={news.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs font-black text-indigo-600">Read the real story →</a>
-            )}
-          </div>
+            <p className="mt-1 line-clamp-2 text-sm font-semibold text-slate-600">{news.body}</p>
+            <span className="mt-2 inline-block text-xs font-black text-indigo-600">Read more →</span>
+          </button>
         )}
 
         {holding && (
@@ -151,6 +150,28 @@ export default function InvestAssetDetailSheet({
 
         {asset.about && <InvestAboutSection about={asset.about} />}
       </div>
+
+      {newsOpen && news && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4" onClick={(e) => e.currentTarget === e.target && setNewsOpen(false)}>
+          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-lg">{asset.emoji}</span>
+                <span className="text-xs font-black uppercase text-slate-400">{asset.name} · {news.real ? "In the news" : "Today's story"}</span>
+              </div>
+              <button onClick={() => setNewsOpen(false)} className="text-2xl font-black leading-none text-slate-400">×</button>
+            </div>
+            <h3 className="mt-3 text-lg font-black leading-snug text-slate-950">{news.headline}</h3>
+            <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-600">{news.body}</p>
+            {news.real && news.url ? (
+              <a href={news.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs font-bold text-slate-400 underline">Open the original article (for grown-ups) ↗</a>
+            ) : (
+              <p className="mt-4 text-xs font-bold text-slate-400">A simple, kid-friendly summary of today's news.</p>
+            )}
+            <button onClick={() => setNewsOpen(false)} className="mt-5 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-black text-white">Got it</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
