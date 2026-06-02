@@ -42,6 +42,21 @@ export default async function KidPlayPage({
           </div>
         </Link>
 
+        {/* Invest */}
+        <Link
+          href={`/play/invest?kid=${kid.id}`}
+          className="bg-indigo-50 border-2 border-indigo-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
+        >
+          <div className="text-4xl">📊</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-indigo-950">Invest</span>
+              <span className="text-[10px] font-bold bg-indigo-600 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+            </div>
+            <div className="text-xs text-indigo-700 mt-0.5">Real prices · Learn first</div>
+          </div>
+        </Link>
+
         {/* AI Arcade */}
         <Link
           href={`/play/arcade?kid=${kid.id}`}
