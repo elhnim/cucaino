@@ -20,7 +20,7 @@ export const LESSONS: Lesson[] = [
       { kind: "example", emoji: "📦", text: "If you invest $2 in a company, your $2 follows that company's real price. It might grow, shrink, or stay almost the same." },
       { kind: "didYouKnow", text: "Adults often invest slowly over years, not because every day is exciting, but because time can help good choices grow." },
     ],
-    check: { question: "What is investing mostly about?", options: ["Trying to grow money over time", "Spending money as fast as possible", "Guessing a secret code"], correctIndex: 0, correctNote: "Right. Investing is about giving money time to work, while accepting risk." },
+    check: { question: "What is investing mostly about?", options: ["Spending money as fast as possible", "Trying to grow money over time", "Guessing a secret code"], correctIndex: 1, correctNote: "Right. Investing is about giving money time to work, while accepting risk." },
   },
   {
     id: "what-is-a-stock",
@@ -39,7 +39,7 @@ export const LESSONS: Lesson[] = [
       { kind: "example", emoji: "🍎", text: "If you buy Apple stock, your investment follows how investors value Apple as a business." },
       { kind: "didYouKnow", text: "Some companies have millions or billions of shares, so even a tiny investor can own a tiny piece." },
     ],
-    check: { question: "A stock is most like...", options: ["A tiny piece of a company", "A password", "A shop receipt"], correctIndex: 0, correctNote: "Exactly. It is a tiny ownership slice." },
+    check: { question: "A stock is most like...", options: ["A password", "A shop receipt", "A tiny piece of a company"], correctIndex: 2, correctNote: "Exactly. It is a tiny ownership slice." },
   },
   {
     id: "what-is-crypto",
@@ -58,7 +58,7 @@ export const LESSONS: Lesson[] = [
       { kind: "example", emoji: "₿", text: "Bitcoin is the oldest famous crypto. Ethereum is a network where builders can make apps." },
       { kind: "didYouKnow", text: "Crypto markets trade all day and all night, even on weekends." },
     ],
-    check: { question: "Why should crypto be treated carefully?", options: ["Prices can change very quickly", "It never changes price", "It is always safer than cash"], correctIndex: 0, correctNote: "Correct. Big moves are possible in both directions." },
+    check: { question: "Why should crypto be treated carefully?", options: ["It never changes price", "Prices can change very quickly", "It is always safer than cash"], correctIndex: 1, correctNote: "Correct. Big moves are possible in both directions." },
   },
   {
     id: "why-prices-move",
@@ -76,7 +76,7 @@ export const LESSONS: Lesson[] = [
       { kind: "example", emoji: "🎮", text: "If a game company releases a hit game, more investors may want the stock. If the game disappoints, some may sell." },
       { kind: "didYouKnow", text: "News, earnings, interest rates, trends and feelings can all affect prices." },
     ],
-    check: { question: "If lots more people want to buy an asset, what often happens?", options: ["The price can go up", "The price must become zero", "The market closes forever"], correctIndex: 0, correctNote: "Yes. More demand can push prices higher." },
+    check: { question: "If lots more people want to buy an asset, what often happens?", options: ["The price must become zero", "The market closes forever", "The price can go up"], correctIndex: 2, correctNote: "Yes. More demand can push prices higher." },
   },
   {
     id: "diversify",
@@ -147,11 +147,11 @@ export const LESSONS: Lesson[] = [
 export const REQUIRED_LESSON_IDS = LESSONS.filter((lesson) => lesson.required).map((lesson) => lesson.id);
 
 export const LICENCE_QUIZ: InvestQuizQuestion[] = [
-  { id: "demand-price", question: "Lots of people suddenly want to buy the same stock. What can happen to its price?", options: ["It can go up", "It must disappear", "It can never change", "It turns into cash"], correctIndex: 0, explainer: "Why? When demand is higher than supply, buyers may offer more, so the price can rise." },
-  { id: "stock-slice", question: "What do you own when you buy a stock?", options: ["A tiny piece of a company", "A guaranteed prize", "A bank password", "A toy version of the company"], correctIndex: 0, explainer: "A stock is a small ownership slice of a real business." },
-  { id: "crypto-risk", question: "Why should you be extra careful with crypto?", options: ["It can move up and down very quickly", "It is always the safest asset", "It only opens on Mondays", "It never loses value"], correctIndex: 0, explainer: "Crypto can be exciting technology, but the prices can be very bumpy." },
-  { id: "diversify-meaning", question: "What does diversifying mean?", options: ["Spreading money across different investments", "Putting every cent in one idea", "Buying only the asset with the funniest emoji", "Selling everything every day"], correctIndex: 0, explainer: "Diversifying spreads risk so one bad result hurts less." },
-  { id: "need-soon", question: "What should you do with money you need very soon?", options: ["Keep it safe instead of investing it", "Put it all in the riskiest thing", "Hide the price from yourself", "Only buy after a big jump"], correctIndex: 0, explainer: "Investing is for money that can handle ups and downs over time." },
+  { id: "demand-price", question: "Lots of people suddenly want to buy the same stock. What can happen to its price?", options: ["It must disappear", "It turns into cash", "It can go up", "It can never change"], correctIndex: 2, explainer: "Why? When demand is higher than supply, buyers may offer more, so the price can rise." },
+  { id: "stock-slice", question: "What do you own when you buy a stock?", options: ["A guaranteed prize", "A tiny piece of a company", "A bank password", "A toy version of the company"], correctIndex: 1, explainer: "A stock is a small ownership slice of a real business." },
+  { id: "crypto-risk", question: "Why should you be extra careful with crypto?", options: ["It is always the safest asset", "It only opens on Mondays", "It never loses value", "It can move up and down very quickly"], correctIndex: 3, explainer: "Crypto can be exciting technology, but the prices can be very bumpy." },
+  { id: "diversify-meaning", question: "What does diversifying mean?", options: ["Putting every cent in one idea", "Buying only the asset with the funniest emoji", "Spreading money across different investments", "Selling everything every day"], correctIndex: 2, explainer: "Diversifying spreads risk so one bad result hurts less." },
+  { id: "need-soon", question: "What should you do with money you need very soon?", options: ["Put it all in the riskiest thing", "Keep it safe instead of investing it", "Hide the price from yourself", "Only buy after a big jump"], correctIndex: 1, explainer: "Investing is for money that can handle ups and downs over time." },
 ];
 
 export const GLOSSARY: { term: string; definition: string }[] = [

@@ -37,20 +37,24 @@ async function delay(ms: number): Promise<void> {
 export async function ensureDailyRealPrices(supabase: SupabaseLike): Promise<void> {
   try {
     const priceDate = today();
-    const { data: existing } = await supabase
+    // Find which symbols already have a row for today, and only fetch the MISSING ones.
+    // (A simple "does BTC exist?" check would permanently block stocks from being retried
+    // if an earlier run populated crypto/ASX while the Finnhub key was unavailable.)
+    const { data: existingRows } = await supabase
       .from("real_asset_prices")
-      .select("id")
-      .eq("symbol", "BTC")
-      .eq("price_date", priceDate)
-      .maybeSingle();
-    if (existing) return;
+      .select("symbol")
+      .eq("price_date", priceDate);
+    const have = new Set((existingRows ?? []).map((row: { symbol: string }) => row.symbol));
+
+    const missing = REAL_ASSETS.filter((asset) => !have.has(asset.symbol));
+    if (missing.length === 0) return;
 
     const usdToCash = await fetchUsdToAud();
     const rows: PriceRow[] = [];
 
-    const asxAssets = REAL_ASSETS.filter((asset) => asset.source === "yahoo");
-    const cryptoAssets = REAL_ASSETS.filter((asset) => asset.source === "coingecko");
-    const usAssets = REAL_ASSETS.filter((asset) => asset.source === "finnhub");
+    const asxAssets = missing.filter((asset) => asset.source === "yahoo");
+    const cryptoAssets = missing.filter((asset) => asset.source === "coingecko");
+    const usAssets = missing.filter((asset) => asset.source === "finnhub");
 
     for (const asset of asxAssets) {
       const row = await priceForAsx(asset, priceDate);
@@ -58,7 +62,9 @@ export async function ensureDailyRealPrices(supabase: SupabaseLike): Promise<voi
     }
 
     if (usdToCash !== null) {
-      rows.push(...(await pricesForCrypto(cryptoAssets, usdToCash, priceDate)));
+      if (cryptoAssets.length > 0) {
+        rows.push(...(await pricesForCrypto(cryptoAssets, usdToCash, priceDate)));
+      }
 
       for (const asset of usAssets) {
         const row = await priceForFinnhub(asset, usdToCash, priceDate);
