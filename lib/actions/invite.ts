@@ -46,8 +46,9 @@ export async function inviteParent(email: string): Promise<ActionResult> {
 
   // Send magic-link email via admin API
   const admin = createAdminClient();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.URL ?? "https://cucaino.netlify.app";
   const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(trimmed, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/accept-invite`,
+    redirectTo: `${siteUrl}/auth/callback?next=/accept-invite`,
   });
   if (inviteErr) {
     const alreadyExists = inviteErr.message.toLowerCase().includes("already registered");
