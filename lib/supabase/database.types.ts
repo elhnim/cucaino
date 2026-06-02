@@ -52,6 +52,207 @@ export type Database = {
           },
         ]
       }
+      invest_accounts: {
+        Row: {
+          cash_cents: number
+          created_at: string
+          family_id: string
+          id: string
+          kid_id: string
+          total_deposited_cents: number
+          total_withdrawn_cents: number
+          updated_at: string
+        }
+        Insert: {
+          cash_cents?: number
+          created_at?: string
+          family_id: string
+          id?: string
+          kid_id: string
+          total_deposited_cents?: number
+          total_withdrawn_cents?: number
+          updated_at?: string
+        }
+        Update: {
+          cash_cents?: number
+          created_at?: string
+          family_id?: string
+          id?: string
+          kid_id?: string
+          total_deposited_cents?: number
+          total_withdrawn_cents?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invest_accounts_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invest_accounts_kid_id_fkey"
+            columns: ["kid_id"]
+            isOneToOne: true
+            referencedRelation: "kids"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invest_holdings: {
+        Row: {
+          asset_symbol: string
+          avg_cost_cents: number
+          created_at: string
+          family_id: string
+          id: string
+          kid_id: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          asset_symbol: string
+          avg_cost_cents?: number
+          created_at?: string
+          family_id: string
+          id?: string
+          kid_id: string
+          quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          asset_symbol?: string
+          avg_cost_cents?: number
+          created_at?: string
+          family_id?: string
+          id?: string
+          kid_id?: string
+          quantity?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invest_holdings_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invest_holdings_kid_id_fkey"
+            columns: ["kid_id"]
+            isOneToOne: false
+            referencedRelation: "kids"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invest_licences: {
+        Row: {
+          attempts: number
+          best_score: number
+          created_at: string
+          family_id: string
+          id: string
+          kid_id: string
+          lessons_completed: Json
+          passed_at: string | null
+          rewarded: boolean
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          best_score?: number
+          created_at?: string
+          family_id: string
+          id?: string
+          kid_id: string
+          lessons_completed?: Json
+          passed_at?: string | null
+          rewarded?: boolean
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          best_score?: number
+          created_at?: string
+          family_id?: string
+          id?: string
+          kid_id?: string
+          lessons_completed?: Json
+          passed_at?: string | null
+          rewarded?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invest_licences_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invest_licences_kid_id_fkey"
+            columns: ["kid_id"]
+            isOneToOne: true
+            referencedRelation: "kids"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invest_transactions: {
+        Row: {
+          asset_symbol: string | null
+          created_at: string
+          family_id: string
+          id: string
+          kid_id: string
+          price_cents: number | null
+          quantity: number | null
+          total_cents: number
+          type: string
+        }
+        Insert: {
+          asset_symbol?: string | null
+          created_at?: string
+          family_id: string
+          id?: string
+          kid_id: string
+          price_cents?: number | null
+          quantity?: number | null
+          total_cents: number
+          type: string
+        }
+        Update: {
+          asset_symbol?: string | null
+          created_at?: string
+          family_id?: string
+          id?: string
+          kid_id?: string
+          price_cents?: number | null
+          quantity?: number | null
+          total_cents?: number
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invest_transactions_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invest_transactions_kid_id_fkey"
+            columns: ["kid_id"]
+            isOneToOne: false
+            referencedRelation: "kids"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       badges: {
         Row: {
           criteria: Json
@@ -298,6 +499,7 @@ export type Database = {
           date_of_birth: string | null
           family_id: string
           id: string
+          investing_enabled: boolean
           last_active_date: string | null
           longest_streak: number
           name: string
@@ -317,6 +519,7 @@ export type Database = {
           date_of_birth?: string | null
           family_id: string
           id?: string
+          investing_enabled?: boolean
           last_active_date?: string | null
           longest_streak?: number
           name: string
@@ -336,6 +539,7 @@ export type Database = {
           date_of_birth?: string | null
           family_id?: string
           id?: string
+          investing_enabled?: boolean
           last_active_date?: string | null
           longest_streak?: number
           name?: string
@@ -760,6 +964,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      real_asset_prices: {
+        Row: {
+          asset_type: string
+          change_pct: number
+          created_at: string
+          fx_rate_to_cash: number
+          id: string
+          news_body: string | null
+          news_headline: string | null
+          news_impact: string | null
+          news_url: string | null
+          prev_close_cents: number
+          price_cents: number
+          price_date: string
+          quote_currency: string
+          symbol: string
+        }
+        Insert: {
+          asset_type: string
+          change_pct?: number
+          created_at?: string
+          fx_rate_to_cash?: number
+          id?: string
+          news_body?: string | null
+          news_headline?: string | null
+          news_impact?: string | null
+          news_url?: string | null
+          prev_close_cents: number
+          price_cents: number
+          price_date: string
+          quote_currency?: string
+          symbol: string
+        }
+        Update: {
+          asset_type?: string
+          change_pct?: number
+          created_at?: string
+          fx_rate_to_cash?: number
+          id?: string
+          news_body?: string | null
+          news_headline?: string | null
+          news_impact?: string | null
+          news_url?: string | null
+          prev_close_cents?: number
+          price_cents?: number
+          price_date?: string
+          quote_currency?: string
+          symbol?: string
+        }
+        Relationships: []
       }
       rewards: {
         Row: {
