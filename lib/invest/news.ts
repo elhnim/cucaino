@@ -55,11 +55,17 @@ async function fetchRawNews(args: {
     related?: string;
   }>;
 
-  const terms = [args.symbol.toLowerCase(), args.name.toLowerCase(), args.sourceId.toLowerCase()];
+  // Relevance terms: the company/coin name, plus the ticker only when it's long enough not to
+  // match random words (a 1-letter ticker like "V" would match everything).
+  const terms = [args.name.toLowerCase()];
+  if (args.symbol.length >= 4) terms.push(args.symbol.toLowerCase());
+  if (args.assetType === "crypto") terms.push(args.sourceId.toLowerCase());
+  // Apply the relevance filter to ALL asset types — Finnhub's company-news feed often returns
+  // articles that only tangentially mention (or don't mention) the company, and showing a kid
+  // news about the wrong company would be misleading.
   const candidates = rows
     .filter((row) => row.headline && row.summary)
     .filter((row) => {
-      if (args.assetType !== "crypto") return true;
       const haystack = `${row.headline} ${row.summary} ${row.related ?? ""}`.toLowerCase();
       return terms.some((term) => haystack.includes(term));
     })
