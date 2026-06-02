@@ -160,10 +160,10 @@ export default function ParentKidEditClient({ kid }: { kid: Kid }) {
             type="button"
             onClick={() => toggleInvest(!investEnabled)}
             disabled={isPending}
-            className={`relative h-7 w-12 rounded-full transition-colors ${investEnabled ? "bg-indigo-600" : "bg-gray-300"}`}
+            className={`relative h-7 w-12 shrink-0 border-0 p-0 rounded-full transition-colors ${investEnabled ? "bg-indigo-600" : "bg-gray-300"}`}
             aria-pressed={investEnabled}
           >
-            <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${investEnabled ? "translate-x-6" : "translate-x-1"}`} />
+            <span className={`absolute left-0 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${investEnabled ? "translate-x-6" : "translate-x-1"}`} />
           </button>
         </div>
         <div className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-xs font-bold text-indigo-900">
