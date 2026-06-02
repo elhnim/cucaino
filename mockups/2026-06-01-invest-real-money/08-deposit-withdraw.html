@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8 · Deposit / Withdraw</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="phone">
+  <div class="state-banner">State: Deposit / Withdraw — move cash ⇄ invest account</div>
+  <div class="content" style="filter:blur(2px);opacity:.45;">
+    <div class="titlebar"><a class="back">← Games</a><span class="page-title">Invest</span></div>
+  </div>
+  <div class="overlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="row between" style="margin-bottom:16px;">
+        <h2 class="black" style="font-size:20px;">Move money</h2>
+        <a class="x" href="10-portfolio.html">×</a>
+      </div>
+
+      <div class="seg" style="margin-bottom:18px;">
+        <button class="on">Deposit ↓</button>
+        <button>Withdraw ↑</button>
+      </div>
+
+      <!-- balances -->
+      <div class="row gap3" style="margin-bottom:18px;">
+        <div class="card pad grow center">
+          <p class="xs muted">Cash balance</p>
+          <p class="price" style="font-size:19px;margin-top:2px;">$24.00</p>
+        </div>
+        <div style="font-size:20px;color:var(--brand);">→</div>
+        <div class="card pad grow center" style="border-color:var(--brand-100);background:var(--brand-50);">
+          <p class="xs" style="color:var(--brand-700);">Invest account</p>
+          <p class="price" style="font-size:19px;margin-top:2px;color:var(--brand-700);">$8.50</p>
+        </div>
+      </div>
+
+      <label class="xs bold muted" style="display:block;margin-bottom:6px;">Amount to deposit</label>
+      <div class="amount-wrap" style="margin-bottom:10px;">
+        <span class="dollar">$</span>
+        <input class="input" value="5.00" inputmode="decimal">
+      </div>
+      <div class="row gap2" style="margin-bottom:16px;">
+        <button class="chipbtn on">$5</button>
+        <button class="chipbtn">$10</button>
+        <button class="chipbtn">All ($24)</button>
+      </div>
+
+      <div class="preview" style="margin-bottom:16px;">
+        <div class="line"><span class="muted">Cash after</span><span class="bold">$19.00</span></div>
+        <div class="line"><span class="muted">Invest account after</span><span class="bold">$13.50</span></div>
+      </div>
+
+      <button class="btn btn-primary btn-block" style="font-size:16px;">Deposit $5.00</button>
+      <p class="tiny muted center" style="margin-top:10px;">This moves your real cash. You can withdraw it back anytime.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

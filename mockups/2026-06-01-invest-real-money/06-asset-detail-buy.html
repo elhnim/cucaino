@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6 · Asset detail (buy)</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .fact { display:flex; flex-direction:column; gap:2px; }
+  .fact .k { font-size:10px; font-weight:700; color:var(--gray-400); text-transform:uppercase; letter-spacing:.05em; }
+  .fact .v { font-size:13px; font-weight:700; color:var(--gray-800); }
+  .why { display:flex; gap:10px; align-items:flex-start; }
+  .why .b { font-size:16px; line-height:1.2; flex:none; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="state-banner">State: Asset detail — not owned · amount-based buy</div>
+  <div class="content" style="filter:blur(2px);opacity:.45;">
+    <div class="titlebar"><a class="back">← Games</a><span class="page-title">Invest</span></div>
+  </div>
+  <div class="overlay">
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="row between" style="margin-bottom:14px;">
+        <div class="row gap3">
+          <span class="tile lg" style="background:#fff7ed;color:#f59e0b;font-weight:800;">₿</span>
+          <div>
+            <h2 class="black" style="font-size:19px;">Bitcoin</h2>
+            <p class="tkr">BTC · Crypto</p>
+            <div class="row gap2" style="align-items:baseline;margin-top:4px;">
+              <span class="price" style="font-size:22px;">$67,940</span>
+              <span class="chg up">+4.1%</span>
+            </div>
+          </div>
+        </div>
+        <a class="x" href="05-market.html">×</a>
+      </div>
+
+      <!-- chart -->
+      <div class="card" style="padding:10px;margin-bottom:14px;">
+        <svg width="100%" height="110" viewBox="0 0 360 110" preserveAspectRatio="none">
+          <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4f46e5" stop-opacity=".22"/><stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/></linearGradient></defs>
+          <polyline fill="url(#g)" stroke="none" points="0,82 40,76 80,80 120,62 160,66 200,50 240,52 280,34 320,26 360,18 360,110 0,110"/>
+          <polyline fill="none" stroke="#4f46e5" stroke-width="2.5" points="0,82 40,76 80,80 120,62 160,66 200,50 240,52 280,34 320,26 360,18"/>
+        </svg>
+        <div class="row between px" style="padding:2px 4px 0;"><span class="tiny muted">30 days ago</span><span class="tiny muted">Today</span></div>
+      </div>
+
+      <!-- kid-friendly news (AI rewritten) -->
+      <div class="news pos" style="margin-bottom:14px;">
+        <p class="small bold">📰 Bitcoin jumps as more big shops say they'll accept it</p>
+        <p class="xs muted" style="margin-top:6px;line-height:1.5;">Several large companies announced this week that customers can now pay with Bitcoin. More places to spend it got lots of people interested.</p>
+        <p class="src">Kid-friendly summary · <a href="#" style="color:var(--brand);">read the real story →</a></p>
+      </div>
+
+      <!-- buy panel -->
+      <div class="card pad">
+        <p class="section-label" style="margin:0 0 10px;">Invest</p>
+        <label class="xs bold muted" style="display:block;margin-bottom:6px;">How much do you want to invest?</label>
+        <div class="amount-wrap" style="margin-bottom:10px;">
+          <span class="dollar">$</span>
+          <input class="input" value="2.00" inputmode="decimal">
+        </div>
+        <div class="row gap2" style="margin-bottom:12px;">
+          <button class="chipbtn">$1</button>
+          <button class="chipbtn on">$2</button>
+          <button class="chipbtn">$5</button>
+          <button class="chipbtn">Max</button>
+        </div>
+        <div class="preview" style="margin-bottom:12px;">
+          <div class="line"><span class="muted">You invest</span><span class="bold">$2.00</span></div>
+          <div class="line"><span class="muted">Price today</span><span class="bold">$67,940</span></div>
+          <div class="divider"></div>
+          <div class="line"><span class="black">You'll get</span><span class="black">0.0000294 BTC</span></div>
+        </div>
+        <p class="xs muted" style="margin-bottom:12px;">Invest account: <b>$8.50</b> available</p>
+        <button class="btn btn-primary btn-block" style="font-size:16px;">Invest $2.00 in Bitcoin</button>
+        <p class="tiny muted center" style="margin-top:10px;">No fees · prices can go up or down</p>
+      </div>
+
+      <!-- ABOUT / education (deep-dive, at bottom) -->
+      <p class="section-label" style="margin:20px 0 8px;">About Bitcoin</p>
+      <div class="card pad">
+        <p class="small" style="line-height:1.55;color:var(--gray-700);">Bitcoin is the world's first <b>digital money</b>. In 2009, an inventor known only as "Satoshi Nakamoto" launched it as money that no single bank or country controls — it lives on thousands of computers around the world at once.</p>
+
+        <div class="row gap3" style="margin:14px 0;">
+          <div class="fact grow"><span class="k">Started</span><span class="v">2009</span></div>
+          <div class="fact grow"><span class="k">Type</span><span class="v">Cryptocurrency</span></div>
+          <div class="fact grow"><span class="k">Max ever</span><span class="v">21 million</span></div>
+        </div>
+
+        <p class="xs bold" style="color:var(--gray-700);margin-bottom:8px;">Why people think it's a big deal</p>
+        <div class="col gap3">
+          <div class="why"><span class="b">🌍</span><p class="xs muted" style="line-height:1.5;">Anyone, anywhere can send it directly to anyone else — no bank needed in the middle.</p></div>
+          <div class="why"><span class="b">🔒</span><p class="xs muted" style="line-height:1.5;">It's protected by very hard maths, so it's extremely hard to fake or cheat.</p></div>
+          <div class="why"><span class="b">💎</span><p class="xs muted" style="line-height:1.5;">There will only ever be 21 million — because it's rare, some people treat it like digital gold.</p></div>
+        </div>
+
+        <div class="news neu" style="margin-top:14px;">
+          <p class="xs" style="line-height:1.5;"><b>💡 Did you know?</b> The very first thing anyone bought with Bitcoin was two pizzas — for 10,000 coins! Today that would be worth a fortune.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

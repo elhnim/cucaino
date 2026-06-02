@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 · Portfolio</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="phone">
+  <div class="state-banner">State: Portfolio — populated (winner + loser holdings)</div>
+  <div class="content">
+    <div class="titlebar"><a class="back" href="01-play-hub.html">← Games</a><span class="page-title">Invest</span></div>
+    <div class="tabbar">
+      <a class="tab" href="05-market.html">Market</a>
+      <a class="tab active" href="10-portfolio.html">Portfolio</a>
+      <a class="tab" href="11-activity.html">Activity</a>
+      <a class="tab" href="13-learn.html">Learn</a>
+    </div>
+    <div class="px pt">
+      <!-- value card -->
+      <div class="card r3 pad5 brand-grad" style="box-shadow:0 10px 28px rgba(49,46,129,.30);">
+        <p class="xs" style="opacity:.75;letter-spacing:.06em;text-transform:uppercase;font-weight:700;margin-bottom:4px;">Total value</p>
+        <p class="price" style="font-size:34px;">$14.62</p>
+        <p class="small" style="margin:6px 0 18px;"><span class="chg up" style="background:rgba(16,185,129,.20);color:#6ee7b7;">▲ +$1.62 · +12.5%</span> <span style="opacity:.65;">all-time</span></p>
+        <div class="row gap3">
+          <a class="btn btn-ghost grow" href="08-deposit-withdraw.html">Deposit</a>
+          <a class="btn btn-ghost grow" href="08-deposit-withdraw.html">Withdraw</a>
+        </div>
+      </div>
+
+      <!-- performance -->
+      <div class="card pad" style="margin-top:14px;">
+        <p class="section-label" style="margin:0 0 10px;">Breakdown</p>
+        <div class="col gap2">
+          <div class="row between"><span class="small muted">Invest account cash</span><span class="price small">$6.27</span></div>
+          <div class="row between"><span class="small muted">Investments value</span><span class="price small">$8.35</span></div>
+          <div class="row between"><span class="small muted">Profit / loss (open)</span><span class="price small green">+$0.85</span></div>
+          <div class="row between" style="border-top:1px solid var(--gray-100);padding-top:8px;"><span class="xs muted">Deposited all-time</span><span class="price small">$13.00</span></div>
+        </div>
+      </div>
+
+      <!-- holdings -->
+      <p class="section-label" style="margin:18px 0 8px;">Your investments</p>
+      <div class="alist">
+        <!-- winner -->
+        <a class="arow" href="07-asset-detail-owned.html">
+          <span class="tile" style="background:#eef2ff;">🎮</span>
+          <div class="grow">
+            <p class="aname">Roblox</p>
+            <p class="tkr">0.080 shares · avg $37.50</p>
+          </div>
+          <svg class="spark" width="48" height="22" viewBox="0 0 48 22"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,17 12,15 24,11 36,8 48,4"/></svg>
+          <div class="center" style="min-width:64px;">
+            <p class="price small">$3.35</p>
+            <span class="chg up">+11.7%</span>
+          </div>
+        </a>
+        <!-- winner 2 -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#fff7ed;color:#f59e0b;font-weight:800;">₿</span>
+          <div class="grow">
+            <p class="aname">Bitcoin</p>
+            <p class="tkr">0.0000441 BTC · avg $61,200</p>
+          </div>
+          <svg class="spark" width="48" height="22" viewBox="0 0 48 22"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,16 12,14 24,10 36,9 48,3"/></svg>
+          <div class="center" style="min-width:64px;">
+            <p class="price small">$3.00</p>
+            <span class="chg up">+10.9%</span>
+          </div>
+        </a>
+        <!-- loser -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#fef2f2;">⚡</span>
+          <div class="grow">
+            <p class="aname">Tesla</p>
+            <p class="tkr">0.011 shares · avg $195.00</p>
+          </div>
+          <svg class="spark" width="48" height="22" viewBox="0 0 48 22"><polyline fill="none" stroke="#dc2626" stroke-width="2" points="0,6 12,8 24,10 36,13 48,17"/></svg>
+          <div class="center" style="min-width:64px;">
+            <p class="price small">$2.00</p>
+            <span class="chg down">−6.7%</span>
+          </div>
+        </a>
+      </div>
+      <p class="xs muted center" style="margin:14px 0 4px;">Values update with the daily market price</p>
+    </div>
+  </div>
+  <nav class="bottomnav">
+    <a class="navitem" href="#"><span class="ic">🏠</span>Home</a>
+    <a class="navitem" href="#"><span class="ic">🗓️</span>Schedule</a>
+    <a class="navitem" href="#"><span class="ic">🛍️</span>Store</a>
+    <a class="navitem active" href="#"><span class="ic">🎮</span>Play</a>
+  </nav>
+</div>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12 · Parent Invest toggle</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .switch { width:52px;height:30px;border-radius:999px;background:var(--blue-600);position:relative;flex:none;cursor:pointer;transition:background .15s; }
+  .switch.off { background:var(--gray-300); }
+  .knob { width:24px;height:24px;border-radius:999px;background:#fff;position:absolute;top:3px;right:3px;box-shadow:0 1px 2px rgba(0,0,0,.2); }
+  .switch.off .knob { right:auto;left:3px; }
+  .plabel { display:block;font-size:13px;font-weight:800;color:var(--gray-700);margin-bottom:6px; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="state-banner">State: Parent — per-kid Invest toggle (Parent → Kids → Edit)</div>
+  <div class="content">
+    <div class="px pt">
+      <h1 class="black" style="font-size:20px;margin-bottom:4px;">Edit Mia</h1>
+      <p class="xs muted" style="margin-bottom:18px;">Manage what Mia can access.</p>
+
+      <!-- Invest section card -->
+      <div class="card pad" style="margin-bottom:16px;">
+        <div class="row between gap3">
+          <div class="grow">
+            <div class="row gap2" style="margin-bottom:4px;"><span style="font-size:20px;">📈</span><span class="black" style="font-size:15px;">Invest</span><span class="pill" style="background:var(--blue-100);color:var(--blue-700);">ON</span></div>
+            <p class="xs muted" style="line-height:1.5;">Let Mia use her cash balance to invest in <b>real stocks &amp; crypto</b> at real daily prices. She can win or lose real cash. You can turn this off anytime.</p>
+          </div>
+          <div class="switch"><div class="knob"></div></div>
+        </div>
+        <div class="row between" style="margin-top:12px;padding:10px 12px;background:var(--pos-bg);border:1px solid var(--green-200);border-radius:10px;">
+          <span class="xs bold" style="color:#065f46;">🎟️ Investor Licence</span>
+          <span class="xs bold" style="color:var(--pos);">Passed ✓ · 5/5 on 1 Jun</span>
+        </div>
+        <p class="xs muted" style="margin-top:8px;line-height:1.5;">Mia must finish 4 basics lessons and pass a quiz before she can buy anything — this can't be skipped.</p>
+        <div class="news neu" style="margin-top:10px;">
+          <p class="xs"><b>How it works:</b> Mia moves cash into an invest account, buys small slices of companies/coins, and withdraws back to cash. No real brokerage — it tracks real market prices.</p>
+        </div>
+      </div>
+
+      <!-- compare: OFF state shown for reference -->
+      <p class="section-label">When switched OFF</p>
+      <div class="card pad" style="opacity:.95;">
+        <div class="row between gap3">
+          <div class="grow">
+            <div class="row gap2" style="margin-bottom:4px;"><span style="font-size:20px;">📈</span><span class="black" style="font-size:15px;">Invest</span><span class="pill" style="background:var(--gray-200);color:var(--gray-600);">OFF</span></div>
+            <p class="xs muted" style="line-height:1.5;">Mia sees a locked screen in the Play hub until you switch this on.</p>
+          </div>
+          <div class="switch off"><div class="knob"></div></div>
+        </div>
+      </div>
+
+      <p class="xs muted" style="margin:16px 0 4px;line-height:1.5;">💡 Default is <b>OFF</b> for every kid. Investing only appears in their Play hub once you enable it here.</p>
+
+      <button class="btn btn-primary btn-block" style="margin-top:8px;background:var(--indigo-600);">Save changes</button>
+    </div>
+  </div>
+  <!-- parent bottom nav -->
+  <nav class="bottomnav">
+    <a class="navitem" href="#"><span class="ic">🏠</span>Overview</a>
+    <a class="navitem active" href="#" style="color:var(--indigo-600);"><span class="ic">🧒</span>Kids</a>
+    <a class="navitem" href="#"><span class="ic">✅</span>Tasks</a>
+    <a class="navitem" href="#"><span class="ic">🎁</span>Rewards</a>
+    <a class="navitem" href="#"><span class="ic">⚙️</span>More</a>
+  </nav>
+</div>
+</body>
+</html>

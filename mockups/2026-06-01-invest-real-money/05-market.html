@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5 · Market</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="phone">
+  <div class="state-banner">State: Market — populated (real daily prices)</div>
+  <div class="content">
+    <div class="titlebar"><a class="back" href="01-play-hub.html">← Games</a><span class="page-title">Invest</span></div>
+    <div class="tabbar">
+      <a class="tab active" href="05-market.html">Market</a>
+      <a class="tab" href="10-portfolio.html">Portfolio</a>
+      <a class="tab" href="11-activity.html">Activity</a>
+      <a class="tab" href="13-learn.html">Learn</a>
+    </div>
+    <div class="px pt">
+      <!-- licence gate banner (buying locked until passed) -->
+      <a class="card pad row between gap3" href="13-learn.html" style="text-decoration:none;color:inherit;border:1px solid var(--blue-200);background:var(--brand-50);margin-bottom:12px;">
+        <div class="row gap3">
+          <span class="tile" style="width:34px;height:34px;border-radius:9px;font-size:16px;background:#fff;">🔒</span>
+          <div><p class="aname" style="color:var(--brand-700);">Buying is locked</p><p class="tkr">Earn your Investor Licence · 2 of 4 basics done</p></div>
+        </div>
+        <span class="lchip todo">Continue →</span>
+      </a>
+
+      <!-- search -->
+      <div class="searchbar" style="margin-bottom:12px;">
+        <span style="font-size:15px;color:var(--gray-400);">🔍</span>
+        <input placeholder="Search Apple, Tesla, BTC…">
+      </div>
+
+      <!-- kid-friendly category filters (scrolls horizontally) -->
+      <div class="chiprow" style="margin-bottom:16px;">
+        <a class="fchip on" href="#">All 55</a>
+        <a class="fchip" href="#">⭐ Popular</a>
+        <a class="fchip" href="#">🎮 Games</a>
+        <a class="fchip" href="#">💻 Tech</a>
+        <a class="fchip" href="#">🍔 Food &amp; Shops</a>
+        <a class="fchip" href="#">🇦🇺 Australian</a>
+        <a class="fchip" href="#">🪙 Crypto</a>
+      </div>
+
+      <div class="row between" style="margin-bottom:8px;">
+        <span class="section-label" style="margin:0;">Stocks</span>
+        <span class="xs muted">50 available</span>
+      </div>
+      <div class="alist" style="margin-bottom:18px;">
+        <!-- Apple -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#f1f5f9;">🍎</span>
+          <div class="grow">
+            <p class="aname">Apple</p>
+            <p class="tkr">AAPL · NASDAQ</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,20 9,18 18,21 28,14 37,12 46,8 56,5"/></svg>
+          <div class="center" style="min-width:74px;">
+            <p class="price small">$201.34</p>
+            <span class="chg up">+1.2%</span>
+          </div>
+        </a>
+        <!-- Tesla -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#fef2f2;">⚡</span>
+          <div class="grow">
+            <p class="aname">Tesla</p>
+            <p class="tkr">TSLA · NASDAQ</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#dc2626" stroke-width="2" points="0,6 9,8 18,10 28,14 37,13 46,19 56,22"/></svg>
+          <div class="center" style="min-width:74px;">
+            <p class="price small">$182.05</p>
+            <span class="chg down">−3.4%</span>
+          </div>
+        </a>
+        <!-- Roblox -->
+        <a class="arow" href="07-asset-detail-owned.html">
+          <span class="tile" style="background:#eef2ff;">🎮</span>
+          <div class="grow">
+            <p class="aname">Roblox <span class="pill pill-owned" style="margin-left:4px;">Owned</span></p>
+            <p class="tkr">RBLX · NYSE</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,18 9,17 18,18 28,13 37,14 46,8 56,6"/></svg>
+          <div class="center" style="min-width:74px;">
+            <p class="price small">$41.88</p>
+            <span class="chg up">+2.7%</span>
+          </div>
+        </a>
+        <!-- Disney -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#eff6ff;">🏰</span>
+          <div class="grow">
+            <p class="aname">Disney</p>
+            <p class="tkr">DIS · NYSE</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,15 9,16 18,14 28,15 37,13 46,12 56,12"/></svg>
+          <div class="center" style="min-width:74px;">
+            <p class="price small">$102.50</p>
+            <span class="chg up">+0.4%</span>
+          </div>
+        </a>
+        <!-- Commonwealth Bank (ASX) -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#fefce8;">🏦</span>
+          <div class="grow">
+            <p class="aname">Comm. Bank <span class="pill pill-asx" style="margin-left:4px;">🇦🇺 ASX</span></p>
+            <p class="tkr">CBA · ASX</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#dc2626" stroke-width="2" points="0,10 9,9 18,12 28,13 37,14 46,16 56,17"/></svg>
+          <div class="center" style="min-width:74px;">
+            <p class="price small">$127.10</p>
+            <span class="chg down">−0.8%</span>
+          </div>
+        </a>
+        <!-- Qantas (ASX) -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#fefce8;">✈️</span>
+          <div class="grow">
+            <p class="aname">Qantas <span class="pill pill-asx" style="margin-left:4px;">🇦🇺 ASX</span></p>
+            <p class="tkr">QAN · ASX</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,19 9,18 18,15 28,14 37,11 46,10 56,7"/></svg>
+          <div class="center" style="min-width:74px;">
+            <p class="price small">$6.42</p>
+            <span class="chg up">+1.9%</span>
+          </div>
+        </a>
+      </div>
+
+      <span class="section-label" style="display:block;margin-bottom:8px;">Crypto</span>
+      <div class="alist">
+        <!-- Bitcoin -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#fff7ed;color:#f59e0b;font-weight:800;">₿</span>
+          <div class="grow">
+            <p class="aname">Bitcoin</p>
+            <p class="tkr">BTC</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,21 9,18 18,16 28,12 37,13 46,7 56,4"/></svg>
+          <div class="center" style="min-width:78px;">
+            <p class="price small">$67,940</p>
+            <span class="chg up">+4.1%</span>
+          </div>
+        </a>
+        <!-- Ethereum -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#eef2ff;color:#6366f1;font-weight:800;">Ξ</span>
+          <div class="grow">
+            <p class="aname">Ethereum</p>
+            <p class="tkr">ETH</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#dc2626" stroke-width="2" points="0,8 9,7 18,11 28,10 37,14 46,15 56,18"/></svg>
+          <div class="center" style="min-width:78px;">
+            <p class="price small">$3,512</p>
+            <span class="chg down">−1.5%</span>
+          </div>
+        </a>
+        <!-- Dogecoin -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#fefce8;">🐶</span>
+          <div class="grow">
+            <p class="aname">Dogecoin</p>
+            <p class="tkr">DOGE</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,22 9,19 18,20 28,14 37,9 46,8 56,3"/></svg>
+          <div class="center" style="min-width:78px;">
+            <p class="price small">$0.162</p>
+            <span class="chg up">+8.3%</span>
+          </div>
+        </a>
+        <!-- Solana -->
+        <a class="arow" href="06-asset-detail-buy.html">
+          <span class="tile" style="background:#f0fdfa;color:#0d9488;font-weight:800;">◎</span>
+          <div class="grow">
+            <p class="aname">Solana</p>
+            <p class="tkr">SOL</p>
+          </div>
+          <svg class="spark" width="56" height="26" viewBox="0 0 56 26"><polyline fill="none" stroke="#059669" stroke-width="2" points="0,17 9,16 18,13 28,14 37,10 46,9 56,7"/></svg>
+          <div class="center" style="min-width:78px;">
+            <p class="price small">$148.20</p>
+            <span class="chg up">+2.2%</span>
+          </div>
+        </a>
+      </div>
+      <p class="xs muted center" style="margin:16px 0 4px;">Showing a few of each — scroll, search, or tap a category to see all 55<br>Prices set once a day at market close</p>
+    </div>
+  </div>
+  <nav class="bottomnav">
+    <a class="navitem" href="#"><span class="ic">🏠</span>Home</a>
+    <a class="navitem" href="#"><span class="ic">🗓️</span>Schedule</a>
+    <a class="navitem" href="#"><span class="ic">🛍️</span>Store</a>
+    <a class="navitem active" href="#"><span class="ic">🎮</span>Play</a>
+  </nav>
+</div>
+</body>
+</html>
