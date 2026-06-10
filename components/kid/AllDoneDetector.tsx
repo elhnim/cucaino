@@ -13,6 +13,8 @@ export default function AllDoneDetector({
   initialDone,
   selfAddableTasks,
   accentColor,
+  gradient,
+  decoration,
 }: {
   kidId: string;
   kidName: string;
@@ -22,6 +24,8 @@ export default function AllDoneDetector({
   initialDone: number;
   selfAddableTasks?: Task[];
   accentColor?: string;
+  gradient?: string;
+  decoration?: string;
 }) {
   const [doneCount, setDoneCount] = useState(initialDone);
   const [starsToday, setStarsToday] = useState(0);
@@ -35,8 +39,17 @@ export default function AllDoneDetector({
       setStarsToday((s) => s + (detail?.points ?? 0));
       setCompletedInSession(true);
     };
+    const undoHandler = (e: Event) => {
+      const detail = (e as CustomEvent<{ points: number }>).detail;
+      setDoneCount((n) => Math.max(0, n - 1));
+      setStarsToday((s) => Math.max(0, s - (detail?.points ?? 0)));
+    };
     window.addEventListener("task-completed", handler);
-    return () => window.removeEventListener("task-completed", handler);
+    window.addEventListener("task-uncompleted", undoHandler);
+    return () => {
+      window.removeEventListener("task-completed", handler);
+      window.removeEventListener("task-uncompleted", undoHandler);
+    };
   }, []);
 
   useEffect(() => {
@@ -58,6 +71,8 @@ export default function AllDoneDetector({
       taskCount={total}
       selfAddableTasks={selfAddableTasks}
       accentColor={accentColor}
+      gradient={gradient}
+      decoration={decoration}
     />
   );
 }

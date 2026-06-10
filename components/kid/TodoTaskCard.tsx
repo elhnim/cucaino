@@ -444,6 +444,7 @@ export default function TodoTaskCard({
   isFuture,
   kidId,
   accentColor,
+  themeDecoration,
   initiallyPending,
 }: {
   task: Task;
@@ -454,6 +455,7 @@ export default function TodoTaskCard({
   isFuture: boolean;
   kidId: string;
   accentColor: string;
+  themeDecoration?: string;
   initiallyPending?: boolean;
 }) {
   if ((task.frequencyPerDay ?? 1) > 1) {
@@ -513,6 +515,7 @@ export default function TodoTaskCard({
 
   const uncomplete = () => {
     setDone(false);
+    window.dispatchEvent(new CustomEvent("task-uncompleted", { detail: { points: task.points } }));
     startTransition(async () => {
       await uncompleteTask(task.id, kidId);
     });
@@ -547,7 +550,7 @@ export default function TodoTaskCard({
       disabled={!isToday || isPending}
       className={`w-full rounded-2xl shadow-sm p-3 flex items-center gap-3 text-left transition-all duration-300 ${
         isFuture ? "opacity-60" : ""
-      } ${isToday ? "active:scale-98 cursor-pointer" : "cursor-default"} ${
+      } ${isToday ? "active:scale-[0.98] cursor-pointer" : "cursor-default"} ${
         done ? "opacity-80" : ""
       } ${celebrating ? "scale-[1.03] shadow-lg" : ""}`}
       style={{
@@ -631,6 +634,8 @@ export default function TodoTaskCard({
         taskName={task.name}
         points={task.points}
         onContinue={dismissSheet}
+        accent={accentColor}
+        decoration={themeDecoration}
       />
     )}
     </>

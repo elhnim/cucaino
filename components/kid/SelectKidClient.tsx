@@ -102,7 +102,7 @@ export default function SelectKidClient({
                     className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center text-4xl md:text-5xl group-hover:rotate-12 transition-transform"
                     style={{ background: theme.accentSoft }}
                   >
-                    {kid.avatar}
+                    <span className="avatar-idle inline-block">{kid.avatar}</span>
                   </div>
                   <div className="text-lg md:text-xl font-black text-center" style={{ color: theme.accent }}>
                     {kid.name}

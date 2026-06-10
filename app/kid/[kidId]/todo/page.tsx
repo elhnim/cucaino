@@ -232,6 +232,7 @@ export default async function TodoPage({
                     isFuture={isFuture}
                     kidId={kid.id}
                     accentColor={theme.accent}
+                    themeDecoration={theme.decoration}
                     initiallyPending={completions.some(
                       (c) => c.taskId === task.id && c.pendingParentApproval,
                     )}
@@ -302,6 +303,7 @@ export default async function TodoPage({
                   isFuture={isFuture}
                   kidId={kid.id}
                   accentColor={theme.accent}
+                  themeDecoration={theme.decoration}
                   initiallyPending={completions.some(
                     (c) => c.taskId === task.id && c.pendingParentApproval,
                   )}
@@ -322,6 +324,8 @@ export default async function TodoPage({
           initialDone={completions.length}
           selfAddableTasks={selfAddableTasks}
           accentColor={theme.accent}
+          gradient={theme.headerGradient}
+          decoration={theme.decoration}
         />
       )}
     </div>

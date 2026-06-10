@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { Kid, BadgeProgress, UnlockedBadge } from "@/lib/domain/types";
 import { getTheme } from "@/lib/themes/presets";
 import KidOverridesApplier from "@/components/kid/KidOverridesApplier";
+import AnimatedAvatar from "@/components/kid/AnimatedAvatar";
 import NavIcon from "@/components/ui/NavIcon";
 import BadgeUnlockModal from "@/components/kid/BadgeUnlockModal";
 import { BADGE_META } from "@/lib/domain/badge-config";
@@ -51,10 +52,10 @@ export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl"
+        className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl active:scale-90 transition-transform"
         style={{ background: "rgba(255,255,255,0.2)" }}
       >
-        <span data-kid-avatar={kid.id}>{kid.avatar}</span>
+        <AnimatedAvatar emoji={kid.avatar} kidId={kid.id} celebrate />
       </button>
 
       {open && (
@@ -143,8 +144,33 @@ export default function KidShell({
     : "home"
   );
   const theme = getTheme(kid.themeId);
+
+  // Optimistic header stats — stars and progress bump instantly when a task
+  // completes (server values arrive on next navigation via revalidatePath)
+  const [earned, setEarned] = useState({ stars: 0, done: 0 });
+  useEffect(() => {
+    const onComplete = (e: Event) => {
+      const points = (e as CustomEvent).detail?.points ?? 0;
+      setEarned((s) => ({ stars: s.stars + points, done: s.done + 1 }));
+    };
+    const onUncomplete = (e: Event) => {
+      const points = (e as CustomEvent).detail?.points ?? 0;
+      setEarned((s) => ({ stars: s.stars - points, done: s.done - 1 }));
+    };
+    window.addEventListener("task-completed", onComplete);
+    window.addEventListener("task-uncompleted", onUncomplete);
+    return () => {
+      window.removeEventListener("task-completed", onComplete);
+      window.removeEventListener("task-uncompleted", onUncomplete);
+    };
+  }, []);
+
+  const liveStars = Math.max(0, kid.pointsBalance + earned.stars);
+  const liveDone = todayProgress
+    ? Math.min(todayProgress.total, Math.max(0, todayProgress.done + earned.done))
+    : 0;
   const progressPct = todayProgress && todayProgress.total > 0
-    ? Math.round((todayProgress.done / todayProgress.total) * 100)
+    ? Math.round((liveDone / todayProgress.total) * 100)
     : null;
 
   const [now, setNow] = useState<Date | null>(null);
@@ -240,10 +266,11 @@ export default function KidShell({
           <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
             <div className="flex items-center gap-1.5">
               <span
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black"
+                key={earned.stars}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black ${earned.stars !== 0 ? "animate-pop" : ""}`}
                 style={{ background: "rgba(255,255,255,0.2)" }}
               >
-                ⭐ {kid.pointsBalance.toLocaleString()}
+                ⭐ {liveStars.toLocaleString()}
               </span>
               <span
                 className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black"
@@ -273,7 +300,7 @@ export default function KidShell({
                   />
                 </div>
                 <span className="text-[10px] font-bold opacity-80 leading-none">
-                  {todayProgress.done}/{todayProgress.total}
+                  {liveDone}/{todayProgress.total}
                 </span>
               </div>
             )}
@@ -343,7 +370,7 @@ export default function KidShell({
                 }
                 navigateWithTransition(href);
               }}
-              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 bg-transparent border-0 cursor-pointer"
+              className="flex-1 flex flex-col items-center justify-center py-2.5 gap-0.5 bg-transparent border-0 cursor-pointer active:scale-90 transition-transform"
             >
               <span className="relative" style={{ color: isActive ? theme.accent : "#9ca3af" }}>
                 <NavIcon name={item.icon} size={22} />

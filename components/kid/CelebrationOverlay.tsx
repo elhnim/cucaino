@@ -12,11 +12,17 @@ export function TaskDoneSheet({
   taskName,
   points,
   onContinue,
+  accent = "#c026d3",
+  decoration,
 }: {
   taskIcon: string;
   taskName: string;
   points: number;
   onContinue: () => void;
+  /** Theme accent — colours the continue button */
+  accent?: string;
+  /** Theme decoration emoji — woven into the celebration row */
+  decoration?: string;
 }) {
   // Auto-dismiss after 4s if user doesn't tap
   useEffect(() => {
@@ -34,9 +40,9 @@ export function TaskDoneSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-center gap-1.5 mb-2 text-lg select-none">
-          🎊 🎉 ✨ 🎊 🎉
+          {decoration ? `🎊 ${decoration} 🎉 ${decoration} 🎊` : "🎊 🎉 ✨ 🎊 🎉"}
         </div>
-        <div className="text-6xl leading-none mb-2">{taskIcon}</div>
+        <div className="text-6xl leading-none mb-2 animate-pop inline-block">{taskIcon}</div>
         <div className="text-xl font-black text-gray-900 mb-1">{taskName}</div>
         <div className="text-sm text-gray-500 mb-4">Task complete! Nice work 💪</div>
         <div className="inline-flex items-center gap-2 bg-yellow-50 border-2 border-yellow-300 rounded-full px-5 py-2 text-lg font-black text-yellow-800 mb-5">
@@ -45,8 +51,8 @@ export function TaskDoneSheet({
         <button
           type="button"
           onClick={onContinue}
-          className="w-full py-3.5 rounded-2xl font-black text-base text-white"
-          style={{ background: "#c026d3" }}
+          className="w-full py-3.5 rounded-2xl font-black text-base text-white active:scale-95 transition-transform"
+          style={{ background: accent }}
         >
           Keep going →
         </button>
@@ -66,6 +72,8 @@ export function AllDoneScreen({
   kidId,
   selfAddableTasks = [],
   accentColor,
+  gradient,
+  decoration,
 }: {
   kidName: string;
   kidAvatar: string;
@@ -75,12 +83,33 @@ export function AllDoneScreen({
   kidId: string;
   selfAddableTasks?: Task[];
   accentColor?: string;
+  /** Theme header gradient classes (e.g. "from-orange-500 to-amber-500") */
+  gradient?: string;
+  /** Theme decoration emoji — rains down the screen */
+  decoration?: string;
 }) {
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center px-7 text-center"
-      style={{ background: "linear-gradient(160deg, #a21caf 0%, #c026d3 50%, #f0abfc 100%)" }}
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center px-7 text-center overflow-hidden ${gradient ? `bg-gradient-to-br ${gradient}` : ""}`}
+      style={gradient ? undefined : { background: "linear-gradient(160deg, #a21caf 0%, #c026d3 50%, #f0abfc 100%)" }}
     >
+      {/* theme-emoji rain */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden>
+        {[8, 24, 42, 58, 74, 90].map((left, i) => (
+          <span
+            key={left}
+            className="emoji-rain-piece"
+            style={{
+              left: `${left}%`,
+              animationDelay: `${i * 0.55}s`,
+              fontSize: i % 2 === 0 ? 28 : 20,
+            }}
+          >
+            {decoration ?? "🎉"}
+          </span>
+        ))}
+      </div>
+
       {/* avatar ring */}
       <div
         className="w-24 h-24 rounded-full flex items-center justify-center text-5xl mb-6"
@@ -90,7 +119,7 @@ export function AllDoneScreen({
           boxShadow: "0 0 60px rgba(255,255,255,0.2)",
         }}
       >
-        {kidAvatar}
+        <span className="avatar-party inline-block">{kidAvatar}</span>
       </div>
       <h1 className="text-3xl font-black text-white leading-tight mb-2">
         All done, {kidName}! 🎉
@@ -133,8 +162,8 @@ export function AllDoneScreen({
 
       <Link
         href={`/kid/${kidId}/home`}
-        className="w-full py-4 rounded-2xl font-black text-base mb-3"
-        style={{ background: "white", color: "#c026d3" }}
+        className="w-full py-4 rounded-2xl font-black text-base mb-3 active:scale-95 transition-transform"
+        style={{ background: "white", color: accentColor ?? "#c026d3" }}
       >
         Back to home 🏠
       </Link>
