@@ -160,7 +160,77 @@ export function moodFor(pet: Pet): PetMood {
 
 // ── Dialogue system ────────────────────────────────────────────────────────────
 
-type SpeechAction = "feed" | "play" | "wash" | "cuddle" | "idle" | "hungry" | "tired" | "gift" | "trick";
+export type SpeechAction = "feed" | "play" | "wash" | "cuddle" | "idle" | "hungry" | "tired" | "gift" | "trick";
+
+// Baby sounds — species-specific cute noises fired for baby-stage pets regardless of level
+const BABY_SOUNDS: Record<string, Partial<Record<SpeechAction, string[]>>> = {
+  dragon: {
+    idle:    ["Rwr!", "*tiny roar* 🐲", "Brarr~", "Raah~"],
+    feed:    ["Nom nom!", "*happy chomp* 🍖", "Rar yum!"],
+    play:    ["Rwr rwr!", "*happy wing flap*", "Weee!"],
+    cuddle:  ["Prr~", "Rrrr~", "*nuzzles*"],
+    tired:   ["Zzrr...", "*yawn roar*", "...rwr"],
+    gift:    ["OOH! ✨", "Rar! 🎁", "*flaps excitedly*"],
+    wash:    ["Splsh!", "Rwr wet!", "*shakes off water*"],
+    hungry:  ["RWR! 🍖", "*tummy growl*", "Nom?"],
+    trick:   ["Rwr! ✨", "*spins tiny*", "Rar!"],
+  },
+  kitten: {
+    idle:    ["Mew!", "Nya~", "*chirps*", "Prr~"],
+    feed:    ["Mrow! 😋", "Nyam nyam!", "*happy purr*"],
+    play:    ["Mew mew!", "*zooms*", "Prrr!"],
+    cuddle:  ["Prr prr~", "Mrrp~", "*kneads paws*"],
+    tired:   ["Mrrr...", "*sleepy mew*", "Nyaa..."],
+    gift:    ["Mew!! 🎁", "*bats excitedly*", "Mrow!"],
+    wash:    ["Hiss! 💦", "Mew! Wet!", "*licks paw*"],
+    hungry:  ["MROW! 🍎", "*tummy mew*", "Nya?"],
+    trick:   ["Mew! ✨", "*tiny bounce*", "Prrr!"],
+  },
+  puppy: {
+    idle:    ["Wuf!", "Yip!", "*tail wag*", "Arf!"],
+    feed:    ["Wuf wuf! 😋", "*gobbles*", "Arf yum!"],
+    play:    ["Yip yip!", "*spins circles*", "ARF ARF!"],
+    cuddle:  ["Wuf~", "*licks*", "Yip yip!"],
+    tired:   ["Wuf...", "*sleepy bark*", "Yip..."],
+    gift:    ["ARF! 🎁", "*wags tail super fast*", "Wuf!!"],
+    wash:    ["Yip! 💦", "*shakes water everywhere*", "Arf wet!"],
+    hungry:  ["WUF! 🦴", "*big puppy eyes*", "Arf arf?"],
+    trick:   ["ARF! ✨", "*zooms lap*", "Wuf!"],
+  },
+  bunny: {
+    idle:    ["*nose wiggle*", "Mhm!", "*hops in place*", "Baa~"],
+    feed:    ["Nom nom!", "*happy crunch*", "Mhm mhm!"],
+    play:    ["*boing!*", "Wheee!", "*zoomy zoomies*"],
+    cuddle:  ["*soft squeak*", "Mhm~", "*melts into hug*"],
+    tired:   ["Mhm...", "*droopy ears*", "*sleepy hop*"],
+    gift:    ["Ooh! 🎁", "*excited binky*", "Mhm!!"],
+    wash:    ["*splish splash*", "Mhm wet!", "*shakes long ears*"],
+    hungry:  ["Mhm?! 🥕", "*tummy grumble*", "NOM?"],
+    trick:   ["*boing!* ✨", "Wheee!", "*spins*"],
+  },
+  panda: {
+    idle:    ["Hmm~", "*nom nom*", "Muu~", "*happy roll*"],
+    feed:    ["Nom~", "*happy chomp*", "Muu yum!"],
+    play:    ["*slow zoom*", "Hmm!", "*waddles fast*"],
+    cuddle:  ["Muu~", "*flops over happily*", "*belly rub please*"],
+    tired:   ["Hmm...", "*big yawn*", "*just flops down*"],
+    gift:    ["Ooh! 🎁", "*rolls toward gift*", "Hmm!"],
+    wash:    ["Hmm wet~", "*splashes*", "Muu!"],
+    hungry:  ["NOM?! 🎋", "*tummy rumble*", "Hmm HUNGRY!"],
+    trick:   ["Hmm! ✨", "*slow clap*", "Muu!"],
+  },
+  unicorn: {
+    idle:    ["*sparkle* ✨", "Eee!", "~♪", "*magical chirp*"],
+    feed:    ["Eee yum! ✨", "*magic chomp*", "~♪ nom~"],
+    play:    ["*zoom sparkles*", "Eee eee!", "~♪♪"],
+    cuddle:  ["~♪", "*glows softly* 🌟", "Eee~"],
+    tired:   ["~...", "*dim sparkles*", "Eee..."],
+    gift:    ["EEE!! ✨🎁", "*rainbow burst*", "~♪♪♪"],
+    wash:    ["*sparkle splash* 💦", "Eee!", "~♪ clean!"],
+    hungry:  ["Eee?! 🌟", "*fading sparkle*", "~♪ hungry!"],
+    trick:   ["✨✨✨", "EEE! ✨", "*rainbow burst*"],
+  },
+};
 
 const SPEECH: Record<SpeechAction, Record<string, string[]>> = {
   feed: {
@@ -238,14 +308,25 @@ const SPEECH: Record<SpeechAction, Record<string, string[]>> = {
 };
 
 /**
- * Returns a personality-flavoured speech line for a given action.
- * Returns null if the pet is below SPEECH_UNLOCK_LEVEL.
+ * Returns a speech line appropriate to the pet's stage and personality.
+ * - baby stage: cute species-specific baby sounds (always, no level gate)
+ * - level 5+ with personalities: full personality-flavoured dialogue
+ * - otherwise: null
  */
 export function getPetSpeech(
+  species: string,
   personalities: string[],
   action: SpeechAction,
   level: number,
+  stage: PetStage,
 ): string | null {
+  // Baby stage — always use species baby sounds
+  if (stage === "baby") {
+    const speciesSounds = BABY_SOUNDS[species] ?? BABY_SOUNDS["puppy"]!;
+    const lines = speciesSounds[action] ?? speciesSounds["idle"] ?? ["!"];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+  // Personality speech unlocks at SPEECH_UNLOCK_LEVEL
   if (level < SPEECH_UNLOCK_LEVEL || personalities.length === 0) return null;
   const trait = personalities[Math.floor(Math.random() * personalities.length)];
   const lines = SPEECH[action]?.[trait] ?? SPEECH[action]?.["cheerful"] ?? [];

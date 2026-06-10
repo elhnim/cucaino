@@ -267,6 +267,24 @@ export async function performTrick(kidId: string, trickId: string): Promise<PetA
   return savePet(supabase, kidId, pet, 0, kid.points_balance);
 }
 
+/** Set (or reset) personalities for an existing pet — called once after adoption for legacy pets */
+export async function setPersonalities(kidId: string, personalities: string[]): Promise<PetActionResult> {
+  if (personalities.length !== 3) return { ok: false, error: "Pick exactly 3 personality traits!" };
+
+  const { supabase, kid, petRow } = await loadKidAndPet(kidId);
+  if (!kid || !petRow) return { ok: false, error: "Pet not found" };
+
+  const { error } = await supabase
+    .from("kid_pets")
+    .update({ personalities })
+    .eq("kid_id", kidId);
+  if (error) return { ok: false, error: "Couldn't save — try again!" };
+
+  const pet = { ...applyDecay(rowToPet(petRow)), personalities };
+  revalidatePath("/play/pet");
+  return { ok: true, pet, pointsBalance: kid.points_balance };
+}
+
 /** Once-a-day surprise — the main "come back tomorrow" hook, always free */
 export async function claimDailyGift(kidId: string): Promise<GiftResult> {
   const { supabase, kid, petRow, today } = await loadKidAndPet(kidId);

@@ -38,6 +38,7 @@ import {
   learnTrick,
   performTrick,
   playWithPet,
+  setPersonalities,
   toggleSleep,
   washPet,
   type GiftReward,
@@ -84,6 +85,96 @@ function StatBar({ emoji, label, value, accent }: { emoji: string; label: string
           style={{ width: `${value}%`, background: value > 60 ? `linear-gradient(90deg, ${accent}99, ${accent})` : color }}
         />
       </div>
+    </div>
+  );
+}
+
+// ── Personality picker for existing pets without personalities ────────────────
+
+function PersonalityPickerScreen({
+  pet,
+  kidId,
+  accent,
+  onSaved,
+}: {
+  pet: Pet;
+  kidId: string;
+  accent: string;
+  onSaved: (pet: Pet) => void;
+}) {
+  const [selectedTraits, setSelectedTraits] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const species = getSpecies(pet.species);
+  const stage = stageFromLevel(levelFromXp(pet.xp));
+
+  const toggleTrait = (id: string) => {
+    setSelectedTraits((prev) => {
+      if (prev.includes(id)) return prev.filter((t) => t !== id);
+      if (prev.length >= 3) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const save = () => {
+    if (selectedTraits.length !== 3) { setError("Pick exactly 3 traits!"); return; }
+    setError(null);
+    startTransition(async () => {
+      const res = await setPersonalities(kidId, selectedTraits);
+      if (res.ok) onSaved(res.pet);
+      else setError(res.error);
+    });
+  };
+
+  return (
+    <div className="max-w-md mx-auto p-4 pt-6">
+      <div className="text-center mb-4">
+        <PetSprite species={pet.species} mood="happy" stage={stage} size={100} animClass="avatar-party"/>
+      </div>
+      <h2 className="text-xl font-black text-gray-900 text-center mb-1">
+        What&apos;s {pet.name}&apos;s personality?
+      </h2>
+      <p className="text-sm text-gray-500 text-center mb-4">
+        Pick <strong>3 traits</strong> that describe your {species.name.toLowerCase()} best!
+        {selectedTraits.length > 0 && (
+          <span className="font-black" style={{ color: accent }}> ({selectedTraits.length}/3 chosen)</span>
+        )}
+      </p>
+      <div className="grid grid-cols-2 gap-2.5 mb-5">
+        {PET_PERSONALITIES.map((trait) => {
+          const selected = selectedTraits.includes(trait.id);
+          const disabled = !selected && selectedTraits.length >= 3;
+          return (
+            <button
+              key={trait.id}
+              type="button"
+              onClick={() => toggleTrait(trait.id)}
+              disabled={disabled}
+              className={`rounded-2xl p-3 flex items-center gap-2.5 active:scale-95 transition-all border-2 ${disabled ? "opacity-40" : ""}`}
+              style={selected
+                ? { borderColor: accent, background: `${accent}18` }
+                : { background: "white", borderColor: "transparent" }}
+            >
+              <span className="text-2xl">{trait.emoji}</span>
+              <div className="text-left flex-1">
+                <div className="font-black text-sm text-gray-900">{trait.label}</div>
+                <div className="text-[10px] font-bold text-gray-400">{trait.description}</div>
+              </div>
+              {selected && <span className="text-green-500 font-black">✓</span>}
+            </button>
+          );
+        })}
+      </div>
+      {error && <p className="text-sm font-bold text-red-500 text-center mb-3">{error}</p>}
+      <button
+        type="button"
+        onClick={save}
+        disabled={isPending || selectedTraits.length !== 3}
+        className="w-full py-4 rounded-2xl font-black text-base text-white active:scale-95 transition-transform disabled:opacity-40"
+        style={{ background: accent }}
+      >
+        {isPending ? "Saving…" : selectedTraits.length === 3 ? `Save ${pet.name}'s personality! 🎉` : `Choose ${3 - selectedTraits.length} more trait${selectedTraits.length === 2 ? "" : "s"}`}
+      </button>
     </div>
   );
 }
@@ -322,11 +413,12 @@ export default function PetGame({
     return () => clearTimeout(t);
   }, [notice]);
 
-  // Show idle greeting when first opening (level 5+)
+  // Show idle greeting when first opening
   useEffect(() => {
     if (!pet) return;
     const level = levelFromXp(pet.xp);
-    const line = getPetSpeech(pet.personalities, "idle", level);
+    const stage = stageFromLevel(level);
+    const line = getPetSpeech(pet.species, pet.personalities, "idle", level, stage);
     if (line) {
       const t = setTimeout(() => setSpeech(line), 1200);
       return () => clearTimeout(t);
@@ -334,10 +426,11 @@ export default function PetGame({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // only on mount
 
-  const say = useCallback((action: Parameters<typeof getPetSpeech>[1]) => {
+  const say = useCallback((action: Parameters<typeof getPetSpeech>[2]) => {
     if (!pet) return;
     const level = levelFromXp(pet.xp);
-    const line = getPetSpeech(pet.personalities, action, level);
+    const stage = stageFromLevel(level);
+    const line = getPetSpeech(pet.species, pet.personalities, action, level, stage);
     if (line) setSpeech(line);
   }, [pet]);
 
@@ -410,6 +503,18 @@ export default function PetGame({
     return <AdoptScreen kidId={kid.id} accent={accent} onAdopted={(p, s) => { setPet(p); setStars(s); }}/>;
   }
 
+  // Legacy pet — no personalities set yet, show one-time picker
+  if (pet.personalities.length === 0) {
+    return (
+      <PersonalityPickerScreen
+        pet={pet}
+        kidId={kid.id}
+        accent={accent}
+        onSaved={(updated) => setPet(updated)}
+      />
+    );
+  }
+
   const species = getSpecies(pet.species);
   const level = levelFromXp(pet.xp);
   const stage = stageFromLevel(level);
@@ -422,7 +527,7 @@ export default function PetGame({
   const notEnough = error === "not_enough_stars";
   const clientToday = new Date().toLocaleDateString("en-CA");
   const giftAvailable = pet.lastGiftDate !== clientToday;
-  const canSpeak = level >= SPEECH_UNLOCK_LEVEL;
+  const canSpeak = stage === "baby" || level >= SPEECH_UNLOCK_LEVEL;
 
   const claimGift = () => {
     setError(null);
@@ -681,7 +786,7 @@ export default function PetGame({
 
       <p className="text-center text-[10px] font-semibold text-gray-400">
         Tap {pet.name} for a free cuddle 💖 · A new 🎁 appears every day · Care daily to grow your 🔥 streak
-        {canSpeak && <> · <span className="text-purple-400">💬 {pet.name} talks at level {SPEECH_UNLOCK_LEVEL}+</span></>}
+        {stage !== "baby" && !canSpeak && <> · <span className="text-purple-400">💬 {pet.name} will talk at level {SPEECH_UNLOCK_LEVEL}!</span></>}
       </p>
 
       {/* Food picker */}
@@ -844,9 +949,9 @@ export default function PetGame({
               ? `Your buddy grew into a ${stageFromLevel(levelUp.level)} ${species.name.toLowerCase()}!`
               : `${pet.name} reached level ${levelUp.level}. Keep caring!`}
           </p>
-          {levelUp.level === SPEECH_UNLOCK_LEVEL && (
+          {levelUp.level === SPEECH_UNLOCK_LEVEL && stage !== "baby" && (
             <p className="text-sm font-black text-yellow-300 mb-4 animate-pop">
-              💬 {pet.name} can now talk to you!
+              💬 {pet.name} can now have real conversations with you!
             </p>
           )}
           <button type="button" className="px-8 py-3.5 rounded-2xl font-black text-base text-gray-900 bg-white active:scale-95 transition-transform"
