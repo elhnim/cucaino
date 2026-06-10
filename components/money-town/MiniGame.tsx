@@ -7,10 +7,10 @@ interface PendingMinigame {
   reflexGameId?: ReflexGameId
 }
 import Trivia from "./Trivia"
-import CoinRain from "./games/CoinRain"
-import LemonSqueeze from "./games/LemonSqueeze"
-import CashGrab from "./games/CashGrab"
-import PetRush from "./games/PetRush"
+import CoinRain from "@/components/games/CoinRain"
+import LemonSqueeze from "@/components/games/LemonSqueeze"
+import CashGrab from "@/components/games/CashGrab"
+import PetRush from "@/components/games/PetRush"
 
 interface Props {
   minigame: PendingMinigame
