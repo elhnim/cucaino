@@ -891,6 +891,7 @@ export type Database = {
           last_gift_date: string | null
           last_tick_at: string
           name: string
+          personalities: Json
           species: string
           total_stars_spent: number
           tricks: Json
@@ -912,6 +913,7 @@ export type Database = {
           last_gift_date?: string | null
           last_tick_at?: string
           name: string
+          personalities?: Json
           species: string
           total_stars_spent?: number
           tricks?: Json
@@ -933,6 +935,7 @@ export type Database = {
           last_gift_date?: string | null
           last_tick_at?: string
           name?: string
+          personalities?: Json
           species?: string
           total_stars_spent?: number
           tricks?: Json

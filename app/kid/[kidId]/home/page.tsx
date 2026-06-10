@@ -16,12 +16,14 @@ import {
   getTradingPortfolio,
   listTradingHoldings,
   listCurrentAndPreviousAssetPrices,
+  getKidPet,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
 import { BADGE_META, BADGE_THRESHOLDS, getTierFromCount } from "@/lib/domain/badge-config";
 import type { BadgeProgress, DayOfWeek } from "@/lib/domain/types";
 import KidHomeWidgets from "@/components/kid/KidHomeWidgets";
+import PetWidget from "@/components/pet/PetWidget";
 
 const LEVELS = [
   { min: 0,    max: 99,       emoji: "🌱", name: "Seedling",  color: "#16a34a" },
@@ -58,7 +60,7 @@ export default async function KidHomePage({
   const [
     tasks, completions, badges, allKids, weeklyStars,
     customBadgeProgress, activeStrikes, weeklyCompletions, moodCounts,
-    tradingPortfolio, tradingHoldings, tradingPrices,
+    tradingPortfolio, tradingHoldings, tradingPrices, pet,
   ] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id, tz),
@@ -72,6 +74,7 @@ export default async function KidHomePage({
     getTradingPortfolio(kid.id),
     listTradingHoldings(kid.id),
     listCurrentAndPreviousAssetPrices(),
+    getKidPet(kid.id),
   ]);
 
   const todayTasks = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow);
@@ -118,6 +121,7 @@ export default async function KidHomePage({
     <div className="p-4 space-y-3">
       <WhatsNewModal />
       <PrefetchRoutes routes={[`/kid/${kid.id}/todo`, `/kid/${kid.id}/rewards`, `/kid/${kid.id}/play`]} />
+      {pet && <PetWidget pet={pet} kidId={kid.id} accent={theme.accent}/>}
       <KidHomeWidgets
         kid={kid}
         theme={{ accent: theme.accent, accentSoft: theme.accentSoft, name: theme.name }}

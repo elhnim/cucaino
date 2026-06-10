@@ -101,6 +101,7 @@ export async function adoptPet(
   kidId: string,
   speciesId: string,
   name: string,
+  personalities: string[],
 ): Promise<PetActionResult> {
   const trimmed = name.trim();
   if (trimmed.length < 1 || trimmed.length > 20) {
@@ -109,6 +110,9 @@ export async function adoptPet(
   if (!PET_SPECIES.some((s) => s.id === speciesId)) {
     return { ok: false, error: "Pick a pet first!" };
   }
+  if (personalities.length !== 3) {
+    return { ok: false, error: "Pick exactly 3 personality traits!" };
+  }
 
   const { supabase, kid, petRow } = await loadKidAndPet(kidId);
   if (!kid) return { ok: false, error: "Kid not found" };
@@ -116,7 +120,7 @@ export async function adoptPet(
 
   const { data, error } = await supabase
     .from("kid_pets")
-    .insert({ kid_id: kidId, family_id: kid.family_id, name: trimmed, species: speciesId })
+    .insert({ kid_id: kidId, family_id: kid.family_id, name: trimmed, species: speciesId, personalities })
     .select("*")
     .single();
   if (error || !data) return { ok: false, error: "Couldn't adopt — try again!" };

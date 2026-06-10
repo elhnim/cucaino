@@ -1,0 +1,427 @@
+"use client"
+
+import type { PetStage, PetMood } from "@/lib/pet/logic"
+
+type MoodId = PetMood["id"]
+
+interface Props {
+  species: string
+  mood: MoodId
+  stage: PetStage
+  size?: number
+  animClass?: string
+}
+
+// Per-species colour palettes
+const PAL: Record<string, { body: string; belly: string; accent: string; outline: string; eyeCol: string }> = {
+  dragon:  { body: "#6ECC76", belly: "#B8E8BC", accent: "#3CAA44", outline: "#1E6622", eyeCol: "#1A3A1C" },
+  kitten:  { body: "#F2A862", belly: "#FDE4C0", accent: "#E07030", outline: "#9A4418", eyeCol: "#2E120A" },
+  puppy:   { body: "#C87040", belly: "#EAB87A", accent: "#9A4E20", outline: "#5A2A08", eyeCol: "#1C0800" },
+  bunny:   { body: "#F5EFE7", belly: "#FDE8EC", accent: "#E8B8C4", outline: "#C07888", eyeCol: "#5A2A38" },
+  panda:   { body: "#F8F8F8", belly: "#F0F0F0", accent: "#1E1E1E", outline: "#111",    eyeCol: "#111" },
+  unicorn: { body: "#CAB6FF", belly: "#E6DDFF", accent: "#8860E0", outline: "#5038B0", eyeCol: "#2A1660" },
+}
+const DEFAULT_PAL = PAL.puppy
+
+// ── Face sub-components ──────────────────────────────────────────────────────
+
+function Eyes({ mood, p }: { mood: MoodId; p: typeof DEFAULT_PAL }) {
+  const c = p.eyeCol
+  // sleeping — curved lines
+  if (mood === "sleeping") return (
+    <g>
+      <path d="M75 102 Q83 96 91 102" stroke={c} strokeWidth="3.5" fill="none" strokeLinecap="round"/>
+      <path d="M109 102 Q117 96 125 102" stroke={c} strokeWidth="3.5" fill="none" strokeLinecap="round"/>
+    </g>
+  )
+  // ecstatic — star-sparkle eyes
+  if (mood === "ecstatic") return (
+    <g>
+      <text x="83" y="108" textAnchor="middle" fontSize="16" fill="#F5C518">★</text>
+      <text x="117" y="108" textAnchor="middle" fontSize="16" fill="#F5C518">★</text>
+      {/* sparkle dots */}
+      <circle cx="70" cy="95" r="2.5" fill="#FFD700" opacity="0.8"/>
+      <circle cx="130" cy="95" r="2.5" fill="#FFD700" opacity="0.8"/>
+    </g>
+  )
+  // tired — half-closed eyes via clip
+  if (mood === "tired") return (
+    <g>
+      <ellipse cx="83" cy="104" rx="11" ry="11" fill="white" stroke={c} strokeWidth="1.5"/>
+      <ellipse cx="117" cy="104" rx="11" ry="11" fill="white" stroke={c} strokeWidth="1.5"/>
+      {/* covering rect to make half-closed look */}
+      <rect x="72" y="93" width="22" height="11" fill={p.body}/>
+      <rect x="106" y="93" width="22" height="11" fill={p.body}/>
+      <ellipse cx="83" cy="108" rx="7" ry="7" fill={c}/>
+      <ellipse cx="117" cy="108" rx="7" ry="7" fill={c}/>
+      <circle cx="85" cy="106" r="2" fill="white"/>
+      <circle cx="119" cy="106" r="2" fill="white"/>
+      {/* heavy eyelid line */}
+      <path d="M72 104 Q83 99 94 104" stroke={c} strokeWidth="3" fill="none" strokeLinecap="round"/>
+      <path d="M106 104 Q117 99 128 104" stroke={c} strokeWidth="3" fill="none" strokeLinecap="round"/>
+    </g>
+  )
+  // hungry — normal but with concerned brows
+  if (mood === "starving") return (
+    <g>
+      <ellipse cx="83" cy="102" rx="11" ry="12" fill="white"/>
+      <ellipse cx="117" cy="102" rx="11" ry="12" fill="white"/>
+      <ellipse cx="83" cy="104" rx="7.5" ry="8" fill={c}/>
+      <ellipse cx="117" cy="104" rx="7.5" ry="8" fill={c}/>
+      <circle cx="85.5" cy="101" r="2.5" fill="white"/>
+      <circle cx="119.5" cy="101" r="2.5" fill="white"/>
+      {/* worried inward brows */}
+      <path d="M74 91 Q83 86 92 90" stroke={c} strokeWidth="3" fill="none" strokeLinecap="round"/>
+      <path d="M108 90 Q117 86 126 91" stroke={c} strokeWidth="3" fill="none" strokeLinecap="round"/>
+    </g>
+  )
+  // lonely — sad eyes
+  if (mood === "lonely") return (
+    <g>
+      <ellipse cx="83" cy="104" rx="11" ry="11" fill="white"/>
+      <ellipse cx="117" cy="104" rx="11" ry="11" fill="white"/>
+      <ellipse cx="83" cy="106" rx="7" ry="7" fill={c}/>
+      <ellipse cx="117" cy="106" rx="7" ry="7" fill={c}/>
+      <circle cx="85" cy="104" r="2" fill="white"/>
+      <circle cx="119" cy="104" r="2" fill="white"/>
+      {/* droopy brows */}
+      <path d="M74 92 Q83 89 92 93" stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      <path d="M108 93 Q117 89 126 92" stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      {/* tear drops */}
+      <ellipse cx="80" cy="117" rx="3" ry="4" fill="#90CAF9" opacity="0.8"/>
+      <ellipse cx="120" cy="117" rx="3" ry="4" fill="#90CAF9" opacity="0.8"/>
+    </g>
+  )
+  // dirty — squiggly, uncomfortable
+  if (mood === "dirty") return (
+    <g>
+      <ellipse cx="83" cy="102" rx="11" ry="11" fill="white"/>
+      <ellipse cx="117" cy="102" rx="11" ry="11" fill="white"/>
+      <ellipse cx="83" cy="103" rx="7" ry="7" fill={c}/>
+      <ellipse cx="117" cy="103" rx="7" ry="7" fill={c}/>
+      <circle cx="85" cy="101" r="2" fill="white"/>
+      <circle cx="119" cy="101" r="2" fill="white"/>
+      {/* stink squiggles */}
+      <path d="M74 89 Q77 86 80 89 Q83 92 86 89 Q89 86 92 89" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>
+      <path d="M108 89 Q111 86 114 89 Q117 92 120 89 Q123 86 126 89" stroke={c} strokeWidth="2" fill="none" strokeLinecap="round"/>
+    </g>
+  )
+  // happy (default)
+  return (
+    <g>
+      <ellipse cx="83" cy="102" rx="12" ry="13" fill="white"/>
+      <ellipse cx="117" cy="102" rx="12" ry="13" fill="white"/>
+      <ellipse cx="83" cy="103" rx="8" ry="8.5" fill={c}/>
+      <ellipse cx="117" cy="103" rx="8" ry="8.5" fill={c}/>
+      <circle cx="86" cy="100" r="3" fill="white"/>
+      <circle cx="120" cy="100" r="3" fill="white"/>
+    </g>
+  )
+}
+
+function Mouth({ mood }: { mood: MoodId }) {
+  if (mood === "sleeping") return (
+    <path d="M90 122 Q100 124 110 122" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+  )
+  if (mood === "ecstatic") return (
+    <g>
+      <path d="M82 118 Q100 132 118 118" stroke="#E06080" strokeWidth="3" fill="#FFB3C8" strokeLinecap="round" strokeLinejoin="round"/>
+      <ellipse cx="79" cy="120" rx="7" ry="5.5" fill="#FFB8D0" opacity="0.75"/>
+      <ellipse cx="121" cy="120" rx="7" ry="5.5" fill="#FFB8D0" opacity="0.75"/>
+    </g>
+  )
+  if (mood === "starving") return (
+    <g>
+      <path d="M86 120 Q100 130 114 120" stroke="#E08090" strokeWidth="2.5" fill="#FFD0D8" strokeLinecap="round"/>
+      {/* tongue peeking out */}
+      <ellipse cx="100" cy="127" rx="6" ry="4" fill="#FF8090"/>
+    </g>
+  )
+  if (mood === "tired") return (
+    <path d="M90 120 Q100 118 110 120" stroke="#BBBBBB" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+  )
+  if (mood === "lonely") return (
+    <path d="M88 124 Q100 118 112 124" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+  )
+  if (mood === "dirty") return (
+    <path d="M88 122 Q100 118 112 122" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+  )
+  // happy default
+  return (
+    <g>
+      <path d="M85 118 Q100 130 115 118" stroke="#E06080" strokeWidth="2.5" fill="#FFB3C8" strokeLinecap="round"/>
+      <ellipse cx="82" cy="119" rx="6" ry="5" fill="#FFB8D0" opacity="0.65"/>
+      <ellipse cx="118" cy="119" rx="6" ry="5" fill="#FFB8D0" opacity="0.65"/>
+    </g>
+  )
+}
+
+function Nose({ p }: { p: typeof DEFAULT_PAL }) {
+  return <ellipse cx="100" cy="113" rx="4" ry="3" fill={p.accent} opacity="0.8"/>
+}
+
+// ── Species-specific shapes ──────────────────────────────────────────────────
+
+function DragonExtras({ p, evolved }: { p: typeof DEFAULT_PAL; evolved: boolean }) {
+  return (
+    <>
+      {/* Tail (behind body, drawn first via parent order) */}
+      {/* Wings */}
+      <path d="M56 148 Q30 120 22 148 Q38 158 56 158" fill={p.accent} opacity="0.85"/>
+      <path d="M144 148 Q170 120 178 148 Q162 158 144 158" fill={p.accent} opacity="0.85"/>
+      {/* Wing veins */}
+      <path d="M56 152 Q42 136 28 148" stroke={p.outline} strokeWidth="1.5" fill="none" opacity="0.5"/>
+      <path d="M144 152 Q158 136 172 148" stroke={p.outline} strokeWidth="1.5" fill="none" opacity="0.5"/>
+      {evolved && (
+        <>
+          <path d="M56 142 Q22 106 18 138 Q34 150 56 148" fill={p.body} opacity="0.5"/>
+          <path d="M144 142 Q178 106 182 138 Q166 150 144 148" fill={p.body} opacity="0.5"/>
+        </>
+      )}
+    </>
+  )
+}
+
+function DragonHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Horns */}
+      <polygon points="82,54 76,28 88,28" fill={p.accent}/>
+      <polygon points="118,54 112,28 124,28" fill={p.accent}/>
+      {/* Horn highlight */}
+      <line x1="80" y1="52" x2="78" y2="36" stroke="white" strokeWidth="2" opacity="0.5" strokeLinecap="round"/>
+      <line x1="120" y1="52" x2="118" y2="36" stroke="white" strokeWidth="2" opacity="0.5" strokeLinecap="round"/>
+      {/* Nostril dots */}
+      <circle cx="96" cy="117" r="2" fill={p.outline} opacity="0.4"/>
+      <circle cx="104" cy="117" r="2" fill={p.outline} opacity="0.4"/>
+    </>
+  )
+}
+
+function KittenExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Tail — long curve behind body */}
+      <path d="M145 185 Q185 160 188 190 Q188 215 160 210" stroke={p.body} strokeWidth="18" fill="none" strokeLinecap="round"/>
+      <path d="M145 185 Q185 160 188 190 Q188 215 160 210" stroke={p.belly} strokeWidth="9" fill="none" strokeLinecap="round" opacity="0.6"/>
+    </>
+  )
+}
+
+function KittenHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Ears — triangles with pink inner */}
+      <polygon points="72,62 64,32 90,48" fill={p.body}/>
+      <polygon points="128,62 136,32 110,48" fill={p.body}/>
+      <polygon points="74,59 68,38 88,50" fill="#F9C0C0"/>
+      <polygon points="126,59 132,38 112,50" fill="#F9C0C0"/>
+      {/* Whiskers */}
+      <line x1="62" y1="112" x2="82" y2="110" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
+      <line x1="62" y1="116" x2="82" y2="116" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
+      <line x1="62" y1="120" x2="82" y2="122" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
+      <line x1="118" y1="110" x2="138" y2="112" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
+      <line x1="118" y1="116" x2="138" y2="116" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
+      <line x1="118" y1="122" x2="138" y2="120" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
+    </>
+  )
+}
+
+function PuppyExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Short wagging tail */}
+      <path d="M142 178 Q166 158 170 172 Q174 184 158 186" stroke={p.body} strokeWidth="16" fill="none" strokeLinecap="round"/>
+    </>
+  )
+}
+
+function PuppyHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Floppy ears hanging from head sides */}
+      <ellipse cx="60" cy="105" rx="20" ry="32" fill={p.accent} opacity="0.95"/>
+      <ellipse cx="140" cy="105" rx="20" ry="32" fill={p.accent} opacity="0.95"/>
+      {/* Ear inner highlight */}
+      <ellipse cx="60" cy="108" rx="12" ry="22" fill={p.body} opacity="0.4"/>
+      <ellipse cx="140" cy="108" rx="12" ry="22" fill={p.body} opacity="0.4"/>
+      {/* Eye spot */}
+      <ellipse cx="118" cy="96" rx="16" ry="14" fill={p.accent} opacity="0.55"/>
+    </>
+  )
+}
+
+function BunnyExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Little round tail */}
+      <circle cx="150" cy="192" r="14" fill={p.belly}/>
+      <circle cx="150" cy="192" r="10" fill="white" opacity="0.7"/>
+    </>
+  )
+}
+
+function BunnyHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Long tall ears */}
+      <ellipse cx="82" cy="40" rx="16" ry="38" fill={p.body}/>
+      <ellipse cx="118" cy="40" rx="16" ry="38" fill={p.body}/>
+      {/* Pink inner ear */}
+      <ellipse cx="82" cy="40" rx="9" ry="28" fill="#F9C8D0"/>
+      <ellipse cx="118" cy="40" rx="9" ry="28" fill="#F9C8D0"/>
+    </>
+  )
+}
+
+function PandaExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return null // panda's body spots are on the body itself
+}
+
+function PandaHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Round ears — black circles */}
+      <circle cx="74" cy="58" r="22" fill={p.accent}/>
+      <circle cx="126" cy="58" r="22" fill={p.accent}/>
+      {/* Ear inner highlight */}
+      <circle cx="74" cy="58" r="14" fill="#444" opacity="0.5"/>
+      <circle cx="126" cy="58" r="14" fill="#444" opacity="0.5"/>
+      {/* Eye patches — large black ovals */}
+      <ellipse cx="83" cy="100" rx="17" ry="16" fill={p.accent} opacity="0.85"/>
+      <ellipse cx="117" cy="100" rx="17" ry="16" fill={p.accent} opacity="0.85"/>
+    </>
+  )
+}
+
+function UnicornExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Flowing mane behind body — multicolor */}
+      <path d="M55 100 Q30 140 40 190 Q60 210 80 195 Q60 175 55 145 Q50 115 65 95 Z" fill="#FF9ECD" opacity="0.7"/>
+      <path d="M52 105 Q28 145 38 185" stroke="#FFC0E0" strokeWidth="8" fill="none" strokeLinecap="round" opacity="0.8"/>
+    </>
+  )
+}
+
+function UnicornHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Small ears */}
+      <polygon points="80,55 74,32 90,44" fill={p.body}/>
+      <polygon points="120,55 126,32 110,44" fill={p.body}/>
+      <polygon points="81,52 76,36 88,46" fill="#FFC0E8"/>
+      <polygon points="119,52 124,36 112,46" fill="#FFC0E8"/>
+      {/* Horn — spiral/striped */}
+      <polygon points="100,20 90,58 110,58" fill="url(#hornGrad)"/>
+      <defs>
+        <linearGradient id="hornGrad" x1="100" y1="20" x2="100" y2="58" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FFD700"/>
+          <stop offset="50%" stopColor="#FF90C0"/>
+          <stop offset="100%" stopColor={p.accent}/>
+        </linearGradient>
+      </defs>
+      {/* Horn stripes */}
+      <line x1="96" y1="56" x2="92" y2="36" stroke="white" strokeWidth="2" opacity="0.5" strokeLinecap="round"/>
+      {/* Mane on head */}
+      <path d="M58 72 Q48 90 52 115 Q62 120 68 105 Q64 90 68 72 Z" fill="#FF9ECD" opacity="0.8"/>
+      <path d="M60 76 Q50 95 56 116" stroke="#FFAAD8" strokeWidth="6" fill="none" strokeLinecap="round"/>
+      {/* Sparkles */}
+      <text x="138" y="74" fontSize="12" fill="#FFD700" opacity="0.9">✦</text>
+      <text x="150" y="90" fontSize="9" fill="#C8B0FF" opacity="0.8">✦</text>
+      <text x="42" y="80" fontSize="8" fill="#FFD700" opacity="0.7">✦</text>
+    </>
+  )
+}
+
+// ── Main component ───────────────────────────────────────────────────────────
+
+export default function PetSprite({ species, mood, stage, size = 180, animClass = "avatar-idle" }: Props) {
+  const p = PAL[species] ?? DEFAULT_PAL
+  const evolved = stage === "teen" || stage === "adult"
+  const isBlack = species === "panda"
+  const armColor = species === "panda" ? p.accent : p.body
+  const legColor = species === "panda" ? p.accent : p.body
+
+  return (
+    <svg
+      viewBox="0 0 200 240"
+      width={size}
+      height={size * 1.2}
+      className={`inline-block select-none ${animClass}`}
+      style={{ overflow: "visible" }}
+      aria-hidden
+    >
+      {/* Drop shadow */}
+      <ellipse cx="100" cy="235" rx="52" ry="9" fill="rgba(0,0,0,0.13)"/>
+
+      {/* === Body-level species extras (wings, tail — behind body) === */}
+      {species === "dragon"  && <DragonExtras p={p} evolved={evolved}/>}
+      {species === "kitten"  && <KittenExtras p={p}/>}
+      {species === "puppy"   && <PuppyExtras p={p}/>}
+      {species === "bunny"   && <BunnyExtras p={p}/>}
+      {species === "unicorn" && <UnicornExtras p={p}/>}
+
+      {/* Torso */}
+      <ellipse cx="100" cy="170" rx="50" ry="52" fill={p.body}/>
+      {/* Belly spot */}
+      <ellipse cx="100" cy="175" rx="32" ry="36" fill={p.belly}/>
+      {/* Panda arm patches */}
+      {isBlack && (
+        <>
+          <ellipse cx="56" cy="165" rx="22" ry="18" fill={p.accent} opacity="0.9"/>
+          <ellipse cx="144" cy="165" rx="22" ry="18" fill={p.accent} opacity="0.9"/>
+        </>
+      )}
+
+      {/* Arms */}
+      <ellipse cx="54" cy="163" rx="20" ry="17" fill={armColor}/>
+      <ellipse cx="146" cy="163" rx="20" ry="17" fill={armColor}/>
+      {/* Paws */}
+      <ellipse cx="40" cy="174" rx="13" ry="10" fill={p.belly}/>
+      <ellipse cx="160" cy="174" rx="13" ry="10" fill={p.belly}/>
+      {/* Paw toe lines */}
+      <line x1="34" y1="176" x2="36" y2="180" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="40" y1="178" x2="40" y2="182" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="46" y1="176" x2="44" y2="180" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="154" y1="176" x2="156" y2="180" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="160" y1="178" x2="160" y2="182" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="166" y1="176" x2="164" y2="180" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+
+      {/* Legs */}
+      <ellipse cx="78" cy="212" rx="22" ry="17" fill={legColor}/>
+      <ellipse cx="122" cy="212" rx="22" ry="17" fill={legColor}/>
+      {/* Feet */}
+      <ellipse cx="76" cy="224" rx="20" ry="10" fill={p.belly}/>
+      <ellipse cx="124" cy="224" rx="20" ry="10" fill={p.belly}/>
+      {/* Toe lines */}
+      <line x1="62" y1="226" x2="64" y2="229" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="76" y1="228" x2="76" y2="231" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="90" y1="226" x2="88" y2="229" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="110" y1="226" x2="112" y2="229" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="124" y1="228" x2="124" y2="231" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+      <line x1="138" y1="226" x2="136" y2="229" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
+
+      {/* === Ears (drawn before head so head overlaps base of ear) === */}
+      {species === "dragon"  && <DragonHeadExtras  p={p}/>}
+      {species === "kitten"  && <KittenHeadExtras  p={p}/>}
+      {species === "puppy"   && <PuppyHeadExtras   p={p}/>}
+      {species === "bunny"   && <BunnyHeadExtras   p={p}/>}
+      {species === "panda"   && <PandaHeadExtras   p={p}/>}
+      {species === "unicorn" && <UnicornHeadExtras p={p}/>}
+
+      {/* Head */}
+      <circle cx="100" cy="100" r="52" fill={p.body}/>
+      {/* Panda face patch (lighter area around face centre) */}
+      {isBlack && <ellipse cx="100" cy="108" rx="34" ry="30" fill={p.belly}/>}
+
+      {/* Face — eyes + nose + mouth */}
+      <Nose p={p}/>
+      <Eyes mood={mood} p={p}/>
+      <Mouth mood={mood}/>
+
+      {/* Head shine */}
+      <ellipse cx="84" cy="70" rx="16" ry="10" fill="white" opacity="0.18" transform="rotate(-30 84 70)"/>
+    </svg>
+  )
+}

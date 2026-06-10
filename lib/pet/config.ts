@@ -1,34 +1,45 @@
 /**
- * Star Pets registry — species, foods, accessories, tricks and tuning.
+ * Star Pets registry — species, foods, accessories, tricks, personalities and tuning.
  * Pure data; all game maths lives in lib/pet/logic.ts.
- *
- * Design rules (kids 5–12):
- * - The pet never dies or runs away — neglect makes it sad, never gone.
- * - Stars are the only currency; caring for the pet is the star sink that
- *   motivates earning more via tasks.
- * - Long-term arc: daily care streaks, a once-a-day gift, a skill-based
- *   fetch mini-game with variable rewards, learnable tricks and
- *   level-gated shop items keep the loop fresh for months.
  */
 
 export interface PetSpecies {
   id: string;
   name: string;
-  /** Shown for baby/child stages */
   babyEmoji: string;
-  /** Shown for teen/adult stages — the evolution moment */
   adultEmoji: string;
   personality: string;
+  /** CSS color for the species (used in adopt screen etc.) */
+  color: string;
 }
 
 export const PET_SPECIES: PetSpecies[] = [
-  { id: "dragon",  name: "Dragon",  babyEmoji: "🐲", adultEmoji: "🐉", personality: "Brave & fiery" },
-  { id: "kitten",  name: "Kitten",  babyEmoji: "🐱", adultEmoji: "🐈", personality: "Curious & cuddly" },
-  { id: "puppy",   name: "Puppy",   babyEmoji: "🐶", adultEmoji: "🐕", personality: "Loyal & playful" },
-  { id: "bunny",   name: "Bunny",   babyEmoji: "🐰", adultEmoji: "🐇", personality: "Quick & gentle" },
-  { id: "panda",   name: "Panda",   babyEmoji: "🐼", adultEmoji: "🐼", personality: "Chill & hungry" },
-  { id: "unicorn", name: "Unicorn", babyEmoji: "🦄", adultEmoji: "🦄", personality: "Magical & rare" },
+  { id: "dragon",  name: "Dragon",  babyEmoji: "🐲", adultEmoji: "🐉", personality: "Brave & fiery",     color: "#4CAF50" },
+  { id: "kitten",  name: "Kitten",  babyEmoji: "🐱", adultEmoji: "🐈", personality: "Curious & cuddly",  color: "#F0A060" },
+  { id: "puppy",   name: "Puppy",   babyEmoji: "🐶", adultEmoji: "🐕", personality: "Loyal & playful",   color: "#C87840" },
+  { id: "bunny",   name: "Bunny",   babyEmoji: "🐰", adultEmoji: "🐇", personality: "Quick & gentle",    color: "#C890A0" },
+  { id: "panda",   name: "Panda",   babyEmoji: "🐼", adultEmoji: "🐼", personality: "Chill & hungry",    color: "#666666" },
+  { id: "unicorn", name: "Unicorn", babyEmoji: "🦄", adultEmoji: "🦄", personality: "Magical & rare",    color: "#9070F0" },
 ];
+
+export interface PetPersonality {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+}
+
+export const PET_PERSONALITIES: PetPersonality[] = [
+  { id: "brave",    label: "Brave",    emoji: "🦁", description: "Bold & adventurous" },
+  { id: "cheerful", label: "Cheerful", emoji: "🌞", description: "Always happy & bubbly" },
+  { id: "curious",  label: "Curious",  emoji: "🔍", description: "Loves to learn & explore" },
+  { id: "gentle",   label: "Gentle",   emoji: "🌸", description: "Kind-hearted & calm" },
+  { id: "playful",  label: "Playful",  emoji: "🎮", description: "Silly & loves jokes" },
+  { id: "wise",     label: "Wise",     emoji: "🦉", description: "Thoughtful & gives advice" },
+];
+
+/** Level at which the pet starts talking to its kid */
+export const SPEECH_UNLOCK_LEVEL = 5;
 
 export interface PetFood {
   id: string;
@@ -51,7 +62,6 @@ export interface PetAccessory {
   emoji: string;
   label: string;
   starCost: number;
-  /** Level gate — locked items are visible in the shop as a long-term goal */
   minLevel: number;
 }
 
@@ -78,7 +88,6 @@ export interface PetTrick {
   minLevel: number;
 }
 
-/** Learned once (stars), performed forever (free) — milestones to chase */
 export const PET_TRICKS: PetTrick[] = [
   { id: "spin",     emoji: "🌀", label: "Spin",      starCost: 5,  minLevel: 2 },
   { id: "dance",    emoji: "🎵", label: "Dance",     starCost: 8,  minLevel: 4 },
@@ -91,11 +100,9 @@ export const PET_TRICKS: PetTrick[] = [
 export const TRICK_HAPPINESS = 5;
 export const TRICK_XP = 1;
 
-/** Action costs & effects (besides food, which is per-item above) */
 export const PLAY_COST = 2;
 export const PLAY_ENERGY = -15;
 export const PLAY_MIN_ENERGY = 10;
-/** Fetch mini-game score is clamped server-side */
 export const PLAY_MAX_SCORE = 25;
 export const PLAY_SECONDS = 15;
 
@@ -105,11 +112,9 @@ export const WASH_XP = 4;
 export const CUDDLE_HAPPINESS = 3;
 export const CUDDLE_XP = 1;
 
-/** Daily care streak — first paid care action each day banks bonus XP */
 export const STREAK_XP_PER_DAY = 2;
 export const STREAK_XP_CAP_DAYS = 7;
 
-/** Stat decay per hour while awake */
 export const DECAY_PER_HOUR = {
   hunger: 4,
   happiness: 3,
@@ -117,7 +122,6 @@ export const DECAY_PER_HOUR = {
   cleanliness: 2,
 };
 
-/** Energy regenerated per hour while sleeping (hunger decays at half rate) */
 export const SLEEP_ENERGY_PER_HOUR = 12;
 
 export const MAX_LEVEL = 30;

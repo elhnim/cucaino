@@ -9,6 +9,7 @@ import {
   PET_SPECIES,
   PLAY_MAX_SCORE,
   SLEEP_ENERGY_PER_HOUR,
+  SPEECH_UNLOCK_LEVEL,
   STREAK_XP_CAP_DAYS,
   STREAK_XP_PER_DAY,
   type PetSpecies,
@@ -29,6 +30,7 @@ export interface Pet {
   xp: number;
   accessories: string[];
   tricks: string[];
+  personalities: string[];
   isSleeping: boolean;
   totalStarsSpent: number;
   careStreak: number;
@@ -53,6 +55,7 @@ export function rowToPet(row: PetRow): Pet {
     xp: row.xp,
     accessories: Array.isArray(row.accessories) ? (row.accessories as string[]) : [],
     tricks: Array.isArray(row.tricks) ? (row.tricks as string[]) : [],
+    personalities: Array.isArray(row.personalities) ? (row.personalities as string[]) : [],
     isSleeping: row.is_sleeping,
     totalStarsSpent: row.total_stars_spent,
     careStreak: row.care_streak,
@@ -63,11 +66,6 @@ export function rowToPet(row: PetRow): Pet {
   };
 }
 
-/**
- * Bank the daily care streak. Call on the first PAID care action of a day:
- * consecutive days extend the streak (capped XP bonus), gaps reset it to 1.
- * Returns the same pet if today is already banked.
- */
 export function applyCareStreak(pet: Pet, today: string): { pet: Pet; bonusXp: number } {
   if (pet.lastCareDate === today) return { pet, bonusXp: 0 };
 
@@ -83,7 +81,6 @@ export function applyCareStreak(pet: Pet, today: string): { pet: Pet; bonusXp: n
   };
 }
 
-/** Variable reward for the fetch mini-game — better score, bigger boost */
 export function playReward(score: number): { happiness: number; xp: number } {
   const s = Math.max(0, Math.min(PLAY_MAX_SCORE, Math.round(score)));
   return {
@@ -94,7 +91,6 @@ export function playReward(score: number): { happiness: number; xp: number } {
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
-/** Advance stat decay/regen from pet.lastTickAt to `now`. Pure — returns a new Pet. */
 export function applyDecay(pet: Pet, now: Date = new Date()): Pet {
   const hours = Math.max(0, (now.getTime() - new Date(pet.lastTickAt).getTime()) / 3_600_000);
   if (hours === 0) return pet;
@@ -123,7 +119,6 @@ export function levelFromXp(xp: number): number {
   return Math.min(MAX_LEVEL, Math.floor(Math.sqrt(Math.max(0, xp) / 12)) + 1);
 }
 
-/** Cumulative XP needed to reach a level (inverse of levelFromXp) */
 export function xpForLevel(level: number): number {
   return 12 * (level - 1) * (level - 1);
 }
@@ -151,15 +146,108 @@ export interface PetMood {
   message: string;
 }
 
-/** Highest-priority need wins — drives the mood bubble and nudge text */
 export function moodFor(pet: Pet): PetMood {
-  if (pet.isSleeping) return { id: "sleeping", emoji: "💤", message: `Shh… ${pet.name} is snoozing.` };
-  if (pet.hunger < 25) return { id: "starving", emoji: "🍽️", message: `${pet.name} is really hungry!` };
+  if (pet.isSleeping) return { id: "sleeping",  emoji: "💤", message: `Shh… ${pet.name} is snoozing.` };
+  if (pet.hunger < 25)  return { id: "starving", emoji: "🍽️", message: `${pet.name} is really hungry!` };
   if (pet.cleanliness < 30) return { id: "dirty", emoji: "🛁", message: `${pet.name} needs a bath!` };
-  if (pet.energy < 20) return { id: "tired", emoji: "🥱", message: `${pet.name} is sleepy. Time for a nap?` };
+  if (pet.energy < 20)  return { id: "tired",    emoji: "🥱", message: `${pet.name} is sleepy. Time for a nap?` };
   if (pet.happiness < 30) return { id: "lonely", emoji: "😢", message: `${pet.name} misses you. Play together?` };
   if (pet.hunger > 70 && pet.happiness > 70 && pet.energy > 70 && pet.cleanliness > 70) {
     return { id: "ecstatic", emoji: "🤩", message: `${pet.name} feels amazing! Best buddy ever.` };
   }
   return { id: "happy", emoji: "😊", message: `${pet.name} is happy to see you!` };
+}
+
+// ── Dialogue system ────────────────────────────────────────────────────────────
+
+type SpeechAction = "feed" | "play" | "wash" | "cuddle" | "idle" | "hungry" | "tired" | "gift" | "trick";
+
+const SPEECH: Record<SpeechAction, Record<string, string[]>> = {
+  feed: {
+    brave:    ["Fuel for adventures! 💪", "A warrior needs sustenance!", "I'm ready to conquer anything now!"],
+    cheerful: ["YUM YUM YUM! 😄", "THIS IS MY FAVOURITE!", "FOOOOOD! Best day ever!"],
+    curious:  ["I wonder what this is made of...", "Interesting texture! Let me analyse it.", "Mmm, hypothesis confirmed: delicious!"],
+    gentle:   ["That was very kind of you ☺️", "Thank you so much... you're the best.", "I'm grateful for every bite 🌸"],
+    playful:  ["Nom nom nom! 🍽️", "FOOOOOD! My one true weakness! 😂", "Om nom nom... can't talk... eating!"],
+    wise:     ["A full belly keeps the mind sharp.", "Nutrition is the foundation of all things.", "Thank you. I needed that."],
+  },
+  play: {
+    brave:    ["That was NOTHING! Let's go again! 🔥", "I'm unstoppable! Who's next?!", "Victory is mine!"],
+    cheerful: ["BEST. DAY. EVER! 🎉", "Wheeeeee! Again! Again!", "That was SO much fun I can't even!"],
+    curious:  ["I have a theory about catching balls...", "Fascinating! The physics of this game...", "I'm studying your technique 🔍"],
+    gentle:   ["That was so fun together ☺️", "I love playing with you!", "These are my favourite moments 🌸"],
+    playful:  ["Hehe I'm AMAZING at this! 😝", "You can't catch me! 😂", "I declare myself champion! 🏆"],
+    wise:     ["Play keeps us young and happy.", "Well played, my friend.", "The joy of movement — essential for life."],
+  },
+  wash: {
+    brave:    ["I wasn't even dirty. Just... testing you. 😤", "Bring it on, bubbles!", "A champion stays clean!"],
+    cheerful: ["Squeaky clean and sparkly! ✨", "BUBBLES! I love bubbles! 🫧", "I'm the shiniest pet in town!"],
+    curious:  ["How does soap actually work? 🤔", "Interesting — the cleansing mechanism...", "Clean pet, clean thoughts!"],
+    gentle:   ["That felt so refreshing ☺️", "I feel brand new!", "Thank you for taking such good care of me 🌸"],
+    playful:  ["SPLASH! Haha got you wet! 💦", "Bubble beard! 🧼", "Bath time is secretly my favourite! Shh!"],
+    wise:     ["Cleanliness nurtures the spirit.", "Fresh and ready for anything.", "Clean outside, calm inside."],
+  },
+  cuddle: {
+    brave:    ["...I wasn't scared. I just wanted a hug. 😤", "Okay... that was actually really nice.", "Strong pets need hugs too! 💪"],
+    cheerful: ["HUGS ARE THE BEST THING EVER! 🤗", "MORE cuddles please! Never stop!", "You're my favourite human EVER!"],
+    curious:  ["Did you know hugging releases oxytocin? 🔬", "The science of love is fascinating!", "Warmth detected. Happiness: increasing!"],
+    gentle:   ["This is my favourite moment ☺️", "I feel so loved and safe...", "You always know just when I need this 🌸"],
+    playful:  ["ATTACK HUG! 🫂", "Gotcha! Squish! Hehe!", "I hugged you SO hard just then! 😄"],
+    wise:     ["A hug says more than words ever could.", "Connection is everything.", "Hold close what matters most."],
+  },
+  idle: {
+    brave:    ["What's the mission today? 🗺️", "Ready for ANYTHING!", "Let's go on an adventure!"],
+    cheerful: ["Hi hi hi!! You came back! 🥳", "I've been SO excited waiting for you!", "Every time I see you I get butterflies!"],
+    curious:  ["Oh! I was just thinking...", "Hey, I have a question for you!", "I've been doing some research today 🔍"],
+    gentle:   ["I missed you ☺️", "So nice to see you...", "You make everything better 🌸"],
+    playful:  ["Boo! Did I scare ya? 😜", "Guess who's BACK? It's me! Obviously.", "I've been practicing my surprised face 😮"],
+    wise:     ["Ah, you're here. I had a feeling.", "Good timing, my friend.", "I've been expecting you."],
+  },
+  hungry: {
+    brave:    ["A warrior NEEDS sustenance! Feed me! ⚔️", "Can't conquer on an empty stomach!", "The brave get hungry too, you know!"],
+    cheerful: ["TUMMY IS RUMBLING! 🍕", "Feed me feed me feed me pleeeease!", "My tummy is doing a very loud dance!"],
+    curious:  ["My hunger reminds me to ask — what's for lunch?", "Interesting... the stomach sends signals!", "Hunger: a fascinating biological response."],
+    gentle:   ["I hate to bother you, but... 🥺 I'm a little hungry...", "Sorry to ask... could I please have something?", "My tummy is talking 🌸"],
+    playful:  ["My tummy is doing a little CONCERT! 🎵", "FEED THE BEAST! (That's me, I'm the beast 😂)", "Hunger level: CRITICAL! SOS! 🆘"],
+    wise:     ["The stomach speaks its own language.", "Food is fuel. I could use some fuel.", "A hungry mind cannot focus."],
+  },
+  tired: {
+    brave:    ["I'm not tired. Just... resting my eyes. 😤", "Champions rest too. For strategy.", "I'll close my eyes... just for a moment..."],
+    cheerful: ["zzzZZZ... wait what? I'm AWAKE! 😴", "I'm soooo sle— HI! How are you!", "Fighting sleepiness with pure happiness! 😄"],
+    curious:  ["Sleep is when the brain processes memories... 💤", "Dreaming is just the brain reorganising data!", "I'll sleep now... and dream of research..."],
+    gentle:   ["I could use a little rest, if that's okay... 🌸", "I'm getting a bit sleepy...", "Maybe just a short nap? ☺️"],
+    playful:  ["Going to sleeeeep~ Good luck without me! 😂", "Can't play... too... sleepy... zzz 😴", "Wake me up for the good bits! Night!"],
+    wise:     ["Rest is not weakness. It is wisdom.", "Even the wisest must sleep.", "Tomorrow's wisdom begins with tonight's rest."],
+  },
+  gift: {
+    brave:    ["A gift? For me?! I mean... cool. 😎", "Worthy of a champion! I accept.", "A reward befitting my greatness! 🏆"],
+    cheerful: ["OHHH MYYY! A PRESENT!! 🎁🎁🎁", "EEEEEE! IS IT FOR ME?! FOR MEEE?!", "BEST. GIFT. EVER! Whatever it is!"],
+    curious:  ["I wonder what's inside! The possibilities!", "Opening gifts is my favourite scientific experiment!", "Let me analyse the contents... 🔍"],
+    gentle:   ["This is so thoughtful... thank you ☺️", "You didn't have to do this... but I'm so glad you did!", "Every gift from you is special 🌸"],
+    playful:  ["IS IT A PUPPY?! Oh wait I'm the pet 😂", "RIPPING IT OPEN! 🎁💥", "Whatever it is I already love it SO MUCH!"],
+    wise:     ["The best gifts are always unexpected.", "A surprise for the soul.", "Gratitude fills me completely."],
+  },
+  trick: {
+    brave:    ["TA-DAAA! The crowd goes wild! 🔥", "Easy. I could do that in my sleep.", "That's called TALENT! 💪"],
+    cheerful: ["WOOOOO! Did you SEE that?! 🎉", "I am LITERALLY the best at this!", "I practised that SO much and it shows!"],
+    curious:  ["The biomechanics of that move are fascinating!", "I've been analysing the optimal technique!", "Scientifically perfect execution! 🔬"],
+    gentle:   ["I hope that made you smile ☺️", "I practiced that just for you 🌸", "Did you like it? I really tried my best!"],
+    playful:  ["Hehe NAILED IT! Give me all the applause! 👏", "Was that cool? I think that was VERY cool! 😄", "Ta-da! I'm basically a superstar! 🌟"],
+    wise:     ["Practice makes perfect.", "Mastery takes time and patience.", "Every skill learned is a treasure."],
+  },
+};
+
+/**
+ * Returns a personality-flavoured speech line for a given action.
+ * Returns null if the pet is below SPEECH_UNLOCK_LEVEL.
+ */
+export function getPetSpeech(
+  personalities: string[],
+  action: SpeechAction,
+  level: number,
+): string | null {
+  if (level < SPEECH_UNLOCK_LEVEL || personalities.length === 0) return null;
+  const trait = personalities[Math.floor(Math.random() * personalities.length)];
+  const lines = SPEECH[action]?.[trait] ?? SPEECH[action]?.["cheerful"] ?? [];
+  return lines[Math.floor(Math.random() * lines.length)] ?? null;
 }
