@@ -877,6 +877,7 @@ export type Database = {
       kid_pets: {
         Row: {
           accessories: Json
+          care_streak: number
           cleanliness: number
           created_at: string
           energy: number
@@ -886,14 +887,18 @@ export type Database = {
           id: string
           is_sleeping: boolean
           kid_id: string
+          last_care_date: string | null
+          last_gift_date: string | null
           last_tick_at: string
           name: string
           species: string
           total_stars_spent: number
+          tricks: Json
           xp: number
         }
         Insert: {
           accessories?: Json
+          care_streak?: number
           cleanliness?: number
           created_at?: string
           energy?: number
@@ -903,14 +908,18 @@ export type Database = {
           id?: string
           is_sleeping?: boolean
           kid_id: string
+          last_care_date?: string | null
+          last_gift_date?: string | null
           last_tick_at?: string
           name: string
           species: string
           total_stars_spent?: number
+          tricks?: Json
           xp?: number
         }
         Update: {
           accessories?: Json
+          care_streak?: number
           cleanliness?: number
           created_at?: string
           energy?: number
@@ -920,10 +929,13 @@ export type Database = {
           id?: string
           is_sleeping?: boolean
           kid_id?: string
+          last_care_date?: string | null
+          last_gift_date?: string | null
           last_tick_at?: string
           name?: string
           species?: string
           total_stars_spent?: number
+          tricks?: Json
           xp?: number
         }
         Relationships: [

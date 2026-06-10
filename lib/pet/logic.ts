@@ -7,7 +7,10 @@ import {
   DECAY_PER_HOUR,
   MAX_LEVEL,
   PET_SPECIES,
+  PLAY_MAX_SCORE,
   SLEEP_ENERGY_PER_HOUR,
+  STREAK_XP_CAP_DAYS,
+  STREAK_XP_PER_DAY,
   type PetSpecies,
 } from "@/lib/pet/config";
 import type { Database } from "@/lib/supabase/database.types";
@@ -25,8 +28,12 @@ export interface Pet {
   cleanliness: number;
   xp: number;
   accessories: string[];
+  tricks: string[];
   isSleeping: boolean;
   totalStarsSpent: number;
+  careStreak: number;
+  lastCareDate: string | null;
+  lastGiftDate: string | null;
   lastTickAt: string;
   createdAt: string;
 }
@@ -45,10 +52,43 @@ export function rowToPet(row: PetRow): Pet {
     cleanliness: row.cleanliness,
     xp: row.xp,
     accessories: Array.isArray(row.accessories) ? (row.accessories as string[]) : [],
+    tricks: Array.isArray(row.tricks) ? (row.tricks as string[]) : [],
     isSleeping: row.is_sleeping,
     totalStarsSpent: row.total_stars_spent,
+    careStreak: row.care_streak,
+    lastCareDate: row.last_care_date,
+    lastGiftDate: row.last_gift_date,
     lastTickAt: row.last_tick_at,
     createdAt: row.created_at,
+  };
+}
+
+/**
+ * Bank the daily care streak. Call on the first PAID care action of a day:
+ * consecutive days extend the streak (capped XP bonus), gaps reset it to 1.
+ * Returns the same pet if today is already banked.
+ */
+export function applyCareStreak(pet: Pet, today: string): { pet: Pet; bonusXp: number } {
+  if (pet.lastCareDate === today) return { pet, bonusXp: 0 };
+
+  const yesterday = new Date(`${today}T12:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+
+  const streak = pet.lastCareDate === yesterdayStr ? pet.careStreak + 1 : 1;
+  const bonusXp = STREAK_XP_PER_DAY * Math.min(streak, STREAK_XP_CAP_DAYS);
+  return {
+    pet: { ...pet, careStreak: streak, lastCareDate: today, xp: pet.xp + bonusXp },
+    bonusXp,
+  };
+}
+
+/** Variable reward for the fetch mini-game — better score, bigger boost */
+export function playReward(score: number): { happiness: number; xp: number } {
+  const s = Math.max(0, Math.min(PLAY_MAX_SCORE, Math.round(score)));
+  return {
+    happiness: Math.min(35, 10 + s),
+    xp: Math.min(14, 3 + Math.floor(s / 2)),
   };
 }
 

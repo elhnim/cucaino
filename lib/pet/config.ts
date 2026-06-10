@@ -1,11 +1,14 @@
 /**
- * Star Pets registry — species, foods, accessories and tuning constants.
+ * Star Pets registry — species, foods, accessories, tricks and tuning.
  * Pure data; all game maths lives in lib/pet/logic.ts.
  *
  * Design rules (kids 5–12):
  * - The pet never dies or runs away — neglect makes it sad, never gone.
  * - Stars are the only currency; caring for the pet is the star sink that
  *   motivates earning more via tasks.
+ * - Long-term arc: daily care streaks, a once-a-day gift, a skill-based
+ *   fetch mini-game with variable rewards, learnable tricks and
+ *   level-gated shop items keep the loop fresh for months.
  */
 
 export interface PetSpecies {
@@ -48,29 +51,63 @@ export interface PetAccessory {
   emoji: string;
   label: string;
   starCost: number;
+  /** Level gate — locked items are visible in the shop as a long-term goal */
+  minLevel: number;
 }
 
 export const PET_ACCESSORIES: PetAccessory[] = [
-  { id: "ball",       emoji: "🎾", label: "Bouncy ball", starCost: 5 },
-  { id: "bow",        emoji: "🎀", label: "Bow",         starCost: 8 },
-  { id: "hat",        emoji: "🎩", label: "Top hat",     starCost: 12 },
-  { id: "sunglasses", emoji: "🕶️", label: "Sunglasses",  starCost: 15 },
-  { id: "skateboard", emoji: "🛹", label: "Skateboard",  starCost: 20 },
-  { id: "crown",      emoji: "👑", label: "Crown",       starCost: 30 },
+  { id: "ball",       emoji: "🎾", label: "Bouncy ball", starCost: 5,  minLevel: 1 },
+  { id: "plant",      emoji: "🪴", label: "House plant", starCost: 8,  minLevel: 2 },
+  { id: "bow",        emoji: "🎀", label: "Bow",         starCost: 8,  minLevel: 2 },
+  { id: "teddy",      emoji: "🧸", label: "Teddy",       starCost: 12, minLevel: 3 },
+  { id: "hat",        emoji: "🎩", label: "Top hat",     starCost: 12, minLevel: 4 },
+  { id: "sunglasses", emoji: "🕶️", label: "Sunglasses",  starCost: 15, minLevel: 5 },
+  { id: "skateboard", emoji: "🛹", label: "Skateboard",  starCost: 20, minLevel: 6 },
+  { id: "slide",      emoji: "🛝", label: "Slide",       starCost: 25, minLevel: 7 },
+  { id: "crown",      emoji: "👑", label: "Crown",       starCost: 30, minLevel: 8 },
+  { id: "rainbow",    emoji: "🌈", label: "Rainbow",     starCost: 35, minLevel: 10 },
+  { id: "castle",     emoji: "🏰", label: "Castle",      starCost: 45, minLevel: 12 },
+  { id: "rocket",     emoji: "🚀", label: "Rocket",      starCost: 60, minLevel: 15 },
 ];
+
+export interface PetTrick {
+  id: string;
+  emoji: string;
+  label: string;
+  starCost: number;
+  minLevel: number;
+}
+
+/** Learned once (stars), performed forever (free) — milestones to chase */
+export const PET_TRICKS: PetTrick[] = [
+  { id: "spin",     emoji: "🌀", label: "Spin",      starCost: 5,  minLevel: 2 },
+  { id: "dance",    emoji: "🎵", label: "Dance",     starCost: 8,  minLevel: 4 },
+  { id: "highfive", emoji: "✋", label: "High five", starCost: 12, minLevel: 6 },
+  { id: "backflip", emoji: "🤸", label: "Backflip",  starCost: 18, minLevel: 8 },
+  { id: "sing",     emoji: "🎤", label: "Sing",      starCost: 25, minLevel: 10 },
+  { id: "magic",    emoji: "🪄", label: "Magic",     starCost: 40, minLevel: 13 },
+];
+
+export const TRICK_HAPPINESS = 5;
+export const TRICK_XP = 1;
 
 /** Action costs & effects (besides food, which is per-item above) */
 export const PLAY_COST = 2;
-export const PLAY_HAPPINESS = 25;
 export const PLAY_ENERGY = -15;
-export const PLAY_XP = 6;
 export const PLAY_MIN_ENERGY = 10;
+/** Fetch mini-game score is clamped server-side */
+export const PLAY_MAX_SCORE = 25;
+export const PLAY_SECONDS = 15;
 
 export const WASH_COST = 2;
 export const WASH_XP = 4;
 
 export const CUDDLE_HAPPINESS = 3;
 export const CUDDLE_XP = 1;
+
+/** Daily care streak — first paid care action each day banks bonus XP */
+export const STREAK_XP_PER_DAY = 2;
+export const STREAK_XP_CAP_DAYS = 7;
 
 /** Stat decay per hour while awake */
 export const DECAY_PER_HOUR = {

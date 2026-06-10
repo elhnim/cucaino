@@ -95,9 +95,85 @@
     100% { transform: translate(14px, -28px); opacity: 0; }
   }
 
+  /* Parallax clouds across the Star Pet scene */
+  .cloud-drift {
+    position: absolute;
+    animation: cloud-drift linear infinite;
+  }
+
+  @keyframes cloud-drift {
+    from { transform: translateX(-80px); }
+    to   { transform: translateX(480px); }
+  }
+
+  /* Twinkling stars in the night scene */
+  .twinkle {
+    animation: twinkle 2.2s ease-in-out infinite;
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.25; transform: scale(0.8); }
+    50%      { opacity: 1; transform: scale(1.15); }
+  }
+
+  /* Soft pulsing glow under the pet */
+  .pet-glow {
+    animation: pet-glow 3s ease-in-out infinite;
+  }
+
+  @keyframes pet-glow {
+    0%, 100% { opacity: 0.5; transform: translateX(-50%) scaleX(1); }
+    50%      { opacity: 0.85; transform: translateX(-50%) scaleX(1.15); }
+  }
+
+  /* Daily gift box begging to be opened */
+  .gift-wiggle {
+    animation: gift-wiggle 1.8s ease-in-out infinite;
+  }
+
+  @keyframes gift-wiggle {
+    0%, 50%, 100% { transform: rotate(0deg) scale(1); }
+    8%  { transform: rotate(-12deg) scale(1.08); }
+    16% { transform: rotate(10deg) scale(1.08); }
+    24% { transform: rotate(-6deg) scale(1.04); }
+    32% { transform: rotate(0deg) scale(1); }
+  }
+
+  /* Emoji burst when the pet performs a trick */
+  .trick-burst {
+    position: absolute;
+    animation: trick-burst 1s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @keyframes trick-burst {
+    0%   { transform: translateY(0) scale(0.5) rotate(0deg); opacity: 0; }
+    25%  { opacity: 1; }
+    100% { transform: translateY(-90px) scale(1.6) rotate(20deg); opacity: 0; }
+  }
+
+  /* Shimmer sweep on XP bars */
+  .bar-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-shimmer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+    animation: bar-shimmer 2.4s ease-in-out infinite;
+  }
+
+  @keyframes bar-shimmer {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .avatar-idle, .avatar-bounce, .avatar-party, .emoji-rain-piece,
-    .heart-float, .sleep-drift {
+    .heart-float, .sleep-drift, .cloud-drift, .twinkle, .pet-glow,
+    .gift-wiggle, .trick-burst, .bar-shimmer::after {
       animation: none;
     }
   }

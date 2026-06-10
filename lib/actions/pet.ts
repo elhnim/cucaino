@@ -2,24 +2,43 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { localDateString } from "@/lib/data/queries";
 import {
   CUDDLE_HAPPINESS,
   CUDDLE_XP,
   PET_ACCESSORIES,
   PET_FOODS,
   PET_SPECIES,
+  PET_TRICKS,
   PLAY_COST,
   PLAY_ENERGY,
-  PLAY_HAPPINESS,
   PLAY_MIN_ENERGY,
-  PLAY_XP,
+  TRICK_HAPPINESS,
+  TRICK_XP,
   WASH_COST,
   WASH_XP,
 } from "@/lib/pet/config";
-import { applyDecay, rowToPet, type Pet } from "@/lib/pet/logic";
+import {
+  applyCareStreak,
+  applyDecay,
+  levelFromXp,
+  playReward,
+  rowToPet,
+  type Pet,
+} from "@/lib/pet/logic";
 
 export type PetActionResult =
   | { ok: true; pet: Pet; pointsBalance: number }
+  | { ok: false; error: string };
+
+export type GiftReward =
+  | { kind: "xp"; amount: number }
+  | { kind: "happiness"; amount: number }
+  | { kind: "energy"; amount: number }
+  | { kind: "accessory"; accessoryId: string };
+
+export type GiftResult =
+  | { ok: true; pet: Pet; pointsBalance: number; reward: GiftReward }
   | { ok: false; error: string };
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
@@ -27,20 +46,25 @@ const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 async function loadKidAndPet(kidId: string) {
   const supabase = await createClient();
   const [{ data: kid }, { data: petRow }] = await Promise.all([
-    supabase.from("kids").select("points_balance, family_id").eq("id", kidId).maybeSingle(),
+    supabase
+      .from("kids")
+      .select("points_balance, family_id, families(timezone)")
+      .eq("id", kidId)
+      .maybeSingle(),
     supabase.from("kid_pets").select("*").eq("kid_id", kidId).maybeSingle(),
   ]);
-  return { supabase, kid, petRow };
+  const timezone = (kid?.families as { timezone?: string } | null)?.timezone ?? "Australia/Sydney";
+  return { supabase, kid, petRow, today: localDateString(timezone) };
 }
 
-/** Persist mutated stats, charge stars, and return fresh state for the client */
+/** Persist mutated state, charge stars, and return fresh state for the client */
 async function savePet(
   supabase: Awaited<ReturnType<typeof createClient>>,
   kidId: string,
   pet: Pet,
   starCost: number,
   pointsBalance: number,
-): Promise<PetActionResult> {
+): Promise<{ ok: true; pet: Pet; pointsBalance: number } | { ok: false; error: string }> {
   const { error } = await supabase
     .from("kid_pets")
     .update({
@@ -50,8 +74,12 @@ async function savePet(
       cleanliness: pet.cleanliness,
       xp: pet.xp,
       accessories: pet.accessories,
+      tricks: pet.tricks,
       is_sleeping: pet.isSleeping,
       total_stars_spent: pet.totalStarsSpent,
+      care_streak: pet.careStreak,
+      last_care_date: pet.lastCareDate,
+      last_gift_date: pet.lastGiftDate,
       last_tick_at: pet.lastTickAt,
     })
     .eq("kid_id", kidId);
@@ -101,11 +129,11 @@ export async function feedPet(kidId: string, foodId: string): Promise<PetActionR
   const food = PET_FOODS.find((f) => f.id === foodId);
   if (!food) return { ok: false, error: "Unknown food" };
 
-  const { supabase, kid, petRow } = await loadKidAndPet(kidId);
+  const { supabase, kid, petRow, today } = await loadKidAndPet(kidId);
   if (!kid || !petRow) return { ok: false, error: "Pet not found" };
   if (kid.points_balance < food.starCost) return { ok: false, error: "not_enough_stars" };
 
-  const pet = applyDecay(rowToPet(petRow));
+  let pet = applyDecay(rowToPet(petRow));
   if (pet.isSleeping) return { ok: false, error: `${pet.name} is asleep — wake them first!` };
   if (pet.hunger >= 100) return { ok: false, error: `${pet.name} is completely full!` };
 
@@ -113,39 +141,44 @@ export async function feedPet(kidId: string, foodId: string): Promise<PetActionR
   pet.happiness = clamp(pet.happiness + food.happiness);
   pet.xp += food.xp;
   pet.totalStarsSpent += food.starCost;
+  pet = applyCareStreak(pet, today).pet;
   return savePet(supabase, kidId, pet, food.starCost, kid.points_balance);
 }
 
-export async function playWithPet(kidId: string): Promise<PetActionResult> {
-  const { supabase, kid, petRow } = await loadKidAndPet(kidId);
+/** Fetch mini-game finish — score (server-clamped) drives a variable reward */
+export async function playWithPet(kidId: string, score: number): Promise<PetActionResult> {
+  const { supabase, kid, petRow, today } = await loadKidAndPet(kidId);
   if (!kid || !petRow) return { ok: false, error: "Pet not found" };
   if (kid.points_balance < PLAY_COST) return { ok: false, error: "not_enough_stars" };
 
-  const pet = applyDecay(rowToPet(petRow));
+  let pet = applyDecay(rowToPet(petRow));
   if (pet.isSleeping) return { ok: false, error: `${pet.name} is asleep — wake them first!` };
   if (pet.energy < PLAY_MIN_ENERGY) {
     return { ok: false, error: `${pet.name} is too tired to play. Try a nap!` };
   }
 
-  pet.happiness = clamp(pet.happiness + PLAY_HAPPINESS);
+  const reward = playReward(score);
+  pet.happiness = clamp(pet.happiness + reward.happiness);
   pet.energy = clamp(pet.energy + PLAY_ENERGY);
-  pet.xp += PLAY_XP;
+  pet.xp += reward.xp;
   pet.totalStarsSpent += PLAY_COST;
+  pet = applyCareStreak(pet, today).pet;
   return savePet(supabase, kidId, pet, PLAY_COST, kid.points_balance);
 }
 
 export async function washPet(kidId: string): Promise<PetActionResult> {
-  const { supabase, kid, petRow } = await loadKidAndPet(kidId);
+  const { supabase, kid, petRow, today } = await loadKidAndPet(kidId);
   if (!kid || !petRow) return { ok: false, error: "Pet not found" };
   if (kid.points_balance < WASH_COST) return { ok: false, error: "not_enough_stars" };
 
-  const pet = applyDecay(rowToPet(petRow));
+  let pet = applyDecay(rowToPet(petRow));
   if (pet.isSleeping) return { ok: false, error: `${pet.name} is asleep — wake them first!` };
   if (pet.cleanliness >= 95) return { ok: false, error: `${pet.name} is already squeaky clean!` };
 
   pet.cleanliness = 100;
   pet.xp += WASH_XP;
   pet.totalStarsSpent += WASH_COST;
+  pet = applyCareStreak(pet, today).pet;
   return savePet(supabase, kidId, pet, WASH_COST, kid.points_balance);
 }
 
@@ -183,10 +216,88 @@ export async function buyAccessory(kidId: string, accessoryId: string): Promise<
   if (pet.accessories.includes(accessoryId)) {
     return { ok: false, error: "You already own that!" };
   }
+  if (levelFromXp(pet.xp) < accessory.minLevel) {
+    return { ok: false, error: `Reach level ${accessory.minLevel} to unlock that!` };
+  }
 
   pet.accessories = [...pet.accessories, accessoryId];
   pet.happiness = clamp(pet.happiness + 10);
   pet.xp += 5;
   pet.totalStarsSpent += accessory.starCost;
   return savePet(supabase, kidId, pet, accessory.starCost, kid.points_balance);
+}
+
+export async function learnTrick(kidId: string, trickId: string): Promise<PetActionResult> {
+  const trick = PET_TRICKS.find((t) => t.id === trickId);
+  if (!trick) return { ok: false, error: "Unknown trick" };
+
+  const { supabase, kid, petRow } = await loadKidAndPet(kidId);
+  if (!kid || !petRow) return { ok: false, error: "Pet not found" };
+  if (kid.points_balance < trick.starCost) return { ok: false, error: "not_enough_stars" };
+
+  const pet = applyDecay(rowToPet(petRow));
+  if (pet.isSleeping) return { ok: false, error: `${pet.name} is asleep — wake them first!` };
+  if (pet.tricks.includes(trickId)) return { ok: false, error: "Already learned!" };
+  if (levelFromXp(pet.xp) < trick.minLevel) {
+    return { ok: false, error: `Reach level ${trick.minLevel} to learn that!` };
+  }
+
+  pet.tricks = [...pet.tricks, trickId];
+  pet.happiness = clamp(pet.happiness + 10);
+  pet.xp += 8;
+  pet.totalStarsSpent += trick.starCost;
+  return savePet(supabase, kidId, pet, trick.starCost, kid.points_balance);
+}
+
+/** Performing a learned trick is always free */
+export async function performTrick(kidId: string, trickId: string): Promise<PetActionResult> {
+  const { supabase, kid, petRow } = await loadKidAndPet(kidId);
+  if (!kid || !petRow) return { ok: false, error: "Pet not found" };
+
+  const pet = applyDecay(rowToPet(petRow));
+  if (pet.isSleeping) return { ok: false, error: `${pet.name} is asleep — wake them first!` };
+  if (!pet.tricks.includes(trickId)) return { ok: false, error: "Not learned yet!" };
+
+  pet.happiness = clamp(pet.happiness + TRICK_HAPPINESS);
+  pet.xp += TRICK_XP;
+  return savePet(supabase, kidId, pet, 0, kid.points_balance);
+}
+
+/** Once-a-day surprise — the main "come back tomorrow" hook, always free */
+export async function claimDailyGift(kidId: string): Promise<GiftResult> {
+  const { supabase, kid, petRow, today } = await loadKidAndPet(kidId);
+  if (!kid || !petRow) return { ok: false, error: "Pet not found" };
+
+  const pet = applyDecay(rowToPet(petRow));
+  if (pet.lastGiftDate === today) return { ok: false, error: "Come back tomorrow for the next gift! 🎁" };
+
+  const level = levelFromXp(pet.xp);
+  const unownedUnlocked = PET_ACCESSORIES.filter(
+    (a) => !pet.accessories.includes(a.id) && a.minLevel <= level,
+  );
+
+  const roll = Math.random();
+  let reward: GiftReward;
+  if (roll < 0.12 && unownedUnlocked.length > 0) {
+    const item = unownedUnlocked[Math.floor(Math.random() * unownedUnlocked.length)];
+    pet.accessories = [...pet.accessories, item.id];
+    reward = { kind: "accessory", accessoryId: item.id };
+  } else if (roll < 0.45) {
+    const amount = 10 + Math.floor(Math.random() * 16);
+    pet.xp += amount;
+    reward = { kind: "xp", amount };
+  } else if (roll < 0.75) {
+    const amount = 10 + Math.floor(Math.random() * 16);
+    pet.happiness = clamp(pet.happiness + amount);
+    reward = { kind: "happiness", amount };
+  } else {
+    const amount = 10 + Math.floor(Math.random() * 11);
+    pet.energy = clamp(pet.energy + amount);
+    reward = { kind: "energy", amount };
+  }
+
+  pet.lastGiftDate = today;
+  const saved = await savePet(supabase, kidId, pet, 0, kid.points_balance);
+  if (!saved.ok) return saved;
+  return { ...saved, reward };
 }

@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import FetchGame from "@/components/pet/FetchGame";
 import {
   PET_ACCESSORIES,
   PET_FOODS,
   PET_SPECIES,
+  PET_TRICKS,
   PLAY_COST,
   PLAY_MIN_ENERGY,
+  TRICK_HAPPINESS,
   WASH_COST,
 } from "@/lib/pet/config";
 import {
@@ -16,6 +19,7 @@ import {
   levelFromXp,
   moodFor,
   petEmoji,
+  playReward,
   stageFromLevel,
   xpForLevel,
   type Pet,
@@ -23,30 +27,49 @@ import {
 import {
   adoptPet,
   buyAccessory,
+  claimDailyGift,
   cuddlePet,
   feedPet,
+  learnTrick,
+  performTrick,
   playWithPet,
   toggleSleep,
   washPet,
+  type GiftReward,
   type PetActionResult,
 } from "@/lib/actions/pet";
 
 const CUDDLE_COOLDOWN_MS = 30_000;
 
-// Accessory emojis float at fixed spots around the pet
+// Accessory emojis settle at fixed spots so the room fills up over time
 const ACCESSORY_SPOTS: { top: string; left: string }[] = [
-  { top: "8%", left: "18%" },
-  { top: "4%", left: "70%" },
-  { top: "55%", left: "8%" },
-  { top: "60%", left: "82%" },
-  { top: "28%", left: "88%" },
-  { top: "30%", left: "4%" },
+  { top: "62%", left: "8%" },
+  { top: "66%", left: "84%" },
+  { top: "50%", left: "16%" },
+  { top: "54%", left: "76%" },
+  { top: "38%", left: "6%" },
+  { top: "40%", left: "88%" },
+  { top: "24%", left: "12%" },
+  { top: "26%", left: "80%" },
+  { top: "12%", left: "26%" },
+  { top: "10%", left: "62%" },
+  { top: "70%", left: "44%" },
+  { top: "6%", left: "44%" },
+];
+
+const NIGHT_STARS: { top: string; left: string; delay: string; size: string }[] = [
+  { top: "10%", left: "12%", delay: "0s", size: "text-xs" },
+  { top: "18%", left: "30%", delay: "0.6s", size: "text-sm" },
+  { top: "8%", left: "52%", delay: "1.1s", size: "text-xs" },
+  { top: "22%", left: "68%", delay: "0.3s", size: "text-sm" },
+  { top: "14%", left: "85%", delay: "1.5s", size: "text-xs" },
+  { top: "30%", left: "45%", delay: "0.9s", size: "text-xs" },
 ];
 
 function StatBar({ emoji, label, value, accent }: { emoji: string; label: string; value: number; accent: string }) {
   const color = value > 60 ? "#22c55e" : value > 30 ? "#f59e0b" : "#ef4444";
   return (
-    <div className="bg-white rounded-2xl px-3 py-2 shadow-sm">
+    <div className="bg-white/90 backdrop-blur rounded-2xl px-3 py-2 shadow-sm">
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs font-black text-gray-700">{emoji} {label}</span>
         <span className="text-[10px] font-bold" style={{ color }}>{Math.round(value)}</span>
@@ -54,7 +77,7 @@ function StatBar({ emoji, label, value, accent }: { emoji: string; label: string
       <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${value}%`, background: value > 60 ? accent : color }}
+          style={{ width: `${value}%`, background: value > 60 ? `linear-gradient(90deg, ${accent}99, ${accent})` : color }}
         />
       </div>
     </div>
@@ -145,13 +168,16 @@ export default function PetGame({
   const [pet, setPet] = useState<Pet | null>(initialPet);
   const [stars, setStars] = useState(kid?.pointsBalance ?? 0);
   const [error, setError] = useState<string | null>(null);
-  const [modal, setModal] = useState<"food" | "shop" | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [modal, setModal] = useState<"food" | "shop" | "tricks" | "fetch" | null>(null);
   const [levelUp, setLevelUp] = useState<{ level: number; evolved: boolean } | null>(null);
+  const [giftReveal, setGiftReveal] = useState<GiftReward | null>(null);
   const [hearts, setHearts] = useState<{ id: number; left: number }[]>([]);
+  const [bursts, setBursts] = useState<{ id: number; emoji: string; left: number }[]>([]);
   const [petBouncing, setPetBouncing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const lastCuddleAt = useRef(0);
-  const heartId = useRef(0);
+  const fxId = useRef(0);
 
   // Live decay so stats visibly tick down while the page is open
   useEffect(() => {
@@ -159,15 +185,27 @@ export default function PetGame({
     return () => clearInterval(id);
   }, []);
 
-  // Errors auto-clear
+  // Toasts auto-clear
   useEffect(() => {
     if (!error) return;
     const t = setTimeout(() => setError(null), 4000);
     return () => clearTimeout(t);
   }, [error]);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 3500);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const spawnBursts = useCallback((emoji: string) => {
+    const items = [22, 50, 76].map((left) => ({ id: ++fxId.current, emoji, left }));
+    setBursts((b) => [...b, ...items]);
+    setTimeout(() => setBursts((b) => b.filter((x) => !items.some((i) => i.id === x.id))), 1100);
+    setPetBouncing(true);
+  }, []);
 
   const runAction = useCallback(
-    (fn: () => Promise<PetActionResult>) => {
+    (fn: () => Promise<PetActionResult>, onSuccess?: (pet: Pet) => void) => {
       setError(null);
       startTransition(async () => {
         const res = await fn();
@@ -185,25 +223,28 @@ export default function PetGame({
                 evolved: stageFromLevel(newLevel) !== stageFromLevel(prevLevel),
               });
             }
-            const spent = Math.max(0, stars - res.pointsBalance);
-            if (spent > 0) {
-              window.dispatchEvent(new CustomEvent("stars-spent", { detail: { amount: spent } }));
-            }
           }
           return res.pet;
         });
-        setStars(res.pointsBalance);
+        setStars((prev) => {
+          const spent = Math.max(0, prev - res.pointsBalance);
+          if (spent > 0) {
+            window.dispatchEvent(new CustomEvent("stars-spent", { detail: { amount: spent } }));
+          }
+          return res.pointsBalance;
+        });
         setModal(null);
+        onSuccess?.(res.pet);
       });
     },
-    [stars],
+    [],
   );
 
   const cuddle = useCallback(() => {
     if (!kid || !pet || pet.isSleeping) return;
     setPetBouncing(true);
     const left = 30 + Math.random() * 40;
-    const id = ++heartId.current;
+    const id = ++fxId.current;
     setHearts((h) => [...h, { id, left }]);
     setTimeout(() => setHearts((h) => h.filter((x) => x.id !== id)), 1200);
     // Server cuddle is throttled — taps in between are just for fun
@@ -240,15 +281,39 @@ export default function PetGame({
   const level = levelFromXp(pet.xp);
   const stage = stageFromLevel(level);
   const mood = moodFor(pet);
+  const face = petEmoji(pet);
   const xpIntoLevel = pet.xp - xpForLevel(level);
   const xpNeeded = xpForLevel(level + 1) - xpForLevel(level);
   const xpPct = Math.min(100, Math.round((xpIntoLevel / Math.max(1, xpNeeded)) * 100));
   const dirty = pet.cleanliness < 40;
   const notEnough = error === "not_enough_stars";
+  const clientToday = new Date().toLocaleDateString("en-CA");
+  const giftAvailable = pet.lastGiftDate !== clientToday;
+
+  const claimGift = () => {
+    setError(null);
+    startTransition(async () => {
+      const res = await claimDailyGift(kid.id);
+      if (!res.ok) { setError(res.error); return; }
+      setPet(res.pet);
+      setStars(res.pointsBalance);
+      setGiftReveal(res.reward);
+    });
+  };
+
+  const doTrick = (trickId: string, emoji: string) => {
+    runAction(
+      () => performTrick(kid.id, trickId),
+      () => {
+        spawnBursts(emoji);
+        setNotice(`${emoji} Ta-daa! +${TRICK_HAPPINESS} happy`);
+      },
+    );
+  };
 
   return (
     <div className="max-w-md mx-auto p-4 pb-8">
-      {/* Name + level + stars */}
+      {/* Name + level + streak + stars */}
       <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-xl font-black text-gray-900 leading-tight">
@@ -258,11 +323,16 @@ export default function PetGame({
             </span>
           </h1>
           <div className="flex items-center gap-2 mt-1">
-            <div className="h-1.5 w-28 rounded-full bg-gray-200 overflow-hidden">
+            <div className="h-1.5 w-24 rounded-full bg-gray-200 overflow-hidden bar-shimmer">
               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${xpPct}%`, background: accent }} />
             </div>
             <span className="text-[9px] font-bold text-gray-400">{xpIntoLevel}/{xpNeeded} XP</span>
           </div>
+          {pet.careStreak > 0 && (
+            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
+              🔥 {pet.careStreak}-day care streak
+            </span>
+          )}
         </div>
         <div className="text-right">
           <div className="inline-flex items-center gap-1 bg-yellow-50 border-2 border-yellow-300 rounded-full px-3 py-1 text-sm font-black text-yellow-800">
@@ -274,7 +344,7 @@ export default function PetGame({
         </div>
       </div>
 
-      {/* Error / nudge toast */}
+      {/* Toasts */}
       {error && (
         <div className="bg-white border-2 border-red-200 rounded-2xl px-4 py-2.5 mb-3 text-center animate-pop">
           {notEnough ? (
@@ -289,26 +359,50 @@ export default function PetGame({
           )}
         </div>
       )}
+      {notice && !error && (
+        <div className="bg-white border-2 border-green-200 rounded-2xl px-4 py-2.5 mb-3 text-center animate-pop">
+          <p className="text-sm font-bold text-green-700">{notice}</p>
+        </div>
+      )}
 
       {/* Pet scene */}
       <button
         type="button"
         onClick={cuddle}
-        className="relative w-full rounded-3xl overflow-hidden mb-3 cursor-pointer block"
+        className="relative w-full rounded-3xl overflow-hidden mb-3 cursor-pointer block shadow-lg"
         style={{
-          height: 260,
+          height: 300,
           background: pet.isSleeping
-            ? "linear-gradient(180deg, #1e1b4b 0%, #312e81 70%, #4338ca 100%)"
-            : "linear-gradient(180deg, #bae6fd 0%, #e0f2fe 55%, #bbf7d0 75%, #86efac 100%)",
+            ? "linear-gradient(180deg, #0f172a 0%, #1e1b4b 45%, #312e81 75%, #3730a3 100%)"
+            : "linear-gradient(180deg, #7dd3fc 0%, #bae6fd 32%, #e0f2fe 52%, #d9f99d 70%, #86efac 84%, #4ade80 100%)",
         }}
       >
-        {/* sun / moon */}
-        <span className="absolute top-4 right-5 text-3xl">{pet.isSleeping ? "🌙" : "☀️"}</span>
+        {pet.isSleeping ? (
+          <>
+            <span className="absolute top-4 right-5 text-4xl" style={{ filter: "drop-shadow(0 0 14px rgba(191,219,254,0.8))" }}>🌙</span>
+            {NIGHT_STARS.map((s, i) => (
+              <span key={i} className={`absolute twinkle text-white ${s.size}`} style={{ top: s.top, left: s.left, animationDelay: s.delay }}>
+                ✦
+              </span>
+            ))}
+          </>
+        ) : (
+          <>
+            <span className="absolute top-3 right-5 text-4xl" style={{ filter: "drop-shadow(0 0 18px rgba(253,224,71,0.9))" }}>☀️</span>
+            <span className="cloud-drift text-4xl opacity-80" style={{ top: "10%", animationDuration: "38s", animationDelay: "-12s" }}>☁️</span>
+            <span className="cloud-drift text-2xl opacity-60" style={{ top: "24%", animationDuration: "26s", animationDelay: "-4s" }}>☁️</span>
+            <span className="absolute text-xl avatar-idle" style={{ top: "30%", left: "14%" }}>🦋</span>
+            <span className="absolute bottom-3 left-4 text-xl">🌼</span>
+            <span className="absolute bottom-2 right-5 text-xl">🌸</span>
+            <span className="absolute bottom-5 right-16 text-sm">🌷</span>
+          </>
+        )}
 
-        {/* owned accessories scattered in the scene */}
-        {pet.accessories.map((accId, i) => {
-          const acc = PET_ACCESSORIES.find((a) => a.id === accId);
-          const spot = ACCESSORY_SPOTS[i % ACCESSORY_SPOTS.length];
+        {/* owned accessories scattered in the room */}
+        {pet.accessories.map((accId) => {
+          const idx = PET_ACCESSORIES.findIndex((a) => a.id === accId);
+          const acc = PET_ACCESSORIES[idx];
+          const spot = ACCESSORY_SPOTS[(idx + ACCESSORY_SPOTS.length) % ACCESSORY_SPOTS.length];
           if (!acc) return null;
           return (
             <span key={accId} className="absolute text-2xl avatar-idle" style={{ top: spot.top, left: spot.left }}>
@@ -320,36 +414,61 @@ export default function PetGame({
         {/* mess when dirty */}
         {dirty && !pet.isSleeping && (
           <>
-            <span className="absolute bottom-4 left-6 text-2xl">💩</span>
-            <span className="absolute bottom-8 right-8 text-xl">🫧</span>
+            <span className="absolute bottom-6 left-8 text-2xl">💩</span>
+            <span className="absolute bottom-10 right-10 text-xl">🫧</span>
           </>
         )}
 
-        {/* the pet */}
+        {/* daily gift */}
+        {giftAvailable && !pet.isSleeping && (
+          <span
+            role="button"
+            aria-label="Open today's gift"
+            onClick={(e) => { e.stopPropagation(); if (!isPending) claimGift(); }}
+            className="absolute bottom-12 right-6 text-4xl gift-wiggle inline-block"
+            style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.25))" }}
+          >
+            🎁
+          </span>
+        )}
+
+        {/* glow + pet */}
+        <span
+          className="pet-glow absolute left-1/2 bottom-9 rounded-full"
+          style={{ width: 110, height: 16, background: pet.isSleeping ? "radial-gradient(ellipse, rgba(165,180,252,0.5), transparent 70%)" : "radial-gradient(ellipse, rgba(255,255,255,0.8), transparent 70%)" }}
+        />
         <span
           onAnimationEnd={() => setPetBouncing(false)}
-          className={`absolute left-1/2 -translate-x-1/2 bottom-10 text-8xl inline-block select-none ${petBouncing ? "avatar-bounce" : "avatar-idle"} ${pet.isSleeping ? "grayscale-[30%]" : ""}`}
+          className={`absolute left-1/2 -translate-x-1/2 bottom-12 text-8xl inline-block select-none ${petBouncing ? "avatar-bounce" : "avatar-idle"} ${pet.isSleeping ? "grayscale-[30%]" : ""}`}
+          style={{ filter: "drop-shadow(0 10px 10px rgba(0,0,0,0.2))" }}
         >
-          {petEmoji(pet)}
+          {face}
         </span>
 
         {/* sleeping z's */}
         {pet.isSleeping && (
           <>
-            <span className="absolute left-[58%] bottom-32 text-2xl sleep-drift">💤</span>
-            <span className="absolute left-[64%] bottom-36 text-lg sleep-drift" style={{ animationDelay: "1.2s" }}>💤</span>
+            <span className="absolute left-[58%] bottom-36 text-2xl sleep-drift">💤</span>
+            <span className="absolute left-[64%] bottom-40 text-lg sleep-drift" style={{ animationDelay: "1.2s" }}>💤</span>
           </>
         )}
 
         {/* floating hearts on cuddle */}
         {hearts.map((h) => (
-          <span key={h.id} className="heart-float text-2xl" style={{ left: `${h.left}%`, bottom: 130 }}>
+          <span key={h.id} className="heart-float text-2xl" style={{ left: `${h.left}%`, bottom: 150 }}>
             💖
           </span>
         ))}
 
+        {/* trick bursts */}
+        {bursts.map((b) => (
+          <span key={b.id} className="trick-burst text-3xl" style={{ left: `${b.left}%`, bottom: 140 }}>
+            {b.emoji}
+          </span>
+        ))}
+
         {/* mood bubble */}
-        <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 w-[90%] rounded-2xl px-3 py-1.5 text-center ${pet.isSleeping ? "bg-white/20 text-white" : "bg-white/80 text-gray-700"}`}>
+        <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 w-[92%] rounded-2xl px-3 py-1.5 text-center backdrop-blur border ${pet.isSleeping ? "bg-white/15 border-white/20 text-white" : "bg-white/70 border-white/60 text-gray-700"}`}>
           <span className="text-xs font-bold">{mood.emoji} {mood.message}</span>
         </div>
       </button>
@@ -363,7 +482,7 @@ export default function PetGame({
       </div>
 
       {/* Actions */}
-      <div className="grid grid-cols-4 gap-2 mb-3">
+      <div className="grid grid-cols-4 gap-2 mb-2">
         <button
           type="button"
           onClick={() => setModal("food")}
@@ -376,12 +495,12 @@ export default function PetGame({
         </button>
         <button
           type="button"
-          onClick={() => runAction(() => playWithPet(kid.id))}
+          onClick={() => setModal("fetch")}
           disabled={isPending || pet.isSleeping || pet.energy < PLAY_MIN_ENERGY}
           className="bg-white rounded-2xl py-3 flex flex-col items-center gap-0.5 shadow-sm active:scale-95 transition-transform disabled:opacity-40"
         >
           <span className="text-2xl">🎾</span>
-          <span className="text-[10px] font-black text-gray-700">Play</span>
+          <span className="text-[10px] font-black text-gray-700">Fetch</span>
           <span className="text-[9px] font-bold text-yellow-600">{PLAY_COST} ⭐</span>
         </button>
         <button
@@ -406,16 +525,25 @@ export default function PetGame({
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setModal("shop")}
-        className="w-full bg-white rounded-2xl py-3 font-black text-sm text-gray-800 shadow-sm active:scale-95 transition-transform mb-2"
-      >
-        🛍️ Pet shop · toys & style
-      </button>
+      <div className="grid grid-cols-2 gap-2 mb-2">
+        <button
+          type="button"
+          onClick={() => setModal("tricks")}
+          className="bg-white rounded-2xl py-3 font-black text-sm text-gray-800 shadow-sm active:scale-95 transition-transform"
+        >
+          ✨ Tricks {pet.tricks.length > 0 ? `· ${pet.tricks.length}/${PET_TRICKS.length}` : ""}
+        </button>
+        <button
+          type="button"
+          onClick={() => setModal("shop")}
+          className="bg-white rounded-2xl py-3 font-black text-sm text-gray-800 shadow-sm active:scale-95 transition-transform"
+        >
+          🛍️ Shop · {pet.accessories.length}/{PET_ACCESSORIES.length}
+        </button>
+      </div>
 
       <p className="text-center text-[10px] font-semibold text-gray-400">
-        Tap {pet.name} for a free cuddle 💖 · Stats change in real time, even while you&apos;re away
+        Tap {pet.name} for a free cuddle 💖 · A new 🎁 appears every day · Care daily to grow your 🔥 streak
       </p>
 
       {/* Food picker */}
@@ -450,28 +578,104 @@ export default function PetGame({
         </div>
       )}
 
+      {/* Fetch mini-game */}
+      {modal === "fetch" && (
+        <FetchGame
+          petFace={face}
+          petName={pet.name}
+          accent={accent}
+          cost={PLAY_COST}
+          busy={isPending}
+          onCancel={() => setModal(null)}
+          onDone={(score) => {
+            const reward = playReward(score);
+            runAction(
+              () => playWithPet(kid.id, score),
+              () => setNotice(`🎾 ${pet.name} loved that! +${reward.happiness} happy · +${reward.xp} XP`),
+            );
+          }}
+        />
+      )}
+
+      {/* Tricks */}
+      {modal === "tricks" && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setModal(null)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="relative bg-white rounded-t-[28px] px-5 pt-5 pb-8" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-gray-900 text-center mb-1">✨ Tricks</h2>
+            <p className="text-center text-[10px] font-bold text-gray-400 mb-3">
+              Learn once with stars — perform forever for free!
+            </p>
+            <div className="space-y-2">
+              {PET_TRICKS.map((t) => {
+                const learned = pet.tricks.includes(t.id);
+                const locked = level < t.minLevel;
+                return (
+                  <div key={t.id} className={`rounded-2xl p-3 flex items-center gap-3 ${learned ? "bg-green-50" : "bg-gray-50"} ${locked ? "opacity-60" : ""}`}>
+                    <span className="text-3xl">{t.emoji}</span>
+                    <span className="flex-1 text-left">
+                      <span className="block font-black text-sm text-gray-800">{t.label}</span>
+                      <span className="block text-[10px] font-bold text-gray-400">
+                        {learned ? "Learned!" : locked ? `Unlocks at level ${t.minLevel}` : `Level ${t.minLevel}+`}
+                      </span>
+                    </span>
+                    {learned ? (
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => doTrick(t.id, t.emoji)}
+                        className="text-sm font-black text-white rounded-full px-4 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
+                        style={{ background: accent }}
+                      >
+                        Perform!
+                      </button>
+                    ) : locked ? (
+                      <span className="text-sm font-black text-gray-400 px-3 py-1.5">🔒 Lv {t.minLevel}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        onClick={() => runAction(() => learnTrick(kid.id, t.id), () => setNotice(`${t.emoji} ${pet.name} learned ${t.label}!`))}
+                        className="text-sm font-black text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-full px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
+                      >
+                        Learn · {t.starCost} ⭐
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Accessory shop */}
       {modal === "shop" && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setModal(null)}>
           <div className="absolute inset-0 bg-black/30" />
-          <div className="relative bg-white rounded-t-[28px] px-5 pt-5 pb-8" onClick={(e) => e.stopPropagation()}>
+          <div className="relative bg-white rounded-t-[28px] px-5 pt-5 pb-8 max-h-[75dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-black text-gray-900 text-center mb-1">🛍️ Pet shop</h2>
-            <p className="text-center text-[10px] font-bold text-gray-400 mb-3">Toys live in {pet.name}&apos;s room forever!</p>
+            <p className="text-center text-[10px] font-bold text-gray-400 mb-3">
+              Toys live in {pet.name}&apos;s room forever — level up to unlock more!
+            </p>
             <div className="grid grid-cols-3 gap-2">
               {PET_ACCESSORIES.map((a) => {
                 const owned = pet.accessories.includes(a.id);
+                const locked = level < a.minLevel;
                 return (
                   <button
                     key={a.id}
                     type="button"
-                    disabled={isPending || owned}
-                    onClick={() => runAction(() => buyAccessory(kid.id, a.id))}
-                    className={`rounded-2xl p-3 flex flex-col items-center gap-1 active:scale-95 transition-transform ${owned ? "bg-green-50 border-2 border-green-200" : "bg-gray-50"}`}
+                    disabled={isPending || owned || locked}
+                    onClick={() => runAction(() => buyAccessory(kid.id, a.id), () => setNotice(`${a.emoji} ${a.label} added to ${pet.name}'s room!`))}
+                    className={`rounded-2xl p-3 flex flex-col items-center gap-1 active:scale-95 transition-transform ${owned ? "bg-green-50 border-2 border-green-200" : "bg-gray-50"} ${locked ? "opacity-60" : ""}`}
                   >
-                    <span className="text-3xl">{a.emoji}</span>
+                    <span className={`text-3xl ${locked ? "grayscale" : ""}`}>{a.emoji}</span>
                     <span className="text-[10px] font-black text-gray-700">{a.label}</span>
                     {owned ? (
                       <span className="text-[9px] font-black text-green-600">Owned ✓</span>
+                    ) : locked ? (
+                      <span className="text-[9px] font-black text-gray-400">🔒 Lv {a.minLevel}</span>
                     ) : (
                       <span className="text-[10px] font-black text-yellow-700">{a.starCost} ⭐</span>
                     )}
@@ -483,6 +687,36 @@ export default function PetGame({
         </div>
       )}
 
+      {/* Gift reveal */}
+      {giftReveal && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center px-7 text-center"
+          style={{ background: "rgba(17, 24, 39, 0.85)" }}
+          onClick={() => setGiftReveal(null)}
+        >
+          <span className="text-7xl animate-pop inline-block mb-4">
+            {giftReveal.kind === "accessory"
+              ? PET_ACCESSORIES.find((a) => a.id === giftReveal.accessoryId)?.emoji ?? "🎁"
+              : giftReveal.kind === "xp" ? "✨" : giftReveal.kind === "happiness" ? "😊" : "⚡"}
+          </span>
+          <h2 className="text-2xl font-black text-white mb-1">
+            {giftReveal.kind === "accessory"
+              ? `A free ${PET_ACCESSORIES.find((a) => a.id === giftReveal.accessoryId)?.label ?? "toy"}!`
+              : giftReveal.kind === "xp" ? `+${giftReveal.amount} XP!`
+              : giftReveal.kind === "happiness" ? `+${giftReveal.amount} happiness!`
+              : `+${giftReveal.amount} energy!`}
+          </h2>
+          <p className="text-sm font-bold text-white/70 mb-6">Come back tomorrow for another gift 🎁</p>
+          <button
+            type="button"
+            className="px-8 py-3.5 rounded-2xl font-black text-base text-gray-900 bg-white active:scale-95 transition-transform"
+            onClick={() => setGiftReveal(null)}
+          >
+            Yay! →
+          </button>
+        </div>
+      )}
+
       {/* Level-up celebration */}
       {levelUp && (
         <div
@@ -490,7 +724,7 @@ export default function PetGame({
           style={{ background: "rgba(17, 24, 39, 0.85)" }}
           onClick={() => setLevelUp(null)}
         >
-          <span className="text-8xl avatar-party inline-block mb-4">{petEmoji(pet)}</span>
+          <span className="text-8xl avatar-party inline-block mb-4">{face}</span>
           <h2 className="text-3xl font-black text-white mb-1 animate-pop">
             {levelUp.evolved ? `${pet.name} evolved!` : "Level up!"} 🎉
           </h2>
