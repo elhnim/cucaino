@@ -22,7 +22,9 @@ export async function processPayday(): Promise<void> {
   if (!family || family.pay_day_of_week === null || family.weekly_allowance_cents <= 0) return;
 
   const today = localDateString((family as any).timezone ?? "Australia/Sydney");
-  const todayDayOfWeek = new Date().getDay(); // JS: 0=Sun … 6=Sat
+  // Derive day-of-week from the timezone-aware local date, not from UTC
+  const [ly, lm, ld] = today.split("-").map(Number);
+  const todayDayOfWeek = new Date(ly, lm - 1, ld).getDay(); // 0=Sun … 6=Sat
   if (todayDayOfWeek !== family.pay_day_of_week) return;
 
   const { data: kids } = await supabase
