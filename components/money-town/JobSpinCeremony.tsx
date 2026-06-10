@@ -69,10 +69,20 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
 
   if (result) {
     return (
-      <div className="min-h-screen bg-sky-50 flex flex-col items-center justify-center p-6">
-        <div className="bg-white rounded-3xl shadow-lg p-8 max-w-sm w-full text-center">
-          <div className="text-5xl mb-3">{result.emoji}</div>
-          <h2 className="text-2xl font-black text-gray-900 mb-1">{player.name} is a</h2>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 55%, #d9f99d 100%)" }}>
+        {/* celebration rain */}
+        <div className="absolute inset-0 pointer-events-none" aria-hidden>
+          {[12, 32, 52, 72, 90].map((left, i) => (
+            <span key={left} className="emoji-rain-piece text-2xl" style={{ left: `${left}%`, animationDelay: `${i * 0.5}s` }}>
+              {i % 2 === 0 ? '🎉' : result.emoji}
+            </span>
+          ))}
+        </div>
+        <div className="bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center relative animate-pop">
+          <div className="text-6xl mb-3"><span className="avatar-party inline-block">{result.emoji}</span></div>
+          <h2 className="text-2xl font-black text-gray-900 mb-1">
+            <span className="walk-bob inline-block mr-1">{player.emoji}</span> {player.name} is a
+          </h2>
           <h3 className="text-3xl font-black text-blue-600 mb-4">{result.name}</h3>
           <div className="bg-blue-50 rounded-2xl p-4 mb-6 space-y-1 text-sm">
             <div className="flex justify-between">
@@ -99,19 +109,26 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
   }
 
   return (
-    <div className="min-h-screen bg-sky-50 flex flex-col items-center justify-center p-6">
-      <h2 className="text-2xl font-black text-blue-900 mb-1 text-center">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 55%, #d9f99d 100%)" }}>
+      <div className="text-4xl mb-1"><span className="avatar-party inline-block">{player.emoji}</span></div>
+      <h2 className="text-2xl font-black text-sky-950 mb-1 text-center">
         {player.name}
       </h2>
-      <p className="text-sm text-blue-500 mb-6 text-center">Pull the lever to get your job!</p>
+      <p className="text-sm font-bold text-sky-600 mb-6 text-center">Pull the lever to land your first job!</p>
 
       {/* Reel machine */}
-      <div className="bg-red-500 rounded-3xl p-4 shadow-xl mb-6 w-64">
-        <div className="bg-yellow-400 text-red-800 font-black text-xs text-center py-1 rounded-xl mb-3 tracking-widest">
-          SPIN TO WIN
+      <div className="rounded-3xl p-4 mb-6 w-64" style={{ background: "linear-gradient(160deg, #ef4444, #dc2626 60%, #b91c1c)", boxShadow: "0 8px 0 #991b1b, 0 18px 36px rgba(0,0,0,0.35)" }}>
+        {/* Marquee lights */}
+        <div className="flex justify-between px-1 mb-2" aria-hidden>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <span key={i} className="marquee-light w-2 h-2 rounded-full bg-yellow-300" style={{ animationDelay: `${(i % 2) * 0.45}s`, boxShadow: "0 0 6px rgba(253,224,71,0.9)" }} />
+          ))}
+        </div>
+        <div className="bg-yellow-400 text-red-800 font-black text-xs text-center py-1 rounded-xl mb-3 tracking-widest bar-shimmer">
+          ★ JOB LOTTERY ★
         </div>
         {/* Window */}
-        <div className="bg-slate-900 rounded-2xl overflow-hidden relative" style={{ height: 240 }}>
+        <div className="bg-slate-900 rounded-2xl overflow-hidden relative" style={{ height: 240, boxShadow: "inset 0 0 20px rgba(0,0,0,0.8)" }}>
           {/* Active row highlight */}
           <div className="absolute left-0 right-0 border-2 border-yellow-400 rounded-xl pointer-events-none z-10"
             style={{ top: SEGMENT_HEIGHT, height: SEGMENT_HEIGHT }} />
@@ -130,8 +147,9 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
 
       {/* Lever */}
       <button type="button" onClick={pullLever} disabled={spinning}
-        className={`px-8 py-4 bg-yellow-500 text-white text-xl font-black rounded-2xl shadow-lg active:scale-95 disabled:opacity-60 transition-transform ${leverPressed ? 'translate-y-2' : ''}`}>
-        {spinning ? 'Spinning…' : '🎰 Pull the Lever!'}
+        className={`px-8 py-4 text-yellow-950 text-xl font-black rounded-2xl active:scale-95 disabled:opacity-60 transition-transform ${leverPressed ? 'translate-y-2' : ''}`}
+        style={{ background: "linear-gradient(180deg, #fde047, #facc15 60%, #eab308)", boxShadow: spinning ? "none" : "0 5px 0 #a16207, 0 10px 22px rgba(234,179,8,0.4)" }}>
+        {spinning ? '🎲 Spinning…' : '🎰 PULL THE LEVER!'}
       </button>
 
       {spinPlayerIndex > 0 && (

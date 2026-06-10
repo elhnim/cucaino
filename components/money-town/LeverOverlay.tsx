@@ -72,27 +72,34 @@ export default function LeverOverlay({ player, onResult }: Props) {
   const reelItems = Array.from({ length: maxItems }, (_, i) => REEL_SEGMENTS[i % REEL_SEGMENTS.length])
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden">
+    <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl w-full max-w-xs overflow-hidden animate-pop" style={{ boxShadow: "0 0 40px rgba(250,204,21,0.35), 0 24px 50px rgba(0,0,0,0.5)" }}>
         {/* Player header */}
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-4 flex items-center gap-3">
-          <span className="text-3xl">{player.emoji}</span>
+          <span className="text-3xl avatar-party inline-block">{player.emoji}</span>
           <div className="flex-1 min-w-0">
             <div className="font-black text-white truncate">{player.name}</div>
             <div className="text-xs text-blue-100">${player.cash.toLocaleString()} cash</div>
           </div>
+          <span className="text-[10px] font-black text-yellow-200 uppercase tracking-widest text-right leading-tight">Your<br/>turn!</span>
         </div>
 
         <div className="p-5">
           {/* Reel machine */}
-          <div className="bg-red-500 rounded-3xl p-4 shadow-lg mb-5">
-            <div className="bg-yellow-400 text-red-800 font-black text-xs text-center py-1 rounded-xl mb-3 tracking-widest">
-              SPIN TO WIN
+          <div className="rounded-3xl p-4 mb-5" style={{ background: "linear-gradient(160deg, #ef4444, #dc2626 60%, #b91c1c)", boxShadow: "0 8px 0 #991b1b, 0 16px 30px rgba(0,0,0,0.3)" }}>
+            {/* Marquee lights */}
+            <div className="flex justify-between px-1 mb-2" aria-hidden>
+              {Array.from({ length: 8 }).map((_, i) => (
+                <span key={i} className="marquee-light w-2 h-2 rounded-full bg-yellow-300" style={{ animationDelay: `${(i % 2) * 0.45}s`, boxShadow: "0 0 6px rgba(253,224,71,0.9)" }} />
+              ))}
+            </div>
+            <div className="bg-yellow-400 text-red-800 font-black text-xs text-center py-1 rounded-xl mb-3 tracking-widest bar-shimmer">
+              ★ SPIN TO WIN ★
             </div>
             {/* Window */}
-            <div className="bg-slate-900 rounded-2xl overflow-hidden relative" style={{ height: 240 }}>
-              <div className="absolute left-0 right-0 border-2 border-yellow-400 rounded-xl pointer-events-none z-10"
-                style={{ top: SEGMENT_HEIGHT, height: SEGMENT_HEIGHT }} />
+            <div className="bg-slate-900 rounded-2xl overflow-hidden relative" style={{ height: 240, boxShadow: "inset 0 0 20px rgba(0,0,0,0.8)" }}>
+              <div className={`absolute left-0 right-0 border-2 border-yellow-400 rounded-xl pointer-events-none z-10 ${done ? 'pulse-ring' : ''}`}
+                style={{ top: SEGMENT_HEIGHT, height: SEGMENT_HEIGHT, boxShadow: done ? "0 0 16px rgba(250,204,21,0.7)" : undefined }} />
               <div ref={reelRef} className="absolute top-0 left-0 right-0">
                 {reelItems.map((seg, i) => {
                   const d = SEGMENT_DISPLAY[seg]
@@ -113,9 +120,10 @@ export default function LeverOverlay({ player, onResult }: Props) {
             type="button"
             onClick={pullLever}
             disabled={spinning || done}
-            className={`w-full py-4 bg-yellow-500 text-white text-xl font-black rounded-2xl shadow-md disabled:opacity-60 active:scale-95 transition-transform ${leverPressed ? 'translate-y-1' : ''}`}
+            className={`w-full py-4 text-yellow-950 text-xl font-black rounded-2xl disabled:opacity-60 active:scale-95 transition-transform ${leverPressed ? 'translate-y-1' : ''}`}
+            style={{ background: "linear-gradient(180deg, #fde047, #facc15 60%, #eab308)", boxShadow: spinning || done ? "none" : "0 5px 0 #a16207, 0 10px 22px rgba(234,179,8,0.4)" }}
           >
-            {spinning ? 'Spinning…' : done ? 'Loading…' : '🎰 Pull the Lever!'}
+            {spinning ? '🎲 Spinning…' : done ? '✨ Loading…' : '🎰 PULL THE LEVER!'}
           </button>
         </div>
       </div>

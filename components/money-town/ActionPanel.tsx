@@ -20,11 +20,13 @@ export default function ActionPanel({ player, dispatch }: Props) {
     <div className="fixed inset-0 z-40 bg-black/60 flex items-end justify-center">
       <div className="bg-white rounded-t-3xl w-full max-w-md max-h-[85vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white px-5 pt-5 pb-3 border-b border-gray-100">
+        <div className="sticky top-0 bg-white px-5 pt-5 pb-3 border-b border-gray-100 z-10">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-black text-gray-900">{player.emoji} Your Move</h2>
-              <p className="text-sm text-gray-500">Cash: <span className="font-black text-yellow-600">${player.cash.toLocaleString()}</span></p>
+              <h2 className="text-xl font-black text-gray-900">
+                <span className="avatar-party inline-block mr-1">{player.emoji}</span> Your Move
+              </h2>
+              <p className="text-sm font-bold text-gray-500">Cash: <span className="font-black text-yellow-600">💰 ${player.cash.toLocaleString()}</span></p>
             </div>
           </div>
         </div>
@@ -63,8 +65,8 @@ export default function ActionPanel({ player, dispatch }: Props) {
                     <button key={def.id} type="button"
                       onClick={() => canAfford && dispatch({ type: 'BUY_ASSET', defId: def.id })}
                       disabled={!canAfford}
-                      className="w-full flex items-center gap-3 bg-white border-2 border-gray-200 rounded-2xl px-4 py-3 disabled:opacity-40 active:scale-95 transition-transform hover:border-blue-300">
-                      <span className="text-2xl">{def.emoji}</span>
+                      className="w-full flex items-center gap-3 bg-gradient-to-r from-emerald-50 to-white border-2 border-emerald-200 rounded-2xl px-4 py-3 disabled:opacity-40 active:scale-95 transition-transform hover:border-emerald-400">
+                      <span className="text-2xl w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">{def.emoji}</span>
                       <div className="flex-1 text-left">
                         <div className="font-black text-gray-900 text-sm">{def.name}</div>
                         <div className="text-xs text-gray-500">

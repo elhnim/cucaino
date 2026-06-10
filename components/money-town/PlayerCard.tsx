@@ -25,15 +25,18 @@ export default function PlayerCard({ player, isActive, paydayInfo, onPullLever }
   const gradient = HEADER_GRADIENT[player.color] ?? 'from-blue-500 to-blue-700'
 
   return (
-    <div className={`rounded-xl border-2 ${isActive ? 'border-white shadow-lg' : cc.border} relative overflow-hidden h-full flex flex-col`}>
+    <div
+      className={`rounded-2xl border-2 ${isActive ? 'border-yellow-300 pulse-ring' : cc.border} relative overflow-hidden h-full flex flex-col`}
+      style={isActive ? { boxShadow: "0 0 18px rgba(250,204,21,0.45)" } : undefined}
+    >
       {/* Won badge */}
       {player.hasWon && (
-        <span className="absolute top-1.5 right-1.5 z-20 bg-green-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full">🏆 FREE!</span>
+        <span className="absolute top-1.5 right-1.5 z-20 bg-green-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full animate-pop">🏆 FREE!</span>
       )}
 
       {/* Gradient header */}
       <div className={`bg-gradient-to-br ${gradient} px-2 py-2 flex items-center gap-1.5 flex-shrink-0`}>
-        <span className="text-2xl">{player.emoji}</span>
+        <span className={`text-2xl inline-block ${isActive ? 'avatar-party' : 'avatar-idle'}`}>{player.emoji}</span>
         <div className="flex-1 min-w-0">
           <div className="font-black text-white text-xs truncate leading-tight">{player.name}</div>
           {player.degreeStatus && player.degreeStatus !== 'graduated' && (
@@ -54,7 +57,7 @@ export default function PlayerCard({ player, isActive, paydayInfo, onPullLever }
 
         {/* Payday banner */}
         {paydayInfo && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-1.5 text-[10px] space-y-0.5 flex-shrink-0">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-1.5 text-[10px] space-y-0.5 flex-shrink-0 animate-pop">
             {paydayInfo.degreeArrived && (
               <div className="text-purple-700 font-black text-center">🎓 Degree arrived!</div>
             )}
@@ -75,23 +78,27 @@ export default function PlayerCard({ player, isActive, paydayInfo, onPullLever }
           </div>
         )}
 
-        {/* Freedom track */}
+        {/* Freedom track — the player's character runs toward the flag */}
         <div className="flex-shrink-0">
           <div className="flex justify-between mb-0.5">
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Freedom</span>
-            <span className="text-[9px] font-bold text-blue-600">{progressPct}%</span>
+            <span className="text-[9px] font-bold text-blue-600">{progressPct}% 🏁</span>
           </div>
-          <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
+          <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-700 bar-shimmer"
               style={{ width: `${progressPct}%` }}
             />
-            {progressPct > 0 && progressPct < 100 && (
-              <span className="absolute top-1/2 -translate-y-1/2 text-[10px] leading-none"
-                style={{ left: `calc(${progressPct}% - 5px)` }}>🏃</span>
+            {progressPct < 100 && (
+              <span
+                className="absolute top-1/2 -translate-y-1/2 text-[12px] leading-none transition-all duration-700"
+                style={{ left: `calc(${Math.max(progressPct, 2)}% - 6px)` }}
+              >
+                <span className="walk-bob inline-block">{player.emoji}</span>
+              </span>
             )}
             {progressPct >= 100 && (
-              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[10px]">🏆</span>
+              <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[12px] animate-pop">🏆</span>
             )}
           </div>
         </div>
@@ -114,11 +121,11 @@ export default function PlayerCard({ player, isActive, paydayInfo, onPullLever }
             <p className="text-[9px] text-gray-300 italic text-center py-1">No assets yet</p>
           ) : (
             <div className="flex gap-1 pb-0.5">
-              {player.assets.map(a => {
+              {player.assets.map((a, i) => {
                 const def = ASSETS.find(d => d.id === a.defId)
                 return (
                   <div key={a.uid} className="flex-shrink-0 flex flex-col items-center bg-green-50 border-2 border-green-300 rounded-xl px-1.5 py-1 min-w-[40px] max-w-[68px]">
-                    <span className="text-lg leading-none">{def?.emoji ?? '📦'}</span>
+                    <span className={`text-lg leading-none inline-block ${isActive ? 'avatar-idle' : ''}`} style={isActive ? { animationDelay: `${i * 0.3}s` } : undefined}>{def?.emoji ?? '📦'}</span>
                     <span className="text-[8px] font-black text-green-800 text-center leading-tight mt-0.5 truncate w-full text-center">{def?.name ?? 'Asset'}</span>
                     <span className="text-[9px] font-black text-white bg-green-600 rounded-full px-1.5 mt-0.5">${a.income.toLocaleString()}</span>
                   </div>
@@ -134,14 +141,14 @@ export default function PlayerCard({ player, isActive, paydayInfo, onPullLever }
         <button
           type="button"
           onClick={onPullLever}
-          className="absolute inset-0 flex items-center justify-center bg-black/20 active:bg-black/30 transition-colors"
+          className="absolute inset-0 flex items-center justify-center bg-black/25 active:bg-black/35 transition-colors"
         >
           <div
-            className="bg-gradient-to-br from-green-500 to-green-700 text-white font-black text-xl px-5 py-3 rounded-2xl border-2 border-white/25 text-center"
-            style={{ boxShadow: '0 5px 0px #14532d, 0 10px 28px rgba(0,0,0,0.5)' }}
+            className="bg-gradient-to-br from-green-400 to-green-600 text-white font-black text-xl px-5 py-3 rounded-2xl border-2 border-white/30 text-center pulse-ring"
+            style={{ boxShadow: '0 5px 0 #14532d, 0 10px 28px rgba(0,0,0,0.5)' }}
           >
-            ▶ GO!
-            <div className="text-[11px] font-bold opacity-85">{player.name}'s Turn</div>
+            <span className="walk-bob inline-block">▶</span> GO!
+            <div className="text-[11px] font-bold opacity-85">{player.name}&apos;s Turn</div>
           </div>
         </button>
       )}

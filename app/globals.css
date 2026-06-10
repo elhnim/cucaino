@@ -152,6 +152,76 @@
     100% { transform: translateY(-90px) scale(1.6) rotate(20deg); opacity: 0; }
   }
 
+  /* Card shake for bad-news moments */
+  .shake {
+    animation: shake 0.5s ease-in-out;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); }
+    40% { transform: translateX(7px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
+  /* Blinking casino marquee lights */
+  .marquee-light {
+    animation: marquee-blink 0.9s steps(1) infinite;
+  }
+
+  @keyframes marquee-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  /* Expanding attention ring (active player, GO button) */
+  .pulse-ring {
+    animation: pulse-ring 1.6s ease-out infinite;
+  }
+
+  @keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
+    100% { box-shadow: 0 0 0 14px rgba(250, 204, 21, 0); }
+  }
+
+  /* Characters pacing back and forth (flip at the edges).
+     Distance is set per-use via --walk-dist. */
+  .walk-x {
+    position: absolute;
+    animation: walk-x linear infinite;
+  }
+
+  @keyframes walk-x {
+    0%    { transform: translateX(0) scaleX(1); }
+    49.5% { transform: translateX(var(--walk-dist, 240px)) scaleX(1); }
+    50%   { transform: translateX(var(--walk-dist, 240px)) scaleX(-1); }
+    99.5% { transform: translateX(0) scaleX(-1); }
+    100%  { transform: translateX(0) scaleX(1); }
+  }
+
+  /* Step bobbing layered inside a walker */
+  .walk-bob {
+    display: inline-block;
+    animation: walk-bob 0.35s ease-in-out infinite alternate;
+  }
+
+  @keyframes walk-bob {
+    from { transform: translateY(0) rotate(-4deg); }
+    to   { transform: translateY(-3px) rotate(4deg); }
+  }
+
+  /* One-way traffic across the scene (cars, birds) */
+  .drive-by {
+    position: absolute;
+    animation: drive-by linear infinite;
+  }
+
+  @keyframes drive-by {
+    from { transform: translateX(-70px); }
+    to   { transform: translateX(500px); }
+  }
+
   /* Shimmer sweep on XP bars */
   .bar-shimmer {
     position: relative;
@@ -173,7 +243,9 @@
   @media (prefers-reduced-motion: reduce) {
     .avatar-idle, .avatar-bounce, .avatar-party, .emoji-rain-piece,
     .heart-float, .sleep-drift, .cloud-drift, .twinkle, .pet-glow,
-    .gift-wiggle, .trick-burst, .bar-shimmer::after {
+    .gift-wiggle, .trick-burst, .bar-shimmer::after,
+    .shake, .marquee-light, .pulse-ring,
+    .walk-x, .walk-bob, .drive-by {
       animation: none;
     }
   }

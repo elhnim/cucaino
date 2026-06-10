@@ -44,11 +44,13 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
     const earned = totalCorrect * 75
     const triviaIds = questions.map(q => q.id)
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <div className="text-6xl mb-4">🧠</div>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ background: "linear-gradient(180deg, #ddd6fe 0%, #ede9fe 50%, #fce7f3 100%)" }}>
+        <div className="text-6xl mb-4"><span className="avatar-party inline-block">🧠</span></div>
         <h2 className="text-2xl font-black text-gray-900 mb-2">Trivia Done!</h2>
-        <p className="text-gray-500 mb-4">{totalCorrect} / 3 correct</p>
-        <div className="text-4xl font-black text-green-600 mb-8">+${earned}</div>
+        <p className="font-bold text-gray-500 mb-4">
+          {totalCorrect === 3 ? '🌟 Perfect — ' : ''}{totalCorrect} / 3 correct
+        </p>
+        <div className="text-5xl font-black text-green-600 mb-8 animate-pop">+${earned}</div>
         <button
           type="button"
           onClick={() => onComplete(earned, triviaIds)}
@@ -63,7 +65,7 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
   const state = states[currentQ]
 
   return (
-    <div className="min-h-screen flex flex-col p-6 pt-10">
+    <div className="min-h-screen flex flex-col p-6 pt-10" style={{ background: "linear-gradient(180deg, #ddd6fe 0%, #ede9fe 50%, #fce7f3 100%)" }}>
       <div className="flex gap-1.5 mb-8 justify-center">
         {[0, 1, 2].map(i => (
           <div
@@ -78,8 +80,8 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
       </div>
 
       <div className="text-center mb-2">
-        <div className="text-4xl mb-3">🧠</div>
-        <div className="text-xs text-gray-400 mb-1">Question {currentQ + 1} of 3 · $75 each</div>
+        <div className="text-4xl mb-3"><span className="avatar-idle inline-block">🧠</span></div>
+        <div className="text-xs font-bold text-purple-500 mb-1">Question {currentQ + 1} of 3 · 💰 $75 each</div>
       </div>
 
       <p className="text-lg font-black text-gray-900 text-center mb-6">{q.question}</p>

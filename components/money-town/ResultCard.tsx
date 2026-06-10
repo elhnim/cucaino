@@ -24,12 +24,19 @@ export default function ResultCard({ result, player, state, dispatch }: Props) {
   const canAffordOffer = offerDef ? player.cash >= offerCost : false
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden">
+    <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
+      <div className={`bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden ${result.tone === 'bad' ? 'shake' : 'animate-pop'}`}>
         {/* Header */}
-        <div className={`bg-gradient-to-br ${headerGrad} px-6 py-5 text-center`}>
-          <div className="text-5xl mb-2">{result.emoji}</div>
-          <h2 className="text-xl font-black text-white">{result.title}</h2>
+        <div className={`relative bg-gradient-to-br ${headerGrad} px-6 py-5 text-center overflow-hidden`}>
+          {result.tone === 'good' && (
+            <div className="absolute inset-0 pointer-events-none" aria-hidden>
+              {[15, 50, 85].map((left, i) => (
+                <span key={left} className="emoji-rain-piece text-lg" style={{ left: `${left}%`, animationDelay: `${i * 0.4}s`, animationDuration: "2.2s" }}>✨</span>
+              ))}
+            </div>
+          )}
+          <div className="text-6xl mb-2 relative"><span className={`inline-block ${result.tone === 'good' ? 'avatar-party' : 'avatar-bounce'}`}>{result.emoji}</span></div>
+          <h2 className="text-xl font-black text-white relative">{result.title}</h2>
           {result.kind === 'big-event' && (
             <span className="inline-block mt-1 bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
               💥 Big Event
@@ -48,18 +55,18 @@ export default function ResultCard({ result, player, state, dispatch }: Props) {
           {/* Delta badges */}
           <div className="flex flex-wrap gap-2 justify-center mb-4">
             {result.cashDelta !== 0 && (
-              <span className={`text-sm font-black px-3 py-1 rounded-full ${result.cashDelta > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                {result.cashDelta > 0 ? '+' : ''}${result.cashDelta.toLocaleString()} cash
+              <span className={`text-sm font-black px-3 py-1 rounded-full animate-pop ${result.cashDelta > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                {result.cashDelta > 0 ? '💰 +' : '💸 '}${result.cashDelta.toLocaleString()} cash
               </span>
             )}
             {result.salaryDelta !== 0 && (
-              <span className="text-sm font-black px-3 py-1 rounded-full bg-blue-100 text-blue-700">
-                +${result.salaryDelta.toLocaleString()} salary
+              <span className="text-sm font-black px-3 py-1 rounded-full bg-blue-100 text-blue-700 animate-pop">
+                💼 +${result.salaryDelta.toLocaleString()} salary
               </span>
             )}
             {result.expensesDelta !== 0 && (
-              <span className={`text-sm font-black px-3 py-1 rounded-full ${result.expensesDelta > 0 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-                {result.expensesDelta > 0 ? '+' : ''}${result.expensesDelta.toLocaleString()} expenses
+              <span className={`text-sm font-black px-3 py-1 rounded-full animate-pop ${result.expensesDelta > 0 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                🧾 {result.expensesDelta > 0 ? '+' : ''}${result.expensesDelta.toLocaleString()} expenses
               </span>
             )}
           </div>
