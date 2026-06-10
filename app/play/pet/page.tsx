@@ -1,6 +1,6 @@
 import { getKid, getKidPet } from "@/lib/data/stub";
 import { getTheme } from "@/lib/themes/presets";
-import KidShell from "@/components/kid/KidShell";
+import KidOverridesApplier from "@/components/kid/KidOverridesApplier";
 import PetGame from "@/components/pet/PetGame";
 
 export default async function PetPage({
@@ -12,23 +12,17 @@ export default async function PetPage({
 
   const kid = kidId ? await getKid(kidId) : null;
   const pet = kid ? await getKidPet(kid.id) : null;
-  const accent = kid ? getTheme(kid.themeId).accent : "#c026d3";
-
-  const content = (
-    <PetGame
-      kid={kid ? { id: kid.id, name: kid.name, pointsBalance: kid.pointsBalance } : null}
-      initialPet={pet}
-      accent={accent}
-    />
-  );
-
-  if (kid) {
-    return <KidShell kid={kid} active="play">{content}</KidShell>;
-  }
+  const theme = kid ? getTheme(kid.themeId) : null;
+  const accent = theme?.accent ?? "#c026d3";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 to-amber-50">
-      {content}
+    <div className="h-dvh overflow-hidden flex flex-col font-fun" style={{ background: theme ? `linear-gradient(160deg, ${theme.accent}18 0%, white 60%)` : "#fdf4ff" }}>
+      {kid && <KidOverridesApplier kid={kid} />}
+      <PetGame
+        kid={kid ? { id: kid.id, name: kid.name, pointsBalance: kid.pointsBalance } : null}
+        initialPet={pet}
+        accent={accent}
+      />
     </div>
   );
 }
