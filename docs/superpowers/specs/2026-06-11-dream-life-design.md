@@ -759,6 +759,78 @@ spec addendum — same shape as the Tradesperson sections here.
 - [x] Power-ups incl. pass-and-play reactive timing + milestone table — COMPLETE
 - [x] Save/resume design — COMPLETE
 - [x] Architecture — COMPLETE
+- [x] Visual mockups — APPROVED (`mockups/2026-06-11-dream-life/`, 17 screens; see §15)
 - [ ] Balance sim rebuild + acceptance run (§12) — first implementation task
 - [ ] Implementation plan (writing-plans)
-- [ ] Visual mockups (visual-mockups skill) before UI build
+
+---
+
+## 15. Visual Requirements (from approved mockups)
+
+Mockups: `mockups/2026-06-11-dream-life/` (17 screens + index). **These are the binding visual
+contract** — any implementation task with visible output is verified against its mockup file.
+Player names/amounts/percentages in mockups are illustrative sample data; layout, copy style,
+components and colours are normative.
+
+### Design language ("bright dreamy day" — approved after rejecting a dark theme as too heavy)
+- **Background:** vertical sky gradient `#4cc9ff → #9f8bff → #ffb46b` with floating ☁️ decorations
+  (CSS animation). Dark indigo `#2e1065` is the text colour on the sky (with subtle dark text-shadow
+  when white text sits on the sky).
+- **Header bar:** warm orange gradient (`#ff8a3d → #ffb13d`), white 900-weight text, white pill
+  badges showing phase/age (e.g. "🧒 TEEN YEARS", "💼 CAREER · AGE 27").
+- **Cards:** white, 22px radius, 3px white border, solid offset shadow `0 6px 0 rgba(46,16,101,.18)`
+  ("toy" feel). Player cards keep Money Town's per-player gradient headers (red/blue/green/amber).
+- **Buttons:** chunky 3D — green gradient primary with `0 6px 0` darker base (Money Town's GO!
+  pattern), translucent white "ghost" secondary.
+- **Active-player highlight:** gold `#ffd93d` border + glow.
+- **Emoji animation:** action emojis bounce, event-card emojis wiggle, freedom-bar walker bounces.
+- **Event cards:** rotated −1.5°, 4px white border, big emoji (60px), coloured gradient top half
+  (red = bad, purple = mini-game, amber = career moments), white bottom half with the cash amount.
+- **Typography:** rounded system stack, 900 weight for all headings/labels, uppercase micro-labels.
+
+### Screens (file → what must match)
+1. `01-lobby-new.html` — kid-picker grid (2-col cards, selected = gold border + "✓ PLAYING"),
+   guest tile, "How you win" bubble, START LIFE button with player count + "begins at age 13".
+2. `02-lobby-resume.html` — "Resume your lives" gold-highlighted card (per-player age/career/%
+   free), "Start a brand-new life" with erase warning; broken/missing-save fallback noted.
+3. `03-rules.html` — 5-slide carousel, coloured header + dots, slide 1 = win condition copy.
+4. `04-phase1-board.html` — turn banner ("Mia — Age 15 / What are you doing this year?"), active
+   player card with 4 skill-dot rows + invested/talent chips, 4 action rows (emoji, title, sub,
+   FREE/cost tag; unaffordable action greyed with 🔒), mini player strip at bottom.
+5. `05-phase1-event-card.html` — "🎰 WHAT HAPPENED THIS YEAR…", tilted event card, settle-up
+   bubble (gig pay + event + fund growth), NEXT YEAR button.
+6. `06-phase1-minigame.html` — mini-game intro card with WIN/LOSE chips (lose = nothing lost),
+   talent-token explainer, ▶ PLAY!
+7. `07-career-reel.html` — 12-career grid (qualified lit with gate badges "🛡️ GRIT L2 ✓", locked
+   greyed with "🔒" gates), result card "You're a Tradesperson!" + "More lives coming soon!" banner.
+8. `08-phase2-apprenticeship.html` — wage/expense banner, qualification-rank stars, wage/expenses/
+   invested/debt chips, Doctor-comparison teaching bubble, 4 apprentice actions (Tool up = LOAN tag).
+9. `09-phase3-board.html` — active player card: rank title, salary/lifestyle/insured line, freedom
+   bar with walking emoji + passive-vs-expenses caption, horizontal asset shelf (asset chips with
+   +$/yr pills, 🃏 hand chip), big "PLAN YOUR YEAR" CTA, Portfolio/Skills/Cards ghost buttons,
+   "race to freedom" mini-player bars.
+10. `10-phase3-actions.html` — bottom sheet, actions grouped under "Grow your money / Grow
+    yourself / Shrink your expenses", each row shows its skill-level or cost context, locked rows
+    show requirement, footer note re one power-up per turn.
+11. `11-portfolio.html` — sections: Income assets (with per-asset value/loan/rate meta and net
+    cash/yr; negative-geared rental flagged red with pay-down hint) · Growth assets (crypto "$0
+    income — can't win until you SELL") · Debts (PAY DOWN button) · NET worth pill in header.
+12. `12-buy-asset.html` — asset shop list with per-class emoji, four-field summary line, entry
+    cost tag; locked classes greyed with "🔒 SMARTS L7/L9" and Business showing its three-skill
+    gate with per-skill ✓/✗; strategy-tip bubble.
+13. `13-skills.html` — 4 ladder cards (coloured headers, L pill), 10-dot progress row (next level
+    dashed), "Now:" benefit + "Next (LN):" teaser lines.
+14. `14-powerups-hand.html` — 3-slot hand (proactive purple PLAY NOW, reactive amber AUTO-OFFERS,
+    empty dashed slot), permanent badges list (earned ⭐ vs locked 🔒 with milestone), attack-cards
+    explainer bubble.
+15. `15-reactive-prompt.html` — full-screen modal: the triggering event header, "📲 Pass the tablet
+    to [player]!" banner, two big choices (Play [card] — outcome / Take the hit — cost), no timer.
+16. `16-year-settlement.html` — ledger card (salary, passive, lifestyle, interest, premium →
+    "Saved this year"), asset growth line, freedom-check bar with % verdict, NEXT PLAYER button.
+17. `17-win-screen.html` — "[NAME] IS FREE!" + age, winning-life card (passive vs expenses, net
+    worth, engine summary, 4%-rule lesson bubble), final standings (freedom-progress %), age-65
+    backstop note, New life / Exit buttons.
+
+### Viewport
+Designed at 430px-wide column (matches the app's `max-w-md` game container); must remain usable
+inside KidShell on tablet and phone, same as Money Town post-`0605125`.

@@ -11,5 +11,34 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run lint)",
+      "Bash(npm run build)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git fetch *)",
+      "Bash(git pull)",
+      "Bash(git stash *)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git fetch *)",
+      "PowerShell(git pull)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Start-Process *)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__get_logs",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_publishable_keys",
+      "mcp__plugin_vercel_vercel__list_deployments",
+      "mcp__claude_ai_Netlify__netlify-deploy-services-reader",
+      "mcp__claude_ai_Netlify__netlify-project-services-reader"
+    ]
   }
 }

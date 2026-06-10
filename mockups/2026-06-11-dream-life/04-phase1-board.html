@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dream Life — Phase 1 board</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="viewport">
+  <div class="state-banner">STATE: Phase 1 (Teen Years) — Mia's turn, age 15 · <a href="index.html">index</a></div>
+  <header class="app-header">
+    <a class="side" href="01-lobby-new.html">✕ Exit</a>
+    <span>🌟 DREAM LIFE</span>
+    <span class="pill">🧒 TEEN YEARS</span>
+  </header>
+
+  <div class="content">
+    <!-- Turn banner -->
+    <div style="text-align:center; color:#fff; text-shadow:0 2px 0 rgba(46,16,101,.35);">
+      <div style="font-weight:900; font-size:18px;"><span style="font-size:24px;">🦄</span> Mia — Age 15</div>
+      <div style="color:#fff; text-shadow:0 1px 1px rgba(46,16,101,.5); font-size:11px; font-weight:700;">What are you doing this year?</div>
+    </div>
+
+    <!-- Active player card -->
+    <div class="card" style="border-color:#ffd93d; box-shadow:0 0 14px rgba(255,217,61,.75);">
+      <div class="card-grad-header grad-red">
+        <span style="font-size:24px;">🦄</span>
+        <div style="flex:1;">
+          <div style="font-size:13px;">Mia</div>
+          <div style="font-size:9px; opacity:.8;">🛵 Pizza Runner (Tier 2) · $12K/yr</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:15px;">$6,400</div>
+          <div style="font-size:9px; opacity:.75;">cash</div>
+        </div>
+      </div>
+      <div style="padding:8px 10px; display:flex; flex-direction:column; gap:6px;">
+        <div class="skill-row"><span class="name">💰 Money Smarts</span>
+          <span class="dot on"></span><span class="dot on"></span><span class="dot next"></span>
+          <span style="font-size:10px; color:#6b7280; margin-left:4px;">L2 — Index Fund unlocked</span>
+        </div>
+        <div class="skill-row"><span class="name">🏆 Pro Skills</span>
+          <span class="dot on"></span><span class="dot"></span><span class="dot"></span>
+          <span style="font-size:10px; color:#6b7280; margin-left:4px;">L1</span>
+        </div>
+        <div class="skill-row"><span class="name">🛡️ Grit</span>
+          <span class="dot on"></span><span class="dot on"></span><span class="dot"></span>
+          <span style="font-size:10px; color:#6b7280; margin-left:4px;">L2 — Tier 2 gigs</span>
+        </div>
+        <div class="skill-row"><span class="name">🧠 Big Brain</span>
+          <span class="dot on"></span><span class="dot"></span><span class="dot"></span>
+          <span style="font-size:10px; color:#6b7280; margin-left:4px;">L1</span>
+        </div>
+        <div class="chips">
+          <div class="chip chip-purple"><div class="v">📊 $2,200</div><div class="k">invested</div></div>
+          <div class="chip chip-gold"><div class="v">🎟️ 1</div><div class="k">talent token</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action menu -->
+    <div class="label" style="color:#fff; text-shadow:0 1px 1px rgba(46,16,101,.5);">Pick ONE action</div>
+    <a class="action-row" href="05-phase1-event-card.html">
+      <span class="emoji">💰</span>
+      <div><div class="title">Invest</div><div class="sub">Money Smarts +1 · put cash into your Index Fund</div></div>
+      <span class="tag tag-free">FREE</span>
+    </a>
+    <a class="action-row" href="05-phase1-event-card.html">
+      <span class="emoji">🏆</span>
+      <div><div class="title">Work harder</div><div class="sub">Pro Skills +1 · promotion next year</div></div>
+      <span class="tag tag-free">FREE</span>
+    </a>
+    <a class="action-row" href="05-phase1-event-card.html">
+      <span class="emoji">🛡️</span>
+      <div><div class="title">Hustle</div><div class="sub">Grit +1 · spin for a better gig next year</div></div>
+      <span class="tag tag-cost">−20% pay</span>
+    </a>
+    <a class="action-row locked" href="#">
+      <span class="emoji">🧠</span>
+      <div><div class="title">Study</div><div class="sub">Big Brain +1 · would drop your cash below $0 this year</div></div>
+      <span class="tag tag-locked">🔒 −50% pay</span>
+    </a>
+
+    <!-- Other players -->
+    <div class="player-strip" style="margin-top:auto;">
+      <div class="mini-player active"><div class="who">🦄</div><div class="nm">Mia</div><div class="pc">Age 15 · $6.4K</div></div>
+      <div class="mini-player"><div class="who">🦊</div><div class="nm">Leo</div><div class="pc">Age 15 · $4.9K</div></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
