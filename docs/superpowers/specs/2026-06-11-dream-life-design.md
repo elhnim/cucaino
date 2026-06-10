@@ -27,7 +27,7 @@
 | Goal | Mechanic |
 |---|---|
 | No clear winning strategy | Win = passive income ≥ expenses (**two levers**: grow income *or* shrink expenses) + 4 viable win paths + automatic lifestyle inflation punishing pure earners |
-| Luck ~25% | Reel events / market rolls / mini-games ≈ 25%; decisions ≈ 75%; insurance + diversification let skilled players buy down variance |
+| Luck ~25% | Random sources contribute ≤ ~25% of **outcome variance** (the one definition used throughout, measured in §12); decisions ≥ 75%; insurance + diversification let skilled players buy down variance |
 | High risk, high return | Variable Phase 3 returns: crypto/business swing hard, index/savings stay safe |
 | Invest in yourself for later gain | Phase 1 skills → Phase 2 education → Phase 3 skill ladders to L10 |
 | Good assets → wealth + passive income | The Phase 3 asset engine; the win condition itself |
@@ -86,7 +86,8 @@ variance in time-to-freedom traces to random sources; ≥ ~75% to decisions.
 
 ## 4. PHASE 1 — Teen Gigs (LOCKED)
 
-Ages **13 → 17**, exactly **4 turns**. Learn the core loop, build skills, earn the career gate.
+Exactly **4 turns at ages 13, 14, 15, 16**. The career reel ceremony (§5) fires after the age-16
+turn; Phase 2 begins at age 17. Learn the core loop, build skills, earn the career gate.
 
 - Every player starts with **$5,000 cash** (a cushion that makes costly actions survivable).
 - Starting gig **randomly assigned** by the reel (8 balanced Tier-1 gigs, ~$10K salary / ~$2K net).
@@ -103,7 +104,7 @@ Ages **13 → 17**, exactly **4 turns**. Learn the core loop, build skills, earn
    - 🏆 **Work harder** *(no income cost)* → Pro Skills +1; promotion revealed next turn
    - 🛡️ **Hustle** *(−20% off gross salary; net can dip negative)* → Grit +1; spin for a better gig next turn
    - 🧠 **Study** *(−50% off gross salary; net can go negative)* → Big Brain +1; spin for a knowledge job next turn
-2. **Spin the reel** → 70% **Card** (life event, ±$100–300) or 30% **Mini-game** (win ~$200–300, lose nothing)
+2. **Spin the reel** → a **Card** (life event, ±$100–300) or a **Mini-game** (win ~$200–300, lose nothing). **Phase 1 reel algorithm:** at game setup each player's 4 reel results are pre-assigned — exactly **2 card turns and 2 mini-game turns in seeded-random order**. No percentage roll in Phase 1; the guarantee IS the distribution.
 3. **Earn gig income** — net income added to cash
 4. **End of turn (automatic)** — investments grow by their return rate and compound
 
@@ -133,17 +134,18 @@ Ages **13 → 17**, exactly **4 turns**. Learn the core loop, build skills, earn
 - 🧠 **Study** — switching is **free**. Reveal: spin for a random Tier 2 (then Tier 3) knowledge job.
 
 ### Mini-games (shared code, moved to `components/games/`)
-`CoinRain`, `LemonSqueeze`, `CashGrab`, `PetRush`. The reel picks one at random on a Mini-game
-result. Phase 1 **guarantees every player exactly 2 mini-game opportunities** (pity-timer: 2 of
-the 4 reel results are mini-games; the rest stay 70/30 cards/games). **Mini-game wins earn talent
-tokens** that gate the Talent careers (§5) and **earn power-ups** in Phase 3.
+`CoinRain`, `LemonSqueeze`, `CashGrab`, `PetRush`. The reel picks which game at random on a
+Mini-game turn. Because every player gets exactly 2 mini-game turns (pre-assigned above),
+qualifying for Talent careers is a test of mini-game **skill**, not draw luck. **Mini-game wins
+earn talent tokens** (Phase 1 only — token count locks at the career reel) and, in Phase 3,
+**wins draw a power-up + $2K cash; losses cost nothing**.
 
 > Phase 1 structure is LOCKED. Exact tuning numbers (cost %s, job nets, returns, starting cash)
 > are finalised in the balance pass (§12).
 
 ---
 
-## 5. The Career Reel (age 17)
+## 5. The Career Reel (after the age-16 turn)
 
 At the end of Phase 1, each player spins a **skill-gated, hard-gate** reel.
 
@@ -174,10 +176,12 @@ didn't earn show locked/greyed.
 | 1+ talent token | 🎨 Artist · 📱 Influencer |
 | 2+ talent tokens | 🏅 Pro Athlete · 🎵 Musician |
 
-⭐ = the career built in v1. **First-build behaviour:** the reel shows all 12 careers with the
-player's qualified pool lit; the spin lands on 🔧 Tradesperson (the only built career) with a
-**"More lives coming soon!"** banner. The qualification game still matters — talent tokens and
-skill levels carry Phase 2/3 perks regardless.
+⭐ = the career built in v1. **First-build behaviour (explicit):** the reel computes and shows the
+player's qualified pool lit (locked careers greyed), then **always assigns 🔧 Tradesperson**
+regardless of pool, with a **"More lives coming soon!"** banner. The qualified pool is **stored in
+GameState** (`player.qualifiedCareers`) so future versions honour it and the win screen can show
+it. The qualification game still matters in v1: skill levels and talent tokens are real and carry
+all their Phase 2/3 benefits; no v1 mechanic depends on the unbuilt careers.
 
 ### What Phase 1 carries forward
 Cash · investments · all four skill levels (the ladders continue to L10, §7) · talent tokens ·
@@ -209,7 +213,7 @@ career has its own timeline — the contrast IS the lesson.
 - 🟢 **Good debt** — borrow to buy something that earns (tools/ute now; a mortgage on a rental later).
 - 🔴 **Bad debt** — borrow for things that lose value (temptation cards: *"V8 on finance?"*).
 
-### 🔧 Tradesperson apprenticeship (v1 build) — 3 years, ages 17→20
+### 🔧 Tradesperson apprenticeship (v1 build) — 3 turns at ages 17, 18, 19
 Each year: spin the reel + earn a **rising apprentice wage** + pick one action:
 
 | Action | This year | Payoff |
@@ -220,8 +224,8 @@ Each year: spin the reel + earn a **rising apprentice wage** + pick one action:
 | 🚚 **Tool up** *(good debt)* | loan → income boost | owe balance + interest |
 
 Apprentice wages (reference, balance-tunable): year 1 ~$28K, year 2 ~$36K, year 3 ~$45K, with a
-lifestyle expense of ~75% of wage (young, living cheap). Graduate at 20 → qualified Tradesperson
-into Phase 3, carrying rank + cash + investments + any debt.
+lifestyle expense of ~75% of wage (young, living cheap). After the age-19 turn, graduate →
+qualified Tradesperson; **Phase 3 begins at age 20**, carrying rank + cash + investments + any debt.
 
 ---
 
@@ -255,21 +259,60 @@ owned home + no debt = a tiny expense bar that steady index/property income clea
 **Your action is your plan for the year; the reel is what actually happens; then the year settles
 up.** Action resolves **first**, so your decision shapes that same year's outcome.
 
-1. **Take ONE action** *(~75% decision)* — applied *before* luck hits:
+1. **Take ONE main action** *(~75% decision)* — applied *before* luck hits:
    - 🏠 **Buy an asset** → in play (and exposed to its event deck *this* year)
    - 🏆 **Work harder** → climb the Pro Skills ladder (career rank — see skill rule below)
    - 💰 / 🛡️ / 🧠 **Invest / Hustle / Study** → +1 to that skill ladder (and its action effect)
    - 🏦 **Pay down debt** → cuts *this year's* interest
-   - 🛡️ **Buy insurance** → softens a bad reel result *this same year* (annual premium = expense)
+   - 🛡️ **Take out insurance** → active this year onward (auto-renews; see Insurance below)
    - 🏡 **Buy your home outright** · 🪙 **Downsize** → expense levers
    - 💱 **Harvest / Convert** → sell a growth asset into income assets or debt payoff
-   - 🃏 **Play a proactive power-up** counts as free (one power-up max per turn, §8)
+
+   **Action economy (exact):** each turn = **1 main action + at most 1 proactive power-up**
+   (played any time before the spin) **+ any reactive power-ups** whose triggers fire (§8).
+   Playing a proactive power-up never consumes the main action.
 2. **Spin the reel** *(~25% luck)* — the year unfolds onto the position you just took. Reel mix
    (balance knobs): **45% universal life card · 30% career card · 10% market-wide event · 15%
    mini-game.** Then **each held asset rolls** its Risk/Opportunity dice.
 3. **Settle the year:** receive income (salary + passive income) → pay expenses (lifestyle + debt
    interest + premiums) → apply asset growth/shrink + event effects → debt balances grow.
 4. **Check win:** `passive income ≥ expenses`?
+
+### Money rules (exact)
+
+**Asset instances.** Every owned asset is
+`{ id, classId, value, loanBalance, modifiers[] }` — rates (growth/income/expense/risk) come from
+its class (master table) plus active modifiers from event cards and skills.
+- **Buy leveraged** (resi/commercial): pay the deposit; `loanBalance = price − deposit`. Mortgage
+  interest = `loanBalance × rate`, included in the asset's Expenses.
+- **Pay down debt** (action): move any amount of cash onto any loan; at `loanBalance = 0` the
+  asset is **owned outright** (interest gone; resi flips cash-flow positive).
+- **Sell / Harvest** (action): receive `value − loanBalance` cash (no transaction costs in v1);
+  proceeds can buy income assets or pay debts the same turn.
+- **Net worth** = cash + Σ(value − loanBalance) − unsecured debts. The home is excluded (§3).
+
+**Primary residence.** Not an asset instance: `player.ownsHome` flag. Costs ~$180K cash (no
+mortgage in v1), permanently removes the housing slice (~30%) of the lifestyle default, cannot be
+sold, excluded from net worth. (A mortgaged home is a v1.1 candidate.)
+
+**Insurance.** One simple policy (the lesson is *insurance vs diversification*):
+- Take out via the action; **premium ~$3K/yr** (balance knob) added to expenses; **auto-renews**
+  each year; cancel free at the start of any turn.
+- **Covers:** cash/salary losses from 🔴 universal life cards (`LIF-N*`) and career cards
+  (`TRD-N*`) — losses are **halved**.
+- **Does not cover** asset market events — diversification is the tool for those.
+
+**No eliminations — negative cash becomes bad debt.** If year-end settlement would push cash
+below $0, the shortfall converts to **Credit Card debt** (unsecured, **12%/yr interest**, an
+ordinary debt you can pay down). The win bar rises with its interest — digging out is the lesson.
+Forced asset sales never happen automatically; players choose what to sell.
+
+### Endgame & standings (exact)
+- The game **ends immediately** when a player's win check passes — they win. Remaining standings
+  rank by **freedom progress** (passive income ÷ expenses), tie-break: higher net worth.
+- **Age-65 backstop:** after every player has taken their age-65 turn, the highest **net worth**
+  wins; tie-break: higher passive income, then higher cash.
+- Players are never eliminated and never skip turns.
 
 > **Cash income vs net-worth growth.** *Yield* (rent, dividends, interest, business profit −
 > asset expenses) is **cash paid into your balance** each year — your **passive income**, the
@@ -393,6 +436,12 @@ it cash-flow positive: a guaranteed return.
 
 ### Event decks (coded `[ASSET]-[N|P]##`)
 
+**Duration rule (global):** every card effect lasts **this year only** and reverts at end-of-turn
+settlement, **unless tagged ⏳ permanent** (or it's a one-off cash/value change, which simply
+applies once). Permanent-tagged cards in v1: `BUS-P04` Star Hire · `TRD-N04` Body Wears Down ·
+`TRD-P02` Take On An Apprentice · `RES-N06` Land Tax. Exception with a condition: `BUS-N02` Key
+Staff Quits persists **until you pay $10K** to rehire.
+
 **🏦 Savings**
 | 🔴 Negative | | 🟢 Positive | |
 |---|---|---|---|
@@ -416,7 +465,7 @@ it cash-flow positive: a guaranteed return.
 | `RES-N03` Housing Slump | value −8% | `RES-P03` Reno Adds Value | −1% cash → value +10% |
 | `RES-N04` Rate Hike | mortgage 4.5%→6% | `RES-P04` Rent Surge | rent 5%→7% |
 | `RES-N05` Bad Tenant | rent 5%→2% | `RES-P05` Rate Cut | mortgage 4.5%→3.5% |
-| `RES-N06` Land Tax / Levy | expenses +1% | | |
+| `RES-N06` Land Tax / Levy | expenses +1% ⏳ permanent | | |
 
 **🏢 Commercial Property**
 | 🔴 Negative | | 🟢 Positive | |
@@ -523,26 +572,48 @@ milestone (first asset, career rank) → earn a **permanent** card · 🃏 occas
 | 👑 Reputation | defensive | offensive cards hit you at **50%** | reach Master rank |
 | 🧲 Dealmaker | utility | purchases −5% | buy your home outright |
 
-### 🎯 Offensive one-offs
-😈 Market Move (crash a rival's risky asset) · ⚖️ Lawsuit (rival pays you a settlement) ·
-🧲 Headhunt (rival's lifestyle secretly inflates) · 📉 Short Sell (profit when a rival's asset
-drops this turn) · 💼 Poach (cut a rival's business/apprentice income) · 🎭 Scandal (rival's
-business income halved this turn) · 🚧 Red Tape (block a rival's next buy/upgrade) · 🪤 Audit
-(rival pays a surprise expense) · 🔌 Jammer (cancel a power-up just played).
+### 🎯 Offensive one-offs (coded — Proactive unless noted; target chosen by the player)
 
-### 🛡️💰🃏 Support one-offs
-**Defensive:** 🪖 Hard Hat (block a bad event) · 🏥 Safety Net (ignore next injury) · 🔒 Hedge (no
-drop in next crash). **Economic:** ⚡ Double Down (2× one return) · 📈 Hot Tip (best market roll) ·
-🎟️ Grant (free upgrade) · 🧾 Tax Break (no expenses one year). **Wildcard:** ➕ Hustle (2nd
-action) · 🔄 Pivot (switch, no penalty) · 🎲 Copycat (copy a card just played).
+| Code | Card | Exact effect | Valid target | Countered by |
+|---|---|---|---|---|
+| `PWR-O01` | 😈 Market Move | force one rival asset to draw from its 🔴 deck now | rival asset with Risk ≥ 22% (shares/crypto/business/commercial) | 🔒 Hedge · 🔌 Jammer |
+| `PWR-O02` | ⚖️ Lawsuit | rival pays you **$8K** | any rival | 🔌 Jammer (👑 halves) |
+| `PWR-O03` | 🧲 Headhunt | rival's lifestyle **+10% for 2 years** | any rival | 🔌 Jammer (👑 halves) |
+| `PWR-O04` | 📉 Short Sell | if the chosen rival asset's value falls this turn, you gain the fall (cap **$10K**) | any rival asset | 🔌 Jammer |
+| `PWR-O05` | 💼 Poach | remove one of rival's ⏳ income perks (apprentice / Star Hire) | rival holding one (else unplayable) | 🔌 Jammer (👑 halves) |
+| `PWR-O06` | 🎭 Scandal | rival's Business income **halved this year** | rival owning a Business | 🔌 Jammer (👑 halves) |
+| `PWR-O07` | 🚧 Red Tape | rival's next Buy Asset / Work Harder is blocked (must pick another action; expires after 2 years) | any rival | 🔌 Jammer |
+| `PWR-O08` | 🪤 Audit | rival pays **$5K** | any rival | 🔌 Jammer (👑 halves) |
+| `PWR-O09` | 🔌 Jammer | **Reactive** — cancel a power-up just played | the card | — |
+
+### 🛡️💰🃏 Support one-offs (coded)
+
+| Code | Card | Tag | Exact effect |
+|---|---|---|---|
+| `PWR-D01` | 🪖 Hard Hat | Reactive | cancel one 🔴 universal/career card that just hit you |
+| `PWR-D02` | 🏥 Safety Net | Reactive | cancel one injury/illness card that just hit you |
+| `PWR-D03` | 🔒 Hedge | Reactive | cancel one 🔴 asset event that just hit one of your assets |
+| `PWR-E01` | ⚡ Double Down | Proactive | one chosen asset's income is **doubled** this year |
+| `PWR-E02` | 📈 Hot Tip | Proactive | one chosen asset's roll this year is forced 🟢 Opportunity |
+| `PWR-E03` | 🎟️ Grant | Proactive | **+1 level** to a chosen skill, immediately, without using your action |
+| `PWR-E04` | 🧾 Tax Break | Proactive | pay **no lifestyle expense** this year (debt interest still due) |
+| `PWR-W01` | ➕ Hustle | Proactive | take a **second main action** this turn |
+| `PWR-W02` | 🎲 Copycat | Proactive | replay the effect of the **last one-off played by anyone** (you choose its targets) |
+
+> 🦅 Outbid and 🔄 Pivot are **cut from v1** — both referenced the deferred auction/transaction
+> systems. They return with auctions (v1.1+).
 
 ### Balance & timing rules
 - **Rarity by power:** permanents rarest (milestones only) · swingy one-offs (Tax Break, Jammer)
   uncommon · mild ones (Hard Hat, Double Down) common. Draw rates set in balance pass.
 - **One power-up played per turn** (plus any reactive card). No combo-dumping.
-- **Proactive vs Reactive:** each card is tagged. **Pass-and-play rule:** reactive cards
-  **auto-prompt the holder the moment their trigger fires** (e.g. a bad event lands on you → the
-  game asks "Play 🪖 Hard Hat?") — no off-turn interrupts needed on a shared tablet.
+- **Proactive vs Reactive:** each card is tagged. **Pass-and-play state flow (exact):** when an
+  effect with a reactable tag resolves against player P and P holds a matching reactive card, the
+  reducer enters `awaitingReaction { targetPlayerId, trigger, eligibleCardIds }` and the UI shows
+  a full-screen **"Pass the tablet to P"** prompt with Play / Decline. Declining (or holding no
+  matching card — in that case no pause at all) resolves the original effect. No timers; default
+  on dismiss = Decline. Nested reactions (Jammer answering Jammer) are not allowed in v1 — one
+  reaction window per trigger.
 - **Counterplay guaranteed:** every offensive card has a named answer (Hard Hat / Safety Net /
   Hedge / 👑 Reputation / Jammer). A defence-holder is never helpless.
 - **Magnitude capped** like any random effect (§3): no single card outweighs a year of good decisions.
@@ -556,6 +627,10 @@ action) · 🔄 Pivot (switch, no penalty) · 🎲 Copycat (copy a card just pla
   is fully serialisable (no Date objects, no functions) — save/load is `JSON.stringify/parse` +
   a schema-version check. Unknown/older versions show "this saved game is from an older version"
   and offer New Game.
+- **Failure states (exact):** corrupted JSON or schema mismatch → treat as no save (lobby shows
+  New Game only; the bad blob is discarded). `localStorage` unavailable (private mode) → game
+  runs in-memory; lobby shows a small "saving unavailable on this device" note. Write failure
+  (quota) → keep playing in-memory + one non-blocking "couldn't save" toast per session.
 - **Lobby:** if a save exists, show a **"Resume your lives"** card (player names/emojis, ages,
   phase) above "New game". New game over an existing save requires an explicit confirmation.
 - **One save slot** — like one board left set up on the table. (Supabase-backed multi-save is a
@@ -578,9 +653,10 @@ market-wide events · Tradesperson career (apprenticeship + ranks + deck) · pow
 3. Supabase-backed saves / cross-device resume
 4. Sim modelling of power-ups + offensive-card meta (v1 sim is economy + events)
 
-**Money Town is NOT modified** except that the four mini-game components move from
-`components/money-town/games/` to `components/games/` and Money Town's imports update — a pure
-path change, no behaviour change.
+**Money Town behaviour is unchanged.** The only Money Town file edits are import-path updates:
+the four mini-game components move from `components/money-town/games/` to `components/games/`
+and Money Town's imports point at the new location — a pure path change, verified by playing one
+Money Town round after the move.
 
 ---
 
@@ -628,14 +704,19 @@ so the balance pass edits `content/` only and the engine never changes.
 ## 12. Balance pass — rebuild & acceptance (BLOCKING before UI polish)
 
 The old 2000-game sim (`scripts/money-town-balance-sim.mjs`) tuned a **4%-of-net-worth** rule on
-a coarse asset model — superseded. New sim: `scripts/dream-life-sim.mjs`, modelling the **real
-engine**: all 3 phases, 7 assets with event decks, skill ladders, lifestyle inflation, 4 strategy
-bots (Earner-Saver / Investor / Entrepreneur / Frugal Tortoise). Timeboxed: it validates the
-acceptance bars below, not perfection.
+a coarse asset model — superseded. New sim: `scripts/dream-life-sim.mjs`, importing the real
+`lib/dream-life` engine + content: all 3 phases, 7 assets with event decks, skill ladders,
+lifestyle inflation, insurance, 4 strategy bots (Earner-Saver / Investor / Entrepreneur / Frugal
+Tortoise). **Sim scope (explicit):** power-ups and offensive-card meta are **excluded** (mini-game
+results simulated as a 50% win rate paying cash only); acceptance criteria apply to the
+power-up-free economy, and the power-up meta is tuned by playtesting. Timeboxed: the sim
+validates the bars below, not perfection.
 
 **Acceptance criteria:**
 1. **No dominant strategy:** each of the 4 paths wins **15–35%** of 2000 four-player games.
-2. **Luck dial:** ≤ ~25% of variance in time-to-freedom traces to random sources.
+2. **Luck dial (method defined):** with all 4 bots' policies fixed, decompose variance in
+   time-to-freedom across (a) random seeds and (b) strategy assignment over the 2000 games; the
+   seed share must be **≤ 30%** (target ~25%). Luck = variance contribution, not event frequency.
 3. **Pacing:** median freedom age lands **mid-30s to mid-40s**; age-65 backstop fires in < 10% of games.
 4. **Phase 1 safety:** zero simulated states where a player has no legal action.
 5. **Rank-climbing is not a trap:** climbing the PS ladder yields earlier median freedom than
@@ -660,6 +741,9 @@ Roster + gates locked (§5). Build each career's Phase 2 + Phase 3 end-to-end, o
 (1 token) · 🏅 Pro Athlete (2 tokens) · 🎵 Musician (2 tokens).
 Each lane has a distinct economic personality (athletes peak early then burn out, artists are
 slow-burn/high-variance, doctors are late-but-stable) — teaching different money *timelines*.
+**Process rule:** before implementing any backlog career, write a one-page economic contract
+(Phase 2 timeline + debt, rank ladder salaries/lifestyles, career deck, signature lesson) as a
+spec addendum — same shape as the Tradesperson sections here.
 
 ---
 
