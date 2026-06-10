@@ -64,7 +64,7 @@ export default function RulesModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-end justify-center">
-      <div className="bg-white rounded-t-3xl w-full max-w-md overflow-hidden" style={{ maxHeight: '92vh' }}>
+      <div className="bg-white rounded-t-3xl w-full max-w-md overflow-hidden" style={{ maxHeight: '92dvh', paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {/* Coloured header */}
         <div className={`bg-gradient-to-br ${current.bg} px-6 pt-8 pb-6 text-center`}>
           <div className="text-6xl mb-3">{current.emoji}</div>

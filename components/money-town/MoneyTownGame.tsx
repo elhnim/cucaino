@@ -96,7 +96,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
 
   // Board is always mounted for board/lever/result/action phases
   return (
-    <div className="relative min-h-screen bg-sky-50">
+    <div className="relative h-full bg-sky-50">
       <GameBoard
         state={state}
         dispatch={dispatch}
@@ -114,14 +114,16 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
       {state.phase === 'result' && state.pendingResult && (
         <>
           {state.pendingResult.miniGameType ? (
-            <MiniGame
-              minigame={{
-                type: state.pendingResult.miniGameType,
-                reflexGameId: state.pendingResult.reflexGameId,
-              }}
-              usedTriviaIds={state.usedTriviaIds}
-              dispatch={dispatch}
-            />
+            <div className="fixed inset-0 z-40 overflow-y-auto bg-sky-50">
+              <MiniGame
+                minigame={{
+                  type: state.pendingResult.miniGameType,
+                  reflexGameId: state.pendingResult.reflexGameId,
+                }}
+                usedTriviaIds={state.usedTriviaIds}
+                dispatch={dispatch}
+              />
+            </div>
           ) : (
             <ResultCard
               result={state.pendingResult}

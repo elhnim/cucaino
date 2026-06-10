@@ -44,7 +44,7 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
     const earned = totalCorrect * 75
     const triviaIds = questions.map(q => q.id)
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ background: "linear-gradient(180deg, #ddd6fe 0%, #ede9fe 50%, #fce7f3 100%)" }}>
+      <div className="min-h-full flex flex-col items-center justify-center p-6 text-center" style={{ background: "linear-gradient(180deg, #ddd6fe 0%, #ede9fe 50%, #fce7f3 100%)" }}>
         <div className="text-6xl mb-4"><span className="avatar-party inline-block">🧠</span></div>
         <h2 className="text-2xl font-black text-gray-900 mb-2">Trivia Done!</h2>
         <p className="font-bold text-gray-500 mb-4">
@@ -65,7 +65,7 @@ export default function Trivia({ usedTriviaIds, onComplete }: Props) {
   const state = states[currentQ]
 
   return (
-    <div className="min-h-screen flex flex-col p-6 pt-10" style={{ background: "linear-gradient(180deg, #ddd6fe 0%, #ede9fe 50%, #fce7f3 100%)" }}>
+    <div className="min-h-full flex flex-col p-6 pt-10" style={{ background: "linear-gradient(180deg, #ddd6fe 0%, #ede9fe 50%, #fce7f3 100%)" }}>
       <div className="flex gap-1.5 mb-8 justify-center">
         {[0, 1, 2].map(i => (
           <div

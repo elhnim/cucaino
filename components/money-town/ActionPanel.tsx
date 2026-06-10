@@ -30,7 +30,7 @@ export default function ActionPanel({ player, state, dispatch }: Props) {
 
   return (
     <div className="fixed inset-0 z-40 bg-black/60 flex items-end justify-center">
-      <div className="bg-white rounded-t-3xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+      <div className="bg-white rounded-t-3xl w-full max-w-md md:max-w-lg max-h-[85dvh] overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {/* Header */}
         <div className="sticky top-0 bg-white px-5 pt-5 pb-3 border-b border-gray-100 z-10">
           <div className="flex items-center justify-between">

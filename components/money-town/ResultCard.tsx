@@ -25,7 +25,7 @@ export default function ResultCard({ result, player, state, dispatch }: Props) {
 
   return (
     <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
-      <div className={`bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden ${result.tone === 'bad' ? 'shake' : 'animate-pop'}`}>
+      <div className={`bg-white rounded-3xl shadow-2xl w-full max-w-xs max-h-[94dvh] overflow-y-auto ${result.tone === 'bad' ? 'shake' : 'animate-pop'}`}>
         {/* Header */}
         <div className={`relative bg-gradient-to-br ${headerGrad} px-6 py-5 text-center overflow-hidden`}>
           {result.tone === 'good' && (

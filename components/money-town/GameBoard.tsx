@@ -46,7 +46,7 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "radial-gradient(circle at 50% 30%, #1e3a8a 0%, #172554 55%, #0c1130 100%)" }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: "radial-gradient(circle at 50% 30%, #1e3a8a 0%, #172554 55%, #0c1130 100%)" }}>
 
       {/* Header */}
       <header className="shrink-0 px-4 py-2 flex items-center justify-between z-10" style={{ background: "linear-gradient(90deg, #1d4ed8, #2563eb, #1d4ed8)" }}>
@@ -80,9 +80,9 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
       )}
 
       {/* Board */}
-      <div className="flex-1 min-h-0 p-2">
+      <div className="flex-1 min-h-0 p-2 max-w-4xl w-full mx-auto" style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))" }}>
         <div
-          className="relative h-full rounded-3xl border-[5px] border-yellow-400 p-1.5 grid grid-cols-3 grid-rows-3 gap-1.5"
+          className="relative h-full rounded-3xl border-[5px] border-yellow-400 p-1.5 grid grid-cols-[1.3fr_0.9fr_1.3fr] grid-rows-3 gap-1.5"
           style={{
             background: "linear-gradient(160deg, #1e3a8a 0%, #1e40af 50%, #172554 100%)",
             boxShadow: "0 0 34px rgba(250,204,21,0.25), inset 0 0 60px rgba(0,0,0,0.35)",

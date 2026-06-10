@@ -73,7 +73,7 @@ export default function LeverOverlay({ player, onResult }: Props) {
 
   return (
     <div className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-xs overflow-hidden animate-pop" style={{ boxShadow: "0 0 40px rgba(250,204,21,0.35), 0 24px 50px rgba(0,0,0,0.5)" }}>
+      <div className="bg-white rounded-3xl w-full max-w-xs max-h-[94dvh] overflow-y-auto animate-pop" style={{ boxShadow: "0 0 40px rgba(250,204,21,0.35), 0 24px 50px rgba(0,0,0,0.5)" }}>
         {/* Player header */}
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-4 flex items-center gap-3">
           <span className="text-3xl avatar-party inline-block">{player.emoji}</span>

@@ -69,7 +69,8 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
 
   if (result) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 55%, #d9f99d 100%)" }}>
+      <div className="h-full overflow-y-auto relative" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 55%, #d9f99d 100%)" }}>
+        <div className="min-h-full flex flex-col items-center justify-center p-6">
         {/* celebration rain */}
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
           {[12, 32, 52, 72, 90].map((left, i) => (
@@ -104,12 +105,14 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
             {spinPlayerIndex < players.length - 1 ? `Next: ${players[spinPlayerIndex + 1]?.name} →` : "Let's Play! 🚀"}
           </button>
         </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 55%, #d9f99d 100%)" }}>
+    <div className="h-full overflow-y-auto" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #e0f2fe 55%, #d9f99d 100%)" }}>
+    <div className="min-h-full flex flex-col items-center justify-center p-6">
       <div className="text-4xl mb-1"><span className="avatar-party inline-block">{player.emoji}</span></div>
       <h2 className="text-2xl font-black text-sky-950 mb-1 text-center">
         {player.name}
@@ -157,6 +160,7 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
           Player {spinPlayerIndex + 1} of {players.length}
         </p>
       )}
+    </div>
     </div>
   )
 }

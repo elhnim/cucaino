@@ -30,8 +30,10 @@ export default function WinScreen({ winner, players, round, byTimeout = false, a
   const sorted = [...players].sort((a, b) => computePassiveIncome(b) - computePassiveIncome(a))
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center relative overflow-hidden"
+    <div className="h-full overflow-y-auto relative"
       style={{ background: "linear-gradient(180deg, #fbbf24 0%, #fde68a 40%, #fef3c7 70%, #d9f99d 100%)" }}>
+    <div className="min-h-full flex flex-col items-center justify-center p-6 text-center"
+      style={{ paddingBottom: "calc(3.5rem + env(safe-area-inset-bottom, 0px))" }}>
       <Link href={backHref} className="absolute top-3 left-4 z-20 text-sm font-black text-amber-900 bg-white/80 backdrop-blur px-3 py-1.5 rounded-full active:scale-95 transition-transform">
         ← Games
       </Link>
@@ -121,6 +123,7 @@ export default function WinScreen({ winner, players, round, byTimeout = false, a
           Play Again 🔄
         </button>
       </div>
+    </div>
     </div>
   )
 }

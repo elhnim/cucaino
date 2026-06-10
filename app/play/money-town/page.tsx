@@ -26,7 +26,7 @@ export default async function MoneyTownPage({
   }
 
   return (
-    <div className="min-h-screen bg-sky-50">
+    <div className="h-dvh overflow-hidden bg-sky-50">
       {content}
     </div>
   );

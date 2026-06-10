@@ -82,7 +82,7 @@ export default function GameLobby({ kids, activeKid, dispatch }: Props) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #bae6fd 30%, #e0f2fe 55%, #d9f99d 80%, #86efac 100%)" }}>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: "linear-gradient(180deg, #7dd3fc 0%, #bae6fd 30%, #e0f2fe 55%, #d9f99d 80%, #86efac 100%)" }}>
       {/* Sky scene header */}
       <header className="relative overflow-hidden px-4 pt-4 pb-2">
         <span className="absolute top-3 right-6 text-4xl" style={{ filter: "drop-shadow(0 0 18px rgba(253,224,71,0.9))" }}>☀️</span>
@@ -127,13 +127,13 @@ export default function GameLobby({ kids, activeKid, dispatch }: Props) {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 pb-8 max-w-md mx-auto w-full">
+      <div className="flex-1 overflow-y-auto p-4 max-w-md md:max-w-2xl mx-auto w-full" style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}>
         <h2 className="text-xl font-black text-center text-emerald-950 mb-1">Who&apos;s playing?</h2>
         <p className="text-center text-sm font-bold text-emerald-700/70 mb-4">Tap to join the town · 1–4 players</p>
 
         {/* Family kids */}
         {kids.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             {kids.map(k => {
               const isSelected = selected.has(k.id)
               return (
