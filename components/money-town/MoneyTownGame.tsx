@@ -15,7 +15,7 @@ import RulesModal from "./RulesModal"
 import WinScreen from "./WinScreen"
 import MiniGame from "./MiniGame"
 
-const SAVE_KEY = 'money-town-v7-save'
+const SAVE_KEY = 'money-town-v8-save'
 
 interface Props {
   kids: Kid[]
@@ -85,6 +85,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
         winner={winner}
         players={state.players}
         round={state.round}
+        byTimeout={state.winByTimeout}
         activeKidId={activeKidId}
         onPlayAgain={() => dispatch({ type: 'NEW_GAME' })}
       />

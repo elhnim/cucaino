@@ -6,6 +6,21 @@ export const DEGREE_TURNS = 2
 export const MIN_TURNS_TO_WIN = 6
 export const CASH_FLOOR = 200
 
+/** Hard cap — at the end of round 12 the player closest to freedom wins.
+    Keeps a 2-player game in the 5–10 minute range. */
+export const MAX_ROUNDS = 12
+
+/** Insurance shields: each absorbs one bad cash event */
+export const INSURANCE_COST = 400
+export const MAX_INSURANCE = 2
+
+/** Assets sell back at 75% of list price */
+export const SELL_RATIO = 0.75
+
+/** Rotating market: 3 offers/turn with price swings — timing purchases is the strategy */
+export const MARKET_SIZE = 3
+export const MARKET_PRICE_MULTS = [0.8, 0.9, 1, 1, 1.1, 1.25]
+
 export const PLAYER_COLORS: PlayerColor[] = ['red', 'blue', 'green', 'yellow']
 
 export const PLAYER_COLOR_CLASSES: Record<PlayerColor, { bg: string; border: string; text: string; badge: string }> = {
@@ -15,27 +30,28 @@ export const PLAYER_COLOR_CLASSES: Record<PlayerColor, { bg: string; border: str
   yellow: { bg: 'bg-yellow-50', border: 'border-yellow-400', text: 'text-yellow-700', badge: 'bg-yellow-500' },
 }
 
+// Tuned so a well-played game escapes around round 8 (cap is 12)
 export const JOBS: JobDef[] = [
-  { id: 'driver',  emoji: '🚚', name: 'Delivery Driver', salary: 600,  expenses: 450  },
-  { id: 'shop',    emoji: '🛒', name: 'Shop Assistant',  salary: 750,  expenses: 560  },
-  { id: 'teacher', emoji: '📚', name: 'Teacher',         salary: 900,  expenses: 680  },
-  { id: 'trade',   emoji: '🔧', name: 'Tradesperson',    salary: 1050, expenses: 800  },
+  { id: 'driver',  emoji: '🚚', name: 'Delivery Driver', salary: 600,  expenses: 380 },
+  { id: 'shop',    emoji: '🛒', name: 'Shop Assistant',  salary: 750,  expenses: 470 },
+  { id: 'teacher', emoji: '📚', name: 'Teacher',         salary: 900,  expenses: 560 },
+  { id: 'trade',   emoji: '🔧', name: 'Tradesperson',    salary: 1050, expenses: 650 },
 ]
 
 export const DEGREE_JOBS: JobDef[] = [
-  { id: 'accountant', emoji: '📊', name: 'Accountant', salary: 1400, expenses: 1000 },
-  { id: 'engineer',   emoji: '⚙️', name: 'Engineer',   salary: 1700, expenses: 1200 },
+  { id: 'accountant', emoji: '📊', name: 'Accountant', salary: 1400, expenses: 850  },
+  { id: 'engineer',   emoji: '⚙️', name: 'Engineer',   salary: 1700, expenses: 1000 },
 ]
 
 export const ASSETS: AssetDef[] = [
-  { id: 'lemon',    emoji: '🍋', name: 'Lemonade Stand',     tier: 1, cost: 700,  income: 75  },
-  { id: 'park',     emoji: '🅿️', name: 'Parking Spot',        tier: 1, cost: 1100, income: 105 },
-  { id: 'truck',    emoji: '🚚', name: 'Food Truck',          tier: 1, cost: 1500, income: 150 },
-  { id: 'stocks',   emoji: '📈', name: 'Stocks',              tier: 2, cost: 2000, income: 225, isStock: true, volatile: true },
-  { id: 'property', emoji: '🏠', name: 'Investment Property', tier: 2, cost: 2400, income: 300, isProperty: true },
-  { id: 'biz',      emoji: '🏪', name: 'Small Business',      tier: 2, cost: 3800, income: 420, isBusiness: true },
-  { id: 'startup',  emoji: '💡', name: 'Tech Startup',        tier: 2, cost: 2800, income: 420, isBusiness: true, degreeOnly: true },
-  { id: 'hotel',    emoji: '🏨', name: 'Hotel',               tier: 3, cost: 4500, income: 900, requiresProperties: 3 },
+  { id: 'lemon',    emoji: '🍋', name: 'Lemonade Stand',     tier: 1, cost: 700,  income: 90  },
+  { id: 'park',     emoji: '🅿️', name: 'Parking Spot',        tier: 1, cost: 1100, income: 140 },
+  { id: 'truck',    emoji: '🚚', name: 'Food Truck',          tier: 1, cost: 1500, income: 190 },
+  { id: 'stocks',   emoji: '📈', name: 'Stocks',              tier: 2, cost: 2000, income: 260, isStock: true, volatile: true },
+  { id: 'property', emoji: '🏠', name: 'Investment Property', tier: 2, cost: 2400, income: 320, isProperty: true },
+  { id: 'biz',      emoji: '🏪', name: 'Small Business',      tier: 2, cost: 3800, income: 480, isBusiness: true },
+  { id: 'startup',  emoji: '💡', name: 'Tech Startup',        tier: 2, cost: 2800, income: 460, isBusiness: true, degreeOnly: true },
+  { id: 'hotel',    emoji: '🏨', name: 'Hotel',               tier: 3, cost: 4500, income: 950, requiresProperties: 3 },
 ]
 
 // 6 segments — probability: event 33%, chance 33%, mini-game 17%, big-event 17%

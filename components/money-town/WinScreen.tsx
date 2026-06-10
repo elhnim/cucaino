@@ -10,6 +10,7 @@ interface Props {
   winner: Player
   players: Player[]
   round: number
+  byTimeout?: boolean
   activeKidId: string | null
   onPlayAgain: () => void
 }
@@ -17,7 +18,7 @@ interface Props {
 const RAIN = ['🎉', '⭐', '💰', '🏆', '✨', '🎊']
 const MEDALS = ['🥇', '🥈', '🥉', '🏅']
 
-export default function WinScreen({ winner, players, round, activeKidId, onPlayAgain }: Props) {
+export default function WinScreen({ winner, players, round, byTimeout = false, activeKidId, onPlayAgain }: Props) {
   const passive = computePassiveIncome(winner)
   const netWorth = winner.cash + winner.assets.reduce((s, a) => {
     const def = ASSETS.find(d => d.id === a.defId)
@@ -66,8 +67,14 @@ export default function WinScreen({ winner, players, round, activeKidId, onPlayA
           </div>
         </div>
         <h1 className="text-4xl font-black text-amber-950 mb-1 animate-pop">{winner.name}</h1>
-        <h2 className="text-2xl font-black text-amber-800 mb-1">🎉 ESCAPED THE RAT RACE!</h2>
-        <p className="text-sm font-bold text-amber-700/70 mb-6">Money works for {winner.name} now · Round {round}</p>
+        <h2 className="text-2xl font-black text-amber-800 mb-1">
+          {byTimeout ? '🏁 CLOSEST TO FREEDOM!' : '🎉 ESCAPED THE RAT RACE!'}
+        </h2>
+        <p className="text-sm font-bold text-amber-700/70 mb-6">
+          {byTimeout
+            ? `Time's up after 12 rounds — ${winner.name} built the most freedom!`
+            : `Money works for ${winner.name} now · Round ${round}`}
+        </p>
 
         {/* Winner stats */}
         <div className="bg-white/90 backdrop-blur rounded-3xl shadow-lg p-6 mb-4 space-y-2 text-sm">

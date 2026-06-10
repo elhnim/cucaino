@@ -5,8 +5,8 @@ import type { Player, ReelSegment } from "@/lib/money-town/types"
 import { REEL_SEGMENTS } from "@/lib/money-town/constants"
 
 const SEGMENT_HEIGHT = 80
-const SPIN_DURATION = 5800
-const NUM_ROTATIONS = 12
+const SPIN_DURATION = 2600
+const NUM_ROTATIONS = 6
 
 const SEGMENT_DISPLAY: Record<ReelSegment, { emoji: string; label: string }> = {
   'event':     { emoji: '📋', label: 'Event' },

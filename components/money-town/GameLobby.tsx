@@ -23,7 +23,7 @@ function makePlayer(id: string, name: string, emoji: string, colorIndex: number)
     id, name, emoji, color,
     cash: STARTING_CASH,
     salary: 0, expenses: 0, baseJobId: '',
-    assets: [], degreeStatus: null,
+    assets: [], degreeStatus: null, insurance: 0,
     stocksFrozen: 0, laidOff: 0, recession: 0, rentSurge: 0, boom: 0,
     turnCount: 0, hasWon: false,
   }

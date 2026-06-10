@@ -10,7 +10,7 @@ const SLIDES = [
   {
     emoji: '🏆',
     title: 'How to WIN',
-    body: "You win by earning money while you sleep! 😴💰\n\nIn real life, people who don't have to work to pay their bills are called FINANCIALLY FREE.\n\nThat's your goal — build up enough \"sleeping money\" (passive income) to cover all your bills!",
+    body: "You win by earning money while you sleep! 😴💰\n\nIn real life, people who don't have to work to pay their bills are called FINANCIALLY FREE.\n\nBuild enough \"sleeping money\" (passive income) to cover all your bills — first to do it WINS.\n\n⏰ You have 12 rounds. If nobody escapes, whoever is CLOSEST to freedom wins!",
     bg: 'from-yellow-400 to-amber-500',
   },
   {
@@ -42,6 +42,12 @@ const SLIDES = [
     title: 'Investing',
     body: "INVESTING means putting your money to work! 💡\n\nInstead of spending $2,000, you buy Stocks or a Property that pays you every single turn.\n\nThe more you invest, the more money flows in — even while you're sleeping.\n\nRich people don't just save money — they put it to WORK!",
     bg: 'from-teal-400 to-teal-600',
+  },
+  {
+    emoji: '🧠',
+    title: 'Play Smart!',
+    body: "Luck deals the cards — but STRATEGY wins the game! 🎯\n\n🏪 THE MARKET changes every turn. Hot deals save you 20% — but waiting for one costs you time. Pricey day? Maybe skip and save.\n\n🛡️ INSURANCE ($400) blocks one bad money event. Cheap peace of mind… or wasted cash?\n\n💱 You can SELL assets back at 75% — sometimes it's worth taking the loss to grab a better deal.\n\n🤔 Choice cards ask the big question: cash NOW, or income FOREVER?",
+    bg: 'from-orange-400 to-red-500',
   },
   {
     emoji: '🏁',

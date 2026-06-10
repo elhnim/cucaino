@@ -43,6 +43,19 @@ export interface PaydayInfo {
   degreeArrived: boolean
 }
 
+/** One slot in the rotating asset market — price swings make timing a decision */
+export interface MarketOffer {
+  defId: string
+  priceMult: number
+}
+
+/** Effect applied when the player picks one branch of a choice card */
+export interface ChoiceEffect {
+  cashDelta: number
+  salaryDelta: number
+  expensesDelta: number
+}
+
 export type ResultKind = 'event' | 'big-event' | 'chance' | 'mini-game'
 
 export interface ResultPayload {
@@ -61,6 +74,13 @@ export interface ResultPayload {
   // mini-game
   miniGameType?: 'reflex' | 'trivia'
   reflexGameId?: ReflexGameId
+  // choice cards — player picks one branch (applied via CHOOSE_OPTION)
+  choices?: { emoji: string; label: string; desc: string }[]
+  choiceEffects?: ChoiceEffect[]
+  // an insurance shield absorbed this hit
+  shieldUsed?: boolean
+  // applied to every OTHER player's cash (head-to-head cards)
+  othersDelta?: number
 }
 
 export interface Player {
@@ -74,6 +94,8 @@ export interface Player {
   baseJobId: string
   assets: OwnedAsset[]
   degreeStatus: { turnsLeft: number } | 'graduated' | null
+  /** Shields that absorb one bad cash event each */
+  insurance: number
   stocksFrozen: number
   laidOff: number
   recession: number
@@ -93,6 +115,10 @@ export interface GameState {
   pendingResult: ResultPayload | null
   usedTriviaIds: string[]
   winnerId: string | null
+  /** This turn's rotating asset market (regenerated at each turn start) */
+  marketOffers: MarketOffer[]
+  /** Game ended at the round cap — winner was closest to freedom */
+  winByTimeout: boolean
 }
 
 export type GameAction =
@@ -108,6 +134,9 @@ export type GameAction =
   | { type: 'MINIGAME_COMPLETE'; cashEarned: number }
   | { type: 'TRIVIA_COMPLETE'; cashEarned: number; triviaIds: string[] }
   | { type: 'BUY_ASSET'; defId: string; discount?: number }
+  | { type: 'SELL_ASSET'; uid: string }
+  | { type: 'BUY_INSURANCE' }
+  | { type: 'CHOOSE_OPTION'; index: number }
   | { type: 'SWITCH_CAREER'; jobId: string }
   | { type: 'ENROLL_DEGREE' }
   | { type: 'END_TURN' }

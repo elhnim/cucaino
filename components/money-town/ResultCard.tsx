@@ -71,6 +71,27 @@ export default function ResultCard({ result, player, state, dispatch }: Props) {
             )}
           </div>
 
+          {/* Choice card — pick your path */}
+          {result.choices && result.choiceEffects && (
+            <div className="space-y-2 mb-2">
+              {result.choices.map((c, i) => (
+                <button key={i} type="button"
+                  onClick={() => dispatch({ type: 'CHOOSE_OPTION', index: i })}
+                  className={`w-full flex items-center gap-3 rounded-2xl px-4 py-3.5 active:scale-95 transition-transform border-2 ${
+                    i === 0 ? 'bg-amber-50 border-amber-300' : 'bg-indigo-50 border-indigo-300'
+                  }`}>
+                  <span className="text-2xl">{c.emoji}</span>
+                  <div className="flex-1 text-left">
+                    <div className="font-black text-gray-900 text-sm">{c.label}</div>
+                    <div className="text-xs font-bold text-gray-500">{c.desc}</div>
+                  </div>
+                  <span className="text-gray-300 text-lg">›</span>
+                </button>
+              ))}
+              <p className="text-[10px] font-bold text-gray-300 text-center pt-1">Think it through — there&apos;s no going back!</p>
+            </div>
+          )}
+
           {/* Career Switch offer */}
           {result.offerCareerSwitch && (
             <div className="space-y-2 mb-4">
@@ -127,11 +148,11 @@ export default function ResultCard({ result, player, state, dispatch }: Props) {
           )}
 
           {/* Standard dismiss */}
-          {!result.offerCareerSwitch && !offerDef && (
+          {!result.offerCareerSwitch && !offerDef && !result.choices && (
             <button type="button"
               onClick={() => dispatch({ type: 'DISMISS_RESULT' })}
               className={`w-full py-4 text-white text-lg font-black rounded-2xl active:scale-95 transition-transform bg-gradient-to-r ${headerGrad}`}>
-              {result.tone === 'bad' ? 'Ouch! OK 😬' : result.tone === 'good' ? 'Nice! 🙌' : 'OK!'}
+              {result.shieldUsed ? 'Phew, insured! 🛡️' : result.tone === 'bad' ? 'Ouch! OK 😬' : result.tone === 'good' ? 'Nice! 🙌' : 'OK!'}
             </button>
           )}
         </div>

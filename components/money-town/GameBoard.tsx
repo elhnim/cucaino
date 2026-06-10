@@ -54,7 +54,7 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
           className="text-sm font-black text-white/80 active:scale-95 transition-transform">✕ Exit</button>
         <div className="flex items-center gap-2">
           <span className="font-black text-white text-sm tracking-wide">💰 MONEY TOWN</span>
-          <span className="bg-yellow-400 text-yellow-950 font-black text-xs px-2 py-0.5 rounded-full" style={{ boxShadow: "0 0 10px rgba(250,204,21,0.6)" }}>R{round}</span>
+          <span className="bg-yellow-400 text-yellow-950 font-black text-xs px-2 py-0.5 rounded-full" style={{ boxShadow: "0 0 10px rgba(250,204,21,0.6)" }}>R{round}/12</span>
         </div>
         <button type="button" onClick={onHowToPlay}
           className="text-sm font-black text-white/80 active:scale-95 transition-transform">? Help</button>
@@ -163,7 +163,7 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
           {/* ── BOTTOM-CENTER: round + motto ── */}
           <div className="flex flex-col items-center justify-center gap-0.5">
             <span className="text-yellow-300 font-black text-[10px] uppercase tracking-widest">Round</span>
-            <span className="text-white font-black text-xl" style={{ textShadow: "0 0 12px rgba(255,255,255,0.4)" }}>{round}</span>
+            <span className="text-white font-black text-xl" style={{ textShadow: "0 0 12px rgba(255,255,255,0.4)" }}>{round}<span className="text-white/50 text-sm">/12</span></span>
             <span className="text-yellow-400/70 font-bold text-[8px] tracking-widest text-center">MANY LIVES<br/>ONE FREEDOM</span>
           </div>
 

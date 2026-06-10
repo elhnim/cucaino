@@ -48,7 +48,9 @@ export default function PlayerCard({ player, isActive, paydayInfo, onPullLever }
         </div>
         <div className="text-right shrink-0">
           <div className="font-black text-white text-sm leading-none">${player.cash.toLocaleString()}</div>
-          <div className="text-[9px] text-white/70">cash</div>
+          <div className="text-[9px] text-white/70">
+            cash{player.insurance > 0 && <span className="ml-1">🛡️{player.insurance > 1 ? `×${player.insurance}` : ''}</span>}
+          </div>
         </div>
       </div>
 

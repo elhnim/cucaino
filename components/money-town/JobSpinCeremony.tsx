@@ -5,8 +5,8 @@ import type { Player, GameAction } from "@/lib/money-town/types"
 import { JOBS } from "@/lib/money-town/constants"
 
 const SEGMENT_HEIGHT = 80
-const SPIN_DURATION = 3500
-const NUM_ROTATIONS = 8
+const SPIN_DURATION = 2200
+const NUM_ROTATIONS = 5
 
 function easeInQuad(t: number) { return t * t }
 function easeOutCubic(t: number) { return 1 - Math.pow(1 - t, 3) }

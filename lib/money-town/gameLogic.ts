@@ -1,9 +1,10 @@
 import type {
-  GameState, GameAction, Player, OwnedAsset, ResultPayload, PaydayInfo, ReelSegment
+  GameState, GameAction, Player, OwnedAsset, ResultPayload, PaydayInfo, ReelSegment, MarketOffer
 } from './types'
 import {
   ASSETS, JOBS, DEGREE_JOBS, REEL_SEGMENTS, REFLEX_GAMES, TRIVIA_QUESTIONS,
   STARTING_CASH, DEGREE_COST, DEGREE_TURNS, MIN_TURNS_TO_WIN, CASH_FLOOR,
+  MAX_ROUNDS, INSURANCE_COST, MAX_INSURANCE, SELL_RATIO, MARKET_SIZE, MARKET_PRICE_MULTS,
 } from './constants'
 import type { TriviaQuestion } from './constants'
 
@@ -51,6 +52,29 @@ export function canBuyAsset(player: Player, defId: string): boolean {
   return true
 }
 
+/** Freedom progress 0–100+ — used for the timeout winner and the track UI */
+export function freedomPct(player: Player): number {
+  return player.expenses > 0 ? Math.round(computePassiveIncome(player) / player.expenses * 100) : 0
+}
+
+export function netWorth(player: Player): number {
+  return player.cash + player.assets.reduce((s, a) => {
+    const def = ASSETS.find(d => d.id === a.defId)
+    return s + (def?.cost ?? 0)
+  }, 0)
+}
+
+/** Draw this turn's market: 3 random eligible assets with price swings.
+    Hot deals reward waiting for the right moment; pricey offers punish impatience. */
+function generateMarket(player: Player): MarketOffer[] {
+  const pool = ASSETS.filter(a => canBuyAsset(player, a.id))
+  const shuffled = [...pool].sort(() => Math.random() - 0.5)
+  return shuffled.slice(0, MARKET_SIZE).map(a => ({
+    defId: a.id,
+    priceMult: rand(MARKET_PRICE_MULTS),
+  }))
+}
+
 function applyBuyAsset(player: Player, defId: string, discount = 1): Player {
   const def = ASSETS.find(a => a.id === defId)
   if (!def) return player
@@ -90,6 +114,25 @@ function drawEventCard(player: Player): { player: Player; payload: ResultPayload
 
   const card = rand(events)
   const result = card.apply(player)
+
+  // Insurance shield absorbs one bad event entirely
+  if (result.cashDelta < 0 && player.insurance > 0) {
+    return {
+      player: { ...player, insurance: player.insurance - 1 },
+      payload: {
+        kind: 'event',
+        emoji: '🛡️',
+        title: card.name,
+        description: `${card.name} hit — but your insurance covered it! No damage.`,
+        tone: 'neutral',
+        cashDelta: 0,
+        salaryDelta: 0,
+        expensesDelta: 0,
+        shieldUsed: true,
+      },
+    }
+  }
+
   const tone = result.cashDelta > 0 ? 'good' : result.cashDelta < 0 ? 'bad' : 'neutral'
 
   const descriptions: Record<string, string> = {
@@ -121,10 +164,23 @@ function drawEventCard(player: Player): { player: Player; payload: ResultPayload
   }
 }
 
-function drawBigEventCard(player: Player): { player: Player; payload: ResultPayload } {
-  type BigCard = { emoji: string; name: string; desc: string; tone: 'good'|'bad'|'neutral'; apply: (p: Player) => { player: Player; cashDelta: number; salaryDelta?: number; expensesDelta?: number } }
+function drawBigEventCard(player: Player, otherCount = 0): { player: Player; payload: ResultPayload } {
+  type BigCard = { emoji: string; name: string; desc: string; tone: 'good'|'bad'|'neutral'; apply: (p: Player) => { player: Player; cashDelta: number; salaryDelta?: number; expensesDelta?: number; othersDelta?: number } }
 
   const cards: BigCard[] = [
+    // Head-to-head cards — only when there are rivals at the table
+    ...(otherCount > 0 ? [
+      {
+        emoji: '🎩', name: 'Charity Gala', tone: 'good' as const,
+        desc: `You hosted a charity gala — every other player chips in $120!`,
+        apply: (p: Player) => ({ player: { ...p, cash: p.cash + 120 * otherCount }, cashDelta: 120 * otherCount, othersDelta: -120 }),
+      },
+      {
+        emoji: '🎂', name: 'Birthday Treat', tone: 'bad' as const,
+        desc: `It's your birthday — you shout everyone! Pay each player $75.`,
+        apply: (p: Player) => ({ player: { ...p, cash: Math.max(CASH_FLOOR, p.cash - 75 * otherCount) }, cashDelta: -75 * otherCount, othersDelta: 75 }),
+      },
+    ] : []),
     {
       emoji: '👶', name: 'Twins!', tone: 'bad',
       desc: 'Congratulations (kind of) — living expenses +$120/round permanently.',
@@ -173,6 +229,25 @@ function drawBigEventCard(player: Player): { player: Player; payload: ResultPayl
 
   const card = rand(cards)
   const result = card.apply(player)
+
+  // Insurance shield absorbs one bad cash hit (not head-to-head cards)
+  if (result.cashDelta < 0 && !result.othersDelta && player.insurance > 0) {
+    return {
+      player: { ...player, insurance: player.insurance - 1 },
+      payload: {
+        kind: 'big-event',
+        emoji: '🛡️',
+        title: card.name,
+        description: `${card.name} hit — but your insurance covered it! No damage.`,
+        tone: 'neutral',
+        cashDelta: 0,
+        salaryDelta: 0,
+        expensesDelta: 0,
+        shieldUsed: true,
+      },
+    }
+  }
+
   return {
     player: result.player,
     payload: {
@@ -184,6 +259,7 @@ function drawBigEventCard(player: Player): { player: Player; payload: ResultPayl
       cashDelta: result.cashDelta,
       salaryDelta: result.salaryDelta ?? 0,
       expensesDelta: result.expensesDelta ?? 0,
+      othersDelta: result.othersDelta,
     },
   }
 }
@@ -216,16 +292,31 @@ function drawChanceCard(player: Player): { player: Player; payload: ResultPayloa
         apply: (p) => ({ player: p, cashDelta: 0, offerAssetDefId: 'startup', offerDiscount: 1 }),
       },
       {
-        emoji: '🏆', name: 'Head-hunted', tone: 'good',
-        desc: 'Top company wants you. +$400 salary, +$280 expenses permanently.',
-        apply: (p) => ({ player: { ...p, salary: p.salary + 400, expenses: p.expenses + 280 }, cashDelta: 0, salaryDelta: 400, expensesDelta: 280 }),
-      },
-      {
         emoji: '🎁', name: 'Cash Gift', tone: 'good',
         desc: 'A generous relative hears about your degree — +$550.',
         apply: (p) => ({ player: { ...p, cash: p.cash + 550 }, cashDelta: 550 }),
       },
     ]
+
+    // 1-in-3: a strategic fork instead of a straight card
+    if (Math.random() < 0.34) {
+      return {
+        player,
+        payload: {
+          kind: 'chance', emoji: '🤝', title: 'Headhunter Calls',
+          description: 'A top company wants you. What matters more — cash today or income forever?',
+          tone: 'good', cashDelta: 0, salaryDelta: 0, expensesDelta: 0,
+          choices: [
+            { emoji: '💰', label: 'Signing bonus', desc: '+$700 cash right now' },
+            { emoji: '💼', label: 'Big promotion', desc: '+$400 salary, +$280 expenses forever' },
+          ],
+          choiceEffects: [
+            { cashDelta: 700, salaryDelta: 0, expensesDelta: 0 },
+            { cashDelta: 0, salaryDelta: 400, expensesDelta: 280 },
+          ],
+        },
+      }
+    }
 
     const card = rand(gradCards)
     const result = card.apply(player)
@@ -247,7 +338,39 @@ function drawChanceCard(player: Player): { player: Player; payload: ResultPayloa
     }
   }
 
-  // No degree
+  // No degree — half the time, offer a strategic fork
+  if (Math.random() < 0.5) {
+    const forks: ResultPayload[] = [
+      {
+        kind: 'chance', emoji: '🛤️', title: 'Crossroads',
+        description: 'An opportunity with two paths. Quick money, or money that keeps coming?',
+        tone: 'good', cashDelta: 0, salaryDelta: 0, expensesDelta: 0,
+        choices: [
+          { emoji: '💵', label: 'Take the cash', desc: '+$350 right now' },
+          { emoji: '📈', label: 'Ask for a raise', desc: '+$70 salary every turn, forever' },
+        ],
+        choiceEffects: [
+          { cashDelta: 350, salaryDelta: 0, expensesDelta: 0 },
+          { cashDelta: 0, salaryDelta: 70, expensesDelta: 0 },
+        ],
+      },
+      {
+        kind: 'chance', emoji: '🌙', title: 'Free Weekend',
+        description: 'You have a free weekend. How do you spend it?',
+        tone: 'good', cashDelta: 0, salaryDelta: 0, expensesDelta: 0,
+        choices: [
+          { emoji: '💪', label: 'Work overtime', desc: '+$300 cash this weekend' },
+          { emoji: '📚', label: 'Night course', desc: '+$60 salary every turn, forever' },
+        ],
+        choiceEffects: [
+          { cashDelta: 300, salaryDelta: 0, expensesDelta: 0 },
+          { cashDelta: 0, salaryDelta: 60, expensesDelta: 0 },
+        ],
+      },
+    ]
+    return { player, payload: rand(forks) }
+  }
+
   type BasicCard = { emoji: string; name: string; desc: string; apply: (p: Player) => { player: Player; cashDelta: number; salaryDelta?: number; offerAssetDefId?: string } }
 
   const cheapestTier1 = ASSETS.filter(a => a.tier === 1 && canBuyAsset(player, a.id))[0]
@@ -367,12 +490,36 @@ function applyStartTurn(state: GameState): GameState {
     pendingPayday: payday,
     phase: hasWon ? 'win' : 'board',
     winnerId: hasWon ? turnedPlayer.id : state.winnerId,
+    marketOffers: generateMarket(turnedPlayer),
   }
+}
+
+/** Round cap reached — the player closest to freedom takes it (net worth breaks ties) */
+function timeoutWinner(players: Player[]): Player {
+  return [...players].sort((a, b) => {
+    const pctDiff = freedomPct(b) - freedomPct(a)
+    if (pctDiff !== 0) return pctDiff
+    return netWorth(b) - netWorth(a)
+  })[0]
 }
 
 function nextTurn(state: GameState): GameState {
   const nextIndex = (state.currentPlayerIndex + 1) % state.players.length
   const newRound = nextIndex === 0 ? state.round + 1 : state.round
+
+  // Hard stop: every game ends by round MAX_ROUNDS
+  if (newRound > MAX_ROUNDS) {
+    const winner = timeoutWinner(state.players)
+    return {
+      ...state,
+      pendingResult: null,
+      pendingPayday: null,
+      phase: 'win',
+      winnerId: winner.id,
+      winByTimeout: true,
+    }
+  }
+
   const intermediate: GameState = {
     ...state,
     currentPlayerIndex: nextIndex,
@@ -395,6 +542,8 @@ export function createInitialState(): GameState {
     pendingResult: null,
     usedTriviaIds: [],
     winnerId: null,
+    marketOffers: [],
+    winByTimeout: false,
   }
 }
 
@@ -461,7 +610,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         updatedPlayer = r.player
         payload = r.payload
       } else if (action.segment === 'big-event') {
-        const r = drawBigEventCard(player)
+        const r = drawBigEventCard(player, state.players.length - 1)
         updatedPlayer = r.player
         payload = r.payload
       } else if (action.segment === 'chance') {
@@ -472,9 +621,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         payload = drawMiniGameCard()
       }
 
-      const newPlayers = state.players.map((p, i) =>
-        i === state.currentPlayerIndex ? updatedPlayer : p
-      )
+      const newPlayers = state.players.map((p, i) => {
+        if (i === state.currentPlayerIndex) return updatedPlayer
+        // Head-to-head cards touch every rival's wallet
+        if (payload.othersDelta) {
+          return { ...p, cash: Math.max(CASH_FLOOR, p.cash + payload.othersDelta) }
+        }
+        return p
+      })
 
       return {
         ...state,
@@ -482,6 +636,22 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         pendingResult: payload,
         phase: 'result',
       }
+    }
+
+    case 'CHOOSE_OPTION': {
+      const effect = state.pendingResult?.choiceEffects?.[action.index]
+      if (!effect) return state
+      const player = state.players[state.currentPlayerIndex]
+      const updatedPlayer = {
+        ...player,
+        cash: Math.max(CASH_FLOOR, player.cash + effect.cashDelta),
+        salary: player.salary + effect.salaryDelta,
+        expenses: player.expenses + effect.expensesDelta,
+      }
+      const newPlayers = state.players.map((p, i) =>
+        i === state.currentPlayerIndex ? updatedPlayer : p
+      )
+      return { ...state, players: newPlayers, pendingResult: null, phase: 'action' }
     }
 
     case 'DISMISS_RESULT': {
@@ -518,6 +688,39 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
         i === state.currentPlayerIndex ? updatedPlayer : p
       )
       return nextTurn({ ...state, players: newPlayers })
+    }
+
+    case 'SELL_ASSET': {
+      const player = state.players[state.currentPlayerIndex]
+      const owned = player.assets.find(a => a.uid === action.uid)
+      if (!owned) return state
+      const def = ASSETS.find(d => d.id === owned.defId)
+      const refund = Math.floor((def?.cost ?? 0) * SELL_RATIO)
+      const updatedPlayer = {
+        ...player,
+        cash: player.cash + refund,
+        assets: player.assets.filter(a => a.uid !== action.uid),
+      }
+      const newPlayers = state.players.map((p, i) =>
+        i === state.currentPlayerIndex ? updatedPlayer : p
+      )
+      // Selling doesn't end the turn — it enables the pivot play (sell, then buy)
+      return { ...state, players: newPlayers }
+    }
+
+    case 'BUY_INSURANCE': {
+      const player = state.players[state.currentPlayerIndex]
+      if (player.cash < INSURANCE_COST || player.insurance >= MAX_INSURANCE) return state
+      const updatedPlayer = {
+        ...player,
+        cash: player.cash - INSURANCE_COST,
+        insurance: player.insurance + 1,
+      }
+      const newPlayers = state.players.map((p, i) =>
+        i === state.currentPlayerIndex ? updatedPlayer : p
+      )
+      // Quick defensive action — doesn't end the turn
+      return { ...state, players: newPlayers }
     }
 
     case 'SWITCH_CAREER': {
