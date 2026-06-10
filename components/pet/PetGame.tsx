@@ -555,123 +555,89 @@ export default function PetGame({
   const spriteAnimClass = petBouncing ? "avatar-bounce" : pet.isSleeping ? "avatar-idle" : "avatar-idle";
 
   return (
-    <div className="max-w-md mx-auto p-4 pb-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h1 className="text-xl font-black text-gray-900 leading-tight">
+    <div className="h-full flex flex-col overflow-hidden">
+
+      {/* ── Floating top bar ── */}
+      <div
+        className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-4 pt-safe"
+        style={{ paddingTop: "max(env(safe-area-inset-top, 12px), 12px)" }}
+      >
+        {/* Back */}
+        <Link
+          href={kid ? `/kid/${kid.id}/play` : "/select-kid"}
+          className="flex items-center gap-1.5 bg-black/20 backdrop-blur text-white font-black text-sm px-3 py-2 rounded-2xl active:scale-95 transition-transform"
+        >
+          ← Play
+        </Link>
+
+        {/* Pet name + level */}
+        <div className="flex flex-col items-center">
+          <span className="font-black text-white text-base leading-tight drop-shadow" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.35)" }}>
             {pet.name}
-            <span className="ml-2 text-[10px] font-black text-white px-2 py-0.5 rounded-full align-middle uppercase tracking-wide" style={{ background: accent }}>
-              {stage} · Lv {level}
-            </span>
-          </h1>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="h-1.5 w-24 rounded-full bg-gray-200 overflow-hidden bar-shimmer">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${xpPct}%`, background: accent }}/>
-            </div>
-            <span className="text-[9px] font-bold text-gray-400">{xpIntoLevel}/{xpNeeded} XP</span>
+          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-black text-white/90 uppercase tracking-wide drop-shadow">{stage}</span>
+            <span className="text-[10px] font-black text-white px-1.5 py-0.5 rounded-full" style={{ background: accent }}>Lv {level}</span>
           </div>
-          {pet.careStreak > 0 && (
-            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
-              🔥 {pet.careStreak}-day care streak
-            </span>
-          )}
-          {/* Personality chips */}
-          {pet.personalities.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {pet.personalities.map((id) => {
-                const t = PET_PERSONALITIES.find((p) => p.id === id);
-                return t ? (
-                  <span key={id} className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                    {t.emoji} {t.label}
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
         </div>
-        <div className="text-right">
-          <div className="inline-flex items-center gap-1 bg-yellow-50 border-2 border-yellow-300 rounded-full px-3 py-1 text-sm font-black text-yellow-800">
+
+        {/* Stars */}
+        <div className="flex flex-col items-end gap-0.5">
+          <div className="flex items-center gap-1 bg-black/20 backdrop-blur text-white font-black text-sm px-3 py-2 rounded-2xl">
             ⭐ {stars.toLocaleString()}
           </div>
-          <Link href={`/kid/${kid.id}/todo`} className="block text-[10px] font-bold mt-1 underline" style={{ color: accent }}>
+          <Link href={kid ? `/kid/${kid.id}/todo` : "#"} className="text-[9px] font-bold text-white/80 underline pr-1">
             Earn more →
           </Link>
-          {canSpeak && (
-            <span className="block text-[9px] font-bold text-purple-400 mt-0.5">💬 can talk!</span>
-          )}
         </div>
       </div>
 
-      {/* Toasts */}
-      {error && (
-        <div className="bg-white border-2 border-red-200 rounded-2xl px-4 py-2.5 mb-3 text-center animate-pop">
-          {notEnough ? (
-            <p className="text-sm font-bold text-gray-700">
-              Not enough stars!{" "}
-              <Link href={`/kid/${kid.id}/todo`} className="underline" style={{ color: accent }}>
-                Do your tasks to earn more ⭐
-              </Link>
-            </p>
-          ) : (
-            <p className="text-sm font-bold text-red-500">{error}</p>
-          )}
-        </div>
-      )}
-      {notice && !error && (
-        <div className="bg-white border-2 border-green-200 rounded-2xl px-4 py-2.5 mb-3 text-center animate-pop">
-          <p className="text-sm font-bold text-green-700">{notice}</p>
-        </div>
-      )}
-
-      {/* Pet scene */}
+      {/* ── Scene (fills all available space) ── */}
       <button
         type="button"
         onClick={cuddle}
-        className="relative w-full rounded-3xl overflow-hidden mb-3 cursor-pointer block shadow-lg"
+        className="flex-1 relative w-full cursor-pointer min-h-0"
         style={{
-          height: 320,
           background: pet.isSleeping
             ? "linear-gradient(180deg, #0f172a 0%, #1e1b4b 45%, #312e81 75%, #3730a3 100%)"
             : "linear-gradient(180deg, #7dd3fc 0%, #bae6fd 32%, #e0f2fe 52%, #d9f99d 70%, #86efac 84%, #4ade80 100%)",
         }}
       >
+        {/* Environment */}
         {pet.isSleeping ? (
           <>
-            <span className="absolute top-4 right-5 text-4xl" style={{ filter: "drop-shadow(0 0 14px rgba(191,219,254,0.8))" }}>🌙</span>
+            <span className="absolute top-16 right-5 text-4xl" style={{ filter: "drop-shadow(0 0 14px rgba(191,219,254,0.8))" }}>🌙</span>
             {NIGHT_STARS.map((s, i) => (
               <span key={i} className={`absolute twinkle text-white ${s.size}`} style={{ top: s.top, left: s.left, animationDelay: s.delay }}>✦</span>
             ))}
           </>
         ) : (
           <>
-            <span className="absolute top-3 right-5 text-4xl" style={{ filter: "drop-shadow(0 0 18px rgba(253,224,71,0.9))" }}>☀️</span>
-            <span className="cloud-drift text-4xl opacity-80" style={{ top: "10%", animationDuration: "38s", animationDelay: "-12s" }}>☁️</span>
-            <span className="cloud-drift text-2xl opacity-60" style={{ top: "24%", animationDuration: "26s", animationDelay: "-4s" }}>☁️</span>
-            <span className="absolute text-xl avatar-idle" style={{ top: "30%", left: "14%" }}>🦋</span>
-            <span className="absolute bottom-3 left-4 text-xl">🌼</span>
-            <span className="absolute bottom-2 right-5 text-xl">🌸</span>
-            <span className="absolute bottom-5 right-16 text-sm">🌷</span>
+            <span className="absolute top-16 right-5 text-4xl" style={{ filter: "drop-shadow(0 0 18px rgba(253,224,71,0.9))" }}>☀️</span>
+            <span className="cloud-drift text-4xl opacity-80" style={{ top: "18%", animationDuration: "38s", animationDelay: "-12s" }}>☁️</span>
+            <span className="cloud-drift text-2xl opacity-60" style={{ top: "32%", animationDuration: "26s", animationDelay: "-4s" }}>☁️</span>
+            <span className="absolute text-xl avatar-idle" style={{ top: "35%", left: "10%" }}>🦋</span>
+            <span className="absolute bottom-3 left-4 text-2xl">🌼</span>
+            <span className="absolute bottom-2 right-5 text-2xl">🌸</span>
+            <span className="absolute bottom-6 right-20 text-lg">🌷</span>
           </>
         )}
 
-        {/* Accessories scattered in the scene */}
+        {/* Accessories */}
         {pet.accessories.map((accId) => {
           const idx = PET_ACCESSORIES.findIndex((a) => a.id === accId);
           const acc = PET_ACCESSORIES[idx];
           const spot = ACCESSORY_SPOTS[(idx + ACCESSORY_SPOTS.length) % ACCESSORY_SPOTS.length];
           if (!acc) return null;
           return (
-            <span key={accId} className="absolute text-2xl avatar-idle" style={{ top: spot.top, left: spot.left }}>
-              {acc.emoji}
-            </span>
+            <span key={accId} className="absolute text-2xl avatar-idle" style={{ top: spot.top, left: spot.left }}>{acc.emoji}</span>
           );
         })}
 
         {dirty && !pet.isSleeping && (
           <>
-            <span className="absolute bottom-6 left-8 text-2xl">💩</span>
-            <span className="absolute bottom-10 right-10 text-xl">🫧</span>
+            <span className="absolute bottom-8 left-8 text-2xl">💩</span>
+            <span className="absolute bottom-12 right-10 text-xl">🫧</span>
           </>
         )}
 
@@ -680,71 +646,111 @@ export default function PetGame({
             role="button"
             aria-label="Open today's gift"
             onClick={(e) => { e.stopPropagation(); if (!isPending) claimGift(); }}
-            className="absolute bottom-14 right-6 text-4xl gift-wiggle inline-block"
-            style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.25))" }}
+            className="absolute bottom-16 right-6 text-5xl gift-wiggle inline-block"
+            style={{ filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))" }}
           >
             🎁
           </span>
         )}
 
-        {/* Glow under pet */}
-        <span
-          className="pet-glow absolute left-1/2 bottom-12 rounded-full"
-          style={{ width: 100, height: 16, marginLeft: -50, background: pet.isSleeping ? "radial-gradient(ellipse, rgba(165,180,252,0.5), transparent 70%)" : "radial-gradient(ellipse, rgba(255,255,255,0.8), transparent 70%)" }}
+        {/* Glow ellipse */}
+        <span className="pet-glow absolute left-1/2 bottom-14 rounded-full"
+          style={{ width: 120, height: 20, marginLeft: -60, background: pet.isSleeping ? "radial-gradient(ellipse, rgba(165,180,252,0.5), transparent 70%)" : "radial-gradient(ellipse, rgba(255,255,255,0.8), transparent 70%)" }}
         />
 
-        {/* Full-body pet sprite + speech bubble */}
-        <div
-          className="absolute left-1/2 bottom-14"
-          style={{ transform: "translateX(-50%)" }}
-          onAnimationEnd={() => setPetBouncing(false)}
-        >
+        {/* Pet sprite + speech */}
+        <div className="absolute left-1/2 bottom-16" style={{ transform: "translateX(-50%)" }}
+          onAnimationEnd={() => setPetBouncing(false)}>
           <div className="relative">
             <PetSpeech line={speech} accent={accent}/>
-            <PetSprite
-              species={pet.species}
-              mood={mood.id}
-              stage={stage}
-              size={130}
-              animClass={spriteAnimClass}
-            />
+            <PetSprite species={pet.species} mood={mood.id} stage={stage} size={160} animClass={spriteAnimClass}/>
           </div>
         </div>
 
-        {/* Sleeping z's */}
         {pet.isSleeping && (
           <>
-            <span className="absolute left-[62%] bottom-36 text-2xl sleep-drift">💤</span>
-            <span className="absolute left-[68%] bottom-40 text-lg sleep-drift" style={{ animationDelay: "1.2s" }}>💤</span>
+            <span className="absolute left-[60%] bottom-44 text-3xl sleep-drift">💤</span>
+            <span className="absolute left-[66%] bottom-48 text-xl sleep-drift" style={{ animationDelay: "1.2s" }}>💤</span>
           </>
         )}
 
-        {/* Hearts on cuddle */}
         {hearts.map((h) => (
-          <span key={h.id} className="heart-float text-2xl" style={{ left: `${h.left}%`, bottom: 150 }}>💖</span>
+          <span key={h.id} className="heart-float text-3xl" style={{ left: `${h.left}%`, bottom: 180 }}>💖</span>
         ))}
-
-        {/* Trick bursts */}
         {bursts.map((b) => (
-          <span key={b.id} className="trick-burst text-3xl" style={{ left: `${b.left}%`, bottom: 140 }}>{b.emoji}</span>
+          <span key={b.id} className="trick-burst text-3xl" style={{ left: `${b.left}%`, bottom: 170 }}>{b.emoji}</span>
         ))}
 
         {/* Mood bubble */}
-        <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 w-[92%] rounded-2xl px-3 py-1.5 text-center backdrop-blur border ${pet.isSleeping ? "bg-white/15 border-white/20 text-white" : "bg-white/70 border-white/60 text-gray-700"}`}>
+        <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 w-[88%] max-w-sm rounded-2xl px-3 py-1.5 text-center backdrop-blur border ${pet.isSleeping ? "bg-white/15 border-white/20 text-white" : "bg-white/75 border-white/60 text-gray-700"}`}>
           <span className="text-xs font-bold">{mood.emoji} {mood.message}</span>
         </div>
+
+        {/* Toasts float above mood bubble */}
+        {error && (
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[88%] max-w-sm bg-white border-2 border-red-200 rounded-2xl px-4 py-2.5 text-center animate-pop shadow-lg">
+            {notEnough ? (
+              <p className="text-sm font-bold text-gray-700">
+                Not enough ⭐!{" "}
+                <Link href={kid ? `/kid/${kid.id}/todo` : "#"} className="underline" style={{ color: accent }}>Earn more</Link>
+              </p>
+            ) : (
+              <p className="text-sm font-bold text-red-500">{error}</p>
+            )}
+          </div>
+        )}
+        {notice && !error && (
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-[88%] max-w-sm bg-white border-2 border-green-200 rounded-2xl px-4 py-2.5 text-center animate-pop shadow-lg">
+            <p className="text-sm font-bold text-green-700">{notice}</p>
+          </div>
+        )}
       </button>
 
-      {/* Stat bars */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <StatBar emoji="🍎" label="Food"   value={pet.hunger}      accent={accent}/>
-        <StatBar emoji="😊" label="Happy"  value={pet.happiness}   accent={accent}/>
-        <StatBar emoji="⚡" label="Energy" value={pet.energy}      accent={accent}/>
-        <StatBar emoji="🛁" label="Clean"  value={pet.cleanliness} accent={accent}/>
-      </div>
+      {/* ── Bottom control panel ── */}
+      <div className="bg-white shadow-2xl flex-shrink-0 overflow-y-auto" style={{ maxHeight: "52dvh", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
+        {/* XP bar + streak + personality chips */}
+        <div className="px-4 pt-3 pb-2 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-2 flex-1 rounded-full bg-gray-100 overflow-hidden bar-shimmer">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${xpPct}%`, background: accent }}/>
+                </div>
+                <span className="text-[9px] font-bold text-gray-400 shrink-0">{xpIntoLevel}/{xpNeeded} XP</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {pet.careStreak > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">
+                    🔥 {pet.careStreak}d streak
+                  </span>
+                )}
+                {pet.personalities.map((id) => {
+                  const t = PET_PERSONALITIES.find((p) => p.id === id);
+                  return t ? (
+                    <span key={id} className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                      {t.emoji} {t.label}
+                    </span>
+                  ) : null;
+                })}
+                {stage !== "baby" && !canSpeak && (
+                  <span className="text-[9px] font-bold text-purple-400">💬 talks at Lv {SPEECH_UNLOCK_LEVEL}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {/* Action buttons */}
-      <div className="grid grid-cols-4 gap-2 mb-2">
+        <div className="px-3 pt-2 pb-1">
+          {/* Stat bars */}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <StatBar emoji="🍎" label="Food"   value={pet.hunger}      accent={accent}/>
+            <StatBar emoji="😊" label="Happy"  value={pet.happiness}   accent={accent}/>
+            <StatBar emoji="⚡" label="Energy" value={pet.energy}      accent={accent}/>
+            <StatBar emoji="🛁" label="Clean"  value={pet.cleanliness} accent={accent}/>
+          </div>
+
+          {/* Action buttons */}
+          <div className="grid grid-cols-4 gap-2 mb-2">
         <button type="button" onClick={() => { setModal("food"); say("idle"); }} disabled={isPending || pet.isSleeping}
           className="bg-white rounded-2xl py-3 flex flex-col items-center gap-0.5 shadow-sm active:scale-95 transition-transform disabled:opacity-40">
           <span className="text-2xl">🍎</span>
@@ -960,6 +966,8 @@ export default function PetGame({
           </button>
         </div>
       )}
+      </div>
     </div>
+  </div>
   );
 }
