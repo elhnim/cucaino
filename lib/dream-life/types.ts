@@ -30,7 +30,7 @@ export type MinigameId = "coinrain" | "lemonsqueeze" | "cashgrab" | "petrush"
 export interface AssetModifier {
   /** card code that created it, e.g. "RES-N04" */
   source: string
-  field: "incomeRate" | "expenseRate" | "growthRate" | "interestRate"
+  field: "incomeRate" | "operatingRate" | "growthRate" | "interestRate"
   /** additive, in rate points (0.01 = 1pp) */
   delta: number
   /** false ⇒ cleared at the settle of the year it fired (spec §7 duration rule) */
