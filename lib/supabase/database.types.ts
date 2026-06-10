@@ -874,6 +874,75 @@ export type Database = {
           },
         ]
       }
+      kid_pets: {
+        Row: {
+          accessories: Json
+          cleanliness: number
+          created_at: string
+          energy: number
+          family_id: string
+          happiness: number
+          hunger: number
+          id: string
+          is_sleeping: boolean
+          kid_id: string
+          last_tick_at: string
+          name: string
+          species: string
+          total_stars_spent: number
+          xp: number
+        }
+        Insert: {
+          accessories?: Json
+          cleanliness?: number
+          created_at?: string
+          energy?: number
+          family_id: string
+          happiness?: number
+          hunger?: number
+          id?: string
+          is_sleeping?: boolean
+          kid_id: string
+          last_tick_at?: string
+          name: string
+          species: string
+          total_stars_spent?: number
+          xp?: number
+        }
+        Update: {
+          accessories?: Json
+          cleanliness?: number
+          created_at?: string
+          energy?: number
+          family_id?: string
+          happiness?: number
+          hunger?: number
+          id?: string
+          is_sleeping?: boolean
+          kid_id?: string
+          last_tick_at?: string
+          name?: string
+          species?: string
+          total_stars_spent?: number
+          xp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kid_pets_family_id_fkey"
+            columns: ["family_id"]
+            isOneToOne: false
+            referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kid_pets_kid_id_fkey"
+            columns: ["kid_id"]
+            isOneToOne: true
+            referencedRelation: "kids"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       kid_timetable: {
         Row: {
           day_of_week: number

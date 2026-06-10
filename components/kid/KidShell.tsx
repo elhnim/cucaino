@@ -157,11 +157,17 @@ export default function KidShell({
       const points = (e as CustomEvent).detail?.points ?? 0;
       setEarned((s) => ({ stars: s.stars - points, done: s.done - 1 }));
     };
+    const onSpent = (e: Event) => {
+      const amount = (e as CustomEvent).detail?.amount ?? 0;
+      setEarned((s) => ({ ...s, stars: s.stars - amount }));
+    };
     window.addEventListener("task-completed", onComplete);
     window.addEventListener("task-uncompleted", onUncomplete);
+    window.addEventListener("stars-spent", onSpent);
     return () => {
       window.removeEventListener("task-completed", onComplete);
       window.removeEventListener("task-uncompleted", onUncomplete);
+      window.removeEventListener("stars-spent", onSpent);
     };
   }, []);
 

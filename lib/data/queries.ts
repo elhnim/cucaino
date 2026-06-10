@@ -13,6 +13,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { timed } from "@/lib/data/perf";
 import { getTierFromCount } from "@/lib/domain/badge-config";
+import { applyDecay, rowToPet, type Pet } from "@/lib/pet/logic";
 import type {
   BadgeCategory,
   BadgeConfigOverride,
@@ -1598,3 +1599,22 @@ export const listMessageSummariesForParent = timed("listMessageSummariesForParen
       })
   );
 });
+
+// ---------------------------------------------------------------------------
+// Star Pets
+// ---------------------------------------------------------------------------
+
+/**
+ * Kid's virtual pet with time-based stat decay applied at read time.
+ * Read-only — decayed stats are persisted on the next care action.
+ */
+export async function getKidPet(kidId: string): Promise<Pet | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("kid_pets")
+    .select("*")
+    .eq("kid_id", kidId)
+    .maybeSingle();
+  if (!data) return null;
+  return applyDecay(rowToPet(data));
+}

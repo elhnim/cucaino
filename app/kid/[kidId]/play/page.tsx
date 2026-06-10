@@ -16,6 +16,21 @@ export default async function KidPlayPage({
       <h1 className="text-2xl font-black text-gray-900 mb-4">🎮 Play</h1>
 
       <div className="grid grid-cols-2 gap-3">
+        {/* Star Pets */}
+        <Link
+          href={`/play/pet?kid=${kid.id}`}
+          className="bg-pink-50 border-2 border-pink-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
+        >
+          <div className="text-4xl"><span className="avatar-idle inline-block">🐾</span></div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-pink-900">Star Pets</span>
+              <span className="text-[10px] font-bold bg-pink-500 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+            </div>
+            <div className="text-xs text-pink-700 mt-0.5">Adopt · Feed · Grow ⭐</div>
+          </div>
+        </Link>
+
         <Link
           href={`/kid/${kid.id}/play/quiz`}
           className="bg-amber-50 border-2 border-amber-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
