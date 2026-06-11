@@ -5,7 +5,8 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "Cucaino",
     short_name: "Cucaino",
     description: "Daily routines, chores, and rewards for kids",
-    start_url: "/select-kid",
+    // Static splash that renders instantly (CDN-served), then hops to /select-kid
+    start_url: "/launch",
     display: "standalone",
     orientation: "portrait",
     background_color: "#e0e7ff",

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ensureDailyPrices } from "@/lib/trading/prices";
+import { ensureDailyRealPrices } from "@/lib/invest/prices";
 
 // Triggered daily by netlify/functions/daily-prices.mts. Generates today's
 // trading prices + news using the service-role client (bypasses RLS), so it
@@ -20,7 +21,16 @@ export async function GET(req: Request) {
   }
 
   try {
-    await ensureDailyPrices(createAdminClient());
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: "SUPABASE_SERVICE_ROLE_KEY not configured — daily refresh skipped" },
+        { status: 500 },
+      );
+    }
+    const admin = createAdminClient();
+    // Nugget Market game prices + Invest real stock/crypto prices and news
+    await ensureDailyPrices(admin);
+    await ensureDailyRealPrices(admin);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(
