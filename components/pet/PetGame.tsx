@@ -602,7 +602,7 @@ export default function PetGame({
           <h1 className="text-xl font-black text-gray-900 leading-tight">
             {pet.name}
             <span className="ml-2 text-[10px] font-black text-white px-2 py-0.5 rounded-full align-middle uppercase tracking-wide" style={{ background: accent }}>
-              {stage} · Lv {level}
+              {stage} · Age {level}
             </span>
           </h1>
           <div className="flex items-center gap-2 mt-1">
@@ -837,7 +837,7 @@ export default function PetGame({
 
       <p className="text-center text-[10px] font-semibold text-gray-400">
         Tap {pet.name} for a free cuddle 💖 · A new 🎁 appears every day · Care daily to grow your 🔥 streak
-        {stage !== "baby" && !canSpeak && <> · <span className="text-purple-400">💬 {pet.name} will talk at level {SPEECH_UNLOCK_LEVEL}!</span></>}
+        {stage !== "baby" && !canSpeak && <> · <span className="text-purple-400">💬 {pet.name} will talk at age {SPEECH_UNLOCK_LEVEL}!</span></>}
       </p>
 
       {/* Say goodbye — deliberately low-emphasis */}
@@ -917,7 +917,7 @@ export default function PetGame({
                     <span className="flex-1 text-left">
                       <span className="block font-black text-sm text-gray-800">{t.label}</span>
                       <span className="block text-[10px] font-bold text-gray-400">
-                        {learned ? "Learned!" : locked ? `Unlocks at level ${t.minLevel}` : `Level ${t.minLevel}+`}
+                        {learned ? "Learned!" : locked ? `Unlocks at age ${t.minLevel}` : `Age ${t.minLevel}+`}
                       </span>
                     </span>
                     {learned ? (
@@ -927,7 +927,7 @@ export default function PetGame({
                         Perform!
                       </button>
                     ) : locked ? (
-                      <span className="text-sm font-black text-gray-400 px-3 py-1.5">🔒 Lv {t.minLevel}</span>
+                      <span className="text-sm font-black text-gray-400 px-3 py-1.5">🔒 Age {t.minLevel}</span>
                     ) : (
                       <button type="button" disabled={isPending}
                         onClick={() => runAction(() => learnTrick(kid.id, t.id), () => setNotice(`${t.emoji} ${pet.name} learned ${t.label}!`))}
@@ -950,7 +950,7 @@ export default function PetGame({
           <div className="relative bg-white rounded-t-[28px] px-5 pt-5 pb-8 max-h-[75dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-black text-gray-900 text-center mb-1">🛍️ Pet shop</h2>
             <p className="text-center text-[10px] font-bold text-gray-400 mb-3">
-              Toys live in {pet.name}&apos;s room forever — level up to unlock more!
+              Toys live in {pet.name}&apos;s room forever — grow older to unlock more!
             </p>
             <div className="grid grid-cols-3 gap-2">
               {PET_ACCESSORIES.map((a) => {
@@ -963,7 +963,7 @@ export default function PetGame({
                     <span className={`text-3xl ${locked ? "grayscale" : ""}`}>{a.emoji}</span>
                     <span className="text-[10px] font-black text-gray-700">{a.label}</span>
                     {owned ? <span className="text-[9px] font-black text-green-600">Owned ✓</span>
-                      : locked ? <span className="text-[9px] font-black text-gray-400">🔒 Lv {a.minLevel}</span>
+                      : locked ? <span className="text-[9px] font-black text-gray-400">🔒 Age {a.minLevel}</span>
                       : <span className="text-[10px] font-black text-yellow-700">{a.starCost} ⭐</span>}
                   </button>
                 );
@@ -1043,12 +1043,12 @@ export default function PetGame({
             <PetSprite species={pet.species} mood="ecstatic" stage={stage} size={120} animClass="avatar-party"/>
           </div>
           <h2 className="text-3xl font-black text-white mb-1 animate-pop">
-            {levelUp.evolved ? `${pet.name} evolved!` : "Level up!"} 🎉
+            {levelUp.evolved ? `${pet.name} evolved!` : `🎂 ${pet.name} grew up!`} 🎉
           </h2>
           <p className="text-sm font-bold text-white/70 mb-6">
             {levelUp.evolved
               ? `Your buddy grew into a ${stageFromLevel(levelUp.level)} ${species.name.toLowerCase()}!`
-              : `${pet.name} reached level ${levelUp.level}. Keep caring!`}
+              : `${pet.name} is now age ${levelUp.level}. Keep caring!`}
           </p>
           {levelUp.level === SPEECH_UNLOCK_LEVEL && stage !== "baby" && (
             <p className="text-sm font-black text-yellow-300 mb-4 animate-pop">

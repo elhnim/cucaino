@@ -68,7 +68,7 @@ export default function PetWidget({ pet, kidId, accent }: Props) {
               className="text-[9px] font-black px-1.5 py-0.5 rounded-full text-white shrink-0"
               style={{ background: accent }}
             >
-              Lv {level}
+              Age {level}
             </span>
             {species && (
               <span className={`text-[9px] font-bold shrink-0 ${pet.isSleeping ? "text-blue-200" : "text-gray-400"}`}>
