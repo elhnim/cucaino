@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import GameAudio from "@/components/audio/GameAudio";
 import { getTheme } from "@/lib/themes/presets";
 import type { ThemeId } from "@/lib/domain/types";
 
@@ -149,6 +150,7 @@ export default function QuizGame({
   if (mode === "setup") {
     return (
       <div className="flex flex-col">
+        <GameAudio track="quiz" className="fixed top-16 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
           <Link href={backHref} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
             ← Back to quizzes
@@ -265,6 +267,7 @@ export default function QuizGame({
     const theme = getTheme(currentPlayer.themeId);
     return (
       <div className="p-3 md:p-6 flex flex-col gap-2 md:gap-4">
+        <GameAudio track="quiz" className="fixed top-16 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
         {/* Top bar */}
         <div className="max-w-3xl mx-auto w-full flex items-center justify-between gap-2">
           <button
@@ -372,6 +375,7 @@ export default function QuizGame({
   // ---------- FINISHED ----------
   return (
     <div className="flex flex-col">
+      <GameAudio track="quiz" className="fixed top-16 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <Link href={backHref} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
           ← Quizzes

@@ -9,6 +9,7 @@ import type { Kid } from "@/lib/domain/types"
 import type { GameAction, GameState } from "@/lib/dream-life/types"
 import { reduce } from "@/lib/dream-life/engine"
 import { clearSave, isStorageAvailable, loadGame, saveGame } from "@/lib/dream-life/save"
+import GameAudio from "@/components/audio/GameAudio"
 import { SKY_BG, HEADER_BG } from "./theme"
 import Lobby from "./Lobby"
 import RulesModal from "./RulesModal"
@@ -76,6 +77,7 @@ export default function DreamLifeGame({ kids, activeKidId }: Props) {
   if (state === null) {
     return (
       <div className="relative h-full flex flex-col overflow-hidden" style={SKY_BG}>
+        <GameAudio track="dream-life" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
         <Lobby
           kids={kids}
           activeKidId={activeKidId}
@@ -119,6 +121,7 @@ export default function DreamLifeGame({ kids, activeKidId }: Props) {
 
   return (
     <div className="relative h-full flex flex-col overflow-hidden" style={SKY_BG}>
+      <GameAudio track="dream-life" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       {/* header */}
       <header
         className="shrink-0 px-4 py-2 flex items-center justify-between z-10 border-b-[3px] border-white/50"

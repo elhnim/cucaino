@@ -10,6 +10,7 @@ import type {
   TradingAssetPrice,
   TradingAsset,
 } from "@/lib/domain/types";
+import GameAudio from "@/components/audio/GameAudio";
 import TradingPortfolioTab from "./TradingPortfolioTab";
 import TradingMarketTab from "./TradingMarketTab";
 import TradingLeaderboardTab, {
@@ -74,6 +75,7 @@ export default function TradingHub({
 
   return (
     <div className="bg-gradient-to-br from-green-50 to-emerald-100 min-h-full">
+      <GameAudio track="market" />
       {showOnboarding && createPortal(
         <div className="fixed inset-0 z-50">
           <TradingOnboarding onDone={handleOnboardingDone} />

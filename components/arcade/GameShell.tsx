@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import GameAudio from "@/components/audio/GameAudio";
 import type { ArcadeGame } from "@/lib/arcade/games";
 
 interface GameShellProps {
@@ -16,6 +17,7 @@ export default function GameShell({ kidId, sparksBalance, game, children }: Game
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      <GameAudio track="arcade" className="fixed top-16 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       {/* Sticky header */}
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <Link

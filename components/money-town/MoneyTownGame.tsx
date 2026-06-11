@@ -2,6 +2,7 @@
 
 import { useReducer, useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
+import GameAudio from "@/components/audio/GameAudio"
 import { gameReducer, createInitialState } from "@/lib/money-town/gameLogic"
 import type { GameState } from "@/lib/money-town/types"
 import type { Kid } from "@/lib/domain/types"
@@ -59,11 +60,14 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
 
   if (state.phase === 'lobby') {
     return (
-      <GameLobby
-        kids={kids}
-        activeKid={activeKid}
-        dispatch={dispatch}
-      />
+      <>
+        <GameAudio track="money-town" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
+        <GameLobby
+          kids={kids}
+          activeKid={activeKid}
+          dispatch={dispatch}
+        />
+      </>
     )
   }
 
@@ -97,6 +101,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
   // Board is always mounted for board/lever/result/action phases
   return (
     <div className="relative h-full bg-sky-50">
+      <GameAudio track="money-town" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       <GameBoard
         state={state}
         dispatch={dispatch}
