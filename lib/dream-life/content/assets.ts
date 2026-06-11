@@ -68,7 +68,7 @@ export const ASSET_CLASSES: Record<AssetClassId, AssetClassDef> = {
     id: "business", emoji: "🏭", label: "Business", personality: "the generalist's crown — best yield, riskiest income asset",
     unlock: { kind: "multiSkill", levels: { moneySmarts: 4, proSkills: 4, grit: 4 } },
     entry: 120_000, price: null, mortgageRate: 0,
-    growthRate: 0.06, incomeRate: 0.18, operatingRate: 0.08,
+    growthRate: 0.06, incomeRate: 0.14, operatingRate: 0.08,
     opp: 0.22, risk: 0.3, calm: 0.48,
   },
 }

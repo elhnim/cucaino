@@ -624,12 +624,20 @@ For every screen and state in the approved mockups (01–17):
 - Type consistency: all later tasks reference only names defined in Task 2/5 signatures.
 - Placeholders: content transcription tasks point at exact spec tables (data lives in spec, not "TBD").
 
-## Sim results (fill in at Task 8)
+## Sim results (Task 8 — 2000 four-player games, ACCEPTANCE PASSED ✅)
 
 | Bot | Win % | Median freedom age | Notes |
 |---|---|---|---|
-| Earner-Saver | | | |
-| Investor | | | |
-| Entrepreneur | | | |
-| Frugal Tortoise | | | |
-Luck share: __ % · Backstop games: __ % · Deadlocks: 0 required
+| Earner-Saver | 22.8% | 33 | climbs PS→10, home, savings stack |
+| Investor | 32.2% | 32 | 2× resi + shares → commercial → deleverage |
+| Entrepreneur | 24.8% | 33 | MS/PS/GR→4, business, grows it with all spare cash |
+| Frugal Tortoise | 20.2% | 32 | downsize + grit→7 side hustle + home + savings |
+Luck share: 2.5% · Backstop games: 0.0% · Deadlocks: 0 ✅
+
+**Tuning applied (content knobs changed from spec reference values):**
+- `PS_BONUS_AT` 10/15/25% → **5/8/12%** · `PS_STOCK_AT` 8/12% → **4/6%** · `PS_CHAIRMAN_PASSIVE` 30% → **10%**
+  (the corporate ladder dominated at spec values: 100% win rate, freedom at 28)
+- Business income 18% → **14%** (net yield 10% → 6% — still the best income asset)
+- `GR_SIDE_HUSTLE` 5K/12K → **6K/15K** (the tortoise's identity engine)
+- `DOWNSIZE_PCT` 16% → **18%**
+- Engine fix surfaced by sim: Phase-1 **max-2×-per-action rule** now enforced in `legalActions`.

@@ -66,8 +66,8 @@ export const TOOL_UP_INCOME = 8_000
 export const HOME_PRICE = 180_000
 /** share of lifestyle removed when you own your home */
 export const HOME_LIFESTYLE_SLICE = 0.3
-/** downsize cap: one bracket ≈ 16% below rank default */
-export const DOWNSIZE_PCT = 0.16
+/** downsize cap: one bracket ≈ 18% below rank default */
+export const DOWNSIZE_PCT = 0.18
 export const INSURANCE_PREMIUM = 3_000
 export const CREDIT_CARD_RATE = 0.12
 export const APPRENTICE_PASSIVE = 4_000

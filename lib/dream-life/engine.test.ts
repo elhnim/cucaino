@@ -93,9 +93,10 @@ describe("engine — phase 1", () => {
 
   it("after the age-16 turn the career reel fires and lands on Tradesperson", () => {
     let s = buildNewGame([TWO_PLAYERS[0]], 7)
+    const actions = ["invest", "workHarder", "invest", "workHarder"] as const // 2× cap each
     for (let i = 0; i < 4; i++) {
       const kind = s.players[0].phase1Reel[s.players[0].phase1ReelCursor]
-      let s1 = reduce(s, { type: "CHOOSE_ACTION", action: "invest" })
+      let s1 = reduce(s, { type: "CHOOSE_ACTION", action: actions[i] })
       if (kind === "minigame") {
         s1 = reduce(s1, { type: "RESOLVE_SPIN", outcome: spin(null, "minigame"), nextCursor: s1.rngCursor + 5 })
         s1 = reduce(s1, { type: "MINIGAME_RESULT", won: false })

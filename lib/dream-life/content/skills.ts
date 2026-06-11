@@ -28,13 +28,13 @@ export const MS_GROWTH_BONUS = 0.01 // MS-L06: +1pp value growth
 export const MS_EVENT_SHRINK = 0.25 // MS-L08: 🔴 asset events 25% smaller
 export const MS_INCOME_BONUS = 0.01 // MS-L10: +1pp income on income assets
 
-export const PS_BONUS_AT = { 5: 0.1, 7: 0.15, 9: 0.25 } as const // yearly bonus % of salary
-export const PS_STOCK_AT = { 6: 0.08, 9: 0.12 } as const // shares % of salary → net worth
+export const PS_BONUS_AT = { 5: 0.05, 7: 0.08, 9: 0.12 } as const // yearly bonus % of salary
+export const PS_STOCK_AT = { 6: 0.04, 9: 0.06 } as const // shares % of salary → net worth
 export const PS_PURCHASE_DISCOUNT = 0.1 // PS-L08
-export const PS_CHAIRMAN_PASSIVE = 0.3 // PS-L10: % of top-rank pay, passive for life
+export const PS_CHAIRMAN_PASSIVE = 0.1 // PS-L10: % of top-rank pay, passive for life
 
 export const GR_LIFE_LOSS_SHRINK = 0.25 // GR-L04
-export const GR_SIDE_HUSTLE = { 5: 5000, 7: 12000 } as const
+export const GR_SIDE_HUSTLE = { 5: 6000, 7: 15000 } as const
 export const GR_OFFENSIVE_SHIELD = 0.5 // GR-L06
 export const GR_HUSTLE_PAY_BONUS = 0.5 // GR-L09
 

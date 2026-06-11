@@ -173,9 +173,10 @@ function makePlayer(
 export function buildSpinOutcome(state: GameState): { outcome: SpinOutcome; nextCursor: number } {
   const p = state.players[state.currentPlayerIndex]
   const phase = state.phaseOf[p.id]
-  const draws = drawsAt(state.seed, state.rngCursor, 4 + p.assets.length)
+  const drawCount = 5 + 2 * p.assets.length // reel picks + (roll + card) per asset
+  const draws = drawsAt(state.seed, state.rngCursor, drawCount)
   let d = 0
-  const nextCursor = state.rngCursor + 4 + p.assets.length
+  const nextCursor = state.rngCursor + drawCount
 
   if (phase === "phase1") {
     const kind = p.phase1Reel[p.phase1ReelCursor] ?? "card"

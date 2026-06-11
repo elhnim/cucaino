@@ -195,12 +195,17 @@ export function legalActions(state: GameState): PlayerActionId[] {
   const phase = state.phaseOf[p.id]
 
   if (phase === "phase1") {
-    const out: PlayerActionId[] = ["invest", "workHarder"] // always free (spec §4)
+    // spec §4: each action max 2× across Phase 1 (skill level − 1 = times taken)
+    const taken = (skill: keyof Player["skills"]) => p.skills[skill] - 1
+    const out: PlayerActionId[] = []
+    if (taken("moneySmarts") < 2) out.push("invest")
+    if (taken("proSkills") < 2) out.push("workHarder")
     const gross = salaryOf(p, "phase1")
     const lifestyle = lifestyleOf(p, "phase1")
     const okAfterCut = (cut: number) => p.cash + Math.round(gross * (1 - cut)) - lifestyle >= 0
-    if (okAfterCut(HUSTLE_SALARY_CUT)) out.push("hustle")
-    if (okAfterCut(STUDY_SALARY_CUT)) out.push("study")
+    if (taken("grit") < 2 && okAfterCut(HUSTLE_SALARY_CUT)) out.push("hustle")
+    if (taken("bigBrain") < 2 && okAfterCut(STUDY_SALARY_CUT)) out.push("study")
+    // 4 turns ÷ cap 2× across 4 actions ⇒ a free action always remains (spec §4 guarantee)
     return out.filter(a => !isBlocked(p, a))
   }
 
