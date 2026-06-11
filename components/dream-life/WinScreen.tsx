@@ -5,6 +5,7 @@
 import type { GameAction, GameState } from "@/lib/dream-life/types"
 import { currentRank, expensesOf, freedomPct, netWorth, passiveIncome } from "@/lib/dream-life/selectors"
 import { ASSET_CLASSES } from "@/lib/dream-life/content/assets"
+import { playSfx } from "@/lib/audio/sound-manager"
 import { SKY_BG, PLAYER_GRADIENTS, fmtMoney } from "./theme"
 
 interface Props {
@@ -80,7 +81,7 @@ export default function WinScreen({ state, onNewGame, onExit }: Props) {
       <div className="mt-auto flex gap-2 pb-2">
         <button
           type="button"
-          onClick={onNewGame}
+          onClick={() => { playSfx("tap"); onNewGame() }}
           className="flex-1 rounded-[20px] border-[3px] border-white bg-white/35 py-3 font-black text-indigo-950"
           style={{ boxShadow: "0 4px 0 rgba(46,16,101,.15)" }}
         >

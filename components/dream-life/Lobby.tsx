@@ -6,6 +6,7 @@ import { useState } from "react"
 import type { Kid } from "@/lib/domain/types"
 import type { GameState } from "@/lib/dream-life/types"
 import { freedomPct } from "@/lib/dream-life/selectors"
+import { playSfx } from "@/lib/audio/sound-manager"
 import { CAREERS } from "@/lib/dream-life/content/careers"
 import { TOY_SHADOW, GOLD_GLOW } from "./theme"
 
@@ -197,7 +198,7 @@ export default function Lobby({ kids, activeKidId, savedGame, canSave, onResume,
         )}
         <button
           type="button"
-          onClick={start}
+          onClick={() => { playSfx("tap"); start() }}
           disabled={total < 1}
           className="rounded-[20px] border-[3px] border-white/70 bg-gradient-to-br from-green-400 to-green-600 py-3.5 text-white font-black text-lg disabled:opacity-50 active:scale-[0.99]"
           style={{ boxShadow: "0 6px 0 #15803d, 0 12px 24px rgba(0,0,0,.25)", textShadow: "0 1px 0 rgba(0,0,0,.2)" }}

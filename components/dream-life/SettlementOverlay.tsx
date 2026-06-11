@@ -3,8 +3,10 @@
 // Mockup: 16-year-settlement.html — ledger, freedom check, next player.
 // Numbers come straight from state.lastSettlement, never recomputed here.
 
+import { useEffect } from "react"
 import type { GameAction, GameState } from "@/lib/dream-life/types"
 import { ASSET_CLASSES } from "@/lib/dream-life/content/assets"
+import { playSfx } from "@/lib/audio/sound-manager"
 import { fmtMoneyFull } from "./theme"
 
 interface Props {
@@ -13,6 +15,12 @@ interface Props {
 }
 
 export default function SettlementOverlay({ state, dispatch }: Props) {
+  // payout jingle — overlay unmounts on DISMISS_OVERLAY (lastSettlement → null),
+  // so this mounts exactly once per settlement
+  useEffect(() => {
+    playSfx("coin")
+  }, [])
+
   const st = state.lastSettlement!
   const settled = state.players.find(p => p.id === st.playerId)!
   const next = state.players[state.currentPlayerIndex]

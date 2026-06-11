@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { playSfx } from "@/lib/audio/sound-manager"
 
 interface Bag {
   id: number
@@ -67,7 +68,10 @@ export default function CashGrab({ onComplete }: Props) {
 
   const tap = (id: number, type: 'cash' | 'expense') => {
     setBags(prev => prev.map(b => b.id === id ? { ...b, dismissed: true } : b))
-    if (type === 'cash') setGrabbed(g => g + 1)
+    if (type === 'cash') {
+      playSfx("coin")
+      setGrabbed(g => g + 1)
+    }
   }
 
   if (!started) {

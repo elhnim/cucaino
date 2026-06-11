@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import GameAudio from "@/components/audio/GameAudio";
+import { playSfx } from "@/lib/audio/sound-manager";
 import FetchGame from "@/components/pet/FetchGame";
 import PetSprite from "@/components/pet/PetSprite";
 import PetSpeech from "@/components/pet/PetSpeech";
@@ -460,6 +461,7 @@ export default function PetGame({
             const newLevel = levelFromXp(res.pet.xp);
             if (newLevel > prevLevel) {
               setLevelUp({ level: newLevel, evolved: stageFromLevel(newLevel) !== stageFromLevel(prevLevel) });
+              playSfx("sparkle");
             }
           }
           return res.pet;
@@ -578,6 +580,7 @@ export default function PetGame({
         } else {
           spawnBursts(emoji);
         }
+        playSfx("sparkle");
         setNotice(`${emoji} Ta-daa! +${TRICK_HAPPINESS} happy`);
         say("trick");
       },

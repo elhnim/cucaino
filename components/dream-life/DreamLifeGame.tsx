@@ -3,13 +3,14 @@
 // Dream Life — top-level client component: reducer + autosave + stage router.
 // Mockups: mockups/2026-06-11-dream-life/ (spec §15 is the visual contract).
 
-import { useCallback, useEffect, useReducer, useState } from "react"
+import { useCallback, useEffect, useReducer, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { Kid } from "@/lib/domain/types"
 import type { GameAction, GameState } from "@/lib/dream-life/types"
 import { reduce } from "@/lib/dream-life/engine"
 import { clearSave, isStorageAvailable, loadGame, saveGame } from "@/lib/dream-life/save"
 import GameAudio from "@/components/audio/GameAudio"
+import { playSfx } from "@/lib/audio/sound-manager"
 import { SKY_BG, HEADER_BG } from "./theme"
 import Lobby from "./Lobby"
 import RulesModal from "./RulesModal"
@@ -57,6 +58,25 @@ export default function DreamLifeGame({ kids, activeKidId }: Props) {
   useEffect(() => {
     if (state && state.turnStage !== "gameOver") saveGame(state)
     if (state && state.turnStage === "gameOver") clearSave()
+  }, [state])
+
+  // win fanfare — turnStage flips to "gameOver" once per game, dep change fires this once
+  useEffect(() => {
+    if (state?.turnStage === "gameOver") playSfx("win")
+  }, [state?.turnStage])
+
+  // power-up gained — hand sizes only ever grow via the engine's drawPowerUp
+  // (card effect or phase-3 minigame win), so a total-hand-count increase IS a gain.
+  // Ref starts null and resets on lobby so resuming a saved game doesn't sparkle.
+  const prevHandCount = useRef<number | null>(null)
+  useEffect(() => {
+    if (state === null) {
+      prevHandCount.current = null
+      return
+    }
+    const count = state.players.reduce((n, pl) => n + pl.hand.length, 0)
+    if (prevHandCount.current !== null && count > prevHandCount.current) playSfx("sparkle")
+    prevHandCount.current = count
   }, [state])
 
   const handleExit = useCallback(() => {
