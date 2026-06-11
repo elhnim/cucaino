@@ -123,39 +123,43 @@ function Eyes({ mood, p }: { mood: MoodId; p: typeof DEFAULT_PAL }) {
   )
 }
 
-function Mouth({ mood }: { mood: MoodId }) {
-  // Mouths sit lower on the chin (the face has plenty of room below the nose)
-  // and are deliberately small — big high mouths read as creepy.
+function Mouth({ mood, p }: { mood: MoodId; p: typeof DEFAULT_PAL }) {
+  // Mouths sit lower on the chin, small, and drawn as simple dark lines in the
+  // pet's own eye colour — no pink fills or rose outlines (they read as lipstick).
+  const c = p.eyeCol
   if (mood === "sleeping") return (
-    <path d="M93 128 Q100 130 107 128" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M93 128 Q100 130 107 128" stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.5"/>
   )
   if (mood === "ecstatic") return (
     <g>
-      <path d="M88 126 Q100 136 112 126" stroke="#E06080" strokeWidth="3" fill="#FFB3C8" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* open laughing mouth — dark interior with a little tongue */}
+      <path d="M88 125 Q100 141 112 125 Z" fill="#5F4038"/>
+      <ellipse cx="100" cy="132" rx="5.5" ry="3" fill="#FF9DA6"/>
       <ellipse cx="76" cy="124" rx="6.5" ry="5" fill="#FFB8D0" opacity="0.75"/>
       <ellipse cx="124" cy="124" rx="6.5" ry="5" fill="#FFB8D0" opacity="0.75"/>
     </g>
   )
   if (mood === "starving") return (
     <g>
-      <path d="M90 127 Q100 134 110 127" stroke="#E08090" strokeWidth="2.5" fill="#FFD0D8" strokeLinecap="round"/>
-      {/* tongue peeking out */}
-      <ellipse cx="100" cy="132" rx="5" ry="3.5" fill="#FF8090"/>
+      {/* small open mouth, tongue peeking out */}
+      <path d="M91 127 Q100 137 109 127 Z" fill="#5F4038"/>
+      <ellipse cx="100" cy="131.5" rx="4.5" ry="2.5" fill="#FF9DA6"/>
     </g>
   )
   if (mood === "tired") return (
-    <path d="M93 128 Q100 126 107 128" stroke="#BBBBBB" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M93 128 Q100 126 107 128" stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.5"/>
   )
   if (mood === "lonely") return (
-    <path d="M91 131 Q100 126 109 131" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M91 131 Q100 126 109 131" stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.55"/>
   )
   if (mood === "dirty") return (
-    <path d="M91 129 Q100 125 109 129" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M91 129 Q100 125 109 129" stroke={c} strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.55"/>
   )
   // happy default
   return (
     <g>
-      <path d="M89 126 Q100 134 111 126" stroke="#E06080" strokeWidth="2.5" fill="#FFB3C8" strokeLinecap="round"/>
+      {/* simple happy smile — a thin dark curve, plus rosy cheeks */}
+      <path d="M89 126 Q100 133 111 126" stroke={c} strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.65"/>
       <ellipse cx="78" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/>
       <ellipse cx="122" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/>
     </g>
@@ -549,7 +553,7 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
         </g>
       )}
       <Eyes mood={mood} p={p}/>
-      <Mouth mood={mood}/>
+      <Mouth mood={mood} p={p}/>
 
       {/* Head shine */}
       <ellipse cx="84" cy="70" rx="16" ry="10" fill="white" opacity="0.18" transform="rotate(-30 84 70)"/>
