@@ -25,7 +25,6 @@ import {
   getPetSpeech,
   levelFromXp,
   moodFor,
-  petEmoji,
   playReward,
   stageFromLevel,
   xpForLevel,
@@ -527,7 +526,6 @@ export default function PetGame({
   const level = levelFromXp(pet.xp);
   const stage = stageFromLevel(level);
   const mood = moodFor(pet);
-  const face = petEmoji(pet);
   const xpIntoLevel = pet.xp - xpForLevel(level);
   const xpNeeded = xpForLevel(level + 1) - xpForLevel(level);
   const xpPct = Math.min(100, Math.round((xpIntoLevel / Math.max(1, xpNeeded)) * 100));
@@ -869,7 +867,8 @@ export default function PetGame({
       {/* Fetch mini-game */}
       {modal === "fetch" && (
         <FetchGame
-          petFace={face}
+          species={pet.species}
+          stage={stage}
           petName={pet.name}
           accent={accent}
           cost={PLAY_COST}

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PLAY_SECONDS } from "@/lib/pet/config";
-import { playReward } from "@/lib/pet/logic";
+import { playReward, type PetStage } from "@/lib/pet/logic";
+import PetSprite from "@/components/pet/PetSprite";
 
 /**
  * Fetch — the skill mini-game behind the Play action. Tap the ball as many
@@ -10,7 +11,8 @@ import { playReward } from "@/lib/pet/logic";
  * happiness/XP reward (collected server-side by playWithPet).
  */
 export default function FetchGame({
-  petFace,
+  species,
+  stage,
   petName,
   accent,
   cost,
@@ -18,7 +20,8 @@ export default function FetchGame({
   onDone,
   onCancel,
 }: {
-  petFace: string;
+  species: string;
+  stage: PetStage;
   petName: string;
   accent: string;
   cost: number;
@@ -115,7 +118,9 @@ export default function FetchGame({
               }}
             >
               <span className="absolute top-3 right-4 text-2xl">☀️</span>
-              <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-5xl select-none">{petFace}</span>
+              <span className="absolute bottom-2 left-1/2 -translate-x-1/2 select-none">
+                <PetSprite species={species} mood="happy" stage={stage} size={72} animClass="avatar-bounce" />
+              </span>
               <button
                 type="button"
                 onClick={catchBall}
