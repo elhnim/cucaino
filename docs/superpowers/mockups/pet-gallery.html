@@ -26,6 +26,10 @@ const PAL = {
   bunny:   { body:"#F5EFE7", belly:"#FDE8EC", accent:"#E8B8C4", outline:"#C07888", eye:"#5A2A38", name:"Bunny",   desc:"Quick & gentle" },
   panda:   { body:"#F8F8F8", belly:"#F0F0F0", accent:"#2E2E2E", outline:"#222",    eye:"#1C1C1C", name:"Panda",   desc:"Chill & hungry" },
   unicorn: { body:"#CAB6FF", belly:"#E6DDFF", accent:"#8860E0", outline:"#5038B0", eye:"#2A1660", name:"Unicorn", desc:"Magical & rare" },
+  elephant:{ body:"#A8B8C8", belly:"#CDD9E4", accent:"#7E93A8", outline:"#4E6378", eye:"#22303C", name:"Elephant", desc:"Gentle & wise" },
+  lion:    { body:"#F0B954", belly:"#FAE0A8", accent:"#C97B2D", outline:"#8A5215", eye:"#3A2208", name:"Lion", desc:"Proud & mighty" },
+  hippo:   { body:"#B49BC8", belly:"#D9CBE6", accent:"#8E6FA8", outline:"#5E4378", eye:"#2E1F40", name:"Hippo", desc:"Splashy & silly" },
+  monkey:  { body:"#A9745B", belly:"#EBD0AE", accent:"#7A4E38", outline:"#4E2E1E", eye:"#2A1408", name:"Monkey", desc:"Cheeky & clever" },
 };
 
 function bodyExtras(s, p) {
@@ -46,6 +50,11 @@ function bodyExtras(s, p) {
   if (s==="unicorn") return `
     <path d="M55 100 Q30 140 40 190 Q60 210 80 195 Q60 175 55 145 Q50 115 65 95 Z" fill="#FF9ECD" opacity="0.7"/>
     <path d="M52 105 Q28 145 38 185" stroke="#FFC0E0" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.8"/>`;
+  if (s==="lion") return `
+    <path d="M145 185 Q180 170 182 195" stroke="${p.body}" stroke-width="12" fill="none" stroke-linecap="round"/>
+    <circle cx="183" cy="198" r="9" fill="${p.accent}"/>`;
+  if (s==="monkey") return `
+    <path d="M148 190 Q186 178 184 152 Q182 134 166 140 Q156 146 164 154" stroke="${p.body}" stroke-width="11" fill="none" stroke-linecap="round"/>`;
   return "";
 }
 
@@ -81,6 +90,25 @@ function headExtras(s, p) {
     <path d="M60 76 Q50 95 56 116" stroke="#FFAAD8" stroke-width="6" fill="none" stroke-linecap="round"/>
     <text x="138" y="74" font-size="12" fill="#FFD700" opacity="0.9">✦</text>
     <text x="42" y="80" font-size="8" fill="#FFD700" opacity="0.7">✦</text>`;
+  if (s==="lion") {
+    let petals = "";
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      petals += `<circle cx="${(100 + Math.cos(a) * 50).toFixed(1)}" cy="${(100 + Math.sin(a) * 50).toFixed(1)}" r="17" fill="${p.accent}"/>`;
+    }
+    return petals + `
+      <circle cx="68" cy="50" r="12" fill="${p.body}"/><circle cx="132" cy="50" r="12" fill="${p.body}"/>
+      <circle cx="68" cy="50" r="6.5" fill="#F9C0C0"/><circle cx="132" cy="50" r="6.5" fill="#F9C0C0"/>`;
+  }
+  if (s==="elephant") return `
+    <ellipse cx="50" cy="94" rx="27" ry="33" fill="${p.body}"/><ellipse cx="150" cy="94" rx="27" ry="33" fill="${p.body}"/>
+    <ellipse cx="48" cy="96" rx="18" ry="24" fill="${p.belly}" opacity="0.85"/><ellipse cx="152" cy="96" rx="18" ry="24" fill="${p.belly}" opacity="0.85"/>`;
+  if (s==="hippo") return `
+    <circle cx="76" cy="52" r="11" fill="${p.body}"/><circle cx="124" cy="52" r="11" fill="${p.body}"/>
+    <circle cx="76" cy="52" r="5.5" fill="#E8B8C8"/><circle cx="124" cy="52" r="5.5" fill="#E8B8C8"/>`;
+  if (s==="monkey") return `
+    <circle cx="52" cy="92" r="15" fill="${p.body}"/><circle cx="148" cy="92" r="15" fill="${p.body}"/>
+    <circle cx="52" cy="92" r="8" fill="${p.belly}"/><circle cx="148" cy="92" r="8" fill="${p.belly}"/>`;
   return "";
 }
 
@@ -108,7 +136,14 @@ function petSvg(s) {
       <line x1="120" y1="108" x2="166" y2="102"/><line x1="120" y1="114" x2="170" y2="114"/><line x1="120" y1="120" x2="166" y2="126"/></g>
     <g stroke="${p.accent}" stroke-width="3" opacity="0.8" stroke-linecap="round" fill="none">
       <path d="M92 54 Q93 62 92 68"/><path d="M100 52 Q101 61 100 68"/><path d="M108 54 Q107 62 108 68"/></g>` : ""}
-    <ellipse cx="100" cy="113" rx="4" ry="3" fill="${p.accent}" opacity="0.8"/>
+    ${s==="monkey" ? `<circle cx="84" cy="100" r="19" fill="${p.belly}"/><circle cx="116" cy="100" r="19" fill="${p.belly}"/>
+      <ellipse cx="100" cy="118" rx="22" ry="17" fill="${p.belly}"/>` : ""}
+    ${s==="hippo" ? `<ellipse cx="100" cy="118" rx="27" ry="17" fill="${p.belly}"/>
+      <ellipse cx="91" cy="113" rx="3.5" ry="4.5" fill="${p.accent}" opacity="0.65"/>
+      <ellipse cx="109" cy="113" rx="3.5" ry="4.5" fill="${p.accent}" opacity="0.65"/>` : ""}
+    ${s==="elephant" ? `<path d="M100 106 Q102 113 100 121" stroke="${p.body}" stroke-width="14" fill="none" stroke-linecap="round"/>
+      <ellipse cx="100" cy="121" rx="6.5" ry="4" fill="${p.accent}" opacity="0.75"/>` : ""}
+    ${s==="hippo" || s==="elephant" ? "" : `<ellipse cx="100" cy="113" rx="4" ry="3" fill="${p.accent}" opacity="0.8"/>`}
     ${dragonNostrils}
     <ellipse cx="83" cy="102" rx="12" ry="13" fill="white"/><ellipse cx="117" cy="102" rx="12" ry="13" fill="white"/>
     <ellipse cx="83" cy="103" rx="8" ry="8.5" fill="${p.eye}"/><ellipse cx="117" cy="103" rx="8" ry="8.5" fill="${p.eye}"/>

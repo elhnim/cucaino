@@ -20,6 +20,10 @@ const PAL: Record<string, { body: string; belly: string; accent: string; outline
   bunny:   { body: "#F5EFE7", belly: "#FDE8EC", accent: "#E8B8C4", outline: "#C07888", eyeCol: "#5A2A38" },
   panda:   { body: "#F8F8F8", belly: "#F0F0F0", accent: "#2E2E2E", outline: "#222",    eyeCol: "#1C1C1C" },
   unicorn: { body: "#CAB6FF", belly: "#E6DDFF", accent: "#8860E0", outline: "#5038B0", eyeCol: "#2A1660" },
+  elephant:{ body: "#A8B8C8", belly: "#CDD9E4", accent: "#7E93A8", outline: "#4E6378", eyeCol: "#22303C" },
+  lion:    { body: "#F0B954", belly: "#FAE0A8", accent: "#C97B2D", outline: "#8A5215", eyeCol: "#3A2208" },
+  hippo:   { body: "#B49BC8", belly: "#D9CBE6", accent: "#8E6FA8", outline: "#5E4378", eyeCol: "#2E1F40" },
+  monkey:  { body: "#A9745B", belly: "#EBD0AE", accent: "#7A4E38", outline: "#4E2E1E", eyeCol: "#2A1408" },
 }
 const DEFAULT_PAL = PAL.puppy
 
@@ -290,6 +294,81 @@ function PandaHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
   )
 }
 
+function LionExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Tail with a tuft */}
+      <path d="M145 185 Q180 170 182 195" stroke={p.body} strokeWidth="12" fill="none" strokeLinecap="round"/>
+      <circle cx="183" cy="198" r="9" fill={p.accent}/>
+    </>
+  )
+}
+
+function LionHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  // Scalloped mane — a ring of circles the head overlaps
+  const petals = Array.from({ length: 12 }, (_, i) => {
+    const a = (i / 12) * Math.PI * 2
+    return { x: 100 + Math.cos(a) * 50, y: 100 + Math.sin(a) * 50 }
+  })
+  return (
+    <>
+      {petals.map((pt, i) => (
+        <circle key={i} cx={pt.x.toFixed(1)} cy={pt.y.toFixed(1)} r="17" fill={p.accent}/>
+      ))}
+      {/* Little ears poking above the mane */}
+      <circle cx="68" cy="50" r="12" fill={p.body}/>
+      <circle cx="132" cy="50" r="12" fill={p.body}/>
+      <circle cx="68" cy="50" r="6.5" fill="#F9C0C0"/>
+      <circle cx="132" cy="50" r="6.5" fill="#F9C0C0"/>
+    </>
+  )
+}
+
+function ElephantHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Big floppy ears behind the head */}
+      <ellipse cx="50" cy="94" rx="27" ry="33" fill={p.body}/>
+      <ellipse cx="150" cy="94" rx="27" ry="33" fill={p.body}/>
+      <ellipse cx="48" cy="96" rx="18" ry="24" fill={p.belly} opacity="0.85"/>
+      <ellipse cx="152" cy="96" rx="18" ry="24" fill={p.belly} opacity="0.85"/>
+    </>
+  )
+}
+
+function HippoHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Tiny round ears */}
+      <circle cx="76" cy="52" r="11" fill={p.body}/>
+      <circle cx="124" cy="52" r="11" fill={p.body}/>
+      <circle cx="76" cy="52" r="5.5" fill="#E8B8C8"/>
+      <circle cx="124" cy="52" r="5.5" fill="#E8B8C8"/>
+    </>
+  )
+}
+
+function MonkeyExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Curly tail */}
+      <path d="M148 190 Q186 178 184 152 Q182 134 166 140 Q156 146 164 154" stroke={p.body} strokeWidth="11" fill="none" strokeLinecap="round"/>
+    </>
+  )
+}
+
+function MonkeyHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
+  return (
+    <>
+      {/* Big round ears on the sides */}
+      <circle cx="52" cy="92" r="15" fill={p.body}/>
+      <circle cx="148" cy="92" r="15" fill={p.body}/>
+      <circle cx="52" cy="92" r="8" fill={p.belly}/>
+      <circle cx="148" cy="92" r="8" fill={p.belly}/>
+    </>
+  )
+}
+
 function UnicornExtras({ p }: { p: typeof DEFAULT_PAL }) {
   return (
     <>
@@ -358,6 +437,8 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
       {species === "puppy"   && <PuppyExtras p={p}/>}
       {species === "bunny"   && <BunnyExtras p={p}/>}
       {species === "unicorn" && <UnicornExtras p={p}/>}
+      {species === "lion"    && <LionExtras p={p}/>}
+      {species === "monkey"  && <MonkeyExtras p={p}/>}
 
       {/* Torso */}
       <ellipse cx="100" cy="170" rx="50" ry="52" fill={p.body}/>
@@ -406,6 +487,10 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
       {species === "bunny"   && <BunnyHeadExtras   p={p}/>}
       {species === "panda"   && <PandaHeadExtras   p={p}/>}
       {species === "unicorn" && <UnicornHeadExtras p={p}/>}
+      {species === "lion"    && <LionHeadExtras    p={p}/>}
+      {species === "elephant" && <ElephantHeadExtras p={p}/>}
+      {species === "hippo"   && <HippoHeadExtras   p={p}/>}
+      {species === "monkey"  && <MonkeyHeadExtras  p={p}/>}
 
       {/* Head */}
       <circle cx="100" cy="100" r="52" fill={p.body}/>
@@ -435,8 +520,34 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
         </>
       )}
 
-      {/* Face — eyes + nose + mouth */}
-      <Nose p={p}/>
+      {/* Monkey face patch — lighter tan around the eyes and muzzle */}
+      {species === "monkey" && (
+        <>
+          <circle cx="84" cy="100" r="19" fill={p.belly}/>
+          <circle cx="116" cy="100" r="19" fill={p.belly}/>
+          <ellipse cx="100" cy="118" rx="22" ry="17" fill={p.belly}/>
+        </>
+      )}
+
+      {/* Hippo muzzle — wide snout with nostrils, sits under the eyes */}
+      {species === "hippo" && (
+        <>
+          <ellipse cx="100" cy="118" rx="27" ry="17" fill={p.belly}/>
+          <ellipse cx="91" cy="113" rx="3.5" ry="4.5" fill={p.accent} opacity="0.65"/>
+          <ellipse cx="109" cy="113" rx="3.5" ry="4.5" fill={p.accent} opacity="0.65"/>
+        </>
+      )}
+
+      {/* Face — eyes + nose + mouth (hippo's nostrils / elephant's trunk replace the nose) */}
+      {species !== "hippo" && species !== "elephant" && <Nose p={p}/>}
+      {/* Elephant trunk — short, hangs from the face centre */}
+      {species === "elephant" && (
+        <g>
+          <path d="M100 106 Q102 113 100 121" stroke={p.body} strokeWidth="14" fill="none" strokeLinecap="round"/>
+          <path d="M96 110 Q98 113 96 117" stroke={p.outline} strokeWidth="1.5" fill="none" opacity="0.3" strokeLinecap="round"/>
+          <ellipse cx="100" cy="121" rx="6.5" ry="4" fill={p.accent} opacity="0.75"/>
+        </g>
+      )}
       <Eyes mood={mood} p={p}/>
       <Mouth mood={mood}/>
 

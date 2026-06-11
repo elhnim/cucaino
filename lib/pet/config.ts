@@ -20,6 +20,10 @@ export const PET_SPECIES: PetSpecies[] = [
   { id: "bunny",   name: "Bunny",   babyEmoji: "🐰", adultEmoji: "🐇", personality: "Quick & gentle",    color: "#C890A0" },
   { id: "panda",   name: "Panda",   babyEmoji: "🐼", adultEmoji: "🐼", personality: "Chill & hungry",    color: "#666666" },
   { id: "unicorn", name: "Unicorn", babyEmoji: "🦄", adultEmoji: "🦄", personality: "Magical & rare",    color: "#9070F0" },
+  { id: "elephant", name: "Elephant", babyEmoji: "🐘", adultEmoji: "🐘", personality: "Gentle & wise",   color: "#7E93A8" },
+  { id: "lion",    name: "Lion",    babyEmoji: "🦁", adultEmoji: "🦁", personality: "Proud & mighty",    color: "#E8A33C" },
+  { id: "hippo",   name: "Hippo",   babyEmoji: "🦛", adultEmoji: "🦛", personality: "Splashy & silly",   color: "#9B7FB8" },
+  { id: "monkey",  name: "Monkey",  babyEmoji: "🐵", adultEmoji: "🐒", personality: "Cheeky & clever",   color: "#A9745B" },
 ];
 
 export interface PetPersonality {
