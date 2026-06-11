@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/actions/auth";
+import PostLoginLoader from "./PostLoginLoader";
 
 export default function LoginForm() {
-  const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next") ?? "/select-kid";
   const urlError = search.get("error");
@@ -14,6 +14,7 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(urlError);
+  const [loadingShow, setLoadingShow] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
@@ -22,12 +23,14 @@ export default function LoginForm() {
     startTransition(async () => {
       const result = await signIn({ email, password });
       if (result.ok) {
-        router.push(next);
+        setLoadingShow(true); // the Blast-off loader preloads + navigates
       } else {
         setError(result.error);
       }
     });
   };
+
+  if (loadingShow) return <PostLoginLoader next={next} />;
 
   return (
     <form onSubmit={submit} className="space-y-3">
