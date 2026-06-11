@@ -87,6 +87,21 @@ export default async function KidPlayPage({
           </div>
         </Link>
 
+        {/* Dream Life */}
+        <Link
+          href={`/play/dream-life?kid=${kid.id}`}
+          className="bg-violet-50 border-2 border-violet-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
+        >
+          <div className="text-4xl"><span className="avatar-idle inline-block">🌟</span></div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-violet-900">Dream Life</span>
+              <span className="text-[10px] font-bold bg-violet-500 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+            </div>
+            <div className="text-xs text-violet-700 mt-0.5">Live a whole life · deep strategy · 30–60 min</div>
+          </div>
+        </Link>
+
         {/* Money Town */}
         <Link
           href={`/play/money-town?kid=${kid.id}`}
@@ -94,11 +109,8 @@ export default async function KidPlayPage({
         >
           <div className="text-4xl">💰</div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black text-yellow-900">Money Town</span>
-              <span className="text-[10px] font-bold bg-yellow-500 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
-            </div>
-            <div className="text-xs text-yellow-700 mt-0.5">2–4 players · Learn · Earn · Invest</div>
+            <div className="text-lg font-black text-yellow-900">Money Town</div>
+            <div className="text-xs text-yellow-700 mt-0.5">Quick game · 5–10 min · 2–4 players</div>
           </div>
         </Link>
 
