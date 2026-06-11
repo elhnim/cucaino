@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { generateWordDetective } from "@/lib/actions/arcade";
+import { playSfx } from "@/lib/audio/sound-manager";
 
 type GameState = "idle" | "loading" | "guessing" | "won" | "lost";
 
@@ -53,11 +54,13 @@ export default function WordDetective({ kidId, sparksBalance }: WordDetectivePro
     const answer = data.word.toLowerCase();
 
     if (normalised === answer) {
+      playSfx("correct");
       setGameState("won");
       return;
     }
 
     if (currentClueIndex >= data.clues.length - 1) {
+      playSfx("wrong");
       setGameState("lost");
       return;
     }

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { askLieDetectorQuestion } from "@/lib/actions/arcade";
+import { playSfx } from "@/lib/audio/sound-manager";
 
 type GameState = "idle" | "playing" | "result_caught" | "result_fooled";
 
@@ -70,6 +71,7 @@ export default function AILieDetector({ kidId, sparksBalance }: AILieDetectorPro
     if (result.data.type === "guess" && result.data.guessedStatement !== undefined) {
       setAiGuessedStatement(result.data.guessedStatement ?? null);
       const correct = result.data.guessedStatement === lieIndex;
+      playSfx(correct ? "wrong" : "correct");
       setGameState(correct ? "result_caught" : "result_fooled");
     }
   }, [canStart, kidId, statements, lieIndex]);
@@ -104,6 +106,7 @@ export default function AILieDetector({ kidId, sparksBalance }: AILieDetectorPro
       const guessed = result.data.guessedStatement as number;
       setAiGuessedStatement(guessed);
       const correct = guessed === lieIndex;
+      playSfx(correct ? "wrong" : "correct");
       setGameState(correct ? "result_caught" : "result_fooled");
     } else {
       setQuestionCount((c) => c + 1);

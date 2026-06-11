@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import GameAudio from "@/components/audio/GameAudio";
+import { playSfx } from "@/lib/audio/sound-manager";
 import { getTheme } from "@/lib/themes/presets";
 import type { ThemeId } from "@/lib/domain/types";
 
@@ -105,9 +106,12 @@ export default function QuizGame({
       intervalRef.current = null;
     }
     setChosen(choiceIndex);
+    const isCorrect =
+      choiceIndex !== null && !!currentQuestion?.choices[choiceIndex]?.isCorrect;
+    playSfx(isCorrect ? "correct" : "wrong");
     setRevealed(true);
-    if (choiceIndex !== null && currentQuestion?.choices[choiceIndex]?.isCorrect) {
-      const limit = currentQuestion.timeLimitSeconds;
+    if (isCorrect) {
+      const limit = currentQuestion!.timeLimitSeconds;
       const taken = limit - secondsLeft;
       const points = scoreForSpeed(taken, limit);
       setScores((s) => ({
@@ -132,6 +136,11 @@ export default function QuizGame({
       .map((p) => ({ player: p, score: scores[p.id] ?? 0 }))
       .sort((a, b) => b.score - a.score);
   }, [scores, activePlayers]);
+
+  // Win fanfare when the results screen appears
+  useEffect(() => {
+    if (mode === "finished") playSfx("win");
+  }, [mode]);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("quiz-active", { detail: { active: mode === "playing" } }));
@@ -249,7 +258,7 @@ export default function QuizGame({
 
             <button
               type="button"
-              onClick={start}
+              onClick={() => { playSfx("tap"); start(); }}
               disabled={activePlayers.length === 0}
               className="w-full bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-50 text-white font-black text-lg py-4 rounded-2xl shadow-lg"
             >
@@ -411,7 +420,7 @@ export default function QuizGame({
 
           <button
             type="button"
-            onClick={start}
+            onClick={() => { playSfx("tap"); start(); }}
             className="w-full bg-fuchsia-600 hover:bg-fuchsia-700 text-white font-black text-lg py-4 rounded-2xl shadow-lg"
           >
             🔁 Play again

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { askStumpQuestion } from "@/lib/actions/arcade";
+import { playSfx } from "@/lib/audio/sound-manager";
 
 type GameState = "idle" | "thinking" | "playing" | "ai_won" | "kid_won";
 
@@ -230,14 +231,14 @@ export default function StumpTheAI({ kidId, sparksBalance }: StumpTheAIProps) {
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setGameState("ai_won")}
+              onClick={() => { playSfx("wrong"); setGameState("ai_won"); }}
               className="flex-1 py-4 rounded-2xl font-black text-white text-lg bg-green-500 hover:bg-green-600 transition-colors"
             >
               ✅ Yes, you got it!
             </button>
             <button
               type="button"
-              onClick={() => setGameState("kid_won")}
+              onClick={() => { playSfx("correct"); setGameState("kid_won"); }}
               className="flex-1 py-4 rounded-2xl font-black text-white text-lg bg-rose-500 hover:bg-rose-600 transition-colors"
             >
               ❌ Nope, wrong!
