@@ -16,8 +16,8 @@ export type MusicTrack =
 
 export type SfxName = "coin" | "correct" | "wrong" | "tap" | "win" | "sparkle";
 
-const MUSIC_VOLUME = 0.35;
-const SFX_VOLUME = 0.6;
+const MUSIC_VOLUME = 1.0; // attenuation is baked into the MP3s (iPad Safari ignores the volume property)
+const SFX_VOLUME = 1.0;
 const FADE_IN_MS = 600;
 const FADE_OUT_MS = 400;
 const FADE_STEP_MS = 50;
@@ -40,32 +40,35 @@ let pendingTrack: MusicTrack | null = null;
 
 let music: HTMLAudioElement | null = null;
 let currentTrack: MusicTrack | null = null;
-let fadeTimer: number | null = null;
 let stopTimer: number | null = null;
 
 const sfxPools = new Map<SfxName, { els: HTMLAudioElement[]; next: number }>();
 
-function clearFade() {
-  if (fadeTimer !== null) {
-    window.clearInterval(fadeTimer);
-    fadeTimer = null;
+const fadeTimers = new WeakMap<HTMLAudioElement, number>();
+
+function clearFade(el: HTMLAudioElement) {
+  const t = fadeTimers.get(el);
+  if (t !== undefined) {
+    window.clearInterval(t);
+    fadeTimers.delete(el);
   }
 }
 
 function fadeTo(el: HTMLAudioElement, target: number, ms: number, onDone?: () => void) {
-  clearFade();
+  clearFade(el);
   const steps = Math.max(1, Math.round(ms / FADE_STEP_MS));
   const delta = (target - el.volume) / steps;
   let n = 0;
-  fadeTimer = window.setInterval(() => {
+  const timer = window.setInterval(() => {
     n += 1;
     el.volume = Math.min(1, Math.max(0, el.volume + delta));
     if (n >= steps) {
-      clearFade();
+      clearFade(el);
       el.volume = target;
       onDone?.();
     }
   }, FADE_STEP_MS);
+  fadeTimers.set(el, timer);
 }
 
 function startMusic(track: MusicTrack) {
@@ -183,7 +186,8 @@ export function setMuted(value: boolean): void {
   }
   if (music) {
     if (value) {
-      fadeTo(music, 0, FADE_OUT_MS, () => music?.pause());
+      const el = music;
+      fadeTo(el, 0, FADE_OUT_MS, () => el.pause());
     } else {
       music.play().then(() => fadeTo(music!, MUSIC_VOLUME, FADE_IN_MS)).catch(() => {});
     }
