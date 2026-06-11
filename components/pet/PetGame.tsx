@@ -976,7 +976,7 @@ export default function PetGame({
       {/* Say goodbye confirmation */}
       {modal === "goodbye" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-black/40" onClick={() => { if (!isPending) setModal(null); }}/>
+          <div className="absolute inset-0 bg-black/40" onClick={() => { if (!isPending) { setGoodbyeArmed(false); setModal(null); } }}/>
           <div className="relative bg-white rounded-3xl p-6 max-w-sm w-full text-center">
             <PetSprite species={pet.species} mood="lonely" stage={stage} size={90} animClass="avatar-idle"/>
             <h2 className="text-xl font-black text-gray-900 mt-2 mb-1">Say goodbye to {pet.name}?</h2>
@@ -987,7 +987,7 @@ export default function PetGame({
             <button
               type="button"
               disabled={isPending}
-              onClick={() => setModal(null)}
+              onClick={() => { setGoodbyeArmed(false); setModal(null); }}
               className="w-full py-4 rounded-2xl font-black text-base text-white active:scale-95 transition-transform disabled:opacity-50"
               style={{ background: accent }}
             >
@@ -1001,8 +1001,15 @@ export default function PetGame({
                 setError(null);
                 startTransition(async () => {
                   const res = await sayGoodbyeToPet(kid.id);
-                  if (res.ok) { setModal(null); setPet(null); }
-                  else setError(res.error);
+                  if (res.ok) {
+                    // clear every trace of the old pet so the new one starts clean
+                    setModal(null);
+                    setSpeech(null);
+                    setNotice(null);
+                    setPet(null);
+                  } else {
+                    setError(res.error);
+                  }
                 });
               }}
               className="w-full mt-2 py-3 rounded-2xl font-bold text-sm text-red-500 bg-red-50 active:scale-95 transition-transform disabled:opacity-50"

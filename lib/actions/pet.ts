@@ -221,7 +221,7 @@ export async function buyAccessory(kidId: string, accessoryId: string): Promise<
     return { ok: false, error: "You already own that!" };
   }
   if (levelFromXp(pet.xp) < accessory.minLevel) {
-    return { ok: false, error: `Reach level ${accessory.minLevel} to unlock that!` };
+    return { ok: false, error: `Reach age ${accessory.minLevel} to unlock that!` };
   }
 
   pet.accessories = [...pet.accessories, accessoryId];
@@ -243,7 +243,7 @@ export async function learnTrick(kidId: string, trickId: string): Promise<PetAct
   if (pet.isSleeping) return { ok: false, error: `${pet.name} is asleep — wake them first!` };
   if (pet.tricks.includes(trickId)) return { ok: false, error: "Already learned!" };
   if (levelFromXp(pet.xp) < trick.minLevel) {
-    return { ok: false, error: `Reach level ${trick.minLevel} to learn that!` };
+    return { ok: false, error: `Reach age ${trick.minLevel} to learn that!` };
   }
 
   pet.tricks = [...pet.tricks, trickId];
