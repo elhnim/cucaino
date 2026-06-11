@@ -405,24 +405,90 @@ export default function PetGame({
   const lastCuddleAt = useRef(0);
   const fxId = useRef(0);
 
-  // The pet wanders around its garden while awake (recentres to sleep)
+  // ── Liveliness: the pet wanders, waddles, zooms, wiggles and emotes ────────
   const [petX, setPetX] = useState(50);
   const [petFacing, setPetFacing] = useState<1 | -1>(1);
+  const [moveMs, setMoveMs] = useState(3800);
+  const [walking, setWalking] = useState(false);
   const petXRef = useRef(50);
+  const petRef = useRef<Pet | null>(null);
+  petRef.current = pet;
+  const trickAnimRef = useRef<string | null>(null);
+  trickAnimRef.current = trickAnim;
+
   useEffect(() => {
     if (!pet || pet.isSleeping) {
       petXRef.current = 50;
       setPetX(50);
       setPetFacing(1);
+      setWalking(false);
       return;
     }
-    const id = setInterval(() => {
-      const next = Math.round(18 + Math.random() * 64);
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const later = (fn: () => void, ms: number) => {
+      const t = setTimeout(() => { if (!cancelled) fn(); }, ms);
+      timers.push(t);
+    };
+
+    const move = (zoom = false) => {
+      const next = Math.round(14 + Math.random() * 72);
+      const dist = Math.abs(next - petXRef.current);
+      const ms = zoom ? 700 : 1200 + dist * 45; // walking speed scales with distance
       setPetFacing(next < petXRef.current ? -1 : 1);
+      setMoveMs(ms);
       petXRef.current = next;
       setPetX(next);
-    }, 4500);
-    return () => clearInterval(id);
+      setWalking(true);
+      later(() => setWalking(false), ms);
+    };
+
+    const emote = (e: string) => {
+      const item = { id: ++fxId.current, emoji: e, left: Math.max(6, Math.min(94, petXRef.current)), delay: 0 };
+      setNotes((n) => [...n, item]);
+      later(() => setNotes((n) => n.filter((x) => x.id !== item.id)), 1900);
+    };
+
+    // Spontaneous micro-actions: hops, wiggles, stretches and mood emotes
+    const idleAction = () => {
+      const p = petRef.current;
+      if (!p || p.isSleeping || trickAnimRef.current) return;
+      const roll = Math.random();
+      if (p.hunger < 45 && roll < 0.5) return emote(p.hunger < 25 ? "🍖" : "🍎");
+      if (p.energy < 35 && roll < 0.5) return emote("🥱");
+      if (p.cleanliness < 40 && roll < 0.5) return emote("🫧");
+      if (roll < 0.22) { setPetBouncing(true); return; }
+      if (roll < 0.42) { setTrickAnim("pet-wiggle"); later(() => setTrickAnim(null), 950); return; }
+      if (roll < 0.56) { setTrickAnim("pet-wake"); later(() => setTrickAnim(null), 1050); return; }
+      if (roll < 0.8) return emote(["💖", "😊", "⭐", "🦋", "🌼"][Math.floor(Math.random() * 5)]);
+      emote("🎵");
+    };
+
+    const wanderLoop = () => {
+      later(() => {
+        if (Math.random() < 0.18) {
+          move(true); // zoomies! two quick dashes
+          later(() => move(true), 800);
+        } else {
+          move();
+        }
+        wanderLoop();
+      }, 2600 + Math.random() * 4800);
+    };
+
+    const idleLoop = () => {
+      later(() => {
+        idleAction();
+        idleLoop();
+      }, 4500 + Math.random() * 7500);
+    };
+
+    wanderLoop();
+    idleLoop();
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
   }, [pet?.isSleeping, pet === null]);
 
   useEffect(() => {
@@ -613,7 +679,7 @@ export default function PetGame({
     );
   };
 
-  const spriteAnimClass = trickAnim ?? (petBouncing ? "avatar-bounce" : "avatar-idle");
+  const spriteAnimClass = trickAnim ?? (walking ? "pet-walk" : petBouncing ? "avatar-bounce" : "avatar-idle");
 
   return (
     <div className="max-w-md mx-auto p-4 pb-8">
@@ -762,13 +828,13 @@ export default function PetGame({
         {/* Glow under pet — follows the wandering pet */}
         <span
           className="pet-glow absolute bottom-12 rounded-full"
-          style={{ left: `${petX}%`, transition: "left 3.8s ease-in-out", width: 100, height: 16, marginLeft: -50, background: pet.isSleeping ? "radial-gradient(ellipse, rgba(165,180,252,0.5), transparent 70%)" : "radial-gradient(ellipse, rgba(255,255,255,0.8), transparent 70%)" }}
+          style={{ left: `${petX}%`, transition: `left ${moveMs}ms ease-in-out`, width: 100, height: 16, marginLeft: -50, background: pet.isSleeping ? "radial-gradient(ellipse, rgba(165,180,252,0.5), transparent 70%)" : "radial-gradient(ellipse, rgba(255,255,255,0.8), transparent 70%)" }}
         />
 
         {/* Full-body pet sprite + speech bubble — wanders around the garden */}
         <div
           className="absolute bottom-14"
-          style={{ left: `${petX}%`, transform: "translateX(-50%)", transition: "left 3.8s ease-in-out" }}
+          style={{ left: `${petX}%`, transform: "translateX(-50%)", transition: `left ${moveMs}ms ease-in-out` }}
           onAnimationEnd={() => setPetBouncing(false)}
         >
           <div className="relative">

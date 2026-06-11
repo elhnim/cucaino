@@ -86,6 +86,22 @@
 
   /* ---- Star Pets trick choreography — one accurate animation per trick ---- */
 
+  /* 🐾 Walk — gentle waddle while the pet strolls around its garden */
+  .pet-walk { animation: pet-walk 0.55s ease-in-out infinite; }
+  @keyframes pet-walk {
+    0%, 100% { transform: rotate(-2.5deg) translateY(0); }
+    50%      { transform: rotate(2.5deg) translateY(-5px); }
+  }
+
+  /* 🐶 Wiggle — a happy little shake */
+  .pet-wiggle { animation: pet-wiggle 0.9s ease-in-out; }
+  @keyframes pet-wiggle {
+    0%, 100% { transform: rotate(0); }
+    20% { transform: rotate(-10deg); }
+    45% { transform: rotate(9deg); }
+    70% { transform: rotate(-5deg); }
+  }
+
   /* ⏰ Wake up — sleepy squash, a big morning stretch, then a happy hop */
   .pet-wake { animation: pet-wake 1s cubic-bezier(0.28, 0.84, 0.42, 1); }
   @keyframes pet-wake {
