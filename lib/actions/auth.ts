@@ -90,14 +90,17 @@ export async function signUp({
  */
 export async function ensureFamilySeeded(): Promise<void> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-
+  // Fast path first: RLS scopes this to the signed-in user's family, so an
+  // existing row means there is nothing to seed — and the auth.getUser round
+  // trip (only needed for seeding metadata) can be skipped entirely.
   const { data: existing } = await supabase
     .from("families")
     .select("id")
     .maybeSingle();
   if (existing) return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
 
   const meta = user.user_metadata as
     | { family_name?: string; kid_names?: string[] }

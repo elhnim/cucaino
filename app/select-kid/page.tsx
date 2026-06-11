@@ -5,13 +5,18 @@ import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import SelectKidClient from "@/components/kid/SelectKidClient";
 
 export default async function SelectKidPage() {
-  await ensureFamilySeeded();
-
-  const [kids, parentPin, family] = await Promise.all([
+  // Seeding only matters for brand-new accounts — run it alongside the main
+  // queries instead of blocking them (saves two sequential round trips), and
+  // refetch once in the rare case a family really was just created.
+  let [, kids, parentPin, family] = await Promise.all([
+    ensureFamilySeeded(),
     listKids(),
     getParentPinFromDb(),
     getFamily(),
   ]);
+  if (kids.length === 0) {
+    [kids, family] = await Promise.all([listKids(), getFamily()]);
+  }
 
   const tz = family?.timezone ?? "Australia/Sydney";
   const dow = isoWeekday(new Date(), tz);
