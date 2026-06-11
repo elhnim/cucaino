@@ -1,5 +1,5 @@
 // Client-only audio singleton. Every export is a safe no-op during SSR.
-// Music: one looping HTMLAudioElement, 600ms fade-in to 0.35, 400ms fade-out.
+// Music: one looping HTMLAudioElement, 600ms fade-in, 400ms fade-out.
 // SFX: pool of 4 elements per effect so rapid sounds overlap.
 // Mute: persisted to localStorage "cucaino-audio-muted" ("1" = muted).
 // Autoplay: browsers block audio until a user gesture — the first requested
