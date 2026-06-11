@@ -56,7 +56,11 @@ export async function ensureDailyPrices(supabase: SupabaseClient): Promise<void>
     const rng2 = seededRandom(asset.symbol + today + "tmpl");
     const template = templates[Math.floor(rng2 * templates.length)];
     const rng3 = seededRandom(asset.symbol + today + "x");
-    const x = Math.floor(rng3 * (template.maxPct - template.minPct + 1)) + template.minPct;
+    // {X} is a display number (years, jobs, floors…) when minX/maxX are set;
+    // only genuine percentages fall back to the impact range.
+    const xMin = template.minX ?? template.minPct;
+    const xMax = template.maxX ?? template.maxPct;
+    const x = Math.floor(rng3 * (xMax - xMin + 1)) + xMin;
     const headline = template.text.replace(/\{X\}/g, String(x));
     const body = template.body.replace(/\{X\}/g, String(x));
 
