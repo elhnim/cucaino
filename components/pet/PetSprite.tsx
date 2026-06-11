@@ -18,7 +18,7 @@ const PAL: Record<string, { body: string; belly: string; accent: string; outline
   kitten:  { body: "#F2A862", belly: "#FDE4C0", accent: "#E07030", outline: "#9A4418", eyeCol: "#2E120A" },
   puppy:   { body: "#C87040", belly: "#EAB87A", accent: "#9A4E20", outline: "#5A2A08", eyeCol: "#1C0800" },
   bunny:   { body: "#F5EFE7", belly: "#FDE8EC", accent: "#E8B8C4", outline: "#C07888", eyeCol: "#5A2A38" },
-  panda:   { body: "#F8F8F8", belly: "#F0F0F0", accent: "#1E1E1E", outline: "#111",    eyeCol: "#111" },
+  panda:   { body: "#F8F8F8", belly: "#F0F0F0", accent: "#2E2E2E", outline: "#222",    eyeCol: "#1C1C1C" },
   unicorn: { body: "#CAB6FF", belly: "#E6DDFF", accent: "#8860E0", outline: "#5038B0", eyeCol: "#2A1660" },
 }
 const DEFAULT_PAL = PAL.puppy
@@ -281,15 +281,14 @@ function PandaExtras({ p }: { p: typeof DEFAULT_PAL }) {
 function PandaHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
   return (
     <>
-      {/* Round ears — black circles */}
+      {/* Round ears — soft charcoal circles */}
       <circle cx="74" cy="58" r="22" fill={p.accent}/>
       <circle cx="126" cy="58" r="22" fill={p.accent}/>
       {/* Ear inner highlight */}
-      <circle cx="74" cy="58" r="14" fill="#444" opacity="0.5"/>
-      <circle cx="126" cy="58" r="14" fill="#444" opacity="0.5"/>
-      {/* Eye patches — large black ovals */}
-      <ellipse cx="83" cy="100" rx="17" ry="16" fill={p.accent} opacity="0.85"/>
-      <ellipse cx="117" cy="100" rx="17" ry="16" fill={p.accent} opacity="0.85"/>
+      <circle cx="74" cy="58" r="13" fill="#4D4D4D"/>
+      <circle cx="126" cy="58" r="13" fill="#4D4D4D"/>
+      {/* NOTE: eye patches are drawn in the main component AFTER the head
+          circle — drawn here they'd be hidden behind it. */}
     </>
   )
 }
@@ -342,6 +341,7 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
   const isBlack = species === "panda"
   const armColor = species === "panda" ? p.accent : p.body
   const legColor = species === "panda" ? p.accent : p.body
+  const pawColor = species === "panda" ? "#5A5A5A" : p.belly
 
   return (
     <svg
@@ -378,8 +378,8 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
       <ellipse cx="54" cy="163" rx="20" ry="17" fill={armColor}/>
       <ellipse cx="146" cy="163" rx="20" ry="17" fill={armColor}/>
       {/* Paws */}
-      <ellipse cx="40" cy="174" rx="13" ry="10" fill={p.belly}/>
-      <ellipse cx="160" cy="174" rx="13" ry="10" fill={p.belly}/>
+      <ellipse cx="40" cy="174" rx="13" ry="10" fill={pawColor}/>
+      <ellipse cx="160" cy="174" rx="13" ry="10" fill={pawColor}/>
       {/* Paw toe lines */}
       <line x1="34" y1="176" x2="36" y2="180" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
       <line x1="40" y1="178" x2="40" y2="182" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
@@ -392,8 +392,8 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
       <ellipse cx="78" cy="212" rx="22" ry="17" fill={legColor}/>
       <ellipse cx="122" cy="212" rx="22" ry="17" fill={legColor}/>
       {/* Feet */}
-      <ellipse cx="76" cy="224" rx="20" ry="10" fill={p.belly}/>
-      <ellipse cx="124" cy="224" rx="20" ry="10" fill={p.belly}/>
+      <ellipse cx="76" cy="224" rx="20" ry="10" fill={pawColor}/>
+      <ellipse cx="124" cy="224" rx="20" ry="10" fill={pawColor}/>
       {/* Toe lines */}
       <line x1="62" y1="226" x2="64" y2="229" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
       <line x1="76" y1="228" x2="76" y2="231" stroke={p.outline} strokeWidth="1.5" opacity="0.3" strokeLinecap="round"/>
@@ -412,8 +412,13 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
 
       {/* Head */}
       <circle cx="100" cy="100" r="52" fill={p.body}/>
-      {/* Panda face patch (lighter area around face centre) */}
-      {isBlack && <ellipse cx="100" cy="108" rx="34" ry="30" fill={p.belly}/>}
+      {/* Panda eye patches — tilted charcoal ovals behind the eyes */}
+      {isBlack && (
+        <>
+          <ellipse cx="83" cy="101" rx="16" ry="18" fill={p.accent} transform="rotate(-12 83 101)"/>
+          <ellipse cx="117" cy="101" rx="16" ry="18" fill={p.accent} transform="rotate(12 117 101)"/>
+        </>
+      )}
 
       {/* Face — eyes + nose + mouth */}
       <Nose p={p}/>
