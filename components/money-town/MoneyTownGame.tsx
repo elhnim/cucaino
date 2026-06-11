@@ -73,12 +73,15 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
 
   if (state.phase === 'job-spin') {
     return (
-      <JobSpinCeremony
-        key={state.jobSpinPlayerIndex}
-        players={state.players}
-        spinPlayerIndex={state.jobSpinPlayerIndex}
-        dispatch={dispatch}
-      />
+      <>
+        <GameAudio track="money-town" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
+        <JobSpinCeremony
+          key={state.jobSpinPlayerIndex}
+          players={state.players}
+          spinPlayerIndex={state.jobSpinPlayerIndex}
+          dispatch={dispatch}
+        />
+      </>
     )
   }
 
