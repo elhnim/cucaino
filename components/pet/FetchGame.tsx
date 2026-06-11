@@ -81,11 +81,22 @@ export default function FetchGame({
         {phase === "ready" && (
           <div className="text-center">
             <div className="text-5xl mb-2">🎾</div>
-            <h2 className="text-xl font-black text-gray-900 mb-1">Fetch with {petName}!</h2>
-            <p className="text-sm text-gray-500 mb-5">
-              Tap the ball as many times as you can in {PLAY_SECONDS} seconds.
-              The better you play, the happier {petName} gets!
-            </p>
+            <h2 className="text-xl font-black text-gray-900 mb-3">Fetch with {petName}!</h2>
+            {/* How to play — picture steps, minimal reading */}
+            <div className="flex items-stretch justify-center gap-2 mb-5">
+              <div className="flex-1 bg-amber-50 rounded-2xl px-2 py-3">
+                <div className="text-3xl mb-1">👆🎾</div>
+                <div className="text-[11px] font-black text-gray-700 leading-tight">Tap the ball!</div>
+              </div>
+              <div className="flex-1 bg-sky-50 rounded-2xl px-2 py-3">
+                <div className="text-3xl mb-1">⏱️</div>
+                <div className="text-[11px] font-black text-gray-700 leading-tight">{PLAY_SECONDS} seconds — be quick!</div>
+              </div>
+              <div className="flex-1 bg-green-50 rounded-2xl px-2 py-3">
+                <div className="text-3xl mb-1">💚</div>
+                <div className="text-[11px] font-black text-gray-700 leading-tight">More taps = happier {petName}</div>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => setPhase("playing")}
@@ -103,7 +114,7 @@ export default function FetchGame({
         {phase === "playing" && (
           <>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-black px-3 py-1 rounded-full text-white" style={{ background: accent }}>
+              <span key={score} className={`text-sm font-black px-3 py-1 rounded-full text-white ${score > 0 ? "animate-pop" : ""}`} style={{ background: accent }}>
                 🎾 {score}
               </span>
               <span className={`text-sm font-black px-3 py-1 rounded-full ${secondsLeft <= 5 ? "bg-red-100 text-red-600" : "bg-gray-100 text-gray-600"}`}>
@@ -118,17 +129,28 @@ export default function FetchGame({
               }}
             >
               <span className="absolute top-3 right-4 text-2xl">☀️</span>
+              {/* Big hint until the first catch */}
+              {score === 0 && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 rounded-full px-4 py-1.5 text-sm font-black text-gray-800 shadow whitespace-nowrap">
+                  👆 Tap the ball!
+                </div>
+              )}
               <span className="absolute bottom-2 left-1/2 -translate-x-1/2 select-none">
                 <PetSprite species={species} mood="happy" stage={stage} size={72} animClass="avatar-bounce" />
               </span>
               <button
                 type="button"
                 onClick={catchBall}
-                className="absolute text-4xl active:scale-75 transition-transform select-none"
+                className="absolute active:scale-75 transition-transform select-none"
                 style={{ top: `${ball.top}%`, left: `${ball.left}%`, transition: "top 0.25s ease-out, left 0.25s ease-out" }}
                 aria-label="Catch the ball"
               >
-                🎾
+                {/* pulsing ring makes the tap target unmissable until the kid gets it */}
+                {score === 0 && <span className="absolute -inset-3 rounded-full bg-yellow-300/60 animate-ping" />}
+                <span className="relative text-5xl">🎾</span>
+                {score === 0 && (
+                  <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-3xl animate-bounce">👆</span>
+                )}
               </button>
             </div>
           </>
