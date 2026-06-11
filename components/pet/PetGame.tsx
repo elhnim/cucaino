@@ -27,6 +27,7 @@ import {
   levelFromXp,
   moodFor,
   playReward,
+  sizeScaleForLevel,
   stageFromLevel,
   xpForLevel,
   type Pet,
@@ -746,7 +747,7 @@ export default function PetGame({
               species={pet.species}
               mood={mood.id}
               stage={stage}
-              size={130}
+              size={Math.round(130 * sizeScaleForLevel(level))}
               animClass={spriteAnimClass}
             />
           </div>
@@ -1047,7 +1048,7 @@ export default function PetGame({
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center px-7 text-center"
           style={{ background: "rgba(17, 24, 39, 0.85)" }} onClick={() => setLevelUp(null)}>
           <div className="mb-4">
-            <PetSprite species={pet.species} mood="ecstatic" stage={stage} size={120} animClass="avatar-party"/>
+            <PetSprite species={pet.species} mood="ecstatic" stage={stage} size={Math.round(120 * sizeScaleForLevel(levelUp.level))} animClass="avatar-party"/>
           </div>
           <h2 className="text-3xl font-black text-white mb-1 animate-pop">
             {levelUp.evolved ? `${pet.name} evolved!` : `🎂 ${pet.name} grew up!`} 🎉

@@ -123,6 +123,11 @@ export function xpForLevel(level: number): number {
   return 12 * (level - 1) * (level - 1);
 }
 
+/** Pets start tiny and grow with age: 60% at age 1 → 100% at age 5, then constant. */
+export function sizeScaleForLevel(level: number): number {
+  return Math.min(1, 0.5 + Math.max(1, level) * 0.1);
+}
+
 export function stageFromLevel(level: number): PetStage {
   if (level >= 12) return "adult";
   if (level >= 8) return "teen";

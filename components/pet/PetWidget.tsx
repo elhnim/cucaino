@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import PetSprite from "@/components/pet/PetSprite"
-import { moodFor, levelFromXp, stageFromLevel, type Pet } from "@/lib/pet/logic"
+import { moodFor, levelFromXp, sizeScaleForLevel, stageFromLevel, type Pet } from "@/lib/pet/logic"
 import { PET_SPECIES } from "@/lib/pet/config"
 
 interface Props {
@@ -41,12 +41,12 @@ export default function PetWidget({ pet, kidId, accent }: Props) {
     >
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Pet sprite */}
-        <div className="relative shrink-0">
+        <div className="relative shrink-0 w-[72px] h-[86px] flex items-end justify-center">
           <PetSprite
             species={pet.species}
             mood={mood.id}
             stage={stage}
-            size={72}
+            size={Math.round(72 * sizeScaleForLevel(level))}
             animClass="avatar-idle"
           />
           {/* Mood badge */}
