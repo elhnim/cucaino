@@ -285,6 +285,20 @@ export async function setPersonalities(kidId: string, personalities: string[]): 
   return { ok: true, pet, pointsBalance: kid.points_balance };
 }
 
+/** Release the pet entirely — deletes the kid_pets row (tricks/accessories/XP live on it) */
+export async function sayGoodbyeToPet(
+  kidId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase, kid } = await loadKidAndPet(kidId);
+  if (!kid) return { ok: false, error: "Kid not found" };
+
+  const { error } = await supabase.from("kid_pets").delete().eq("kid_id", kidId);
+  if (error) return { ok: false, error: "Could not say goodbye — try again." };
+
+  revalidatePath("/play/pet");
+  return { ok: true }; // idempotent: deleting a missing row is still ok
+}
+
 /** Once-a-day surprise — the main "come back tomorrow" hook, always free */
 export async function claimDailyGift(kidId: string): Promise<GiftResult> {
   const { supabase, kid, petRow, today } = await loadKidAndPet(kidId);
