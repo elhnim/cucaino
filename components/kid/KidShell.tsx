@@ -11,6 +11,7 @@ import AnimatedAvatar from "@/components/kid/AnimatedAvatar";
 import NavIcon from "@/components/ui/NavIcon";
 import BadgeUnlockModal from "@/components/kid/BadgeUnlockModal";
 import { BADGE_META } from "@/lib/domain/badge-config";
+import { FULLSCREEN_EVENT, isImmersive } from "@/lib/fullscreen/fullscreen-manager";
 
 type NavKey = "home" | "todo" | "rewards" | "play" | "friends";
 
@@ -203,6 +204,14 @@ export default function KidShell({
     return () => window.removeEventListener("quiz-active", handler);
   }, []);
 
+  const [isGameFullscreen, setIsGameFullscreen] = useState(false);
+  useEffect(() => {
+    setIsGameFullscreen(isImmersive()); // KidShell can remount mid-game (route changes)
+    const handler = (e: Event) => setIsGameFullscreen((e as CustomEvent).detail?.active ?? false);
+    window.addEventListener(FULLSCREEN_EVENT, handler);
+    return () => window.removeEventListener(FULLSCREEN_EVENT, handler);
+  }, []);
+
   const [weather, setWeather] = useState<{ icon: string; temp: number } | null>(null);
   useEffect(() => {
     const doFetch = async (latitude: number, longitude: number) => {
@@ -228,6 +237,7 @@ export default function KidShell({
   return (
     <main className={`h-dvh bg-gradient-to-br ${theme.pageGradient} font-fun flex flex-col`}>
 
+      {!isGameFullscreen && (
       <header
         className={`bg-gradient-to-br ${theme.headerGradient} text-white flex-shrink-0`}
         style={{ paddingTop: 32, paddingLeft: 16, paddingRight: 16, paddingBottom: headerExtra ? 12 : 16 }}
@@ -355,12 +365,14 @@ export default function KidShell({
 
         {headerExtra}
       </header>
+      )}
 
       <KidOverridesApplier kid={kid} />
 
       <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
 
       {/* Bottom nav */}
+      {!isGameFullscreen && (
       <nav className="bg-white border-t border-gray-100 flex flex-shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {NAV_ITEMS.map((item) => {
           const isActive = item.key === active;
@@ -394,6 +406,7 @@ export default function KidShell({
           );
         })}
       </nav>
+      )}
 
       {unlockedBadges.length > 0 && (
         <BadgeUnlockModal
