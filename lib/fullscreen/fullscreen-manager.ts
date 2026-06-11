@@ -64,7 +64,7 @@ export function exitBrowserFullscreen(): void {
   }
 }
 
-function onFirstTap(e: PointerEvent) {
+function onFirstTap(e: Event) {
   // The toggle button manages full-screen itself — if the kid's very first
   // tap is the ⤡ exit button, entering here would cause an enter-then-exit
   // flicker. Leave the listener armed; exitImmersive() disarms it.
@@ -73,16 +73,18 @@ function onFirstTap(e: PointerEvent) {
   requestBrowserFullscreen();
 }
 
+// "click" rather than "pointerdown": on touch devices pointerdown does not
+// grant the transient user activation the Fullscreen API requires; click does.
 function armFirstTap() {
   if (firstTapArmed) return;
   firstTapArmed = true;
-  document.addEventListener("pointerdown", onFirstTap, true);
+  document.addEventListener("click", onFirstTap, true);
 }
 
 function disarmFirstTap() {
   if (!firstTapArmed) return;
   firstTapArmed = false;
-  document.removeEventListener("pointerdown", onFirstTap, true);
+  document.removeEventListener("click", onFirstTap, true);
 }
 
 export function enterImmersive(): void {
