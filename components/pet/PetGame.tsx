@@ -405,6 +405,26 @@ export default function PetGame({
   const lastCuddleAt = useRef(0);
   const fxId = useRef(0);
 
+  // The pet wanders around its garden while awake (recentres to sleep)
+  const [petX, setPetX] = useState(50);
+  const [petFacing, setPetFacing] = useState<1 | -1>(1);
+  const petXRef = useRef(50);
+  useEffect(() => {
+    if (!pet || pet.isSleeping) {
+      petXRef.current = 50;
+      setPetX(50);
+      setPetFacing(1);
+      return;
+    }
+    const id = setInterval(() => {
+      const next = Math.round(18 + Math.random() * 64);
+      setPetFacing(next < petXRef.current ? -1 : 1);
+      petXRef.current = next;
+      setPetX(next);
+    }, 4500);
+    return () => clearInterval(id);
+  }, [pet?.isSleeping, pet === null]);
+
   useEffect(() => {
     const id = setInterval(() => setPet((p) => (p ? applyDecay(p) : p)), 60_000);
     return () => clearInterval(id);
@@ -569,11 +589,13 @@ export default function PetGame({
         if (fx) {
           setTrickAnim(fx.anim);
           setTimeout(() => setTrickAnim(null), fx.ms + 50);
-          const items = fx.bursts.map((e, i) => ({ id: ++fxId.current, emoji: e, left: 22 + i * 27 }));
+          // effects spawn around wherever the pet is wandering
+          const px = petXRef.current;
+          const items = fx.bursts.map((e, i) => ({ id: ++fxId.current, emoji: e, left: Math.max(6, Math.min(94, px + (i - 1) * 24)) }));
           setBursts((b) => [...b, ...items]);
           setTimeout(() => setBursts((b) => b.filter((x) => !items.some((i) => i.id === x.id))), 1100);
           if (fx.notes) {
-            const ns = fx.notes.map((e, i) => ({ id: ++fxId.current, emoji: e, left: 25 + i * 18, delay: i * 0.18 }));
+            const ns = fx.notes.map((e, i) => ({ id: ++fxId.current, emoji: e, left: Math.max(6, Math.min(94, px - 18 + i * 14)), delay: i * 0.18 }));
             setNotes((n) => [...n, ...ns]);
             setTimeout(() => setNotes((n) => n.filter((x) => !ns.some((i) => i.id === x.id))), fx.ms + 600);
           }
@@ -697,6 +719,14 @@ export default function PetGame({
           </>
         )}
 
+        {/* Garden décor — cute house, trees and flowers (day and night) */}
+        <span className="absolute bottom-16 left-2 text-5xl" style={{ filter: "drop-shadow(0 3px 4px rgba(0,0,0,0.18))" }}>🏡</span>
+        <span className="absolute bottom-20 right-2 text-4xl">🌳</span>
+        <span className="absolute bottom-24 left-[30%] text-2xl">🌲</span>
+        <span className="absolute bottom-12 left-[46%] text-base">🌼</span>
+        <span className="absolute bottom-11 right-[28%] text-lg">🌷</span>
+        <span className="absolute bottom-14 left-[62%] text-sm">🌸</span>
+
         {/* Accessories scattered in the scene */}
         {pet.accessories.map((accId) => {
           const idx = PET_ACCESSORIES.findIndex((a) => a.id === accId);
@@ -729,27 +759,29 @@ export default function PetGame({
           </span>
         )}
 
-        {/* Glow under pet */}
+        {/* Glow under pet — follows the wandering pet */}
         <span
-          className="pet-glow absolute left-1/2 bottom-12 rounded-full"
-          style={{ width: 100, height: 16, marginLeft: -50, background: pet.isSleeping ? "radial-gradient(ellipse, rgba(165,180,252,0.5), transparent 70%)" : "radial-gradient(ellipse, rgba(255,255,255,0.8), transparent 70%)" }}
+          className="pet-glow absolute bottom-12 rounded-full"
+          style={{ left: `${petX}%`, transition: "left 3.8s ease-in-out", width: 100, height: 16, marginLeft: -50, background: pet.isSleeping ? "radial-gradient(ellipse, rgba(165,180,252,0.5), transparent 70%)" : "radial-gradient(ellipse, rgba(255,255,255,0.8), transparent 70%)" }}
         />
 
-        {/* Full-body pet sprite + speech bubble */}
+        {/* Full-body pet sprite + speech bubble — wanders around the garden */}
         <div
-          className="absolute left-1/2 bottom-14"
-          style={{ transform: "translateX(-50%)" }}
+          className="absolute bottom-14"
+          style={{ left: `${petX}%`, transform: "translateX(-50%)", transition: "left 3.8s ease-in-out" }}
           onAnimationEnd={() => setPetBouncing(false)}
         >
           <div className="relative">
             <PetSpeech line={speech} accent={accent}/>
-            <PetSprite
-              species={pet.species}
-              mood={mood.id}
-              stage={stage}
-              size={Math.round(130 * sizeScaleForLevel(level))}
-              animClass={spriteAnimClass}
-            />
+            <span className="inline-block" style={{ transform: `scaleX(${petFacing})`, transition: "transform 0.4s" }}>
+              <PetSprite
+                species={pet.species}
+                mood={mood.id}
+                stage={stage}
+                size={Math.round(130 * sizeScaleForLevel(level))}
+                animClass={spriteAnimClass}
+              />
+            </span>
           </div>
         </div>
 
@@ -776,9 +808,9 @@ export default function PetGame({
           <span key={n.id} className="note-float text-2xl" style={{ left: `${n.left}%`, bottom: 170, animationDelay: `${n.delay}s` }}>{n.emoji}</span>
         ))}
 
-        {/* The big hand swinging in for a high five */}
+        {/* The big hand swinging in for a high five — meets the pet where it is */}
         {highFiveHand && (
-          <span className="highfive-hand text-5xl" style={{ left: "55%", bottom: 170 }}>✋</span>
+          <span className="highfive-hand text-5xl" style={{ left: `${Math.min(84, petX + 8)}%`, bottom: 170 }}>✋</span>
         )}
 
         {/* Mood bubble */}
@@ -786,6 +818,28 @@ export default function PetGame({
           <span className="text-xs font-bold">{mood.emoji} {mood.message}</span>
         </div>
       </button>
+
+      {/* Learned tricks — one tap to perform */}
+      {pet.tricks.length > 0 && (
+        <div className="flex gap-2 mb-3 overflow-x-auto pb-0.5 -mx-1 px-1">
+          {pet.tricks.map((trickId) => {
+            const t = PET_TRICKS.find((x) => x.id === trickId);
+            if (!t) return null;
+            return (
+              <button
+                key={trickId}
+                type="button"
+                disabled={isPending || pet.isSleeping}
+                onClick={() => doTrick(t.id, t.emoji)}
+                className="shrink-0 min-w-[56px] bg-white rounded-2xl px-2 py-2 flex flex-col items-center gap-0.5 shadow-sm active:scale-95 transition-transform disabled:opacity-40"
+              >
+                <span className="text-xl">{t.emoji}</span>
+                <span className="text-[9px] font-black text-gray-600 whitespace-nowrap">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Stat bars */}
       <div className="grid grid-cols-2 gap-2 mb-3">
