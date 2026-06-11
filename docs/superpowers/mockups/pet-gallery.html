@@ -56,18 +56,12 @@ function headExtras(s, p) {
     <line x1="120" y1="52" x2="118" y2="36" stroke="white" stroke-width="2" opacity="0.5" stroke-linecap="round"/>`;
   if (s==="kitten") return `
     <polygon points="72,62 64,32 90,48" fill="${p.body}"/><polygon points="128,62 136,32 110,48" fill="${p.body}"/>
-    <polygon points="74,59 68,38 88,50" fill="#F9C0C0"/><polygon points="126,59 132,38 112,50" fill="#F9C0C0"/>
-    <line x1="62" y1="112" x2="82" y2="110" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
-    <line x1="62" y1="116" x2="82" y2="116" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
-    <line x1="62" y1="120" x2="82" y2="122" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
-    <line x1="118" y1="110" x2="138" y2="112" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
-    <line x1="118" y1="116" x2="138" y2="116" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
-    <line x1="118" y1="122" x2="138" y2="120" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>`;
+    <polygon points="74,59 68,38 88,50" fill="#F9C0C0"/><polygon points="126,59 132,38 112,50" fill="#F9C0C0"/>`;
   if (s==="puppy") return `
-    <ellipse cx="60" cy="105" rx="20" ry="32" fill="${p.accent}" opacity="0.95"/>
-    <ellipse cx="140" cy="105" rx="20" ry="32" fill="${p.accent}" opacity="0.95"/>
-    <ellipse cx="60" cy="108" rx="12" ry="22" fill="${p.body}" opacity="0.4"/>
-    <ellipse cx="140" cy="108" rx="12" ry="22" fill="${p.body}" opacity="0.4"/>
+    <ellipse cx="50" cy="92" rx="13" ry="30" fill="${p.accent}" transform="rotate(18 50 92)"/>
+    <ellipse cx="150" cy="92" rx="13" ry="30" fill="${p.accent}" transform="rotate(-18 150 92)"/>
+    <ellipse cx="48" cy="96" rx="6" ry="20" fill="${p.body}" opacity="0.35" transform="rotate(18 48 96)"/>
+    <ellipse cx="152" cy="96" rx="6" ry="20" fill="${p.body}" opacity="0.35" transform="rotate(-18 152 96)"/>
     <ellipse cx="118" cy="96" rx="16" ry="14" fill="${p.accent}" opacity="0.55"/>`;
   if (s==="bunny") return `
     <ellipse cx="82" cy="40" rx="16" ry="38" fill="${p.body}"/><ellipse cx="118" cy="40" rx="16" ry="38" fill="${p.body}"/>
@@ -109,6 +103,11 @@ function petSvg(s) {
     ${headExtras(s,p)}
     <circle cx="100" cy="100" r="52" fill="${p.body}"/>
     ${isPanda ? `<ellipse cx="83" cy="101" rx="16" ry="18" fill="${p.accent}" transform="rotate(-12 83 101)"/><ellipse cx="117" cy="101" rx="16" ry="18" fill="${p.accent}" transform="rotate(12 117 101)"/>` : ""}
+    ${s==="kitten" ? `<g stroke="${p.outline}" stroke-width="2" opacity="0.7" stroke-linecap="round" fill="none">
+      <line x1="34" y1="102" x2="80" y2="108"/><line x1="30" y1="114" x2="80" y2="114"/><line x1="34" y1="126" x2="80" y2="120"/>
+      <line x1="120" y1="108" x2="166" y2="102"/><line x1="120" y1="114" x2="170" y2="114"/><line x1="120" y1="120" x2="166" y2="126"/></g>
+    <g stroke="${p.accent}" stroke-width="3" opacity="0.8" stroke-linecap="round" fill="none">
+      <path d="M92 54 Q93 62 92 68"/><path d="M100 52 Q101 61 100 68"/><path d="M108 54 Q107 62 108 68"/></g>` : ""}
     <ellipse cx="100" cy="113" rx="4" ry="3" fill="${p.accent}" opacity="0.8"/>
     ${dragonNostrils}
     <ellipse cx="83" cy="102" rx="12" ry="13" fill="white"/><ellipse cx="117" cy="102" rx="12" ry="13" fill="white"/>

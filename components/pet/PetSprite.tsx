@@ -218,13 +218,8 @@ function KittenHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
       <polygon points="128,62 136,32 110,48" fill={p.body}/>
       <polygon points="74,59 68,38 88,50" fill="#F9C0C0"/>
       <polygon points="126,59 132,38 112,50" fill="#F9C0C0"/>
-      {/* Whiskers */}
-      <line x1="62" y1="112" x2="82" y2="110" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
-      <line x1="62" y1="116" x2="82" y2="116" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
-      <line x1="62" y1="120" x2="82" y2="122" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
-      <line x1="118" y1="110" x2="138" y2="112" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
-      <line x1="118" y1="116" x2="138" y2="116" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
-      <line x1="118" y1="122" x2="138" y2="120" stroke={p.outline} strokeWidth="1.5" opacity="0.6" strokeLinecap="round"/>
+      {/* Whiskers are drawn in the main component AFTER the head so they
+          stick out visibly from the cheeks (here they'd be painted over). */}
     </>
   )
 }
@@ -241,12 +236,12 @@ function PuppyExtras({ p }: { p: typeof DEFAULT_PAL }) {
 function PuppyHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
   return (
     <>
-      {/* Floppy ears hanging from head sides */}
-      <ellipse cx="60" cy="105" rx="20" ry="32" fill={p.accent} opacity="0.95"/>
-      <ellipse cx="140" cy="105" rx="20" ry="32" fill={p.accent} opacity="0.95"/>
+      {/* Proper floppy ears — hang OUTSIDE the head silhouette, drooping beside the face */}
+      <ellipse cx="50" cy="92" rx="13" ry="30" fill={p.accent} transform="rotate(18 50 92)"/>
+      <ellipse cx="150" cy="92" rx="13" ry="30" fill={p.accent} transform="rotate(-18 150 92)"/>
       {/* Ear inner highlight */}
-      <ellipse cx="60" cy="108" rx="12" ry="22" fill={p.body} opacity="0.4"/>
-      <ellipse cx="140" cy="108" rx="12" ry="22" fill={p.body} opacity="0.4"/>
+      <ellipse cx="48" cy="96" rx="6" ry="20" fill={p.body} opacity="0.35" transform="rotate(18 48 96)"/>
+      <ellipse cx="152" cy="96" rx="6" ry="20" fill={p.body} opacity="0.35" transform="rotate(-18 152 96)"/>
       {/* Eye spot */}
       <ellipse cx="118" cy="96" rx="16" ry="14" fill={p.accent} opacity="0.55"/>
     </>
@@ -419,6 +414,24 @@ export default function PetSprite({ species, mood, stage, size = 180, animClass 
         <>
           <ellipse cx="83" cy="101" rx="16" ry="18" fill={p.accent} transform="rotate(-12 83 101)"/>
           <ellipse cx="117" cy="101" rx="16" ry="18" fill={p.accent} transform="rotate(12 117 101)"/>
+        </>
+      )}
+      {/* Kitten whiskers + forehead tabby stripes — on top of the head circle */}
+      {species === "kitten" && (
+        <>
+          <g stroke={p.outline} strokeWidth="2" opacity="0.7" strokeLinecap="round" fill="none">
+            <line x1="34" y1="102" x2="80" y2="108"/>
+            <line x1="30" y1="114" x2="80" y2="114"/>
+            <line x1="34" y1="126" x2="80" y2="120"/>
+            <line x1="120" y1="108" x2="166" y2="102"/>
+            <line x1="120" y1="114" x2="170" y2="114"/>
+            <line x1="120" y1="120" x2="166" y2="126"/>
+          </g>
+          <g stroke={p.accent} strokeWidth="3" opacity="0.8" strokeLinecap="round" fill="none">
+            <path d="M92 54 Q93 62 92 68"/>
+            <path d="M100 52 Q101 61 100 68"/>
+            <path d="M108 54 Q107 62 108 68"/>
+          </g>
         </>
       )}
 

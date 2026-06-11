@@ -84,8 +84,8 @@ export function applyCareStreak(pet: Pet, today: string): { pet: Pet; bonusXp: n
 export function playReward(score: number): { happiness: number; xp: number } {
   const s = Math.max(0, Math.min(PLAY_MAX_SCORE, Math.round(score)));
   return {
-    happiness: Math.min(35, 10 + s),
-    xp: Math.min(14, 3 + Math.floor(s / 2)),
+    happiness: Math.min(55, 15 + Math.round(s * 1.6)),
+    xp: Math.min(16, 4 + Math.floor(s / 2)),
   };
 }
 

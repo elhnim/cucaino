@@ -52,9 +52,9 @@ export interface PetFood {
 }
 
 export const PET_FOODS: PetFood[] = [
-  { id: "apple", emoji: "🍎", label: "Apple",     starCost: 1, hunger: 15, happiness: 0,  xp: 3 },
-  { id: "meal",  emoji: "🍝", label: "Big meal",  starCost: 3, hunger: 40, happiness: 5,  xp: 6 },
-  { id: "treat", emoji: "🍪", label: "Treat",     starCost: 2, hunger: 10, happiness: 15, xp: 4 },
+  { id: "apple", emoji: "🍎", label: "Apple",     starCost: 1, hunger: 30, happiness: 0,  xp: 4 },
+  { id: "meal",  emoji: "🍝", label: "Big meal",  starCost: 3, hunger: 70, happiness: 10, xp: 8 },
+  { id: "treat", emoji: "🍪", label: "Treat",     starCost: 2, hunger: 15, happiness: 30, xp: 5 },
 ];
 
 export interface PetAccessory {
@@ -97,8 +97,8 @@ export const PET_TRICKS: PetTrick[] = [
   { id: "magic",    emoji: "🪄", label: "Magic",     starCost: 40, minLevel: 13 },
 ];
 
-export const TRICK_HAPPINESS = 5;
-export const TRICK_XP = 1;
+export const TRICK_HAPPINESS = 12;
+export const TRICK_XP = 2;
 
 export const PLAY_COST = 2;
 export const PLAY_ENERGY = -15;
@@ -109,19 +109,21 @@ export const PLAY_SECONDS = 15;
 export const WASH_COST = 2;
 export const WASH_XP = 4;
 
-export const CUDDLE_HAPPINESS = 3;
-export const CUDDLE_XP = 1;
+export const CUDDLE_HAPPINESS = 8;
+export const CUDDLE_XP = 2;
 
 export const STREAK_XP_PER_DAY = 2;
 export const STREAK_XP_CAP_DAYS = 7;
 
+// Faster-paced care loop: needs drop noticeably between daily visits
+// (hunger empties in ~12h awake), and actions hit harder to compensate.
 export const DECAY_PER_HOUR = {
-  hunger: 4,
-  happiness: 3,
-  energy: 3,
-  cleanliness: 2,
+  hunger: 8,
+  happiness: 6,
+  energy: 5,
+  cleanliness: 4,
 };
 
-export const SLEEP_ENERGY_PER_HOUR = 12;
+export const SLEEP_ENERGY_PER_HOUR = 25; // a full night's sleep = full recharge
 
 export const MAX_LEVEL = 30;
