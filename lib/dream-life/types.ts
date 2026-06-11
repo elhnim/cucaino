@@ -115,6 +115,14 @@ export interface Player {
   permanentSalaryMult: number
   /** BUS-N02 outstanding: business income capped until $10K paid */
   staffQuitUnpaid: boolean
+  // transient power-up targets (cleared at settle)
+  hotTipAssetUid: string | null
+  doubleIncomeAssetUid: string | null
+  taxBreakThisYear: boolean
+  secondActionAvailable: boolean
+  /** PER-03 / PER-04 milestone counters */
+  injuriesSurvived: number
+  crashesSurvived: number
   hasWon: boolean
 }
 
@@ -241,6 +249,8 @@ export interface GameState {
   phaseOf: Record<string, PhaseId>
   currentPlayerIndex: number
   turnStage: TurnStage
+  /** the action chosen this turn (needed at settle for phase-1 salary cuts) */
+  pendingAction: { action: PlayerActionId; payload?: ActionPayload } | null
   pendingSpin: SpinOutcome | null
   pendingReaction: PendingReaction | null
   lastSettlement: SettlementSummary | null
