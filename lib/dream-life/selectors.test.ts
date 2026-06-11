@@ -60,10 +60,11 @@ describe("selectors", () => {
 
   it("win check is passive >= expenses (boundary wins)", () => {
     const p = makePlayer({ apprentices: 2, skills: { moneySmarts: 1, proSkills: 1, grit: 7, bigBrain: 1 } })
-    // passive = 8000 (apprentices) + 12000 (side hustle) = 20000
-    expect(passiveIncome(p)).toBe(20_000)
-    // give exactly-covering savings: lifestyle 44000 → need 24000 more
-    p.assets = [makeAsset("savings", { value: 600_000 })] // 4% = 24000
+    const streams = passiveIncome(p) // apprentices + grit-L7 side hustle (balance-tunable)
+    expect(streams).toBeGreaterThan(0)
+    // top up with savings so passive EXACTLY equals expenses (lifestyle 44000, uninsured, no debt)
+    const gap = 44_000 - streams
+    p.assets = [makeAsset("savings", { value: gap / 0.04 })]
     expect(passiveIncome(p)).toBe(44_000)
     expect(expensesOf(p, "phase3")).toBe(44_000)
     expect(hasWonCheck(p)).toBe(true)
