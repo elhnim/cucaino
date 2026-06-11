@@ -12,6 +12,7 @@ irrevocable. Download URL pattern: `https://web.archive.org/web/<snapshot>id_/ht
 (snapshots: 20250106221458 upbeat, 20250104052211 comedy, 20241217205507 electronic, 20250108092110 scoring).
 All tracks re-encoded to 80 kbps MP3. Tracks marked * were trimmed to 90 s with a 2 s fade-out:
 invest.mp3, money-town.mp3, dream-life.mp3.
+Playback gain is baked into the files (music ×0.35, SFX ×0.6) because iPad Safari ignores the volume property.
 
 | File | Title | Author | Source page | License |
 |---|---|---|---|---|
