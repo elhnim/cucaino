@@ -40,6 +40,7 @@ import {
   learnTrick,
   performTrick,
   playWithPet,
+  sayGoodbyeToPet,
   setPersonalities,
   toggleSleep,
   washPet,
@@ -388,7 +389,8 @@ export default function PetGame({
   const [stars, setStars] = useState(kid?.pointsBalance ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [modal, setModal] = useState<"food" | "shop" | "tricks" | "fetch" | null>(null);
+  const [modal, setModal] = useState<"food" | "shop" | "tricks" | "fetch" | "goodbye" | null>(null);
+  const [goodbyeArmed, setGoodbyeArmed] = useState(false);
   const [levelUp, setLevelUp] = useState<{ level: number; evolved: boolean } | null>(null);
   const [giftReveal, setGiftReveal] = useState<GiftReward | null>(null);
   const [hearts, setHearts] = useState<{ id: number; left: number }[]>([]);
@@ -838,6 +840,15 @@ export default function PetGame({
         {stage !== "baby" && !canSpeak && <> · <span className="text-purple-400">💬 {pet.name} will talk at level {SPEECH_UNLOCK_LEVEL}!</span></>}
       </p>
 
+      {/* Say goodbye — deliberately low-emphasis */}
+      <button
+        type="button"
+        onClick={() => { setGoodbyeArmed(false); setModal("goodbye"); }}
+        className="block mx-auto mt-6 mb-2 text-xs font-bold text-gray-400 underline-offset-2 hover:underline"
+      >
+        👋 Say goodbye to {pet.name}…
+      </button>
+
       {/* Food picker */}
       {modal === "food" && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setModal(null)}>
@@ -958,6 +969,46 @@ export default function PetGame({
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Say goodbye confirmation */}
+      {modal === "goodbye" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { if (!isPending) setModal(null); }}/>
+          <div className="relative bg-white rounded-3xl p-6 max-w-sm w-full text-center">
+            <PetSprite species={pet.species} mood="lonely" stage={stage} size={90} animClass="avatar-idle"/>
+            <h2 className="text-xl font-black text-gray-900 mt-2 mb-1">Say goodbye to {pet.name}?</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              {pet.name}&apos;s age, tricks and accessories will be gone forever.
+              You can adopt a new pet after.
+            </p>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => setModal(null)}
+              className="w-full py-4 rounded-2xl font-black text-base text-white active:scale-95 transition-transform disabled:opacity-50"
+              style={{ background: accent }}
+            >
+              Keep {pet.name} 💚
+            </button>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                if (!goodbyeArmed) { setGoodbyeArmed(true); return; }
+                setError(null);
+                startTransition(async () => {
+                  const res = await sayGoodbyeToPet(kid.id);
+                  if (res.ok) { setModal(null); setPet(null); }
+                  else setError(res.error);
+                });
+              }}
+              className="w-full mt-2 py-3 rounded-2xl font-bold text-sm text-red-500 bg-red-50 active:scale-95 transition-transform disabled:opacity-50"
+            >
+              {isPending ? "Saying goodbye…" : goodbyeArmed ? "Tap again — really say goodbye 💔" : "Say goodbye forever"}
+            </button>
           </div>
         </div>
       )}
