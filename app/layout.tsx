@@ -9,11 +9,15 @@ const inter = Inter({
   display: "swap",
 });
 
+// Nunito is a Google variable font: omitting `weight` loads ONE variable woff2
+// covering wght 200-1000. (The old explicit 5-weight list already deduped to
+// this same file, so bytes are unchanged — but this collapses 25 @font-face
+// declarations to 5 and makes font-medium/500, used on the login subtitle,
+// render as a true weight instead of falling back to 400.)
 const nunito = Nunito({
   subsets: ["latin"],
   variable: "--font-nunito",
   display: "swap",
-  weight: ["400", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
