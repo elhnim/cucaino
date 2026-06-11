@@ -5,6 +5,7 @@ import Link from "next/link"
 import type { Kid } from "@/lib/domain/types"
 import type { Player, GameAction } from "@/lib/money-town/types"
 import { PLAYER_COLORS, STARTING_CASH } from "@/lib/money-town/constants"
+import { playSfx } from "@/lib/audio/sound-manager"
 import RulesModal from "./RulesModal"
 
 const RULES_SEEN_KEY = 'money-town-rules-seen'
@@ -68,6 +69,7 @@ export default function GameLobby({ kids, activeKid, dispatch }: Props) {
   }
 
   function startGame() {
+    playSfx("tap")
     if (totalPlayers < 1) return
     const players: Player[] = []
     let colorIdx = 0

@@ -3,6 +3,7 @@
 import Link from "next/link"
 import type { CSSProperties } from "react"
 import { computePassiveIncome } from "@/lib/money-town/gameLogic"
+import { playSfx } from "@/lib/audio/sound-manager"
 import { ASSETS } from "@/lib/money-town/constants"
 import type { Player } from "@/lib/money-town/types"
 
@@ -117,7 +118,7 @@ export default function WinScreen({ winner, players, round, byTimeout = false, a
           </div>
         )}
 
-        <button type="button" onClick={onPlayAgain}
+        <button type="button" onClick={() => { playSfx("tap"); onPlayAgain() }}
           className="w-full py-4 text-white text-xl font-black rounded-3xl active:scale-95 transition-transform mb-3"
           style={{ background: "linear-gradient(180deg, #34d399, #10b981 60%, #059669)", boxShadow: "0 5px 0 #047857, 0 12px 28px rgba(5,150,105,0.4)" }}>
           Play Again 🔄

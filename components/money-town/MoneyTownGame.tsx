@@ -3,6 +3,7 @@
 import { useReducer, useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import GameAudio from "@/components/audio/GameAudio"
+import { playSfx } from "@/lib/audio/sound-manager"
 import { gameReducer, createInitialState } from "@/lib/money-town/gameLogic"
 import type { GameState } from "@/lib/money-town/types"
 import type { Kid } from "@/lib/domain/types"
@@ -53,6 +54,11 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
     if (state.phase === 'win' || state.phase === 'lobby') {
       try { localStorage.removeItem(SAVE_KEY) } catch {}
     }
+  }, [state.phase])
+
+  // Winner fanfare — fires once when the game enters the win phase
+  useEffect(() => {
+    if (state.phase === 'win') playSfx("win")
   }, [state.phase])
 
   const currentPlayer = state.players[state.currentPlayerIndex]

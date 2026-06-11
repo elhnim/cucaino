@@ -1,7 +1,9 @@
 "use client"
 
+import { useEffect } from "react"
 import type { ResultPayload, Player, GameState, GameAction } from "@/lib/money-town/types"
 import { ASSETS, DEGREE_JOBS } from "@/lib/money-town/constants"
+import { playSfx } from "@/lib/audio/sound-manager"
 
 interface Props {
   result: ResultPayload
@@ -18,6 +20,12 @@ const TONE_STYLES = {
 
 export default function ResultCard({ result, player, state, dispatch }: Props) {
   const headerGrad = TONE_STYLES[result.tone]
+
+  // Coin clink on a cash GAIN — keyed on the result object identity so two
+  // consecutive results with the same delta still both play.
+  useEffect(() => {
+    if (result.cashDelta > 0) playSfx("coin")
+  }, [result])
 
   const offerDef = result.offerAssetDefId ? ASSETS.find(a => a.id === result.offerAssetDefId) : null
   const offerCost = offerDef ? Math.floor(offerDef.cost * (result.offerDiscount ?? 1)) : 0

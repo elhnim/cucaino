@@ -7,6 +7,7 @@ import type {
   TradingHolding,
 } from "@/lib/domain/types";
 import { buyAsset, sellAsset } from "@/lib/actions/trading";
+import { playSfx } from "@/lib/audio/sound-manager";
 import PriceHistoryChart from "./PriceHistoryChart";
 
 interface Props {
@@ -91,6 +92,7 @@ export default function AssetDetailSheet({
     startBuyTransition(async () => {
       const result = await buyAsset(kidId, asset.symbol, quantity);
       if (!result.ok) setError(result.error);
+      else playSfx("coin");
     });
   }
 
@@ -100,6 +102,7 @@ export default function AssetDetailSheet({
     startSellTransition(async () => {
       const result = await sellAsset(kidId, asset.symbol, quantity);
       if (!result.ok) setError(result.error);
+      else playSfx("coin");
     });
   }
 
