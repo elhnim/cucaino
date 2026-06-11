@@ -8,6 +8,7 @@ import { holdingValueCents, quantityForAmount, unrealizedPnlCents } from "@/lib/
 import InvestAboutSection from "@/components/invest/InvestAboutSection";
 import InvestBuyLockedCard from "@/components/invest/InvestBuyLockedCard";
 import { assetNews } from "@/lib/invest/news-display";
+import PriceTimestamp from "@/components/invest/PriceTimestamp";
 
 function money(cents: number): string { return `$${(cents / 100).toFixed(2)}`; }
 
@@ -93,6 +94,7 @@ export default function InvestAssetDetailSheet({
             </div>
             {price && <span className={`rounded-full px-2 py-1 text-xs font-black ${price.changePct >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{price.changePct >= 0 ? "+" : ""}{(price.changePct * 100).toFixed(1)}%</span>}
           </div>
+          {price && <PriceTimestamp iso={price.fetchedAt} prefix="As of" className="mt-1 text-[11px] font-bold text-slate-400" />}
           <div className="mt-4 h-24 rounded-xl bg-slate-50 p-2">
             {prices.length < 2 ? <p className="grid h-full place-items-center text-xs font-bold text-slate-400">Price history starts today</p> : <Spark prices={prices} />}
           </div>

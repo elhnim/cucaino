@@ -674,6 +674,8 @@ export interface RealAssetPrice {
   newsImpact: string | null;
   marketCap: number | null; // app-cash whole dollars; null when the source has none (e.g. some ASX)
   priceDate: string;
+  /** When this price row was actually fetched (ISO timestamptz) — shown as "Prices updated …". */
+  fetchedAt: string | null;
 }
 
 export interface InvestAccount {

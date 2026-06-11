@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { InvestHolding, InvestLicence, RealAsset, RealAssetPrice } from "@/lib/domain/types";
 import { ASSET_CATEGORIES } from "@/lib/invest/assets";
 import InvestAssetRow from "@/components/invest/InvestAssetRow";
+import PriceTimestamp from "@/components/invest/PriceTimestamp";
 
 export default function InvestMarketTab({
   assets,
@@ -30,6 +31,14 @@ export default function InvestMarketTab({
     return matchesQuery && matchesCategory;
   });
   const noPrices = assets.every((asset) => !prices[asset.symbol]);
+  // ISO timestamps compare lexicographically — newest fetch wins
+  const latestFetchedAt = useMemo(() => {
+    let best: string | null = null;
+    for (const p of Object.values(prices)) {
+      if (p.fetchedAt && (!best || p.fetchedAt > best)) best = p.fetchedAt;
+    }
+    return best;
+  }, [prices]);
 
   if (noPrices) {
     return (
@@ -55,6 +64,7 @@ export default function InvestMarketTab({
           </button>
         ))}
       </div>
+      <PriceTimestamp iso={latestFetchedAt} />
       {!licence.passedAt && (
         <button onClick={onGoLearn} className="w-full rounded-[14px] border border-indigo-100 bg-indigo-50 px-4 py-3 text-left text-sm font-black text-indigo-800">
           🔒 Buying is locked — earn your Investor Licence

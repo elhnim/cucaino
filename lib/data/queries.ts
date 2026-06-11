@@ -1338,6 +1338,7 @@ function mapRealAssetPrice(row: any): RealAssetPrice {
     newsImpact: row.news_impact ?? null,
     marketCap: row.market_cap !== null && row.market_cap !== undefined ? Number(row.market_cap) : null,
     priceDate: row.price_date,
+    fetchedAt: row.created_at ?? null,
   };
 }
 
