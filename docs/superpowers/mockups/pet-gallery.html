@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Star Pets — all species</title>
+<style>
+  body { font-family: ui-rounded, "Segoe UI", system-ui, sans-serif; background: linear-gradient(180deg,#e0f2fe,#fce7f3); margin:0; padding:32px; }
+  h1 { text-align:center; color:#1e293b; }
+  p.sub { text-align:center; color:#475569; margin-top:-8px; }
+  .grid { display:flex; gap:24px; justify-content:center; flex-wrap:wrap; margin-top:24px; }
+  .card { background:white; border-radius:24px; padding:20px 24px 16px; box-shadow:0 10px 30px rgba(0,0,0,.10); text-align:center; width:230px; }
+  .card h2 { margin:8px 0 2px; font-size:18px; color:#0f172a; }
+  .card p { margin:0; font-size:12px; color:#64748b; }
+</style>
+</head>
+<body>
+<h1>🌟 Star Pets — the whole family</h1>
+<p class="sub">Exactly as drawn in the app (happy mood, full grown). The panda is the new fixed version.</p>
+<div class="grid" id="grid"></div>
+
+<script>
+const PAL = {
+  dragon:  { body:"#6ECC76", belly:"#B8E8BC", accent:"#3CAA44", outline:"#1E6622", eye:"#1A3A1C", name:"Dragon",  desc:"Brave & fiery" },
+  kitten:  { body:"#F2A862", belly:"#FDE4C0", accent:"#E07030", outline:"#9A4418", eye:"#2E120A", name:"Kitten",  desc:"Curious & cuddly" },
+  puppy:   { body:"#C87040", belly:"#EAB87A", accent:"#9A4E20", outline:"#5A2A08", eye:"#1C0800", name:"Puppy",   desc:"Loyal & playful" },
+  bunny:   { body:"#F5EFE7", belly:"#FDE8EC", accent:"#E8B8C4", outline:"#C07888", eye:"#5A2A38", name:"Bunny",   desc:"Quick & gentle" },
+  panda:   { body:"#F8F8F8", belly:"#F0F0F0", accent:"#2E2E2E", outline:"#222",    eye:"#1C1C1C", name:"Panda",   desc:"Chill & hungry" },
+  unicorn: { body:"#CAB6FF", belly:"#E6DDFF", accent:"#8860E0", outline:"#5038B0", eye:"#2A1660", name:"Unicorn", desc:"Magical & rare" },
+};
+
+function bodyExtras(s, p) {
+  if (s==="dragon") return `
+    <path d="M56 148 Q30 120 22 148 Q38 158 56 158" fill="${p.accent}" opacity="0.85"/>
+    <path d="M144 148 Q170 120 178 148 Q162 158 144 158" fill="${p.accent}" opacity="0.85"/>
+    <path d="M56 152 Q42 136 28 148" stroke="${p.outline}" stroke-width="1.5" fill="none" opacity="0.5"/>
+    <path d="M144 152 Q158 136 172 148" stroke="${p.outline}" stroke-width="1.5" fill="none" opacity="0.5"/>
+    <path d="M56 142 Q22 106 18 138 Q34 150 56 148" fill="${p.body}" opacity="0.5"/>
+    <path d="M144 142 Q178 106 182 138 Q166 150 144 148" fill="${p.body}" opacity="0.5"/>`;
+  if (s==="kitten") return `
+    <path d="M145 185 Q185 160 188 190 Q188 215 160 210" stroke="${p.body}" stroke-width="18" fill="none" stroke-linecap="round"/>
+    <path d="M145 185 Q185 160 188 190 Q188 215 160 210" stroke="${p.belly}" stroke-width="9" fill="none" stroke-linecap="round" opacity="0.6"/>`;
+  if (s==="puppy") return `
+    <path d="M142 178 Q166 158 170 172 Q174 184 158 186" stroke="${p.body}" stroke-width="16" fill="none" stroke-linecap="round"/>`;
+  if (s==="bunny") return `
+    <circle cx="150" cy="192" r="14" fill="${p.belly}"/><circle cx="150" cy="192" r="10" fill="white" opacity="0.7"/>`;
+  if (s==="unicorn") return `
+    <path d="M55 100 Q30 140 40 190 Q60 210 80 195 Q60 175 55 145 Q50 115 65 95 Z" fill="#FF9ECD" opacity="0.7"/>
+    <path d="M52 105 Q28 145 38 185" stroke="#FFC0E0" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.8"/>`;
+  return "";
+}
+
+function headExtras(s, p) {
+  if (s==="dragon") return `
+    <polygon points="82,54 76,28 88,28" fill="${p.accent}"/><polygon points="118,54 112,28 124,28" fill="${p.accent}"/>
+    <line x1="80" y1="52" x2="78" y2="36" stroke="white" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+    <line x1="120" y1="52" x2="118" y2="36" stroke="white" stroke-width="2" opacity="0.5" stroke-linecap="round"/>`;
+  if (s==="kitten") return `
+    <polygon points="72,62 64,32 90,48" fill="${p.body}"/><polygon points="128,62 136,32 110,48" fill="${p.body}"/>
+    <polygon points="74,59 68,38 88,50" fill="#F9C0C0"/><polygon points="126,59 132,38 112,50" fill="#F9C0C0"/>
+    <line x1="62" y1="112" x2="82" y2="110" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
+    <line x1="62" y1="116" x2="82" y2="116" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
+    <line x1="62" y1="120" x2="82" y2="122" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
+    <line x1="118" y1="110" x2="138" y2="112" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
+    <line x1="118" y1="116" x2="138" y2="116" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>
+    <line x1="118" y1="122" x2="138" y2="120" stroke="${p.outline}" stroke-width="1.5" opacity="0.6"/>`;
+  if (s==="puppy") return `
+    <ellipse cx="60" cy="105" rx="20" ry="32" fill="${p.accent}" opacity="0.95"/>
+    <ellipse cx="140" cy="105" rx="20" ry="32" fill="${p.accent}" opacity="0.95"/>
+    <ellipse cx="60" cy="108" rx="12" ry="22" fill="${p.body}" opacity="0.4"/>
+    <ellipse cx="140" cy="108" rx="12" ry="22" fill="${p.body}" opacity="0.4"/>
+    <ellipse cx="118" cy="96" rx="16" ry="14" fill="${p.accent}" opacity="0.55"/>`;
+  if (s==="bunny") return `
+    <ellipse cx="82" cy="40" rx="16" ry="38" fill="${p.body}"/><ellipse cx="118" cy="40" rx="16" ry="38" fill="${p.body}"/>
+    <ellipse cx="82" cy="40" rx="9" ry="28" fill="#F9C8D0"/><ellipse cx="118" cy="40" rx="9" ry="28" fill="#F9C8D0"/>`;
+  if (s==="panda") return `
+    <circle cx="74" cy="58" r="22" fill="${p.accent}"/><circle cx="126" cy="58" r="22" fill="${p.accent}"/>
+    <circle cx="74" cy="58" r="13" fill="#4D4D4D"/><circle cx="126" cy="58" r="13" fill="#4D4D4D"/>`;
+  if (s==="unicorn") return `
+    <polygon points="80,55 74,32 90,44" fill="${p.body}"/><polygon points="120,55 126,32 110,44" fill="${p.body}"/>
+    <polygon points="81,52 76,36 88,46" fill="#FFC0E8"/><polygon points="119,52 124,36 112,46" fill="#FFC0E8"/>
+    <defs><linearGradient id="hornGrad" x1="100" y1="20" x2="100" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFD700"/><stop offset="50%" stop-color="#FF90C0"/><stop offset="100%" stop-color="${p.accent}"/>
+    </linearGradient></defs>
+    <polygon points="100,20 90,58 110,58" fill="url(#hornGrad)"/>
+    <line x1="96" y1="56" x2="92" y2="36" stroke="white" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+    <path d="M58 72 Q48 90 52 115 Q62 120 68 105 Q64 90 68 72 Z" fill="#FF9ECD" opacity="0.8"/>
+    <path d="M60 76 Q50 95 56 116" stroke="#FFAAD8" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <text x="138" y="74" font-size="12" fill="#FFD700" opacity="0.9">✦</text>
+    <text x="42" y="80" font-size="8" fill="#FFD700" opacity="0.7">✦</text>`;
+  return "";
+}
+
+function petSvg(s) {
+  const p = PAL[s];
+  const isPanda = s === "panda";
+  const arm = isPanda ? p.accent : p.body;
+  const paw = isPanda ? "#5A5A5A" : p.belly;
+  const dragonNostrils = s==="dragon" ? `<circle cx="96" cy="117" r="2" fill="${p.outline}" opacity="0.4"/><circle cx="104" cy="117" r="2" fill="${p.outline}" opacity="0.4"/>` : "";
+  return `<svg viewBox="0 0 200 240" width="190" height="228" style="overflow:visible">
+    <ellipse cx="100" cy="235" rx="52" ry="9" fill="rgba(0,0,0,0.13)"/>
+    ${bodyExtras(s,p)}
+    <ellipse cx="100" cy="170" rx="50" ry="52" fill="${p.body}"/>
+    <ellipse cx="100" cy="175" rx="32" ry="36" fill="${p.belly}"/>
+    ${isPanda ? `<ellipse cx="56" cy="165" rx="22" ry="18" fill="${p.accent}" opacity="0.95"/><ellipse cx="144" cy="165" rx="22" ry="18" fill="${p.accent}" opacity="0.95"/>` : ""}
+    <ellipse cx="54" cy="163" rx="20" ry="17" fill="${arm}"/><ellipse cx="146" cy="163" rx="20" ry="17" fill="${arm}"/>
+    <ellipse cx="40" cy="174" rx="13" ry="10" fill="${paw}"/><ellipse cx="160" cy="174" rx="13" ry="10" fill="${paw}"/>
+    <ellipse cx="78" cy="212" rx="22" ry="17" fill="${isPanda ? p.accent : p.body}"/><ellipse cx="122" cy="212" rx="22" ry="17" fill="${isPanda ? p.accent : p.body}"/>
+    <ellipse cx="76" cy="224" rx="20" ry="10" fill="${paw}"/><ellipse cx="124" cy="224" rx="20" ry="10" fill="${paw}"/>
+    ${headExtras(s,p)}
+    <circle cx="100" cy="100" r="52" fill="${p.body}"/>
+    ${isPanda ? `<ellipse cx="83" cy="101" rx="16" ry="18" fill="${p.accent}" transform="rotate(-12 83 101)"/><ellipse cx="117" cy="101" rx="16" ry="18" fill="${p.accent}" transform="rotate(12 117 101)"/>` : ""}
+    <ellipse cx="100" cy="113" rx="4" ry="3" fill="${p.accent}" opacity="0.8"/>
+    ${dragonNostrils}
+    <ellipse cx="83" cy="102" rx="12" ry="13" fill="white"/><ellipse cx="117" cy="102" rx="12" ry="13" fill="white"/>
+    <ellipse cx="83" cy="103" rx="8" ry="8.5" fill="${p.eye}"/><ellipse cx="117" cy="103" rx="8" ry="8.5" fill="${p.eye}"/>
+    <circle cx="86" cy="100" r="3" fill="white"/><circle cx="120" cy="100" r="3" fill="white"/>
+    <path d="M89 126 Q100 134 111 126" stroke="#E06080" stroke-width="2.5" fill="#FFB3C8" stroke-linecap="round"/>
+    <ellipse cx="78" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/><ellipse cx="122" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/>
+    <ellipse cx="84" cy="70" rx="16" ry="10" fill="white" opacity="0.18" transform="rotate(-30 84 70)"/>
+  </svg>`;
+}
+
+const grid = document.getElementById("grid");
+for (const s of Object.keys(PAL)) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML = petSvg(s) + `<h2>${PAL[s].name}</h2><p>${PAL[s].desc}</p>`;
+  grid.appendChild(card);
+}
+</script>
+</body>
+</html>

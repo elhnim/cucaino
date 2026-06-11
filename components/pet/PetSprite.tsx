@@ -120,38 +120,40 @@ function Eyes({ mood, p }: { mood: MoodId; p: typeof DEFAULT_PAL }) {
 }
 
 function Mouth({ mood }: { mood: MoodId }) {
+  // Mouths sit lower on the chin (the face has plenty of room below the nose)
+  // and are deliberately small — big high mouths read as creepy.
   if (mood === "sleeping") return (
-    <path d="M90 122 Q100 124 110 122" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M93 128 Q100 130 107 128" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
   )
   if (mood === "ecstatic") return (
     <g>
-      <path d="M82 118 Q100 132 118 118" stroke="#E06080" strokeWidth="3" fill="#FFB3C8" strokeLinecap="round" strokeLinejoin="round"/>
-      <ellipse cx="79" cy="120" rx="7" ry="5.5" fill="#FFB8D0" opacity="0.75"/>
-      <ellipse cx="121" cy="120" rx="7" ry="5.5" fill="#FFB8D0" opacity="0.75"/>
+      <path d="M88 126 Q100 136 112 126" stroke="#E06080" strokeWidth="3" fill="#FFB3C8" strokeLinecap="round" strokeLinejoin="round"/>
+      <ellipse cx="76" cy="124" rx="6.5" ry="5" fill="#FFB8D0" opacity="0.75"/>
+      <ellipse cx="124" cy="124" rx="6.5" ry="5" fill="#FFB8D0" opacity="0.75"/>
     </g>
   )
   if (mood === "starving") return (
     <g>
-      <path d="M86 120 Q100 130 114 120" stroke="#E08090" strokeWidth="2.5" fill="#FFD0D8" strokeLinecap="round"/>
+      <path d="M90 127 Q100 134 110 127" stroke="#E08090" strokeWidth="2.5" fill="#FFD0D8" strokeLinecap="round"/>
       {/* tongue peeking out */}
-      <ellipse cx="100" cy="127" rx="6" ry="4" fill="#FF8090"/>
+      <ellipse cx="100" cy="132" rx="5" ry="3.5" fill="#FF8090"/>
     </g>
   )
   if (mood === "tired") return (
-    <path d="M90 120 Q100 118 110 120" stroke="#BBBBBB" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M93 128 Q100 126 107 128" stroke="#BBBBBB" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
   )
   if (mood === "lonely") return (
-    <path d="M88 124 Q100 118 112 124" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M91 131 Q100 126 109 131" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
   )
   if (mood === "dirty") return (
-    <path d="M88 122 Q100 118 112 122" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M91 129 Q100 125 109 129" stroke="#AAAAAA" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
   )
   // happy default
   return (
     <g>
-      <path d="M85 118 Q100 130 115 118" stroke="#E06080" strokeWidth="2.5" fill="#FFB3C8" strokeLinecap="round"/>
-      <ellipse cx="82" cy="119" rx="6" ry="5" fill="#FFB8D0" opacity="0.65"/>
-      <ellipse cx="118" cy="119" rx="6" ry="5" fill="#FFB8D0" opacity="0.65"/>
+      <path d="M89 126 Q100 134 111 126" stroke="#E06080" strokeWidth="2.5" fill="#FFB3C8" strokeLinecap="round"/>
+      <ellipse cx="78" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/>
+      <ellipse cx="122" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/>
     </g>
   )
 }
