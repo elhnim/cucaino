@@ -413,6 +413,9 @@ export default function PetGame({
     return () => clearTimeout(t);
   }, [error]);
   useEffect(() => {
+    if (levelUp) playSfx("sparkle");
+  }, [levelUp]);
+  useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 3500);
     return () => clearTimeout(t);
@@ -461,7 +464,6 @@ export default function PetGame({
             const newLevel = levelFromXp(res.pet.xp);
             if (newLevel > prevLevel) {
               setLevelUp({ level: newLevel, evolved: stageFromLevel(newLevel) !== stageFromLevel(prevLevel) });
-              playSfx("sparkle");
             }
           }
           return res.pet;
