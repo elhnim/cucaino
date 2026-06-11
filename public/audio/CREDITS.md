@@ -37,3 +37,5 @@ Re-encoded from OGG to 96 kbps MP3 for Safari/iPad compatibility.
 | tap.mp3 | click_001.ogg | Interface Sounds | kenney.nl/assets/interface-sounds | CC0 |
 | win.mp3 | jingles_PIZZI09.ogg | Music Jingles | kenney.nl/assets/music-jingles | CC0 |
 | sparkle.mp3 | powerUp5.ogg | Digital Audio | kenney.nl/assets/digital-audio | CC0 |
+| wake.mp3 | powerUp3.ogg | Digital Audio | kenney.nl/assets/digital-audio | CC0 |
+| sleep.mp3 | lowDown.ogg | Digital Audio | kenney.nl/assets/digital-audio | CC0 |

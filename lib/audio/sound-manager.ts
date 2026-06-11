@@ -14,7 +14,7 @@ export type MusicTrack =
   | "dream-life"
   | "money-town";
 
-export type SfxName = "coin" | "correct" | "wrong" | "tap" | "win" | "sparkle";
+export type SfxName = "coin" | "correct" | "wrong" | "tap" | "win" | "sparkle" | "sleep" | "wake";
 
 const MUSIC_VOLUME = 1.0; // attenuation is baked into the MP3s (iPad Safari ignores the volume property)
 const SFX_VOLUME = 1.0;

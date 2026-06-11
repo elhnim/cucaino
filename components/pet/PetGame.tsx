@@ -817,7 +817,16 @@ export default function PetGame({
           <span className="text-[10px] font-black text-gray-700">Wash</span>
           <span className="text-[9px] font-bold text-yellow-600">{WASH_COST} ⭐</span>
         </button>
-        <button type="button" onClick={() => runAction(() => toggleSleep(kid.id))} disabled={isPending}
+        <button type="button" onClick={() => {
+          const waking = pet.isSleeping;
+          runAction(() => toggleSleep(kid.id), () => {
+            playSfx(waking ? "wake" : "sleep");
+            if (waking) {
+              setTrickAnim("pet-wake");
+              setTimeout(() => setTrickAnim(null), 1050);
+            }
+          });
+        }} disabled={isPending}
           className="bg-white rounded-2xl py-3 flex flex-col items-center gap-0.5 shadow-sm active:scale-95 transition-transform disabled:opacity-40">
           <span className="text-2xl">{pet.isSleeping ? "⏰" : "😴"}</span>
           <span className="text-[10px] font-black text-gray-700">{pet.isSleeping ? "Wake" : "Sleep"}</span>
