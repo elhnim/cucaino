@@ -112,6 +112,8 @@ function headExtras(s, p) {
   return "";
 }
 
+const HEAD_EMOJI = { dragon:"🐲", kitten:"🐱", puppy:"🐶", bunny:"🐰", panda:"🐼", unicorn:"🦄", elephant:"🐘", lion:"🦁", hippo:"🦛", monkey:"🐵" };
+
 function petSvg(s) {
   const p = PAL[s];
   const isPanda = s === "panda";
@@ -128,29 +130,7 @@ function petSvg(s) {
     <ellipse cx="40" cy="174" rx="13" ry="10" fill="${paw}"/><ellipse cx="160" cy="174" rx="13" ry="10" fill="${paw}"/>
     <ellipse cx="78" cy="212" rx="22" ry="17" fill="${isPanda ? p.accent : p.body}"/><ellipse cx="122" cy="212" rx="22" ry="17" fill="${isPanda ? p.accent : p.body}"/>
     <ellipse cx="76" cy="224" rx="20" ry="10" fill="${paw}"/><ellipse cx="124" cy="224" rx="20" ry="10" fill="${paw}"/>
-    ${headExtras(s,p)}
-    <circle cx="100" cy="100" r="52" fill="${p.body}"/>
-    ${isPanda ? `<ellipse cx="83" cy="101" rx="16" ry="18" fill="${p.accent}" transform="rotate(-12 83 101)"/><ellipse cx="117" cy="101" rx="16" ry="18" fill="${p.accent}" transform="rotate(12 117 101)"/>` : ""}
-    ${s==="kitten" ? `<g stroke="${p.outline}" stroke-width="2" opacity="0.7" stroke-linecap="round" fill="none">
-      <line x1="34" y1="102" x2="80" y2="108"/><line x1="30" y1="114" x2="80" y2="114"/><line x1="34" y1="126" x2="80" y2="120"/>
-      <line x1="120" y1="108" x2="166" y2="102"/><line x1="120" y1="114" x2="170" y2="114"/><line x1="120" y1="120" x2="166" y2="126"/></g>
-    <g stroke="${p.accent}" stroke-width="3" opacity="0.8" stroke-linecap="round" fill="none">
-      <path d="M92 54 Q93 62 92 68"/><path d="M100 52 Q101 61 100 68"/><path d="M108 54 Q107 62 108 68"/></g>` : ""}
-    ${s==="monkey" ? `<circle cx="84" cy="100" r="19" fill="${p.belly}"/><circle cx="116" cy="100" r="19" fill="${p.belly}"/>
-      <ellipse cx="100" cy="118" rx="22" ry="17" fill="${p.belly}"/>` : ""}
-    ${s==="hippo" ? `<ellipse cx="100" cy="118" rx="27" ry="17" fill="${p.belly}"/>
-      <ellipse cx="91" cy="113" rx="3.5" ry="4.5" fill="${p.accent}" opacity="0.65"/>
-      <ellipse cx="109" cy="113" rx="3.5" ry="4.5" fill="${p.accent}" opacity="0.65"/>` : ""}
-    ${s==="elephant" ? `<path d="M100 106 Q102 113 100 121" stroke="${p.body}" stroke-width="14" fill="none" stroke-linecap="round"/>
-      <ellipse cx="100" cy="121" rx="6.5" ry="4" fill="${p.accent}" opacity="0.75"/>` : ""}
-    ${s==="hippo" || s==="elephant" ? "" : `<ellipse cx="100" cy="113" rx="4" ry="3" fill="${p.accent}" opacity="0.8"/>`}
-    ${dragonNostrils}
-    <ellipse cx="83" cy="102" rx="12" ry="13" fill="white"/><ellipse cx="117" cy="102" rx="12" ry="13" fill="white"/>
-    <ellipse cx="83" cy="103" rx="8" ry="8.5" fill="${p.eye}"/><ellipse cx="117" cy="103" rx="8" ry="8.5" fill="${p.eye}"/>
-    <circle cx="86" cy="100" r="3" fill="white"/><circle cx="120" cy="100" r="3" fill="white"/>
-    <path d="M89 126 Q100 134 111 126" stroke="#E06080" stroke-width="2.5" fill="#FFB3C8" stroke-linecap="round"/>
-    <ellipse cx="78" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/><ellipse cx="122" cy="124" rx="5.5" ry="4.5" fill="#FFB8D0" opacity="0.65"/>
-    <ellipse cx="84" cy="70" rx="16" ry="10" fill="white" opacity="0.18" transform="rotate(-30 84 70)"/>
+    <text x="100" y="136" text-anchor="middle" font-size="94">${HEAD_EMOJI[s]}</text>
   </svg>`;
 }
 
