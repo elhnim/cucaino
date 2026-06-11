@@ -392,6 +392,9 @@ export default function PetGame({
   const [hearts, setHearts] = useState<{ id: number; left: number }[]>([]);
   const [bursts, setBursts] = useState<{ id: number; emoji: string; left: number }[]>([]);
   const [petBouncing, setPetBouncing] = useState(false);
+  const [trickAnim, setTrickAnim] = useState<string | null>(null);
+  const [highFiveHand, setHighFiveHand] = useState(false);
+  const [notes, setNotes] = useState<{ id: number; emoji: string; left: number; delay: number }[]>([]);
   const [speech, setSpeech] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const lastCuddleAt = useRef(0);
@@ -541,18 +544,46 @@ export default function PetGame({
     });
   };
 
+  // each trick gets its own choreography (CSS classes in globals.css) + matching effects
+  const TRICK_FX: Record<string, { anim: string; ms: number; bursts: string[]; notes?: string[]; hand?: boolean }> = {
+    spin:     { anim: "trick-spin",     ms: 1100, bursts: ["🌀", "💫", "🌀"] },
+    dance:    { anim: "trick-dance",    ms: 1400, bursts: ["✨", "🪩", "✨"], notes: ["🎵", "🎶", "🎵"] },
+    highfive: { anim: "trick-highfive", ms: 900,  bursts: ["💥", "⭐", "💥"], hand: true },
+    backflip: { anim: "trick-backflip", ms: 1200, bursts: ["🤸", "⭐", "💨"] },
+    sing:     { anim: "trick-sing",     ms: 1500, bursts: ["🎤", "💖", "🌟"], notes: ["🎵", "🎶", "🎼", "🎵"] },
+    magic:    { anim: "trick-magic",    ms: 1400, bursts: ["✨", "🪄", "🌟"], notes: ["✨", "✨", "✨"] },
+  };
+
   const doTrick = (trickId: string, emoji: string) => {
     runAction(
       () => performTrick(kid.id, trickId),
       () => {
-        spawnBursts(emoji);
+        const fx = TRICK_FX[trickId];
+        if (fx) {
+          setTrickAnim(fx.anim);
+          setTimeout(() => setTrickAnim(null), fx.ms + 50);
+          const items = fx.bursts.map((e, i) => ({ id: ++fxId.current, emoji: e, left: 22 + i * 27 }));
+          setBursts((b) => [...b, ...items]);
+          setTimeout(() => setBursts((b) => b.filter((x) => !items.some((i) => i.id === x.id))), 1100);
+          if (fx.notes) {
+            const ns = fx.notes.map((e, i) => ({ id: ++fxId.current, emoji: e, left: 25 + i * 18, delay: i * 0.18 }));
+            setNotes((n) => [...n, ...ns]);
+            setTimeout(() => setNotes((n) => n.filter((x) => !ns.some((i) => i.id === x.id))), fx.ms + 600);
+          }
+          if (fx.hand) {
+            setHighFiveHand(true);
+            setTimeout(() => setHighFiveHand(false), 950);
+          }
+        } else {
+          spawnBursts(emoji);
+        }
         setNotice(`${emoji} Ta-daa! +${TRICK_HAPPINESS} happy`);
         say("trick");
       },
     );
   };
 
-  const spriteAnimClass = petBouncing ? "avatar-bounce" : pet.isSleeping ? "avatar-idle" : "avatar-idle";
+  const spriteAnimClass = trickAnim ?? (petBouncing ? "avatar-bounce" : "avatar-idle");
 
   return (
     <div className="max-w-md mx-auto p-4 pb-8">
@@ -603,9 +634,10 @@ export default function PetGame({
         </div>
       </div>
 
-      {/* Toasts */}
+      {/* Toasts — fixed and above every modal (z-50) so "not enough stars"
+          shows on top of the shop sheet, not behind it */}
       {error && (
-        <div className="bg-white border-2 border-red-200 rounded-2xl px-4 py-2.5 mb-3 text-center animate-pop">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70] w-[calc(100%-2rem)] max-w-md bg-white border-2 border-red-200 rounded-2xl px-4 py-2.5 text-center animate-pop shadow-lg">
           {notEnough ? (
             <p className="text-sm font-bold text-gray-700">
               Not enough stars!{" "}
@@ -619,7 +651,7 @@ export default function PetGame({
         </div>
       )}
       {notice && !error && (
-        <div className="bg-white border-2 border-green-200 rounded-2xl px-4 py-2.5 mb-3 text-center animate-pop">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70] w-[calc(100%-2rem)] max-w-md bg-white border-2 border-green-200 rounded-2xl px-4 py-2.5 text-center animate-pop shadow-lg">
           <p className="text-sm font-bold text-green-700">{notice}</p>
         </div>
       )}
@@ -728,6 +760,16 @@ export default function PetGame({
         {bursts.map((b) => (
           <span key={b.id} className="trick-burst text-3xl" style={{ left: `${b.left}%`, bottom: 140 }}>{b.emoji}</span>
         ))}
+
+        {/* Music notes (sing/dance/magic) */}
+        {notes.map((n) => (
+          <span key={n.id} className="note-float text-2xl" style={{ left: `${n.left}%`, bottom: 170, animationDelay: `${n.delay}s` }}>{n.emoji}</span>
+        ))}
+
+        {/* The big hand swinging in for a high five */}
+        {highFiveHand && (
+          <span className="highfive-hand text-5xl" style={{ left: "55%", bottom: 170 }}>✋</span>
+        )}
 
         {/* Mood bubble */}
         <div className={`absolute bottom-2 left-1/2 -translate-x-1/2 w-[92%] rounded-2xl px-3 py-1.5 text-center backdrop-blur border ${pet.isSleeping ? "bg-white/15 border-white/20 text-white" : "bg-white/70 border-white/60 text-gray-700"}`}>
