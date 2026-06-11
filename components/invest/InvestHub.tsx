@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import type { InvestAccount, InvestHolding, InvestLicence, InvestTransaction, RealAsset, RealAssetPrice } from "@/lib/domain/types";
 import GameAudio from "@/components/audio/GameAudio";
+import GameFullscreen from "@/components/games/GameFullscreen";
 import InvestMarketTab from "@/components/invest/InvestMarketTab";
 import InvestPortfolioTab from "@/components/invest/InvestPortfolioTab";
 import InvestActivityTab from "@/components/invest/InvestActivityTab";
@@ -53,6 +54,7 @@ export default function InvestHub({ kid, account, licence, holdings, transaction
   return (
     <div className="min-h-full bg-slate-50 text-slate-950">
       <GameAudio track="invest" />
+      <GameFullscreen />
       <div className="px-4 pt-4 pb-2 flex items-center gap-3">
         <Link href={`/kid/${kid.id}/play`} className="text-sm font-bold text-slate-400 hover:text-slate-600">← Games</Link>
         <h1 className="text-2xl font-black">Invest</h1>

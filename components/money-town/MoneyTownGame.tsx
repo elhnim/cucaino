@@ -3,6 +3,7 @@
 import { useReducer, useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import GameAudio from "@/components/audio/GameAudio"
+import GameFullscreen from "@/components/games/GameFullscreen"
 import { playSfx } from "@/lib/audio/sound-manager"
 import { gameReducer, createInitialState } from "@/lib/money-town/gameLogic"
 import type { GameState } from "@/lib/money-town/types"
@@ -68,6 +69,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
     return (
       <>
         <GameAudio track="money-town" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
+        <GameFullscreen className="fixed top-[104px] right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
         <GameLobby
           kids={kids}
           activeKid={activeKid}
@@ -81,6 +83,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
     return (
       <>
         <GameAudio track="money-town" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
+        <GameFullscreen className="fixed top-[104px] right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
         <JobSpinCeremony
           key={state.jobSpinPlayerIndex}
           players={state.players}
@@ -111,6 +114,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
   return (
     <div className="relative h-full bg-sky-50">
       <GameAudio track="money-town" className="fixed top-14 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
+      <GameFullscreen className="fixed top-[104px] right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       <GameBoard
         state={state}
         dispatch={dispatch}

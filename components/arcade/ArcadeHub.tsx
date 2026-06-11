@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import GameAudio from "@/components/audio/GameAudio";
+import GameFullscreen from "@/components/games/GameFullscreen";
 import { ARCADE_GAMES } from "@/lib/arcade/games";
 import ConvertSparksModal from "./ConvertSparksModal";
 
@@ -34,6 +35,7 @@ export default function ArcadeHub({ kid }: ArcadeHubProps) {
   return (
     <div className="max-w-3xl mx-auto p-4 pt-5">
       <GameAudio track="arcade" className="fixed top-16 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
+      <GameFullscreen className="fixed top-[112px] right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <Link

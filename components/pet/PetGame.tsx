@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import GameAudio from "@/components/audio/GameAudio";
+import GameFullscreen from "@/components/games/GameFullscreen";
 import { playSfx } from "@/lib/audio/sound-manager";
 import FetchGame from "@/components/pet/FetchGame";
 import PetSprite from "@/components/pet/PetSprite";
@@ -592,6 +593,7 @@ export default function PetGame({
   return (
     <div className="max-w-md mx-auto p-4 pb-8">
       <GameAudio track="pet" />
+      <GameFullscreen />
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
