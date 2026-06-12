@@ -97,19 +97,14 @@ export class WorldScene extends Phaser.Scene {
     for (const cfg of defs) {
       const b = this.add.image(cfg.x, cfg.y, cfg.tex).setOrigin(0.5, 1);
       b.setDisplaySize(cfg.bw, cfg.bw * (b.height / b.width)).setDepth(cfg.y).setInteractive({ useHandCursor: true });
-      this.add
-        .text(cfg.x, cfg.y - b.displayHeight - 8, cfg.label, {
-          fontFamily: "system-ui", fontStyle: "bold", fontSize: "34px",
-          color: "#3a6b1e", backgroundColor: "#ffffff", padding: { x: 18, y: 8 },
-        })
-        .setOrigin(0.5, 1).setDepth(1e6);
+      this.makeSign(cfg.x, cfg.y - b.displayHeight - 28, cfg.label);
       b.on("pointerover", () => b.setTint(0xfff2c4));
       b.on("pointerout", () => b.clearTint());
       b.on("pointerdown", () => this.walkTo(cfg.x, cfg.y + 28, () => cfg.enter()));
       this.nodes.push({ x: cfg.x, y: cfg.y, enter: cfg.enter });
     }
 
-    this.player = this.add.sprite(1469, 2140, "cat-idle").play("cat-idle").setScale(0.9).setDepth(2140);
+    this.player = this.add.sprite(1469, 2140, "cat-idle").play("cat-idle").setScale(1.35).setDepth(2140);
 
     this.cameras.main.setBackgroundColor(GRASS);
     this.cameras.main.setBounds(0, 0, W, H);
@@ -193,6 +188,24 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** a carved old-world wooden signboard for a landmark name */
+  private makeSign(x: number, y: number, label: string) {
+    const txt = this.add.text(0, 0, label, {
+      fontFamily: 'Georgia, "Times New Roman", serif', fontStyle: "bold",
+      fontSize: "40px", color: "#5a3a18",
+    }).setOrigin(0.5);
+    const w = txt.width + 64, h = txt.height + 34;
+    const g = this.add.graphics();
+    g.fillStyle(0x000000, 0.22).fillRoundedRect(-w / 2 + 7, -h / 2 + 9, w, h, 18);   // drop shadow
+    g.fillStyle(0x9c6b34, 1).fillRoundedRect(-w / 2, -h / 2 + 7, w, h, 18);           // 3D under-edge
+    g.fillStyle(0xf6e7c6, 1).fillRoundedRect(-w / 2, -h / 2, w, h, 18);               // parchment face
+    g.lineStyle(6, 0x8a5a2b, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, 18);          // carved border
+    g.lineStyle(3, 0xfff6e2, 0.7).strokeRoundedRect(-w / 2 + 6, -h / 2 + 6, w - 12, h * 0.42, 12); // highlight
+    g.fillStyle(0x6b4a24, 1);                                                          // corner nails
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) g.fillCircle((sx * (w / 2 - 14)), (sy * (h / 2 - 12)), 4);
+    this.add.container(x, y, [g, txt]).setDepth(1e6);
+  }
+
   private drawPlaza() {
     const { x, y } = this.plaza;
     const g = this.add.graphics().setDepth(2);
@@ -262,9 +275,9 @@ export class WorldScene extends Phaser.Scene {
 
   private addAnimals() {
     const list: { a: string; x: number; y: number; s: number; flip?: boolean }[] = [
-      { a: "an-chick", x: 1000, y: 1500, s: 0.7 }, { a: "an-chick", x: 1260, y: 1540, s: 0.7, flip: true },
-      { a: "an-chick", x: 1380, y: 2120, s: 0.7 }, { a: "an-pig", x: 1040, y: 1700, s: 1.0 },
-      { a: "an-duck", x: 1120, y: 1620, s: 0.8 }, { a: "an-chick", x: 2300, y: 1880, s: 0.7, flip: true },
+      { a: "an-chick", x: 1000, y: 1500, s: 1.2 }, { a: "an-chick", x: 1280, y: 1540, s: 1.2, flip: true },
+      { a: "an-chick", x: 1380, y: 2120, s: 1.2 }, { a: "an-pig", x: 1030, y: 1720, s: 1.7 },
+      { a: "an-duck", x: 1140, y: 1640, s: 1.4 }, { a: "an-chick", x: 2300, y: 1880, s: 1.2, flip: true },
     ];
     for (const o of list) {
       this.add.sprite(o.x, o.y, o.a).play(o.a).setScale(o.s).setFlipX(!!o.flip).setDepth(o.y);
