@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { viewport } from "../../systems/layout";
-import { backdrop, sign, backButton, panel, grid, kidId, relayoutOnResize } from "./chrome";
+import { room, sign, backButton, panel, grid, kidId, relayoutOnResize } from "./chrome";
 
 interface Game { icon: string; name: string; scene?: string; tint: number; badge?: string }
 
@@ -9,7 +9,7 @@ export class PlayScene extends Phaser.Scene {
   constructor() { super("Play"); }
 
   create() {
-    backdrop(this, 0xe6e0ff);
+    room(this, 0xe3d6f5, 0xb98b53, 0xd6c0ff);
     backButton(this);
     const v = viewport(this);
     sign(this, v.cx, 54 * v.ui, "🛝 Playground", 38);

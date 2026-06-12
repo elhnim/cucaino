@@ -16,6 +16,42 @@ export function backdrop(scene: Phaser.Scene, tint = 0xfff4e2) {
   scene.add.rectangle(v.cx, v.cy, v.w, v.h, tint, 0.42).setDepth(-9);
 }
 
+/** the inside of a cosy house: wallpapered wall, window, wooden floor + rug. */
+export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, accent = 0xffe0b0) {
+  const v = viewport(scene);
+  // wall + subtle wallpaper stripes
+  scene.add.rectangle(v.cx, v.cy, v.w, v.h, wall).setDepth(-30);
+  const wp = scene.add.graphics().setDepth(-29);
+  wp.fillStyle(0xffffff, 0.05);
+  for (let x = 0; x < v.w; x += 56) wp.fillRect(x, 0, 26, v.h);
+
+  // window (upper-left, away from title/counters)
+  const ww = Math.min(v.w * 0.24, 250), wh = ww * 0.82;
+  const wx = Math.max(ww * 0.7 + 24, v.w * 0.2), wy = wh * 0.62 + 96;
+  const wg = scene.add.graphics().setDepth(-28);
+  wg.fillStyle(0x8a5a2b, 1).fillRoundedRect(wx - ww / 2 - 12, wy - wh / 2 - 12, ww + 24, wh + 24, 14);
+  wg.fillStyle(0xaed7ff, 1).fillRoundedRect(wx - ww / 2, wy - wh / 2, ww, wh, 6);
+  wg.fillStyle(0xcdeeff, 1).fillRect(wx - ww / 2, wy, ww, wh / 2);
+  wg.fillStyle(0xfff3bf, 1).fillCircle(wx + ww * 0.24, wy - wh * 0.18, ww * 0.13);
+  wg.lineStyle(7, 0x8a5a2b, 1);
+  wg.beginPath();
+  wg.moveTo(wx, wy - wh / 2); wg.lineTo(wx, wy + wh / 2);
+  wg.moveTo(wx - ww / 2, wy); wg.lineTo(wx + ww / 2, wy);
+  wg.strokePath();
+
+  // floor strip + baseboard + planks
+  const fy = v.h * 0.84;
+  scene.add.rectangle(v.cx, (fy + v.h) / 2, v.w, v.h - fy, floor).setDepth(-26);
+  scene.add.rectangle(v.cx, fy, v.w, 14, 0x8a5a2b).setDepth(-25);
+  const fg = scene.add.graphics().setDepth(-25);
+  fg.lineStyle(3, 0x000000, 0.08);
+  for (let yy = fy + 22; yy < v.h; yy += 40) fg.lineBetween(0, yy, v.w, yy);
+  // rug + potted plant
+  scene.add.graphics().setDepth(-24).fillStyle(accent, 0.5)
+    .fillEllipse(v.cx, (fy + v.h) / 2 + 4, v.w * 0.5, (v.h - fy) * 1.5);
+  scene.add.text(58, fy + 8, "🪴", { fontSize: "62px" }).setOrigin(0.5, 1).setDepth(-23);
+}
+
 /** carved wooden signboard (matches the town landmarks) */
 export function sign(scene: Phaser.Scene, x: number, y: number, label: string, size = 40) {
   const txt = scene.add.text(0, 0, label, {

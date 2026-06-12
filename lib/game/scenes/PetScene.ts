@@ -3,10 +3,10 @@ import { viewport, onResize } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 import { bridge } from "../bridge/dataBridge";
+import { room } from "./landmarks/chrome";
 
 /** Phase-0 pet: animated sprite + feed/play actions wired to the real server actions. */
 export class PetScene extends Phaser.Scene {
-  private bg!: Phaser.GameObjects.Image;
   private pet!: Phaser.GameObjects.Sprite;
   private back!: Phaser.GameObjects.Image;
   private buttons: Phaser.GameObjects.Container[] = [];
@@ -21,7 +21,7 @@ export class PetScene extends Phaser.Scene {
     const data = this.registry.get(REGISTRY_DATA) as InitialGameData;
     const kidId = data?.kid?.id ?? "";
 
-    this.bg = this.add.image(0, 0, "bg").setOrigin(0.5);
+    room(this, 0xffe6d0, 0xc89a5e, 0xffd0b0);
     this.pet = this.add.sprite(0, 0, "cat-idle").play("cat-idle");
     this.speech = this.add
       .text(0, 0, data?.pet ? `${data.pet.name} is happy!` : "Tap to play with me!", {
@@ -80,10 +80,7 @@ export class PetScene extends Phaser.Scene {
 
   private layout() {
     const v = viewport(this);
-    const scale = Math.max(v.w / this.bg.width, v.h / this.bg.height);
-    this.bg.setScale(scale).setPosition(v.cx, v.cy);
-
-    this.pet.setScale(v.ui * (v.portrait ? 0.9 : 1.1)).setPosition(v.cx, v.cy);
+    this.pet.setScale(v.ui * (v.portrait ? 1.0 : 1.2)).setPosition(v.cx, v.h * 0.66);
     this.speech.setPosition(v.cx, this.pet.y - this.pet.displayHeight / 2 - 20).setFontSize(18 * v.ui);
     this.back.setScale(v.ui * 0.8).setPosition(60 * v.ui, 60 * v.ui);
 

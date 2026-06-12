@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { viewport } from "../../systems/layout";
-import { backdrop, sign, backButton, panel, grid, relayoutOnResize } from "./chrome";
+import { room, sign, backButton, panel, grid, relayoutOnResize } from "./chrome";
 
 interface Task { icon: string; name: string; stars: number; done: boolean }
 
@@ -9,7 +9,7 @@ export class WorkScene extends Phaser.Scene {
   constructor() { super("Work"); }
 
   create() {
-    backdrop(this, 0xffe9c8);
+    room(this, 0xf0e3c8, 0xb98b53, 0xffe0b0);
     backButton(this);
     const v = viewport(this);
     sign(this, v.cx, 54 * v.ui, "🏢 My Day", 38);

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { viewport } from "../../systems/layout";
-import { backdrop, sign, backButton, panel, grid, relayoutOnResize } from "./chrome";
+import { room, sign, backButton, panel, grid, relayoutOnResize } from "./chrome";
 
 interface Reward { icon: string; name: string; price: number; locked?: boolean }
 
@@ -9,7 +9,7 @@ export class ShopScene extends Phaser.Scene {
   constructor() { super("Shop"); }
 
   create() {
-    backdrop(this, 0xffe1ef);
+    room(this, 0xf7dbe8, 0xc2945a, 0xffd0e0);
     backButton(this);
     const v = viewport(this);
     sign(this, v.cx, 54 * v.ui, "🏪 Reward Store", 36);

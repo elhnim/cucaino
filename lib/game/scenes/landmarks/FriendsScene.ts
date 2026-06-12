@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { viewport } from "../../systems/layout";
-import { backdrop, sign, backButton, panel, grid, relayoutOnResize } from "./chrome";
+import { room, sign, backButton, panel, grid, relayoutOnResize } from "./chrome";
 
 interface Friend { face: string; name: string; online: boolean; note?: string }
 
@@ -9,7 +9,7 @@ export class FriendsScene extends Phaser.Scene {
   constructor() { super("Friends"); }
 
   create() {
-    backdrop(this, 0xe2f0ff);
+    room(this, 0xd9ebfb, 0xb98b53, 0xbfe0ff);
     backButton(this);
     const v = viewport(this);
     sign(this, v.cx, 54 * v.ui, "💌 Friends", 38);
