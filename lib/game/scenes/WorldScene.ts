@@ -83,6 +83,8 @@ export class WorldScene extends Phaser.Scene {
     this.buildScenery();
     this.drawFlowers();
     this.addAnimals();
+    this.cloudShadows();
+    this.pollen();
 
     // one-time "Let's Go!" flourish when the village first opens this session
     if (!this.registry.get("intro-shown")) {
@@ -172,9 +174,9 @@ export class WorldScene extends Phaser.Scene {
       const spline = new Phaser.Curves.Spline(seg.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
       const pts = spline.getPoints(Math.max(8, Math.floor(spline.getLength() / 44)))
         .map((p) => [p.x, p.y] as [number, number]);
-      this.grid.markPath(pts, 72);
+      this.grid.markPath(pts, 96);   // keep buildings/props clear of the full cobble width
     }
-    this.grid.markCircle(this.plaza.x, this.plaza.y, this.plazaR + 70);
+    this.grid.markCircle(this.plaza.x, this.plaza.y, this.plazaR + 96);
     for (const [x, y] of this.plots) this.grid.markRect(x, y, 430, 320);
     for (const [x, y] of this.buildingSpots) this.grid.markRect(x, y - 80, 330, 250);
     // forest-frame border kept clear of buildings/props
@@ -198,7 +200,7 @@ export class WorldScene extends Phaser.Scene {
         const perpx = -dly / dl, perpy = dlx / dl;
         const h = HOUSE_SET[idx % HOUSE_SET.length];
         const fw = h.bw * 0.82, fh = h.bw * 0.46;
-        const off = 128;
+        const off = 162;
         for (const side of i % 2 === 0 ? [1, -1] : [-1, 1]) {
           const bx = pts[i].x + perpx * side * off;
           const by = pts[i].y + perpy * side * off;
@@ -281,7 +283,7 @@ export class WorldScene extends Phaser.Scene {
         const p = props[idx % props.length];
         const fw = p.w * 0.8, fh = p.w * 0.5;
         for (const side of [1, -1]) {
-          const px = pts[i].x + perpx * side * 96, py = pts[i].y + perpy * side * 96;
+          const px = pts[i].x + perpx * side * 124, py = pts[i].y + perpy * side * 124;
           if (!this.grid.isFree(px, py - fh * 0.15, fw, fh)) continue;
           const img = this.add.image(px, py, p.tex).setOrigin(0.5, 1);
           img.setDisplaySize(p.w, p.w * (img.height / img.width)).setDepth(py);
@@ -373,15 +375,64 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  /** townsfolk: varied animals dotted around open grass, a few gently strolling */
   private addAnimals() {
-    const list: { a: string; x: number; y: number; s: number; flip?: boolean }[] = [
-      { a: "an-chick", x: 1000, y: 1500, s: 1.2 }, { a: "an-chick", x: 1280, y: 1540, s: 1.2, flip: true },
-      { a: "an-chick", x: 1380, y: 2120, s: 1.2 }, { a: "an-pig", x: 1030, y: 1720, s: 1.7 },
-      { a: "an-duck", x: 1140, y: 1640, s: 1.4 }, { a: "an-chick", x: 2300, y: 1880, s: 1.2, flip: true },
-    ];
-    for (const o of list) {
-      this.add.sprite(o.x, o.y, o.a).play(o.a).setScale(o.s).setFlipX(!!o.flip).setDepth(o.y);
+    const kinds = ["an-chick", "an-duck", "an-pig", "an-bunny", "an-panda"];
+    const sizeOf: Record<string, number> = { "an-chick": 1.2, "an-duck": 1.4, "an-pig": 1.7, "an-bunny": 1.5, "an-panda": 1.7 };
+    // a couple of farmyard ducks by the fountain
+    for (const [x, y] of [[940, 1600], [1140, 1640], [1040, 1720]] as [number, number][]) {
+      this.add.sprite(x, y, "an-duck").play("an-duck").setScale(1.3).setDepth(y);
     }
+    // scatter townsfolk on free grass
+    let n = 0, attempts = 0;
+    while (n < 14 && attempts < 400) {
+      attempts++;
+      const h = (attempts * 2654435761) >>> 0;
+      const x = 300 + (h % (W - 600));
+      const y = 320 + ((h >> 9) % (H - 640));
+      if (!this.grid.isFree(x, y, 150, 90)) continue;
+      const a = kinds[h % kinds.length];
+      const s = sizeOf[a];
+      const spr = this.add.sprite(x, y, a).play(a).setScale(s).setFlipX((h & 1) === 0).setDepth(y);
+      this.grid.markRect(x, y - 30, 130, 90);
+      // some stroll a little
+      if (h % 3 === 0) {
+        const dir = (h & 2) ? 90 : -90;
+        this.tweens.add({
+          targets: spr, x: x + dir, duration: 4200 + (h % 1500), yoyo: true, repeat: -1,
+          ease: "sine.inout", onYoyo: () => spr.setFlipX(!spr.flipX), onRepeat: () => spr.setFlipX(!spr.flipX),
+        });
+      }
+      n++;
+    }
+  }
+
+  /** drifting cloud shadows for living daylight */
+  private cloudShadows() {
+    for (let i = 0; i < 5; i++) {
+      const c = this.add.graphics().setDepth(4000);
+      c.fillStyle(0x21330f, 0.07).fillEllipse(0, 0, 560 + i * 90, 330 + i * 50);
+      const y = 300 + i * 430;
+      const startX = -500 + i * 760;
+      c.setPosition(startX, y);
+      this.tweens.add({ targets: c, x: startX + W + 1000, duration: 46000 + i * 9000, repeat: -1, ease: "linear" });
+    }
+  }
+
+  /** soft floating pollen motes drifting through the air */
+  private pollen() {
+    if (!this.textures.exists("mote")) {
+      const g = this.make.graphics({});
+      g.fillStyle(0xffffff, 1).fillCircle(8, 8, 7);
+      g.generateTexture("mote", 16, 16);
+      g.destroy();
+    }
+    this.add.particles(0, 0, "mote", {
+      x: { min: 0, max: W }, y: { min: 0, max: H },
+      lifespan: 9000, speedX: { min: -16, max: 16 }, speedY: { min: -24, max: -6 },
+      scale: { min: 0.2, max: 0.55 }, alpha: { start: 0.55, end: 0 },
+      tint: [0xfff6c8, 0xffffff, 0xeaffd0], frequency: 220, quantity: 1, blendMode: "ADD",
+    }).setDepth(3500);
   }
 
   private buildScenery() {

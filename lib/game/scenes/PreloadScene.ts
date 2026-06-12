@@ -59,8 +59,8 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet("cat-walk", "/game/pet/cat-walk.png", PET_FRAME);
     this.load.spritesheet("cat-jump", "/game/pet/cat-jump.png", PET_FRAME);
 
-    // town farm animals (idle)
-    for (const a of ["chick", "duck", "pig"]) {
+    // town animals + townsfolk (idle)
+    for (const a of ["chick", "duck", "pig", "bunny", "panda"]) {
       this.load.spritesheet(`an-${a}`, `/game/world/animals/${a}-idle.png`, { frameWidth: 268, frameHeight: 171 });
     }
     // animated game-moment banners
@@ -87,7 +87,7 @@ export class PreloadScene extends Phaser.Scene {
       frameRate: 18,
       repeat: 0,
     });
-    for (const a of ["chick", "duck", "pig"]) {
+    for (const a of ["chick", "duck", "pig", "bunny", "panda"]) {
       this.anims.create({
         key: `an-${a}`,
         frames: this.anims.generateFrameNumbers(`an-${a}`, { start: 0, end: 19 }),
