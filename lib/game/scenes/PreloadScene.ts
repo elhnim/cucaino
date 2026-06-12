@@ -30,10 +30,16 @@ export class PreloadScene extends Phaser.Scene {
     this.load.image("bg", "/game/world/bg.png");
     // summer top-down tileset props (build the town from these)
     const sum = "/game/world/sum";
-    for (const k of ["house", "castle", "tent", "tower", "magic", "tree-l", "tree-m",
+    for (const k of ["house", "castle", "castle2", "tent", "tower", "magic", "tree-l", "tree-m",
       "tree-s", "bush-l", "bush-m", "bush-s", "rock1", "rock2", "rock3", "rock4", "rock5",
       "stump", "stump2", "campfire", "flag", "chest"]) {
       this.load.image(`sum-${k}`, `${sum}/${k}.png`);
+    }
+    // medieval street furniture (single complete images)
+    const md = "/game/world/meddec";
+    for (const k of ["fountain", "well", "lantern", "stall", "cart", "barrel",
+      "bench", "gardenbed", "basin", "sign"]) {
+      this.load.image(`md-${k}`, `${md}/${k}.png`);
     }
     this.load.image("cloud1", "/game/world/cloud1.png");
     this.load.image("cloud2", "/game/world/cloud2.png");
