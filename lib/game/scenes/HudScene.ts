@@ -60,14 +60,15 @@ export class HudScene extends Phaser.Scene {
 
   private buildDpad() {
     this.dpad = this.add.container(0, 0).setVisible(false).setDepth(50);
+    const R = 28;
     const arrows: Record<Dir, string> = { up: "▲", down: "▼", left: "◀", right: "▶" };
     (Object.keys(arrows) as Dir[]).forEach((dir) => {
-      const circle = this.add.circle(0, 0, 40, 0xffffff, 0.82).setStrokeStyle(4, 0xb5572a);
+      const circle = this.add.circle(0, 0, R, 0xffffff, 0.7).setStrokeStyle(3, 0xb5572a);
       const glyph = this.add.text(0, 0, arrows[dir], {
-        fontFamily: "system-ui", fontSize: "30px", color: "#b5572a",
+        fontFamily: "system-ui", fontSize: "20px", color: "#b5572a",
       }).setOrigin(0.5);
       const btn = this.add.container(0, 0, [circle, glyph]);
-      circle.setInteractive(new Phaser.Geom.Circle(0, 0, 40), Phaser.Geom.Circle.Contains);
+      circle.setInteractive(new Phaser.Geom.Circle(0, 0, R), Phaser.Geom.Circle.Contains);
       const press = (down: boolean) => {
         circle.setFillStyle(0xffffff, down ? 1 : 0.82);
         this.game.events.emit("move", { dir, down });
@@ -104,11 +105,11 @@ export class HudScene extends Phaser.Scene {
       this.starTxt.setFontSize(26 * v.ui).setPosition(rx - 64 * v.ui, pad + ico / 2);
     }
 
-    // D-pad bottom-left, scaled for the device
-    const s = v.ui;
-    const gap = 70 * s;
-    const cx = 24 * s + gap + 40 * s;
-    const cy = v.h - 24 * s - gap - 40 * s;
+    // D-pad bottom-left, smaller + scaled for the device
+    const s = Math.min(v.ui, 1) * 0.82;
+    const gap = 52 * s;
+    const cx = 18 * s + gap + 28 * s;
+    const cy = v.h - 18 * s - gap - 28 * s;
     this.dpad.setScale(s).setPosition(0, 0);
     const place = (dir: Dir, dx: number, dy: number) =>
       this.buttons[dir]!.setPosition((cx + dx * gap) / s, (cy + dy * gap) / s);

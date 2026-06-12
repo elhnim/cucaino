@@ -50,6 +50,11 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet("cat-idle", "/game/pet/cat-idle.png", PET_FRAME);
     this.load.spritesheet("cat-walk", "/game/pet/cat-walk.png", PET_FRAME);
     this.load.spritesheet("cat-jump", "/game/pet/cat-jump.png", PET_FRAME);
+
+    // town farm animals (idle)
+    for (const a of ["chick", "duck", "pig"]) {
+      this.load.spritesheet(`an-${a}`, `/game/world/animals/${a}-idle.png`, { frameWidth: 268, frameHeight: 171 });
+    }
   }
 
   create() {
@@ -72,6 +77,14 @@ export class PreloadScene extends Phaser.Scene {
       frameRate: 18,
       repeat: 0,
     });
+    for (const a of ["chick", "duck", "pig"]) {
+      this.anims.create({
+        key: `an-${a}`,
+        frames: this.anims.generateFrameNumbers(`an-${a}`, { start: 0, end: 19 }),
+        frameRate: 10,
+        repeat: -1,
+      });
+    }
 
     const data = this.registry.get(REGISTRY_DATA) as InitialGameData;
     const start = data?.startScene === "pet" ? "Pet" : "World";
