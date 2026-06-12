@@ -687,7 +687,17 @@ export default function PetGame({
       <GameFullscreen />
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <div>
+        {/* Back — the page is full-screen (no KidShell nav), so without this
+            there is no way out of the pet game on a tablet/PWA. */}
+        <Link
+          href={`/kid/${kid.id}/play`}
+          aria-label="Back"
+          className="flex-shrink-0 mr-3 w-10 h-10 rounded-full bg-white shadow-md border-2 flex items-center justify-center text-lg font-black"
+          style={{ borderColor: accent, color: accent }}
+        >
+          ←
+        </Link>
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-black text-gray-900 leading-tight">
             {pet.name}
             <span className="ml-2 text-[10px] font-black text-white px-2 py-0.5 rounded-full align-middle uppercase tracking-wide" style={{ background: accent }}>
