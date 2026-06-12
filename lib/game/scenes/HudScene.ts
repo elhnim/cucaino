@@ -48,14 +48,26 @@ export class HudScene extends Phaser.Scene {
     this.game.events.on("hud:stars", (n: number) => this.starTxt.setText(`${n}`));
     // show the D-pad only while the explorable world is active
     this.game.events.on("dpad", (on: boolean) => this.dpad.setVisible(on));
+    // animated game-moment banner (e.g. "Let's Go!")
+    this.game.events.on("banner", (key: string) => this.playBanner(key));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off("hud:coins");
       this.game.events.off("hud:stars");
       this.game.events.off("dpad");
+      this.game.events.off("banner");
     });
 
     this.layout();
     onResize(this, () => this.layout());
+  }
+
+  private playBanner(key: string) {
+    const v = viewport(this);
+    const s = this.add.sprite(v.cx, v.h * 0.34, key).setDepth(200).setScale(Math.min(v.ui, 1.2) * 1.4);
+    s.play(key);
+    s.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      this.tweens.add({ targets: s, alpha: 0, y: s.y - 40, duration: 360, onComplete: () => s.destroy() });
+    });
   }
 
   private buildDpad() {

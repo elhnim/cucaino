@@ -61,6 +61,8 @@ export class PreloadScene extends Phaser.Scene {
     for (const a of ["chick", "duck", "pig"]) {
       this.load.spritesheet(`an-${a}`, `/game/world/animals/${a}-idle.png`, { frameWidth: 268, frameHeight: 171 });
     }
+    // animated game-moment banners
+    this.load.spritesheet("txt-letsgo", "/game/world/text/letsgo.png", { frameWidth: 273, frameHeight: 231 });
   }
 
   create() {
@@ -91,6 +93,12 @@ export class PreloadScene extends Phaser.Scene {
         repeat: -1,
       });
     }
+    this.anims.create({
+      key: "txt-letsgo",
+      frames: this.anims.generateFrameNumbers("txt-letsgo", { start: 0, end: 39 }),
+      frameRate: 34,
+      repeat: 0,
+    });
 
     const data = this.registry.get(REGISTRY_DATA) as InitialGameData;
     const start = data?.startScene === "pet" ? "Pet" : "World";

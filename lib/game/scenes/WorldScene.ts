@@ -19,7 +19,8 @@ const HOUSE_SET: { tex: string; bw: number }[] = [
   { tex: "sum-house", bw: 188 }, { tex: "sum-castle2", bw: 205 }, { tex: "sum-house", bw: 172 },
   { tex: "sum-magic", bw: 158 }, { tex: "sum-house", bw: 178 }, { tex: "sum-tower", bw: 146 },
 ];
-const TINTS = [0xffffff, 0xffe2c4, 0xd4e4ff, 0xffd6d6, 0xe8ffd6, 0xfff0c0, 0xffffff];
+// painted-house washes — varied roof/wall hues for an old-European street
+const TINTS = [0xffffff, 0xfff0d0, 0xffc39a, 0xf2cf78, 0xcfe6a8, 0xb6d2ec, 0xf2bccb, 0xdcc8f0, 0xffffff, 0xe8c8a0];
 const WALK_SPEED = 520;
 
 interface Place { key: string; label: string; tex: string; bw: number; x: number; y: number; enter: () => void }
@@ -34,6 +35,7 @@ export class WorldScene extends Phaser.Scene {
   private nodes: { x: number; y: number; enter: () => void }[] = [];
   private nearGuard = false;
   private placed: [number, number][] = [];
+  private placedProps: [number, number][] = [];
 
   private roads: [number, number][][] = [
     [[848, 476], [941, 717], [922, 995], [922, 1152]],
@@ -51,7 +53,9 @@ export class WorldScene extends Phaser.Scene {
     [1404, 480], [1900, 1140], [560, 1470], [2780, 1180], [1469, 2050],
   ];
   private plots: [number, number][] = [[1180, 760], [2360, 1640]];
-  private plaza = { x: 1130, y: 1360 };
+  // tucked into an open pocket off the lanes (not on a junction)
+  private plaza = { x: 1040, y: 1450 };
+  private plazaR = 165;
 
   constructor() {
     super("World");
@@ -77,10 +81,17 @@ export class WorldScene extends Phaser.Scene {
     ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
 
     this.lineStreetsWithHouses();
+    this.dressStreets();
     this.dressPlaza();
     this.buildScenery();
     this.drawFlowers();
     this.addAnimals();
+
+    // one-time "Let's Go!" flourish when the village first opens this session
+    if (!this.registry.get("intro-shown")) {
+      this.registry.set("intro-shown", true);
+      this.time.delayedCall(250, () => this.game.events.emit("banner", "txt-letsgo"));
+    }
 
     const defs: Place[] = [
       { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 310, x: 1404, y: 480,
@@ -208,29 +219,65 @@ export class WorldScene extends Phaser.Scene {
 
   private drawPlaza() {
     const { x, y } = this.plaza;
+    const r = this.plazaR;
     const g = this.add.graphics().setDepth(2);
-    g.fillStyle(PATH_FILL, 1).fillCircle(x, y, 250);
-    g.lineStyle(10, PATH_EDGE, 1).strokeCircle(x, y, 250);
-    g.lineStyle(4, PATH_MID, 0.7).strokeCircle(x, y, 175);
-    g.lineStyle(4, PATH_MID, 0.6).strokeCircle(x, y, 100);
+    g.fillStyle(PATH_FILL, 1).fillCircle(x, y, r);
+    g.lineStyle(9, PATH_EDGE, 1).strokeCircle(x, y, r);
+    g.lineStyle(4, PATH_MID, 0.6).strokeCircle(x, y, r * 0.62);
   }
 
   private dressPlaza() {
     const { x, y } = this.plaza;
+    const r = this.plazaR;
     const items: Decor[] = [
-      { tex: "md-fountain", x, y: y + 30, w: 230 },
-      { tex: "md-stall", x: x - 190, y: y - 120, w: 130 },
-      { tex: "md-cart", x: x + 180, y: y - 110, w: 140 },
-      { tex: "md-barrel", x: x - 210, y: y + 90, w: 70 },
-      { tex: "md-barrel", x: x + 205, y: y + 110, w: 70 },
-      { tex: "md-bench", x: x - 60, y: y + 200, w: 120 },
-      { tex: "md-well", x: x + 120, y: y + 210, w: 110 },
-      { tex: "md-lantern", x: x - 235, y: y - 10, w: 70 },
-      { tex: "md-lantern", x: x + 235, y: y + 10, w: 70 },
+      { tex: "md-fountain", x, y: y + 26, w: 190 },
+      { tex: "md-lantern", x: x - r - 8, y: y - 6, w: 64 },
+      { tex: "md-lantern", x: x + r + 8, y: y + 6, w: 64 },
+      { tex: "md-bench", x: x - 30, y: y + r + 50, w: 110 },
+      { tex: "md-barrel", x: x + r - 6, y: y + 70, w: 64 },
     ];
-    for (const d of items) {
+    // a small market just outside the plaza
+    const market: Decor[] = [
+      { tex: "md-stall", x: x - 250, y: y - 70, w: 130 },
+      { tex: "md-cart", x: x - 270, y: y + 70, w: 135 },
+      { tex: "md-well", x: x + 250, y: y + 40, w: 105 },
+    ];
+    for (const d of [...items, ...market]) {
       const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
       img.setDisplaySize(d.w, d.w * (img.height / img.width)).setDepth(d.y);
+    }
+  }
+
+  /** scatter charming street furniture (lanterns, benches, barrels, beds) along the lanes */
+  private dressStreets() {
+    const props = [
+      { tex: "md-lantern", w: 82 }, { tex: "md-bench", w: 118 }, { tex: "md-barrel", w: 74 },
+      { tex: "md-gardenbed", w: 145 }, { tex: "md-sign", w: 92 }, { tex: "sum-bush-s", w: 96 },
+    ];
+    let idx = 1;
+    for (const seg of this.roads) {
+      const spline = new Phaser.Curves.Spline(seg.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
+      const n = Math.max(2, Math.floor(spline.getLength() / 260));
+      const pts = spline.getSpacedPoints(n);
+      for (let i = 1; i < pts.length - 1; i++) {
+        if (i % 2 === 0) continue;
+        const prev = pts[i - 1], next = pts[i + 1];
+        const dlx = next.x - prev.x, dly = next.y - prev.y;
+        const dl = Math.hypot(dlx, dly) || 1;
+        const perpx = -dly / dl, perpy = dlx / dl;
+        const side = i % 4 === 1 ? 1 : -1;
+        const px = pts[i].x + perpx * side * 78, py = pts[i].y + perpy * side * 78;
+        if (px < 200 || px > W - 200 || py < 250 || py > H - 190) continue;
+        if (this.nearAny(px, py, this.buildingSpots, 230)) continue;
+        if (Phaser.Math.Distance.Between(px, py, this.plaza.x, this.plaza.y) < this.plazaR + 130) continue;
+        if (this.nearAny(px, py, this.placed, 120)) continue;
+        if (this.nearAny(px, py, this.placedProps, 150)) continue;
+        const p = props[idx % props.length];
+        const img = this.add.image(px, py, p.tex).setOrigin(0.5, 1);
+        img.setDisplaySize(p.w, p.w * (img.height / img.width)).setDepth(py);
+        this.placedProps.push([px, py]);
+        idx++;
+      }
     }
   }
 
@@ -262,14 +309,21 @@ export class WorldScene extends Phaser.Scene {
 
   private drawPlots() {
     for (const [x, y] of this.plots) {
-      const g = this.add.graphics().setDepth(y);
-      g.fillStyle(0xc9a877, 0.5).fillRoundedRect(x - 120, y - 95, 240, 175, 18);
-      g.lineStyle(5, 0x9a7a45, 0.8).strokeRoundedRect(x - 120, y - 95, 240, 175, 18);
-      this.add.text(x, y - 6, "🏗️", { fontSize: "52px" }).setOrigin(0.5).setDepth(y);
-      this.add.text(x, y + 54, "Coming soon", {
-        fontFamily: "system-ui", fontStyle: "bold", fontSize: "22px",
-        color: "#7a5a25", backgroundColor: "#ffffffcc", padding: { x: 8, y: 3 },
-      }).setOrigin(0.5).setDepth(y);
+      const w = 360, h = 250, left = x - w / 2, top = y - h / 2;
+      const g = this.add.graphics().setDepth(y - h / 2);
+      g.fillStyle(0xc7a86f, 1).fillRoundedRect(left, top, w, h, 16);                 // dirt pad
+      g.fillStyle(0xb6924f, 1);
+      for (let fx = left + 24; fx < left + w; fx += 60) g.fillRect(fx, top + 16, 26, h - 32); // tilled rows
+      // wooden fence: corner/edge posts + top rail
+      g.fillStyle(0x9c6b34, 1);
+      const post = (px: number, py: number) => g.fillRoundedRect(px - 9, py - 30, 18, 62, 5);
+      for (let px = left; px <= left + w; px += 72) { post(px, top); post(px, top + h); }
+      for (let py = top; py <= top + h; py += 78) { post(left, py); post(left + w, py); }
+      g.lineStyle(9, 0x8a5a2b, 1).strokeRoundedRect(left, top, w, h, 16);
+      const bar = this.add.image(x - 95, y + 50, "md-barrel").setOrigin(0.5, 1);
+      bar.setDisplaySize(72, 72 * (bar.height / bar.width)).setDepth(y + 50);
+      this.add.text(x + 30, y + 14, "🏗️", { fontSize: "92px" }).setOrigin(0.5).setDepth(y);
+      this.makeSign(x, top - 26, "Coming Soon");
     }
   }
 
