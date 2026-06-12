@@ -28,7 +28,11 @@ const TINTS = [
 ];
 const WALK_SPEED = 520;
 
-interface Place { key: string; label: string; tex: string; bw: number; x: number; y: number; enter: () => void }
+interface Place {
+  key: string; label: string; tex: string; bw: number; x: number; y: number;
+  tint?: number; props?: { tex: string; dx: number; dy: number; w: number }[];
+  enter: () => void;
+}
 interface Decor { tex: string; x: number; y: number; w: number; tint?: number; flip?: boolean }
 
 export class WorldScene extends Phaser.Scene {
@@ -99,23 +103,39 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const defs: Place[] = [
-      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 310, x: 1404, y: 480,
+      // Work — the grand civic building
+      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 320, x: 1404, y: 480,
+        props: [{ tex: "sum-flag", dx: -150, dy: -10, w: 90 }, { tex: "sum-flag", dx: 150, dy: -10, w: 90 }],
         enter: () => this.enterFlash(() => go("Work", `/kid/${kidId}/world?scene=work`)) },
-      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 250, x: 1900, y: 1140,
+      // Shop — a cottage with a real shopfront (market stall + cart)
+      { key: "shop", label: "🏪 Shop", tex: "sum-house", bw: 260, x: 1900, y: 1140, tint: 0xffdca6,
+        props: [{ tex: "md-stall", dx: -150, dy: 24, w: 150 }, { tex: "md-cart", dx: 156, dy: 30, w: 150 },
+                { tex: "md-barrel", dx: -190, dy: 60, w: 66 }],
         enter: () => this.enterFlash(() => go("Shop", `/kid/${kidId}/world?scene=shop`)) },
+      // Friends — the lookout tower with a notice board
       { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 240, x: 560, y: 1470,
+        props: [{ tex: "md-sign", dx: 130, dy: 16, w: 100 }, { tex: "md-bench", dx: -120, dy: 20, w: 110 }],
         enter: () => this.enterFlash(() => go("Friends", `/kid/${kidId}/world?scene=friends`)) },
-      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 280, x: 2780, y: 1180,
+      // Playground — the fun-fair tent
+      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 290, x: 2780, y: 1180,
+        props: [{ tex: "sum-flag", dx: 150, dy: -6, w: 84 }],
         enter: () => this.enterFlash(() => go("Play", `/kid/${kidId}/world?scene=play`)) },
-      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 300, x: 1469, y: 2050,
+      // Pet Home — a cosy cottage (cool tint to read apart from the shop)
+      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 300, x: 1469, y: 2050, tint: 0xd6e6ff,
+        props: [{ tex: "sum-bush-l", dx: -150, dy: 20, w: 110 }, { tex: "md-gardenbed", dx: 150, dy: 22, w: 130 }],
         enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
     ];
     for (const cfg of defs) {
+      for (const p of cfg.props ?? []) {
+        const pi = this.add.image(cfg.x + p.dx, cfg.y + p.dy, p.tex).setOrigin(0.5, 1);
+        pi.setDisplaySize(p.w, p.w * (pi.height / pi.width)).setDepth(cfg.y + p.dy);
+      }
       const b = this.add.image(cfg.x, cfg.y, cfg.tex).setOrigin(0.5, 1);
       b.setDisplaySize(cfg.bw, cfg.bw * (b.height / b.width)).setDepth(cfg.y).setInteractive({ useHandCursor: true });
+      if (cfg.tint) b.setTint(cfg.tint);
       this.makeSign(cfg.x, cfg.y - b.displayHeight - 28, cfg.label);
       b.on("pointerover", () => b.setTint(0xfff2c4));
-      b.on("pointerout", () => b.clearTint());
+      b.on("pointerout", () => b.setTint(cfg.tint ?? 0xffffff));
       b.on("pointerdown", () => this.walkTo(cfg.x, cfg.y + 28, () => cfg.enter()));
       this.nodes.push({ x: cfg.x, y: cfg.y, enter: cfg.enter });
     }
