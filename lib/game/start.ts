@@ -25,12 +25,12 @@ export function startGame(parent: HTMLElement, data: InitialGameData): () => voi
 
   game.registry.set(REGISTRY_DATA, data);
 
-  // pause the render loop when the tab/app is hidden (battery)
-  const onVis = () => (document.hidden ? game.loop.sleep() : game.loop.wake());
-  document.addEventListener("visibilitychange", onVis);
+  // Phaser already pauses the render loop on blur/visibility-hidden via its
+  // built-in Page Visibility handling and resumes seamlessly on focus — no
+  // manual sleep/wake (a manual handler fights the built-in one and the canvas
+  // fails to resume).
 
   return () => {
-    document.removeEventListener("visibilitychange", onVis);
     game.destroy(true);
   };
 }
