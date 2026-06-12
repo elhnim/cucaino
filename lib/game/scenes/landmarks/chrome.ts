@@ -109,3 +109,37 @@ export function relayoutOnResize(scene: Phaser.Scene) {
   scene.scale.on(Phaser.Scale.Events.RESIZE, fn);
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => scene.scale.off(Phaser.Scale.Events.RESIZE, fn));
 }
+
+/** make `container` drag-scroll vertically within a viewport rect; masks overflow */
+export function scrollArea(
+  scene: Phaser.Scene, container: Phaser.GameObjects.Container,
+  x: number, y: number, w: number, h: number, contentBottom: number,
+) {
+  const m = scene.make.graphics({});
+  m.fillStyle(0xffffff).fillRect(x, y, w, h);
+  container.setMask(m.createGeometryMask());
+
+  const maxScroll = Math.max(0, contentBottom - (y + h));
+  if (maxScroll <= 0) return;
+
+  const zone = scene.add.zone(x + w / 2, y + h / 2, w, h).setInteractive().setDepth(-1);
+  let dragging = false, startY = 0, startC = 0;
+  zone.on("pointerdown", (p: Phaser.Input.Pointer) => { dragging = true; startY = p.y; startC = container.y; });
+  const onMove = (p: Phaser.Input.Pointer) => {
+    if (dragging && p.isDown) container.y = Phaser.Math.Clamp(startC + (p.y - startY), -maxScroll, 0);
+  };
+  const onUp = () => { dragging = false; };
+  scene.input.on("pointermove", onMove);
+  scene.input.on("pointerup", onUp);
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    scene.input.off("pointermove", onMove);
+    scene.input.off("pointerup", onUp);
+  });
+
+  // "scroll for more" hint
+  const hint = scene.add.text(x + w - 26, y + h - 22, "⌄ more", {
+    fontFamily: "system-ui", fontStyle: "bold", fontSize: "18px", color: "#8a5a2b",
+    backgroundColor: "#ffffffcc", padding: { x: 8, y: 3 },
+  }).setOrigin(1).setDepth(60);
+  container.on("destroy", () => hint.destroy());
+}
