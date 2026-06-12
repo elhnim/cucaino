@@ -18,7 +18,7 @@ export function backdrop(scene: Phaser.Scene, tint = 0xfff4e2) {
 }
 
 /** the inside of a cosy house: wallpapered wall, (optional) window, floor + rug. */
-export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, accent = 0xffe0b0, opts: { window?: boolean } = {}) {
+export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, accent = 0xffe0b0, opts: { window?: boolean; furniture?: boolean } = {}) {
   hiDpiCamera(scene);
   const v = viewport(scene);
   // wall + subtle wallpaper stripes
@@ -54,6 +54,68 @@ export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, acc
   scene.add.graphics().setDepth(-24).fillStyle(accent, 0.5)
     .fillEllipse(v.cx, (fy + v.h) / 2 + 4, v.w * 0.5, (v.h - fy) * 1.5);
   scene.add.text(58, fy + 8, "🪴", { fontSize: "62px" }).setOrigin(0.5, 1).setDepth(-23);
+
+  // Furnished by default so every landmark shares the same cosy room; a scene
+  // with its own dense props (e.g. the Shop) can opt out with furniture:false.
+  if (opts.furniture !== false) furnishRoom(scene, v, fy);
+}
+
+/** Cosy background furniture — desk, bookshelf, wall clock, framed pictures.
+ *  Drawn behind content (negative depth) so cards/items always sit on top. */
+function furnishRoom(scene: Phaser.Scene, v: { w: number; h: number }, fy: number) {
+  // —— wall clock, upper-right ——
+  const cr = Math.min(34, v.w * 0.05 + 18);
+  const cx = v.w * 0.88, cy = v.h * 0.2;
+  const clk = scene.add.graphics().setDepth(-27);
+  clk.fillStyle(0x000000, 0.12).fillCircle(cx + 3, cy + 5, cr + 6);
+  clk.fillStyle(0x6b4a26, 1).fillCircle(cx, cy, cr + 6);
+  clk.fillStyle(0xfff8ec, 1).fillCircle(cx, cy, cr);
+  clk.lineStyle(3, 0x7a4a1e, 1);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    clk.lineBetween(cx + Math.cos(a) * (cr - 6), cy + Math.sin(a) * (cr - 6), cx + Math.cos(a) * (cr - 2), cy + Math.sin(a) * (cr - 2));
+  }
+  clk.lineStyle(4, 0x3a2a14, 1).lineBetween(cx, cy, cx + Math.cos(-2.6) * cr * 0.5, cy + Math.sin(-2.6) * cr * 0.5);
+  clk.lineStyle(3, 0x3a2a14, 1).lineBetween(cx, cy, cx + Math.cos(-0.5) * cr * 0.72, cy + Math.sin(-0.5) * cr * 0.72);
+  clk.fillStyle(0x3a2a14, 1).fillCircle(cx, cy, 3.5);
+
+  // —— framed pictures on the wall (left + centre-left) ——
+  const frame = (x: number, y: number, w: number, h: number, emoji: string) => {
+    const fg = scene.add.graphics().setDepth(-27);
+    fg.fillStyle(0x000000, 0.12).fillRoundedRect(x - w / 2 - 4, y - h / 2 - 2, w + 12, h + 12, 6);
+    fg.fillStyle(0x6b4a26, 1).fillRoundedRect(x - w / 2 - 6, y - h / 2 - 6, w + 12, h + 12, 6);
+    fg.fillStyle(0xfdf6e3, 1).fillRoundedRect(x - w / 2, y - h / 2, w, h, 4);
+    scene.add.text(x, y, emoji, { fontSize: `${h * 0.66}px` }).setOrigin(0.5).setDepth(-26);
+  };
+  frame(v.w * 0.1, v.h * 0.2, 56, 50, "🌳");
+  frame(v.w * 0.1, v.h * 0.2 + 78, 56, 50, "🌈");
+
+  // —— desk with a lamp + books, on the floor (right) ——
+  const dx = v.w * 0.82, dw = Math.min(190, v.w * 0.22), dh = 70, dtop = fy - dh;
+  const desk = scene.add.graphics().setDepth(-24);
+  desk.fillStyle(0x000000, 0.1).fillEllipse(dx, fy + 4, dw * 1.05, 16);
+  desk.fillStyle(0x9c6b34, 1).fillRoundedRect(dx - dw / 2, dtop, dw, 14, 4);
+  desk.fillStyle(0x8a5a2b, 1).fillRect(dx - dw / 2 + 12, dtop + 14, 12, dh - 14);
+  desk.fillStyle(0x8a5a2b, 1).fillRect(dx + dw / 2 - 24, dtop + 14, 12, dh - 14);
+  scene.add.text(dx - dw * 0.28, dtop + 2, "📚", { fontSize: "34px" }).setOrigin(0.5, 1).setDepth(-23);
+  scene.add.text(dx + dw * 0.26, dtop + 2, "💡", { fontSize: "40px" }).setOrigin(0.5, 1).setDepth(-23);
+
+  // —— bookshelf on the floor (left), books as colourful spines ——
+  const bx = v.w * 0.14, bw = Math.min(120, v.w * 0.13), bh = 150, btop = fy - bh;
+  const sh = scene.add.graphics().setDepth(-24);
+  sh.fillStyle(0x000000, 0.1).fillEllipse(bx, fy + 4, bw * 1.1, 16);
+  sh.fillStyle(0x7a4e25, 1).fillRoundedRect(bx - bw / 2, btop, bw, bh, 6);
+  sh.fillStyle(0x5a3a1c, 1).fillRect(bx - bw / 2 + 6, btop + 6, bw - 12, bh - 12);
+  const spines = [0xe06b5a, 0x5aa9e0, 0xf4b223, 0x7bc86c, 0xb07be0];
+  for (let row = 0; row < 3; row++) {
+    const ry = btop + 10 + row * ((bh - 20) / 3);
+    let sx = bx - bw / 2 + 10;
+    for (let i = 0; sx < bx + bw / 2 - 14; i++) {
+      const bwid = 8 + (i % 3) * 4;
+      sh.fillStyle(spines[(row * 2 + i) % spines.length], 1).fillRect(sx, ry, bwid, (bh - 20) / 3 - 8);
+      sx += bwid + 3;
+    }
+  }
 }
 
 /** carved wooden signboard (matches the town landmarks) */

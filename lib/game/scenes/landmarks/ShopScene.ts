@@ -11,7 +11,8 @@ export class ShopScene extends Phaser.Scene {
   constructor() { super("Shop"); }
 
   create() {
-    room(this, 0xf6d9bf, 0xa9703a, 0xffd0a0);
+    // The store has its own shelves + counter, so skip the cosy-room furniture.
+    room(this, 0xf6d9bf, 0xa9703a, 0xffd0a0, { furniture: false });
     const v = viewport(this);
 
     const rewards: Reward[] = [

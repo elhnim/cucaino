@@ -19,7 +19,7 @@ export class WorkScene extends Phaser.Scene {
     this.tasks = (data?.tasks ?? []).map((t) => ({ ...t }));
     this.balance = data?.kid?.pointsBalance ?? 0;
 
-    room(this, 0xf0e3c8, 0xb98b53, 0xffe0b0);
+    room(this, 0xf0e3c8, 0xb98b53, 0xffe0b0, { furniture: true });
     backButton(this);
     const v = viewport(this);
     // On phones the sign sits a row below the back button so they never collide.
