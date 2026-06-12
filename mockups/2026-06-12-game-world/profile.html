@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucaino — Profile (mockup)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; }
+  html,body { height:100%; font-family:"Baloo 2","Comic Sans MS",system-ui,sans-serif; }
+  .frame { position:relative; min-height:100%; height:100%; background:url("art/bg.png") center/cover no-repeat fixed; display:flex; flex-direction:column; }
+  .scrim { position:absolute; inset:0; background:rgba(255,255,255,.15); pointer-events:none; }
+  .top { position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:12px 18px; z-index:30; }
+  .back { width:60px; cursor:pointer; filter:drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
+  .title-ribbon { background:#e94e77; color:#fff; font-weight:900; font-size:clamp(20px,4vw,28px); padding:8px 22px; border-radius:16px; box-shadow:0 6px 0 #b83257; }
+  .spacer { width:60px; }
+
+  .body { position:relative; z-index:20; flex:1; overflow:auto; padding:8px 20px 28px; display:flex; flex-wrap:wrap; gap:20px; align-content:flex-start; justify-content:center; }
+
+  .card { background:#fff; border-radius:28px; box-shadow:0 8px 0 #e0a655, 0 14px 22px rgba(0,0,0,.18); padding:22px; }
+  /* hero */
+  .hero { display:flex; flex-direction:column; align-items:center; text-align:center; width:300px; }
+  .hero .av { width:160px; height:160px; border-radius:32px; border:6px solid #fff; background:linear-gradient(160deg,#fff,#ffe9c7); box-shadow:0 8px 0 #e29b45; display:grid; place-items:center; overflow:hidden; }
+  .hero .av img { width:96%; }
+  .hero .name { font-weight:900; font-size:30px; color:#b5572a; margin-top:12px; }
+  .levelbar { width:100%; margin-top:10px; }
+  .levelbar .row { display:flex; justify-content:space-between; font-weight:900; color:#7a4a1e; font-size:16px; }
+  .levelbar .bar { height:22px; background:#f1ddc0; border-radius:999px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,.2); margin-top:4px; }
+  .levelbar .fill { width:70%; height:100%; background:linear-gradient(90deg,#ffd95a,#f4b223); }
+  .stats { display:flex; gap:12px; margin-top:14px; }
+  .stat { background:#fff5d8; border-radius:18px; padding:8px 16px; text-align:center; }
+  .stat b { display:block; font-size:24px; color:#c8860f; }
+  .stat span { font-size:13px; color:#9a7a3a; font-weight:700; }
+
+  .col { display:flex; flex-direction:column; gap:20px; width:300px; }
+  .sec-title { font-weight:900; color:#fff; font-size:20px; text-shadow:0 2px 6px rgba(0,0,0,.3); margin:0 0 -8px 6px; }
+  /* badges */
+  .badges { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  .badge { aspect-ratio:1; border-radius:20px; background:linear-gradient(160deg,#fff3df,#ffe2b0); display:grid; place-items:center; font-size:34px; box-shadow:inset 0 0 0 4px #ffd089; }
+  .badge.lock { filter:grayscale(1) brightness(.95); font-size:26px; }
+  /* pet card */
+  .petcard { display:flex; align-items:center; gap:14px; }
+  .petcard img { width:96px; filter:drop-shadow(0 6px 6px rgba(0,0,0,.25)); }
+  .petcard .info b { font-size:22px; color:#7a4a1e; } .petcard .info span { color:#9a7a3a; font-weight:700; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="scrim"></div>
+  <div class="top">
+    <img class="back" src="art/btn-close.png">
+    <div class="title-ribbon">⭐ My Profile</div>
+    <div class="spacer"></div>
+  </div>
+
+  <div class="body">
+    <div class="card hero">
+      <div class="av"><img src="art/avatar.png"></div>
+      <div class="name">Mia</div>
+      <div class="levelbar">
+        <div class="row"><span>Level 7</span><span>Level 8</span></div>
+        <div class="bar"><div class="fill"></div></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>24</b><span>stars</span></div>
+        <div class="stat"><b>128</b><span>coins</span></div>
+        <div class="stat"><b>12</b><span>day streak</span></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec-title">🏅 Badges</div>
+      <div class="card badges">
+        <div class="badge">🌅</div><div class="badge">🦷</div><div class="badge">📚</div><div class="badge">🎹</div>
+        <div class="badge">🔥</div><div class="badge">🥇</div><div class="badge lock">🔒</div><div class="badge lock">🔒</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="sec-title">🐾 My Pet</div>
+      <div class="card petcard">
+        <img src="art/pet.png">
+        <div class="info"><b>Coco</b><br><span>Cat · Level 5 · happy</span></div>
+      </div>
+      <div class="sec-title">🎨 My Look</div>
+      <div class="card badges">
+        <div class="badge">😺</div><div class="badge">🐰</div><div class="badge">🐼</div><div class="badge">🐧</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

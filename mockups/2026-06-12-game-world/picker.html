@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucaino — Who's Playing (mockup)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; }
+  html,body { height:100%; font-family:"Baloo 2","Comic Sans MS",system-ui,sans-serif; }
+  .frame { position:relative; min-height:100%; height:100%; background:url("art/bg.png") center/cover no-repeat fixed; display:flex; flex-direction:column; align-items:center; }
+  .scrim { position:absolute; inset:0; background:rgba(255,255,255,.12); pointer-events:none; }
+  .logo { z-index:10; margin-top:5vh; font-weight:900; font-size:clamp(30px,6vw,52px); color:#fff; text-shadow:0 4px 0 #e07 aa8, 0 4px 0 #d8568a, 0 8px 14px rgba(0,0,0,.3); -webkit-text-stroke:2px #d8568a; }
+  .sub { z-index:10; color:#fff; font-weight:800; font-size:clamp(18px,3.5vw,26px); margin:6px 0 4px; text-shadow:0 2px 6px rgba(0,0,0,.3); }
+  .kids { position:relative; z-index:10; flex:1; display:flex; flex-wrap:wrap; gap:26px; align-items:center; justify-content:center; align-content:center; padding:20px; overflow:auto; width:100%; }
+  .kid { width:200px; cursor:pointer; text-align:center; transition:transform .15s; }
+  .kid:hover { transform:translateY(-8px) scale(1.04); }
+  .kid .frame-av { width:180px; height:180px; margin:0 auto; border-radius:34px; background:linear-gradient(160deg,#fff,#ffe9c7); border:6px solid #fff; box-shadow:0 8px 0 #e29b45, 0 12px 22px rgba(0,0,0,.25); display:grid; place-items:center; overflow:hidden; }
+  .kid.add .frame-av { background:rgba(255,255,255,.5); border-style:dashed; border-color:#fff; display:grid; place-items:center; }
+  .kid.add .plus { font-size:90px; color:#fff; line-height:1; }
+  .kid .frame-av img { width:96%; }
+  .kid .name { margin-top:12px; display:inline-block; background:#fff; color:#b5572a; font-weight:900; font-size:24px; padding:6px 22px 8px; border-radius:18px; box-shadow:0 5px 0 #e29b45; }
+  .kid .stars { margin-top:8px; display:inline-flex; align-items:center; gap:5px; background:#fff5d8; color:#c8860f; font-weight:900; font-size:18px; padding:3px 14px; border-radius:999px; }
+  .kid .stars img { height:24px; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="scrim"></div>
+  <div class="logo">Cucaino</div>
+  <div class="sub">Who's playing? 🍭</div>
+  <div class="kids">
+    <div class="kid">
+      <div class="frame-av"><img src="art/avatar.png"></div>
+      <div class="name">Mia</div>
+      <div class="stars"><img src="art/star.png">24</div>
+    </div>
+    <div class="kid">
+      <div class="frame-av"><img src="art/avatar3.png"></div>
+      <div class="name">Leo</div>
+      <div class="stars"><img src="art/star.png">17</div>
+    </div>
+    <div class="kid">
+      <div class="frame-av"><img src="art/avatar6.png"></div>
+      <div class="name">Ava</div>
+      <div class="stars"><img src="art/star.png">31</div>
+    </div>
+    <div class="kid add">
+      <div class="frame-av"><span class="plus">＋</span></div>
+      <div class="name">Add kid</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

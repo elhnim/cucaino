@@ -52,3 +52,8 @@ public/swe-worker-*.js
 
 # purchased art packs (large, licensed)
 /art-source/
+
+# canvas smoke-test artifacts (throwaway)
+mockups/2026-06-12-game-world/canvas-smoke.js
+mockups/2026-06-12-game-world/game/
+mockups/2026-06-12-game-world/smoke-*.png

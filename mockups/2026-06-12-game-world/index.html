@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucaino — Game World mockups</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,sans-serif; background:#1b1330; color:#fff; }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 16px; background:#2a1d4a; position:sticky; top:0; z-index:5; }
+  .bar b { margin-right:6px; }
+  .bar button { font:inherit; font-weight:700; border:0; border-radius:10px; padding:8px 14px; cursor:pointer; background:#5b3fa0; color:#fff; }
+  .bar button.active { background:#ff9ec4; color:#3a1030; }
+  .sep { width:1px; height:26px; background:#5b3fa0; margin:0 6px; }
+  .dev button.active { background:#7ed957; color:#10381a; }
+  .stage { min-height:calc(100vh - 56px); display:grid; place-items:center; background:#0e0820; padding:20px; }
+  .device { border-radius:30px; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.6); border:12px solid #000; background:#000; transition:width .25s, height .25s; }
+  .device.ipad { width:1024px; height:768px; max-width:96vw; max-height:calc(100vh - 110px); }
+  .device.iphone { width:390px; height:780px; max-height:calc(100vh - 110px); }
+  iframe { width:100%; height:100%; border:0; display:block; background:#fff; }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <b>🍭 Cucaino Game World</b>
+    <button data-src="picker.html">👋 Who's Playing</button>
+    <button data-src="home.html" class="active">🌍 World Home</button>
+    <button data-src="myday.html">📋 My Day</button>
+    <button data-src="store.html">🎁 Store</button>
+    <button data-src="play.html">🎮 Play</button>
+    <button data-src="profile.html">⭐ Profile</button>
+    <span class="sep"></span>
+    <span class="dev" style="display:flex; gap:8px;">
+      <button data-dev="ipad" class="active">📱 iPad</button>
+      <button data-dev="iphone">📲 iPhone</button>
+    </span>
+  </div>
+  <div class="stage"><div class="device ipad" id="dev"><iframe id="f" src="home.html"></iframe></div></div>
+  <script>
+    const f = document.getElementById('f'), dev = document.getElementById('dev');
+    document.querySelectorAll('.bar button[data-src]').forEach(b => b.onclick = () => {
+      document.querySelectorAll('.bar button[data-src]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active'); f.src = b.dataset.src;
+    });
+    document.querySelectorAll('.bar button[data-dev]').forEach(b => b.onclick = () => {
+      document.querySelectorAll('.bar button[data-dev]').forEach(x => x.classList.remove('active'));
+      b.classList.add('active'); dev.className = 'device ' + b.dataset.dev;
+    });
+  </script>
+</body>
+</html>
