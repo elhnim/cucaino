@@ -69,12 +69,8 @@ export class WorldScene extends Phaser.Scene {
       this.scene.start(scene);
     };
 
-    this.add.rectangle(0, 0, W, H, GRASS).setOrigin(0, 0);
-
+    this.bakeGround();
     this.drawPlaza();
-    for (const s of this.roads) this.roadLayer(s, 112, PATH_EDGE);
-    for (const s of this.roads) this.roadLayer(s, 84, PATH_FILL);
-    for (const s of this.roads) this.roadLayer(s, 24, PATH_MID);
     this.drawPlots();
 
     const ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
@@ -240,10 +236,8 @@ export class WorldScene extends Phaser.Scene {
   private drawPlaza() {
     const { x, y } = this.plaza;
     const r = this.plazaR;
-    const g = this.add.graphics().setDepth(2);
-    g.fillStyle(PATH_FILL, 1).fillCircle(x, y, r);
-    g.lineStyle(9, PATH_EDGE, 1).strokeCircle(x, y, r);
-    g.lineStyle(4, PATH_MID, 0.6).strokeCircle(x, y, r * 0.62);
+    const g = this.add.graphics().setDepth(3);   // cobble fill comes from the tiled texture; just a rim
+    g.lineStyle(8, 0x5a4a30, 0.9).strokeCircle(x, y, r);
   }
 
   private dressPlaza() {
@@ -299,13 +293,47 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private roadLayer(points: [number, number][], width: number, color: number) {
-    const g = this.add.graphics().setDepth(1);
-    g.lineStyle(width, color, 1);
-    const spline = new Phaser.Curves.Spline(points.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
-    spline.draw(g, Math.max(64, points.length * 24));
-    g.fillStyle(color, 1);
-    for (const [px, py] of points) g.fillCircle(px, py, width / 2);
+  /** bake the ground once: real grass tiles everywhere + a cobblestone brush
+   *  stamped along the roads (no runtime masks — composited into one texture). */
+  private bakeGround() {
+    this.add.tileSprite(0, 0, W, H, "grass-tex").setOrigin(0, 0).setDepth(-100);
+
+    // road bed: dark edge + warm dirt fill following the lanes + plaza
+    const bed = this.add.graphics().setDepth(0);
+    bed.fillStyle(0x5a4326, 1);
+    this.eachRoadPoint(14, (x, y) => bed.fillCircle(x, y, 62));
+    bed.fillCircle(this.plaza.x, this.plaza.y, this.plazaR + 10);
+    bed.fillStyle(0x9c7a44, 1);
+    this.eachRoadPoint(14, (x, y) => bed.fillCircle(x, y, 52));
+    bed.fillCircle(this.plaza.x, this.plaza.y, this.plazaR);
+
+    // cobblestones scattered over the bed (graphics — always renders)
+    const stones = this.add.graphics().setDepth(1);
+    const pal = [0xc6bca4, 0xb2a888, 0xd2c9b2, 0xa89a7c];
+    const hash = (a: number, b: number) => ((a * 73856 + b * 19349) >>> 0);
+    const stone = (x: number, y: number) => {
+      for (let k = 0; k < 3; k++) {
+        const h = hash(Math.round(x) + k * 911, Math.round(y) + k * 277);
+        const ox = (h % 76) - 38, oy = ((h >> 8) % 60) - 30;
+        stones.fillStyle(0x6b5630, 1).fillEllipse(x + ox, y + oy + 2, 24, 17);
+        stones.fillStyle(pal[h % pal.length], 1).fillEllipse(x + ox, y + oy, 22, 15);
+      }
+    };
+    this.eachRoadPoint(20, stone);
+    for (let a = 0; a < this.plazaR; a += 26)
+      for (let t = 0; t < Math.PI * 2; t += 0.5 + a / this.plazaR)
+        stone(this.plaza.x + Math.cos(t) * a, this.plaza.y + Math.sin(t) * a);
+  }
+
+  private eachRoadPoint(spacing: number, fn: (x: number, y: number) => void) {
+    for (const seg of this.roads) {
+      const spline = new Phaser.Curves.Spline(seg.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
+      const n = Math.max(8, Math.floor(spline.getLength() / spacing));
+      for (let i = 0; i <= n; i++) {
+        const p = spline.getPoint(i / n);
+        fn(p.x, p.y);
+      }
+    }
   }
 
   private drawFlowers() {

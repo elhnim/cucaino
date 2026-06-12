@@ -28,6 +28,8 @@ export class PreloadScene extends Phaser.Scene {
 
     // world art
     this.load.image("bg", "/game/world/bg.png");
+    this.load.image("grass-tex", "/game/world/terrain/grass.png");
+    this.load.image("cobble-brush", "/game/world/terrain/cobble-brush.png");
     // summer top-down tileset props (build the town from these)
     const sum = "/game/world/sum";
     for (const k of ["house", "castle", "castle2", "tent", "tower", "magic", "tree-l", "tree-m",
