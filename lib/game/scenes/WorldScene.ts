@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { viewport, onResize } from "../systems/layout";
+import { OccupancyGrid } from "../systems/OccupancyGrid";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
@@ -34,8 +35,7 @@ export class WorldScene extends Phaser.Scene {
   private dpadMoving = false;
   private nodes: { x: number; y: number; enter: () => void }[] = [];
   private nearGuard = false;
-  private placed: [number, number][] = [];
-  private placedProps: [number, number][] = [];
+  private grid!: OccupancyGrid;
 
   private roads: [number, number][][] = [
     [[848, 476], [941, 717], [922, 995], [922, 1152]],
@@ -80,6 +80,7 @@ export class WorldScene extends Phaser.Scene {
     const ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
     ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
 
+    this.buildGrid();
     this.lineStreetsWithHouses();
     this.dressStreets();
     this.dressPlaza();
@@ -168,33 +169,52 @@ export class WorldScene extends Phaser.Scene {
     if (!near) this.nearGuard = false;
   }
 
-  /** place decorative houses along both sides of every lane → a dense town */
+  /** build the collision grid from roads + plaza + plots + landmarks + map edge */
+  private buildGrid() {
+    this.grid = new OccupancyGrid(W, H, 64);
+    for (const seg of this.roads) {
+      const spline = new Phaser.Curves.Spline(seg.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
+      const pts = spline.getPoints(Math.max(8, Math.floor(spline.getLength() / 44)))
+        .map((p) => [p.x, p.y] as [number, number]);
+      this.grid.markPath(pts, 72);
+    }
+    this.grid.markCircle(this.plaza.x, this.plaza.y, this.plazaR + 70);
+    for (const [x, y] of this.plots) this.grid.markRect(x, y, 430, 320);
+    for (const [x, y] of this.buildingSpots) this.grid.markRect(x, y - 80, 330, 250);
+    // forest-frame border kept clear of buildings/props
+    this.grid.markRect(W / 2, 110, W, 230);
+    this.grid.markRect(W / 2, H - 110, W, 230);
+    this.grid.markRect(110, H / 2, 230, H);
+    this.grid.markRect(W - 110, H / 2, 230, H);
+  }
+
+  /** line every lane with decorative houses on whichever side has free ground */
   private lineStreetsWithHouses() {
     let idx = 7;
     for (const seg of this.roads) {
       const spline = new Phaser.Curves.Spline(seg.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
-      const n = Math.max(2, Math.floor(spline.getLength() / 230));
+      const n = Math.max(2, Math.floor(spline.getLength() / 215));
       const pts = spline.getSpacedPoints(n);
       for (let i = 1; i < pts.length - 1; i++) {
         const prev = pts[i - 1], next = pts[i + 1];
         const dlx = next.x - prev.x, dly = next.y - prev.y;
         const dl = Math.hypot(dlx, dly) || 1;
         const perpx = -dly / dl, perpy = dlx / dl;
-        const side = i % 2 === 0 ? 1 : -1;
-        const off = 142;
-        const bx = pts[i].x + perpx * side * off;
-        const by = pts[i].y + perpy * side * off;
-        if (bx < 210 || bx > W - 210 || by < 250 || by > H - 200) continue;
-        if (this.nearAny(bx, by, this.buildingSpots, 250)) continue;
-        if (this.nearAny(bx, by, this.plots, 180)) continue;
-        if (Phaser.Math.Distance.Between(bx, by, this.plaza.x, this.plaza.y) < 330) continue;
-        if (this.nearAny(bx, by, this.placed, 168)) continue;
         const h = HOUSE_SET[idx % HOUSE_SET.length];
-        const b = this.add.image(bx, by, h.tex).setOrigin(0.5, 1);
-        b.setDisplaySize(h.bw, h.bw * (b.height / b.width)).setDepth(by)
-          .setTint(TINTS[(idx * 3) % TINTS.length]).setFlipX(idx % 2 === 0);
-        this.placed.push([bx, by]);
-        idx++;
+        const fw = h.bw * 0.82, fh = h.bw * 0.46;
+        const off = 128;
+        for (const side of i % 2 === 0 ? [1, -1] : [-1, 1]) {
+          const bx = pts[i].x + perpx * side * off;
+          const by = pts[i].y + perpy * side * off;
+          const fy = by - fh * 0.15;
+          if (!this.grid.isFree(bx, fy, fw, fh)) continue;
+          const b = this.add.image(bx, by, h.tex).setOrigin(0.5, 1);
+          b.setDisplaySize(h.bw, h.bw * (b.height / b.width)).setDepth(by)
+            .setTint(TINTS[(idx * 3) % TINTS.length]).setFlipX(side < 0);
+          this.grid.markRect(bx, fy, fw, fh);
+          idx++;
+          break;
+        }
       }
     }
   }
@@ -257,26 +277,24 @@ export class WorldScene extends Phaser.Scene {
     let idx = 1;
     for (const seg of this.roads) {
       const spline = new Phaser.Curves.Spline(seg.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
-      const n = Math.max(2, Math.floor(spline.getLength() / 260));
+      const n = Math.max(2, Math.floor(spline.getLength() / 230));
       const pts = spline.getSpacedPoints(n);
       for (let i = 1; i < pts.length - 1; i++) {
-        if (i % 2 === 0) continue;
         const prev = pts[i - 1], next = pts[i + 1];
         const dlx = next.x - prev.x, dly = next.y - prev.y;
         const dl = Math.hypot(dlx, dly) || 1;
         const perpx = -dly / dl, perpy = dlx / dl;
-        const side = i % 4 === 1 ? 1 : -1;
-        const px = pts[i].x + perpx * side * 78, py = pts[i].y + perpy * side * 78;
-        if (px < 200 || px > W - 200 || py < 250 || py > H - 190) continue;
-        if (this.nearAny(px, py, this.buildingSpots, 230)) continue;
-        if (Phaser.Math.Distance.Between(px, py, this.plaza.x, this.plaza.y) < this.plazaR + 130) continue;
-        if (this.nearAny(px, py, this.placed, 120)) continue;
-        if (this.nearAny(px, py, this.placedProps, 150)) continue;
         const p = props[idx % props.length];
-        const img = this.add.image(px, py, p.tex).setOrigin(0.5, 1);
-        img.setDisplaySize(p.w, p.w * (img.height / img.width)).setDepth(py);
-        this.placedProps.push([px, py]);
-        idx++;
+        const fw = p.w * 0.8, fh = p.w * 0.5;
+        for (const side of [1, -1]) {
+          const px = pts[i].x + perpx * side * 96, py = pts[i].y + perpy * side * 96;
+          if (!this.grid.isFree(px, py - fh * 0.15, fw, fh)) continue;
+          const img = this.add.image(px, py, p.tex).setOrigin(0.5, 1);
+          img.setDisplaySize(p.w, p.w * (img.height / img.width)).setDepth(py);
+          this.grid.markRect(px, py - fh * 0.15, fw, fh);
+          idx++;
+          break;
+        }
       }
     }
   }
@@ -296,7 +314,7 @@ export class WorldScene extends Phaser.Scene {
       [1300, 2050], [2250, 1550], [820, 1700],
     ];
     for (const [x, y] of spots) {
-      if (this.nearRoad(x, y, 90) || this.nearAny(x, y, this.placed, 130)) continue;
+      if (!this.grid.isFree(x, y, 150, 100)) continue;
       const g = this.add.graphics().setDepth(y);
       for (let i = 0; i < 6; i++) {
         const ax = x + (((i * 53) % 70) - 35);
@@ -339,70 +357,39 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private buildScenery() {
-    const items: Decor[] = [];
-    const push = (tex: string, x: number, y: number, w: number) => {
-      if (this.nearRoad(x, y, 84) || this.nearAny(x, y, this.placed, 150)) return;
-      items.push({ tex, x, y, w });
-    };
-
-    // forest frame (lighter now — houses are the focus)
+    // forest frame sits in the reserved border band (drawn directly, not grid-gated)
     for (let x = 60, i = 0; x <= W - 60; x += 150, i++) {
-      push(i % 2 ? "sum-tree-l" : "sum-tree-m", x, 92 + (i % 2 ? 24 : 0), i % 2 ? 185 : 150);
-      push(i % 2 ? "sum-tree-m" : "sum-tree-l", x + 70, H - 70 - (i % 2 ? 16 : 0), i % 2 ? 150 : 185);
+      this.placeDecor(i % 2 ? "sum-tree-l" : "sum-tree-m", x, 92 + (i % 2 ? 24 : 0), i % 2 ? 185 : 150);
+      this.placeDecor(i % 2 ? "sum-tree-m" : "sum-tree-l", x + 70, H - 70 - (i % 2 ? 16 : 0), i % 2 ? 150 : 185);
     }
     for (let y = 240, i = 0; y <= H - 240; y += 156, i++) {
-      push(i % 2 ? "sum-tree-l" : "sum-tree-m", 84, y, i % 2 ? 185 : 150);
-      push(i % 2 ? "sum-tree-m" : "sum-tree-l", W - 84, y, i % 2 ? 150 : 185);
+      this.placeDecor(i % 2 ? "sum-tree-l" : "sum-tree-m", 84, y, i % 2 ? 185 : 150);
+      this.placeDecor(i % 2 ? "sum-tree-m" : "sum-tree-l", W - 84, y, i % 2 ? 150 : 185);
     }
 
+    // scatter remaining greenery only on free grass
     const fills = ["sum-tree-l", "sum-tree-m", "sum-bush-l", "sum-bush-m", "sum-rock1"];
-    for (let gx = 360; gx <= W - 360; gx += 200) {
-      for (let gy = 320; gy <= H - 320; gy += 200) {
+    for (let gx = 360; gx <= W - 360; gx += 188) {
+      for (let gy = 320; gy <= H - 320; gy += 188) {
         const k = (gx * 13 + gy * 29) % 100;
-        if (k < 62) continue;
-        if (this.nearAny(gx, gy, this.buildingSpots, 270)) continue;
-        if (this.nearAny(gx, gy, this.plots, 190)) continue;
-        if (Phaser.Math.Distance.Between(gx, gy, this.plaza.x, this.plaza.y) < 360) continue;
+        if (k < 55) continue;
         const tex = fills[k % fills.length];
         const w = tex.includes("tree-l") ? 175 : tex.includes("bush") ? 95 : 80;
-        push(tex, gx + (k % 36) - 18, gy + ((k * 7) % 28) - 14, w);
+        const x = gx + (k % 36) - 18, y = gy + ((k * 7) % 28) - 14;
+        if (!this.grid.isFree(x, y - w * 0.18, w * 0.7, w * 0.5)) continue;
+        const img = this.add.image(x, y, tex).setOrigin(0.5, 1);
+        img.setDisplaySize(w, w * (img.height / img.width)).setDepth(y);
+        this.grid.markRect(x, y - w * 0.18, w * 0.7, w * 0.5);
       }
     }
-
-    // a couple of garden beds + lanterns lining the main approach
-    items.push({ tex: "md-gardenbed", x: 1660, y: 1180, w: 150 });
-    items.push({ tex: "md-gardenbed", x: 2360, y: 1900, w: 150 });
-    items.push({ tex: "md-lantern", x: 1180, y: 980, w: 75 });
-    items.push({ tex: "md-lantern", x: 1560, y: 1660, w: 75 });
-    items.push({ tex: "md-lantern", x: 760, y: 1620, w: 75 });
-    items.push({ tex: "sum-flag", x: 1280, y: 462, w: 90 });
-    items.push({ tex: "sum-flag", x: 1530, y: 462, w: 90 });
-
-    for (const d of items) {
-      const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
-      img.setDisplaySize(d.w, d.w * (img.height / img.width)).setDepth(d.y);
-    }
+    // flags flanking the castle landmark
+    this.placeDecor("sum-flag", 1280, 462, 90);
+    this.placeDecor("sum-flag", 1530, 462, 90);
   }
 
-  private nearAny(x: number, y: number, spots: [number, number][], r: number) {
-    return spots.some(([sx, sy]) => Phaser.Math.Distance.Between(x, y, sx, sy) < r);
-  }
-
-  private nearRoad(x: number, y: number, r: number) {
-    for (const seg of this.roads) {
-      for (let i = 1; i < seg.length; i++) {
-        if (this.distToSeg(x, y, seg[i - 1][0], seg[i - 1][1], seg[i][0], seg[i][1]) < r) return true;
-      }
-    }
-    return false;
-  }
-
-  private distToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
-    const dx = bx - ax, dy = by - ay;
-    const l2 = dx * dx + dy * dy;
-    let t = l2 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
-    t = Math.max(0, Math.min(1, t));
-    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  private placeDecor(tex: string, x: number, y: number, w: number) {
+    const img = this.add.image(x, y, tex).setOrigin(0.5, 1);
+    img.setDisplaySize(w, w * (img.height / img.width)).setDepth(y);
   }
 
   private walkTo(x: number, y: number, onArrive?: () => void) {
