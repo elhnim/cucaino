@@ -117,8 +117,8 @@ export function scrollArea(
   scene: Phaser.Scene, container: Phaser.GameObjects.Container,
   x: number, y: number, w: number, h: number, contentBottom: number,
 ) {
-  const m = scene.make.graphics({});
-  m.fillStyle(0xffffff).fillRect(x, y, w, h);
+  const m = scene.make.graphics();
+  m.fillStyle(0xffffff, 1).fillRect(x, y, w, h);
   container.setMask(m.createGeometryMask());
 
   const maxScroll = Math.max(0, contentBottom - (y + h));
