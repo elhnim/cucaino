@@ -19,4 +19,5 @@ const mock: InitialGameData = {
   startScene: new URLSearchParams(location.search).get("scene") ?? "world",
 };
 
+(window as unknown as { __CUCAINO_DEBUG__?: boolean }).__CUCAINO_DEBUG__ = true;
 startGame(document.getElementById("app")!, mock);

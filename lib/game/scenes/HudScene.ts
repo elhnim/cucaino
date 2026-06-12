@@ -3,9 +3,7 @@ import { viewport, onResize, hiDpiCamera } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
-type Dir = "up" | "down" | "left" | "right";
-
-/** Persistent overlay: avatar + coins + stars, plus the movement D-pad. */
+/** Persistent overlay: avatar + coins + stars, plus the drag-to-move joystick. */
 export class HudScene extends Phaser.Scene {
   private avatar!: Phaser.GameObjects.Image;
   private nameTag!: Phaser.GameObjects.Text;
@@ -14,8 +12,13 @@ export class HudScene extends Phaser.Scene {
   private starIco!: Phaser.GameObjects.Image;
   private starTxt!: Phaser.GameObjects.Text;
 
-  private dpad!: Phaser.GameObjects.Container;
-  private buttons: Partial<Record<Dir, Phaser.GameObjects.Container>> = {};
+  private joyBase!: Phaser.GameObjects.Arc;
+  private joyThumb!: Phaser.GameObjects.Arc;
+  private joyZone!: Phaser.GameObjects.Zone;
+  private joyParts: Phaser.GameObjects.GameObject[] = [];
+  private joyCenter = { x: 0, y: 0 };
+  private dragging = false;
+  private readonly joyR = 64; // drag radius (CSS px)
 
   constructor() {
     super({ key: "Hud", active: false });
@@ -39,15 +42,15 @@ export class HudScene extends Phaser.Scene {
       fontFamily: "system-ui", fontStyle: "900", fontSize: "26px", color: "#6b4a1f",
     }).setOrigin(0, 0.5);
 
-    this.buildDpad();
+    this.buildJoystick();
     // show immediately if we booted straight into the world (the world's "dpad"
     // event may fire before this scene's listener is attached)
-    this.dpad.setVisible(this.scene.isActive("World"));
+    this.setJoyVisible(this.scene.isActive("World"));
 
     this.game.events.on("hud:coins", (n: number) => this.coinTxt.setText(`${n}`));
     this.game.events.on("hud:stars", (n: number) => this.starTxt.setText(`${n}`));
-    // show the D-pad only while the explorable world is active
-    this.game.events.on("dpad", (on: boolean) => this.dpad.setVisible(on));
+    // show the joystick only while the explorable world is active
+    this.game.events.on("dpad", (on: boolean) => this.setJoyVisible(on));
     // animated game-moment banner (e.g. "Let's Go!")
     this.game.events.on("banner", (key: string) => this.playBanner(key));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -70,30 +73,37 @@ export class HudScene extends Phaser.Scene {
     });
   }
 
-  private buildDpad() {
-    this.dpad = this.add.container(0, 0).setVisible(false).setDepth(50);
-    const R = 28;
-    const arrows: Record<Dir, string> = { up: "▲", down: "▼", left: "◀", right: "▶" };
-    (Object.keys(arrows) as Dir[]).forEach((dir) => {
-      const circle = this.add.circle(0, 0, R, 0xffffff, 0.7).setStrokeStyle(3, 0xb5572a);
-      const glyph = this.add.text(0, 0, arrows[dir], {
-        fontFamily: "system-ui", fontSize: "20px", color: "#b5572a",
-      }).setOrigin(0.5);
-      const btn = this.add.container(0, 0, [circle, glyph]);
-      circle.setInteractive(new Phaser.Geom.Circle(0, 0, R), Phaser.Geom.Circle.Contains);
-      const press = (down: boolean) => {
-        circle.setFillStyle(0xffffff, down ? 1 : 0.82);
-        this.game.events.emit("move", { dir, down });
-      };
-      circle.on("pointerdown", () => press(true));
-      circle.on("pointerup", () => press(false));
-      circle.on("pointerout", () => press(false));
-      this.dpad.add(btn);
-      this.buttons[dir] = btn;
+  private setJoyVisible(on: boolean) {
+    this.joyParts.forEach((o) => (o as unknown as Phaser.GameObjects.Components.Visible).setVisible(on));
+    if (!on) { this.dragging = false; this.game.events.emit("movevec", { x: 0, y: 0 }); }
+  }
+
+  private buildJoystick() {
+    // A fixed thumbstick bottom-left: press inside the ring and drag to steer;
+    // speed scales with drag distance. A generous square zone catches the press.
+    this.joyBase = this.add.circle(0, 0, this.joyR, 0xffffff, 0.26).setStrokeStyle(4, 0xffffff, 0.7).setDepth(50).setVisible(false);
+    this.joyThumb = this.add.circle(0, 0, 34, 0xffffff, 0.9).setStrokeStyle(3, 0xb5572a).setDepth(52).setVisible(false);
+    this.joyZone = this.add.zone(0, 0, this.joyR * 2.6, this.joyR * 2.6).setDepth(51).setVisible(false);
+    this.joyZone.setInteractive();
+    this.joyParts = [this.joyBase, this.joyZone, this.joyThumb];
+
+    this.joyZone.on("pointerdown", (p: Phaser.Input.Pointer) => { this.dragging = true; this.steer(p); });
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => { if (this.dragging) this.steer(p); });
+    this.input.on("pointerup", () => {
+      if (!this.dragging) return;
+      this.dragging = false;
+      this.joyThumb.setPosition(this.joyCenter.x, this.joyCenter.y);
+      this.game.events.emit("movevec", { x: 0, y: 0 });
     });
-    // releasing anywhere stops all movement (finger may slide off a button)
-    this.input.on("pointerup", () => (Object.keys(arrows) as Dir[]).forEach((d) =>
-      this.game.events.emit("move", { dir: d, down: false })));
+  }
+
+  private steer(p: Phaser.Input.Pointer) {
+    const wp = this.cameras.main.getWorldPoint(p.x, p.y);
+    let dx = wp.x - this.joyCenter.x, dy = wp.y - this.joyCenter.y;
+    const d = Math.hypot(dx, dy);
+    if (d > this.joyR) { dx = (dx / d) * this.joyR; dy = (dy / d) * this.joyR; }
+    this.joyThumb.setPosition(this.joyCenter.x + dx, this.joyCenter.y + dy);
+    this.game.events.emit("movevec", { x: dx / this.joyR, y: dy / this.joyR });
   }
 
   private layout() {
@@ -118,17 +128,12 @@ export class HudScene extends Phaser.Scene {
       this.starTxt.setFontSize(26 * v.ui).setPosition(rx - 64 * v.ui, pad + ico / 2);
     }
 
-    // D-pad bottom-left, smaller + scaled for the device
-    const s = Math.min(v.ui, 1) * 0.82;
-    const gap = 52 * s;
-    const cx = 18 * s + gap + 28 * s;
-    const cy = v.h - 18 * s - gap - 28 * s;
-    this.dpad.setScale(s).setPosition(0, 0);
-    const place = (dir: Dir, dx: number, dy: number) =>
-      this.buttons[dir]!.setPosition((cx + dx * gap) / s, (cy + dy * gap) / s);
-    place("up", 0, -1);
-    place("down", 0, 1);
-    place("left", -1, 0);
-    place("right", 1, 0);
+    // Joystick bottom-left, positioned directly in CSS units.
+    const cx = 30 + this.joyR;
+    const cy = v.h - 30 - this.joyR;
+    this.joyCenter = { x: cx, y: cy };
+    this.joyBase.setPosition(cx, cy);
+    this.joyZone.setPosition(cx, cy);
+    if (!this.dragging) this.joyThumb.setPosition(cx, cy);
   }
 }

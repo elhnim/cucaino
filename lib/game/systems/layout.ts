@@ -38,16 +38,17 @@ export function viewport(scene: Phaser.Scene): Viewport {
 
 /**
  * Make a UI scene's main camera render its CSS-unit layout into the physical
- * framebuffer: zoom by DPR and centre on the CSS-sized world rect. Idempotent —
- * safe to call again on resize. NOT for world cameras that follow a sprite.
+ * framebuffer: zoom by DPR from the TOP-LEFT origin with zero scroll, so world
+ * point (x,y) maps to screen pixel (x*DPR, y*DPR) and input hit-testing lines up
+ * exactly with what's drawn. (centreOn here mis-scrolls under zoom, which made
+ * the D-pad / buttons unclickable.) Idempotent; NOT for world cameras that follow.
  */
 export function hiDpiCamera(scene: Phaser.Scene) {
   const cam = scene.cameras.main;
   if (!cam) return;
-  const w = scene.scale.gameSize.width / DPR;
-  const h = scene.scale.gameSize.height / DPR;
+  cam.setOrigin(0, 0);
   cam.setZoom(DPR);
-  cam.centerOn(w / 2, h / 2);
+  cam.setScroll(0, 0);
 }
 
 /** Re-run a scene's layout() on every resize, and clean the listener up on shutdown. */

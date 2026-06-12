@@ -36,11 +36,21 @@ export function startGame(parent: HTMLElement, data: InitialGameData): () => voi
 
   game.registry.set(REGISTRY_DATA, data);
 
+  // Debug-only handle for the smoke harness (gated; never set in production).
+  if (typeof window !== "undefined" && (window as unknown as { __CUCAINO_DEBUG__?: boolean }).__CUCAINO_DEBUG__) {
+    (window as unknown as { __game?: Phaser.Game }).__game = game;
+  }
+
   const applySize = () => {
     const w = cssW(), h = cssH();
-    game.scale.resize(w * DPR, h * DPR);
+    // Set the CSS box FIRST so that scale.resize() → updateBounds() reads the
+    // shrunk canvas rect and computes the correct pointer displayScale (= DPR).
+    // Setting it after resize() leaves displayScale stale and taps land at the
+    // wrong spot (D-pad / buttons stop responding).
     game.canvas.style.width = `${w}px`;
     game.canvas.style.height = `${h}px`;
+    game.scale.resize(w * DPR, h * DPR);
+    game.scale.refresh();
   };
   game.events.once(Phaser.Core.Events.READY, applySize);
   window.addEventListener("resize", applySize);

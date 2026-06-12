@@ -39,7 +39,7 @@ export class WorldScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
   private moveTween?: Phaser.Tweens.Tween;
   private pendingArrival?: () => void;
-  private held = { up: false, down: false, left: false, right: false };
+  private moveVec = { x: 0, y: 0 };   // analog drag direction from the joystick
   private dpadMoving = false;
   private nodes: { x: number; y: number; enter: () => void }[] = [];
   private nearGuard = false;
@@ -80,8 +80,9 @@ export class WorldScene extends Phaser.Scene {
     this.bakeGround();
     this.drawPlaza();
 
-    const ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
-    ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
+    // Movement is drag-only (joystick) — no tap-to-walk. The zone stays so the
+    // building/landmark images sit above an inert background.
+    this.add.zone(0, 0, W, H).setOrigin(0, 0);
 
     this.buildGrid();
     this.placePlots();
@@ -121,7 +122,7 @@ export class WorldScene extends Phaser.Scene {
         props: [{ tex: "sum-flag", dx: 150, dy: -6, w: 84 }],
         enter: () => this.enterFlash(() => go("Play", `/kid/${kidId}/world?scene=play`)) },
       // Pet Home — a cosy cottage (cool tint to read apart from the shop)
-      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 300, x: 1469, y: 2050, tint: 0xd6e6ff,
+      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 300, x: 1700, y: 2050, tint: 0xd6e6ff,
         props: [{ tex: "sum-bush-l", dx: -150, dy: 20, w: 110 }, { tex: "md-gardenbed", dx: 150, dy: 22, w: 130 }],
         enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
     ];
@@ -140,18 +141,20 @@ export class WorldScene extends Phaser.Scene {
       this.nodes.push({ x: cfg.x, y: cfg.y, enter: cfg.enter });
     }
 
-    this.player = this.add.sprite(1469, 2140, "cat-idle").play("cat-idle").setScale(1.35).setDepth(2140);
+    // Spawn on the open road below Pet Home — far enough from every landmark's
+    // 90px enter-radius that the first step doesn't pull the kid into a building.
+    this.player = this.add.sprite(1469, 2260, "cat-idle").play("cat-idle").setScale(1.35).setDepth(2260);
 
     this.cameras.main.setBackgroundColor(GRASS);
     this.cameras.main.setBounds(0, 0, W, H);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
 
-    const onMove = (e: { dir: "up" | "down" | "left" | "right"; down: boolean }) => { this.held[e.dir] = e.down; };
+    const onVec = (e: { x: number; y: number }) => { this.moveVec.x = e.x; this.moveVec.y = e.y; };
     this.game.events.emit("dpad", true);
-    this.game.events.on("move", onMove);
+    this.game.events.on("movevec", onVec);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.emit("dpad", false);
-      this.game.events.off("move", onMove);
+      this.game.events.off("movevec", onVec);
     });
 
     this.layout();
@@ -159,9 +162,9 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(_t: number, dms: number) {
-    const dx = (this.held.right ? 1 : 0) - (this.held.left ? 1 : 0);
-    const dy = (this.held.down ? 1 : 0) - (this.held.up ? 1 : 0);
-    if (dx === 0 && dy === 0) {
+    const dx = this.moveVec.x, dy = this.moveVec.y;
+    const mag = Math.hypot(dx, dy);
+    if (mag < 0.12) {   // dead-zone so a resting thumb doesn't drift the player
       if (this.dpadMoving) { this.player.play("cat-idle", true); this.dpadMoving = false; }
       return;
     }
@@ -169,12 +172,12 @@ export class WorldScene extends Phaser.Scene {
     this.moveTween = undefined;
     this.pendingArrival = undefined;
 
-    const len = Math.hypot(dx, dy) || 1;
-    const step = (WALK_SPEED * dms) / 1000;
-    const nx = Phaser.Math.Clamp(this.player.x + (dx / len) * step, 40, W - 40);
-    const ny = Phaser.Math.Clamp(this.player.y + (dy / len) * step, 40, H - 30);
+    // analog: speed scales with how far the thumb is dragged (capped at 1)
+    const step = (WALK_SPEED * Math.min(mag, 1) * dms) / 1000;
+    const nx = Phaser.Math.Clamp(this.player.x + (dx / mag) * step, 40, W - 40);
+    const ny = Phaser.Math.Clamp(this.player.y + (dy / mag) * step, 40, H - 30);
     this.player.setPosition(nx, ny).setDepth(ny);
-    if (dx !== 0) this.player.setFlipX(dx < 0);
+    if (Math.abs(dx) > 0.01) this.player.setFlipX(dx < 0);
     if (this.player.anims.currentAnim?.key !== "cat-walk") this.player.play("cat-walk", true);
     this.dpadMoving = true;
 
@@ -184,7 +187,7 @@ export class WorldScene extends Phaser.Scene {
         near = true;
         if (!this.nearGuard) {
           this.nearGuard = true;
-          this.held = { up: false, down: false, left: false, right: false };
+          this.moveVec = { x: 0, y: 0 };
           n.enter();
         }
         break;
@@ -578,7 +581,8 @@ export class WorldScene extends Phaser.Scene {
 
   private layout() {
     const v = viewport(this);
-    // v.h is CSS units; multiply by DPR so the world fills the physical framebuffer.
-    this.cameras.main.setZoom((v.h / H) * 0.96 * DPR);
+    // Base zoom fits the whole map to height; ×1.5 makes the town feel larger than
+    // the screen so the camera follows the player through it. (×DPR keeps it sharp.)
+    this.cameras.main.setZoom((v.h / H) * 0.96 * 1.5 * DPR);
   }
 }
