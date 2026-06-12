@@ -45,7 +45,8 @@ export class WorkScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.fillStyle(0xffffff, 1).fillRoundedRect(-barW / 2, -barH / 2, barW, barH, barH / 2);
       g.fillStyle(0x46c43a, 1).fillRoundedRect(-barW / 2 + 3, -barH / 2 + 3, (barW - 6) * (done / this.tasks.length), barH - 6, barH / 2);
-      const label = this.add.text(0, -barH - 6, `${done} / ${this.tasks.length} done${done === this.tasks.length ? " — all done! 🎉" : ""}`, {
+      // Label sits BELOW the bar so the "My Day" sign above never covers it.
+      const label = this.add.text(0, barH / 2 + 14, `${done} / ${this.tasks.length} done${done === this.tasks.length ? " — all done! 🎉" : ""}`, {
         fontFamily: "system-ui", fontStyle: "bold", fontSize: `${17 * v.ui}px`, color: "#7a4a1e",
       }).setOrigin(0.5);
       progress.add([g, label]);
