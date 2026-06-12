@@ -39,6 +39,19 @@ export default async function KidWorldPage({
   );
   const doneIds = new Set(completions.map((c) => c.taskId));
 
+  const taskList = todayTasks.map((t) => ({
+    id: t.id,
+    name: t.name,
+    icon: t.icon,
+    points: t.points,
+    familyPoints: t.familyPointsContribution,
+    category: t.category,
+    cashValueCents: t.cashValueCents,
+    requiresApproval: t.requiresParentApproval,
+    done: doneIds.has(t.id),
+  }));
+  const validScenes = ["pet", "work", "shop", "play", "friends"];
+
   const data: InitialGameData = {
     kid: {
       id: kid.id,
@@ -50,9 +63,10 @@ export default async function KidWorldPage({
     pet,
     tasksToday: {
       total: todayTasks.length,
-      done: todayTasks.filter((t) => doneIds.has(t.id)).length,
+      done: taskList.filter((t) => t.done).length,
     },
-    startScene: scene === "pet" ? "pet" : "world",
+    tasks: taskList,
+    startScene: scene && validScenes.includes(scene) ? scene : "world",
   };
 
   return <KidGameApp data={data} />;

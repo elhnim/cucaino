@@ -5,7 +5,9 @@
  * bridge handles mutations + refreshes.
  */
 import { feedPet, playWithPet, cuddlePet, washPet, toggleSleep } from "@/lib/actions/pet";
+import { completeTask, uncompleteTask } from "@/lib/actions/completions";
 import type { Pet } from "@/lib/pet/logic";
+import type { WorldTask } from "../types";
 
 export interface PetMutationResult {
   ok: boolean;
@@ -20,4 +22,8 @@ export const bridge = {
   cuddle: (kidId: string) => cuddlePet(kidId) as Promise<PetMutationResult>,
   wash: (kidId: string) => washPet(kidId) as Promise<PetMutationResult>,
   sleep: (kidId: string) => toggleSleep(kidId) as Promise<PetMutationResult>,
+
+  completeTask: (kidId: string, t: WorldTask) =>
+    completeTask(t.id, kidId, t.points, t.familyPoints, t.category, 1, t.cashValueCents, t.requiresApproval),
+  uncompleteTask: (kidId: string, t: WorldTask) => uncompleteTask(t.id, kidId),
 };
