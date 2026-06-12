@@ -131,6 +131,10 @@ export class WorldScene extends Phaser.Scene {
     const worldH = MAP_H * this.mapScale;
     this.ground.setSize(MAP_W, MAP_H).setScale(this.mapScale);
     this.cameras.main.setBounds(0, 0, worldW, worldH);
+    // pull the camera back so more of the town is visible (more on wide iPad).
+    // margins beyond the fixed-width map are filled with grass-green to blend.
+    this.cameras.main.setZoom(v.portrait ? 0.9 : 0.78);
+    this.cameras.main.setBackgroundColor(0x7cc34a);
 
     for (const { cfg, root } of this.places) {
       root.setScale(v.ui * 0.9).setPosition(worldW * cfg.fx, worldH * cfg.fy);
