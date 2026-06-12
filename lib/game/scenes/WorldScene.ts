@@ -3,13 +3,12 @@ import { viewport, onResize } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
-// A charming, organic farming town in a 3200x2400 world: a winding dirt road
-// loops around a central pond, buildings are scattered at varied spots with
-// short lanes off the road, plus crop fields, animals and reserved plots.
+// Road network traced from the user's hand-drawn layout: a central village area
+// with lanes winding out to every edge. Buildings line the lanes, a pond/square
+// sits in the middle. (European building art swaps in once the tileset lands.)
 const W = 3200;
 const H = 2400;
 const GRASS = 0x6ea843;
-// cobblestone road tones (ancient-European feel)
 const PATH_EDGE = 0x8a8275;
 const PATH_FILL = 0xbdb4a2;
 const PATH_MID = 0xd7cebb;
@@ -28,27 +27,29 @@ export class WorldScene extends Phaser.Scene {
   private nodes: { x: number; y: number; enter: () => void }[] = [];
   private nearGuard = false;
 
-  // a winding loop road + short lanes to each building
+  // traced from Layout.png (scaled into the world)
   private roads: [number, number][][] = [
-    [[1600, 2160], [1150, 1980], [760, 1680], [820, 1220], [700, 860],
-     [1060, 640], [1520, 520], [2060, 560], [2380, 860], [2420, 1280],
-     [2060, 1560], [1680, 1760], [1600, 2160]],
-    [[1150, 1980], [1120, 1905]],   // → pet home
-    [[820, 1220], [712, 1210]],     // → friends
-    [[1060, 640], [1020, 602]],     // → shop
-    [[2060, 560], [2080, 522]],     // → work
-    [[2420, 1280], [2495, 1320]],   // → playground
+    [[848, 476], [941, 717], [922, 995], [922, 1152]],                                   // top-left lane → J1
+    [[922, 1152], [700, 1235], [728, 1550], [728, 1782]],                                // left side → J3
+    [[728, 1782], [533, 1856], [311, 1939]],                                             // bottom-left out
+    [[728, 1782], [1033, 1902], [1283, 1911], [1469, 1911]],                             // bottom lane
+    [[922, 1152], [1367, 1180], [2071, 1226], [2552, 1245]],                             // main street → J6
+    [[1404, 513], [1608, 772], [1385, 995], [1367, 1180], [1422, 1550], [1469, 1911]],   // centre S-lane
+    [[2422, 476], [2256, 809], [2228, 1217], [2163, 1643], [2126, 1949]],                // right vertical lane
+    [[2941, 735], [2756, 995], [2552, 1245]],                                            // top-right curve → J6
+    [[2552, 1245], [2960, 1235]],                                                        // right out
+    [[2552, 1245], [2700, 1476], [2848, 1735]],                                          // down-right
   ];
   private buildingSpots: [number, number][] = [
-    [1120, 1900], [700, 1210], [1020, 600], [2080, 520], [2500, 1320],
+    [1404, 480], [1820, 1180], [640, 1480], [2760, 1200], [1469, 2030],
   ];
   private plots: [number, number][] = [
-    [1520, 1900], [2330, 600], [560, 1760], [1980, 1560], [1240, 470],
+    [1180, 820], [2180, 1480], [900, 1850], [2470, 1660], [560, 900],
   ];
   private fields: [number, number, number, number][] = [
-    [2300, 1880, 360, 230], [560, 1480, 300, 220], [1650, 1980, 320, 200],
+    [2350, 1900, 340, 220], [1900, 1850, 300, 200],
   ];
-  private pond = { x: 1600, y: 1250, rx: 320, ry: 205 };
+  private pond = { x: 1060, y: 1520, rx: 280, ry: 180 };
 
   constructor() {
     super("World");
@@ -65,9 +66,9 @@ export class WorldScene extends Phaser.Scene {
     this.add.rectangle(0, 0, W, H, GRASS).setOrigin(0, 0);
 
     this.drawPond();
-    for (const s of this.roads) this.roadLayer(s, 116, PATH_EDGE);
-    for (const s of this.roads) this.roadLayer(s, 88, PATH_FILL);
-    for (const s of this.roads) this.roadLayer(s, 26, PATH_MID);
+    for (const s of this.roads) this.roadLayer(s, 112, PATH_EDGE);
+    for (const s of this.roads) this.roadLayer(s, 84, PATH_FILL);
+    for (const s of this.roads) this.roadLayer(s, 24, PATH_MID);
     this.drawFields();
     this.drawPlots();
 
@@ -79,16 +80,16 @@ export class WorldScene extends Phaser.Scene {
     this.addAnimals();
 
     const defs: Place[] = [
-      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 280, x: 1120, y: 1900,
+      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 300, x: 1404, y: 480,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 240, x: 1820, y: 1180,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 230, x: 640, y: 1480,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 270, x: 2760, y: 1200,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 280, x: 1469, y: 2030,
         enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
-      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 230, x: 700, y: 1210,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 240, x: 1020, y: 600,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 300, x: 2080, y: 520,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 270, x: 2500, y: 1320,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
     ];
     for (const cfg of defs) {
       const b = this.add.image(cfg.x, cfg.y, cfg.tex).setOrigin(0.5, 1);
@@ -105,7 +106,7 @@ export class WorldScene extends Phaser.Scene {
       this.nodes.push({ x: cfg.x, y: cfg.y, enter: cfg.enter });
     }
 
-    this.player = this.add.sprite(1600, 2120, "cat-idle").play("cat-idle").setScale(0.9).setDepth(2120);
+    this.player = this.add.sprite(1469, 2120, "cat-idle").play("cat-idle").setScale(0.9).setDepth(2120);
 
     this.cameras.main.setBackgroundColor(GRASS);
     this.cameras.main.setBounds(0, 0, W, H);
@@ -176,27 +177,26 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private drawFields() {
-    // romantic flower gardens with a low hedge border
     for (const [x, y, w, h] of this.fields) {
       const g = this.add.graphics().setDepth(y - h / 2);
-      g.fillStyle(0x8caf57, 1).fillRoundedRect(x - w / 2, y - h / 2, w, h, 22);           // garden bed
-      g.lineStyle(10, 0x4f7a35, 1).strokeRoundedRect(x - w / 2, y - h / 2, w, h, 22);      // hedge
+      g.fillStyle(0x8caf57, 1).fillRoundedRect(x - w / 2, y - h / 2, w, h, 22);
+      g.lineStyle(10, 0x4f7a35, 1).strokeRoundedRect(x - w / 2, y - h / 2, w, h, 22);
       let i = 0;
       for (let fy = -h / 2 + 36; fy < h / 2 - 16; fy += 40)
         for (let fx = -w / 2 + 42; fx < w / 2 - 26; fx += 44) {
-          g.fillStyle(0x3f6b2a, 1).fillCircle(x + fx, y + fy + 5, 4);                       // stem dot
+          g.fillStyle(0x3f6b2a, 1).fillCircle(x + fx, y + fy + 5, 4);
           g.fillStyle(FLOWER_COLORS[i++ % FLOWER_COLORS.length], 1).fillCircle(x + fx, y + fy, 9);
         }
     }
   }
 
   private drawFlowers() {
-    // little wildflower clusters dotted through the grass for romance
     const spots: [number, number][] = [
-      [1380, 1150], [1820, 1180], [1500, 1700], [980, 1650], [2250, 1500],
-      [620, 980], [1300, 900], [2200, 1850], [1750, 560], [880, 1400],
+      [1180, 1300], [1500, 1700], [820, 1700], [2050, 1000], [2250, 1550],
+      [600, 1150], [1700, 700], [2500, 900], [1000, 1100], [1300, 2050],
     ];
     for (const [x, y] of spots) {
+      if (this.nearRoad(x, y, 90)) continue;
       const g = this.add.graphics().setDepth(y);
       for (let i = 0; i < 6; i++) {
         const ax = x + (((i * 53) % 70) - 35);
@@ -222,11 +222,10 @@ export class WorldScene extends Phaser.Scene {
 
   private addAnimals() {
     const list: { a: string; x: number; y: number; s: number; flip?: boolean }[] = [
-      { a: "an-duck", x: 1470, y: 1330, s: 0.42 }, { a: "an-duck", x: 1740, y: 1370, s: 0.42, flip: true },
-      { a: "an-duck", x: 1600, y: 1470, s: 0.4 },
-      { a: "an-chick", x: 2260, y: 1860, s: 0.34 }, { a: "an-chick", x: 2380, y: 1900, s: 0.34, flip: true },
-      { a: "an-pig", x: 1640, y: 1980, s: 0.5 }, { a: "an-pig", x: 480, y: 1500, s: 0.5, flip: true },
-      { a: "an-chick", x: 980, y: 1860, s: 0.34 },
+      { a: "an-duck", x: 940, y: 1600, s: 0.85 }, { a: "an-duck", x: 1200, y: 1650, s: 0.85, flip: true },
+      { a: "an-duck", x: 1060, y: 1740, s: 0.8 },
+      { a: "an-chick", x: 2280, y: 1880, s: 0.7 }, { a: "an-chick", x: 2430, y: 1930, s: 0.7, flip: true },
+      { a: "an-pig", x: 1880, y: 1990, s: 1.0 }, { a: "an-chick", x: 1360, y: 2100, s: 0.7 },
     ];
     for (const o of list) {
       this.add.sprite(o.x, o.y, o.a).play(o.a).setScale(o.s).setFlipX(!!o.flip).setDepth(o.y);
@@ -235,42 +234,44 @@ export class WorldScene extends Phaser.Scene {
 
   private buildScenery() {
     const items: Decor[] = [];
-    const push = (tex: string, x: number, y: number, w: number) => items.push({ tex, x, y, w });
-    const spineExit = (x: number) => x > 1520 && x < 1680;
+    const pushSafe = (tex: string, x: number, y: number, w: number) => {
+      if (!this.nearRoad(x, y, 86)) items.push({ tex, x, y, w });
+    };
 
     for (let x = 60, i = 0; x <= W - 60; x += 132, i++) {
-      push(i % 2 ? "sum-tree-l" : "sum-tree-m", x, 80 + (i % 2 ? 28 : 0), i % 2 ? 190 : 150);
-      push(i % 3 === 0 ? "sum-bush-m" : "sum-tree-s", x + 64, 168, 100);
-      if (!spineExit(x)) push(i % 2 ? "sum-tree-m" : "sum-tree-l", x, H - 64 - (i % 2 ? 18 : 0), i % 2 ? 150 : 190);
-      if (!spineExit(x + 64)) push(i % 3 === 1 ? "sum-bush-l" : "sum-tree-s", x + 64, H - 168, 110);
+      pushSafe(i % 2 ? "sum-tree-l" : "sum-tree-m", x, 80 + (i % 2 ? 28 : 0), i % 2 ? 190 : 150);
+      pushSafe(i % 3 === 0 ? "sum-bush-m" : "sum-tree-s", x + 64, 168, 100);
+      pushSafe(i % 2 ? "sum-tree-m" : "sum-tree-l", x, H - 64 - (i % 2 ? 18 : 0), i % 2 ? 150 : 190);
+      pushSafe(i % 3 === 1 ? "sum-bush-l" : "sum-tree-s", x + 64, H - 168, 110);
     }
     for (let y = 220, i = 0; y <= H - 220; y += 134, i++) {
-      push(i % 2 ? "sum-tree-l" : "sum-tree-m", 76, y, i % 2 ? 190 : 150);
-      push(i % 2 ? "sum-tree-m" : "sum-tree-l", W - 76, y, i % 2 ? 150 : 190);
-      if (i % 2) { push("sum-bush-m", 172, y + 64, 95); push("sum-bush-m", W - 172, y + 64, 95); }
+      pushSafe(i % 2 ? "sum-tree-l" : "sum-tree-m", 76, y, i % 2 ? 190 : 150);
+      pushSafe(i % 2 ? "sum-tree-m" : "sum-tree-l", W - 76, y, i % 2 ? 150 : 190);
+      if (i % 2) { pushSafe("sum-bush-m", 172, y + 64, 95); pushSafe("sum-bush-m", W - 172, y + 64, 95); }
     }
-    push("sum-rock1", 150, 190, 95); push("sum-rock3", W - 160, 200, 85);
-    push("sum-stump", 170, H - 170, 95); push("sum-rock4", W - 180, H - 170, 100);
+    pushSafe("sum-rock1", 150, 190, 95); pushSafe("sum-rock3", W - 160, 200, 85);
+    pushSafe("sum-stump", 170, H - 170, 95); pushSafe("sum-rock4", W - 180, H - 170, 100);
 
     const fills = ["sum-tree-l", "sum-tree-m", "sum-tree-s", "sum-bush-l", "sum-bush-m", "sum-bush-s", "sum-rock1", "sum-stump2"];
-    for (let gx = 360; gx <= W - 360; gx += 188) {
-      for (let gy = 320; gy <= H - 320; gy += 188) {
+    for (let gx = 360; gx <= W - 360; gx += 184) {
+      for (let gy = 320; gy <= H - 320; gy += 184) {
         const k = (gx * 13 + gy * 29) % 100;
-        if (k < 46) continue;
-        if (this.nearAny(gx, gy, this.buildingSpots, 300)) continue;
+        if (k < 48) continue;
+        if (this.nearAny(gx, gy, this.buildingSpots, 290)) continue;
         if (this.nearAny(gx, gy, this.plots, 200)) continue;
         if (this.fields.some(([fx, fy, fw, fh]) => Math.abs(gx - fx) < fw / 2 + 110 && Math.abs(gy - fy) < fh / 2 + 110)) continue;
-        if (Phaser.Math.Distance.Between(gx, gy, this.pond.x, this.pond.y) < 460) continue;
-        if (this.nearRoad(gx, gy, 120)) continue;
+        if (Phaser.Math.Distance.Between(gx, gy, this.pond.x, this.pond.y) < 440) continue;
+        if (this.nearRoad(gx, gy, 110)) continue;
         const tex = fills[k % fills.length];
         const w = tex.includes("tree-l") ? 180 : tex.includes("bush") ? 95 : tex.includes("rock") || tex.includes("stump") ? 80 : 140;
-        push(tex, gx + (k % 40) - 20, gy + ((k * 7) % 30) - 15, w);
+        items.push({ tex, x: gx + (k % 40) - 20, y: gy + ((k * 7) % 30) - 15, w });
       }
     }
 
-    push("sum-campfire", 2640, 1340, 95);  // by the playground
-    push("sum-chest", 880, 600, 90);        // by the shop
-    push("sum-flag", 1950, 510, 90); push("sum-flag", 2210, 510, 90); // flanking the castle
+    items.push({ tex: "sum-campfire", x: 2900, y: 1230, w: 95 });
+    items.push({ tex: "sum-chest", x: 1660, y: 1180, w: 90 });
+    items.push({ tex: "sum-flag", x: 1280, y: 462, w: 90 });
+    items.push({ tex: "sum-flag", x: 1530, y: 462, w: 90 });
 
     for (const d of items) {
       const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
