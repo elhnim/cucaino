@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { viewport } from "../../systems/layout";
 import { room, sign, backButton, panel, grid, relayoutOnResize } from "./chrome";
+import { openTaskPanel } from "./taskPanels";
 import { REGISTRY_DATA } from "../../types";
 import type { InitialGameData, WorldTask } from "../../types";
 import { bridge } from "../../bridge/dataBridge";
@@ -78,33 +79,79 @@ export class WorkScene extends Phaser.Scene {
           fontFamily: "system-ui", fontStyle: "bold", fontSize: `${cw * 0.1}px`, color: "#c8860f",
           backgroundColor: "#fff5d8", padding: { x: 10, y: 3 },
         }).setOrigin(0.5);
-        const check = this.add.text(cw / 2 - 16, -ch / 2 + 16, saving ? "⏳" : t.done ? "✅" : "⬜", { fontSize: `${cw * 0.16}px` }).setOrigin(0.5);
+        const freq = t.frequencyPerDay > 1;
+        const checkLabel = saving ? "⏳" : freq ? `${t.doneCount}/${t.frequencyPerDay}` : t.done ? "✅" : "⬜";
+        const check = freq
+          ? this.add.text(cw / 2 - 8, -ch / 2 + 14, checkLabel, {
+              fontFamily: "system-ui", fontStyle: "bold", fontSize: `${cw * 0.12}px`, color: t.done ? "#2e9b3e" : "#c8860f",
+              backgroundColor: "#fff5d8", padding: { x: 6, y: 2 },
+            }).setOrigin(1, 0)
+          : this.add.text(cw / 2 - 16, -ch / 2 + 16, checkLabel, { fontSize: `${cw * 0.16}px` }).setOrigin(0.5);
+        const hintTxt = this.mechanicHint(t);
         card.add([g, thumb, name, reward, check]);
+        if (hintTxt) {
+          const hint = this.add.text(-cw / 2 + 12, -ch / 2 + 12, hintTxt, {
+            fontFamily: "system-ui", fontStyle: "bold", fontSize: `${cw * 0.085}px`, color: "#7a4a1e",
+            backgroundColor: "#ffe9c2", padding: { x: 7, y: 3 },
+          }).setOrigin(0, 0);
+          card.add(hint);
+        }
       };
       draw();
       const hit = this.add.zone(x, y, cw, ch).setInteractive({ useHandCursor: true });
-      hit.on("pointerdown", () => this.toggle(t, () => draw(), drawProgress, x, y - ch * 0.16));
+      hit.on("pointerdown", () => this.handleTap(t, () => draw(), drawProgress, x, y - ch * 0.16));
     });
 
     relayoutOnResize(this);
   }
 
-  private async toggle(t: WorldTask, redraw: () => void, drawProgress: () => void, bx: number, by: number) {
+  private mechanicHint(t: WorldTask): string | null {
+    if (t.frequencyPerDay > 1) return null; // shown in the corner badge instead
+    if (t.mechanic === "timer") return `⏱ ${t.timerMinutes ?? "?"}m${t.music ? " 🎵" : ""}`;
+    if (t.mechanic === "reps") return `🎯 ${t.reps ?? ""}`;
+    if (t.mechanic === "checklist") return `☑ ${t.checklist?.length ?? 0} steps`;
+    return null;
+  }
+
+  /** Route a card tap: frequency +1, instant toggle, or open a mechanic panel. */
+  private handleTap(t: WorldTask, redraw: () => void, drawProgress: () => void, bx: number, by: number) {
+    if (this.busy.has(t.id)) return;
+
+    if (t.frequencyPerDay > 1) {
+      // tap to add one; once full, a tap removes the most recent one
+      if (t.doneCount >= t.frequencyPerDay) this.save(t, true, redraw, drawProgress, bx, by);
+      else this.save(t, false, redraw, drawProgress, bx, by);
+      return;
+    }
+    if (t.done) { this.save(t, true, redraw, drawProgress, bx, by); return; }
+    if (t.mechanic === "tap") { this.save(t, false, redraw, drawProgress, bx, by); return; }
+    // checklist / reps / timer: gate completion behind the interaction
+    openTaskPanel(this, t, () => this.save(t, false, redraw, drawProgress, bx, by));
+  }
+
+  /** Persist a completion (`undo=false`) or removal (`undo=true`) + optimistic HUD. */
+  private async save(t: WorldTask, undo: boolean, redraw: () => void, drawProgress: () => void, bx: number, by: number) {
     if (this.busy.has(t.id)) return;
     const data = this.registry.get(REGISTRY_DATA) as InitialGameData;
     const kidId = data?.kid?.id ?? "";
-    const wasDone = t.done;
+    const freq = t.frequencyPerDay > 1;
 
     this.busy.add(t.id);
     redraw();
     try {
-      const res = wasDone ? await bridge.uncompleteTask(kidId, t) : await bridge.completeTask(kidId, t);
+      const res = undo ? await bridge.uncompleteTask(kidId, t) : await bridge.completeTask(kidId, t);
       if (res.ok) {
-        t.done = !wasDone;
-        this.balance += wasDone ? -t.points : t.points;
+        if (freq) {
+          t.doneCount = Math.max(0, t.doneCount + (undo ? -1 : 1));
+          t.done = t.doneCount >= t.frequencyPerDay;
+        } else {
+          t.done = !undo;
+          t.doneCount = t.done ? 1 : 0;
+        }
+        this.balance += undo ? -t.points : t.points;
         this.game.events.emit("hud:coins", this.balance);
         this.game.events.emit("hud:stars", this.tasks.filter((x) => x.done).length);
-        if (t.done) this.burst(bx, by);
+        if (!undo) this.burst(bx, by);
       } else if (res.error) {
         this.toast(bx, by - 60, res.error);
       }

@@ -37,19 +37,47 @@ export default async function KidWorldPage({
   const todayTasks = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow).filter(
     (t) => t.requiresCompletion,
   );
-  const doneIds = new Set(completions.map((c) => c.taskId));
+  const doneCounts = new Map<string, number>();
+  for (const c of completions) doneCounts.set(c.taskId, (doneCounts.get(c.taskId) ?? 0) + 1);
 
-  const taskList = todayTasks.map((t) => ({
-    id: t.id,
-    name: t.name,
-    icon: t.icon,
-    points: t.points,
-    familyPoints: t.familyPointsContribution,
-    category: t.category,
-    cashValueCents: t.cashValueCents,
-    requiresApproval: t.requiresParentApproval,
-    done: doneIds.has(t.id),
-  }));
+  const taskList = todayTasks.map((t) => {
+    const isTimer =
+      (t.target === "time" && !!t.targetDurationMinutes) || t.requiresTimer || t.musicEnabled;
+    // Frequency takes precedence (simple +1, like the web FrequencyCard); otherwise
+    // pick the mechanic from the task's target.
+    const mechanic: import("@/lib/game/types").TaskMechanic =
+      t.frequencyPerDay > 1
+        ? "tap"
+        : t.target === "checklist" && t.checklistItems?.length
+          ? "checklist"
+          : t.target === "reps" && t.targetReps
+            ? "reps"
+            : isTimer
+              ? "timer"
+              : "tap";
+    const doneCount = doneCounts.get(t.id) ?? 0;
+    return {
+      id: t.id,
+      name: t.name,
+      icon: t.icon,
+      points: t.points,
+      familyPoints: t.familyPointsContribution,
+      category: t.category,
+      cashValueCents: t.cashValueCents,
+      requiresApproval: t.requiresParentApproval,
+      done: t.frequencyPerDay > 1 ? doneCount >= t.frequencyPerDay : doneCount > 0,
+      mechanic,
+      timerMinutes: t.target === "time" ? t.targetDurationMinutes : t.requiresTimer || t.musicEnabled ? (t.durationMinutes ?? null) : null,
+      reps: t.targetReps,
+      repLabel: t.targetRepLabel,
+      checklist: t.checklistItems,
+      music: t.musicEnabled,
+      bpm: t.defaultBpm,
+      timeSignature: t.defaultTimeSignature,
+      frequencyPerDay: t.frequencyPerDay,
+      doneCount,
+    };
+  });
   const validScenes = ["pet", "work", "shop", "play", "friends"];
 
   const data: InitialGameData = {

@@ -24,6 +24,6 @@ export const bridge = {
   sleep: (kidId: string) => toggleSleep(kidId) as Promise<PetMutationResult>,
 
   completeTask: (kidId: string, t: WorldTask) =>
-    completeTask(t.id, kidId, t.points, t.familyPoints, t.category, 1, t.cashValueCents, t.requiresApproval),
+    completeTask(t.id, kidId, t.points, t.familyPoints, t.category, Math.max(1, t.frequencyPerDay), t.cashValueCents, t.requiresApproval),
   uncompleteTask: (kidId: string, t: WorldTask) => uncompleteTask(t.id, kidId),
 };
