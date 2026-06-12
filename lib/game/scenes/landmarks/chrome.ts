@@ -16,8 +16,8 @@ export function backdrop(scene: Phaser.Scene, tint = 0xfff4e2) {
   scene.add.rectangle(v.cx, v.cy, v.w, v.h, tint, 0.42).setDepth(-9);
 }
 
-/** the inside of a cosy house: wallpapered wall, window, wooden floor + rug. */
-export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, accent = 0xffe0b0) {
+/** the inside of a cosy house: wallpapered wall, (optional) window, floor + rug. */
+export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, accent = 0xffe0b0, opts: { window?: boolean } = {}) {
   const v = viewport(scene);
   // wall + subtle wallpaper stripes
   scene.add.rectangle(v.cx, v.cy, v.w, v.h, wall).setDepth(-30);
@@ -25,19 +25,21 @@ export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, acc
   wp.fillStyle(0xffffff, 0.05);
   for (let x = 0; x < v.w; x += 56) wp.fillRect(x, 0, 26, v.h);
 
-  // window (upper-left, away from title/counters)
-  const ww = Math.min(v.w * 0.24, 250), wh = ww * 0.82;
-  const wx = Math.max(ww * 0.7 + 24, v.w * 0.2), wy = wh * 0.62 + 96;
-  const wg = scene.add.graphics().setDepth(-28);
-  wg.fillStyle(0x8a5a2b, 1).fillRoundedRect(wx - ww / 2 - 12, wy - wh / 2 - 12, ww + 24, wh + 24, 14);
-  wg.fillStyle(0xaed7ff, 1).fillRoundedRect(wx - ww / 2, wy - wh / 2, ww, wh, 6);
-  wg.fillStyle(0xcdeeff, 1).fillRect(wx - ww / 2, wy, ww, wh / 2);
-  wg.fillStyle(0xfff3bf, 1).fillCircle(wx + ww * 0.24, wy - wh * 0.18, ww * 0.13);
-  wg.lineStyle(7, 0x8a5a2b, 1);
-  wg.beginPath();
-  wg.moveTo(wx, wy - wh / 2); wg.lineTo(wx, wy + wh / 2);
-  wg.moveTo(wx - ww / 2, wy); wg.lineTo(wx + ww / 2, wy);
-  wg.strokePath();
+  // window — only when content won't cover it
+  if (opts.window) {
+    const ww = Math.min(v.w * 0.24, 250), wh = ww * 0.82;
+    const wx = Math.max(ww * 0.7 + 24, v.w * 0.2), wy = wh * 0.62 + 96;
+    const wg = scene.add.graphics().setDepth(-28);
+    wg.fillStyle(0x8a5a2b, 1).fillRoundedRect(wx - ww / 2 - 12, wy - wh / 2 - 12, ww + 24, wh + 24, 14);
+    wg.fillStyle(0xaed7ff, 1).fillRoundedRect(wx - ww / 2, wy - wh / 2, ww, wh, 6);
+    wg.fillStyle(0xcdeeff, 1).fillRect(wx - ww / 2, wy, ww, wh / 2);
+    wg.fillStyle(0xfff3bf, 1).fillCircle(wx + ww * 0.24, wy - wh * 0.18, ww * 0.13);
+    wg.lineStyle(7, 0x8a5a2b, 1);
+    wg.beginPath();
+    wg.moveTo(wx, wy - wh / 2); wg.lineTo(wx, wy + wh / 2);
+    wg.moveTo(wx - ww / 2, wy); wg.lineTo(wx + ww / 2, wy);
+    wg.strokePath();
+  }
 
   // floor strip + baseboard + planks
   const fy = v.h * 0.84;

@@ -93,9 +93,11 @@ export class ShopScene extends Phaser.Scene {
 
   private drawCounter(v: { w: number; h: number; cx: number; ui: number }) {
     const top = v.h * 0.78;
-    this.add.sprite(v.cx + v.w * 0.16, top + 26, "an-pig").play("an-pig")
-      .setOrigin(0.5, 1).setScale(v.ui * 1.25).setDepth(20);
-    this.add.text(v.cx + v.w * 0.16, top - 92 * v.ui, "Welcome! 🛍️", {
+    const rx = v.w * 0.2, ry = top + 8;
+    // shopkeeper stands BEHIND the counter + register (drawn first → lowest depth)
+    this.add.sprite(rx, top + 18, "an-pig").play("an-pig")
+      .setOrigin(0.5, 1).setScale(v.ui * 1.35).setDepth(20);
+    this.add.text(rx, top - 150 * v.ui, "Welcome! 🛍️", {
       fontFamily: "system-ui", fontStyle: "bold", fontSize: `${17 * v.ui}px`, color: "#5a3a18",
       backgroundColor: "#ffffff", padding: { x: 10, y: 5 },
     }).setOrigin(0.5).setDepth(22);
@@ -104,8 +106,6 @@ export class ShopScene extends Phaser.Scene {
     g.fillStyle(0x8a5a2b, 1).fillRect(0, top, v.w, v.h - top);
     g.fillStyle(0xa9703a, 1).fillRect(0, top, v.w, 22);
     g.fillStyle(0x6b4420, 1).fillRect(0, top + 22, v.w, 6);
-
-    const rx = v.w * 0.2, ry = top + 8;
     const reg = this.add.graphics().setDepth(26);
     reg.fillStyle(0x4a4f57, 1).fillRoundedRect(rx - 70, ry - 70, 140, 78, 10);
     reg.fillStyle(0x2a2e34, 1).fillRoundedRect(rx - 58, ry - 86, 116, 40, 8);

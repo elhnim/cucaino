@@ -21,7 +21,7 @@ export class PetScene extends Phaser.Scene {
     const data = this.registry.get(REGISTRY_DATA) as InitialGameData;
     const kidId = data?.kid?.id ?? "";
 
-    room(this, 0xffe6d0, 0xc89a5e, 0xffd0b0);
+    room(this, 0xffe6d0, 0xc89a5e, 0xffd0b0, { window: true });
     this.pet = this.add.sprite(0, 0, "cat-idle").play("cat-idle");
     this.speech = this.add
       .text(0, 0, data?.pet ? `${data.pet.name} is happy!` : "Tap to play with me!", {
