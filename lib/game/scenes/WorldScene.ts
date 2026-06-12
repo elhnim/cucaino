@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { viewport, onResize } from "../systems/layout";
+import { viewport, onResize, DPR } from "../systems/layout";
 import { OccupancyGrid } from "../systems/OccupancyGrid";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
@@ -578,6 +578,7 @@ export class WorldScene extends Phaser.Scene {
 
   private layout() {
     const v = viewport(this);
-    this.cameras.main.setZoom((v.h / H) * 0.96);
+    // v.h is CSS units; multiply by DPR so the world fills the physical framebuffer.
+    this.cameras.main.setZoom((v.h / H) * 0.96 * DPR);
   }
 }

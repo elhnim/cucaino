@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { viewport, onResize } from "../systems/layout";
+import { viewport, onResize, hiDpiCamera } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 import { bridge } from "../bridge/dataBridge";
@@ -79,6 +79,7 @@ export class PetScene extends Phaser.Scene {
   }
 
   private layout() {
+    hiDpiCamera(this);
     const v = viewport(this);
     this.pet.setScale(v.ui * (v.portrait ? 1.0 : 1.2)).setPosition(v.cx, v.h * 0.66);
     this.speech.setPosition(v.cx, this.pet.y - this.pet.displayHeight / 2 - 20).setFontSize(18 * v.ui);

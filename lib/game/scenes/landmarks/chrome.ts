@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { viewport } from "../../systems/layout";
+import { viewport, hiDpiCamera } from "../../systems/layout";
 import { REGISTRY_DATA } from "../../types";
 import type { InitialGameData } from "../../types";
 
@@ -10,6 +10,7 @@ export function kidId(scene: Phaser.Scene): string {
 }
 
 export function backdrop(scene: Phaser.Scene, tint = 0xfff4e2) {
+  hiDpiCamera(scene);
   const v = viewport(scene);
   const bg = scene.add.image(v.cx, v.cy, "bg").setDepth(-10);
   bg.setScale(Math.max(v.w / bg.width, v.h / bg.height));
@@ -18,6 +19,7 @@ export function backdrop(scene: Phaser.Scene, tint = 0xfff4e2) {
 
 /** the inside of a cosy house: wallpapered wall, (optional) window, floor + rug. */
 export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, accent = 0xffe0b0, opts: { window?: boolean } = {}) {
+  hiDpiCamera(scene);
   const v = viewport(scene);
   // wall + subtle wallpaper stripes
   scene.add.rectangle(v.cx, v.cy, v.w, v.h, wall).setDepth(-30);
@@ -93,9 +95,9 @@ export function panel(scene: Phaser.Scene, x: number, y: number, w: number, h: n
   return g;
 }
 
-/** centred grid positions for n cards */
-export function grid(v: { w: number }, n: number, cw: number, ch: number, gap: number, top: number) {
-  const cols = Math.max(1, Math.min(n, Math.floor((v.w - 36) / (cw + gap))));
+/** centred grid positions for n cards; `maxCols` caps columns for a balanced grid */
+export function grid(v: { w: number }, n: number, cw: number, ch: number, gap: number, top: number, maxCols = Infinity) {
+  const cols = Math.max(1, Math.min(n, maxCols, Math.floor((v.w - 36) / (cw + gap))));
   const totalW = cols * cw + (cols - 1) * gap;
   const startX = (v.w - totalW) / 2 + cw / 2;
   const out: { x: number; y: number }[] = [];

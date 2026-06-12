@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { viewport, onResize } from "../systems/layout";
+import { viewport, onResize, hiDpiCamera } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
@@ -97,6 +97,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   private layout() {
+    hiDpiCamera(this);
     const v = viewport(this);
     const pad = 16 * v.ui;
     const av = 72 * v.ui;

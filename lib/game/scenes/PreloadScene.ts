@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { viewport } from "../systems/layout";
+import { viewport, hiDpiCamera } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
@@ -11,6 +11,7 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   preload() {
+    hiDpiCamera(this);
     const { cx, cy, w } = viewport(this);
 
     // candy progress bar

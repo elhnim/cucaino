@@ -21,7 +21,11 @@ export class WorkScene extends Phaser.Scene {
     room(this, 0xf0e3c8, 0xb98b53, 0xffe0b0);
     backButton(this);
     const v = viewport(this);
-    sign(this, v.cx, 54 * v.ui, "🏢 My Day", 38);
+    // On phones the sign sits a row below the back button so they never collide.
+    // Use absolute Y on portrait: the sign's font is a fixed px size, so scaling
+    // its position by v.ui would let it drift into the progress bar below it.
+    const signY = v.portrait ? 90 : 54 * v.ui;
+    sign(this, v.cx, signY, "🏢 My Day", v.portrait ? 30 : 38);
 
     if (this.tasks.length === 0) {
       this.add.text(v.cx, v.cy, "No tasks for today — go play! 🎉", {
@@ -32,7 +36,7 @@ export class WorkScene extends Phaser.Scene {
       return;
     }
 
-    const progress = this.add.container(v.cx, 118 * v.ui).setDepth(60);
+    const progress = this.add.container(v.cx, v.portrait ? 146 : 118 * v.ui).setDepth(60);
     const drawProgress = () => {
       progress.removeAll(true);
       const done = this.tasks.filter((t) => t.done).length;
@@ -47,9 +51,16 @@ export class WorkScene extends Phaser.Scene {
     };
     drawProgress();
 
-    const cw = Math.min(220, (v.w - 60) / 2) * (v.portrait ? 1 : 0.95);
-    const ch = cw * 0.95;
-    const pos = grid(v, this.tasks.length, cw, ch, 18 * v.ui, 160 * v.ui);
+    // Smaller, tidier cards in a balanced grid: 2 cols on phones, up to 3 (≤6
+    // tasks) or 4 on tablets so the last row isn't a lonely single card.
+    const gap = 18 * v.ui;
+    const n = this.tasks.length;
+    const maxCols = v.portrait ? 2 : n <= 6 ? 3 : 4;
+    const cw = v.portrait
+      ? Math.min(150, (v.w - 3 * gap) / 2)
+      : Math.min(190, (v.w - (maxCols + 1) * gap) / maxCols);
+    const ch = cw * 0.96;
+    const pos = grid(v, n, cw, ch, gap, v.portrait ? 188 : 158 * v.ui, maxCols);
 
     this.tasks.forEach((t, i) => {
       const { x, y } = pos[i];
