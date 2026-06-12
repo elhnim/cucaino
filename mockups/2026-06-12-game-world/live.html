@@ -25,6 +25,10 @@
     <button data-dev="ipad" class="active">📱 iPad (landscape)</button>
     <button data-dev="iphone">📲 iPhone (portrait)</button>
     <button data-scene="world">🌍 World</button>
+    <button data-scene="work">🏢 Work</button>
+    <button data-scene="shop">🏪 Shop</button>
+    <button data-scene="play">🛝 Play</button>
+    <button data-scene="friends">💌 Friends</button>
     <button data-scene="pet">🐾 Pet</button>
     <a href="canvas-smoke.html" target="_blank">open full-window ↗</a>
   </div>
@@ -38,7 +42,7 @@
     });
     document.querySelectorAll('.bar button[data-scene]').forEach(b => b.onclick = () => {
       scene = b.dataset.scene;
-      f.src = 'canvas-smoke.html' + (scene === 'pet' ? '?scene=pet' : '');
+      f.src = 'canvas-smoke.html' + (scene === 'world' ? '' : '?scene=' + scene);
     });
   </script>
 </body>

@@ -4,6 +4,10 @@ import { PreloadScene } from "./scenes/PreloadScene";
 import { WorldScene } from "./scenes/WorldScene";
 import { HudScene } from "./scenes/HudScene";
 import { PetScene } from "./scenes/PetScene";
+import { WorkScene } from "./scenes/landmarks/WorkScene";
+import { ShopScene } from "./scenes/landmarks/ShopScene";
+import { PlayScene } from "./scenes/landmarks/PlayScene";
+import { FriendsScene } from "./scenes/landmarks/FriendsScene";
 import { REGISTRY_DATA } from "./types";
 import type { InitialGameData } from "./types";
 
@@ -20,7 +24,7 @@ export function startGame(parent: HTMLElement, data: InitialGameData): () => voi
       height: parent.clientHeight || window.innerHeight,
     },
     render: { antialias: true, powerPreference: "high-performance" },
-    scene: [BootScene, PreloadScene, WorldScene, HudScene, PetScene],
+    scene: [BootScene, PreloadScene, WorldScene, HudScene, PetScene, WorkScene, ShopScene, PlayScene, FriendsScene],
   });
 
   game.registry.set(REGISTRY_DATA, data);

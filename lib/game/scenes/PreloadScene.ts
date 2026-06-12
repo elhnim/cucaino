@@ -101,8 +101,10 @@ export class PreloadScene extends Phaser.Scene {
     });
 
     const data = this.registry.get(REGISTRY_DATA) as InitialGameData;
-    const start = data?.startScene === "pet" ? "Pet" : "World";
-    this.scene.start(start);
+    const map: Record<string, string> = {
+      pet: "Pet", work: "Work", shop: "Shop", play: "Play", friends: "Friends",
+    };
+    this.scene.start(map[data?.startScene ?? ""] ?? "World");
     this.scene.launch("Hud");
   }
 }

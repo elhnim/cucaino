@@ -96,13 +96,13 @@ export class WorldScene extends Phaser.Scene {
 
     const defs: Place[] = [
       { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 310, x: 1404, y: 480,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+        enter: () => this.enterFlash(() => go("Work", `/kid/${kidId}/world?scene=work`)) },
       { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 250, x: 1900, y: 1140,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+        enter: () => this.enterFlash(() => go("Shop", `/kid/${kidId}/world?scene=shop`)) },
       { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 240, x: 560, y: 1470,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+        enter: () => this.enterFlash(() => go("Friends", `/kid/${kidId}/world?scene=friends`)) },
       { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 280, x: 2780, y: 1180,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+        enter: () => this.enterFlash(() => go("Play", `/kid/${kidId}/world?scene=play`)) },
       { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 300, x: 1469, y: 2050,
         enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
     ];
