@@ -3,15 +3,17 @@ import { viewport, onResize } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
-// A proper little town in a 3200x2400 world: a road grid, five buildings,
-// reserved empty plots for future buildings, a pond, farm animals, and a
-// scenery frame on every edge. The camera fits the whole town on screen.
+// A charming, organic farming town in a 3200x2400 world: a winding dirt road
+// loops around a central pond, buildings are scattered at varied spots with
+// short lanes off the road, plus crop fields, animals and reserved plots.
 const W = 3200;
 const H = 2400;
 const GRASS = 0x6ea843;
-const PATH_EDGE = 0xc79a55;
-const PATH_FILL = 0xe8b973;
-const PATH_MID = 0xf3d49a;
+// cobblestone road tones (ancient-European feel)
+const PATH_EDGE = 0x8a8275;
+const PATH_FILL = 0xbdb4a2;
+const PATH_MID = 0xd7cebb;
+const FLOWER_COLORS = [0xe85b5b, 0xf2c14e, 0xef8fc0, 0xffffff, 0xb07be0];
 const WALK_SPEED = 520;
 
 interface Place { key: string; label: string; tex: string; bw: number; x: number; y: number; enter: () => void }
@@ -26,21 +28,27 @@ export class WorldScene extends Phaser.Scene {
   private nodes: { x: number; y: number; enter: () => void }[] = [];
   private nearGuard = false;
 
+  // a winding loop road + short lanes to each building
   private roads: [number, number][][] = [
-    [[1600, 420], [1600, 1980]],   // main avenue (vertical)
-    [[420, 1200], [2780, 1200]],   // main street (horizontal)
-    [[980, 820], [2220, 820]],     // upper cross street
-    [[980, 1580], [2220, 1580]],   // lower cross street
-    [[1120, 820], [1120, 1580]],   // left street
-    [[2080, 820], [2080, 1580]],   // right street
+    [[1600, 2160], [1150, 1980], [760, 1680], [820, 1220], [700, 860],
+     [1060, 640], [1520, 520], [2060, 560], [2380, 860], [2420, 1280],
+     [2060, 1560], [1680, 1760], [1600, 2160]],
+    [[1150, 1980], [1120, 1905]],   // → pet home
+    [[820, 1220], [712, 1210]],     // → friends
+    [[1060, 640], [1020, 602]],     // → shop
+    [[2060, 560], [2080, 522]],     // → work
+    [[2420, 1280], [2495, 1320]],   // → playground
   ];
   private buildingSpots: [number, number][] = [
-    [1600, 760], [1360, 1010], [1840, 1010], [1360, 1390], [1600, 1740],
+    [1120, 1900], [700, 1210], [1020, 600], [2080, 520], [2500, 1320],
   ];
   private plots: [number, number][] = [
-    [1840, 1390], [820, 1010], [2380, 1010], [820, 1390], [2380, 1390],
+    [1520, 1900], [2330, 600], [560, 1760], [1980, 1560], [1240, 470],
   ];
-  private pond = { x: 760, y: 1820, rx: 300, ry: 190 };
+  private fields: [number, number, number, number][] = [
+    [2300, 1880, 360, 230], [560, 1480, 300, 220], [1650, 1980, 320, 200],
+  ];
+  private pond = { x: 1600, y: 1250, rx: 320, ry: 205 };
 
   constructor() {
     super("World");
@@ -57,28 +65,30 @@ export class WorldScene extends Phaser.Scene {
     this.add.rectangle(0, 0, W, H, GRASS).setOrigin(0, 0);
 
     this.drawPond();
-    for (const s of this.roads) this.roadLayer(s, 118, PATH_EDGE);
-    for (const s of this.roads) this.roadLayer(s, 90, PATH_FILL);
-    for (const s of this.roads) this.roadLayer(s, 28, PATH_MID);
+    for (const s of this.roads) this.roadLayer(s, 116, PATH_EDGE);
+    for (const s of this.roads) this.roadLayer(s, 88, PATH_FILL);
+    for (const s of this.roads) this.roadLayer(s, 26, PATH_MID);
+    this.drawFields();
     this.drawPlots();
 
     const ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
     ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
 
     this.buildScenery();
+    this.drawFlowers();
     this.addAnimals();
 
     const defs: Place[] = [
-      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 300, x: 1600, y: 760,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 240, x: 1360, y: 1010,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 270, x: 1840, y: 1010,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 230, x: 1360, y: 1390,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 280, x: 1600, y: 1740,
+      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 280, x: 1120, y: 1900,
         enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
+      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 230, x: 700, y: 1210,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 240, x: 1020, y: 600,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 300, x: 2080, y: 520,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 270, x: 2500, y: 1320,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
     ];
     for (const cfg of defs) {
       const b = this.add.image(cfg.x, cfg.y, cfg.tex).setOrigin(0.5, 1);
@@ -95,7 +105,7 @@ export class WorldScene extends Phaser.Scene {
       this.nodes.push({ x: cfg.x, y: cfg.y, enter: cfg.enter });
     }
 
-    this.player = this.add.sprite(1600, 1900, "cat-idle").play("cat-idle").setScale(0.9).setDepth(1900);
+    this.player = this.add.sprite(1600, 2120, "cat-idle").play("cat-idle").setScale(0.9).setDepth(2120);
 
     this.cameras.main.setBackgroundColor(GRASS);
     this.cameras.main.setBounds(0, 0, W, H);
@@ -152,7 +162,7 @@ export class WorldScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(2);
     g.lineStyle(width, color, 1);
     const spline = new Phaser.Curves.Spline(points.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
-    spline.draw(g, Math.max(48, points.length * 24));
+    spline.draw(g, Math.max(64, points.length * 24));
     g.fillStyle(color, 1);
     for (const [x, y] of points) g.fillCircle(x, y, width / 2);
   }
@@ -160,15 +170,47 @@ export class WorldScene extends Phaser.Scene {
   private drawPond() {
     const { x, y, rx, ry } = this.pond;
     const g = this.add.graphics().setDepth(y);
-    g.fillStyle(0xd9c089, 1).fillEllipse(x, y, rx * 2 + 40, ry * 2 + 30);       // sandy shore
-    g.fillStyle(0x4fa9e0, 1).fillEllipse(x, y, rx * 2, ry * 2);                  // water
-    g.fillStyle(0x86cdf0, 1).fillEllipse(x - rx * 0.25, y - ry * 0.3, rx, ry * 0.7); // highlight
+    g.fillStyle(0xd9c089, 1).fillEllipse(x, y, rx * 2 + 44, ry * 2 + 32);
+    g.fillStyle(0x4fa9e0, 1).fillEllipse(x, y, rx * 2, ry * 2);
+    g.fillStyle(0x86cdf0, 1).fillEllipse(x - rx * 0.25, y - ry * 0.3, rx, ry * 0.7);
+  }
+
+  private drawFields() {
+    // romantic flower gardens with a low hedge border
+    for (const [x, y, w, h] of this.fields) {
+      const g = this.add.graphics().setDepth(y - h / 2);
+      g.fillStyle(0x8caf57, 1).fillRoundedRect(x - w / 2, y - h / 2, w, h, 22);           // garden bed
+      g.lineStyle(10, 0x4f7a35, 1).strokeRoundedRect(x - w / 2, y - h / 2, w, h, 22);      // hedge
+      let i = 0;
+      for (let fy = -h / 2 + 36; fy < h / 2 - 16; fy += 40)
+        for (let fx = -w / 2 + 42; fx < w / 2 - 26; fx += 44) {
+          g.fillStyle(0x3f6b2a, 1).fillCircle(x + fx, y + fy + 5, 4);                       // stem dot
+          g.fillStyle(FLOWER_COLORS[i++ % FLOWER_COLORS.length], 1).fillCircle(x + fx, y + fy, 9);
+        }
+    }
+  }
+
+  private drawFlowers() {
+    // little wildflower clusters dotted through the grass for romance
+    const spots: [number, number][] = [
+      [1380, 1150], [1820, 1180], [1500, 1700], [980, 1650], [2250, 1500],
+      [620, 980], [1300, 900], [2200, 1850], [1750, 560], [880, 1400],
+    ];
+    for (const [x, y] of spots) {
+      const g = this.add.graphics().setDepth(y);
+      for (let i = 0; i < 6; i++) {
+        const ax = x + (((i * 53) % 70) - 35);
+        const ay = y + (((i * 37) % 44) - 22);
+        g.fillStyle(0x3f6b2a, 1).fillCircle(ax, ay + 4, 3);
+        g.fillStyle(FLOWER_COLORS[(i + x) % FLOWER_COLORS.length], 1).fillCircle(ax, ay, 8);
+      }
+    }
   }
 
   private drawPlots() {
     for (const [x, y] of this.plots) {
       const g = this.add.graphics().setDepth(y);
-      g.fillStyle(0xc9a877, 0.55).fillRoundedRect(x - 120, y - 95, 240, 175, 18);
+      g.fillStyle(0xc9a877, 0.5).fillRoundedRect(x - 120, y - 95, 240, 175, 18);
       g.lineStyle(5, 0x9a7a45, 0.8).strokeRoundedRect(x - 120, y - 95, 240, 175, 18);
       this.add.text(x, y - 6, "🏗️", { fontSize: "52px" }).setOrigin(0.5).setDepth(y);
       this.add.text(x, y + 54, "Coming soon", {
@@ -180,11 +222,11 @@ export class WorldScene extends Phaser.Scene {
 
   private addAnimals() {
     const list: { a: string; x: number; y: number; s: number; flip?: boolean }[] = [
-      { a: "an-duck", x: 700, y: 1700, s: 0.42 }, { a: "an-duck", x: 880, y: 1760, s: 0.42, flip: true },
-      { a: "an-duck", x: 640, y: 1880, s: 0.4 },
-      { a: "an-chick", x: 1500, y: 1180, s: 0.34 }, { a: "an-chick", x: 1720, y: 1240, s: 0.34, flip: true },
-      { a: "an-chick", x: 2360, y: 1640, s: 0.34 },
-      { a: "an-pig", x: 1980, y: 1700, s: 0.5 }, { a: "an-pig", x: 980, y: 1080, s: 0.5, flip: true },
+      { a: "an-duck", x: 1470, y: 1330, s: 0.42 }, { a: "an-duck", x: 1740, y: 1370, s: 0.42, flip: true },
+      { a: "an-duck", x: 1600, y: 1470, s: 0.4 },
+      { a: "an-chick", x: 2260, y: 1860, s: 0.34 }, { a: "an-chick", x: 2380, y: 1900, s: 0.34, flip: true },
+      { a: "an-pig", x: 1640, y: 1980, s: 0.5 }, { a: "an-pig", x: 480, y: 1500, s: 0.5, flip: true },
+      { a: "an-chick", x: 980, y: 1860, s: 0.34 },
     ];
     for (const o of list) {
       this.add.sprite(o.x, o.y, o.a).play(o.a).setScale(o.s).setFlipX(!!o.flip).setDepth(o.y);
@@ -211,23 +253,24 @@ export class WorldScene extends Phaser.Scene {
     push("sum-stump", 170, H - 170, 95); push("sum-rock4", W - 180, H - 170, 100);
 
     const fills = ["sum-tree-l", "sum-tree-m", "sum-tree-s", "sum-bush-l", "sum-bush-m", "sum-bush-s", "sum-rock1", "sum-stump2"];
-    for (let gx = 360; gx <= W - 360; gx += 190) {
-      for (let gy = 320; gy <= H - 320; gy += 190) {
+    for (let gx = 360; gx <= W - 360; gx += 188) {
+      for (let gy = 320; gy <= H - 320; gy += 188) {
         const k = (gx * 13 + gy * 29) % 100;
-        if (k < 44) continue;
+        if (k < 46) continue;
         if (this.nearAny(gx, gy, this.buildingSpots, 300)) continue;
         if (this.nearAny(gx, gy, this.plots, 200)) continue;
-        if (Phaser.Math.Distance.Between(gx, gy, this.pond.x, this.pond.y) < 420) continue;
-        if (this.nearRoad(gx, gy, 130)) continue;
+        if (this.fields.some(([fx, fy, fw, fh]) => Math.abs(gx - fx) < fw / 2 + 110 && Math.abs(gy - fy) < fh / 2 + 110)) continue;
+        if (Phaser.Math.Distance.Between(gx, gy, this.pond.x, this.pond.y) < 460) continue;
+        if (this.nearRoad(gx, gy, 120)) continue;
         const tex = fills[k % fills.length];
         const w = tex.includes("tree-l") ? 180 : tex.includes("bush") ? 95 : tex.includes("rock") || tex.includes("stump") ? 80 : 140;
         push(tex, gx + (k % 40) - 20, gy + ((k * 7) % 30) - 15, w);
       }
     }
 
-    push("sum-campfire", 2010, 1010, 95);
-    push("sum-chest", 1200, 1010, 90);
-    push("sum-flag", 1470, 790, 90); push("sum-flag", 1730, 790, 90);
+    push("sum-campfire", 2640, 1340, 95);  // by the playground
+    push("sum-chest", 880, 600, 90);        // by the shop
+    push("sum-flag", 1950, 510, 90); push("sum-flag", 2210, 510, 90); // flanking the castle
 
     for (const d of items) {
       const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
