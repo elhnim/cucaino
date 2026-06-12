@@ -27,9 +27,13 @@ export class PreloadScene extends Phaser.Scene {
     fill.setDepth(2);
 
     // world art
-    this.load.image("map", "/game/world/map.png");
-    this.load.image("pin", "/game/world/pin.png");
     this.load.image("bg", "/game/world/bg.png");
+    // summer top-down tileset props (build the town from these)
+    const sum = "/game/world/sum";
+    for (const k of ["house", "castle", "tent", "tower", "magic", "tree-l", "tree-m",
+      "tree-s", "bush-l", "bush-m", "rock1", "rock2", "chest"]) {
+      this.load.image(`sum-${k}`, `${sum}/${k}.png`);
+    }
     this.load.image("cloud1", "/game/world/cloud1.png");
     this.load.image("cloud2", "/game/world/cloud2.png");
     this.load.image("dest-schedule", "/game/world/dest-schedule.png");

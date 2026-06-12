@@ -3,24 +3,30 @@ import { viewport, onResize } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
+// The town is authored in fixed "design" coordinates; the camera zoom fits this
+// width to the screen and scrolls vertically, so all object coords stay simple.
+const W = 1080;
+const H = 2600;
+const GRASS = 0x6ea843;
+const PATH_EDGE = 0xc79a55;
+const PATH_FILL = 0xe8b973;
+const WALK_SPEED = 360;
+
 interface Place {
   key: string;
   label: string;
-  /** position as fractions of the (scaled) map, following the path */
-  fx: number;
-  fy: number;
+  tex: string;
+  bw: number; // building display width
+  x: number;
+  y: number;
   enter: () => void;
 }
 
-const MAP_W = 1440;
-const MAP_H = 5660;
-const WALK_SPEED = 320; // px/s in screen space
+interface Decor { tex: string; x: number; y: number; w: number }
 
 export class WorldScene extends Phaser.Scene {
-  private map!: Phaser.GameObjects.Image;
-  private mapScale = 1;
   private ground!: Phaser.GameObjects.Zone;
-  private places: { cfg: Place; root: Phaser.GameObjects.Container }[] = [];
+  private places: { cfg: Place; building: Phaser.GameObjects.Image }[] = [];
   private player!: Phaser.GameObjects.Sprite;
   private moveTween?: Phaser.Tweens.Tween;
   private pendingArrival?: () => void;
@@ -37,61 +43,92 @@ export class WorldScene extends Phaser.Scene {
       this.scene.start(scene);
     };
 
-    this.map = this.add.image(0, 0, "map").setOrigin(0, 0);
+    // grass base
+    this.add.rectangle(0, 0, W, H, GRASS).setOrigin(0, 0);
 
-    // tap anywhere on the map to walk there
-    this.ground = this.add.zone(0, 0, MAP_W, MAP_H).setOrigin(0, 0).setInteractive();
+    // winding path (bottom start → up past each place)
+    const way = [
+      [540, 2560], [540, 2200], [320, 1750], [760, 1300], [320, 820], [600, 380], [600, 120],
+    ] as [number, number][];
+    this.drawPath(way, 120, PATH_EDGE);
+    this.drawPath(way, 92, PATH_FILL);
+
+    // tap the grass/path to walk there
+    this.ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
     this.ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
 
-    // places along the winding path (Pet Home nearest the start at the bottom)
-    const defs: Place[] = [
-      { key: "work", label: "🏢 Work", fx: 0.60, fy: 0.12,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "shop", label: "🏪 Shop", fx: 0.16, fy: 0.30,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "playground", label: "🛝 Playground", fx: 0.58, fy: 0.49,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "friends", label: "💌 Friends", fx: 0.30, fy: 0.69,
-        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "pet", label: "🏠 Pet Home", fx: 0.52, fy: 0.87,
-        enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
+    // scattered decoration (deterministic)
+    const decor: Decor[] = [
+      { tex: "sum-tree-l", x: 140, y: 2400, w: 200 }, { tex: "sum-tree-m", x: 920, y: 2480, w: 150 },
+      { tex: "sum-bush-l", x: 780, y: 2300, w: 120 }, { tex: "sum-rock1", x: 250, y: 2280, w: 90 },
+      { tex: "sum-tree-l", x: 880, y: 1950, w: 200 }, { tex: "sum-tree-s", x: 150, y: 1980, w: 100 },
+      { tex: "sum-bush-m", x: 560, y: 1900, w: 100 }, { tex: "sum-rock2", x: 720, y: 1700, w: 80 },
+      { tex: "sum-tree-m", x: 200, y: 1450, w: 150 }, { tex: "sum-tree-l", x: 950, y: 1500, w: 200 },
+      { tex: "sum-bush-l", x: 520, y: 1250, w: 120 }, { tex: "sum-tree-s", x: 880, y: 1080, w: 100 },
+      { tex: "sum-tree-m", x: 700, y: 900, w: 150 }, { tex: "sum-rock1", x: 160, y: 1050, w: 90 },
+      { tex: "sum-tree-l", x: 200, y: 560, w: 200 }, { tex: "sum-bush-m", x: 880, y: 620, w: 100 },
+      { tex: "sum-tree-m", x: 320, y: 240, w: 150 }, { tex: "sum-tree-s", x: 860, y: 320, w: 100 },
     ];
-
-    for (const cfg of defs) {
-      const pin = this.add.image(0, 0, "pin").setOrigin(0.5, 1);
-      const label = this.add
-        .text(0, 0, cfg.label, {
-          fontFamily: "system-ui", fontStyle: "bold", fontSize: "26px",
-          color: "#3a6b1e", backgroundColor: "#ffffff", padding: { x: 14, y: 6 },
-        })
-        .setOrigin(0.5, 1);
-      const root = this.add.container(0, 0, [pin, label]);
-      pin.setInteractive({ useHandCursor: true });
-      pin.on("pointerover", () => root.setScale(root.scale * 1.06));
-      pin.on("pointerout", () => this.layout());
-      pin.on("pointerdown", () => this.walkToPlace(cfg, root));
-      this.tweens.add({ targets: root, y: "-=8", duration: 1400, yoyo: true, repeat: -1, ease: "sine.inout" });
-      this.places.push({ cfg, root });
+    for (const d of decor) {
+      const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
+      img.setDisplaySize(d.w, d.w * (img.height / img.width)).setDepth(d.y);
     }
 
-    this.player = this.add.sprite(0, 0, "cat-idle").play("cat-idle").setDepth(50);
+    // the five places, each a real building
+    const defs: Place[] = [
+      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 230, x: 540, y: 2180,
+        enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
+      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 200, x: 320, y: 1730,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 220, x: 760, y: 1280,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 200, x: 320, y: 800,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 260, x: 600, y: 360,
+        enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
+    ];
+    for (const cfg of defs) {
+      const b = this.add.image(cfg.x, cfg.y, cfg.tex).setOrigin(0.5, 1);
+      b.setDisplaySize(cfg.bw, cfg.bw * (b.height / b.width)).setDepth(cfg.y).setInteractive({ useHandCursor: true });
+      const label = this.add
+        .text(cfg.x, cfg.y - b.displayHeight - 8, cfg.label, {
+          fontFamily: "system-ui", fontStyle: "bold", fontSize: "30px",
+          color: "#3a6b1e", backgroundColor: "#ffffff", padding: { x: 16, y: 7 },
+        })
+        .setOrigin(0.5, 1).setDepth(100000);
+      b.on("pointerover", () => b.setTint(0xfff2c4));
+      b.on("pointerout", () => b.clearTint());
+      b.on("pointerdown", () => this.walkTo(cfg.x, cfg.y + 30, () => cfg.enter()));
+      this.places.push({ cfg, building: b });
+    }
+
+    // character
+    this.player = this.add.sprite(540, 2520, "cat-idle").play("cat-idle").setScale(0.62);
+    this.player.setDepth(2520);
+
+    this.cameras.main.setBounds(0, 0, W, H);
+    this.cameras.main.setBackgroundColor(GRASS);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
     this.layout();
-    // start at the bottom of the map (Pet Home end) looking up the path
-    this.cameras.main.scrollY = MAP_H; // clamped to bounds in layout/below
-
     onResize(this, () => this.layout());
   }
 
-  private walkToPlace(cfg: Place, root: Phaser.GameObjects.Container) {
-    this.walkTo(root.x, root.y + this.player.displayHeight * 0.1, () => cfg.enter());
+  private drawPath(points: [number, number][], width: number, color: number) {
+    const g = this.add.graphics().setDepth(1);
+    g.lineStyle(width, color, 1);
+    g.beginPath();
+    g.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) g.lineTo(points[i][0], points[i][1]);
+    g.strokePath();
+    // round the joints
+    g.fillStyle(color, 1);
+    for (const [x, y] of points) g.fillCircle(x, y, width / 2);
   }
 
   private walkTo(x: number, y: number, onArrive?: () => void) {
-    const worldH = MAP_H * this.mapScale;
-    const tx = Phaser.Math.Clamp(x, 40, MAP_W * this.mapScale - 40);
-    const ty = Phaser.Math.Clamp(y, 40, worldH - 20);
-
+    const tx = Phaser.Math.Clamp(x, 30, W - 30);
+    const ty = Phaser.Math.Clamp(y, 30, H - 20);
     this.moveTween?.stop();
     this.pendingArrival = onArrive;
     const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty);
@@ -107,6 +144,7 @@ export class WorldScene extends Phaser.Scene {
       x: tx, y: ty,
       duration: Math.max(220, (dist / WALK_SPEED) * 1000),
       ease: "sine.inout",
+      onUpdate: () => this.player.setDepth(this.player.y),
       onComplete: () => {
         this.player.play("cat-idle", true);
         const cb = this.pendingArrival;
@@ -123,33 +161,9 @@ export class WorldScene extends Phaser.Scene {
 
   private layout() {
     const v = viewport(this);
-    // fit the map to the screen width; it scrolls vertically
-    this.mapScale = v.w / MAP_W;
-    this.map.setScale(this.mapScale).setPosition(0, 0);
-
-    const worldW = MAP_W * this.mapScale;
-    const worldH = MAP_H * this.mapScale;
-    this.ground.setSize(MAP_W, MAP_H).setScale(this.mapScale);
-    this.cameras.main.setBounds(0, 0, worldW, worldH);
-    // pull the camera back so more of the town is visible (more on wide iPad).
-    // margins beyond the fixed-width map are filled with grass-green to blend.
-    this.cameras.main.setZoom(v.portrait ? 0.9 : 0.78);
-    this.cameras.main.setBackgroundColor(0x7cc34a);
-
-    for (const { cfg, root } of this.places) {
-      root.setScale(v.ui * 0.9).setPosition(worldW * cfg.fx, worldH * cfg.fy);
-      const pin = root.list[0] as Phaser.GameObjects.Image;
-      const label = root.list[1] as Phaser.GameObjects.Text;
-      label.setPosition(0, -pin.displayHeight - 4);
-    }
-
-    this.player.setScale(this.mapScale * 1.1);
-    if (!this.player.x) {
-      this.player.setPosition(worldW * 0.5, worldH * 0.92);
-      this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-    } else {
-      this.player.x = Phaser.Math.Clamp(this.player.x, 40, worldW - 40);
-      this.player.y = Phaser.Math.Clamp(this.player.y, 40, worldH - 20);
-    }
+    // fit the design width to the screen, scroll vertically; a touch more
+    // zoomed-out on wide landscape. Grass-green fills any side margin.
+    const fit = v.w / W;
+    this.cameras.main.setZoom(fit * (v.portrait ? 1 : 0.92));
   }
 }
