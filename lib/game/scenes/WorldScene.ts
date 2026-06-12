@@ -16,12 +16,16 @@ const PATH_FILL = 0xb7ad99;
 const PATH_MID = 0xcfc6b2;
 const FLOWER_COLORS = [0xe85b5b, 0xf2c14e, 0xef8fc0, 0xffffff, 0xb07be0];
 const HOUSE_SET: { tex: string; bw: number }[] = [
-  { tex: "sum-house", bw: 180 }, { tex: "sum-house", bw: 168 }, { tex: "sum-tower", bw: 150 },
-  { tex: "sum-house", bw: 188 }, { tex: "sum-castle2", bw: 205 }, { tex: "sum-house", bw: 172 },
-  { tex: "sum-magic", bw: 158 }, { tex: "sum-house", bw: 178 }, { tex: "sum-tower", bw: 146 },
+  { tex: "sum-house", bw: 182 }, { tex: "sum-house", bw: 164 }, { tex: "sum-tower", bw: 150 },
+  { tex: "sum-house", bw: 196 }, { tex: "sum-castle2", bw: 208 }, { tex: "sum-house", bw: 172 },
+  { tex: "sum-magic", bw: 158 }, { tex: "sum-house", bw: 188 }, { tex: "sum-tower", bw: 144 },
+  { tex: "sum-castle", bw: 220 }, { tex: "sum-house", bw: 176 }, { tex: "sum-tent", bw: 168 },
 ];
-// painted-house washes — varied roof/wall hues for an old-European street
-const TINTS = [0xffffff, 0xfff0d0, 0xffc39a, 0xf2cf78, 0xcfe6a8, 0xb6d2ec, 0xf2bccb, 0xdcc8f0, 0xffffff, 0xe8c8a0];
+// painted-house washes — distinct roof/wall hues for a varied old-European street
+const TINTS = [
+  0xffffff, 0xffe0b0, 0xe9a880, 0xf2cf78, 0xb9d690, 0x9fc4e8, 0xeaa9bf, 0xc8b0e6,
+  0xffffff, 0xd8b48a, 0xa9d6c4, 0xf0b48a,
+];
 const WALK_SPEED = 520;
 
 interface Place { key: string; label: string; tex: string; bw: number; x: number; y: number; enter: () => void }
@@ -52,7 +56,7 @@ export class WorldScene extends Phaser.Scene {
   private buildingSpots: [number, number][] = [
     [1404, 480], [1900, 1140], [560, 1470], [2780, 1180], [1469, 2050],
   ];
-  private plots: [number, number][] = [[1180, 760], [2360, 1640]];
+  private lamps: [number, number][] = [];
   // tucked into an open pocket off the lanes (not on a junction)
   private plaza = { x: 1040, y: 1450 };
   private plazaR = 165;
@@ -71,12 +75,12 @@ export class WorldScene extends Phaser.Scene {
 
     this.bakeGround();
     this.drawPlaza();
-    this.drawPlots();
 
     const ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
     ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
 
     this.buildGrid();
+    this.placePlots();
     this.lineStreetsWithHouses();
     this.dressStreets();
     this.dressPlaza();
@@ -85,6 +89,8 @@ export class WorldScene extends Phaser.Scene {
     this.addAnimals();
     this.cloudShadows();
     this.pollen();
+    this.addLampGlows();
+    this.dusk();
 
     // one-time "Let's Go!" flourish when the village first opens this session
     if (!this.registry.get("intro-shown")) {
@@ -177,7 +183,6 @@ export class WorldScene extends Phaser.Scene {
       this.grid.markPath(pts, 96);   // keep buildings/props clear of the full cobble width
     }
     this.grid.markCircle(this.plaza.x, this.plaza.y, this.plazaR + 96);
-    for (const [x, y] of this.plots) this.grid.markRect(x, y, 430, 320);
     for (const [x, y] of this.buildingSpots) this.grid.markRect(x, y - 80, 330, 250);
     // forest-frame border kept clear of buildings/props
     this.grid.markRect(W / 2, 110, W, 230);
@@ -188,6 +193,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** line every lane with decorative houses on whichever side has free ground */
   private lineStreetsWithHouses() {
+    this.ensureGlowTex();
     let idx = 7;
     for (const seg of this.roads) {
       const spline = new Phaser.Curves.Spline(seg.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
@@ -207,9 +213,14 @@ export class WorldScene extends Phaser.Scene {
           const fy = by - fh * 0.15;
           if (!this.grid.isFree(bx, fy, fw, fh)) continue;
           const b = this.add.image(bx, by, h.tex).setOrigin(0.5, 1);
+          // face the road: a house to the right of the lane faces left, and vice-versa
           b.setDisplaySize(h.bw, h.bw * (b.height / b.width)).setDepth(by)
-            .setTint(TINTS[(idx * 3) % TINTS.length]).setFlipX(side < 0);
+            .setTint(TINTS[(idx * 3) % TINTS.length]).setFlipX(perpx * side > 0);
           this.grid.markRect(bx, fy, fw, fh);
+          // warm lit window
+          if (idx % 2 === 0)
+            this.add.image(bx, by - b.displayHeight * 0.42, "glow").setBlendMode(Phaser.BlendModes.ADD)
+              .setDepth(3840).setScale(0.42).setAlpha(0.55).setTint(0xffd27a);
           idx++;
           break;
         }
@@ -261,14 +272,42 @@ export class WorldScene extends Phaser.Scene {
     for (const d of [...items, ...market]) {
       const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
       img.setDisplaySize(d.w, d.w * (img.height / img.width)).setDepth(d.y);
+      if (d.tex === "md-lantern") this.lamps.push([d.x, d.y - d.w * 0.78]);
     }
   }
 
-  /** scatter charming street furniture (lanterns, benches, barrels, beds) along the lanes */
+  /** soft glow texture used for lamps + lit windows (warm radial) */
+  private ensureGlowTex() {
+    if (this.textures.exists("glow")) return;
+    const g = this.make.graphics({});
+    for (let r = 64; r > 0; r--) g.fillStyle(0xffe6a0, 0.025).fillCircle(64, 64, r);
+    g.generateTexture("glow", 128, 128);
+    g.destroy();
+  }
+
+  /** warm pulsing glow at every street lamp (reads as lit at dusk) */
+  private addLampGlows() {
+    this.ensureGlowTex();
+    for (const [x, y] of this.lamps) {
+      const glow = this.add.image(x, y, "glow").setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(3850).setScale(1.15).setAlpha(0.75);
+      this.tweens.add({ targets: glow, alpha: 0.5, scale: 0.98, duration: 1500 + (x % 600),
+        yoyo: true, repeat: -1, ease: "sine.inout" });
+    }
+  }
+
+  /** gentle evening wash so the lamp glows read */
+  private dusk() {
+    this.add.rectangle(W / 2, H / 2, W, H, 0x2a2752, 0.16).setDepth(3800);
+    this.add.rectangle(W / 2, H / 2, W, H, 0xff9a4a, 0.05).setDepth(3801);
+  }
+
+  /** scatter charming street furniture + market stalls along the lanes */
   private dressStreets() {
     const props = [
-      { tex: "md-lantern", w: 82 }, { tex: "md-bench", w: 118 }, { tex: "md-barrel", w: 74 },
-      { tex: "md-gardenbed", w: 145 }, { tex: "md-sign", w: 92 }, { tex: "sum-bush-s", w: 96 },
+      { tex: "md-lantern", w: 82 }, { tex: "md-stall", w: 128 }, { tex: "md-bench", w: 118 },
+      { tex: "md-barrel", w: 74 }, { tex: "md-cart", w: 132 }, { tex: "md-gardenbed", w: 145 },
+      { tex: "md-lantern", w: 82 }, { tex: "md-sign", w: 92 }, { tex: "sum-bush-s", w: 96 },
     ];
     let idx = 1;
     for (const seg of this.roads) {
@@ -288,6 +327,7 @@ export class WorldScene extends Phaser.Scene {
           const img = this.add.image(px, py, p.tex).setOrigin(0.5, 1);
           img.setDisplaySize(p.w, p.w * (img.height / img.width)).setDepth(py);
           this.grid.markRect(px, py - fh * 0.15, fw, fh);
+          if (p.tex === "md-lantern") this.lamps.push([px, py - p.w * 0.78]);
           idx++;
           break;
         }
@@ -355,9 +395,25 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
-  private drawPlots() {
-    for (const [x, y] of this.plots) {
-      const w = 360, h = 250, left = x - w / 2, top = y - h / 2;
+  /** place reserved "Coming Soon" lots on free ground (never on a road) */
+  private placePlots() {
+    const w = 360, h = 250;
+    let placed = 0, attempts = 0;
+    while (placed < 2 && attempts < 800) {
+      attempts++;
+      const hsh = (attempts * 2246822519) >>> 0;
+      const x = 460 + (hsh % (W - 920));
+      const y = 460 + ((hsh >> 11) % (H - 920));
+      if (!this.grid.isFree(x, y, w + 90, h + 90)) continue;
+      this.drawPlot(x, y, w, h);
+      this.grid.markRect(x, y, w + 60, h + 60);
+      placed++;
+    }
+  }
+
+  private drawPlot(x: number, y: number, w: number, h: number) {
+    {
+      const left = x - w / 2, top = y - h / 2;
       const g = this.add.graphics().setDepth(y - h / 2);
       g.fillStyle(0xc7a86f, 1).fillRoundedRect(left, top, w, h, 16);                 // dirt pad
       g.fillStyle(0xb6924f, 1);
