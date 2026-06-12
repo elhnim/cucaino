@@ -50,9 +50,16 @@ export function room(scene: Phaser.Scene, wall = 0xefe1c6, floor = 0xb98b53, acc
   const fg = scene.add.graphics().setDepth(-25);
   fg.lineStyle(3, 0x000000, 0.08);
   for (let yy = fy + 22; yy < v.h; yy += 40) fg.lineBetween(0, yy, v.w, yy);
-  // rug + potted plant
-  scene.add.graphics().setDepth(-24).fillStyle(accent, 0.5)
-    .fillEllipse(v.cx, (fy + v.h) / 2 + 4, v.w * 0.5, (v.h - fy) * 1.5);
+  // round rug — kept fully on the floor (no bleed onto the wall) with a soft
+  // shadow, a lighter centre and two trim rings so it reads as a rug, not a blob.
+  const rcx = v.cx, rcy = fy + (v.h - fy) * 0.56;
+  const rw = Math.min(v.w * 0.46, 480), rh = (v.h - fy) * 0.78;
+  const rug = scene.add.graphics().setDepth(-24);
+  rug.fillStyle(0x000000, 0.08).fillEllipse(rcx, rcy + 7, rw + 18, rh + 12);
+  rug.fillStyle(accent, 0.92).fillEllipse(rcx, rcy, rw, rh);
+  rug.fillStyle(0xffffff, 0.16).fillEllipse(rcx, rcy, rw * 0.66, rh * 0.66);
+  rug.lineStyle(5, 0xffffff, 0.55).strokeEllipse(rcx, rcy, rw * 0.88, rh * 0.88);
+  rug.lineStyle(3, 0xffffff, 0.32).strokeEllipse(rcx, rcy, rw * 0.46, rh * 0.46);
   scene.add.text(58, fy + 8, "🪴", { fontSize: "62px" }).setOrigin(0.5, 1).setDepth(-23);
 
   // Furnished by default so every landmark shares the same cosy room; a scene
