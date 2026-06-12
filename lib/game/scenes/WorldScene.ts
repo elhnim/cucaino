@@ -26,7 +26,7 @@ const TINTS = [
   0xffffff, 0xffe0b0, 0xe9a880, 0xf2cf78, 0xb9d690, 0x9fc4e8, 0xeaa9bf, 0xc8b0e6,
   0xffffff, 0xd8b48a, 0xa9d6c4, 0xf0b48a,
 ];
-const WALK_SPEED = 520;
+const WALK_SPEED = 340;
 
 interface Place {
   key: string; label: string; tex: string; bw: number; x: number; y: number;

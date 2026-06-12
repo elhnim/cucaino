@@ -128,8 +128,8 @@ export class HudScene extends Phaser.Scene {
       this.starTxt.setFontSize(26 * v.ui).setPosition(rx - 64 * v.ui, pad + ico / 2);
     }
 
-    // Joystick bottom-left, positioned directly in CSS units.
-    const cx = 30 + this.joyR;
+    // Joystick bottom-right, positioned directly in CSS units.
+    const cx = v.w - 30 - this.joyR;
     const cy = v.h - 30 - this.joyR;
     this.joyCenter = { x: cx, y: cy };
     this.joyBase.setPosition(cx, cy);
