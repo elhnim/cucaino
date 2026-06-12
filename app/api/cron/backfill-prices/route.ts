@@ -61,11 +61,18 @@ export async function GET(req: Request) {
       return audUsd ? 1 / audUsd : null;
     };
 
-    const { data: existingRows } = await admin
-      .from("real_asset_prices")
-      .select("symbol, price_date")
-      .gte("price_date", start);
-    const have = new Set((existingRows ?? []).map((r: { symbol: string; price_date: string }) => `${r.symbol}|${r.price_date}`));
+    // Paginate past PostgREST's 1000-row default cap (a 30-day window across
+    // ~55 assets is >1000 rows once populated).
+    const have = new Set<string>();
+    for (let from = 0; ; from += 1000) {
+      const { data: page } = await admin
+        .from("real_asset_prices")
+        .select("symbol, price_date")
+        .gte("price_date", start)
+        .range(from, from + 999);
+      for (const r of page ?? []) have.add(`${r.symbol}|${r.price_date}`);
+      if (!page || page.length < 1000) break;
+    }
 
     const rows: Record<string, unknown>[] = [];
     const failed: string[] = [];
@@ -105,14 +112,17 @@ export async function GET(req: Request) {
     let inserted = 0;
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500);
-      const { error } = await admin
+      // With ignoreDuplicates, .select() returns only the rows actually
+      // inserted — so `inserted` is a true count, not an attempted count.
+      const { data: written, error } = await admin
         .from("real_asset_prices")
-        .upsert(chunk, { onConflict: "symbol,price_date", ignoreDuplicates: true });
+        .upsert(chunk, { onConflict: "symbol,price_date", ignoreDuplicates: true })
+        .select("symbol");
       if (error) return NextResponse.json({ error: error.message, inserted }, { status: 500 });
-      inserted += chunk.length;
+      inserted += written?.length ?? 0;
     }
 
-    return NextResponse.json({ ok: true, inserted, assets: REAL_ASSETS.length, failed });
+    return NextResponse.json({ ok: true, inserted, attempted: rows.length, assets: REAL_ASSETS.length, failed });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
