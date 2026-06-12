@@ -228,6 +228,12 @@ export async function sellAsset(
   return { ok: true };
 }
 
+/** Up to 30 days of saved daily prices for one symbol (oldest data wins the chart). */
+export async function loadPriceHistory(symbol: string) {
+  const { getRealPriceHistory } = await import("@/lib/data/queries");
+  return getRealPriceHistory(symbol, 30);
+}
+
 export async function completeLesson(kidId: string, lessonId: string): Promise<ActionResult> {
   const enabled = await requireEnabled(kidId);
   if (!enabled.ok) return enabled;

@@ -12,6 +12,7 @@ import InvestActivityTab from "@/components/invest/InvestActivityTab";
 import InvestLearnTab from "@/components/invest/InvestLearnTab";
 import InvestAssetDetailSheet from "@/components/invest/InvestAssetDetailSheet";
 import InvestDepositWithdrawModal from "@/components/invest/InvestDepositWithdrawModal";
+import { loadPriceHistory } from "@/lib/actions/invest";
 
 type Tab = "market" | "portfolio" | "activity" | "learn";
 
@@ -30,7 +31,19 @@ export default function InvestHub({ kid, account, licence, holdings, transaction
   const [selectedAsset, setSelectedAsset] = useState<string | null>(null);
   const [cashModal, setCashModal] = useState<"deposit" | "withdraw" | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [history, setHistory] = useState<RealAssetPrice[]>([]);
   const priceMap = useMemo(() => Object.fromEntries(prices.map((p) => [p.symbol, p])), [prices]);
+
+  // The page only ships TODAY's snapshot (one row per symbol); the 30-day chart
+  // data is fetched on demand when an asset sheet opens.
+  useEffect(() => {
+    if (!selectedAsset) { setHistory([]); return; }
+    let stale = false;
+    loadPriceHistory(selectedAsset)
+      .then((rows) => { if (!stale) setHistory(rows); })
+      .catch(() => { /* chart falls back to today's single point */ });
+    return () => { stale = true; };
+  }, [selectedAsset]);
 
   useEffect(() => {
     if (!localStorage.getItem(`invest_onboarding_seen:${kid.id}`)) setShowOnboarding(true);
@@ -132,7 +145,7 @@ export default function InvestHub({ kid, account, licence, holdings, transaction
           kidId={kid.id}
           asset={selected}
           price={priceMap[selected.symbol] ?? null}
-          priceHistory={prices.filter((p) => p.symbol === selected.symbol)}
+          priceHistory={history.length > 0 ? history : prices.filter((p) => p.symbol === selected.symbol)}
           holding={holdings.find((holding) => holding.assetSymbol === selected.symbol) ?? null}
           accountCashCents={account.cashCents}
           licence={licence}
