@@ -3,32 +3,33 @@ import { viewport, onResize } from "../systems/layout";
 import { REGISTRY_DATA } from "../types";
 import type { InitialGameData } from "../types";
 
-// The whole town is authored in this design area and the camera always FITS the
-// entire area on screen (no scrolling) — so every building is visible at once.
-// Landscape iPad fills it; portrait iPhone shows it smaller with grass margins.
-const W = 1600;
-const H = 1200;
+// 2x2 bigger world (4x area). The town sits centred with a wide scenery frame on
+// every edge — room to expand later. The camera fits the whole thing on screen.
+const W = 3200;
+const H = 2400;
 const GRASS = 0x6ea843;
 const PATH_EDGE = 0xc79a55;
 const PATH_FILL = 0xe8b973;
-const WALK_SPEED = 420;
+const PATH_MID = 0xf3d49a;
+const WALK_SPEED = 520;
 
-interface Place {
-  key: string;
-  label: string;
-  tex: string;
-  bw: number;
-  x: number;
-  y: number;
-  enter: () => void;
-}
+interface Place { key: string; label: string; tex: string; bw: number; x: number; y: number; enter: () => void }
 interface Decor { tex: string; x: number; y: number; w: number }
 
 export class WorldScene extends Phaser.Scene {
-  private ground!: Phaser.GameObjects.Zone;
   private player!: Phaser.GameObjects.Sprite;
   private moveTween?: Phaser.Tweens.Tween;
   private pendingArrival?: () => void;
+  private held = { up: false, down: false, left: false, right: false };
+  private dpadMoving = false;
+  private nodes: { x: number; y: number; enter: () => void }[] = [];
+  private nearGuard = false;
+  private roads: [number, number][][] = [
+    [[1610, 1740], [1610, 1600], [1610, 850]],
+    [[1610, 1500], [1160, 1480]],
+    [[1610, 960], [1130, 960]],
+    [[1610, 1160], [2100, 1160]],
+  ];
 
   constructor() {
     super("World");
@@ -44,44 +45,25 @@ export class WorldScene extends Phaser.Scene {
 
     this.add.rectangle(0, 0, W, H, GRASS).setOrigin(0, 0);
 
-    // road network touching every building
-    const segs: [number, number][][] = [
-      [[810, 1140], [810, 1000], [810, 250]],
-      [[810, 900], [360, 880]],
-      [[810, 360], [330, 360]],
-      [[810, 560], [1300, 560]],
-    ];
-    for (const s of segs) this.drawPath(s, 110, PATH_EDGE);
-    for (const s of segs) this.drawPath(s, 84, PATH_FILL);
+    for (const s of this.roads) this.roadLayer(s, 122, PATH_EDGE);
+    for (const s of this.roads) this.roadLayer(s, 94, PATH_FILL);
+    for (const s of this.roads) this.roadLayer(s, 30, PATH_MID);
 
-    this.ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
-    this.ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
+    const ground = this.add.zone(0, 0, W, H).setOrigin(0, 0).setInteractive();
+    ground.on("pointerdown", (p: Phaser.Input.Pointer) => this.walkTo(p.worldX, p.worldY));
 
-    const decor: Decor[] = [
-      { tex: "sum-tree-l", x: 150, y: 260, w: 190 }, { tex: "sum-tree-m", x: 1460, y: 230, w: 150 },
-      { tex: "sum-tree-l", x: 1500, y: 980, w: 190 }, { tex: "sum-tree-m", x: 170, y: 1120, w: 150 },
-      { tex: "sum-tree-l", x: 1180, y: 1080, w: 190 }, { tex: "sum-tree-s", x: 560, y: 200, w: 95 },
-      { tex: "sum-tree-s", x: 1120, y: 840, w: 95 }, { tex: "sum-tree-m", x: 250, y: 660, w: 150 },
-      { tex: "sum-bush-l", x: 640, y: 720, w: 110 }, { tex: "sum-bush-m", x: 1330, y: 820, w: 95 },
-      { tex: "sum-bush-m", x: 980, y: 320, w: 95 }, { tex: "sum-rock1", x: 470, y: 1050, w: 80 },
-      { tex: "sum-rock2", x: 1050, y: 240, w: 70 }, { tex: "sum-bush-l", x: 1470, y: 560, w: 110 },
-      { tex: "sum-tree-s", x: 620, y: 1080, w: 95 }, { tex: "sum-rock1", x: 220, y: 430, w: 80 },
-    ];
-    for (const d of decor) {
-      const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
-      img.setDisplaySize(d.w, d.w * (img.height / img.width)).setDepth(d.y);
-    }
+    this.buildScenery();
 
     const defs: Place[] = [
-      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 250, x: 820, y: 250,
+      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 300, x: 1620, y: 850,
         enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 200, x: 330, y: 360,
+      { key: "shop", label: "🏪 Shop", tex: "sum-magic", bw: 240, x: 1130, y: 960,
         enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 220, x: 1300, y: 560,
+      { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 270, x: 2100, y: 1160,
         enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 190, x: 360, y: 880,
+      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 230, x: 1160, y: 1480,
         enter: () => this.enterFlash(() => go("World", `/kid/${kidId}/world`)) },
-      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 230, x: 810, y: 1000,
+      { key: "pet", label: "🏠 Pet Home", tex: "sum-house", bw: 280, x: 1610, y: 1600,
         enter: () => this.enterFlash(() => go("Pet", `/kid/${kidId}/world?scene=pet`)) },
     ];
     for (const cfg of defs) {
@@ -89,44 +71,156 @@ export class WorldScene extends Phaser.Scene {
       b.setDisplaySize(cfg.bw, cfg.bw * (b.height / b.width)).setDepth(cfg.y).setInteractive({ useHandCursor: true });
       this.add
         .text(cfg.x, cfg.y - b.displayHeight - 8, cfg.label, {
-          fontFamily: "system-ui", fontStyle: "bold", fontSize: "30px",
-          color: "#3a6b1e", backgroundColor: "#ffffff", padding: { x: 16, y: 7 },
+          fontFamily: "system-ui", fontStyle: "bold", fontSize: "34px",
+          color: "#3a6b1e", backgroundColor: "#ffffff", padding: { x: 18, y: 8 },
         })
         .setOrigin(0.5, 1).setDepth(1e6);
       b.on("pointerover", () => b.setTint(0xfff2c4));
       b.on("pointerout", () => b.clearTint());
-      b.on("pointerdown", () => this.walkTo(cfg.x, cfg.y + 24, () => cfg.enter()));
+      b.on("pointerdown", () => this.walkTo(cfg.x, cfg.y + 28, () => cfg.enter()));
+      this.nodes.push({ x: cfg.x, y: cfg.y, enter: cfg.enter });
     }
 
-    this.player = this.add.sprite(810, 1110, "cat-idle").play("cat-idle").setScale(0.6).setDepth(1110);
+    this.player = this.add.sprite(1610, 1720, "cat-idle").play("cat-idle").setScale(0.9).setDepth(1720);
 
     this.cameras.main.setBackgroundColor(GRASS);
+    this.cameras.main.setBounds(0, 0, W, H);
+    this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
+
+    const onMove = (e: { dir: "up" | "down" | "left" | "right"; down: boolean }) => { this.held[e.dir] = e.down; };
+    this.game.events.emit("dpad", true);
+    this.game.events.on("move", onMove);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.game.events.emit("dpad", false);
+      this.game.events.off("move", onMove);
+    });
 
     this.layout();
     onResize(this, () => this.layout());
   }
 
-  private drawPath(points: [number, number][], width: number, color: number) {
+  update(_t: number, dms: number) {
+    const dx = (this.held.right ? 1 : 0) - (this.held.left ? 1 : 0);
+    const dy = (this.held.down ? 1 : 0) - (this.held.up ? 1 : 0);
+    if (dx === 0 && dy === 0) {
+      if (this.dpadMoving) { this.player.play("cat-idle", true); this.dpadMoving = false; }
+      return;
+    }
+    this.moveTween?.stop();
+    this.moveTween = undefined;
+    this.pendingArrival = undefined;
+
+    const len = Math.hypot(dx, dy) || 1;
+    const step = (WALK_SPEED * dms) / 1000;
+    const nx = Phaser.Math.Clamp(this.player.x + (dx / len) * step, 40, W - 40);
+    const ny = Phaser.Math.Clamp(this.player.y + (dy / len) * step, 40, H - 30);
+    this.player.setPosition(nx, ny).setDepth(ny);
+    if (dx !== 0) this.player.setFlipX(dx < 0);
+    if (this.player.anims.currentAnim?.key !== "cat-walk") this.player.play("cat-walk", true);
+    this.dpadMoving = true;
+
+    let near = false;
+    for (const n of this.nodes) {
+      if (Phaser.Math.Distance.Between(nx, ny, n.x, n.y + 24) < 90) {
+        near = true;
+        if (!this.nearGuard) {
+          this.nearGuard = true;
+          this.held = { up: false, down: false, left: false, right: false };
+          n.enter();
+        }
+        break;
+      }
+    }
+    if (!near) this.nearGuard = false;
+  }
+
+  private roadLayer(points: [number, number][], width: number, color: number) {
     const g = this.add.graphics().setDepth(1);
-    g.lineStyle(width, color, 1).beginPath();
-    g.moveTo(points[0][0], points[0][1]);
-    for (let i = 1; i < points.length; i++) g.lineTo(points[i][0], points[i][1]);
-    g.strokePath();
+    g.lineStyle(width, color, 1);
+    const spline = new Phaser.Curves.Spline(points.map((p) => new Phaser.Math.Vector2(p[0], p[1])));
+    spline.draw(g, Math.max(48, points.length * 24));
     g.fillStyle(color, 1);
     for (const [x, y] of points) g.fillCircle(x, y, width / 2);
   }
 
+  private buildScenery() {
+    const items: Decor[] = [];
+    const push = (tex: string, x: number, y: number, w: number) => items.push({ tex, x, y, w });
+    const spineExit = (x: number) => x > 1530 && x < 1690; // keep the bottom road clear
+
+    // forest frame — top & bottom rows
+    for (let x = 60, i = 0; x <= W - 60; x += 132, i++) {
+      push(i % 2 ? "sum-tree-l" : "sum-tree-m", x, 80 + (i % 2 ? 28 : 0), i % 2 ? 190 : 150);
+      push(i % 3 === 0 ? "sum-bush-m" : "sum-tree-s", x + 64, 168, 100);
+      if (!spineExit(x)) push(i % 2 ? "sum-tree-m" : "sum-tree-l", x, H - 64 - (i % 2 ? 18 : 0), i % 2 ? 150 : 190);
+      if (!spineExit(x + 64)) push(i % 3 === 1 ? "sum-bush-l" : "sum-tree-s", x + 64, H - 168, 110);
+    }
+    // forest frame — left & right columns
+    for (let y = 220, i = 0; y <= H - 220; y += 134, i++) {
+      push(i % 2 ? "sum-tree-l" : "sum-tree-m", 76, y, i % 2 ? 190 : 150);
+      push(i % 2 ? "sum-tree-m" : "sum-tree-l", W - 76, y, i % 2 ? 150 : 190);
+      if (i % 2) { push("sum-bush-m", 172, y + 64, 95); push("sum-bush-m", W - 172, y + 64, 95); }
+    }
+    // corners
+    push("sum-rock1", 150, 190, 95); push("sum-rock3", W - 160, 200, 85);
+    push("sum-stump", 170, H - 170, 95); push("sum-rock4", W - 180, H - 170, 100);
+
+    // fill the open grass between the frame and the buildings (avoid roads/buildings)
+    const fills = ["sum-tree-l", "sum-tree-m", "sum-tree-s", "sum-bush-l", "sum-bush-m", "sum-bush-s", "sum-rock1", "sum-stump2"];
+    for (let gx = 360; gx <= W - 360; gx += 188) {
+      for (let gy = 320; gy <= H - 320; gy += 188) {
+        const k = (gx * 13 + gy * 29) % 100;
+        if (k < 42) continue; // natural gaps
+        if (this.nearBuilding(gx, gy, 300)) continue;
+        if (this.nearRoad(gx, gy, 130)) continue;
+        const tex = fills[k % fills.length];
+        const w = tex.includes("tree-l") ? 180 : tex.includes("bush") ? 95 : tex.includes("rock") || tex.includes("stump") ? 80 : 140;
+        push(tex, gx + (k % 40) - 20, gy + ((k * 7) % 30) - 15, w);
+      }
+    }
+
+    // feature props near places
+    push("sum-campfire", 1990, 1160, 95);
+    push("sum-chest", 1280, 960, 90);
+    push("sum-flag", 1480, 850, 90); push("sum-flag", 1760, 850, 90);
+
+    for (const d of items) {
+      const img = this.add.image(d.x, d.y, d.tex).setOrigin(0.5, 1);
+      img.setDisplaySize(d.w, d.w * (img.height / img.width)).setDepth(d.y);
+    }
+  }
+
+  private nearBuilding(x: number, y: number, r: number) {
+    for (const n of this.nodes) if (Phaser.Math.Distance.Between(x, y, n.x, n.y) < r) return true;
+    // nodes aren't populated until buildings are created; also guard known spots
+    const spots: [number, number][] = [[1620, 850], [1130, 960], [2100, 1160], [1160, 1480], [1610, 1600]];
+    return spots.some(([sx, sy]) => Phaser.Math.Distance.Between(x, y, sx, sy) < r);
+  }
+
+  private nearRoad(x: number, y: number, r: number) {
+    for (const seg of this.roads) {
+      for (let i = 1; i < seg.length; i++) {
+        if (this.distToSeg(x, y, seg[i - 1][0], seg[i - 1][1], seg[i][0], seg[i][1]) < r) return true;
+      }
+    }
+    return false;
+  }
+
+  private distToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
+    const dx = bx - ax, dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    let t = l2 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
   private walkTo(x: number, y: number, onArrive?: () => void) {
-    const tx = Phaser.Math.Clamp(x, 30, W - 30);
-    const ty = Phaser.Math.Clamp(y, 30, H - 20);
+    const tx = Phaser.Math.Clamp(x, 40, W - 40);
+    const ty = Phaser.Math.Clamp(y, 40, H - 30);
     this.moveTween?.stop();
     this.pendingArrival = onArrive;
     const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty);
-    if (dist < 4) {
-      this.player.play("cat-idle", true);
-      onArrive?.();
-      return;
-    }
+    if (dist < 4) { this.player.play("cat-idle", true); onArrive?.(); return; }
     this.player.setFlipX(tx < this.player.x);
     this.player.play("cat-walk", true);
     this.moveTween = this.tweens.add({
@@ -151,9 +245,7 @@ export class WorldScene extends Phaser.Scene {
 
   private layout() {
     const v = viewport(this);
-    // FIT the whole town on screen (contain). Margins are grass-green.
-    const zoom = Math.min(v.w / W, v.h / H) * 0.98;
-    this.cameras.main.setZoom(zoom);
-    this.cameras.main.centerOn(W / 2, H / 2);
+    // fit the whole 4:3 world on screen (a little margin so building tops show)
+    this.cameras.main.setZoom((v.h / H) * 0.96);
   }
 }
