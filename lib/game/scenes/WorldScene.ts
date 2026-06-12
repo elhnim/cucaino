@@ -15,11 +15,11 @@ const PATH_EDGE = 0x8a8275;
 const PATH_FILL = 0xb7ad99;
 const PATH_MID = 0xcfc6b2;
 const FLOWER_COLORS = [0xe85b5b, 0xf2c14e, 0xef8fc0, 0xffffff, 0xb07be0];
-const HOUSE_SET: { tex: string; bw: number }[] = [
-  { tex: "sum-house", bw: 182 }, { tex: "sum-house", bw: 164 }, { tex: "sum-tower", bw: 150 },
-  { tex: "sum-house", bw: 196 }, { tex: "sum-castle2", bw: 208 }, { tex: "sum-house", bw: 172 },
-  { tex: "sum-magic", bw: 158 }, { tex: "sum-house", bw: 188 }, { tex: "sum-tower", bw: 144 },
-  { tex: "sum-castle", bw: 220 }, { tex: "sum-house", bw: 176 }, { tex: "sum-tent", bw: 168 },
+const HOUSE_SET: { tex: string; bw: number; notint?: boolean }[] = [
+  { tex: "sum-house", bw: 182 }, { tex: "sum-farmhouse", bw: 176, notint: true }, { tex: "sum-tower", bw: 150 },
+  { tex: "sum-house", bw: 196 }, { tex: "sum-windmill", bw: 200, notint: true }, { tex: "sum-house", bw: 172 },
+  { tex: "sum-magic", bw: 158 }, { tex: "sum-farmhouse", bw: 188, notint: true }, { tex: "sum-tower-tall", bw: 168 },
+  { tex: "sum-castle2", bw: 206 }, { tex: "sum-house", bw: 176 }, { tex: "sum-barn", bw: 184, notint: true },
 ];
 // painted-house washes — distinct roof/wall hues for a varied old-European street
 const TINTS = [
@@ -103,18 +103,18 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const defs: Place[] = [
-      // Work — the grand civic building
-      { key: "work", label: "🏢 Work", tex: "sum-castle", bw: 320, x: 1404, y: 480,
-        props: [{ tex: "sum-flag", dx: -150, dy: -10, w: 90 }, { tex: "sum-flag", dx: 150, dy: -10, w: 90 }],
+      // Work — a working red barn
+      { key: "work", label: "🏢 Work", tex: "sum-barn", bw: 300, x: 1404, y: 480,
+        props: [{ tex: "sum-flag", dx: -165, dy: -6, w: 84 }, { tex: "md-cart", dx: 175, dy: 30, w: 140 }],
         enter: () => this.enterFlash(() => go("Work", `/kid/${kidId}/world?scene=work`)) },
       // Shop — a cottage with a real shopfront (market stall + cart)
-      { key: "shop", label: "🏪 Shop", tex: "sum-house", bw: 260, x: 1900, y: 1140, tint: 0xffdca6,
-        props: [{ tex: "md-stall", dx: -150, dy: 24, w: 150 }, { tex: "md-cart", dx: 156, dy: 30, w: 150 },
-                { tex: "md-barrel", dx: -190, dy: 60, w: 66 }],
+      { key: "shop", label: "🏪 Shop", tex: "sum-farmhouse", bw: 270, x: 1900, y: 1140,
+        props: [{ tex: "md-stall", dx: -160, dy: 24, w: 152 }, { tex: "md-cart", dx: 160, dy: 30, w: 150 },
+                { tex: "md-barrel", dx: -200, dy: 60, w: 66 }],
         enter: () => this.enterFlash(() => go("Shop", `/kid/${kidId}/world?scene=shop`)) },
-      // Friends — the lookout tower with a notice board
-      { key: "friends", label: "💌 Friends", tex: "sum-tower", bw: 240, x: 560, y: 1470,
-        props: [{ tex: "md-sign", dx: 130, dy: 16, w: 100 }, { tex: "md-bench", dx: -120, dy: 20, w: 110 }],
+      // Friends — the tall lookout tower with a notice board
+      { key: "friends", label: "💌 Friends", tex: "sum-tower-tall", bw: 240, x: 560, y: 1470,
+        props: [{ tex: "md-sign", dx: 140, dy: 16, w: 100 }, { tex: "md-bench", dx: -130, dy: 22, w: 110 }],
         enter: () => this.enterFlash(() => go("Friends", `/kid/${kidId}/world?scene=friends`)) },
       // Playground — the fun-fair tent
       { key: "playground", label: "🛝 Playground", tex: "sum-tent", bw: 290, x: 2780, y: 1180,
@@ -235,7 +235,7 @@ export class WorldScene extends Phaser.Scene {
           const b = this.add.image(bx, by, h.tex).setOrigin(0.5, 1);
           // face the road: a house to the right of the lane faces left, and vice-versa
           b.setDisplaySize(h.bw, h.bw * (b.height / b.width)).setDepth(by)
-            .setTint(TINTS[(idx * 3) % TINTS.length]).setFlipX(perpx * side > 0);
+            .setTint(h.notint ? 0xffffff : TINTS[(idx * 3) % TINTS.length]).setFlipX(perpx * side > 0);
           this.grid.markRect(bx, fy, fw, fh);
           // warm lit window
           if (idx % 2 === 0)
