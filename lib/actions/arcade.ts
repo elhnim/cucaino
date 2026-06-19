@@ -3,6 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import Anthropic from "@anthropic-ai/sdk";
+import {
+  avoidNote,
+  freshSeed,
+  pick,
+  sample,
+  STORY_GENRES,
+  STUMP_OPENERS,
+  WHATAMI_FLAVORS,
+  WORD_THEMES,
+  WYR_TOPICS,
+} from "@/lib/arcade/variety";
 
 const SYSTEM_PROMPT = `You are a friendly, creative assistant for children aged 5–12.
 Always follow these rules:
@@ -141,14 +152,17 @@ export async function generateEmojiStory(
 ): Promise<ArcadeResult<{ title: string; paragraphs: string[]; twist: string; moral: string }>> {
   try {
     const client = new Anthropic();
+    const genre = pick(STORY_GENRES);
     const msg = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 800,
+      temperature: 1,
       system: SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
           content: `Write a children's book story inspired by these 5 elements: ${emojis.join(" ")}
+Tell it as ${genre}, with fresh characters and an unexpected setting. (variety: ${freshSeed()})
 
 Requirements:
 - Title: a fun, catchy name for the story
@@ -181,19 +195,23 @@ Return valid JSON only, no markdown:
 
 export async function generateWouldYouRather(
   kidId: string | null,
+  avoid?: string[],
 ): Promise<ArcadeResult<{ option_a: string; option_b: string }>> {
   try {
     const client = new Anthropic();
+    const [topicA, topicB] = sample(WYR_TOPICS, 2);
     const msg = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 120,
+      temperature: 1,
       system: SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
           content: `Generate a funny, silly "Would You Rather" dilemma for kids aged 5-12.
+Build this one around: ${topicA} and ${topicB}. (variety: ${freshSeed()})
 Both options must be absurd, harmless, and equally funny — no embarrassing or mean choices.
-Topics: food, animals, superpowers, school, space, everyday life.
+Make it fresh and unexpected — not a common or obvious dilemma.${avoidNote(avoid)}
 
 Return valid JSON only:
 {"option_a":"...","option_b":"..."}`,
@@ -224,6 +242,7 @@ export async function generateWouldYouRatherArgument(
     const msg = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 200,
+      temperature: 1,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -254,19 +273,24 @@ Return valid JSON only:
 export async function generateWhatAmI(
   category: string,
   kidId: string | null,
+  avoid?: string[],
 ): Promise<ArcadeResult<{ answer: string; clues: string[] }>> {
   try {
     const client = new Anthropic();
+    const flavors = WHATAMI_FLAVORS[category] ?? [];
+    const flavor = flavors.length ? pick(flavors) : "";
     const msg = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
+      temperature: 1,
       system: SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
           content: `Think of a ${category} that a child aged 5-12 would know.
+${flavor ? `Lean towards ${flavor}. ` : ""}Surprise me — avoid the most obvious choice. (variety: ${freshSeed()})
 Generate 5 clues about it, starting very cryptic and getting progressively more obvious.
-The clues should be fun and indirect — don't mention the answer directly in any clue.
+The clues should be fun and indirect — don't mention the answer directly in any clue.${avoidNote(avoid)}
 
 Return valid JSON only:
 {"answer":"...","clues":["cryptic clue","...","...","...","most obvious clue"]}`,
@@ -290,19 +314,23 @@ Return valid JSON only:
 
 export async function generateWordDetective(
   kidId: string | null,
+  avoid?: string[],
 ): Promise<ArcadeResult<{ word: string; clues: string[] }>> {
   try {
     const client = new Anthropic();
+    const theme = pick(WORD_THEMES);
     const msg = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 300,
+      temperature: 1,
       system: SYSTEM_PROMPT,
       messages: [
         {
           role: "user",
           content: `Think of a fun word that a child aged 5-12 would know (not too easy, not too hard — examples: rainbow, submarine, volcano, telescope, butterfly).
+Pick a word connected to: ${theme}. Choose a fresh, surprising one. (variety: ${freshSeed()})
 Generate 5 clues that describe this word indirectly, starting very cryptic and getting progressively more obvious.
-Never mention the word itself in the clues.
+Never mention the word itself in the clues.${avoidNote(avoid)}
 
 Return valid JSON only:
 {"word":"...","clues":["most cryptic","...","...","...","most obvious"]}`,
@@ -337,13 +365,17 @@ export async function askStumpQuestion(
 
   try {
     const client = new Anthropic();
+    const opener = isFirstTurn ? pick(STUMP_OPENERS) : "";
     const systemPrompt =
       SYSTEM_PROMPT +
-      `\n\nYou are playing 20 questions. A child is thinking of a ${category}. Ask yes/no questions to figure out what it is. When you are confident enough OR have asked 10 questions, make your final guess starting with exactly: "My final guess is:". Otherwise ask one yes/no question. Return valid JSON only: {"type":"question","content":"your yes/no question"} OR {"type":"guess","content":"My final guess is: [answer]"}`;
+      `\n\nYou are playing 20 questions. A child is thinking of a ${category}. Ask yes/no questions to figure out what it is. When you are confident enough OR have asked 10 questions, make your final guess starting with exactly: "My final guess is:". Otherwise ask one yes/no question.` +
+      (opener ? ` For your FIRST question, start by exploring ${opener} — don't always open the same way.` : "") +
+      ` Return valid JSON only: {"type":"question","content":"your yes/no question"} OR {"type":"guess","content":"My final guess is: [answer]"}`;
 
     const msg = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 100,
+      temperature: 1,
       system: systemPrompt,
       messages: apiMessages,
     });
@@ -396,6 +428,7 @@ If guessing: {"type":"guess","content":"I think statement N is the lie!","guesse
     const msg = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 150,
+      temperature: 1,
       system: systemPrompt,
       messages: apiMessages,
     });

@@ -68,7 +68,13 @@ export async function ensureDailyRealPrices(supabase: SupabaseLike): Promise<voi
         }
 
         for (const asset of usAssets) {
-          const row = await priceForFinnhub(asset, usdToCash, priceDate);
+          // Finnhub (needs FINNHUB_API_KEY) gives price + company news + market cap.
+          // When the key is missing or the quote fails, fall back to Yahoo — keyless
+          // and already proven to serve US tickers in the backfill route — so stocks
+          // keep updating daily instead of freezing at the last backfilled date.
+          const row =
+            (await priceForFinnhub(asset, usdToCash, priceDate)) ??
+            (await priceForUsViaYahoo(asset, usdToCash, priceDate));
           if (row) rows.push(row);
           await delay(250);
         }
@@ -131,9 +137,10 @@ async function fetchUsdToAud(): Promise<number | null> {
   }
 }
 
-async function priceForAsx(asset: RealAsset, priceDate: string): Promise<PriceRow | null> {
+/** Latest + previous daily close from Yahoo Finance (keyless). Used for ASX and as the US fallback. */
+async function yahooPriceAndPrev(yahooSymbol: string): Promise<{ price: number; prev: number } | null> {
   try {
-    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${asset.sourceId}?range=5d&interval=1d`, {
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=5d&interval=1d`, {
       next: { revalidate: 60 * 60 * 12 },
     });
     if (!res.ok) return null;
@@ -143,10 +150,27 @@ async function priceForAsx(asset: RealAsset, priceDate: string): Promise<PriceRo
     const price = valid.at(-1);
     const prev = valid.at(-2) ?? price;
     if (!price || !prev) return null;
-    return baseRow(asset, cents(price), cents(prev), "AUD", 1, priceDate, null, null);
+    return { price, prev };
   } catch {
     return null;
   }
+}
+
+async function priceForAsx(asset: RealAsset, priceDate: string): Promise<PriceRow | null> {
+  const quote = await yahooPriceAndPrev(asset.sourceId);
+  if (!quote) return null;
+  return baseRow(asset, cents(quote.price), cents(quote.prev), "AUD", 1, priceDate, null, null);
+}
+
+/**
+ * Keyless fallback for US stocks when Finnhub is unavailable. Yahoo serves plain US
+ * tickers (e.g. "AAPL") directly, in USD — convert to cash with the AUD fx rate. News
+ * stays null (Finnhub-only) so the UI's templated story shows; market cap is unavailable.
+ */
+async function priceForUsViaYahoo(asset: RealAsset, usdToCash: number, priceDate: string): Promise<PriceRow | null> {
+  const quote = await yahooPriceAndPrev(asset.sourceId);
+  if (!quote) return null;
+  return baseRow(asset, cents(quote.price * usdToCash), cents(quote.prev * usdToCash), "USD", usdToCash, priceDate, null, null);
 }
 
 async function pricesForCrypto(assets: RealAsset[], usdToCash: number, priceDate: string): Promise<PriceRow[]> {

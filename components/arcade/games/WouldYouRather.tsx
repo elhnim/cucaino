@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { generateWouldYouRather, generateWouldYouRatherArgument } from "@/lib/actions/arcade";
+import { recentAnswers, rememberAnswer } from "@/lib/arcade/variety";
 
 type GameState = "idle" | "loading_dilemma" | "choosing" | "loading_argument" | "result";
 
@@ -22,13 +23,14 @@ export default function WouldYouRather({ kidId, sparksBalance }: WouldYouRatherP
     setError(null);
 
     setGameState("loading_dilemma");
-    const result = await generateWouldYouRather(kidId);
+    const result = await generateWouldYouRather(kidId, recentAnswers("would-you-rather"));
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");
       return;
     }
 
+    rememberAnswer("would-you-rather", `${result.data.option_a} / ${result.data.option_b}`);
     setDilemma(result.data);
     setGameState("choosing");
   }, [kidId, sparksBalance]);

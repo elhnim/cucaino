@@ -9,6 +9,7 @@ import InvestAboutSection from "@/components/invest/InvestAboutSection";
 import InvestBuyLockedCard from "@/components/invest/InvestBuyLockedCard";
 import { assetNews } from "@/lib/invest/news-display";
 import PriceTimestamp from "@/components/invest/PriceTimestamp";
+import InvestPriceChart from "@/components/invest/InvestPriceChart";
 
 function money(cents: number): string { return `$${(cents / 100).toFixed(2)}`; }
 
@@ -45,7 +46,6 @@ export default function InvestAssetDetailSheet({
   const [error, setError] = useState<string | null>(null);
   const [newsOpen, setNewsOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const prices = useMemo(() => [...priceHistory].reverse().map((p) => p.priceCents), [priceHistory]);
   const news = useMemo(() => {
     if (!price) return null;
     // Prefer the real, kid-rewritten article cached on the price row; fall back to the
@@ -95,8 +95,8 @@ export default function InvestAssetDetailSheet({
             {price && <span className={`rounded-full px-2 py-1 text-xs font-black ${price.changePct >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{price.changePct >= 0 ? "+" : ""}{(price.changePct * 100).toFixed(1)}%</span>}
           </div>
           {price && <PriceTimestamp iso={price.fetchedAt} prefix="As of" className="mt-1 text-[11px] font-bold text-slate-400" />}
-          <div className="mt-4 h-24 rounded-xl bg-slate-50 p-2">
-            {prices.length < 2 ? <p className="grid h-full place-items-center text-xs font-bold text-slate-400">Price history starts today</p> : <Spark prices={prices} />}
+          <div className="mt-4 h-32 rounded-xl bg-slate-50 p-2">
+            <InvestPriceChart history={priceHistory} />
           </div>
           {price?.marketCap != null && (
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
@@ -176,12 +176,4 @@ export default function InvestAssetDetailSheet({
       )}
     </div>
   );
-}
-
-function Spark({ prices }: { prices: number[] }) {
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const range = max - min || 1;
-  const points = prices.map((p, i) => `${(i / Math.max(prices.length - 1, 1)) * 100},${50 - ((p - min) / range) * 45}`).join(" ");
-  return <svg viewBox="0 0 100 55" className="h-full w-full"><polyline points={points} fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
