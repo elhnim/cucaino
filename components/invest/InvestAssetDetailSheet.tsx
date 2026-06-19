@@ -16,7 +16,7 @@ function money(cents: number): string { return `$${(cents / 100).toFixed(2)}`; }
 // Format a plain YYYY-MM-DD price date using local calendar components so it never
 // shifts a day across timezones (and stays hydration-stable).
 function formatNewsDate(priceDate: string): string {
-  const [y, m, d] = priceDate.split("-").map(Number);
+  const [y, m, d] = priceDate.slice(0, 10).split("-").map(Number);
   if (!y || !m || !d) return "";
   return new Date(y, m - 1, d).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
 }
@@ -168,11 +168,12 @@ export default function InvestAssetDetailSheet({
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-lg">{asset.emoji}</span>
-                <span className="text-xs font-black uppercase text-slate-400">{asset.name} · {news.real ? "In the news" : "Today's story"}{news.date ? ` · ${news.date}` : ""}</span>
+                <span className="text-xs font-black uppercase text-slate-400">{asset.name} · {news.real ? "In the news" : "Today's story"}</span>
               </div>
               <button onClick={() => setNewsOpen(false)} className="text-2xl font-black leading-none text-slate-400">×</button>
             </div>
-            <h3 className="mt-3 text-lg font-black leading-snug text-slate-950">{news.headline}</h3>
+            {news.date && <p className="mt-3 text-xs font-black uppercase tracking-wide text-indigo-500">📅 {news.date}</p>}
+            <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{news.headline}</h3>
             <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-600">{news.body}</p>
             {news.real && news.url ? (
               <a href={news.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs font-bold text-slate-400 underline">Open the original article (for grown-ups) ↗</a>
