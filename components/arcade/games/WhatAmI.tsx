@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { generateWhatAmI } from "@/lib/actions/arcade";
+import { recentAnswers, rememberAnswer } from "@/lib/arcade/variety";
 import { playSfx } from "@/lib/audio/sound-manager";
 
 type GameState = "idle" | "loading" | "guessing" | "won" | "lost";
@@ -42,13 +43,14 @@ export default function WhatAmI({ kidId, sparksBalance }: WhatAmIProps) {
     setError(null);
 
     setGameState("loading");
-    const result = await generateWhatAmI(category, kidId);
+    const result = await generateWhatAmI(category, kidId, recentAnswers(`whatami:${category}`));
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");
       return;
     }
 
+    rememberAnswer(`whatami:${category}`, result.data.answer);
     setData(result.data);
     setCurrentClueIndex(0);
     setGuess("");
