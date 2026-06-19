@@ -13,6 +13,14 @@ import InvestPriceChart from "@/components/invest/InvestPriceChart";
 
 function money(cents: number): string { return `$${(cents / 100).toFixed(2)}`; }
 
+// Format a plain YYYY-MM-DD price date using local calendar components so it never
+// shifts a day across timezones (and stays hydration-stable).
+function formatNewsDate(priceDate: string): string {
+  const [y, m, d] = priceDate.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return new Date(y, m - 1, d).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+}
+
 function formatMarketCap(dollars: number): string {
   if (dollars >= 1e12) return `$${(dollars / 1e12).toFixed(2)}T`;
   if (dollars >= 1e9) return `$${(dollars / 1e9).toFixed(1)}B`;
@@ -50,11 +58,12 @@ export default function InvestAssetDetailSheet({
     if (!price) return null;
     // Prefer the real, kid-rewritten article cached on the price row; fall back to the
     // always-available templated story so the card is never empty.
+    const date = formatNewsDate(price.priceDate);
     if (price.newsHeadline && price.newsBody) {
-      return { headline: price.newsHeadline, body: price.newsBody, url: price.newsUrl, real: true };
+      return { headline: price.newsHeadline, body: price.newsBody, url: price.newsUrl, real: true, date };
     }
     const t = assetNews(asset.symbol, asset.name, asset.assetType, price.changePct, price.priceDate);
-    return { headline: t.headline, body: t.body, url: null as string | null, real: false };
+    return { headline: t.headline, body: t.body, url: null as string | null, real: false, date };
   }, [price, asset.symbol, asset.name, asset.assetType]);
   const ownedValue = holding && price ? holdingValueCents(holding.quantity, price.priceCents) : 0;
   const pnl = holding && price ? unrealizedPnlCents(holding.quantity, price.priceCents, holding.avgCostCents) : 0;
@@ -108,7 +117,7 @@ export default function InvestAssetDetailSheet({
 
         {news && (
           <button type="button" onClick={() => setNewsOpen(true)} className="mb-4 block w-full rounded-[14px] border border-slate-200 bg-white p-4 text-left shadow-sm active:bg-slate-50">
-            <p className="text-xs font-black uppercase text-slate-400">{news.real ? "In the news" : "Today's story"}</p>
+            <p className="text-xs font-black uppercase text-slate-400">{news.real ? "In the news" : "Today's story"}{news.date ? ` · ${news.date}` : ""}</p>
             <h3 className="mt-1 text-sm font-black text-slate-950">{news.headline}</h3>
             <p className="mt-1 line-clamp-2 text-sm font-semibold text-slate-600">{news.body}</p>
             <span className="mt-2 inline-block text-xs font-black text-indigo-600">Read more →</span>
@@ -159,7 +168,7 @@ export default function InvestAssetDetailSheet({
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-lg">{asset.emoji}</span>
-                <span className="text-xs font-black uppercase text-slate-400">{asset.name} · {news.real ? "In the news" : "Today's story"}</span>
+                <span className="text-xs font-black uppercase text-slate-400">{asset.name} · {news.real ? "In the news" : "Today's story"}{news.date ? ` · ${news.date}` : ""}</span>
               </div>
               <button onClick={() => setNewsOpen(false)} className="text-2xl font-black leading-none text-slate-400">×</button>
             </div>
