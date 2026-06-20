@@ -9,6 +9,7 @@ import { clearSession, loadSession, saveSession, type RoomSession } from "@/lib/
 import { useRoom } from "@/lib/multiplayer/useRoom";
 import type { GameRoom } from "@/lib/multiplayer/types";
 import VillageBoard from "./VillageBoard";
+import VillagePassAndPlay from "./VillagePassAndPlay";
 
 const GAME_KEY = "village-pillage";
 
@@ -20,6 +21,7 @@ export default function VillagePillage({ kidId, kidName }: { kidId: string | nul
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [localMode, setLocalMode] = useState(false);
   const hostBusyRef = useRef(false);
 
   const { room, loading, loaded } = useRoom<VillageGame>(session?.roomId ?? null);
@@ -147,7 +149,7 @@ export default function VillagePillage({ kidId, kidName }: { kidId: string | nul
     setCode("");
   }, [room, session]);
 
-  const showEntry = !session || (hydrated && loaded && !room);
+  const showEntry = !localMode && (!session || (hydrated && loaded && !room));
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-200 via-emerald-50 to-amber-100">
@@ -182,14 +184,22 @@ export default function VillagePillage({ kidId, kidName }: { kidId: string | nul
               <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 4))} className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-3 font-black text-xl tracking-[0.3em] text-center text-gray-900 uppercase focus:outline-none focus:border-emerald-400" placeholder="CODE" />
               <button type="button" onClick={handleJoin} disabled={busy} className="px-6 rounded-xl font-black text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50 transition-colors">Join</button>
             </div>
+
+            <div className="flex items-center gap-3 text-gray-400 text-xs font-black">
+              <div className="flex-1 h-px bg-gray-200" /> OR <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            <button type="button" onClick={() => { setError(null); setLocalMode(true); }} className="w-full py-4 rounded-2xl font-black text-emerald-800 text-lg bg-white border-2 border-emerald-300 hover:bg-emerald-50 active:scale-95 transition-all">Pass &amp; play on one device 🎲</button>
           </div>
         )}
 
-        {!showEntry && session && room && room.status === "lobby" && (
+        {localMode && <VillagePassAndPlay onExit={() => setLocalMode(false)} />}
+
+        {!localMode && !showEntry && session && room && room.status === "lobby" && (
           <VillageLobby room={room} memberId={session.memberId} busy={busy} onStart={handleStart} onExit={handleExit} />
         )}
 
-        {!showEntry && session && room && room.status !== "lobby" && room.state.game?.players && (
+        {!localMode && !showEntry && session && room && room.status !== "lobby" && room.state.game?.players && (
           <VillageBoard
             room={room}
             memberId={session.memberId}
