@@ -74,6 +74,17 @@ export const STORY_GENRES = [
   "an animal's big adventure",
 ] as const;
 
+export const TALKING_POINT_ANGLES: Record<string, readonly string[]> = {
+  funny: ["the silliest thing that could happen at dinner", "a goofy what-if", "funny animal antics", "a ridiculous new invention",
+    "a silly food mash-up", "a made-up family tradition", "the funniest superpower to have", "a comical mix-up"],
+  dreams: ["a dream adventure", "a magic wish", "an imaginary place to visit", "a future invention you'd love",
+    "becoming any creature for a day", "designing a dream treehouse or fort", "a talent you'd magically have", "a world you'd build"],
+  memories: ["a favourite family memory", "a funny thing that once happened", "a proud moment", "the best day ever",
+    "a holiday or outing you loved", "a kind thing someone did", "a first-time experience", "something that made everyone laugh"],
+  "big-ideas": ["what makes a good friend", "how to make the world kinder", "what bravery means", "a rule everyone should follow",
+    "what fairness looks like", "something worth being thankful for", "what makes someone a hero", "what 'home' really means"],
+};
+
 export const STUMP_OPENERS = [
   "whether it is a living thing", "its size", "where it is usually found", "whether people use it every day",
   "whether it can move on its own", "what colour it usually is", "whether it is found indoors or outdoors",
