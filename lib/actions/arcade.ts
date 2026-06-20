@@ -10,6 +10,7 @@ import {
   sample,
   STORY_GENRES,
   STUMP_OPENERS,
+  TALKING_POINT_ANGLES,
   WHATAMI_FLAVORS,
   WORD_THEMES,
   WYR_TOPICS,
@@ -334,6 +335,53 @@ Never mention the word itself in the clues.${avoidNote(avoid)}
 
 Return valid JSON only:
 {"word":"...","clues":["most cryptic","...","...","...","most obvious"]}`,
+        },
+      ],
+    });
+    const block = msg.content[0];
+    if (block.type !== "text") throw new Error("no text block");
+    const parsed = parseJSON(block.text);
+    if (kidId) await deductSparks(kidId, 1);
+    return { ok: true, data: parsed };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// generateTalkingPoint — deducts 1 spark AFTER success
+// A warm family conversation starter (main question + follow-ups + group twist)
+// ---------------------------------------------------------------------------
+
+export async function generateTalkingPoint(
+  category: string,
+  kidId: string | null,
+  avoid?: string[],
+): Promise<ArcadeResult<{ question: string; followups: string[]; together: string }>> {
+  try {
+    const client = new Anthropic();
+    const angles = TALKING_POINT_ANGLES[category] ?? [];
+    const angle = angles.length ? pick(angles) : "";
+    const msg = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 350,
+      temperature: 1,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Create a warm, fun "talking point" — a conversation starter a whole family (kids and grown-ups together) can chat about at the dinner table or in the car.
+Theme: ${category}.${angle ? ` Lean towards ${angle}.` : ""} Make it fresh and unexpected. (variety: ${freshSeed()})
+
+Requirements:
+- One main question everyone can answer — open-ended and easy for a 5-12 year old to understand, but still interesting for grown-ups
+- Exactly 3 short follow-up questions to keep the conversation flowing
+- One playful "together" idea: a quick group twist (e.g. "Everyone answer in one word first, then explain!")
+- Keep it positive, inclusive, and never embarrassing or sad${avoidNote(avoid)}
+
+Return valid JSON only:
+{"question":"...","followups":["...","...","..."],"together":"..."}`,
         },
       ],
     });

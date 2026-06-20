@@ -15,6 +15,7 @@ const colorMap: Record<string, string> = {
   amber:  "bg-amber-50 border-amber-200 text-amber-900",
   green:  "bg-green-50 border-green-200 text-green-900",
   rose:   "bg-rose-50 border-rose-200 text-rose-900",
+  teal:   "bg-teal-50 border-teal-200 text-teal-900",
 };
 
 interface ArcadeHubProps {
