@@ -9,7 +9,6 @@ import WhatAmI from "@/components/arcade/games/WhatAmI";
 import WordDetective from "@/components/arcade/games/WordDetective";
 import StumpTheAI from "@/components/arcade/games/StumpTheAI";
 import AILieDetector from "@/components/arcade/games/AILieDetector";
-import FamilyTalkingPoint from "@/components/arcade/games/FamilyTalkingPoint";
 import type { ReactNode } from "react";
 
 export default async function ArcadeGamePage({
@@ -42,8 +41,6 @@ export default async function ArcadeGamePage({
     gameComponent = <StumpTheAI kidId={kidIdStr} sparksBalance={sparksBalance} />;
   } else if (gameSlug === "ai-lie-detector") {
     gameComponent = <AILieDetector kidId={kidIdStr} sparksBalance={sparksBalance} />;
-  } else if (gameSlug === "family-talking-point") {
-    gameComponent = <FamilyTalkingPoint kidId={kidIdStr} sparksBalance={sparksBalance} />;
   } else {
     notFound();
     return null;
