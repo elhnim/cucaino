@@ -9,6 +9,7 @@ import { createRoom, joinRoom, leaveRoom, patchRoom, setRoomStatePath } from "@/
 import { clearSession, loadSession, saveSession, type RoomSession } from "@/lib/multiplayer/session";
 import { useRoom } from "@/lib/multiplayer/useRoom";
 import VillageBoard from "./VillageBoard";
+import VillagePassAndPlay from "./VillagePassAndPlay";
 
 const GAME_KEY = "village-pillage";
 
@@ -20,22 +21,24 @@ export default function VillagePillage({ kidId, kidName }: { kidId: string | nul
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [localMode, setLocalMode] = useState(false);
   const resolvedRoundRef = useRef(0);
 
-  const { room, loading } = useRoom<VillageState>(session?.roomId ?? null);
+  const { room, loading, loaded } = useRoom<VillageState>(session?.roomId ?? null);
 
   useEffect(() => {
     setSession(loadSession(GAME_KEY));
     setHydrated(true);
   }, []);
 
-  // Drop a stale session if its room no longer exists.
+  // Drop a stale session only once we've confirmed its room is gone (loaded but
+  // null) — never during the load gap, or we'd wipe a freshly created room.
   useEffect(() => {
-    if (hydrated && session && !loading && !room) {
+    if (hydrated && session && loaded && !room) {
       clearSession(GAME_KEY);
       setSession(null);
     }
-  }, [hydrated, session, loading, room]);
+  }, [hydrated, session, loaded, room]);
 
   // Host drives resolution once every device has submitted its card.
   useEffect(() => {
@@ -140,8 +143,11 @@ export default function VillagePillage({ kidId, kidName }: { kidId: string | nul
           <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-sm text-red-700 text-center">{error}</div>
         )}
 
+        {/* Pass & play (single device) */}
+        {localMode && <VillagePassAndPlay onExit={() => setLocalMode(false)} />}
+
         {/* Entry: create or join */}
-        {(!session || (hydrated && !loading && !room)) && (
+        {!localMode && (!session || (hydrated && !loading && !room)) && (
           <div className="space-y-5">
             <div className="bg-white/80 backdrop-blur rounded-3xl p-5 shadow-sm text-center">
               <div className="text-5xl mb-2">🥔</div>
@@ -188,11 +194,23 @@ export default function VillagePillage({ kidId, kidName }: { kidId: string | nul
                 Join
               </button>
             </div>
+
+            <div className="flex items-center gap-3 text-gray-400 text-xs font-black">
+              <div className="flex-1 h-px bg-gray-200" /> OR <div className="flex-1 h-px bg-gray-200" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => { setError(null); setLocalMode(true); }}
+              className="w-full py-4 rounded-2xl font-black text-emerald-800 text-lg bg-white border-2 border-emerald-300 hover:bg-emerald-50 active:scale-95 transition-all"
+            >
+              Pass &amp; play on one device 🎲
+            </button>
           </div>
         )}
 
         {/* Lobby */}
-        {session && room && room.status === "lobby" && (
+        {!localMode && session && room && room.status === "lobby" && (
           <VillageLobby
             room={room}
             memberId={session.memberId}
@@ -203,7 +221,7 @@ export default function VillagePillage({ kidId, kidName }: { kidId: string | nul
         )}
 
         {/* Playing / finished */}
-        {session && room && room.status !== "lobby" && room.state.game?.players && (
+        {!localMode && session && room && room.status !== "lobby" && room.state.game?.players && (
           <VillageBoard
             room={room}
             memberId={session.memberId}
