@@ -1,276 +1,295 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CARD_BY_ID, CARDS, type CardId } from "@/lib/village/config";
-import type { VillageState } from "@/lib/village/engine";
-import type { GameRoom } from "@/lib/multiplayer/types";
+import { useEffect, useState } from "react";
+import { type CardId, MERC_COST, META, RELIC_COST, WIN_RELICS } from "@/lib/village/config";
+import { canShop, wealth, type VillageGame } from "@/lib/village/engine";
+import type { GameRoom, RoomMember } from "@/lib/multiplayer/types";
 import VillageCard from "./VillageCard";
 
 const TURNIP = "🥔";
 
-function TurnipPill({ n, highlight }: { n: number; highlight?: boolean }) {
+function Scoreboard({ members, game, meId }: { members: RoomMember[]; game: VillageGame; meId: string }) {
+  const ordered = [...members].sort((a) => (a.id === meId ? -1 : 1));
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm font-black tabular-nums ${
-        highlight ? "bg-amber-400 text-amber-950" : "bg-white/90 text-slate-800"
-      }`}
-    >
-      <span>{TURNIP}</span>
-      {n}
-    </span>
+    <div className="grid grid-cols-2 gap-2 mb-3">
+      {ordered.map((m) => {
+        const p = game.players[m.id];
+        if (!p) return null;
+        return (
+          <div key={m.id} className="bg-white rounded-2xl shadow-sm p-2.5">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-xl">{m.avatar}</span>
+              <span className="font-black text-sm text-gray-900 truncate">{m.name}{m.id === meId ? " (you)" : ""}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-black tabular-nums">
+              <span className="text-amber-700">{TURNIP} {p.turnips}</span>
+              <span className="text-sky-700">🏦 {p.bank}</span>
+              <span className="text-violet-700">💎 {p.relics}/{WIN_RELICS}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Market({ market, onPick, affordable }: { market: CardId[]; onPick?: (c: CardId) => void; affordable?: (c: CardId) => boolean }) {
+  return (
+    <div>
+      <p className="text-xs font-black uppercase text-gray-400 mb-1">Mercenary market</p>
+      <div className="grid grid-cols-4 gap-1.5">
+        {market.map((c, i) => (
+          <VillageCard
+            key={`${c}-${i}`}
+            card={c}
+            size="sm"
+            showText={false}
+            disabled={onPick ? !(affordable?.(c) ?? true) : true}
+            onClick={onPick ? () => onPick(c) : undefined}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
 export default function VillageBoard({
   room,
   memberId,
-  onSubmit,
-  onPlayAgain,
-  onExit,
   busy,
+  onSubmitPicks,
+  onShopChoice,
+  onNext,
+  onRematch,
+  onExit,
 }: {
-  room: GameRoom<VillageState>;
+  room: GameRoom<VillageGame>;
   memberId: string;
-  onSubmit: (card: CardId, targetId: string | null) => void;
-  onPlayAgain: () => void;
-  onExit: () => void;
   busy: boolean;
+  onSubmitPicks: (l: CardId, r: CardId) => void;
+  onShopChoice: (choice: string) => void;
+  onNext: () => void;
+  onRematch: () => void;
+  onExit: () => void;
 }) {
   const members = room.state.members;
   const game = room.state.game;
   const me = members.find((m) => m.id === memberId);
+  const opp = members.find((m) => m.id !== memberId);
   const isHost = !!me?.isHost;
-
-  const [selectedCard, setSelectedCard] = useState<CardId | null>(null);
-  const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
-  const [dismissedRound, setDismissedRound] = useState(0);
-
-  const opponents = useMemo(() => members.filter((m) => m.id !== memberId), [members, memberId]);
-  const playerTurnips = (id: string) => game.players.find((p) => p.id === id)?.turnips ?? 0;
   const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "Player";
 
-  const myPending = game.pending?.[memberId];
-  const resolution = game.lastResolution;
-  const finished = room.status === "finished";
-  const showResolution = !finished && resolution && resolution.round > dismissedRound;
+  const [slot, setSlot] = useState<"l" | "r">("l");
+  const [picks, setPicks] = useState<{ l?: CardId; r?: CardId }>({});
 
-  // ---- Winner screen ------------------------------------------------------
-  if (finished) {
-    const winners = game.winnerIds ?? [];
-    const standings = [...game.players].sort((a, b) => b.turnips - a.turnips);
-    const tie = winners.length > 1;
+  useEffect(() => {
+    setPicks({});
+    setSlot("l");
+  }, [game?.round]);
+
+  if (!game?.players?.[memberId]) return null;
+  const meP = game.players[memberId];
+
+  // ---- Winner -------------------------------------------------------------
+  if (room.status === "finished" && game.winner) {
+    const standings = members
+      .map((m) => ({ m, p: game.players[m.id] }))
+      .filter((x) => x.p)
+      .sort((a, b) => b.p.relics - a.p.relics);
     return (
-      <div className="relative max-w-lg mx-auto text-center">
+      <div className="text-center">
         <style>{`@keyframes vp-float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-18px) rotate(12deg)}}`}</style>
         <div className="flex flex-wrap justify-center gap-2 text-3xl mb-3">
-          {["🎉", "🏆", "🥔", "✨", "🎊", "🥳", "🌟", "🎈"].map((e, i) => (
-            <span key={i} style={{ animation: `vp-float ${1.4 + (i % 4) * 0.3}s ease-in-out infinite`, animationDelay: `${i * 0.08}s` }}>
-              {e}
-            </span>
+          {["🎉", "🏆", "💎", "✨", "🎊", "🥳"].map((e, i) => (
+            <span key={i} style={{ animation: `vp-float ${1.4 + (i % 4) * 0.3}s ease-in-out infinite`, animationDelay: `${i * 0.08}s` }}>{e}</span>
           ))}
         </div>
-        <h2 className="text-3xl font-black text-amber-900">
-          {tie ? "It's a tie!" : `${nameOf(winners[0])} wins!`}
-        </h2>
-        <p className="text-amber-700 font-bold mb-5">Most turnips in the village 🥔</p>
-
+        <h2 className="text-3xl font-black text-amber-900">{nameOf(game.winner)} wins!</h2>
+        <p className="text-amber-700 font-bold mb-5">Reached {WIN_RELICS} relics 💎</p>
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-6 text-left">
-          {standings.map((p, i) => (
-            <div key={p.id} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+          {standings.map(({ m, p }, i) => (
+            <div key={m.id} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
               <span className="w-6 text-center font-black text-gray-400">{i + 1}</span>
-              <span className="text-2xl">{members.find((m) => m.id === p.id)?.avatar ?? "🙂"}</span>
-              <span className="flex-1 font-bold text-gray-900">{p.name}</span>
-              <TurnipPill n={p.turnips} highlight={winners.includes(p.id)} />
+              <span className="text-2xl">{m.avatar}</span>
+              <span className="flex-1 font-bold text-gray-900">{m.name}</span>
+              <span className="font-black text-violet-700">💎 {p.relics}</span>
             </div>
           ))}
         </div>
-
         {isHost ? (
-          <button
-            type="button"
-            onClick={onPlayAgain}
-            disabled={busy}
-            className="w-full py-4 rounded-2xl font-black text-white text-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 disabled:opacity-50 transition-colors mb-3"
-          >
-            Play Again 🎮
-          </button>
+          <button type="button" onClick={onRematch} disabled={busy} className="w-full py-4 rounded-2xl font-black text-white text-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 disabled:opacity-50 transition-colors mb-3">Rematch 🎮</button>
         ) : (
-          <p className="text-sm font-bold text-gray-500 mb-3">Waiting for the host to start a new game…</p>
+          <p className="text-sm font-bold text-gray-500 mb-3">Waiting for the host to start a rematch…</p>
         )}
-        <button type="button" onClick={onExit} className="w-full py-3 rounded-2xl font-bold text-gray-600 border-2 border-gray-200 hover:bg-gray-50">
-          Leave game
-        </button>
+        <button type="button" onClick={onExit} className="w-full py-3 rounded-2xl font-bold text-gray-600 border-2 border-gray-200 hover:bg-gray-50">Leave game</button>
       </div>
     );
   }
 
-  // ---- Reveal screen ------------------------------------------------------
-  if (showResolution && resolution) {
-    return (
-      <div className="max-w-lg mx-auto">
-        <style>{`@keyframes vp-flip{from{transform:rotateY(90deg);opacity:0}to{transform:rotateY(0);opacity:1}}`}</style>
-        <h2 className="text-center text-xl font-black text-gray-900 mb-1">Round {resolution.round} reveal!</h2>
-        <p className="text-center text-sm text-gray-500 mb-4">Everyone flips at once…</p>
+  // ---- Reveal -------------------------------------------------------------
+  if (game.reveal && game.resolved && game.resolution) {
+    const myPicks = game.reveal[memberId];
+    const oppPicks = opp ? game.reveal[opp.id] : null;
+    const duels = oppPicks
+      ? [
+          { mine: myPicks.l, theirs: oppPicks.r },
+          { mine: myPicks.r, theirs: oppPicks.l },
+        ]
+      : [];
+    const shopPendingIds = Object.keys(game.shopPending ?? {});
+    const iShop = !!game.shopPending?.[memberId];
+    const iChose = game.shopChoice?.[memberId] != null;
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          {members.map((m, i) => {
-            const mv = resolution.moves[m.id];
-            const card = mv ? CARD_BY_ID[mv.card] : null;
-            const delta = resolution.deltas[m.id] ?? 0;
+    return (
+      <div>
+        <style>{`@keyframes vp-flip{from{transform:rotateY(90deg);opacity:0}to{transform:rotateY(0);opacity:1}}`}</style>
+        <Scoreboard members={members} game={game} meId={memberId} />
+
+        <h2 className="text-center text-lg font-black text-gray-900 mb-2">Reveal — round {game.round}</h2>
+        <div className="space-y-2 mb-3">
+          {duels.map((d, i) => (
+            <div key={i} className="flex items-center justify-center gap-2" style={{ animation: `vp-flip 0.4s ease ${i * 0.1}s both` }}>
+              <div className="w-16"><VillageCard card={d.mine} size="sm" showText={false} /></div>
+              <span className="text-xl">⚔️</span>
+              <div className="w-16"><VillageCard card={d.theirs} size="sm" showText={false} /></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-center gap-4 mb-4">
+          {members.map((m) => {
+            const dv = game.resolution!.delta[m.id] ?? 0;
             return (
-              <div key={m.id} className="bg-white rounded-2xl shadow-sm p-3 flex items-center gap-3" style={{ animation: `vp-flip 0.4s ease ${i * 0.08}s both` }}>
-                <div className="w-12 shrink-0">
-                  {card ? <VillageCard card={card} size="sm" /> : <span className="text-3xl">❔</span>}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1">
-                    <span className="text-lg">{m.avatar}</span>
-                    <span className="font-bold text-gray-900 truncate">{m.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <TurnipPill n={playerTurnips(m.id)} />
-                    {delta !== 0 && (
-                      <span className={`text-xs font-black ${delta > 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                        {delta > 0 ? `+${delta}` : delta}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <span key={m.id} className="text-sm font-black">
+                {m.avatar} <span className={dv > 0 ? "text-emerald-600" : dv < 0 ? "text-rose-600" : "text-gray-400"}>{dv > 0 ? `+${dv}` : dv} 🥔</span>
+              </span>
             );
           })}
         </div>
 
-        <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 mb-5">
-          <p className="text-xs font-black uppercase text-stone-400 mb-2">What happened</p>
-          <ul className="flex flex-col gap-1.5">
-            {resolution.events.map((ev, i) => (
-              <li key={i} className="flex gap-2 text-sm text-gray-700 leading-snug">
-                <span>{ev.emoji}</span>
-                <span>{ev.text}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+        {/* Shop */}
+        {iShop && !iChose && (
+          <div className="bg-violet-50 border-2 border-violet-200 rounded-2xl p-4 mb-4">
+            <p className="font-black text-violet-800 mb-2">🔮 Your Mystic opened the shop!</p>
+            <button
+              type="button"
+              disabled={wealth(meP) < RELIC_COST || busy}
+              onClick={() => onShopChoice("relic")}
+              className="w-full py-3 mb-2 rounded-xl font-black text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40 transition-colors"
+            >
+              Buy a Relic 💎 — {RELIC_COST} 🥔
+            </button>
+            <Market market={game.market} affordable={(c) => wealth(meP) >= (MERC_COST[c] ?? Infinity)} onPick={(c) => onShopChoice(c)} />
+            <p className="text-[11px] text-gray-500 mt-1">Tap an affordable mercenary to hire it for the rest of the game.</p>
+            <button type="button" onClick={() => onShopChoice("skip")} disabled={busy} className="w-full py-2.5 mt-2 rounded-xl font-bold text-gray-600 border-2 border-gray-200 hover:bg-gray-50">Skip</button>
+          </div>
+        )}
+        {iShop && iChose && <p className="text-center text-sm font-bold text-gray-500 mb-3">Purchase made — waiting…</p>}
 
-        <button
-          type="button"
-          onClick={() => setDismissedRound(resolution.round)}
-          className="w-full py-4 rounded-2xl font-black text-white text-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 transition-colors"
-        >
-          Next round ▶
-        </button>
-      </div>
-    );
-  }
-
-  // ---- Waiting for others -------------------------------------------------
-  if (myPending) {
-    const waiting = members.filter((m) => !game.pending?.[m.id]);
-    const submitted = members.length - waiting.length;
-    return (
-      <div className="max-w-lg mx-auto text-center py-8">
-        <div className="text-5xl animate-bounce mb-3">{CARD_BY_ID[myPending.card].emoji}</div>
-        <h2 className="text-xl font-black text-gray-900 mb-1">Card locked in!</h2>
-        <p className="text-gray-500 mb-5">
-          {submitted}/{members.length} villagers ready
-        </p>
-        <div className="bg-white rounded-2xl shadow-sm p-4 inline-block">
-          <p className="text-xs font-black uppercase text-gray-400 mb-2">Waiting for</p>
-          {waiting.length === 0 ? (
-            <p className="text-sm font-bold text-gray-500">Resolving…</p>
+        {/* Advance */}
+        {shopPendingIds.length > 0 && !iShop && (
+          <p className="text-center text-sm font-bold text-gray-500 mb-3">Waiting for {shopPendingIds.map(nameOf).join(" & ")} to shop…</p>
+        )}
+        {shopPendingIds.length === 0 && (
+          isHost ? (
+            <button type="button" onClick={onNext} disabled={busy} className="w-full py-4 rounded-2xl font-black text-white text-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 disabled:opacity-50 transition-colors">
+              {game.winner ? "See result 🏆" : "Next round ▶"}
+            </button>
           ) : (
-            <div className="flex flex-wrap justify-center gap-2">
-              {waiting.map((m) => (
-                <span key={m.id} className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-3 py-1 text-sm font-bold text-gray-700">
-                  <span>{m.avatar}</span>
-                  {m.name}
-                </span>
-              ))}
-            </div>
-          )}
+            <p className="text-center text-sm font-bold text-gray-500">Waiting for the host to deal the next round…</p>
+          )
+        )}
+      </div>
+    );
+  }
+
+  if (game.reveal && !game.resolved) {
+    return <p className="text-center text-gray-500 font-bold py-12">Revealing…</p>;
+  }
+
+  // ---- Waiting (I've submitted) ------------------------------------------
+  if (game.submitted?.[memberId]) {
+    return (
+      <div>
+        <Scoreboard members={members} game={game} meId={memberId} />
+        <div className="text-center py-8">
+          <div className="text-5xl animate-bounce mb-3">🤫</div>
+          <h2 className="text-xl font-black text-gray-900 mb-1">Cards locked in!</h2>
+          <p className="text-gray-500">
+            {opp && game.submitted?.[opp.id] ? "Revealing…" : `Waiting for ${opp ? opp.name : "your opponent"}…`}
+          </p>
         </div>
       </div>
     );
   }
 
-  // ---- Choosing -----------------------------------------------------------
-  const needsTarget = selectedCard ? CARD_BY_ID[selectedCard].needsTarget : false;
-  const autoTarget = opponents.length === 1 ? opponents[0].id : null;
-  const effectiveTarget = autoTarget ?? selectedTarget;
-  const canSubmit = !!selectedCard && (!needsTarget || !!effectiveTarget);
+  // ---- Pick (Left + Right) ------------------------------------------------
+  const distinct = picks.l && picks.r && picks.l !== picks.r;
+  const placeCard = (c: CardId) => {
+    setPicks((prev) => {
+      const other = slot === "l" ? prev.r : prev.l;
+      const np: { l?: CardId; r?: CardId } = { ...prev, [slot]: c };
+      if (other === c) np[slot === "l" ? "r" : "l"] = undefined;
+      return np;
+    });
+    setSlot((s) => (s === "l" ? "r" : "l"));
+  };
 
   return (
-    <div className="max-w-lg mx-auto">
-      {/* Status bar */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-black text-gray-500">
-          Round {game.round}/{game.maxRounds}
-        </span>
-        <span className="text-sm font-black text-amber-700">First to {TURNIP} {game.goal} wins</span>
+    <div>
+      <Scoreboard members={members} game={game} meId={memberId} />
+
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-black text-gray-500">Round {game.round}</span>
+        {opp && <span className="text-xs font-bold text-gray-400">{game.submitted?.[opp.id] ? `${opp.name} locked in 🔒` : `${opp.name} choosing…`}</span>}
       </div>
 
-      {/* Opponents */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {opponents.map((m) => {
-          const ready = !!game.pending?.[m.id];
-          const isTarget = effectiveTarget === m.id;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              disabled={!needsTarget || !!autoTarget}
-              onClick={() => setSelectedTarget(m.id)}
-              className={`flex items-center gap-2 rounded-2xl border-2 px-3 py-2 transition-all ${
-                isTarget && needsTarget ? "border-rose-400 bg-rose-50" : "border-gray-200 bg-white"
-              } ${needsTarget && !autoTarget ? "active:scale-95" : "cursor-default"}`}
-            >
-              <span className="text-2xl">{m.avatar}</span>
-              <span className="text-left">
-                <span className="block text-sm font-bold text-gray-900 leading-tight">{m.name}</span>
-                <span className="block text-xs text-gray-500 leading-tight">
-                  {TURNIP} {playerTurnips(m.id)} {ready ? "· ready ✅" : ""}
-                </span>
-              </span>
-            </button>
-          );
-        })}
+      {/* Slots */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        {(["l", "r"] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setSlot(s)}
+            className={`rounded-2xl border-2 p-2 min-h-[112px] flex flex-col items-center justify-center transition-all ${
+              slot === s ? "border-emerald-400 bg-emerald-50" : "border-gray-200 bg-white"
+            }`}
+          >
+            <span className="text-[10px] font-black uppercase text-gray-400 mb-1">{s === "l" ? "◀ Left" : "Right ▶"}</span>
+            {picks[s] ? (
+              <div className="w-16"><VillageCard card={picks[s]!} size="sm" showText={false} /></div>
+            ) : (
+              <span className="text-gray-300 text-3xl">＋</span>
+            )}
+          </button>
+        ))}
       </div>
+      <p className="text-center text-[11px] text-gray-400 mb-3">Your Left fights their Right · your Right fights their Left.</p>
 
-      {needsTarget && !autoTarget && (
-        <p className="text-center text-sm font-bold text-rose-600 mb-2">👆 Tap a rival to {selectedCard === "bandit" ? "rob" : "attack"}</p>
-      )}
-
-      {/* Your hand */}
-      <p className="text-xs font-black uppercase text-gray-400 mb-2">
-        Your cards {me ? `· ${me.avatar} ${me.name}` : ""} · {TURNIP} {playerTurnips(memberId)}
-      </p>
-      <div className="grid grid-cols-3 gap-2 mb-5">
-        {CARDS.map((card) => (
+      {/* Hand */}
+      <p className="text-xs font-black uppercase text-gray-400 mb-1">Your hand</p>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {meP.hand.map((c, i) => (
           <VillageCard
-            key={card.id}
-            card={card}
+            key={`${c}-${i}`}
+            card={c}
             size="sm"
-            selected={selectedCard === card.id}
-            onClick={() => {
-              setSelectedCard(card.id);
-              if (!CARD_BY_ID[card.id].needsTarget) setSelectedTarget(null);
-            }}
+            selected={picks.l === c || picks.r === c}
+            corner={picks.l === c ? "L" : picks.r === c ? "R" : undefined}
+            onClick={() => placeCard(c)}
           />
         ))}
       </div>
 
-      {selectedCard && (
-        <p className="text-center text-sm text-gray-600 mb-3 px-2">{CARD_BY_ID[selectedCard].blurb}</p>
-      )}
+      <div className="mb-4"><Market market={game.market} /></div>
 
       <button
         type="button"
-        disabled={!canSubmit || busy}
-        onClick={() => selectedCard && onSubmit(selectedCard, needsTarget ? effectiveTarget : null)}
+        disabled={!distinct || busy}
+        onClick={() => distinct && onSubmitPicks(picks.l!, picks.r!)}
         className="w-full py-4 rounded-2xl font-black text-white text-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
-        {busy ? "Sending…" : "Play card 🎴"}
+        {busy ? "Sending…" : distinct ? "Lock in & reveal 🤫" : "Pick two different cards"}
       </button>
     </div>
   );

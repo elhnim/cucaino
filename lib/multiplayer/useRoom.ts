@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getRoom } from "./rooms";
 import type { GameRoom } from "./types";
@@ -9,24 +9,33 @@ import type { GameRoom } from "./types";
  * Subscribe to a game room and keep its state live across devices.
  * Loads the row once, then applies realtime row changes (the whole row,
  * including the jsonb state, arrives in the payload — no refetch needed).
+ *
+ * `loaded` only flips true once the initial fetch for the CURRENT roomId has
+ * resolved, so callers can tell "still loading" apart from "confirmed gone"
+ * without a race when roomId first changes.
  */
 export function useRoom<G = unknown>(roomId: string | null) {
   const [room, setRoom] = useState<GameRoom<G> | null>(null);
-  const [loading, setLoading] = useState<boolean>(!!roomId);
+  const [loaded, setLoaded] = useState(false);
+  // Track the roomId this hook render is responsible for so the stale check
+  // never reads a `loaded` value left over from a previous room.
+  const currentId = useRef<string | null>(roomId);
+  currentId.current = roomId;
 
   useEffect(() => {
     if (!roomId) {
       setRoom(null);
-      setLoading(false);
+      setLoaded(true);
       return;
     }
 
     let active = true;
-    setLoading(true);
+    setRoom(null);
+    setLoaded(false);
     getRoom(roomId).then((r) => {
       if (!active) return;
       if (r.ok) setRoom(r.data as GameRoom<G>);
-      setLoading(false);
+      setLoaded(true);
     });
 
     const supabase = createClient();
@@ -56,5 +65,7 @@ export function useRoom<G = unknown>(roomId: string | null) {
     };
   }, [roomId]);
 
-  return { room, loading };
+  // `loaded` is only meaningful for the roomId currently requested.
+  const loadedForCurrent = loaded && currentId.current === roomId;
+  return { room, loading: !loadedForCurrent, loaded: loadedForCurrent };
 }

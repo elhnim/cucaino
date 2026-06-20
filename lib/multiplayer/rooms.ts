@@ -159,6 +159,26 @@ export async function setRoomStatePath(
   return { ok: true, data: null };
 }
 
+/**
+ * Submit a hidden choice for a simultaneous-reveal game. The payload is stored
+ * server-side and only exposed (into state.game.reveal) once every member has
+ * submitted — opponents can't read it before then.
+ */
+export async function submitRoomSecret(
+  roomId: string,
+  memberId: string,
+  payload: unknown,
+): Promise<RoomResult<null>> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("submit_room_secret", {
+    p_room_id: roomId,
+    p_member_id: memberId,
+    p_payload: payload,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: null };
+}
+
 /** Remove a member (used when leaving the lobby). Best-effort. */
 export async function leaveRoom(roomId: string, memberId: string): Promise<RoomResult<null>> {
   const supabase = await createClient();
