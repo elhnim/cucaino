@@ -99,8 +99,11 @@ export default async function TodoPage({
   const todayAddedTasks: Task[] = (isToday || isFuture) ? addedTasks : [];
 
   const dayTasks = [...scheduledTasks, ...todayAddedTasks].filter((t) => t.requiresCompletion);
-  const beforeSchoolTasks = dayTasks.filter((t) => t.timeBlock === "before_school");
-  const afterSchoolTasks = dayTasks.filter((t) => t.timeBlock !== "before_school");
+  // The "Before school" section only renders on weekdays — so on weekends fold
+  // those tasks into the general section, otherwise they'd vanish entirely and
+  // the kid would have no way to complete them.
+  const beforeSchoolTasks = isWeekday ? dayTasks.filter((t) => t.timeBlock === "before_school") : [];
+  const afterSchoolTasks = dayTasks.filter((t) => !(isWeekday && t.timeBlock === "before_school"));
 
   const schoolSubjectTasks = tasksForDay(
     tasks.filter((t) => t.category === "school_subject"),
