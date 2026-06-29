@@ -12,6 +12,8 @@ export const SEVEN_HABITS: Course = {
   about:
     "Seven famous habits that help kids be happy, kind, and awesome — taught with a short story each. Read, learn the idea, then pass the quiz to earn ⭐ stars!",
   passPct: 0.75,
+  finalReward: 15,
+  finalCount: 10,
   lessons: [
     {
       id: "be-proactive",
@@ -22,6 +24,7 @@ export const SEVEN_HABITS: Course = {
       hook: "When something goes wrong, who decides how you react — you, or the thing that happened?",
       story: {
         title: "The Two Brothers and the Rainy Trip",
+        illustration: "🌧️🛋️☕",
         paragraphs: [
           "The Kim brothers had waited weeks for the beach trip. Then they woke to grey skies and pouring rain. Cancelled.",
           "Older brother Eli flopped on the couch. “This whole day is ruined,” he grumbled, and stayed mad all morning.",
@@ -59,6 +62,7 @@ export const SEVEN_HABITS: Course = {
       hook: "Would you start building something with no idea of what you're making?",
       story: {
         title: "Two Tree Houses",
+        illustration: "🌳🏠📐",
         paragraphs: [
           "Cousins Ada and Ben each got wood and tools to build a tree house over summer.",
           "Ben grabbed his hammer and nailed boards wherever. By August he had a wobbly, lopsided mess with no door.",
@@ -96,6 +100,7 @@ export const SEVEN_HABITS: Course = {
       hook: "If you ate dessert before dinner every single night, what would happen to dinner?",
       story: {
         title: "The Big Rock Jar",
+        illustration: "🫙🪨⏳",
         paragraphs: [
           "A teacher set a glass jar, some big rocks, and a pile of sand on her desk. “Watch this,” she said.",
           "First she poured in ALL the sand. Then she tried to add the big rocks on top — but they wouldn't fit, and the jar overflowed.",
@@ -133,6 +138,7 @@ export const SEVEN_HABITS: Course = {
       hook: "If two people both want the last slice, is there a way they can BOTH end up happy?",
       story: {
         title: "The Last Orange",
+        illustration: "🍊🥤🧁",
         paragraphs: [
           "Twins Ravi and Anya both grabbed the last orange and started to argue. Mum was about to just cut it in half.",
           "But first she asked, “Why do you each want it?” Ravi said, “I'm thirsty — I want the juice.” Anya said, “I'm baking — I need the peel.”",
@@ -170,6 +176,7 @@ export const SEVEN_HABITS: Course = {
       hook: "Would a good doctor hand you medicine before asking what's wrong?",
       story: {
         title: "The Wrong Medicine",
+        illustration: "🩺👂💊",
         paragraphs: [
           "Imagine a doctor who walks in and, before you say a word, hands you a cast for a broken arm — but you came in with a sore throat!",
           "Silly, right? She “prescribed before she diagnosed” — gave an answer before understanding the problem.",
@@ -207,6 +214,7 @@ export const SEVEN_HABITS: Course = {
       hook: "Can a group create something better than any one person could make alone?",
       story: {
         title: "The Comic Nobody Could Make Alone",
+        illustration: "✏️🎨😂",
         paragraphs: [
           "Three friends wanted to enter the school comic contest. Alone, each was stuck. Priya could draw but not write. Sam had great stories but messy drawings. Dee couldn't do either — but was brilliant at funny jokes.",
           "Separately, their comics fell flat. Then they teamed up.",
@@ -244,6 +252,7 @@ export const SEVEN_HABITS: Course = {
       hook: "If you never sharpened a saw, would it cut better or worse over time?",
       story: {
         title: "The Tired Woodcutter",
+        illustration: "🪓🌲😴",
         paragraphs: [
           "A woodcutter worked harder every day, sawing from dawn to dark. But he cut LESS wood each week, and couldn't understand why.",
           "A friend asked, “When did you last sharpen your saw?” The woodcutter groaned, “I have no time to sharpen — I'm too busy sawing!”",

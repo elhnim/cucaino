@@ -13,6 +13,8 @@ export const HOW_TO_WIN_FRIENDS: Course = {
   about:
     "Six short lessons on making friends and being someone people love to be around. Read the story, learn the idea, then pass the quiz to earn stars!",
   passPct: 0.75,
+  finalReward: 15,
+  finalCount: 10,
   lessons: [
     {
       id: "smile",
@@ -23,6 +25,7 @@ export const HOW_TO_WIN_FRIENDS: Course = {
       hook: "When you walk into a room, what do people notice about you before you even speak?",
       story: {
         title: "The New Kid at Table 4",
+        illustration: "🏫🍱🙂",
         paragraphs: [
           "On Maya's first day at her new school, she stood holding her lunch tray, not knowing where to sit. Every table looked full of kids who already knew each other.",
           "At table 4, a boy named Theo looked up, caught her eye, and gave her a big, warm smile. He waved at the empty seat beside him.",
@@ -60,6 +63,7 @@ export const HOW_TO_WIN_FRIENDS: Course = {
       hook: "What's one word almost everyone loves to hear out loud?",
       story: {
         title: "The Coach Who Knew Everyone's Name",
+        illustration: "⚽🏅📣",
         paragraphs: [
           "At soccer camp there were sixty kids, and it was easy to feel like just a number. But Coach Rosa was different.",
           "On day one she learned every single name. “Great shot, Daniel!” “Nice hustle, Priya!” She used names all day long.",
@@ -97,6 +101,7 @@ export const HOW_TO_WIN_FRIENDS: Course = {
       hook: "Would you rather hang out with someone who really listens, or someone who only talks about themselves?",
       story: {
         title: "Two Friends and the Big News",
+        illustration: "🛹👂✨",
         paragraphs: [
           "Jordan finally landed his hardest skateboard trick and couldn't wait to tell someone. He found his friend Leo first.",
           "But the second Jordan started, Leo cut in: “That's nothing — watch MY trick!” and talked about himself for ten minutes. Jordan felt invisible.",
@@ -134,6 +139,7 @@ export const HOW_TO_WIN_FRIENDS: Course = {
       hook: "What's the difference between a compliment that feels great and one that feels fake?",
       story: {
         title: "The Two Notes",
+        illustration: "📝🌟💌",
         paragraphs: [
           "After the class play, two kids each found a note in their bag.",
           "Ben's note said: “You're literally the BEST actor in the whole world!!!” Ben rolled his eyes — he'd forgotten half his lines. The note felt empty.",
@@ -171,6 +177,7 @@ export const HOW_TO_WIN_FRIENDS: Course = {
       hook: "If you want someone to help you, is it better to talk about what YOU want, or what THEY care about?",
       story: {
         title: "The Worm and the Fish",
+        illustration: "🎣🐟🪱",
         paragraphs: [
           "Mia wanted her little brother Sam to help clean their shared room, but he kept saying no.",
           "She remembered something her grandpa said: “When I go fishing, I don't bait the hook with strawberries because I like them. I use what the FISH likes — worms.”",
@@ -208,6 +215,7 @@ export const HOW_TO_WIN_FRIENDS: Course = {
       hook: "When someone yells that you did something wrong, do you feel like listening — or arguing back?",
       story: {
         title: "The Spilled Paint",
+        illustration: "🎨💙🤝",
         paragraphs: [
           "During art class, Theo bumped the table and spilled blue paint all over Lily's painting. She'd worked on it for an hour.",
           "Her first urge was to shout, “You ruined it! You're so clumsy!” She could see Theo bracing for it.",

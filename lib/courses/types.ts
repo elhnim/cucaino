@@ -1,6 +1,9 @@
 // Educational course types — data-driven so new courses are just a content file
 // plus a registry entry.
 
+/** Synthetic lesson id used to track end-of-course final-challenge progress. */
+export const FINAL_LESSON_ID = "__final__";
+
 export interface QuizQuestion {
   q: string;
   options: string[];
@@ -17,6 +20,8 @@ export interface LessonBlock {
 export interface Story {
   title: string;
   paragraphs: string[];
+  /** Emoji scene shown as a storybook illustration banner (e.g. "🏫🍱🙂"). */
+  illustration?: string;
   /** One-line takeaway shown after the story. */
   moral?: string;
 }
@@ -53,5 +58,9 @@ export interface Course {
   about: string;
   /** Fraction of quiz questions needed to pass (0–1). */
   passPct: number;
+  /** Stars for passing the end-of-course final challenge (once). */
+  finalReward: number;
+  /** How many mixed questions the final challenge draws from all lessons. */
+  finalCount: number;
   lessons: Lesson[];
 }
