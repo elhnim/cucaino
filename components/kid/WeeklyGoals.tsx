@@ -40,42 +40,38 @@ export default function WeeklyGoals({
 
   return (
     <div>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">🎯 This week's goals</div>
-      <div className="space-y-2">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5 px-1">🎯 This week's goals</div>
+      {/* Compact horizontal scroller */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
         {goals.map((g) => {
           const done = g.count >= g.min;
           const pct = Math.min(g.count / g.min, 1) * 100;
           const isAdded = g.addedToday || added.has(g.id);
+          const canAdd = isToday && !done && !isAdded;
           return (
-            <div key={g.id} className="bg-white rounded-2xl shadow-sm p-3 flex items-center gap-3">
-              <span className="text-2xl shrink-0">{g.icon}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold text-sm text-gray-800 truncate">{g.name}</span>
-                  <span className="text-xs font-black shrink-0" style={{ color: done ? "#16a34a" : accentColor }}>
-                    {g.count}/{g.min} {done ? "✅" : ""}
-                  </span>
-                </div>
-                <div className="mt-1.5 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: done ? "#22c55e" : accentColor }} />
-                </div>
+            <button
+              key={g.id}
+              type="button"
+              disabled={!canAdd || pending}
+              onClick={() => canAdd && addToday(g.id)}
+              className={`shrink-0 w-28 bg-white rounded-2xl shadow-sm p-2.5 text-left ${canAdd ? "active:scale-95 transition-transform" : "cursor-default"}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xl">{g.icon}</span>
+                <span className="text-[11px] font-black tabular-nums" style={{ color: done ? "#16a34a" : accentColor }}>
+                  {g.count}/{g.min}{done ? " ✅" : ""}
+                </span>
               </div>
-              {isToday && !done && (
-                isAdded ? (
-                  <span className="text-[11px] font-bold text-gray-400 shrink-0">Added ✓</span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => addToday(g.id)}
-                    disabled={pending}
-                    className="shrink-0 text-xs font-black text-white rounded-full px-3 py-1.5 active:scale-95 transition-transform disabled:opacity-50"
-                    style={{ background: accentColor }}
-                  >
-                    + Today
-                  </button>
-                )
+              <div className="mt-1 text-[11px] font-bold text-gray-700 leading-tight line-clamp-2 h-[26px]">{g.name}</div>
+              <div className="mt-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: done ? "#22c55e" : accentColor }} />
+              </div>
+              {canAdd ? (
+                <div className="mt-1.5 text-[10px] font-black text-center rounded-full py-0.5" style={{ background: accentColor + "22", color: accentColor }}>+ Today</div>
+              ) : (
+                <div className="mt-1.5 text-[10px] font-bold text-center text-gray-400 py-0.5">{done ? "Done!" : isAdded ? "Added ✓" : " "}</div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>

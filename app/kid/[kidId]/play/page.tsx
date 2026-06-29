@@ -144,6 +144,21 @@ export default async function KidPlayPage({
           </div>
         </Link>
 
+        {/* Story Library */}
+        <Link
+          href={`/play/library?kid=${kid.id}`}
+          className="bg-sky-50 border-2 border-sky-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
+        >
+          <div className="text-4xl">📖</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-sky-900">Story Library</span>
+              <span className="text-[10px] font-bold bg-sky-500 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+            </div>
+            <div className="text-xs text-sky-700 mt-0.5">Classic tales · read & quiz · earn ⭐</div>
+          </div>
+        </Link>
+
         {/* Learn — book courses */}
         <Link
           href={`/play/learn?kid=${kid.id}`}
