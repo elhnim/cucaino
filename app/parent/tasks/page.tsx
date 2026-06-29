@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listAllTasks, listKids } from "@/lib/data/stub";
 import { CATEGORIES } from "@/lib/registry/category-registry";
 import TaskFilterBar from "@/components/parent/TaskFilterBar";
+import HolidayPackButton from "@/components/parent/HolidayPackButton";
 import type { Task, Kid } from "@/lib/domain/types";
 
 function TaskCard({ task, kids, editable }: { task: Task; kids: Kid[]; editable: boolean }) {
@@ -55,7 +56,11 @@ function TaskCard({ task, kids, editable }: { task: Task; kids: Kid[]; editable:
                 ? { background: "#fef3c7", color: "#92400e" }
                 : { background: "#e0f2fe", color: "#075985" }}
             >
-              {task.rule === "strict" ? "📌 Strict" : "🔄 Flexible"}
+              {task.rule === "strict"
+                ? "📌 Strict"
+                : task.flexibleMinPerWeek && task.flexibleMinPerWeek > 0
+                ? `🔄 ${task.flexibleMinPerWeek}×/week`
+                : "🔄 Flexible"}
             </span>
           )}
           {/* Stars */}
@@ -155,12 +160,15 @@ export default async function TasksPage({
       {/* Header + add */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2.5">
         <h1 className="text-base font-extrabold text-gray-900">📋 Tasks</h1>
-        <Link
-          href="/parent/tasks/new"
-          className="bg-indigo-600 text-white rounded-full px-4 py-2 text-sm font-bold hover:bg-indigo-700"
-        >
-          + Add Task
-        </Link>
+        <div className="flex items-start gap-2">
+          <HolidayPackButton />
+          <Link
+            href="/parent/tasks/new"
+            className="bg-indigo-600 text-white rounded-full px-4 py-2 text-sm font-bold hover:bg-indigo-700"
+          >
+            + Add Task
+          </Link>
+        </div>
       </div>
 
       {/* Filter bar */}

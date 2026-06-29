@@ -309,6 +309,35 @@ export const listCompletionsToday = timed("listCompletionsToday", async (kidId: 
   }));
 });
 
+/** Count this week's completions (Mon–Sun) per task for a kid. */
+export async function countCompletionsThisWeek(
+  kidId: string,
+  timezone?: string,
+): Promise<Record<string, number>> {
+  const supabase = await createClient();
+  const tz = timezone ?? "Australia/Sydney";
+  const todayStr = localDateString(tz);
+  const d = new Date(todayStr + "T12:00:00");
+  const jsDow = d.getDay();
+  const iso = jsDow === 0 ? 7 : jsDow; // Mon=1..Sun=7
+  const start = new Date(d);
+  start.setDate(d.getDate() - (iso - 1));
+  const startStr = start.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("task_completions")
+    .select("task_id")
+    .eq("kid_id", kidId)
+    .gte("date", startStr);
+  if (error || !data) return {};
+  const counts: Record<string, number> = {};
+  for (const row of data) {
+    const id = (row as { task_id: string }).task_id;
+    counts[id] = (counts[id] ?? 0) + 1;
+  }
+  return counts;
+}
+
 export async function listKidDailyAdditions(kidId: string, date: string): Promise<Task[]> {
   const supabase = await createClient();
   const { data: additions, error: addErr } = await supabase
