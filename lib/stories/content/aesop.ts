@@ -6,6 +6,7 @@ import type { LibraryStory } from "@/lib/stories/types";
 export const AESOP_STORIES: LibraryStory[] = [
   {
     id: "tortoise-and-hare",
+    collection: "Aesop\'s Fables",
     title: "The Tortoise and the Hare",
     emoji: "🐢",
     illustration: "🐢🏁🐇",
@@ -27,6 +28,7 @@ export const AESOP_STORIES: LibraryStory[] = [
   },
   {
     id: "lion-and-mouse",
+    collection: "Aesop\'s Fables",
     title: "The Lion and the Mouse",
     emoji: "🦁",
     illustration: "🦁🤝🐭",
@@ -48,6 +50,7 @@ export const AESOP_STORIES: LibraryStory[] = [
   },
   {
     id: "boy-who-cried-wolf",
+    collection: "Aesop\'s Fables",
     title: "The Boy Who Cried Wolf",
     emoji: "🐺",
     illustration: "👦📣🐺",
@@ -69,6 +72,7 @@ export const AESOP_STORIES: LibraryStory[] = [
   },
   {
     id: "ant-and-grasshopper",
+    collection: "Aesop\'s Fables",
     title: "The Ant and the Grasshopper",
     emoji: "🐜",
     illustration: "🐜❄️🦗",
@@ -90,6 +94,7 @@ export const AESOP_STORIES: LibraryStory[] = [
   },
   {
     id: "crow-and-pitcher",
+    collection: "Aesop\'s Fables",
     title: "The Crow and the Pitcher",
     emoji: "🐦‍⬛",
     illustration: "🐦‍⬛🪨🏺",
@@ -111,6 +116,7 @@ export const AESOP_STORIES: LibraryStory[] = [
   },
   {
     id: "fox-and-grapes",
+    collection: "Aesop\'s Fables",
     title: "The Fox and the Grapes",
     emoji: "🦊",
     illustration: "🦊🍇🙄",
@@ -132,6 +138,7 @@ export const AESOP_STORIES: LibraryStory[] = [
   },
   {
     id: "goose-golden-egg",
+    collection: "Aesop\'s Fables",
     title: "The Goose and the Golden Egg",
     emoji: "🪿",
     illustration: "🪿🥚💰",
@@ -153,6 +160,7 @@ export const AESOP_STORIES: LibraryStory[] = [
   },
   {
     id: "wind-and-sun",
+    collection: "Aesop\'s Fables",
     title: "The North Wind and the Sun",
     emoji: "☀️",
     illustration: "🌬️🧥☀️",

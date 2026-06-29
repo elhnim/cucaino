@@ -104,6 +104,15 @@ export default function StoryLibrary({
 
   // shelf
   const readCount = stories.filter((s) => progress[s.id]?.completedAt).length;
+  const collections: { collection: string; stories: LibraryStory[] }[] = [];
+  for (const s of stories) {
+    let g = collections.find((x) => x.collection === s.collection);
+    if (!g) {
+      g = { collection: s.collection, stories: [] };
+      collections.push(g);
+    }
+    g.stories.push(s);
+  }
   return (
     <Frame>
       <div className="flex items-center gap-3 mb-4">
@@ -119,21 +128,28 @@ export default function StoryLibrary({
           <span className="text-xs font-black text-gray-500">{readCount}/{stories.length}</span>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {stories.map((s) => {
-          const done = !!progress[s.id]?.completedAt;
-          return (
-            <button key={s.id} type="button" onClick={() => setView({ mode: "read", id: s.id })} className="bg-white rounded-2xl shadow-sm overflow-hidden text-left active:scale-[0.98] transition-transform">
-              <div className="bg-gradient-to-br from-sky-100 to-indigo-100 py-5 flex items-center justify-center">
-                <span className="text-4xl" style={{ letterSpacing: "0.1em" }}>{s.illustration}</span>
-              </div>
-              <div className="p-3">
-                <div className="font-black text-sm text-gray-900 leading-tight">{s.title}</div>
-                <div className="text-[11px] text-gray-400 mt-0.5">{s.level} · ~{s.minutes} min {done ? "· ✅" : ""}</div>
-              </div>
-            </button>
-          );
-        })}
+      <div className="space-y-5">
+        {collections.map((group) => (
+          <div key={group.collection}>
+            <div className="text-[11px] font-black uppercase tracking-widest text-indigo-400 mb-2 px-1">{group.collection}</div>
+            <div className="grid grid-cols-2 gap-3">
+              {group.stories.map((s) => {
+                const done = !!progress[s.id]?.completedAt;
+                return (
+                  <button key={s.id} type="button" onClick={() => setView({ mode: "read", id: s.id })} className="bg-white rounded-2xl shadow-sm overflow-hidden text-left active:scale-[0.98] transition-transform">
+                    <div className="bg-gradient-to-br from-sky-100 to-indigo-100 py-5 flex items-center justify-center">
+                      <span className="text-4xl" style={{ letterSpacing: "0.1em" }}>{s.illustration}</span>
+                    </div>
+                    <div className="p-3">
+                      <div className="font-black text-sm text-gray-900 leading-tight">{s.title}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">{s.level} · ~{s.minutes} min {done ? "· ✅" : ""}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </Frame>
   );

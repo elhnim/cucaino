@@ -13,6 +13,8 @@ export interface StoryQuestion {
 
 export interface LibraryStory {
   id: string;
+  /** Collection this story belongs to, e.g. "Aesop's Fables". */
+  collection: string;
   title: string;
   emoji: string;
   /** Emoji scene used as the storybook banner. */
