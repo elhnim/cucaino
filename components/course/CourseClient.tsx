@@ -41,6 +41,31 @@ export default function CourseClient({
             <h1 className="text-2xl font-black text-gray-900">{lesson.title}</h1>
             <p className="text-sm text-gray-500">Lesson {view.idx + 1} of {course.lessons.length}</p>
           </div>
+          {/* 1. Hook — spark curiosity before teaching */}
+          <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4 mb-4">
+            <p className="text-xs font-black uppercase text-indigo-500 mb-1">🤔 Think about it</p>
+            <p className="text-indigo-900 font-semibold">{lesson.hook}</p>
+          </div>
+
+          {/* 2. Story — concrete narrative */}
+          <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 border-l-4 border-rose-300">
+            <p className="text-xs font-black uppercase text-rose-400 mb-1">📖 Story</p>
+            <h3 className="font-black text-rose-900 mb-2">{lesson.story.title}</h3>
+            <div className="space-y-2">
+              {lesson.story.paragraphs.map((p, i) => (
+                <p key={i} className="text-gray-700 leading-relaxed">{p}</p>
+              ))}
+            </div>
+            {lesson.story.moral && <p className="mt-3 text-sm font-bold text-rose-700">💡 {lesson.story.moral}</p>}
+          </div>
+
+          {/* 3. Big idea — name the principle */}
+          <div className="bg-rose-500 text-white rounded-2xl p-4 mb-4 shadow-sm">
+            <p className="text-xs font-black uppercase text-rose-100 mb-1">🌟 The big idea</p>
+            <p className="font-bold leading-relaxed">{lesson.bigIdea}</p>
+          </div>
+
+          {/* 4. Why it works / watch out */}
           <div className="space-y-3 mb-4">
             {lesson.reading.map((b, i) => (
               <div key={i} className="bg-white rounded-2xl shadow-sm p-4">
@@ -49,15 +74,36 @@ export default function CourseClient({
               </div>
             ))}
           </div>
+
+          {/* 5. Real examples — transfer */}
+          {lesson.realExamples.length > 0 && (
+            <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 mb-4">
+              <p className="text-xs font-black uppercase text-sky-600 mb-2">🌍 In real life</p>
+              <ul className="space-y-1.5">
+                {lesson.realExamples.map((e, i) => (
+                  <li key={i} className="flex gap-2 text-gray-700 leading-snug"><span className="text-sky-400 font-black">•</span><span>{e}</span></li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* 6. Reflect — metacognition before practice */}
+          <div className="bg-violet-50 border-2 border-violet-200 rounded-2xl p-4 mb-4">
+            <p className="text-xs font-black uppercase text-violet-500 mb-1">🪞 Pause &amp; reflect</p>
+            <p className="text-violet-900 font-semibold">{lesson.reflect}</p>
+          </div>
+
+          {/* 7. Try it — real-world action */}
           <div className="bg-amber-100 border-2 border-amber-200 rounded-2xl p-4 mb-5">
             <p className="text-xs font-black uppercase text-amber-600 mb-1">⭐ Try it today</p>
             <p className="text-amber-900 font-semibold">{lesson.tryIt}</p>
           </div>
+
           <button
             onClick={() => setView({ mode: "quiz", idx: view.idx })}
             className="w-full py-4 rounded-2xl font-black text-white text-lg bg-rose-500 hover:bg-rose-600 active:bg-rose-700 transition-colors"
           >
-            Start the quiz 📝
+            Practice quiz 📝
           </button>
         </div>
       </div>
@@ -212,10 +258,22 @@ function QuizRunner({
   const question = lesson.quiz[qi];
   const answered = picked !== null;
 
+  // Shuffle option order per question so the correct answer is never in a
+  // predictable position (and re-tries feel different).
+  const shuffled = useMemo(() => {
+    const arr = question.options.map((text, i) => ({ text, correct: i === question.answer }));
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qi, lesson.id]);
+
   const choose = (i: number) => {
     if (answered) return;
     setPicked(i);
-    if (i === question.answer) setScore((s) => s + 1);
+    if (shuffled[i].correct) setScore((s) => s + 1);
   };
 
   const next = async () => {
@@ -239,7 +297,7 @@ function QuizRunner({
 
   const optionClass = (i: number) => {
     if (!answered) return "border-gray-200 bg-white hover:bg-gray-50";
-    if (i === question.answer) return "border-emerald-400 bg-emerald-50";
+    if (shuffled[i].correct) return "border-emerald-400 bg-emerald-50";
     if (i === picked) return "border-rose-400 bg-rose-50";
     return "border-gray-200 bg-white opacity-60";
   };
@@ -261,7 +319,7 @@ function QuizRunner({
         </div>
 
         <div className="space-y-2 mb-4">
-          {question.options.map((opt, i) => (
+          {shuffled.map((opt, i) => (
             <button
               key={i}
               type="button"
@@ -269,9 +327,9 @@ function QuizRunner({
               disabled={answered}
               className={`w-full text-left rounded-2xl border-2 p-3.5 font-semibold text-gray-800 transition-all ${optionClass(i)}`}
             >
-              {opt}
-              {answered && i === question.answer && <span className="ml-2">✅</span>}
-              {answered && i === picked && i !== question.answer && <span className="ml-2">❌</span>}
+              {opt.text}
+              {answered && opt.correct && <span className="ml-2">✅</span>}
+              {answered && i === picked && !opt.correct && <span className="ml-2">❌</span>}
             </button>
           ))}
         </div>

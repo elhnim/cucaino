@@ -14,12 +14,30 @@ export interface LessonBlock {
   body: string;
 }
 
+export interface Story {
+  title: string;
+  paragraphs: string[];
+  /** One-line takeaway shown after the story. */
+  moral?: string;
+}
+
 export interface Lesson {
   id: string;
   title: string;
   emoji: string;
   summary: string;
+  /** A curiosity/prediction question shown before teaching, to prime thinking. */
+  hook: string;
+  /** A short, kid-friendly story that teaches the idea. */
+  story: Story;
+  /** The principle, named clearly in a sentence or two. */
+  bigIdea: string;
+  /** "Why it works" style explanation blocks. */
   reading: LessonBlock[];
+  /** Everyday real-life examples a kid can relate to. */
+  realExamples: string[];
+  /** A reflection prompt for metacognition before the quiz. */
+  reflect: string;
   /** A practical "try it today" prompt. */
   tryIt: string;
   quiz: QuizQuestion[];
