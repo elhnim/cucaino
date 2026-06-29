@@ -19,6 +19,13 @@ const nextConfig: NextConfig = {
   // which generates broken Windows-path imports in the deployed server handler.
   outputFileTracingRoot: path.resolve(__dirname),
   reactStrictMode: true,
+  // Keep prefetched/visited screens in the client Router Cache so navigation
+  // (and the blast-off warm-up) actually feels instant instead of re-fetching
+  // dynamic per-kid data on every open. Mutations call revalidatePath, which
+  // still busts the cache, so data stays correct.
+  experimental: {
+    staleTimes: { dynamic: 180, static: 300 },
+  },
   env: {
     NEXT_PUBLIC_APP_VERSION: process.env.COMMIT_REF?.slice(0, 7) ?? "dev",
   },
