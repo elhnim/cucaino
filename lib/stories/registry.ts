@@ -2,9 +2,11 @@ import type { LibraryStory } from "@/lib/stories/types";
 import { AESOP_STORIES } from "@/lib/stories/content/aesop";
 import { JUST_SO_STORIES } from "@/lib/stories/content/just-so";
 import { TALES_WITH_A_TWIST } from "@/lib/stories/content/tales-with-a-twist";
+import { GREEK_MYTHS } from "@/lib/stories/content/greek-myths";
 
 // Add more stories here (a content file + this list).
 export const STORIES: LibraryStory[] = [
+  ...GREEK_MYTHS,
   ...AESOP_STORIES,
   ...JUST_SO_STORIES,
   ...TALES_WITH_A_TWIST,
