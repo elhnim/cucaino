@@ -25,10 +25,72 @@ export default function StoryLibrary({
     () => Object.fromEntries(initialProgress.map((p) => [p.storyId, p])),
   );
   const [view, setView] = useState<View>({ mode: "shelf" });
+  const [chapterIdx, setChapterIdx] = useState<number | null>(null);
   const storyById = (id: string) => stories.find((s) => s.id === id)!;
+  const openStory = (id: string) => { setChapterIdx(null); setView({ mode: "read", id }); };
 
   if (view.mode === "read") {
     const s = storyById(view.id);
+
+    // ---- Chapter book ----
+    if (s.chapters && s.chapters.length > 0) {
+      const chapters = s.chapters;
+      if (chapterIdx === null) {
+        return (
+          <Frame>
+            <button onClick={() => setView({ mode: "shelf" })} className="text-sm font-bold text-gray-500 mb-3">← Library</button>
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4">
+              <div className="bg-gradient-to-br from-sky-100 via-indigo-100 to-rose-100 py-8 flex items-center justify-center">
+                <span className="text-5xl" style={{ letterSpacing: "0.15em" }}>{s.illustration}</span>
+              </div>
+              <div className="p-4">
+                <h1 className="text-2xl font-black text-indigo-900">{s.title}</h1>
+                {s.author && <p className="text-sm font-bold text-gray-500">by {s.author}</p>}
+                <p className="text-xs font-bold text-gray-400 mt-1">{s.level} · {chapters.length} chapters · ~{s.minutes} min</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {chapters.map((ch, i) => (
+                <button key={i} onClick={() => setChapterIdx(i)} className="w-full bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform">
+                  <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black text-sm flex items-center justify-center shrink-0">{i + 1}</span>
+                  <span className="font-bold text-gray-900 flex-1">{ch.title}</span>
+                  <span className="text-indigo-400 font-black">→</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setView({ mode: "quiz", id: s.id })} className="w-full mt-4 py-3.5 rounded-2xl font-black text-indigo-700 border-2 border-indigo-200 hover:bg-indigo-50 transition-colors">
+              Skip to quiz 📝
+            </button>
+          </Frame>
+        );
+      }
+      const ch = chapters[chapterIdx];
+      const isLast = chapterIdx === chapters.length - 1;
+      return (
+        <Frame>
+          <button onClick={() => setChapterIdx(null)} className="text-sm font-bold text-gray-500 mb-3">← Chapters</button>
+          <p className="text-xs font-black uppercase tracking-widest text-indigo-400">Chapter {chapterIdx + 1} of {chapters.length}</p>
+          <h2 className="text-xl font-black text-indigo-900 mb-3">{ch.title}</h2>
+          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3 mb-4">
+            {ch.paragraphs.map((p, i) => (
+              <p key={i} className="text-gray-800 leading-relaxed">{p}</p>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            {chapterIdx > 0 && (
+              <button onClick={() => setChapterIdx(chapterIdx - 1)} className="flex-1 py-3.5 rounded-2xl font-bold text-gray-600 border-2 border-gray-200 hover:bg-gray-50">← Previous</button>
+            )}
+            {!isLast ? (
+              <button onClick={() => setChapterIdx(chapterIdx + 1)} className="flex-1 py-3.5 rounded-2xl font-black text-white bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors">Next chapter →</button>
+            ) : (
+              <button onClick={() => setView({ mode: "quiz", id: s.id })} className="flex-1 py-3.5 rounded-2xl font-black text-white bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors">Finish · quiz 📝</button>
+            )}
+          </div>
+        </Frame>
+      );
+    }
+
+    // ---- Single-read story ----
     return (
       <Frame>
         <button onClick={() => setView({ mode: "shelf" })} className="text-sm font-bold text-gray-500 mb-3">← Library</button>
@@ -40,11 +102,11 @@ export default function StoryLibrary({
             <h1 className="text-2xl font-black text-indigo-900">{s.title}</h1>
             <p className="text-xs font-bold text-gray-400 mb-3">{s.level} · ~{s.minutes} min read</p>
             <div className="space-y-3">
-              {s.paragraphs.map((p, i) => (
+              {(s.paragraphs ?? []).map((p, i) => (
                 <p key={i} className="text-gray-800 leading-relaxed">{p}</p>
               ))}
             </div>
-            <p className="mt-4 text-sm font-bold text-indigo-700">💡 {s.moral}</p>
+            {s.moral && <p className="mt-4 text-sm font-bold text-indigo-700">💡 {s.moral}</p>}
           </div>
         </div>
         <button onClick={() => setView({ mode: "quiz", id: s.id })} className="w-full py-4 rounded-2xl font-black text-white text-lg bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors">
@@ -136,13 +198,15 @@ export default function StoryLibrary({
               {group.stories.map((s) => {
                 const done = !!progress[s.id]?.completedAt;
                 return (
-                  <button key={s.id} type="button" onClick={() => setView({ mode: "read", id: s.id })} className="bg-white rounded-2xl shadow-sm overflow-hidden text-left active:scale-[0.98] transition-transform">
+                  <button key={s.id} type="button" onClick={() => openStory(s.id)} className="bg-white rounded-2xl shadow-sm overflow-hidden text-left active:scale-[0.98] transition-transform">
                     <div className="bg-gradient-to-br from-sky-100 to-indigo-100 py-5 flex items-center justify-center">
                       <span className="text-4xl" style={{ letterSpacing: "0.1em" }}>{s.illustration}</span>
                     </div>
                     <div className="p-3">
                       <div className="font-black text-sm text-gray-900 leading-tight">{s.title}</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">{s.level} · ~{s.minutes} min {done ? "· ✅" : ""}</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">
+                        {s.chapters ? `${s.chapters.length} chapters` : s.level} · ~{s.minutes} min {done ? "· ✅" : ""}
+                      </div>
                     </div>
                   </button>
                 );

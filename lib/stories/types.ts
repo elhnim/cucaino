@@ -11,6 +11,11 @@ export interface StoryQuestion {
   explain?: string;
 }
 
+export interface StoryChapter {
+  title: string;
+  paragraphs: string[];
+}
+
 export interface LibraryStory {
   id: string;
   /** Collection this story belongs to, e.g. "Aesop's Fables". */
@@ -21,8 +26,12 @@ export interface LibraryStory {
   illustration: string;
   level: string;
   minutes: number;
-  paragraphs: string[];
-  moral: string;
+  /** Single-read stories use paragraphs… */
+  paragraphs?: string[];
+  /** …longer chapter books use chapters instead. */
+  chapters?: StoryChapter[];
+  author?: string;
+  moral?: string;
   quiz: StoryQuestion[];
   /** Stars awarded the first time the comprehension quiz is passed. */
   starReward: number;

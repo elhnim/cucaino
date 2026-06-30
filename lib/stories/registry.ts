@@ -4,9 +4,11 @@ import { JUST_SO_STORIES } from "@/lib/stories/content/just-so";
 import { TALES_WITH_A_TWIST } from "@/lib/stories/content/tales-with-a-twist";
 import { GREEK_MYTHS } from "@/lib/stories/content/greek-myths";
 import { EGYPTIAN_MYTHS } from "@/lib/stories/content/egyptian-myths";
+import { CHAPTER_BOOKS } from "@/lib/stories/content/chapter-books";
 
 // Add more stories here (a content file + this list).
 export const STORIES: LibraryStory[] = [
+  ...CHAPTER_BOOKS,
   ...GREEK_MYTHS,
   ...EGYPTIAN_MYTHS,
   ...AESOP_STORIES,
