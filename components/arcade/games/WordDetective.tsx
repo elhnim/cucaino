@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { generateWordDetective } from "@/lib/actions/arcade";
+import { recentAnswers, rememberAnswer } from "@/lib/arcade/variety";
 import { playSfx } from "@/lib/audio/sound-manager";
 
 type GameState = "idle" | "loading" | "guessing" | "won" | "lost";
@@ -34,13 +35,14 @@ export default function WordDetective({ kidId, sparksBalance }: WordDetectivePro
     setError(null);
 
     setGameState("loading");
-    const result = await generateWordDetective(kidId);
+    const result = await generateWordDetective(kidId, recentAnswers("word-detective"));
     if (!result.ok) {
       setError("Something went wrong, try again");
       setGameState("idle");
       return;
     }
 
+    rememberAnswer("word-detective", result.data.word);
     setData(result.data);
     setCurrentClueIndex(0);
     setGuess("");

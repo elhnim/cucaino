@@ -17,6 +17,9 @@ import {
   listTradingHoldings,
   listCurrentAndPreviousAssetPrices,
   getKidPet,
+  countCompletionsThisWeek,
+  listKidDailyAdditions,
+  localDateString,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import { getTheme } from "@/lib/themes/presets";
@@ -57,10 +60,12 @@ export default async function KidHomePage({
   const now = new Date();
   const dow = isoWeekday(now, tz);
 
+  const todayStr = localDateString(tz);
   const [
     tasks, completions, badges, allKids, weeklyStars,
     customBadgeProgress, activeStrikes, weeklyCompletions, moodCounts,
     tradingPortfolio, tradingHoldings, tradingPrices, pet,
+    weekCounts, todayAdditions,
   ] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id, tz),
@@ -75,7 +80,21 @@ export default async function KidHomePage({
     listTradingHoldings(kid.id),
     listCurrentAndPreviousAssetPrices(),
     getKidPet(kid.id),
+    countCompletionsThisWeek(kid.id, tz),
+    listKidDailyAdditions(kid.id, todayStr),
   ]);
+
+  const addedTodaySet = new Set(todayAdditions.map((t) => t.id));
+  const weeklyGoals = tasks
+    .filter((t) => t.rule === "flexible" && (t.flexibleMinPerWeek ?? 0) > 0)
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      icon: t.icon,
+      min: t.flexibleMinPerWeek as number,
+      count: weekCounts[t.id] ?? 0,
+      addedToday: addedTodaySet.has(t.id),
+    }));
 
   const todayTasks = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow);
   const completableTasks = todayTasks.filter((t) => t.requiresCompletion);
@@ -155,6 +174,7 @@ export default async function KidHomePage({
         tradingPortfolio={tradingPortfolio}
         tradingHoldings={tradingHoldings}
         tradingPrices={tradingPrices}
+        weeklyGoals={weeklyGoals}
       />
     </div>
   );

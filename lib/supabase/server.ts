@@ -1,6 +1,17 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+// Hard ceiling on any single DB/auth request so a sleeping or unreachable
+// Supabase project can never hang a page render forever — it fails fast and the
+// route's error boundary shows a friendly "try again" instead of an endless
+// loading screen.
+const DB_TIMEOUT_MS = 12_000;
+
+function timeoutFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  if (init?.signal) return fetch(input, init);
+  return fetch(input, { ...init, signal: AbortSignal.timeout(DB_TIMEOUT_MS) });
+}
+
 /**
  * Server Supabase client — for use in server components and server actions.
  *
@@ -14,6 +25,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: timeoutFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll();

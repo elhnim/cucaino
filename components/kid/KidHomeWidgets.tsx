@@ -25,12 +25,14 @@ import type { Kid, Task, BadgeProgress, CustomBadgeProgress, Strike, TradingPort
 import { TRADING_ASSETS } from "@/lib/trading/assets";
 import CustomBadgeTile from "@/components/kid/CustomBadgeTile";
 import MoodJarWidget from "@/components/kid/MoodJarWidget";
+import WeeklyGoals, { type WeeklyGoal } from "@/components/kid/WeeklyGoals";
 
 const CIRCUMFERENCE = 2 * Math.PI * 20;
 
-const SORTABLE_IDS = ["tasks", "school", "tomorrow", "badges", "race", "level", "encouragement", "streak", "mood", "market"];
+const SORTABLE_IDS = ["tasks", "goals", "school", "tomorrow", "badges", "race", "level", "encouragement", "streak", "mood", "market"];
 const WIDGET_LABELS: Record<string, string> = {
   tasks: "✅ Today's Tasks",
+  goals: "🎯 Weekly Goals",
   school: "📚 School Today",
   tomorrow: "🗓 School Tomorrow",
   badges: "🎖 My Badges",
@@ -43,6 +45,7 @@ const WIDGET_LABELS: Record<string, string> = {
 };
 const DEFAULT_WIDTHS: Record<string, "full" | "half"> = {
   tasks: "full",
+  goals: "full",
   school: "half",
   tomorrow: "half",
   badges: "full",
@@ -89,6 +92,7 @@ export interface KidHomeWidgetsProps {
   tradingPortfolio?: TradingPortfolio | null;
   tradingHoldings?: TradingHolding[];
   tradingPrices?: Record<string, { current: TradingAssetPrice; previous: TradingAssetPrice | null }>;
+  weeklyGoals?: WeeklyGoal[];
 }
 
 export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
@@ -115,6 +119,7 @@ export default function KidHomeWidgets(props: KidHomeWidgetsProps) {
       case "badges": return badgesInProgress.length > 0 || customBadgeProgress.length > 0;
       case "race": return allKids.length > 1;
       case "tasks": return total > 0 || todaySchoolTasks.length > 0;
+      case "goals": return (props.weeklyGoals?.length ?? 0) > 0;
       case "market": return true;
       default: return true;
     }
@@ -440,6 +445,16 @@ function WidgetContent({ id, props }: { id: string; props: KidHomeWidgetsProps }
           completedTaskIds={props.completedTaskIds ?? []}
           todaySchoolTasks={todaySchoolTasks}
           tomorrowTasks={props.tomorrowTasks ?? tomorrowActivityTasks}
+        />
+      );
+
+    case "goals":
+      return (
+        <WeeklyGoals
+          goals={props.weeklyGoals ?? []}
+          kidId={kid.id}
+          accentColor={theme.accent}
+          isToday
         />
       );
 

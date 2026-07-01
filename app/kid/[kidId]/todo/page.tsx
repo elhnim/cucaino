@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import TodoTaskCard from "@/components/kid/TodoTaskCard";
 import AddTaskButton from "@/components/kid/AddTaskButton";
+import WeeklyGoals from "@/components/kid/WeeklyGoals";
 import PrefetchDays from "@/components/kid/PrefetchDays";
 import AllDoneDetector from "@/components/kid/AllDoneDetector";
 import {
@@ -11,6 +12,7 @@ import {
   listTasksForKid,
   listCompletionsToday,
   listKidDailyAdditions,
+  countCompletionsThisWeek,
   localDateString,
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
@@ -79,10 +81,11 @@ export default async function TodoPage({
     return todayDate.toISOString().slice(0, 10);
   })();
 
-  const [tasks, completions, addedTasks] = await Promise.all([
+  const [tasks, completions, addedTasks, weekCounts] = await Promise.all([
     listTasksForKid(kid.id),
     listCompletionsToday(kid.id, tz),
     listKidDailyAdditions(kid.id, activeDateStr),
+    countCompletionsThisWeek(kid.id, tz),
   ]);
 
   const theme = getTheme(kid.themeId);
@@ -99,8 +102,11 @@ export default async function TodoPage({
   const todayAddedTasks: Task[] = (isToday || isFuture) ? addedTasks : [];
 
   const dayTasks = [...scheduledTasks, ...todayAddedTasks].filter((t) => t.requiresCompletion);
-  const beforeSchoolTasks = dayTasks.filter((t) => t.timeBlock === "before_school");
-  const afterSchoolTasks = dayTasks.filter((t) => t.timeBlock !== "before_school");
+  // The "Before school" section only renders on weekdays — so on weekends fold
+  // those tasks into the general section, otherwise they'd vanish entirely and
+  // the kid would have no way to complete them.
+  const beforeSchoolTasks = isWeekday ? dayTasks.filter((t) => t.timeBlock === "before_school") : [];
+  const afterSchoolTasks = dayTasks.filter((t) => !(isWeekday && t.timeBlock === "before_school"));
 
   const schoolSubjectTasks = tasksForDay(
     tasks.filter((t) => t.category === "school_subject"),
@@ -109,6 +115,18 @@ export default async function TodoPage({
 
   const addedSet = new Set(addedTasks.map((t) => t.id));
   const selfAddableTasks = tasks.filter((t) => t.rule === "flexible");
+
+  // Flexible tasks with a weekly minimum — show progress toward it this week.
+  const weeklyGoalTasks = tasks
+    .filter((t) => t.rule === "flexible" && (t.flexibleMinPerWeek ?? 0) > 0)
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      icon: t.icon,
+      min: t.flexibleMinPerWeek as number,
+      count: weekCounts[t.id] ?? 0,
+      addedToday: addedSet.has(t.id),
+    }));
 
   const getCompletion = (taskId: string) =>
     isToday ? completions.find((c) => c.taskId === taskId) : undefined;
@@ -210,6 +228,16 @@ export default async function TodoPage({
               accentColor={theme.accent}
               date={activeDateStr}
               dayLabel={isToday ? "today" : DAY_LABELS[activeDow]}
+            />
+          )}
+
+          {/* Weekly goals — flexible tasks with a minimum-per-week target */}
+          {weeklyGoalTasks.length > 0 && (
+            <WeeklyGoals
+              goals={weeklyGoalTasks}
+              kidId={kid.id}
+              accentColor={theme.accent}
+              isToday={isToday}
             />
           )}
 

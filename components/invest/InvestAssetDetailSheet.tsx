@@ -9,8 +9,17 @@ import InvestAboutSection from "@/components/invest/InvestAboutSection";
 import InvestBuyLockedCard from "@/components/invest/InvestBuyLockedCard";
 import { assetNews } from "@/lib/invest/news-display";
 import PriceTimestamp from "@/components/invest/PriceTimestamp";
+import InvestPriceChart from "@/components/invest/InvestPriceChart";
 
 function money(cents: number): string { return `$${(cents / 100).toFixed(2)}`; }
+
+// Format a plain YYYY-MM-DD price date using local calendar components so it never
+// shifts a day across timezones (and stays hydration-stable).
+function formatNewsDate(priceDate: string): string {
+  const [y, m, d] = priceDate.slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return new Date(y, m - 1, d).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+}
 
 function formatMarketCap(dollars: number): string {
   if (dollars >= 1e12) return `$${(dollars / 1e12).toFixed(2)}T`;
@@ -45,16 +54,16 @@ export default function InvestAssetDetailSheet({
   const [error, setError] = useState<string | null>(null);
   const [newsOpen, setNewsOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  const prices = useMemo(() => [...priceHistory].reverse().map((p) => p.priceCents), [priceHistory]);
   const news = useMemo(() => {
     if (!price) return null;
     // Prefer the real, kid-rewritten article cached on the price row; fall back to the
     // always-available templated story so the card is never empty.
+    const date = formatNewsDate(price.priceDate);
     if (price.newsHeadline && price.newsBody) {
-      return { headline: price.newsHeadline, body: price.newsBody, url: price.newsUrl, real: true };
+      return { headline: price.newsHeadline, body: price.newsBody, url: price.newsUrl, real: true, date };
     }
     const t = assetNews(asset.symbol, asset.name, asset.assetType, price.changePct, price.priceDate);
-    return { headline: t.headline, body: t.body, url: null as string | null, real: false };
+    return { headline: t.headline, body: t.body, url: null as string | null, real: false, date };
   }, [price, asset.symbol, asset.name, asset.assetType]);
   const ownedValue = holding && price ? holdingValueCents(holding.quantity, price.priceCents) : 0;
   const pnl = holding && price ? unrealizedPnlCents(holding.quantity, price.priceCents, holding.avgCostCents) : 0;
@@ -95,8 +104,8 @@ export default function InvestAssetDetailSheet({
             {price && <span className={`rounded-full px-2 py-1 text-xs font-black ${price.changePct >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{price.changePct >= 0 ? "+" : ""}{(price.changePct * 100).toFixed(1)}%</span>}
           </div>
           {price && <PriceTimestamp iso={price.fetchedAt} prefix="As of" className="mt-1 text-[11px] font-bold text-slate-400" />}
-          <div className="mt-4 h-24 rounded-xl bg-slate-50 p-2">
-            {prices.length < 2 ? <p className="grid h-full place-items-center text-xs font-bold text-slate-400">Price history starts today</p> : <Spark prices={prices} />}
+          <div className="mt-4 h-32 rounded-xl bg-slate-50 p-2">
+            <InvestPriceChart history={priceHistory} />
           </div>
           {price?.marketCap != null && (
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
@@ -108,7 +117,7 @@ export default function InvestAssetDetailSheet({
 
         {news && (
           <button type="button" onClick={() => setNewsOpen(true)} className="mb-4 block w-full rounded-[14px] border border-slate-200 bg-white p-4 text-left shadow-sm active:bg-slate-50">
-            <p className="text-xs font-black uppercase text-slate-400">{news.real ? "In the news" : "Today's story"}</p>
+            <p className="text-xs font-black uppercase text-slate-400">{news.real ? "In the news" : "Today's story"}{news.date ? ` · ${news.date}` : ""}</p>
             <h3 className="mt-1 text-sm font-black text-slate-950">{news.headline}</h3>
             <p className="mt-1 line-clamp-2 text-sm font-semibold text-slate-600">{news.body}</p>
             <span className="mt-2 inline-block text-xs font-black text-indigo-600">Read more →</span>
@@ -163,7 +172,8 @@ export default function InvestAssetDetailSheet({
               </div>
               <button onClick={() => setNewsOpen(false)} className="text-2xl font-black leading-none text-slate-400">×</button>
             </div>
-            <h3 className="mt-3 text-lg font-black leading-snug text-slate-950">{news.headline}</h3>
+            {news.date && <p className="mt-3 text-xs font-black uppercase tracking-wide text-indigo-500">📅 {news.date}</p>}
+            <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{news.headline}</h3>
             <p className="mt-3 text-sm font-semibold leading-relaxed text-slate-600">{news.body}</p>
             {news.real && news.url ? (
               <a href={news.url} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-xs font-bold text-slate-400 underline">Open the original article (for grown-ups) ↗</a>
@@ -176,12 +186,4 @@ export default function InvestAssetDetailSheet({
       )}
     </div>
   );
-}
-
-function Spark({ prices }: { prices: number[] }) {
-  const min = Math.min(...prices);
-  const max = Math.max(...prices);
-  const range = max - min || 1;
-  const points = prices.map((p, i) => `${(i / Math.max(prices.length - 1, 1)) * 100},${50 - ((p - min) / range) * 45}`).join(" ");
-  return <svg viewBox="0 0 100 55" className="h-full w-full"><polyline points={points} fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }

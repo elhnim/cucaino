@@ -2,15 +2,15 @@
 
 // Post-login "Blast-off" loader: entertains kids while genuinely preloading
 // the family's screens (RSC prefetch = data + code warm-up).
-// Min ~3s of fun so it never flashes; capped at ~7s so it never drags.
+// Short min so it never flashes; capped so it never drags.
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { prefetchFamilyRoutes } from "@/lib/preload-routes";
 import BlastOffScreen from "./BlastOffScreen";
 
-const MIN_SHOW_MS = 3_000;
-const MAX_SHOW_MS = 7_000;
+const MIN_SHOW_MS = 1_200;
+const MAX_SHOW_MS = 4_000;
 
 export default function PostLoginLoader({ next }: { next: string }) {
   const router = useRouter();
@@ -27,7 +27,7 @@ export default function PostLoginLoader({ next }: { next: string }) {
       router.prefetch("/select-kid");
       await prefetchFamilyRoutes(router);
       // give prefetches a moment to land in the router cache
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 300));
     })();
 
     const minTime = new Promise((r) => setTimeout(r, MIN_SHOW_MS));
@@ -35,7 +35,7 @@ export default function PostLoginLoader({ next }: { next: string }) {
 
     Promise.race([Promise.allSettled([work, minTime]), cap]).then(() => {
       setReady(true);
-      setTimeout(() => router.push(next), 650);
+      setTimeout(() => router.push(next), 350);
     });
   }, [next, router]);
 

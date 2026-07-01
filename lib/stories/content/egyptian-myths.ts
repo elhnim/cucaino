@@ -1,0 +1,117 @@
+import type { LibraryStory } from "@/lib/stories/types";
+
+// Original retellings of Egyptian myths (public domain) — gods, magic, and the
+// afterlife, the world of Riordan's Kane Chronicles. Pitched at ~10–12.
+
+export const EGYPTIAN_MYTHS: LibraryStory[] = [
+  {
+    id: "isis-secret-name",
+    collection: "Egyptian Myths",
+    title: "Isis and the Secret Name of Ra",
+    emoji: "☀️",
+    illustration: "☀️🐍📜",
+    level: "Tricky",
+    minutes: 5,
+    starReward: 4,
+    paragraphs: [
+      "Ra, the great sun god, was the most powerful being in all of Egypt. His true, secret name held all of his power — and he guarded it from everyone.",
+      "Isis, the cleverest of the goddesses, wished to share that power so she could help people. So she shaped a tiny magical snake from clay and placed it quietly on the path where Ra walked each day.",
+      "The snake bit Ra, and a pain like fire ran through him. None of the other gods could cure it. Only Isis could — but, she said gently, her magic needed his secret name to work.",
+      "In agony at last, Ra whispered his hidden name into Isis's ear. She healed him in an instant — and from that day clever Isis was among the most powerful of all. Wisdom, it turned out, could match even the sun.",
+    ],
+    moral: "Cleverness can be every bit as powerful as strength.",
+    quiz: [
+      { q: "What held all of Ra's power?", options: ["His secret name", "His golden crown", "His sun-boat", "His staff"], answer: 0 },
+      { q: "How did Isis get Ra to share his secret?", options: ["A snake bit him and she offered to heal him", "She asked politely", "She stole it while he slept", "She defeated him in battle"], answer: 0 },
+      { q: "What does the myth say about cleverness?", options: ["It can be as powerful as strength", "It is useless", "It only works for gods", "It always causes trouble"], answer: 0 },
+    ],
+  },
+  {
+    id: "weighing-of-the-heart",
+    collection: "Egyptian Myths",
+    title: "The Weighing of the Heart",
+    emoji: "⚖️",
+    illustration: "⚖️🪶💛",
+    level: "Medium",
+    minutes: 4,
+    starReward: 4,
+    paragraphs: [
+      "The Egyptians believed that when a person's life ended, their heart was carried to a great hall to be weighed by Anubis, the jackal-headed guardian of the dead.",
+      "On one side of the golden scales sat the heart. On the other sat a single feather — the Feather of Truth, belonging to Ma'at, the goddess of fairness and balance.",
+      "If the person had lived a kind and honest life, their heart would be light as that feather, and the scales would balance. They could pass on to a beautiful paradise.",
+      "But a heart made heavy with cruelty and lies would tip the scales. And so the Egyptians tried to live with light, honest hearts — for they believed that kindness truly weighs less than wrongdoing.",
+    ],
+    moral: "A kind, honest life makes for a light heart.",
+    quiz: [
+      { q: "What was a person's heart weighed against?", options: ["The Feather of Truth", "A gold coin", "A heavy stone", "Another heart"], answer: 0 },
+      { q: "Whose heart would balance the scales?", options: ["Someone who lived kindly and honestly", "The richest person", "The strongest person", "The oldest person"], answer: 0 },
+      { q: "What did this belief encourage people to do?", options: ["Live kind, honest lives", "Collect as much gold as possible", "Build pyramids quickly", "Never leave home"], answer: 0 },
+    ],
+  },
+  {
+    id: "horus-and-set",
+    collection: "Egyptian Myths",
+    title: "Horus and Set",
+    emoji: "🦅",
+    illustration: "🦅⚔️🏜️",
+    level: "Tricky",
+    minutes: 5,
+    starReward: 4,
+    paragraphs: [
+      "When the throne of Egypt fell empty, two gods claimed it: Set, the fierce god of storms and the desert, and young Horus, the falcon-headed son of Osiris and Isis.",
+      "Set was strong and ferocious. Horus was younger, but clever and brave. The other gods could not decide between them, so the two were set a long series of contests.",
+      "They raced boats and battled in many shapes. Set relied on brute force and trickery — but each time, Horus, with help from his wise mother Isis, out-thought him.",
+      "At last the gods declared Horus the rightful king. Egypt flourished under a ruler who was not only powerful, but wise and just.",
+    ],
+    moral: "A good leader needs wisdom and fairness, not just strength.",
+    quiz: [
+      { q: "Which two gods fought for the throne?", options: ["Horus and Set", "Ra and Isis", "Anubis and Thoth", "Osiris and Ra"], answer: 0 },
+      { q: "How did Horus keep winning the contests?", options: ["Cleverness and help from Isis", "Pure brute strength", "By cheating", "By giving up early"], answer: 0 },
+      { q: "What made Horus a good king?", options: ["Wisdom and fairness, not just power", "Being the biggest", "Being the richest", "Being the loudest"], answer: 0 },
+    ],
+  },
+  {
+    id: "thoth-five-days",
+    collection: "Egyptian Myths",
+    title: "Thoth and the Five Extra Days",
+    emoji: "🌙",
+    illustration: "🌙📜🪶",
+    level: "Tricky",
+    minutes: 5,
+    starReward: 4,
+    paragraphs: [
+      "Long ago, the year had only 360 days, and the sky goddess Nut had been forbidden from having her children on any day of that year. It seemed an impossible problem.",
+      "But Thoth, the wise god of the moon and of writing, had an idea. He went to Khonsu, keeper of the moon, and challenged him to a game of chance.",
+      "Round after round Thoth won, and each time he claimed a sliver of the moon's light as his prize. From all that won moonlight, he crafted five whole new days — days that belonged to no ordinary year.",
+      "On those five extra days, Nut's children were finally born. And that, the Egyptians said, is why the year has 365 days. Cleverness had solved what had seemed impossible.",
+    ],
+    moral: "A clever idea can solve a problem that seems impossible.",
+    quiz: [
+      { q: "What problem did Thoth solve?", options: ["Nut couldn't have children on the 360 days", "The sun had gone dark", "A great flood", "A war between gods"], answer: 0 },
+      { q: "How did Thoth make five new days?", options: ["He won moonlight in a game and made days from it", "He asked Ra for them", "He built them from stone", "He bought them"], answer: 0 },
+      { q: "What is the lesson?", options: ["A clever idea can solve the impossible", "Games are a waste of time", "The moon is useless", "Never challenge a god"], answer: 0 },
+    ],
+  },
+  {
+    id: "bennu-bird",
+    collection: "Egyptian Myths",
+    title: "The Bennu Bird",
+    emoji: "🔥",
+    illustration: "🔥🐦✨",
+    level: "Medium",
+    minutes: 4,
+    starReward: 4,
+    paragraphs: [
+      "The Bennu was a magnificent heron-like bird that glowed like the sunrise. The Egyptians believed it was linked to Ra, the sun god, and to the great river Nile.",
+      "The Bennu lived for hundreds of years. When at last its long life neared its end, it did not simply fade away.",
+      "Instead it burst into bright flame — and from the ashes, a brand-new Bennu rose, young and shining once more, ready to begin again.",
+      "To the Egyptians, the Bennu was a symbol of hope and new beginnings: a reminder that endings can make way for fresh starts, and that the sun always rises again.",
+    ],
+    moral: "Endings can make way for new beginnings.",
+    quiz: [
+      { q: "What was the Bennu bird linked to?", options: ["The sun god Ra and the Nile", "The moon", "The desert sands", "The deep sea"], answer: 0 },
+      { q: "What happened when the Bennu's life ended?", options: ["A new one rose from the ashes", "It vanished forever", "It flew far away", "It turned to stone"], answer: 0 },
+      { q: "What did the Bennu come to symbolise?", options: ["Hope and new beginnings", "Fear of the dark", "Greed for gold", "The coming of winter"], answer: 0 },
+    ],
+  },
+];
