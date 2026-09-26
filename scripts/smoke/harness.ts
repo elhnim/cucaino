@@ -1,23 +1,26 @@
-// Standalone canvas smoke harness — boots the real Phaser scenes with mock data,
-// so the world + pet can be viewed in a browser without auth/DB. Build with esbuild.
-import { startGame } from "../../lib/game/start";
-import type { InitialGameData } from "../../lib/game/types";
+// Standalone canvas smoke harness — boots the real three.js world with mock data,
+// so it can be viewed in a browser without auth/DB. Build with esbuild (build.mjs).
+import { World3D } from "../../lib/game3d/engine";
+import type { InitialGameData } from "../../lib/game3d/types";
 
 const mock: InitialGameData = {
   kid: { id: "smoke", name: "Mia", pointsBalance: 128, avatar: "🐱", themeId: "magical" },
-  // a minimal pet-shaped object is enough for Phase-0 visuals
-  pet: { name: "Coco", species: "cat", happiness: 80 } as unknown as InitialGameData["pet"],
+  pet: {
+    id: "p1", kidId: "smoke", name: "Coco", species: "kitten",
+    hunger: 80, happiness: 80, energy: 80, cleanliness: 80, xp: 40,
+    accessories: [], tricks: [], personalities: [], isSleeping: false,
+    totalStarsSpent: 0, careStreak: 1, lastCareDate: null, lastGiftDate: null,
+    lastTickAt: new Date().toISOString(), createdAt: new Date().toISOString(),
+  },
   tasksToday: { total: 5, done: 2 },
-  tasks: [
-    { id: "1", name: "Brush teeth", icon: "🦷", points: 2, familyPoints: 0, category: "hygiene", cashValueCents: 0, requiresApproval: false, done: true, mechanic: "tap", timerMinutes: null, reps: null, repLabel: null, checklist: null, music: false, bpm: null, timeSignature: null, frequencyPerDay: 1, doneCount: 1 },
-    { id: "2", name: "Pack school bag", icon: "🎒", points: 2, familyPoints: 0, category: "chore", cashValueCents: 0, requiresApproval: false, done: false, mechanic: "checklist", timerMinutes: null, reps: null, repLabel: null, checklist: ["Lunchbox", "Water bottle", "Homework", "Hat"], music: false, bpm: null, timeSignature: null, frequencyPerDay: 1, doneCount: 0 },
-    { id: "3", name: "Reading", icon: "📚", points: 3, familyPoints: 0, category: "learning", cashValueCents: 0, requiresApproval: false, done: false, mechanic: "timer", timerMinutes: 10, reps: null, repLabel: null, checklist: null, music: false, bpm: null, timeSignature: null, frequencyPerDay: 1, doneCount: 0 },
-    { id: "4", name: "Piano practice", icon: "🎹", points: 5, familyPoints: 0, category: "music", cashValueCents: 0, requiresApproval: false, done: false, mechanic: "timer", timerMinutes: 15, reps: null, repLabel: null, checklist: null, music: true, bpm: 90, timeSignature: "3/4", frequencyPerDay: 1, doneCount: 0 },
-    { id: "5", name: "Basketball throws", icon: "🏀", points: 2, familyPoints: 0, category: "active", cashValueCents: 0, requiresApproval: false, done: false, mechanic: "reps", timerMinutes: null, reps: 20, repLabel: "throws", checklist: null, music: false, bpm: null, timeSignature: null, frequencyPerDay: 1, doneCount: 0 },
-    { id: "6", name: "Drink water", icon: "💧", points: 1, familyPoints: 0, category: "health", cashValueCents: 0, requiresApproval: false, done: false, mechanic: "tap", timerMinutes: null, reps: null, repLabel: null, checklist: null, music: false, bpm: null, timeSignature: null, frequencyPerDay: 3, doneCount: 1 },
-  ],
-  startScene: new URLSearchParams(location.search).get("scene") ?? "world",
 };
 
-(window as unknown as { __CUCAINO_DEBUG__?: boolean }).__CUCAINO_DEBUG__ = true;
-startGame(document.getElementById("app")!, mock);
+const world = new World3D(document.getElementById("app")!, {
+  playerAccent: "#c026d3",
+  petSpeciesColor: "#F0A060",
+  onArrive: (key) => console.log("[smoke] arrived:", key),
+  onSparkle: (n) => console.log("[smoke] sparkles:", n),
+});
+
+(window as unknown as { __CUCAINO_DEBUG__?: boolean; __world?: World3D }).__CUCAINO_DEBUG__ = true;
+(window as unknown as { __world?: World3D }).__world = world;
