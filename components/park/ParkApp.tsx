@@ -22,9 +22,16 @@ import { getDreamPark, placePiece, movePiece, removePiece, type DreamPark } from
 import { getPiece } from "@/lib/park/registry/pieces";
 import { TICKETS_PER_QUEST, cellCenter, zoneBounds } from "@/lib/park/builder/rules";
 import { BuilderBar, type BuilderSelection } from "./builder/BuilderBar";
+import type { PetMode, PetFx } from "./pet/PetCareSheet";
+import { getPlace } from "@/lib/park/registry/places";
+import { playWithPet } from "@/lib/actions/pet";
+import { PLAY_SECONDS } from "@/lib/pet/config";
+import { todaysTreasures, dayKey, TREASURES_PER_DAY } from "@/lib/park/world/treasures";
+import { seedFromString } from "@/lib/game3d/noise";
+import { CandySheet } from "./ui/CandySheet";
 
 // Every building panel loads on demand, never in the park's first download.
-const PetPanel = dynamic(() => import("@/components/game/panels/PetPanel").then((m) => m.PetPanel), { ssr: false });
+const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const QuestBoard = dynamic(() => import("./quests/QuestBoard").then((m) => m.QuestBoard), { ssr: false });
 const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal"), { ssr: false });
 const RewardsPanel = dynamic(() => import("@/components/game/panels/RewardsPanel").then((m) => m.RewardsPanel), { ssr: false });
@@ -36,7 +43,24 @@ const DressUpPanel = dynamic(() => import("./DressUpPanel").then((m) => m.DressU
 // start fetching three.js + the engine as soon as this module evaluates (parallel to hydration)
 prefetchPark();
 
-type Panel = Exclude<PlaceAction, "gift" | "none"> | "dressup" | "quiz-hub";
+type Panel = Exclude<PlaceAction, "gift" | "none" | "build"> | "dressup" | "quiz-hub";
+
+const PET_MODE: Partial<Record<Panel, PetMode>> = {
+  pet: "home",
+  "pet-feed": "feed",
+  "pet-wash": "wash",
+  "pet-sleep": "sleep",
+  "pet-tricks": "tricks",
+  "pet-fetch": "fetch",
+};
+const STATION_FOR: Record<PetMode, string> = {
+  home: "pet-house",
+  feed: "pet-food",
+  wash: "pet-bath",
+  sleep: "pet-bed",
+  tricks: "pet-stage",
+  fetch: "pet-ball",
+};
 const TOAST_MS = 3000;
 
 /** Old ?enter= deep links (nav tabs, bookmarks) -> park places. */
@@ -78,6 +102,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [buildBusy, setBuildBusy] = useState(false);
   const [buildMsg, setBuildMsg] = useState<string | null>(null);
   const lastTap = useRef<{ x: number; z: number }>({ x: 0, z: 0 });
+  // ── Fetch Field game ──
+  const [fetchGame, setFetchGame] = useState<{ score: number; left: number } | null>(null);
+  const fetchScore = useRef(0);
   const [questRefresh, setQuestRefresh] = useState(0);
   const firedAllDone = useRef(data.tasksToday.total > 0 && data.tasksToday.done >= data.tasksToday.total);
   const toastId = useRef(0);
@@ -87,6 +114,40 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     setToasts((t) => [...t.slice(-2), { id, text }]);
     window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), TOAST_MS);
   }, []);
+
+  // ── daily treasure hunt + sticker album (per device) ──
+  const treasures = useRef(todaysTreasures(seedFromString(kidId)));
+  const [foundToday, setFoundToday] = useState<number[]>([]);
+  const [album, setAlbum] = useState<string[]>([]);
+  const [showAlbum, setShowAlbum] = useState(false);
+  const huntKey = `cucaino.park.hunt.${kidId}.${dayKey()}`;
+  const albumKey = `cucaino.park.album.${kidId}`;
+  const onTreasure = useCallback(
+    (id: number) => {
+      const spot = treasures.current.find((t) => t.id === id);
+      if (!spot) return;
+      setFoundToday((f) => {
+        const next = f.includes(id) ? f : [...f, id];
+        try {
+          window.localStorage.setItem(huntKey, JSON.stringify(next));
+        } catch {}
+        toast(`🗺️ Treasure! You found a ${spot.sticker} sticker! (${next.length}/${TREASURES_PER_DAY})`);
+        if (next.length === TREASURES_PER_DAY) window.setTimeout(() => toast("🏆 You found ALL of today's treasures!"), 1500);
+        return next;
+      });
+      setAlbum((a) => {
+        const next = [...a, spot.sticker];
+        try {
+          window.localStorage.setItem(albumKey, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      playSfx("win");
+    },
+    [huntKey, albumKey, toast],
+  );
+  const treasureRef = useRef(onTreasure);
+  treasureRef.current = onTreasure;
 
   const openPanel = useCallback((kind: Panel, placeId?: string) => {
     worldRef.current?.setInputEnabled(false);
@@ -252,6 +313,76 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     setSelectedPlaced(null);
   };
 
+  const petFx: PetFx = {
+    react: async (mode, anim) => {
+      const w = worldRef.current;
+      const st = getPlace(STATION_FOR[mode]);
+      if (!w) return;
+      if (st && mode !== "home" && mode !== "sleep") {
+        await w.petGoTo(st.x + 1.6, st.z + 1.6);
+      }
+      w.petAnim(anim);
+      if (mode === "wash") w.cheerAt(st?.x ?? 0, st?.z ?? 0);
+      window.setTimeout(() => w.petFollow(), 2600);
+    },
+    say: (t) => worldRef.current?.petSay(t),
+    status: (p) => worldRef.current?.setPetStatus(p),
+    sleep: (on) => {
+      const bed = getPlace("pet-bed");
+      worldRef.current?.setPetSleeping(on, bed ? { x: bed.x, z: bed.z } : undefined);
+    },
+    celebrate: () => worldRef.current?.celebrate(true),
+  };
+
+  const startFetch = () => {
+    const w = worldRef.current;
+    const field = getPlace("pet-ball");
+    if (!w || !field || !pet) return;
+    setPanel(null);
+    w.setInputEnabled(false);
+    w.startFetch({ x: field.x, z: field.z });
+    fetchScore.current = 0;
+    setFetchGame({ score: 0, left: PLAY_SECONDS });
+    playSfx("tap");
+    const started = Date.now();
+    const timer = window.setInterval(async () => {
+      const left = Math.max(0, PLAY_SECONDS - Math.floor((Date.now() - started) / 1000));
+      setFetchGame((g) => (g ? { ...g, left } : g));
+      if (left > 0) return;
+      window.clearInterval(timer);
+      const score = fetchScore.current;
+      worldRef.current?.stopFetch();
+      worldRef.current?.setInputEnabled(true);
+      setFetchGame(null);
+      const res = await playWithPet(kidId, score);
+      if (!res.ok) {
+        toast(res.error);
+        return;
+      }
+      setPet(res.pet);
+      setPoints(res.pointsBalance);
+      worldRef.current?.setPetStatus(res.pet);
+      worldRef.current?.celebrate(true);
+      playSfx("win");
+      toast(`🎾 ${score} catch${score === 1 ? "" : "es"}! ${res.pet.name} had so much fun!`);
+      window.setTimeout(() => worldRef.current?.setPetStatus(null), 4000);
+    }, 250);
+  };
+  const onFetchCatch = useCallback(() => {
+    fetchScore.current += 1;
+    setFetchGame((g) => (g ? { ...g, score: fetchScore.current } : g));
+    playSfx("coin");
+  }, []);
+  const fetchCatchRef = useRef(onFetchCatch);
+  fetchCatchRef.current = onFetchCatch;
+
+  // show the pet's need bars while its screens are open
+  useEffect(() => {
+    const mode = panel ? PET_MODE[panel.kind] : undefined;
+    if (mode && pet) worldRef.current?.setPetStatus(pet);
+    else if (!fetchGame) worldRef.current?.setPetStatus(null);
+  }, [panel, pet, fetchGame]);
+
   // ── boot the 3D park once ──
   useEffect(() => {
     const host = hostRef.current;
@@ -263,6 +394,12 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     let disposed = false;
     let world: ParkWorld | undefined;
     const chosen = loadParkAnimalChoice(kidId, data.kid.avatar);
+    let found: number[] = [];
+    try {
+      found = JSON.parse(window.localStorage.getItem(`cucaino.park.hunt.${kidId}.${dayKey()}`) ?? "[]");
+      setAlbum(JSON.parse(window.localStorage.getItem(`cucaino.park.album.${kidId}`) ?? "[]"));
+    } catch {}
+    setFoundToday(found);
     setAnimal(chosen);
     setStreak(recordVisit(kidId));
     setGiftReady(isDailyGiftReady(kidId));
@@ -277,6 +414,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           onPlace: (p) => placeRef.current(p),
           onBuildTap: (x, z) => buildTapRef.current(x, z),
           onPieceTap: (uid) => pieceTapRef.current(uid),
+          onFetchCatch: () => fetchCatchRef.current(),
+          treasures: { spots: treasures.current, found },
+          onTreasure: (id) => treasureRef.current(id),
           onError: () => !disposed && setBootError(true),
           onReady: () => {
             setReady(true);
@@ -313,9 +453,20 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     if (!w || !ready) return;
     w.setBeacon("quest-board", done < data.tasksToday.total ? "❗" : data.tasksToday.total > 0 ? "⭐" : null);
     const mood = pet ? moodFor(pet) : null;
-    w.setBeacon("pet-house", mood && mood.id !== "happy" && mood.id !== "ecstatic" ? mood.emoji : null);
+    w.setBeacon("pet-house", !pet ? "🥚" : null);
+    const need: Record<string, string> = { starving: "pet-food", dirty: "pet-bath", tired: "pet-bed", sleeping: "pet-bed", lonely: "pet-ball" };
+    for (const st of ["pet-food", "pet-bath", "pet-bed", "pet-ball"]) w.setBeacon(st, mood && need[mood.id] === st ? mood.emoji : null);
     w.setBeacon("daily-gift", giftReady ? "🎁" : null);
   }, [ready, done, data.tasksToday.total, pet, giftReady]);
+
+  // a pet that was already asleep starts the visit tucked up in its bed
+  useEffect(() => {
+    if (ready && data.pet?.isSleeping) {
+      const bed = getPlace("pet-bed");
+      worldRef.current?.setPetSleeping(true, bed ? { x: bed.x, z: bed.z } : undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   // greet once the park is on screen
   const greeted = useRef(false);
@@ -420,6 +571,12 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           <Chip emoji="⭐" value={`${points}`} />
           <Chip emoji="📋" value={`${done}/${data.tasksToday.total}`} />
           {dream && <Chip emoji="🎟️" value={`${dream.tickets}`} />}
+          <button style={{ ...chip, border: "none", cursor: "pointer", pointerEvents: "auto" }} onClick={() => setShowAlbum(true)} aria-label="Sticker album">
+            <span style={{ fontSize: 20 }}>🗺️</span>
+            <span style={{ fontWeight: 900, color: "#7a2e62" }}>
+              {foundToday.length}/{TREASURES_PER_DAY}
+            </span>
+          </button>
           {Math.max(streak, data.kid.currentStreak) >= 2 && <Chip emoji="🔥" value={`${Math.max(streak, data.kid.currentStreak)}`} />}
         </div>
       </div>
@@ -482,15 +639,30 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       )}
       {panel?.kind === "shop" && <RewardsPanel kidId={kidId} onClose={closePanel} onOpenPage={(src, title) => setPage({ src, title })} />}
       {panel?.kind === "friends" && <FriendsPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} />}
-      {panel?.kind === "pet" && (
-        <PetPanel
+      {panel && PET_MODE[panel.kind] && (
+        <PetCareSheet
           kidId={kidId}
           pet={pet}
-          onPetChange={setPet}
-          onPointsChange={setPoints}
+          mode={PET_MODE[panel.kind]!}
+          points={points}
+          onPet={(p, pts) => {
+            if (!pet) void worldRef.current?.setPetAnimal(parkAnimalForPet(p.species)); // just adopted!
+            setPet(p);
+            setPoints(pts);
+          }}
+          onStartFetch={startFetch}
           onClose={closePanel}
-          onReaction={() => worldRef.current?.celebrate()}
+          fx={petFx}
         />
+      )}
+      {fetchGame && (
+        <div style={fetchHud}>
+          <div style={{ fontSize: 28 }}>🎾</div>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 20 }}>Catches: {fetchGame.score}</div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>Tap the field to throw! ⏱ {fetchGame.left}s</div>
+          </div>
+        </div>
       )}
       {panel?.kind === "rides" && <RidesMenu onPick={pickRide} onClose={closePanel} />}
       {panel?.kind === "quiz-hub" && (
@@ -514,6 +686,21 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         />
       )}
       {badges.length > 0 && <BadgeUnlockModal badges={badges} onDismiss={() => setBadges([])} />}
+      {showAlbum && (
+        <CandySheet title="📒 My Sticker Album" subtitle={`${foundToday.length}/${TREASURES_PER_DAY} treasures found today · new ones hide every day!`} color="#a96bff" onClose={() => setShowAlbum(false)}>
+          {album.length === 0 ? (
+            <p style={{ textAlign: "center", fontWeight: 800, color: "#9b7090" }}>No stickers yet — treasures are hiding in the Sweet Forest 🍄 and all over the park!</p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: 8 }}>
+              {album.map((s, i) => (
+                <div key={i} style={{ fontSize: 40, textAlign: "center", background: "#fff", borderRadius: 18, padding: 6, boxShadow: "0 3px 0 #f5d3e6" }}>
+                  {s}
+                </div>
+              ))}
+            </div>
+          )}
+        </CandySheet>
+      )}
     </div>
   );
 }
@@ -591,6 +778,23 @@ const toastStyle: React.CSSProperties = {
   background: "linear-gradient(#ffffff, #ffeaf5)",
   boxShadow: "0 5px 0 #ffb8d9, 0 10px 22px rgba(122,46,98,0.2)",
   animation: `park-pop ${TOAST_MS}ms ease forwards`,
+};
+
+const fetchHud: React.CSSProperties = {
+  position: "fixed",
+  top: "max(14px, env(safe-area-inset-top))",
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 30,
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  borderRadius: 24,
+  padding: "10px 20px",
+  color: "#7a2e62",
+  background: "linear-gradient(#fff,#fff6d6)",
+  boxShadow: "0 5px 0 #ffd84a, 0 10px 22px rgba(122,46,98,0.2)",
+  pointerEvents: "none",
 };
 
 const loader: React.CSSProperties = {

@@ -41,8 +41,24 @@ export function getParkAnimal(id: string | null | undefined): ParkAnimal {
 }
 
 /** Kids already have an emoji avatar — start them as that animal when it matches. */
+// avatars without an exact Cube Pets match get the closest look-alike
+const AVATAR_LOOKALIKE: Record<string, AnimalId> = {
+  "🐸": "animal-caterpillar",
+  "🐺": "animal-dog",
+  "🦝": "animal-koala",
+  "🐙": "animal-crab",
+  "🦋": "animal-bee",
+  "🐬": "animal-fish",
+  "🐲": "animal-caterpillar",
+  "🦄": "animal-deer",
+  "🐻": "animal-beaver",
+};
+
 export function parkAnimalForAvatar(avatar: string | null | undefined): ParkAnimal {
-  return PARK_ANIMALS.find((a) => a.emoji === avatar) ?? PARK_ANIMALS[0];
+  const exact = PARK_ANIMALS.find((a) => a.emoji === avatar);
+  if (exact) return exact;
+  const alike = avatar ? AVATAR_LOOKALIKE[avatar] : undefined;
+  return (alike && PARK_ANIMALS.find((a) => a.id === alike)) || PARK_ANIMALS[0];
 }
 
 /** Star Pets species (lib/pet/config.ts) -> the Cube Pets model that plays them. */

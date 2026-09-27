@@ -7,8 +7,10 @@ import { DEFAULT_CANDY, THEME_CANDY_HUE } from "../assets/candy";
 import { buildPark, type BuiltPark } from "../world/buildPark";
 import { createDreamPark, type DreamParkView } from "../world/dreamPark";
 import { zoneBounds, type Placed } from "../builder/rules";
-import { SPAWN, type PlaceDef } from "../registry/places";
-import { emojiSprite } from "@/lib/game3d/buildingKit";
+import { SPAWN, PARK_RADIUS, type PlaceDef } from "../registry/places";
+import { emojiSprite, labelSprite } from "@/lib/game3d/buildingKit";
+import { PARK_ANIMALS } from "../registry/animals";
+import { createTreasures, type TreasureView } from "../world/treasures";
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 
 export type QualityTier = "standard" | "low";
@@ -26,6 +28,11 @@ export interface ParkWorldOptions {
   quality?: QualityTier;
   /** kid walked into / tapped a place */
   onPlace?: (place: PlaceDef) => void;
+  /** today's hidden treasures (lib/park/world/treasures.ts) and which are already found */
+  treasures?: { spots: { id: number; x: number; z: number }[]; found: number[] };
+  onTreasure?: (id: number) => void;
+  /** fetch game: the pet brought the ball back */
+  onFetchCatch?: () => void;
   /** build mode: kid tapped the lawn at world (x, z) */
   onBuildTap?: (x: number, z: number) => void;
   /** build mode: kid tapped one of their placed pieces */
@@ -71,6 +78,17 @@ export class ParkWorld {
   private park: BuiltPark | null = null;
   private dream: DreamParkView | null = null;
   private building = false;
+  private treasures: TreasureView | null = null;
+  // ── pet behaviour ──
+  private petMode: "follow" | "goto" | "sleep" | "fetch" = "follow";
+  private petTarget: THREE.Vector3 | null = null;
+  private petArrive: (() => void) | null = null;
+  private petBubble: { sprite: THREE.Sprite; until: number } | null = null;
+  private petStatus: THREE.Sprite | null = null;
+  private petZzz: THREE.Sprite | null = null;
+  private fetch: { ball: THREE.Mesh; from: THREE.Vector3; to: THREE.Vector3; t: number; phase: "idle" | "flying" | "chasing" | "returning" } | null = null;
+  // ── wandering park visitors ──
+  private npcs: { actor: Actor; target: THREE.Vector3; wait: number }[] = [];
   private kid: Actor | null = null;
   private pet: Actor | null = null;
   private clock = new THREE.Clock();
@@ -169,6 +187,149 @@ export class ParkWorld {
     this.scene.add(s);
     this.beacons.set(placeId, { sprite: s, base });
   }
+  // ── pet behaviour API (Pet Meadow stations) ──
+  /** Send the pet to a spot; resolves when it gets there (or after 4s). */
+  petGoTo(x: number, z: number): Promise<void> {
+    if (!this.pet) return Promise.resolve();
+    this.clearZzz();
+    this.petMode = "goto";
+    this.petTarget = new THREE.Vector3(x, 0, z);
+    return new Promise((resolve) => {
+      const done = () => {
+        this.petArrive = null;
+        resolve();
+      };
+      this.petArrive = done;
+      window.setTimeout(() => this.petArrive === done && done(), 4000);
+    });
+  }
+  /** Play one of the pet's animations (eat, dance, gesture-positive, run...). */
+  petAnim(name: string) {
+    if (this.pet) this.play(this.pet, name, true);
+  }
+  /** Pet goes back to following the kid. */
+  petFollow() {
+    this.clearZzz();
+    this.petMode = "follow";
+    this.petTarget = null;
+  }
+  /** Speech bubble over the pet's head. */
+  petSay(text: string, seconds = 3.2) {
+    if (!this.pet) return;
+    this.clearBubble();
+    const s = labelSprite(text.length > 34 ? text.slice(0, 33) + "…" : text);
+    s.scale.multiplyScalar(0.62);
+    this.scene.add(s);
+    this.petBubble = { sprite: s, until: this.time + seconds };
+  }
+  /** Four little need bars (hunger, fun, energy, clean) floating over the pet. */
+  setPetStatus(stats: { hunger: number; happiness: number; energy: number; cleanliness: number } | null) {
+    if (this.petStatus) {
+      this.scene.remove(this.petStatus);
+      this.petStatus.material.map?.dispose();
+      this.petStatus.material.dispose();
+      this.petStatus = null;
+    }
+    if (!stats || !this.pet) return;
+    const cv = document.createElement("canvas");
+    cv.width = 256;
+    cv.height = 96;
+    const c = cv.getContext("2d")!;
+    const rows: [string, number, string][] = [
+      ["🍎", stats.hunger, "#ff6b8a"],
+      ["😊", stats.happiness, "#ffc83d"],
+      ["⚡", stats.energy, "#4cc9ff"],
+      ["🫧", stats.cleanliness, "#7be0b0"],
+    ];
+    c.fillStyle = "rgba(255,255,255,0.92)";
+    c.beginPath();
+    c.roundRect(2, 2, 252, 92, 22);
+    c.fill();
+    rows.forEach(([icon, v, col], i) => {
+      const x = 12 + i * 61;
+      c.font = "26px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji'";
+      c.fillText(icon, x + 12, 34);
+      c.fillStyle = "#f3dbe8";
+      c.beginPath();
+      c.roundRect(x, 50, 52, 16, 8);
+      c.fill();
+      c.fillStyle = v < 30 ? "#ff4f6d" : col;
+      c.beginPath();
+      c.roundRect(x, 50, Math.max(8, (52 * Math.max(0, Math.min(100, v))) / 100), 16, 8);
+      c.fill();
+    });
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    sprite.scale.set(2.6, 0.97, 1);
+    this.scene.add(sprite);
+    this.petStatus = sprite;
+  }
+  /** Pet snoozes in its bed (stops following) until woken. */
+  setPetSleeping(on: boolean, bed?: { x: number; z: number }) {
+    if (!this.pet) return;
+    if (on) {
+      this.petMode = "sleep";
+      if (bed) this.pet.root.position.set(bed.x, 0.45, bed.z);
+      this.play(this.pet, "idle");
+      if (!this.petZzz) {
+        this.petZzz = emojiSprite("💤", 1.2);
+        this.scene.add(this.petZzz);
+      }
+    } else {
+      this.pet.root.position.y = 0;
+      this.petFollow();
+    }
+  }
+  /** Fetch game: kid taps the field, the ball flies, the pet races for it and brings it back. */
+  startFetch(field: { x: number; z: number }) {
+    if (!this.pet) return;
+    this.clearZzz();
+    this.petMode = "fetch";
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.32, 14, 10), new THREE.MeshToonMaterial({ color: "#e6ff5c" }));
+    ball.visible = false;
+    this.scene.add(ball);
+    this.fetch = { ball, from: new THREE.Vector3(), to: new THREE.Vector3(field.x, 0, field.z), t: 0, phase: "idle" };
+    this.pet.root.position.set(field.x + 1.5, 0, field.z + 3);
+  }
+  throwBall(x: number, z: number) {
+    const f = this.fetch;
+    if (!f || !this.kid || f.phase !== "idle") return;
+    f.from.copy(this.kid.root.position).setY(1.4);
+    f.to.set(x, 0.32, z);
+    f.t = 0;
+    f.phase = "flying";
+    f.ball.visible = true;
+    this.play(this.kid, "gesture-positive", true);
+  }
+  stopFetch() {
+    if (this.fetch) {
+      this.scene.remove(this.fetch.ball);
+      this.fetch.ball.geometry.dispose();
+      (this.fetch.ball.material as THREE.Material).dispose();
+    }
+    this.fetch = null;
+    this.petFollow();
+  }
+  /** Kid-sized walk up to a spot (used by stations so the kid stands next to them). */
+  walkKidTo(x: number, z: number) {
+    this.walkTarget = new THREE.Vector3(x, 0, z);
+  }
+  private clearBubble() {
+    if (!this.petBubble) return;
+    this.scene.remove(this.petBubble.sprite);
+    this.petBubble.sprite.material.map?.dispose();
+    this.petBubble.sprite.material.dispose();
+    this.petBubble = null;
+  }
+  private clearZzz() {
+    if (!this.petZzz) return;
+    this.scene.remove(this.petZzz);
+    this.petZzz.material.map?.dispose();
+    this.petZzz.material.dispose();
+    this.petZzz = null;
+  }
+
   // ── Dream Park builder ──
   async setLayout(layout: Placed[]) {
     await this.dream?.setLayout(layout);
@@ -192,6 +353,22 @@ export class ParkWorld {
   /** Big celebration at a spot in the Dream Park (a new piece just landed). */
   cheerAt(x: number, z: number) {
     this.burst(new THREE.Vector3(x, 2.5, z), 45);
+  }
+
+  /** Bring a (newly adopted) pet into the park, or change how it looks. */
+  async setPetAnimal(id: AnimalId) {
+    const next = await this.makeActor(id, 1.25);
+    if (this.disposed) return;
+    if (this.pet) {
+      next.root.position.copy(this.pet.root.position);
+      this.scene.remove(this.pet.root);
+    } else if (this.kid) {
+      next.root.position.copy(this.kid.root.position).add(new THREE.Vector3(1.8, 0, 1));
+    }
+    this.pet = next;
+    this.scene.add(next.root);
+    this.play(next, "gesture-positive", true);
+    this.burst(next.root.position.clone().setY(1.4), 40);
   }
 
   /** Swap the kid's animal live (dress-up). */
@@ -240,8 +417,35 @@ export class ParkWorld {
       this.renderer.render(this.scene, this.camera);
       this.opts.onReady?.();
       this.start();
+      void this.spawnVisitors();
+      if (this.opts.treasures) {
+        void createTreasures(this.scene, this.assets, this.opts.treasures.spots, new Set(this.opts.treasures.found)).then((t) => {
+          if (this.disposed) t.dispose();
+          else this.treasures = t;
+        });
+      }
     } catch (err) {
       this.opts.onError?.(err);
+    }
+  }
+
+  /** A handful of other animals strolling the park so it feels busy and alive. */
+  private async spawnVisitors() {
+    if (!this.park || this.quality === "low") return;
+    const taken = new Set([this.opts.kidAnimal, this.opts.petAnimal]);
+    const pool = PARK_ANIMALS.filter((a) => !taken.has(a.id)).sort(() => Math.random() - 0.5).slice(0, 6);
+    for (const a of pool) {
+      if (this.disposed) return;
+      try {
+        const actor = await this.makeActor(a.id, 1.5 + Math.random() * 0.6);
+        const pts = this.park.pathPoints;
+        const start = pts[Math.floor(Math.random() * pts.length)];
+        actor.root.position.copy(start);
+        this.scene.add(actor.root);
+        this.npcs.push({ actor, target: start.clone(), wait: Math.random() * 3 });
+      } catch {
+        // a visitor failing to load is harmless
+      }
     }
   }
 
@@ -290,11 +494,16 @@ export class ParkWorld {
   private onUp = (e: PointerEvent) => {
     const d = this.downAt;
     this.downAt = null;
-    if (!d || !this.park || (!this.inputOn && !this.building)) return;
+    if (!d || !this.park || (!this.inputOn && !this.building && !this.fetch)) return;
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12 || performance.now() - d.t > 500) return; // a drag, not a tap
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
+    if (this.fetch) {
+      const g = new THREE.Vector3();
+      if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), g)) this.throwBall(g.x, g.z);
+      return;
+    }
     if (this.building) {
       const pieceHit = this.dream ? this.raycaster.intersectObjects(this.dream.tappables(), true)[0] : undefined;
       const uid = pieceHit?.object.userData.pieceUid as string | undefined;
@@ -401,7 +610,7 @@ export class ParkWorld {
     } else this.idleT += dt;
     // keep inside the park and out of buildings
     const r = Math.hypot(pos.x, pos.z);
-    if (r > 75) pos.multiplyScalar(75 / r);
+    if (r > PARK_RADIUS) pos.multiplyScalar(PARK_RADIUS / r);
     for (const p of this.park.places) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;
@@ -416,21 +625,93 @@ export class ParkWorld {
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving ? "walk" : "idle");
     kid.mixer?.update(dt);
 
-    // pet: follows behind, trots circles round the kid when idle
+    // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
     if (this.pet) {
       const pet = this.pet;
-      const target =
-        this.idleT > 2
-          ? new THREE.Vector3(pos.x + Math.sin(this.time * 0.9) * 2.4, 0, pos.z + Math.cos(this.time * 0.9) * 2.4)
-          : new THREE.Vector3(pos.x - Math.sin(kid.facing) * 2, 0, pos.z - Math.cos(kid.facing) * 2);
+      let target: THREE.Vector3 | null = null;
+      let speed = 3.5;
+      if (this.petMode === "follow") {
+        target =
+          this.idleT > 2
+            ? new THREE.Vector3(pos.x + Math.sin(this.time * 0.9) * 2.4, 0, pos.z + Math.cos(this.time * 0.9) * 2.4)
+            : new THREE.Vector3(pos.x - Math.sin(kid.facing) * 2, 0, pos.z - Math.cos(kid.facing) * 2);
+      } else if (this.petMode === "goto" && this.petTarget) {
+        target = this.petTarget;
+        speed = 2.6;
+        if (pet.root.position.distanceTo(target) < 0.6) this.petArrive?.();
+      } else if (this.petMode === "fetch" && this.fetch) {
+        const f = this.fetch;
+        if (f.phase === "flying") {
+          f.t += dt / 0.9;
+          const k = Math.min(1, f.t);
+          f.ball.position.lerpVectors(f.from, f.to, k);
+          f.ball.position.y = f.from.y * (1 - k) + 0.32 + Math.sin(k * Math.PI) * 4.5;
+          if (k >= 1) f.phase = "chasing";
+          target = f.to.clone().setY(0);
+          speed = 1.6;
+        } else if (f.phase === "chasing") {
+          target = f.to.clone().setY(0);
+          speed = 4.5;
+          if (pet.root.position.distanceTo(target) < 0.8) f.phase = "returning";
+        } else if (f.phase === "returning") {
+          target = pos.clone().add(new THREE.Vector3(0, 0, 1.4));
+          speed = 4;
+          f.ball.position.copy(pet.root.position).setY(1.1);
+          if (pet.root.position.distanceTo(target) < 1) {
+            f.phase = "idle";
+            f.ball.visible = false;
+            this.play(pet, "gesture-positive", true);
+            this.burst(pet.root.position.clone().setY(1.6), 18);
+            this.opts.onFetchCatch?.();
+          }
+        }
+      }
       const before = pet.root.position.clone();
-      pet.root.position.lerp(target, Math.min(1, dt * 3.5));
+      if (target) {
+        const k = Math.min(1, dt * speed);
+        pet.root.position.x += (target.x - pet.root.position.x) * k;
+        pet.root.position.z += (target.z - pet.root.position.z) * k;
+      }
       const step = pet.root.position.clone().sub(before);
       const petMoving = step.length() > 0.01;
       if (petMoving) pet.facing = Math.atan2(step.x, step.z);
       turnTowards(pet, dt);
-      if (pet.current === "idle" || pet.current === "walk" || pet.current === "") this.play(pet, petMoving ? "walk" : "idle");
-      pet.mixer?.update(dt);
+      if (this.petMode !== "sleep" && (pet.current === "idle" || pet.current === "walk" || pet.current === "run" || pet.current === ""))
+        this.play(pet, petMoving ? (this.petMode === "fetch" ? "run" : "walk") : "idle");
+      pet.mixer?.update(this.petMode === "sleep" ? dt * 0.3 : dt);
+      const head = pet.root.position.y + 1.9;
+      if (this.petStatus) this.petStatus.position.set(pet.root.position.x, head + 0.7, pet.root.position.z);
+      if (this.petBubble) {
+        this.petBubble.sprite.position.set(pet.root.position.x, head + (this.petStatus ? 1.8 : 0.9), pet.root.position.z);
+        if (this.time > this.petBubble.until) this.clearBubble();
+      }
+      if (this.petZzz) this.petZzz.position.set(pet.root.position.x + 0.6, head + 0.4 + Math.sin(this.time * 2) * 0.25, pet.root.position.z);
+    }
+
+    // wandering visitors stroll between path points
+    for (const n of this.npcs) {
+      const a = n.actor;
+      if (n.wait > 0) {
+        n.wait -= dt;
+        this.play(a, "idle");
+      } else {
+        const dx = n.target.x - a.root.position.x;
+        const dz = n.target.z - a.root.position.z;
+        const d = Math.hypot(dx, dz);
+        if (d < 0.5) {
+          n.wait = 1.5 + Math.random() * 4;
+          const pts = this.park.pathPoints;
+          const near = pts.filter((p) => p.distanceTo(a.root.position) < 22);
+          n.target = (near.length ? near : pts)[Math.floor(Math.random() * (near.length || pts.length))].clone();
+        } else {
+          a.root.position.x += (dx / d) * 2.4 * dt;
+          a.root.position.z += (dz / d) * 2.4 * dt;
+          a.facing = Math.atan2(dx, dz);
+          this.play(a, "walk");
+        }
+      }
+      turnTowards(a, dt);
+      a.mixer?.update(dt);
     }
 
     // doors
@@ -451,6 +732,12 @@ export class ParkWorld {
     }
 
     this.park.update(dt, this.time);
+    const foundId = this.treasures?.update(dt, this.time, pos) ?? null;
+    if (foundId !== null) {
+      this.burst(pos.clone().setY(2), 60);
+      this.play(kid, "dance", true);
+      this.opts.onTreasure?.(foundId);
+    }
     this.dream?.update(dt, this.time);
     for (const b of this.beacons.values()) b.sprite.position.y = b.base + Math.sin(this.time * 3) * 0.35;
     for (let i = this.bursts.length - 1; i >= 0; i--) {
@@ -511,6 +798,7 @@ export class ParkWorld {
     this.renderer.domElement.removeEventListener("pointerup", this.onUp);
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.park?.dispose();
+    this.treasures?.dispose();
     this.dream?.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;

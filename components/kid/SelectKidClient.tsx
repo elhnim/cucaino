@@ -6,8 +6,8 @@ import PinPad from "@/components/kid/PinPad";
 import { setKidPin } from "@/lib/actions/kids";
 import { signOut, verifyParentPin } from "@/lib/actions/auth";
 import { AmbientBackdrop } from "@/components/game/AmbientBackdrop";
-import type { AmbientCharacter } from "@/lib/game3d/ambient";
-import { loadAnimalChoice } from "@/lib/game3d/registry/animals";
+import type { PickerCharacter } from "@/lib/park/world/pickerScene";
+import { loadParkAnimalChoice } from "@/lib/park/registry/animals";
 import { prefetchPark } from "@/lib/park/loadPark";
 import type { Kid } from "@/lib/domain/types";
 import type { Theme } from "@/lib/themes/presets";
@@ -55,13 +55,13 @@ export default function SelectKidClient({
   // Each kid stands in the 3D meadow as the animal they picked in the world (saved per
   // device), so the picker already feels like part of the game. Built after mount because
   // the choice lives in localStorage.
-  const [characters, setCharacters] = useState<AmbientCharacter[]>([]);
+  const [characters, setCharacters] = useState<PickerCharacter[]>([]);
   useEffect(() => {
     setCharacters(
       kids.map((kid) => ({
         id: kid.id,
         label: `${kid.name}${kid.pin ? " 🔒" : ""}`,
-        animal: loadAnimalChoice(kid.id, kid.avatar),
+        animal: loadParkAnimalChoice(kid.id, kid.avatar).id,
         accent: themeById.get(kid.themeId)?.accent ?? "#6366f1",
       })),
     );

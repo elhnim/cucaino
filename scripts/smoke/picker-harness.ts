@@ -1,13 +1,21 @@
-// Smoke harness for the pre-game 3D meadow (kid-picker mode) — no auth/DB.
-import { createAmbientScene } from "../../lib/game3d/ambient";
-import { getAnimal } from "../../lib/game3d/registry/animals";
+// No-auth smoke harness for the candy kid-picker meadow (lib/park/world/pickerScene).
+import { createPickerScene } from "../../lib/park/world/pickerScene";
 
+const q = new URLSearchParams(location.search);
 const host = document.getElementById("app")!;
-(window as unknown as { __scene?: unknown }).__scene = createAmbientScene(host, "#6366f1", {
-  characters: [
-    { id: "a", label: "Mia 🔒", animal: getAnimal("bunny"), accent: "#c026d3" },
-    { id: "b", label: "Leo", animal: getAnimal("lion"), accent: "#f97316" },
-    { id: "c", label: "Ava", animal: getAnimal("unicorn"), accent: "#0ea5e9" },
-  ],
-  onPick: (id) => console.log("[smoke] picked", id),
+if (q.get("w")) {
+  host.style.width = `${q.get("w")}px`;
+  host.style.height = `${q.get("h") ?? 844}px`;
+}
+const n = Number(q.get("n") ?? 4);
+const cast = [
+  { id: "a", label: "Nơ 🔒", animal: "animal-panda", accent: "#e5484d" },
+  { id: "b", label: "Cucai 🔒", animal: "animal-caterpillar", accent: "#4f46e5" },
+  { id: "c", label: "Maymay", animal: "animal-dog", accent: "#e5484d" },
+  { id: "d", label: "Leo", animal: "animal-lion", accent: "#f97316" },
+  { id: "e", label: "Ava", animal: "animal-bunny", accent: "#0ea5e9" },
+].slice(0, n);
+(window as unknown as Record<string, unknown>).__picker = createPickerScene(host, {
+  characters: cast as never,
+  onPick: (id) => console.log("[picker] picked", id),
 });
