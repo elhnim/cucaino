@@ -43,7 +43,7 @@ const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal
 const PrizeShop = dynamic(() => import("./shop/PrizeShop").then((m) => m.PrizeShop), { ssr: false });
 const NuggetMarket = dynamic(() => import("./market/NuggetMarket").then((m) => m.NuggetMarket), { ssr: false });
 const GameHall = dynamic(() => import("./games/GameHalls").then((m) => m.GameHall), { ssr: false });
-const HALLS = ["learn", "library", "arcade", "money-town", "bank"] as const;
+const HALLS = ["learn", "library", "theatre", "arcade", "money-town", "bank"] as const;
 type Hall = (typeof HALLS)[number];
 const FriendsPanel = dynamic(() => import("@/components/game/panels/FriendsPanel").then((m) => m.FriendsPanel), { ssr: false });
 const QuizHubPanel = dynamic(() => import("@/components/game/panels/QuizHubPanel").then((m) => m.QuizHubPanel), { ssr: false });
@@ -85,6 +85,7 @@ const ENTER_MAP: Record<string, Panel> = {
   market: "market",
   learn: "learn",
   library: "library",
+  theatre: "theatre",
   arcade: "arcade",
   "money-town": "money-town",
   bank: "bank",
@@ -1095,7 +1096,8 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   build: "Place new things with your tickets",
   market: "Buy and sell shares with your nuggets",
   learn: "Life-skill mini-courses — earn stars",
-  library: "Read stories and chapter books — earn stars",
+  library: "Chapter books to read bit by bit — earn stars",
+  theatre: "Fables, myths and short tales — earn stars",
   arcade: "AI brain games with sparks",
   "money-town": "The family money board game",
   golf: "18 holes of candy mini golf",

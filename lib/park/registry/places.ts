@@ -24,6 +24,7 @@ export type PlaceAction =
   | "money-town"
   | "bank"
   | "golf"
+  | "theatre"
   | "none";
 
 export interface PlaceModel {
@@ -35,7 +36,7 @@ export interface PlaceModel {
   rotY?: number;
 }
 
-export type LandId = "plaza" | "pets" | "market" | "rides" | "friends" | "dream" | "forest" | "gate";
+export type LandId = "plaza" | "pets" | "market" | "rides" | "friends" | "dream" | "forest" | "gate" | "books" | "golf" | "arcade";
 
 export interface PlaceDef {
   id: string;
@@ -77,6 +78,10 @@ export const LANDS: LandDef[] = [
   { id: "friends", name: "Friends Café", emoji: "💌", x: -30, z: 40, radius: 12, ground: "#cdeeff", entrance: [-21, 31], via: [[-8, 13], [-15, 24]] },
   { id: "dream", name: "My Dream Park", emoji: "🔨", x: 40, z: 12, radius: 18, ground: "#c9f7de", entrance: [23.6, 12.4], via: [[10, 5], [17, 12]] },
   { id: "forest", name: "Sweet Forest", emoji: "🍄", x: 42, z: 50, radius: 18, ground: "#9fe8bf", entrance: [28, 38], via: [[9, 14], [18, 30]] },
+  // outer lands: each gets its own winding path from the plaza
+  { id: "books", name: "Book Nook", emoji: "📚", x: 76, z: -20, radius: 13, ground: "#ffe9b8", entrance: [62, -19], via: [[14, -4], [40, -14], [54, -18]] },
+  { id: "golf", name: "Golf Green", emoji: "⛳", x: -74, z: -24, radius: 14, ground: "#c6f5a8", entrance: [-60, -21], via: [[-14, -3], [-40, -13], [-54, -19]] },
+  { id: "arcade", name: "Arcade Alley", emoji: "🕹️", x: 0, z: -70, radius: 13, ground: "#e0d0ff", entrance: [0, -56], via: [[6, -22], [-3, -40]] },
   { id: "gate", name: "Park Gate", emoji: "🍭", x: 0, z: 52, radius: 6, ground: "#ffd0e6", entrance: [0, 46], via: [[2, 26], [-1, 36]] },
 ];
 
@@ -286,9 +291,9 @@ export const PLACES: PlaceDef[] = [
     id: "arcade",
     label: "AI Arcade",
     emoji: "🕹️",
-    land: "rides",
-    x: -40,
-    z: -30,
+    land: "arcade",
+    x: 6,
+    z: -74,
     radius: 2.4,
     doorRadius: 4.4,
     action: "arcade",
@@ -299,9 +304,9 @@ export const PLACES: PlaceDef[] = [
     id: "mini-golf",
     label: "Candy Golf",
     emoji: "⛳",
-    land: "rides",
-    x: -45,
-    z: -45,
+    land: "golf",
+    x: -76,
+    z: -26,
     radius: 2.4,
     doorRadius: 4.6,
     action: "golf",
@@ -330,30 +335,48 @@ export const PLACES: PlaceDef[] = [
     ],
   },
 
-  // ── Sweet Forest: reading & learning ──
+  // ── Sweet Forest: the Story Theatre stage ──
   {
     id: "story-theatre",
     label: "Story Theatre",
-    emoji: "📖",
+    emoji: "🎭",
     land: "forest",
     x: 36,
     z: 44,
     radius: 2.6,
     doorRadius: 4.6,
-    action: "library",
+    action: "theatre",
     signY: 6,
     models: [
       { kit: "town", id: "stall-red", scale: 3.2 },
       { kit: "holiday", id: "lights-colored", scale: 3.4, offset: [0, 1.6] },
     ],
   },
+
+  // ── Book Nook: reading & learning ──
+  {
+    id: "library",
+    label: "Library",
+    emoji: "📚",
+    land: "books",
+    x: 80,
+    z: -26,
+    radius: 2.6,
+    doorRadius: 4.6,
+    action: "library",
+    signY: 6,
+    models: [
+      { kit: "city", id: "building-g", scale: 3.6, rotY: -Math.PI / 2 },
+      { kit: "holiday", id: "lights-colored", scale: 3.4, offset: [0, 2.8] },
+    ],
+  },
   {
     id: "learning-tree",
     label: "Learning Tree",
     emoji: "🎓",
-    land: "forest",
-    x: 50,
-    z: 56,
+    land: "books",
+    x: 71,
+    z: -11,
     radius: 1.8,
     doorRadius: 4,
     action: "learn",

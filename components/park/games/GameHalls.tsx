@@ -29,11 +29,12 @@ const ARCADE_COMPONENTS = {
   "ai-lie-detector": dynamic(() => import("@/components/arcade/games/AILieDetector"), { ssr: false }),
 } as const;
 
-export type HallKind = "learn" | "library" | "arcade" | "money-town" | "bank";
+export type HallKind = "learn" | "library" | "theatre" | "arcade" | "money-town" | "bank";
 
 export function GameHall({ kind, kidId, onClose }: { kind: HallKind; kidId: string; onClose: () => void }) {
   if (kind === "learn") return <LearnHall kidId={kidId} onClose={onClose} />;
-  if (kind === "library") return <LibraryHall kidId={kidId} onClose={onClose} />;
+  if (kind === "library") return <LibraryHall kidId={kidId} onClose={onClose} books />;
+  if (kind === "theatre") return <LibraryHall kidId={kidId} onClose={onClose} />;
   if (kind === "arcade") return <ArcadeHall kidId={kidId} onClose={onClose} />;
   if (kind === "money-town") return <MoneyTownHall kidId={kidId} onClose={onClose} />;
   return <BankHall kidId={kidId} onClose={onClose} />;
@@ -68,15 +69,17 @@ function LearnHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
   );
 }
 
-// ── 📖 Story Theatre: the whole library of stories and chapter books ──
-function LibraryHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
+// ── 📚 Library (chapter books) and 🎭 Story Theatre (fables, myths and short tales) ──
+const CHAPTER_BOOKS = STORIES.filter((s) => s.chapters?.length);
+const SHORT_TALES = STORIES.filter((s) => !s.chapters?.length);
+function LibraryHall({ kidId, onClose, books }: { kidId: string; onClose: () => void; books?: boolean }) {
   const [progress, setProgress] = useState<Awaited<ReturnType<typeof getLibraryProgress>> | null>(null);
   useEffect(() => {
     getLibraryProgress(kidId).then(setProgress);
   }, [kidId]);
   return (
-    <GameStage title="📖 Story Theatre" color="#0ea5e9" onClose={onClose}>
-      {progress ? <StoryLibrary stories={STORIES} kidId={kidId} initialProgress={progress} /> : <Loading />}
+    <GameStage title={books ? "📚 Library" : "🎭 Story Theatre"} color={books ? "#0ea5e9" : "#e84a8a"} onClose={onClose}>
+      {progress ? <StoryLibrary stories={books ? CHAPTER_BOOKS : SHORT_TALES} kidId={kidId} initialProgress={progress} /> : <Loading />}
     </GameStage>
   );
 }

@@ -346,6 +346,16 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets): Promise
     { kit: "food", id: "lollypop", count: 14, s: [10, 14], minR: 0, maxR: 1, pad: 2.2, land: "forest" },
     // Pet Meadow: flower beds
     { kit: "coaster", id: "flowers", count: 18, s: [2.2, 3], minR: 0, maxR: 1, pad: 1.2, land: "pets" },
+    // Book Nook: a quiet reading garden
+    { kit: "coaster", id: "bench", count: 5, s: [2.4, 2.4], minR: 0, maxR: 1, pad: 2, land: "books" },
+    { kit: "nature", id: "flower_yellowA", count: 16, s: [2.8, 3.6], minR: 0, maxR: 1, pad: 1, land: "books" },
+    { kit: "nature", id: "tree_default", count: 5, s: [2.8, 3.4], minR: 0, maxR: 1, pad: 3, land: "books" },
+    // Golf Green: tidy hedges and flowers
+    { kit: "nature", id: "plant_bush", count: 12, s: [3.5, 4.5], minR: 0, maxR: 1, pad: 1.6, land: "golf" },
+    { kit: "nature", id: "flower_redA", count: 14, s: [2.8, 3.6], minR: 0, maxR: 1, pad: 1, land: "golf" },
+    // Arcade Alley: giant lollipops and lanterns
+    { kit: "food", id: "lollypop", count: 6, s: [10, 13], minR: 0, maxR: 1, pad: 2.4, land: "arcade" },
+    { kit: "town", id: "lantern", count: 6, s: [2.2, 2.6], minR: 0, maxR: 1, pad: 2, land: "arcade" },
   ];
   for (const k of KINDS) {
     const mats: THREE.Matrix4[] = [];
