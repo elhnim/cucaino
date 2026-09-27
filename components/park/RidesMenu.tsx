@@ -11,7 +11,7 @@ export interface RideEntry {
   blurb: string;
   color: string;
   /** "coaster" / "golf" are real 3D rides; otherwise a page route shown in an in-park window */
-  route: ((kidId: string) => string) | "coaster" | "golf" | "market" | "learn" | "library" | "theatre" | "arcade" | "money-town" | "bank";
+  route: ((kidId: string) => string) | "coaster" | "golf" | "market" | "learn" | "library" | "theatre" | "retro" | "arcade" | "money-town" | "bank";
 }
 
 export const RIDES: RideEntry[] = [
@@ -21,6 +21,7 @@ export const RIDES: RideEntry[] = [
   { id: "invest", emoji: "🏦", name: "The Bank", blurb: "Grow your money", color: "#4f46e5", route: "bank" },
   { id: "arcade", emoji: "🕹️", name: "AI Arcade", blurb: "Emoji stories & brain games", color: "#06b6d4", route: "arcade" },
   { id: "money-town", emoji: "💰", name: "Money Town", blurb: "Spin, earn and save", color: "#eab308", route: "money-town" },
+  { id: "retro", emoji: "👾", name: "Retro Arcade", blurb: "20 classic-style pixel games", color: "#9a5cff", route: "retro" },
   { id: "library", emoji: "📚", name: "Library", blurb: "Chapter books, earn stars", color: "#0ea5e9", route: "library" },
   { id: "theatre", emoji: "🎭", name: "Story Theatre", blurb: "Fables, myths & short tales", color: "#e84a8a", route: "theatre" },
   { id: "learn", emoji: "🎓", name: "Learning Tree", blurb: "Life-skill adventures", color: "#f43f5e", route: "learn" },

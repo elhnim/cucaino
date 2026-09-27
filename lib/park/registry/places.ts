@@ -25,6 +25,7 @@ export type PlaceAction =
   | "bank"
   | "golf"
   | "theatre"
+  | "retro"
   | "none";
 
 export interface PlaceModel {
@@ -299,6 +300,23 @@ export const PLACES: PlaceDef[] = [
     action: "arcade",
     signY: 6,
     models: [{ kit: "city", id: "building-a", scale: 3.6 }],
+  },
+  {
+    id: "retro-arcade",
+    label: "Retro Arcade",
+    emoji: "👾",
+    land: "arcade",
+    x: -7,
+    z: -74,
+    radius: 2.6,
+    doorRadius: 4.6,
+    action: "retro",
+    signY: 7,
+    models: [
+      { kit: "city", id: "building-e", scale: 3.6, rotY: Math.PI / 2 },
+      { kit: "holiday", id: "lights-colored", scale: 3.6, offset: [0, 2.6] },
+      { kit: "holiday", id: "lantern-hanging", scale: 2.2, offset: [-2.6, 2.4] },
+    ],
   },
   {
     id: "mini-golf",
