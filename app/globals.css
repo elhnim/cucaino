@@ -382,3 +382,22 @@
     to   { opacity: 1; }
   }
 }
+
+/* ─── Cucaino Park candy skin ─────────────────────────────────────────────────
+   Applied by components/park/games/GameStage.tsx around the learning & money
+   games so their existing screens match the candy park (colours, radii, shadows)
+   without forking each game. Scoped to .candy-skin only. */
+.candy-skin { color: #5a2350; }
+.candy-skin .bg-white { background-color: #fffafd !important; }
+.candy-skin .bg-gray-50, .candy-skin .bg-slate-50, .candy-skin .bg-sky-50,
+.candy-skin [class*="from-amber-50"], .candy-skin [class*="from-green-50"], .candy-skin [class*="from-cyan-50"] { background: transparent !important; }
+.candy-skin .min-h-screen { min-height: 100% !important; }
+.candy-skin .rounded-xl, .candy-skin .rounded-2xl, .candy-skin .rounded-3xl, .candy-skin .rounded-\[14px\] { border-radius: 22px !important; }
+.candy-skin .shadow, .candy-skin .shadow-sm, .candy-skin .shadow-md, .candy-skin .shadow-lg, .candy-skin .shadow-xl {
+  box-shadow: 0 4px 0 #f5d3e6, 0 8px 18px rgba(122, 46, 98, 0.08) !important;
+}
+.candy-skin .border-gray-100, .candy-skin .border-gray-200, .candy-skin .border-slate-200 { border-color: #f5d3e6 !important; }
+.candy-skin .text-gray-900, .candy-skin .text-slate-950, .candy-skin .text-slate-900, .candy-skin .text-gray-800 { color: #5a2350 !important; }
+.candy-skin .text-gray-500, .candy-skin .text-gray-400, .candy-skin .text-slate-500, .candy-skin .text-slate-400 { color: #9b7090 !important; }
+.candy-skin button { font-weight: 800; }
+.candy-skin header.sticky { background: rgba(255, 248, 252, 0.92) !important; border-color: #f5d3e6 !important; }

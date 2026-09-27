@@ -11,18 +11,18 @@ export interface RideEntry {
   blurb: string;
   color: string;
   /** "coaster" / "golf" are real 3D rides; otherwise a page route shown in an in-park window */
-  route: ((kidId: string) => string) | "coaster" | "golf" | "market";
+  route: ((kidId: string) => string) | "coaster" | "golf" | "market" | "learn" | "library" | "arcade" | "money-town" | "bank";
 }
 
 export const RIDES: RideEntry[] = [
   { id: "coaster", emoji: "🎢", name: "Quiz Coaster", blurb: "Ride the rails, answer at every gate!", color: "#ff5fa8", route: "coaster" },
   { id: "golf", emoji: "⛳", name: "Mini Golf", blurb: "5 holes · windmills & bumpers", color: "#2fcf8f", route: "golf" },
   { id: "trading", emoji: "📈", name: "Nugget Market", blurb: "Buy low, sell high!", color: "#22c55e", route: "market" },
-  { id: "invest", emoji: "🏦", name: "The Bank", blurb: "Grow your money", color: "#4f46e5", route: (id) => `/play/invest?kid=${id}` },
-  { id: "arcade", emoji: "🕹️", name: "AI Arcade", blurb: "Emoji stories & brain games", color: "#06b6d4", route: (id) => `/play/arcade?kid=${id}` },
-  { id: "money-town", emoji: "💰", name: "Money Town", blurb: "Spin, earn and save", color: "#eab308", route: (id) => `/play/money-town?kid=${id}` },
-  { id: "library", emoji: "📖", name: "Story Theatre", blurb: "Read stories, earn stars", color: "#0ea5e9", route: (id) => `/play/library?kid=${id}` },
-  { id: "learn", emoji: "🎓", name: "Learn", blurb: "Life-skill adventures", color: "#f43f5e", route: (id) => `/play/learn?kid=${id}` },
+  { id: "invest", emoji: "🏦", name: "The Bank", blurb: "Grow your money", color: "#4f46e5", route: "bank" },
+  { id: "arcade", emoji: "🕹️", name: "AI Arcade", blurb: "Emoji stories & brain games", color: "#06b6d4", route: "arcade" },
+  { id: "money-town", emoji: "💰", name: "Money Town", blurb: "Spin, earn and save", color: "#eab308", route: "money-town" },
+  { id: "library", emoji: "📖", name: "Story Theatre", blurb: "Read stories, earn stars", color: "#0ea5e9", route: "library" },
+  { id: "learn", emoji: "🎓", name: "Learning Tree", blurb: "Life-skill adventures", color: "#f43f5e", route: "learn" },
 ];
 
 export function RidesMenu({ onPick, onClose }: { onPick: (ride: RideEntry) => void; onClose: () => void }) {

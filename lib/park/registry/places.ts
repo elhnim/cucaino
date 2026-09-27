@@ -18,6 +18,11 @@ export type PlaceAction =
   | "build"
   | "parent"
   | "market"
+  | "learn"
+  | "library"
+  | "arcade"
+  | "money-town"
+  | "bank"
   | "none";
 
 export interface PlaceModel {
@@ -243,6 +248,20 @@ export const PLACES: PlaceDef[] = [
     ],
   },
 
+  {
+    id: "bank",
+    label: "The Bank",
+    emoji: "🏦",
+    land: "market",
+    x: 44,
+    z: -36,
+    radius: 2.6,
+    doorRadius: 4.6,
+    action: "bank",
+    signY: 6.2,
+    models: [{ kit: "city", id: "building-e", scale: 3.4 }],
+  },
+
   // ── Ride Land ──
   {
     id: "ride-station",
@@ -260,6 +279,67 @@ export const PLACES: PlaceDef[] = [
       { kit: "coaster", id: "coaster-train-front", scale: 3, offset: [0.4, 0.2], rotY: Math.PI / 4 },
       { kit: "coaster", id: "ride-entrance", scale: 3, offset: [3.2, 2.4], rotY: Math.PI / 4 },
     ],
+  },
+
+  {
+    id: "arcade",
+    label: "AI Arcade",
+    emoji: "🕹️",
+    land: "rides",
+    x: -40,
+    z: -30,
+    radius: 2.4,
+    doorRadius: 4.4,
+    action: "arcade",
+    signY: 6,
+    models: [{ kit: "city", id: "building-a", scale: 3.6 }],
+  },
+  {
+    id: "money-town",
+    label: "Money Town",
+    emoji: "💰",
+    land: "rides",
+    x: -24,
+    z: -50,
+    radius: 2.2,
+    doorRadius: 4.2,
+    action: "money-town",
+    signY: 5,
+    models: [
+      { kit: "town", id: "stall-green", scale: 2.8 },
+      { kit: "holiday", id: "present-b-rectangle", scale: 1.8, offset: [2, 1] },
+    ],
+  },
+
+  // ── Sweet Forest: reading & learning ──
+  {
+    id: "story-theatre",
+    label: "Story Theatre",
+    emoji: "📖",
+    land: "forest",
+    x: 36,
+    z: 44,
+    radius: 2.6,
+    doorRadius: 4.6,
+    action: "library",
+    signY: 6,
+    models: [
+      { kit: "town", id: "stall-red", scale: 3.2 },
+      { kit: "holiday", id: "lights-colored", scale: 3.4, offset: [0, 1.6] },
+    ],
+  },
+  {
+    id: "learning-tree",
+    label: "Learning Tree",
+    emoji: "🎓",
+    land: "forest",
+    x: 50,
+    z: 56,
+    radius: 1.8,
+    doorRadius: 4,
+    action: "learn",
+    signY: 7.6,
+    models: [{ kit: "town", id: "tree-high-round", scale: 3.2 }],
   },
 
   // ── Friends Café ──

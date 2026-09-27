@@ -41,6 +41,9 @@ const QuestBoard = dynamic(() => import("./quests/QuestBoard").then((m) => m.Que
 const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal"), { ssr: false });
 const PrizeShop = dynamic(() => import("./shop/PrizeShop").then((m) => m.PrizeShop), { ssr: false });
 const NuggetMarket = dynamic(() => import("./market/NuggetMarket").then((m) => m.NuggetMarket), { ssr: false });
+const GameHall = dynamic(() => import("./games/GameHalls").then((m) => m.GameHall), { ssr: false });
+const HALLS = ["learn", "library", "arcade", "money-town", "bank"] as const;
+type Hall = (typeof HALLS)[number];
 const FriendsPanel = dynamic(() => import("@/components/game/panels/FriendsPanel").then((m) => m.FriendsPanel), { ssr: false });
 const QuizHubPanel = dynamic(() => import("@/components/game/panels/QuizHubPanel").then((m) => m.QuizHubPanel), { ssr: false });
 const QuizGamePanel = dynamic(() => import("@/components/game/panels/QuizGamePanel").then((m) => m.QuizGamePanel), { ssr: false });
@@ -78,6 +81,12 @@ const ENTER_MAP: Record<string, Panel> = {
   pet: "pet",
   playground: "rides",
   rides: "rides",
+  market: "market",
+  learn: "learn",
+  library: "library",
+  arcade: "arcade",
+  "money-town": "money-town",
+  bank: "bank",
 };
 
 export default function ParkApp({ data }: { data: ParkInitialData }) {
@@ -590,7 +599,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     if (r.route === "coaster") setPanel({ kind: "quiz-hub", placeId: panel?.placeId });
     else if (r.route === "golf") void startGolf();
     else if (r.route === "market") setPanel({ kind: "market", placeId: panel?.placeId });
-    else setPage({ src: r.route(kidId), title: `${r.emoji} ${r.name}` });
+    else if (typeof r.route === "function") setPage({ src: r.route(kidId), title: `${r.emoji} ${r.name}` });
+    else if ((HALLS as readonly string[]).includes(r.route)) setPanel({ kind: r.route as Hall, placeId: panel?.placeId });
   };
 
   const startCoaster = async (bankId: string) => {
@@ -795,6 +805,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       )}
       {panel?.kind === "shop" && <PrizeShop kidId={kidId} onClose={closePanel} />}
       {panel?.kind === "market" && <NuggetMarket kidId={kidId} onClose={closePanel} onStars={setPoints} />}
+      {panel && (HALLS as readonly string[]).includes(panel.kind) && <GameHall kind={panel.kind as Hall} kidId={kidId} onClose={closePanel} />}
       {panel?.kind === "friends" && <FriendsPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} />}
       {panel && PET_MODE[panel.kind] && (
         <PetCareSheet
@@ -1022,6 +1033,11 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   rides: "Quiz Coaster, Mini Golf and games",
   build: "Place new things with your tickets",
   market: "Buy and sell shares with your nuggets",
+  learn: "Life-skill mini-courses — earn stars",
+  library: "Read stories and chapter books — earn stars",
+  arcade: "AI brain games with sparks",
+  "money-town": "The family money board game",
+  bank: "Real-money investing (grown-ups switch it on)",
   parent: "A grown-up PIN is needed",
 };
 
