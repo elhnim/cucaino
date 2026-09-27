@@ -34,6 +34,7 @@ import { seedFromString } from "@/lib/game3d/noise";
 import { CandySheet } from "./ui/CandySheet";
 import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
+import { MiniMap } from "./MiniMap";
 
 // Every building panel loads on demand, never in the park's first download.
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
@@ -725,6 +726,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         ))}
       </div>
 
+      {ready && <MiniMap world={worldRef} hidden={busy || building} />}
       {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={turnBar}>

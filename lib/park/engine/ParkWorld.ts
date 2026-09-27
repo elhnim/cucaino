@@ -107,6 +107,7 @@ export class ParkWorld {
   private time = 0;
   private move = { x: 0, y: 0 };
   private walkTarget: THREE.Vector3 | null = null;
+  private walkQueue: THREE.Vector3[] = [];
   private inputOn = true;
   private nearPlace: string | null = null;
   private idleT = 0;
@@ -157,13 +158,17 @@ export class ParkWorld {
   // ── public API ──
   setMove(x: number, y: number) {
     this.move = { x, y };
-    if (Math.hypot(x, y) > 0.1) this.walkTarget = null;
+    if (Math.hypot(x, y) > 0.1) {
+      this.walkTarget = null;
+      this.walkQueue = [];
+    }
   }
   setInputEnabled(on: boolean) {
     this.inputOn = on;
     if (!on) {
       this.move = { x: 0, y: 0 };
       this.walkTarget = null;
+      this.walkQueue = [];
     }
   }
   setPaused(on: boolean) {
@@ -335,7 +340,14 @@ export class ParkWorld {
   }
   /** Kid-sized walk up to a spot (used by stations so the kid stands next to them). */
   walkKidTo(x: number, z: number) {
+    this.walkQueue = [];
     this.walkTarget = new THREE.Vector3(x, 0, z);
+  }
+  /** Walk the kid along a route of points (e.g. the park paths to a land). */
+  walkKidPath(points: [number, number][]) {
+    const q = points.map(([x, z]) => new THREE.Vector3(x, 0, z));
+    this.walkTarget = q.shift() ?? null;
+    this.walkQueue = q;
   }
   private clearBubble() {
     if (!this.petBubble) return;
@@ -368,6 +380,7 @@ export class ParkWorld {
       ride.scene.add(this.pet.root);
     }
     this.walkTarget = null;
+    this.walkQueue = [];
     this.move = { x: 0, y: 0 };
   }
   exitRide() {
@@ -399,6 +412,7 @@ export class ParkWorld {
   setBuildMode(on: boolean) {
     this.building = on;
     this.walkTarget = null;
+    this.walkQueue = [];
     this.move = { x: 0, y: 0 };
     if (!on) {
       this.dream?.setGhost(null);
@@ -635,12 +649,16 @@ export class ParkWorld {
         // walk to the door, it opens on arrival
         const dir = new THREE.Vector3(-place.x, 0, -place.z).normalize();
         this.walkTarget = new THREE.Vector3(place.x, 0, place.z).addScaledVector(dir, place.radius + 1.4);
+        this.walkQueue = [];
         this.nearPlace = null;
         return;
       }
     }
     const ground = new THREE.Vector3();
-    if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), ground)) this.walkTarget = ground;
+    if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), ground)) {
+      this.walkTarget = ground;
+      this.walkQueue = [];
+    }
   };
   private onVisibility = () => {
     if (document.hidden) this.stop();
@@ -738,7 +756,7 @@ export class ParkWorld {
         const dx = this.walkTarget.x - pos.x;
         const dz = this.walkTarget.z - pos.z;
         const d = Math.hypot(dx, dz);
-        if (d < 0.3) this.walkTarget = null;
+        if (d < 0.3) this.walkTarget = this.walkQueue.shift() ?? null;
         else {
           vx = dx / d;
           vz = dz / d;
@@ -870,6 +888,7 @@ export class ParkWorld {
       }
       if (found && found.id !== this.nearPlace) {
         this.walkTarget = null;
+        this.walkQueue = [];
         this.opts.onPlace?.(found);
       }
       if (!found && this.nearPlace) this.opts.onLeavePlace?.(this.nearPlace);
@@ -929,6 +948,14 @@ export class ParkWorld {
     this.renderer.render(this.scene, this.camera);
     this.frame = requestAnimationFrame(this.tick);
   };
+
+  /** Where the kid (and pet) are and which way the view faces — for the HUD mini map. */
+  getPose(): { x: number; z: number; facing: number; yaw: number; pet: { x: number; z: number } | null } | null {
+    if (!this.kid || this.ride || this.building) return null;
+    const p = this.kid.root.position;
+    const pp = this.pet?.root.position;
+    return { x: p.x, z: p.z, facing: this.kid.facing, yaw: this.camYaw, pet: pp ? { x: pp.x, z: pp.z } : null };
+  }
 
   /** Leave a place: step back out of its door so it doesn't reopen straight away. */
   stepOutOf(placeId: string) {
