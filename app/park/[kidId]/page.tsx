@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getKid, getFamily, getKidPet, listTasksForKid, listCompletionsToday } from "@/lib/data/stub";
-import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
+import { isoWeekday } from "@/lib/domain/schedule";
+import { questsToday } from "@/lib/park/questsToday";
 import type { ParkInitialData } from "@/lib/park/types";
 // Client component; three.js only loads inside its effect, so this SSRs to the loading screen.
 import ParkApp from "@/components/park/ParkApp";
@@ -19,8 +20,6 @@ export default async function ParkPage({ params }: { params: Promise<{ kidId: st
   const dow = isoWeekday(new Date(), tz);
   const [pet, tasks, completions] = await Promise.all([petP, tasksP, listCompletionsToday(kid.id, tz)]);
 
-  const today = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow).filter((t) => t.requiresCompletion);
-  const done = new Set(completions.map((c) => c.taskId));
 
   const data: ParkInitialData = {
     kid: {
@@ -33,7 +32,7 @@ export default async function ParkPage({ params }: { params: Promise<{ kidId: st
       tourSeen: kid.tourSeen,
     },
     pet,
-    tasksToday: { total: today.length, done: today.filter((t) => done.has(t.id)).length },
+    tasksToday: questsToday(tasks, completions, dow),
   };
 
   return <ParkApp data={data} />;

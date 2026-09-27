@@ -21,7 +21,11 @@ import type { UnlockedBadge } from "@/lib/domain/types";
 import { getQuizGameData, type QuizGameData } from "@/lib/actions/world-panels";
 import type { CoasterControls } from "@/lib/park/rides/quizCoaster";
 import type { GolfEvent, GolfControls } from "@/lib/game3d/interiors/minigolf";
-import { getDreamPark, placePiece, movePiece, removePiece, type DreamPark } from "@/lib/actions/park";
+import { getDreamPark, placePiece, movePiece, removePiece, payForPlay, type DreamPark } from "@/lib/actions/park";
+import { hasFreePlay, spendFreePlay } from "@/lib/park/freePlays";
+import { getHabits, type HabitState, type ChestPrize } from "@/lib/actions/park-habits";
+import { PET_TREAT_XP } from "@/lib/data/park-tickets";
+import { levelFromXp, stageFromLevel } from "@/lib/pet/logic";
 import { getPiece } from "@/lib/park/registry/pieces";
 import { TICKETS_PER_QUEST, cellCenter, zoneBounds } from "@/lib/park/builder/rules";
 import { BuilderBar, type BuilderSelection } from "./builder/BuilderBar";
@@ -38,9 +42,11 @@ import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
 
 // Every building panel loads on demand, never in the park's first download.
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
+const MysteryChest = dynamic(() => import("./habits/MysteryChest").then((m) => m.MysteryChest), { ssr: false });
 const QuestBoard = dynamic(() => import("./quests/QuestBoard").then((m) => m.QuestBoard), { ssr: false });
 const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal"), { ssr: false });
 const PrizeShop = dynamic(() => import("./shop/PrizeShop").then((m) => m.PrizeShop), { ssr: false });
+const RetroArcade = dynamic(() => import("./retro/RetroArcade").then((m) => m.RetroArcade), { ssr: false });
 const NuggetMarket = dynamic(() => import("./market/NuggetMarket").then((m) => m.NuggetMarket), { ssr: false });
 const GameHall = dynamic(() => import("./games/GameHalls").then((m) => m.GameHall), { ssr: false });
 const HALLS = ["learn", "library", "theatre", "arcade", "money-town", "bank"] as const;
@@ -86,6 +92,7 @@ const ENTER_MAP: Record<string, Panel> = {
   learn: "learn",
   library: "library",
   theatre: "theatre",
+  retro: "retro",
   arcade: "arcade",
   "money-town": "money-town",
   bank: "bank",
@@ -105,6 +112,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [quizBank, setQuizBank] = useState<string | null>(null);
   const [page, setPage] = useState<{ src: string; title: string } | null>(null);
   const [pet, setPet] = useState<Pet | null>(data.pet);
+  // ── habit loop: streak + daily chest (server), and the pet growing with every quest ──
+  const [habits, setHabits] = useState<HabitState | null>(null);
+  const [showChest, setShowChest] = useState(false);
+  const [petXp, setPetXp] = useState(data.pet?.xp ?? 0);
   const [points, setPoints] = useState(data.kid.pointsBalance);
   const [done, setDone] = useState(data.tasksToday.done);
   const [animal, setAnimal] = useState<ParkAnimal | null>(null);
@@ -190,6 +201,39 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // walking up to a building asks first ("Go into the Prize Shop?") instead of popping it open
   const [ask, setAsk] = useState<PlaceDef | null>(null);
   const [questNudge, setQuestNudge] = useState(false);
+
+  // ── plays cost a ticket (earned from quests); every game's first play each day is free ──
+  const [payAsk, setPayAsk] = useState<{ game: string; what: string; busy?: boolean; error?: string } | null>(null);
+  const payResolve = useRef<((ok: boolean) => void) | null>(null);
+  const payPlay = useCallback(
+    (game: string, what: string): Promise<boolean> => {
+      if (hasFreePlay(kidId, game)) {
+        spendFreePlay(kidId, game);
+        toast("🎁 Your free play today — enjoy!");
+        return Promise.resolve(true);
+      }
+      payResolve.current?.(false);
+      return new Promise<boolean>((resolve) => {
+        payResolve.current = resolve;
+        setPayAsk({ game, what });
+      });
+    },
+    [kidId, toast],
+  );
+  const closePay = (ok: boolean) => {
+    payResolve.current?.(ok);
+    payResolve.current = null;
+    setPayAsk(null);
+  };
+  const confirmPay = async () => {
+    setPayAsk((p) => (p ? { ...p, busy: true, error: undefined } : p));
+    const res = await payForPlay(kidId);
+    setDream((d) => (d ? { ...d, tickets: res.tickets } : d));
+    if (res.ok) {
+      playSfx("coin");
+      closePay(true);
+    } else setPayAsk((p) => (p ? { ...p, busy: false, error: res.error } : p));
+  };
   const enterPlace = useCallback(
     (place: PlaceDef) => {
       if (place.action === "gift") {
@@ -548,9 +592,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setDone((d) => Math.min(data.tasksToday.total, d + 1));
       setPoints((p) => p + pts);
       setDream((d) => (d ? { ...d, tickets: d.tickets + TICKETS_PER_QUEST } : d));
+      setPetXp((x) => x + PET_TREAT_XP);
       worldRef.current?.celebrate(true);
       playSfx("coin");
-      if (detail.name) toast(`${detail.icon ?? "🎉"} Quest complete! +${pts} ⭐ +${TICKETS_PER_QUEST} 🎟️`);
+      if (detail.name) toast(`${detail.icon ?? "🎉"} Quest complete! +${pts} ⭐ +${TICKETS_PER_QUEST} 🎟️${data.pet ? " · 🍪 treat for your pet!" : ""}`);
     };
     const onBadge = (e: Event) => {
       const b = (e as CustomEvent<{ badges?: UnlockedBadge[] }>).detail?.badges;
@@ -572,7 +617,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setDone((d) => Math.max(0, d - 1));
       setPoints((p) => Math.max(0, p - pts));
       setDream((d) => (d ? { ...d, tickets: Math.max(0, d.tickets - TICKETS_PER_QUEST) } : d));
+      setPetXp((x) => Math.max(0, x - PET_TREAT_XP));
     };
+    const onTickets = (e: Event) => {
+      const t = (e as CustomEvent<{ tickets?: number }>).detail?.tickets;
+      if (typeof t === "number") setDream((d) => (d ? { ...d, tickets: t } : d));
+    };
+    window.addEventListener("tickets-changed", onTickets);
     window.addEventListener("task-completed", onDone);
     window.addEventListener("task-uncompleted", onUndone);
     return () => {
@@ -580,6 +631,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       window.removeEventListener("task-uncompleted", onUndone);
       window.removeEventListener("badge-unlocked", onBadge);
       window.removeEventListener("stars-spent", onSpent);
+      window.removeEventListener("tickets-changed", onTickets);
     };
   }, [data.tasksToday.total, toast]);
 
@@ -592,9 +644,62 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         worldRef.current?.fireworks(6);
         playSfx("win");
         toast("🎆 ALL QUESTS DONE! Fireworks for you! 🎆");
+        window.setTimeout(() => toast("🎁 A mystery chest appeared — tap the button to open it!"), 2600);
       }, 1200);
     }
   }, [ready, done, data.tasksToday.total, toast]);
+
+  // streak + chest state from the server (re-read after quests change)
+  useEffect(() => {
+    if (!ready) return;
+    getHabits(kidId)
+      .then(setHabits)
+      .catch(() => {});
+  }, [ready, kidId, done]);
+
+  // the pet grows with every quest: bigger in the park, and a party when it reaches a new stage
+  const petStage = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready || !data.pet) return;
+    const level = levelFromXp(petXp);
+    const stage = stageFromLevel(level);
+    const grew = petStage.current !== null && petStage.current !== stage;
+    petStage.current = stage;
+    worldRef.current?.setPetGrowth(Math.min(1.35, 0.7 + (level - 1) * 0.05), grew);
+    if (grew) {
+      playSfx("win");
+      toast(`🎉 ${data.pet.name} grew up into a ${stage === "child" ? "big kid" : stage}! Keep doing quests to help them grow!`);
+      worldRef.current?.petSay(`I'm a ${stage} now! 🎉`, 4);
+    }
+  }, [ready, petXp, data.pet, toast]);
+
+  // on arrival the pet reminds you about quests (a little mopey if the streak slipped)
+  const petAsked = useRef(false);
+  useEffect(() => {
+    if (!ready || !habits || !data.pet || petAsked.current) return;
+    petAsked.current = true;
+    const left = habits.quests.total - habits.quests.done;
+    if (left <= 0) return;
+    const missed = habits.streak.current === 0 && habits.streak.week.slice(0, 6).some((d) => d.state === "done");
+    window.setTimeout(() => worldRef.current?.petSay(missed ? "I missed you! 🥺 Can we do a quest?" : "Quest time? I'd love a treat! 🍪", 5), 6500);
+  }, [ready, habits, data.pet]);
+
+  const chestReady = data.tasksToday.total > 0 && done >= data.tasksToday.total && !!habits && !habits.chestOpenedToday;
+  const onChestPrize = (prize: ChestPrize, tickets: number) => {
+    setDream((d) => (d ? { ...d, tickets } : d));
+    setHabits((h) => (h ? { ...h, chestOpenedToday: true, tickets } : h));
+    worldRef.current?.fireworks(4);
+    if (prize.kind === "pet") setPetXp((x) => x + prize.amount);
+    if (prize.kind === "sticker") {
+      setAlbum((a) => {
+        const next = [...a, prize.sticker];
+        try {
+          window.localStorage.setItem(albumKey, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  };
 
   // full-screen overlays cover the canvas: stop drawing 3D under them (battery)
   useEffect(() => {
@@ -604,12 +709,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const pickRide = (r: RideEntry) => {
     if (r.route === "coaster") setPanel({ kind: "quiz-hub", placeId: panel?.placeId });
     else if (r.route === "golf") setPanel({ kind: "golf", placeId: panel?.placeId });
+    else if (r.route === "retro") setPanel({ kind: "retro", placeId: panel?.placeId });
     else if (r.route === "market") setPanel({ kind: "market", placeId: panel?.placeId });
     else if (typeof r.route === "function") setPage({ src: r.route(kidId), title: `${r.emoji} ${r.name}` });
     else if ((HALLS as readonly string[]).includes(r.route)) setPanel({ kind: r.route as Hall, placeId: panel?.placeId });
   };
 
   const startCoaster = async (bankId: string) => {
+    if (!(await payPlay("coaster", "a ride on the Quiz Coaster"))) return;
     const quiz = await getQuizGameData(kidId, bankId);
     if (!quiz || quiz.questions.length === 0) {
       toast("That quiz has no questions yet!");
@@ -773,14 +880,18 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {ready && !busy && !building && (
         <button
           type="button"
-          onClick={() => openPanel("quests", "quest-board")}
-          className={questsLeft > 0 ? "quest-wiggle" : undefined}
-          style={{ ...questBtn, background: questsLeft > 0 ? "linear-gradient(#ff8ac2, #ff4f9e)" : "linear-gradient(#6fe2a4, #2fcf8f)", boxShadow: questsLeft > 0 ? "0 5px 0 #d23a82, 0 10px 22px rgba(210,58,130,0.35)" : "0 5px 0 #1f9a64" }}
-          aria-label="Open my quests"
+          onClick={() => (chestReady ? setShowChest(true) : openPanel("quests", "quest-board"))}
+          className={questsLeft > 0 || chestReady ? "quest-wiggle" : undefined}
+          style={{
+            ...questBtn,
+            background: chestReady ? "linear-gradient(#ffd66b, #ffab1f)" : questsLeft > 0 ? "linear-gradient(#ff8ac2, #ff4f9e)" : "linear-gradient(#6fe2a4, #2fcf8f)",
+            boxShadow: chestReady ? "0 5px 0 #d68300, 0 10px 22px rgba(214,131,0,0.4)" : questsLeft > 0 ? "0 5px 0 #d23a82, 0 10px 22px rgba(210,58,130,0.35)" : "0 5px 0 #1f9a64",
+          }}
+          aria-label={chestReady ? "Open your mystery chest" : "Open my quests"}
         >
-          <span style={{ fontSize: 26 }}>{questsLeft > 0 ? "📋" : "✅"}</span>
+          <span style={{ fontSize: 26 }}>{chestReady ? "🎁" : questsLeft > 0 ? "📋" : "✅"}</span>
           <span style={{ textAlign: "left", lineHeight: 1.1 }}>
-            <span style={{ display: "block", fontSize: 16 }}>{questsLeft > 0 ? "My Quests" : "All done!"}</span>
+            <span style={{ display: "block", fontSize: 16 }}>{chestReady ? "Open your chest!" : questsLeft > 0 ? "My Quests" : "All done!"}</span>
             <span style={{ display: "block", fontSize: 12, opacity: 0.92 }}>
               {data.tasksToday.total === 0 ? "No quests today" : questsLeft > 0 ? `${questsLeft} to do · earn ⭐ + 🎟️` : `${done}/${data.tasksToday.total} finished`}
             </span>
@@ -922,11 +1033,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         </div>
       )}
       {panel?.kind === "rides" && <RidesMenu onPick={pickRide} onClose={closePanel} />}
+      {panel?.kind === "retro" && <RetroArcade kidId={kidId} onClose={closePanel} pay={payPlay} />}
       {panel?.kind === "golf" && (
         <CandySheet title="⛳ Candy Golf" subtitle="18 holes of windmills, portals, hills, ice and water!" color="#2fcf8f" onClose={closePanel}>
           <div style={{ display: "grid", gap: 10 }}>
             {GOLF_ROUNDS.map((c) => (
-              <button key={c.name} type="button" onClick={() => void startGolf(c.from, c.count)} style={golfPick}>
+              <button
+                key={c.name}
+                type="button"
+                onClick={() => void payPlay("golf", "a round of Candy Golf").then((ok) => {
+                    if (ok) void startGolf(c.from, c.count);
+                  })}
+                style={golfPick}
+              >
                 <span style={{ fontSize: 34 }}>{c.emoji}</span>
                 <span style={{ textAlign: "left" }}>
                   <span style={{ display: "block", fontWeight: 900, fontSize: 18, color: "#1f5130" }}>{c.name}</span>
@@ -1038,6 +1157,49 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               </div>
             </>
           )}
+        </div>
+      )}
+      {showChest && <MysteryChest kidId={kidId} onClose={() => setShowChest(false)} onPrize={onChestPrize} />}
+      {payAsk && (
+        <div style={payWrap}>
+          <div style={payCard}>
+            <div style={{ fontSize: 44, lineHeight: 1 }}>🎟️</div>
+            {(dream?.tickets ?? 0) > 0 ? (
+              <>
+                <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>Use 1 ticket for {payAsk.what}?</div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#9b7090" }}>
+                  You have 🎟️ {dream?.tickets ?? 0}. Today&apos;s free play is used, so this one costs a ticket.
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>You need a ticket to play again</div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: "#9b7090" }}>Finish a quest to earn 🎟️ tickets. Every quest = 1 ticket!</div>
+              </>
+            )}
+            {payAsk.error && <div style={{ fontWeight: 900, color: "#e11d48" }}>{payAsk.error}</div>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+              <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => closePay(false)}>
+                Not now
+              </button>
+              {(dream?.tickets ?? 0) > 0 ? (
+                <button disabled={payAsk.busy} style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }} onClick={() => void confirmPay()}>
+                  {payAsk.busy ? "…" : "Play! 🎟️ 1"}
+                </button>
+              ) : (
+                <button
+                  style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }}
+                  onClick={() => {
+                    closePay(false);
+                    if (worldRef.current?.inRide) leaveRide();
+                    setPanel({ kind: "quests", placeId: "quest-board" });
+                  }}
+                >
+                  📋 My Quests
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
       {showAlbum && (
@@ -1156,6 +1318,7 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   arcade: "AI brain games with sparks",
   "money-town": "The family money board game",
   golf: "18 holes of candy mini golf",
+  retro: "20 classic-style pixel games",
   bank: "Real-money investing (grown-ups switch it on)",
   parent: "A grown-up PIN is needed",
 };
@@ -1193,6 +1356,29 @@ const askCard: React.CSSProperties = {
   padding: "12px 14px",
   background: "linear-gradient(#ffffff, #fff4fa)",
   boxShadow: "0 6px 0 #ffb8d9, 0 12px 28px rgba(122,46,98,0.22)",
+};
+
+const payWrap: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 90,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 16,
+  background: "rgba(90,35,80,0.35)",
+};
+const payCard: React.CSSProperties = {
+  width: "min(420px, 100%)",
+  borderRadius: 30,
+  padding: 20,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 10,
+  textAlign: "center",
+  background: "linear-gradient(#fff8fc, #ffeaf5)",
+  boxShadow: "0 8px 0 #f3b6d6, 0 20px 40px rgba(122,46,98,0.25)",
 };
 
 const questBtn: React.CSSProperties = {

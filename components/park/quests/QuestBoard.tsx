@@ -7,6 +7,7 @@ import WeeklyGoals from "@/components/kid/WeeklyGoals";
 import { SUBJECTS } from "@/lib/registry/subject-registry";
 import { CandySheet } from "../ui/CandySheet";
 import { QuestCard } from "./QuestCard";
+import { StreakStrip } from "../habits/StreakStrip";
 
 /** The Quest Board: today's chores as quests, the week at a glance, weekly goals, self-add. */
 export function QuestBoard({
@@ -72,6 +73,7 @@ export function QuestBoard({
 
   return (
     <CandySheet title="📋 Quest Board" subtitle={subtitle} color="#ff5fa8" onClose={onClose}>
+      <StreakStrip kidId={kidId} refreshKey={refreshKey} />
       {data === "loading" ? (
         <p style={muted}>Loading your quests…</p>
       ) : !data ? (

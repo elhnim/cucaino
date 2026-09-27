@@ -108,6 +108,8 @@ export class ParkWorld {
   private npcs: { actor: Actor; target: THREE.Vector3; wait: number }[] = [];
   private kid: Actor | null = null;
   private pet: Actor | null = null;
+  /** how big the pet has grown (it grows with the kid's chores; see setPetGrowth) */
+  private petGrowth = 1;
   private clock = new THREE.Clock();
   private time = 0;
   private move = { x: 0, y: 0 };
@@ -380,7 +382,7 @@ export class ParkWorld {
     if (this.pet) this.scene.remove(this.pet.root);
     this.kid.root.position.copy(ride.spawnPoint);
     this.kid.root.scale.setScalar(ride.actorScale ?? 1);
-    this.pet?.root.scale.setScalar(ride.actorScale ?? 1);
+    this.pet?.root.scale.setScalar((ride.actorScale ?? 1) * this.petGrowth);
     if (!ride.hideKid) ride.scene.add(this.kid.root);
     if (this.pet && !ride.hideKid) {
       this.pet.root.position.copy(ride.spawnPoint).add(new THREE.Vector3(1.2, 0, 0.8));
@@ -398,7 +400,7 @@ export class ParkWorld {
     ride.dispose();
     this.ride = null;
     this.kid.root.scale.setScalar(1);
-    this.pet?.root.scale.setScalar(1);
+    this.pet?.root.scale.setScalar(this.petGrowth);
     this.kid.root.position.copy(this.rideReturn ?? new THREE.Vector3(SPAWN.x, 0, SPAWN.z));
     this.kid.root.position.y = 0;
     this.scene.add(this.kid.root);
@@ -450,6 +452,7 @@ export class ParkWorld {
       next.root.position.copy(this.kid.root.position).add(new THREE.Vector3(1.8, 0, 1));
     }
     this.pet = next;
+    next.root.scale.setScalar(this.petGrowth);
     this.scene.add(next.root);
     this.play(next, "gesture-positive", true);
     this.burst(next.root.position.clone().setY(1.4), 40);
@@ -488,6 +491,7 @@ export class ParkWorld {
       this.scene.add(kid.root);
       if (pet) {
         this.pet = pet;
+        pet.root.scale.setScalar(this.petGrowth);
         pet.root.position.set(SPAWN.x + 1.8, 0, SPAWN.z + 1);
         this.scene.add(pet.root);
       }
@@ -957,6 +961,16 @@ export class ParkWorld {
     this.renderer.render(this.scene, this.camera);
     this.frame = requestAnimationFrame(this.tick);
   };
+
+  /** Grow (or shrink) the pet in the park, e.g. 0.7 for a baby up to ~1.35 fully grown. */
+  setPetGrowth(scale: number, celebrate = false) {
+    this.petGrowth = scale;
+    if (this.pet && !this.ride) this.pet.root.scale.setScalar(scale);
+    if (celebrate && this.pet) {
+      this.play(this.pet, "gesture-positive", true);
+      this.burst(this.pet.root.position.clone().setY(1.2), 40);
+    }
+  }
 
   /** Where the kid (and pet) are and which way the view faces — for the HUD mini map. */
   getPose(): { x: number; z: number; facing: number; yaw: number; pet: { x: number; z: number } | null } | null {

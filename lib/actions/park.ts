@@ -99,3 +99,29 @@ export async function removePiece(kidId: string, uid: string): Promise<BuildResu
   if (err) return { ok: false, error: err };
   return { ok: true, park: { ...park, tickets, layout } };
 }
+
+/** What one paid play costs (a Candy Golf round, a coaster ride, 3 arcade credits). */
+const PLAY_COST = 1;
+
+export type PlayResult = { ok: true; tickets: number } | { ok: false; error: string; tickets: number };
+
+/**
+ * Spend a ticket on a play. Tickets only come from finishing quests, so this is the
+ * "chores -> play" loop. (Each game's first play of the day is free; the client tracks that.)
+ */
+export async function payForPlay(kidId: string): Promise<PlayResult> {
+  const row = await loadRow(kidId);
+  if (!row) return { ok: false, error: "Park not found.", tickets: 0 };
+  if (row.tickets < PLAY_COST) return { ok: false, error: "Not enough tickets — finish a quest to earn more!", tickets: row.tickets };
+  const sb = await db();
+  // only succeeds if nobody spent tickets in between (no double-spend from two taps)
+  const { data, error } = await sb
+    .from("kid_parks")
+    .update({ tickets: row.tickets - PLAY_COST, updated_at: new Date().toISOString() })
+    .eq("kid_id", kidId)
+    .eq("tickets", row.tickets)
+    .select("tickets")
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: "Oops, try that again.", tickets: row.tickets };
+  return { ok: true, tickets: (data as { tickets: number }).tickets };
+}

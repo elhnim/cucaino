@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { awardTickets } from "@/lib/data/park-tickets";
+import { awardTickets, awardPetXp, PET_TREAT_XP } from "@/lib/data/park-tickets";
 import { TICKETS_PER_QUEST } from "@/lib/park/builder/rules";
 import { createClient } from "@/lib/supabase/server";
 import { localDateString } from "@/lib/data/queries";
@@ -240,8 +240,8 @@ export async function completeTask(
     }
   }
 
-  // Cucaino Park: every completed quest also earns a Dream Park ticket
-  await awardTickets(supabase, kidId, TICKETS_PER_QUEST);
+  // Cucaino Park: every completed quest also earns a Dream Park ticket and a treat for the pet
+  await Promise.all([awardTickets(supabase, kidId, TICKETS_PER_QUEST), awardPetXp(supabase, kidId, PET_TREAT_XP)]);
 
   revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true, newTiers: newTiers.length > 0 ? newTiers : undefined };
@@ -371,7 +371,7 @@ export async function uncompleteTask(
   }
 
   // undoing a quest takes its Dream Park ticket back (never below 0)
-  await awardTickets(supabase, kidId, -TICKETS_PER_QUEST);
+  await Promise.all([awardTickets(supabase, kidId, -TICKETS_PER_QUEST), awardPetXp(supabase, kidId, -PET_TREAT_XP)]);
 
   revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true };
@@ -423,7 +423,7 @@ export async function approveCompletion(completionId: string): Promise<ActionRes
     ]);
   }
 
-  await awardTickets(supabase, kid_id, TICKETS_PER_QUEST);
+  await Promise.all([awardTickets(supabase, kid_id, TICKETS_PER_QUEST), awardPetXp(supabase, kid_id, PET_TREAT_XP)]);
 
   revalidatePath("/parent");
   revalidatePath(`/kid/${kid_id}/todo`);
