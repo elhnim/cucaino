@@ -9,6 +9,7 @@ import { AmbientBackdrop } from "@/components/game/AmbientBackdrop";
 import type { PickerCharacter } from "@/lib/park/world/pickerScene";
 import { loadParkAnimalChoice } from "@/lib/park/registry/animals";
 import { prefetchPark } from "@/lib/park/loadPark";
+import { getFamilyProgress } from "@/lib/actions/park-quests";
 import type { Kid } from "@/lib/domain/types";
 import type { Theme } from "@/lib/themes/presets";
 
@@ -40,7 +41,13 @@ export default function SelectKidClient({
   const [isPending, startTransition] = useTransition();
 
   const themeById = new Map(themes.map((t) => [t.id, t]));
-  const progressById = new Map(kidProgress.map((p) => [p.kidId, p]));
+  const [progress, setProgress] = useState(kidProgress);
+  useEffect(() => {
+    if (kids.length === 0) return;
+    getFamilyProgress(kids.map((k) => k.id)).then(setProgress).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const progressById = new Map(progress.map((p) => [p.kidId, p]));
 
   const tap = (kid: Kid) => {
     // start rendering their world on the server while they type the PIN

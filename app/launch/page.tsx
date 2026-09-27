@@ -1,4 +1,4 @@
-import BlastOffScreen from "@/components/auth/BlastOffScreen";
+import CandyLoading from "@/components/park/ui/CandyLoading";
 import LaunchRedirect from "@/components/auth/LaunchRedirect";
 
 // Statically prerendered (CDN-served, service-worker cacheable) so the rocket
@@ -10,7 +10,7 @@ export const dynamic = "force-static";
 export default function LaunchPage() {
   return (
     <>
-      <BlastOffScreen prefetch />
+      <CandyLoading />
       <LaunchRedirect />
     </>
   );

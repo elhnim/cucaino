@@ -155,3 +155,17 @@ export async function getPrizeShop(kidId: string): Promise<PrizeShopData | null>
     totalStarsEarned: kid.totalStarsEarned ?? 0,
   };
 }
+
+/** Per-kid "done/total today" for the kid picker — loaded after the picker is on screen. */
+export async function getFamilyProgress(kidIds: string[]): Promise<{ kidId: string; done: number; total: number }[]> {
+  const family = await getFamily();
+  const tz = family?.timezone ?? "Australia/Sydney";
+  const dow = isoWeekday(new Date(), tz);
+  return Promise.all(
+    kidIds.map(async (kidId) => {
+      const [tasks, completions] = await Promise.all([listTasksForKid(kidId), listCompletionsToday(kidId, tz)]);
+      const today = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow).filter((t) => t.requiresCompletion);
+      return { kidId, done: completions.length, total: today.length };
+    }),
+  );
+}

@@ -1,7 +1,6 @@
-import { listKids, getParentPinFromDb, getFamily, listTasksForKid, listCompletionsToday } from "@/lib/data/stub";
+import { listKids, getParentPinFromDb, getFamily } from "@/lib/data/stub";
 import { listThemes } from "@/lib/themes/presets";
 import { ensureFamilySeeded } from "@/lib/actions/auth";
-import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import SelectKidClient from "@/components/kid/SelectKidClient";
 
 export default async function SelectKidPage() {
@@ -18,19 +17,8 @@ export default async function SelectKidPage() {
     [kids, family] = await Promise.all([listKids(), getFamily()]);
   }
 
-  const tz = family?.timezone ?? "Australia/Sydney";
-  const dow = isoWeekday(new Date(), tz);
-  const kidProgress = await Promise.all(
-    kids.map(async (kid) => {
-      const [tasks, completions] = await Promise.all([
-        listTasksForKid(kid.id),
-        listCompletionsToday(kid.id, tz),
-      ]);
-      const todayTasks = tasksForDay(tasks.filter((t) => t.rule !== "flexible"), dow).filter((t) => t.requiresCompletion);
-      return { kidId: kid.id, done: completions.length, total: todayTasks.length };
-    })
-  );
-
+  // Per-kid progress (2 queries per kid) loads client-side after the picker is on screen,
+  // so it never delays the first paint.
   const themes = listThemes();
   return (
     <SelectKidClient
@@ -41,7 +29,6 @@ export default async function SelectKidPage() {
       familyName={family?.name ?? null}
       parentDisplayName={family?.parentDisplayName ?? null}
       parentAvatar={family?.parentAvatar ?? "🧙"}
-      kidProgress={kidProgress}
     />
   );
 }

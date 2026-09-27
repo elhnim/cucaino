@@ -1,7 +1,6 @@
-import BlastOffScreen from "@/components/auth/BlastOffScreen";
+import CandyLoading from "@/components/park/ui/CandyLoading";
 
-// Streams instantly while the kid-picker renders on the server — so opening
-// the app shows the Blast-off rocket, not a grey skeleton.
+// Streams instantly while the kid picker renders on the server.
 export default function Loading() {
-  return <BlastOffScreen prefetch />;
+  return <CandyLoading />;
 }
