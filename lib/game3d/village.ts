@@ -1,15 +1,16 @@
 import * as THREE from "three";
 import {
-  makeGrassTexture,
   makeDirtPathTexture,
   makeStoneTexture,
-  makeRoofTexture,
-  makeWoodTexture,
   makeSkyGradientTexture,
   makeSparkleTexture,
   makeWaterTexture,
 } from "./textures";
+import { labelSprite, pyramidRoof, woodBox, flag } from "./buildingKit";
 import { LANDMARKS, type LandmarkKey } from "./types";
+import { GROUND_BASE_Y as G } from "./terrainMath";
+import type { Biome } from "./biomes";
+import { ATTRACTIONS, attractionPosition } from "./registry/attractions";
 
 export const ISLAND_RADIUS = 34;
 export const LANDMARK_RING = 24;
@@ -26,88 +27,6 @@ export interface Village {
   spawnPoint: THREE.Vector3;
   /** advance ambient animation + collectible sparkle pickups; returns how many were collected this tick */
   update(dt: number, playerPos: THREE.Vector3): number;
-}
-
-function labelSprite(text: string): THREE.Sprite {
-  const w = 512, h = 160;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d")!;
-  ctx.font = "700 64px system-ui, -apple-system, sans-serif";
-  const metrics = ctx.measureText(text);
-  const padX = 48;
-  const boxW = Math.min(w, metrics.width + padX * 2);
-  const boxX = (w - boxW) / 2;
-  const boxH = 96, boxY = (h - boxH) / 2;
-  const r = 32;
-  ctx.fillStyle = "rgba(30, 20, 10, 0.28)";
-  roundRect(ctx, boxX + 4, boxY + 8, boxW, boxH, r);
-  ctx.fill();
-  ctx.fillStyle = "#fffaf0";
-  roundRect(ctx, boxX, boxY, boxW, boxH, r);
-  ctx.fill();
-  ctx.strokeStyle = "#e8c07a";
-  ctx.lineWidth = 5;
-  roundRect(ctx, boxX, boxY, boxW, boxH, r);
-  ctx.stroke();
-  ctx.fillStyle = "#5a3a18";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, w / 2, boxY + boxH / 2 + 4);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(4.4, 4.4 * (h / w), 1);
-  return sprite;
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
-function pyramidRoof(radius: number, height: number, colorHex: string): THREE.Mesh {
-  const tex = makeRoofTexture(colorHex);
-  tex.repeat.set(2, 2);
-  const geo = new THREE.ConeGeometry(radius, height, 4, 1);
-  geo.rotateY(Math.PI / 4);
-  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, flatShading: true }));
-  mesh.castShadow = true;
-  return mesh;
-}
-
-function woodBox(w: number, h: number, d: number, colorHex: string): THREE.Mesh {
-  const tex = makeWoodTexture(colorHex);
-  tex.repeat.set(Math.max(1, w / 2.4), Math.max(1, h / 2.4));
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, flatShading: true }));
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-function flag(colorHex: string, height: number): THREE.Group {
-  const g = new THREE.Group();
-  const pole = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.045, 0.045, height, 6),
-    new THREE.MeshStandardMaterial({ color: 0x8a6a3c, flatShading: true }),
-  );
-  pole.position.y = height / 2;
-  g.add(pole);
-  const cloth = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.6, 0.4, 4, 1),
-    new THREE.MeshStandardMaterial({ color: colorHex, side: THREE.DoubleSide, flatShading: true }),
-  );
-  cloth.position.set(0.32, height - 0.28, 0);
-  g.add(cloth);
-  g.userData.cloth = cloth;
-  return g;
 }
 
 function buildBarn(accent: string): THREE.Group {
@@ -285,11 +204,11 @@ function scatterTrees(scene: THREE.Scene, avoid: (x: number, z: number) => boole
     const x = Math.sin(angle) * r, z = Math.cos(angle) * r;
     if (avoid(x, z)) continue;
     const s = 0.85 + Math.random() * 0.5;
-    m.compose(new THREE.Vector3(x, 0.55 * s, z), new THREE.Quaternion(), new THREE.Vector3(s, s, s));
+    m.compose(new THREE.Vector3(x, G + 0.55 * s, z), new THREE.Quaternion(), new THREE.Vector3(s, s, s));
     trunks.setMatrixAt(count, m);
-    m.compose(new THREE.Vector3(x, (1.1 + 0.85) * s, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * Math.PI, 0)), new THREE.Vector3(s, s, s));
+    m.compose(new THREE.Vector3(x, G + (1.1 + 0.85) * s, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * Math.PI, 0)), new THREE.Vector3(s, s, s));
     leaves1.setMatrixAt(count, m);
-    m.compose(new THREE.Vector3(x, (1.1 + 1.55) * s, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * Math.PI, 0)), new THREE.Vector3(s, s, s));
+    m.compose(new THREE.Vector3(x, G + (1.1 + 1.55) * s, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * Math.PI, 0)), new THREE.Vector3(s, s, s));
     leaves2.setMatrixAt(count, m);
     count++;
   }
@@ -318,11 +237,11 @@ function scatterSmall(scene: THREE.Scene, avoid: (x: number, z: number) => boole
     const roll = Math.random();
     if (roll < 0.5 && bc < 30) {
       const s = 0.7 + Math.random() * 0.6;
-      m.compose(new THREE.Vector3(x, 0.32 * s, z), new THREE.Quaternion(), new THREE.Vector3(s, s * 0.8, s));
+      m.compose(new THREE.Vector3(x, G + 0.32 * s, z), new THREE.Quaternion(), new THREE.Vector3(s, s * 0.8, s));
       bush.setMatrixAt(bc++, m);
     } else if (rc < 16) {
       const s = 0.6 + Math.random() * 0.8;
-      m.compose(new THREE.Vector3(x, 0.25 * s, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random(), Math.random(), Math.random())), new THREE.Vector3(s, s, s));
+      m.compose(new THREE.Vector3(x, G + 0.25 * s, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random(), Math.random(), Math.random())), new THREE.Vector3(s, s, s));
       rocks.setMatrixAt(rc++, m);
     }
   }
@@ -339,7 +258,7 @@ function scatterSmall(scene: THREE.Scene, avoid: (x: number, z: number) => boole
       const gi = Math.floor(Math.random() * flowerGroups.length);
       if (fc[gi] >= 20) continue;
       const x = cx + (Math.random() - 0.5) * 1.4, z = cz + (Math.random() - 0.5) * 1.4;
-      m.compose(new THREE.Vector3(x, 0.13, z), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+      m.compose(new THREE.Vector3(x, G + 0.13, z), new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
       flowerGroups[gi].setMatrixAt(fc[gi]++, m);
     }
   }
@@ -353,15 +272,22 @@ function scatterSmall(scene: THREE.Scene, avoid: (x: number, z: number) => boole
   });
 }
 
-export function buildVillage(scene: THREE.Scene, accent: string): Village {
+export interface VillageOptions {
+  biome: Biome;
+  /** low tier drops the plaza point lights (each one adds per-pixel cost to every lit material) */
+  lowQuality?: boolean;
+}
+
+export function buildVillage(scene: THREE.Scene, accent: string, opts: VillageOptions): Village {
+  const { biome, lowQuality = false } = opts;
   // sky dome
-  const skyTex = makeSkyGradientTexture("#8fd7ff", "#eaf6ff");
+  const skyTex = makeSkyGradientTexture(biome.skyTop, biome.skyBottom);
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(300, 24, 16),
     new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false }),
   );
   scene.add(sky);
-  scene.fog = new THREE.Fog(0xdcefff, 70, 240);
+  scene.fog = new THREE.Fog(biome.fog, 70, 240);
 
   const sun = new THREE.Mesh(
     new THREE.SphereGeometry(6, 12, 12),
@@ -375,7 +301,7 @@ export function buildVillage(scene: THREE.Scene, accent: string): Village {
   const dir = new THREE.DirectionalLight(0xfff3d8, 1.35);
   dir.position.set(-40, 55, 24);
   dir.castShadow = true;
-  dir.shadow.mapSize.set(2048, 2048);
+  dir.shadow.mapSize.set(1024, 1024);
   dir.shadow.camera.left = -50;
   dir.shadow.camera.right = 50;
   dir.shadow.camera.top = 50;
@@ -385,21 +311,8 @@ export function buildVillage(scene: THREE.Scene, accent: string): Village {
   scene.add(dir);
   scene.add(dir.target);
 
-  // main island
-  const grassTex = makeGrassTexture();
-  grassTex.repeat.set(10, 10);
-  const stoneTex = makeStoneTexture();
-  stoneTex.repeat.set(8, 2);
-  const island = new THREE.Mesh(
-    new THREE.CylinderGeometry(ISLAND_RADIUS, ISLAND_RADIUS - 4, 3, 32, 1),
-    [
-      new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 1 }),
-      new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.95 }),
-      new THREE.MeshStandardMaterial({ color: 0x6b5a3c }),
-    ],
-  );
-  island.receiveShadow = true;
-  scene.add(island);
+  // The ground itself (village clearing + endless countryside beyond it) is owned by
+  // terrain.ts now — this module only places the hand-built plaza/landmarks/decor on top of it.
 
   // distant floating islands for depth/parallax
   for (const [ax, r, s] of [[40, 95, 5], [150, 120, 6.5], [260, 105, 4]] as [number, number, number][]) {
@@ -464,9 +377,11 @@ export function buildVillage(scene: THREE.Scene, accent: string): Village {
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffe6a0, emissive: 0xffcf6b, emissiveIntensity: 0.9 }));
     glow.position.set(x, 3.95, z);
     scene.add(glow);
-    const light = new THREE.PointLight(0xffcf6b, 0.6, 9);
-    light.position.set(x, 3.95, z);
-    scene.add(light);
+    if (!lowQuality) {
+      const light = new THREE.PointLight(0xffcf6b, 0.6, 9);
+      light.position.set(x, 3.95, z);
+      scene.add(light);
+    }
   }
 
   // landmarks laid out around the plaza, joined by paths
@@ -516,13 +431,15 @@ export function buildVillage(scene: THREE.Scene, accent: string): Village {
     landmarks.push({ key: def.key, position: pos.clone().setY(1.5), radius });
   }
 
+  const attractionSpots = ATTRACTIONS.map((a) => attractionPosition(a, 0));
+  const nearAttraction = (x: number, z: number, pad: number) => attractionSpots.some((p) => Math.hypot(x - p.x, z - p.z) < pad);
   scatterTrees(scene, (x, z) => {
-    if (Math.hypot(x, z) < 8) return true;
+    if (Math.hypot(x, z) < 8 || nearAttraction(x, z, 4)) return true;
     for (const l of landmarks) if (Math.hypot(x - l.position.x, z - l.position.z) < l.radius + 2.2) return true;
     return Math.hypot(x, z) > ISLAND_RADIUS - 3;
   });
   scatterSmall(scene, (x, z) => {
-    if (Math.hypot(x, z) < 7.5) return true;
+    if (Math.hypot(x, z) < 7.5 || nearAttraction(x, z, 3)) return true;
     for (const l of landmarks) if (Math.hypot(x - l.position.x, z - l.position.z) < l.radius + 1.6) return true;
     return Math.hypot(x, z) > ISLAND_RADIUS - 3;
   });
@@ -530,13 +447,15 @@ export function buildVillage(scene: THREE.Scene, accent: string): Village {
   // collectible sparkle coins scattered along the paths, for a little bonus fun
   const coinGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.08, 14);
   const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd447, emissive: 0xb8860b, emissiveIntensity: 0.35, metalness: 0.5, roughness: 0.3 });
+  const COIN_Y = G + 0.9;
+  const COIN_RESPAWN_S = 25;
   const coins: THREE.Mesh[] = [];
   for (const l of landmarks) {
     const dirN = l.position.clone().setY(0).normalize();
     for (const t of [0.35, 0.65]) {
       const p = dirN.clone().multiplyScalar(6.2 + (l.position.length() - 6.2) * t);
       const coin = new THREE.Mesh(coinGeo, coinMat);
-      coin.position.set(p.x + (Math.random() - 0.5) * 1.2, 1.1, p.z + (Math.random() - 0.5) * 1.2);
+      coin.position.set(p.x + (Math.random() - 0.5) * 1.2, COIN_Y, p.z + (Math.random() - 0.5) * 1.2);
       coin.castShadow = true;
       coin.userData.bobPhase = Math.random() * Math.PI * 2;
       scene.add(coin);
@@ -564,6 +483,25 @@ export function buildVillage(scene: THREE.Scene, accent: string): Village {
     scene.add(pts);
     bursts.push({ pts, life: 0.7 });
   }
+
+  // butterflies drifting over the flower beds — two planes each, almost free to draw
+  const butterflyColors = [0xff8fc7, 0xffd447, 0x9ad0ff, 0xc9a2ff, 0xffffff, 0xffa24c];
+  const wingGeo = new THREE.PlaneGeometry(0.28, 0.2);
+  wingGeo.translate(0.14, 0, 0);
+  const butterflies: { group: THREE.Group; wings: THREE.Mesh[]; cx: number; cz: number; r: number; speed: number; phase: number }[] = [];
+  butterflyColors.forEach((c, i) => {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide });
+    const w1 = new THREE.Mesh(wingGeo, mat);
+    const w2 = new THREE.Mesh(wingGeo, mat);
+    w1.rotation.x = w2.rotation.x = -Math.PI / 2;
+    w2.scale.x = -1;
+    g.add(w1, w2);
+    const a = (i / butterflyColors.length) * Math.PI * 2 + 0.4;
+    const r = 9 + (i % 3) * 3.5;
+    scene.add(g);
+    butterflies.push({ group: g, wings: [w1, w2], cx: Math.sin(a) * r, cz: Math.cos(a) * r, r: 1.6 + (i % 2), speed: 0.6 + i * 0.07, phase: i * 1.3 });
+  });
 
   let t = 0;
   return {
@@ -601,14 +539,40 @@ export function buildVillage(scene: THREE.Scene, accent: string): Village {
       }
       let collected = 0;
       for (const coin of coins) {
-        if (!coin.visible) continue;
+        if (!coin.visible) {
+          // coins grow back so there is always something shiny to chase around the village
+          if (t >= (coin.userData.respawnAt as number)) {
+            coin.visible = true;
+            coin.scale.setScalar(0.01);
+          }
+          continue;
+        }
+        if (coin.scale.x < 1) coin.scale.setScalar(Math.min(1, coin.scale.x + dt * 2.5));
         coin.rotation.y += dt * 2.4;
-        coin.position.y = 1.1 + Math.sin(t * 3 + (coin.userData.bobPhase as number)) * 0.12;
-        if (coin.position.distanceTo(new THREE.Vector3(playerPos.x, 1.1, playerPos.z)) < 1.1) {
+        coin.position.y = COIN_Y + Math.sin(t * 3 + (coin.userData.bobPhase as number)) * 0.12;
+        const dx = coin.position.x - playerPos.x;
+        const dz = coin.position.z - playerPos.z;
+        if (dx * dx + dz * dz < 1.2) {
           coin.visible = false;
+          coin.userData.respawnAt = t + COIN_RESPAWN_S;
           spawnBurst(coin.position);
           collected++;
         }
+      }
+      waterTex.offset.x = (t * 0.03) % 1;
+      waterTex.offset.y = (t * 0.018) % 1;
+      spout.rotation.y += dt * 0.6;
+      for (const b of butterflies) {
+        const a = t * b.speed + b.phase;
+        b.group.position.set(
+          b.cx + Math.sin(a) * b.r,
+          G + 0.9 + Math.sin(a * 2.3) * 0.35,
+          b.cz + Math.cos(a * 0.8) * b.r,
+        );
+        b.group.rotation.y = a + Math.PI / 2;
+        const flap = Math.sin(t * 22 + b.phase) * 0.9;
+        b.wings[0].rotation.y = flap;
+        b.wings[1].rotation.y = -flap;
       }
       for (let i = bursts.length - 1; i >= 0; i--) {
         const b = bursts[i];

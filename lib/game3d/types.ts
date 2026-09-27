@@ -21,15 +21,14 @@ export interface LandmarkDef {
   key: LandmarkKey;
   label: string;
   emoji: string;
-  /** null = handled in-world (opens a panel) instead of navigating to a route */
-  route: string | null;
   angleDeg: number;
 }
 
+/** Every landmark now opens a real 3D interior room (lib/game3d/interiors/) instead of navigating away. */
 export const LANDMARKS: LandmarkDef[] = [
-  { key: "work", label: "Schedule", emoji: "📋", route: "todo", angleDeg: -90 },
-  { key: "shop", label: "Store", emoji: "🏪", route: "rewards", angleDeg: -18 },
-  { key: "friends", label: "Friends", emoji: "💌", route: "friends", angleDeg: 54 },
-  { key: "playground", label: "Play", emoji: "🎪", route: "play", angleDeg: 126 },
-  { key: "pet", label: "Pet Home", emoji: "🐾", route: null, angleDeg: 198 },
+  { key: "work", label: "Schedule", emoji: "📋", angleDeg: -90 },
+  { key: "shop", label: "Store", emoji: "🏪", angleDeg: -18 },
+  { key: "friends", label: "Friends", emoji: "💌", angleDeg: 54 },
+  { key: "playground", label: "Play", emoji: "🎪", angleDeg: 126 },
+  { key: "pet", label: "Pet Home", emoji: "🐾", angleDeg: 198 },
 ];

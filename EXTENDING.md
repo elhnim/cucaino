@@ -120,3 +120,25 @@ Every page imports from `@/lib/data/stub`. When Supabase is wired:
 - No page or component changes required
 
 This is the single seam between presentation and persistence.
+
+## 3D world (`/kid/[kidId]/world`) — adding fun without touching the engine
+
+The three.js world is driven by small registries under `lib/game3d/registry/`. Each one is
+a plain array/table — append an entry and the engine builds, animates and disposes it.
+
+| Want to add… | Edit | Notes |
+|---|---|---|
+| A playable animal | `registry/animals.ts` → `ANIMALS` | Built from procedural parts (`ears`, `tail`, `extras`) in `character.ts`; shows up in the in-world wardrobe (🐾 Me) and the kid-picker meadow automatically. Choice is stored per device in localStorage. |
+| A pet species look | `registry/animals.ts` → `PET_SPECIES_LOOK` | Maps a Star Pets species id to an animal look. |
+| A plaza attraction | `registry/attractions.ts` → `ATTRACTIONS`, then handle its `id` in `handleAttraction` in `components/game/KidGameApp.tsx` | Pick a free `angleDeg`/`ring` between the landmarks (landmarks sit at ring 24; attractions at ~12–14). Trees auto-avoid it. |
+| A habit hook (beacon / greeting / attraction state) | `registry/hooks.ts` → `HOOKS` | Pure `evaluate(HabitState)`; effects from all hooks are merged. Beacons can target a landmark key or an attraction id. |
+| A "did you know?" fact | `registry/attractions.ts` → `FUN_FACTS` | Popped by the wishing well. |
+| A daily-gift reward message | `registry/hooks.ts` → `DAILY_GIFTS` | |
+| A countryside surprise type | `surprises.ts` → `FINDS`, `KIND_ORDER`, `buildKind()` | One surprise per terrain chunk (seeded per kid); the pet runs to the nearest one. |
+| An arcade game cabinet | `interiors/playhall.ts` → `CABINETS` | Cabinet, animated screen and trigger zone are generated from the entry. |
+| A theme's outdoor look | `biomes.ts` | Sky gradient, fog and grass tint per `ThemeId`. |
+
+Performance rules for new content: share geometries/materials across instances, never add
+point-light shadows (one directional shadow per scene only), prefer emissive materials and
+additive sprites for "glow" (there is intentionally no bloom pass), and check the `low`
+quality tier (`detectQualityTier()` in `engine.ts`) still looks fine.
