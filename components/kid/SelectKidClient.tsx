@@ -8,6 +8,7 @@ import { signOut, verifyParentPin } from "@/lib/actions/auth";
 import { AmbientBackdrop } from "@/components/game/AmbientBackdrop";
 import type { AmbientCharacter } from "@/lib/game3d/ambient";
 import { loadAnimalChoice } from "@/lib/game3d/registry/animals";
+import { prefetchWorld } from "@/lib/game3d/loadWorld";
 import type { Kid } from "@/lib/domain/types";
 import type { Theme } from "@/lib/themes/presets";
 
@@ -42,6 +43,8 @@ export default function SelectKidClient({
   const progressById = new Map(kidProgress.map((p) => [p.kidId, p]));
 
   const tap = (kid: Kid) => {
+    // start rendering their world on the server while they type the PIN
+    router.prefetch(`/kid/${kid.id}/world`);
     if (kid.pin) {
       setModal({ kind: "verify", kid });
     } else {
@@ -64,6 +67,14 @@ export default function SelectKidClient({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kids]);
+
+  // While the kid is choosing / typing their PIN, quietly download the 3D world (three.js is
+  // already cached from this meadow) so the park opens almost instantly afterwards.
+  useEffect(() => {
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (idle) idle(() => prefetchWorld());
+    else window.setTimeout(prefetchWorld, 1200);
+  }, []);
 
   const goToParent = () => {
     if (hasParentPin) {

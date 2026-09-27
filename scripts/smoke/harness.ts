@@ -7,6 +7,7 @@ import { buildScheduleInterior } from "../../lib/game3d/interiors/schedule";
 import { buildStoreInterior } from "../../lib/game3d/interiors/store";
 import { buildFriendsInterior } from "../../lib/game3d/interiors/friends";
 import { buildPlayHallInterior } from "../../lib/game3d/interiors/playhall";
+import { buildMiniGolfInterior } from "../../lib/game3d/interiors/minigolf";
 import type { InitialGameData } from "../../lib/game3d/types";
 import { ANIMALS, getAnimal } from "../../lib/game3d/registry/animals";
 
@@ -62,3 +63,6 @@ world.setBeacon("daily-gift", "🎁");
 world.setAttractionState("daily-gift", { ready: true });
 world.setAttractionState("fireworks", { show: true });
 world.setPetMood("🍽️");
+
+(window as unknown as { __golf?: unknown }).__golf = (accent: string) =>
+  buildMiniGolfInterior(accent, (e) => console.log("[smoke] golf", JSON.stringify(e)));

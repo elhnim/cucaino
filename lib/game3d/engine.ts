@@ -55,6 +55,10 @@ export interface World3DOptions {
   onPetTap?: () => void;
   /** Fired when the kid walks up to a plaza attraction (registry/attractions.ts). */
   onAttraction?: (id: string) => void;
+  /** Fired once the first frame is on screen (after shaders compiled off the main thread). */
+  onReady?: () => void;
+  /** Fired when a ride (Ferris wheel, carousel ...) finishes. */
+  onRideEnd?: (id: string) => void;
   /** Fired when the kid discovers a hidden surprise out in the countryside. */
   onSurprise?: (find: SurpriseFind) => void;
 }
@@ -101,13 +105,14 @@ export class World3D {
   private surprises: Surprises;
   private attractions: { id: string; position: THREE.Vector3; inst: AttractionInstance }[] = [];
   private nearAttraction: string | null = null;
+  private riding: { id: string; inst: AttractionInstance; t: number } | null = null;
   private container: HTMLElement;
   private clock = new THREE.Clock();
   private moveVec = { x: 0, y: 0 };
   private mode: "exterior" | "interior" = "exterior";
   private interior: Interior | null = null;
   private exteriorReturn: THREE.Vector3 | null = null;
-  private enteredFrom: LandmarkKey | null = null;
+  private enteredFrom: string | null = null;
   private nearLandmark: LandmarkKey | null = null;
   private nearZone: string | null = null;
   private sparklesCollected = 0;
@@ -185,8 +190,33 @@ export class World3D {
     this.resizeObserver = new ResizeObserver(() => this.applySize());
     this.resizeObserver.observe(container);
     this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown);
+    this.renderer.domElement.addEventListener("pointermove", this.onPointerMove);
+    window.addEventListener("pointerup", this.onPointerUp);
     document.addEventListener("visibilitychange", this.onVisibility);
 
+    void this.warmUp();
+  }
+
+  /**
+   * Compile every shader the outdoor scene needs before the first frame. Without this the
+   * first render stalls the main thread for hundreds of ms on tablets (dozens of material
+   * variants); compileAsync uses KHR_parallel_shader_compile where available so the loading
+   * screen keeps animating meanwhile.
+   */
+  private async warmUp() {
+    try {
+      // Some drivers never report parallel-compile completion — never let that hold the
+      // loading screen up: after 2.5s just start, and finish compiling on first render.
+      await Promise.race([
+        this.renderer.compileAsync(this.exteriorScene, this.camera),
+        new Promise((resolve) => setTimeout(resolve, 2500)),
+      ]);
+    } catch {
+      // older drivers: fall back to compiling on first render
+    }
+    if (this.disposed) return;
+    this.renderer.render(this.activeScene, this.camera);
+    this.opts.onReady?.();
     this.start();
   }
 
@@ -235,6 +265,18 @@ export class World3D {
   /** Drive an attraction's look from React (e.g. daily gift ready, fireworks on). */
   setAttractionState(id: string, state: Record<string, unknown>) {
     this.attractions.find((a) => a.id === id)?.inst.setState?.(state);
+  }
+
+  /** Hop on a rideable attraction (Ferris wheel, carousel). No-op if it isn't rideable. */
+  startRide(id: string) {
+    const a = this.attractions.find((x) => x.id === id);
+    if (!a?.inst.ride || this.riding || this.mode !== "exterior") return;
+    this.riding = { id, inst: a.inst, t: 0 };
+    this.setInputEnabled(false);
+  }
+
+  get isRiding() {
+    return !!this.riding;
   }
 
   /** A sparkle burst at an attraction, e.g. when the daily gift is opened. */
@@ -303,7 +345,7 @@ export class World3D {
   }
 
   /** Walks the player into a freshly-built interior room, remembering where to put them back outside. */
-  enterInterior(build: (accent: string) => Interior, from?: LandmarkKey) {
+  enterInterior(build: (accent: string) => Interior, from?: LandmarkKey | string) {
     if (this.mode === "interior") return;
     this.exteriorReturn = this.player.root.position.clone();
     this.enteredFrom = from ?? this.nearLandmark;
@@ -340,7 +382,12 @@ export class World3D {
     this.mode = "exterior";
     this.nearZone = null;
 
-    const node = this.village.landmarks.find((l) => l.key === this.enteredFrom);
+    const node =
+      this.village.landmarks.find((l) => l.key === this.enteredFrom) ??
+      (() => {
+        const a = this.attractions.find((x) => x.id === this.enteredFrom);
+        return a ? { position: a.position, radius: a.inst.radius } : undefined;
+      })();
     if (node) {
       // Step back out onto the path, clear of the entrance trigger — otherwise the very next
       // frame would see the player standing in the doorway and walk them straight back in.
@@ -352,7 +399,8 @@ export class World3D {
       this.player.root.position.copy(this.exteriorReturn);
     }
     // belt and braces: even if the step-out lands inside a trigger, don't re-fire until they leave it
-    this.nearLandmark = this.enteredFrom;
+    this.nearLandmark = this.village.landmarks.some((l) => l.key === this.enteredFrom) ? (this.enteredFrom as LandmarkKey) : null;
+    this.nearAttraction = this.enteredFrom;
     this.enteredFrom = null;
 
     this.player.root.position.y = this.terrain.heightAt(this.player.root.position.x, this.player.root.position.z);
@@ -389,11 +437,28 @@ export class World3D {
     else if (!this.paused) this.start();
   };
 
-  private onPointerDown = (e: PointerEvent) => {
-    if (!this.pet) return;
+  private rayFrom(e: PointerEvent) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
+    return this.raycaster.ray;
+  }
+
+  private onPointerMove = (e: PointerEvent) => {
+    if (this.interior?.pointer) this.interior.pointer("move", this.rayFrom(e));
+  };
+
+  private onPointerUp = (e: PointerEvent) => {
+    if (this.interior?.pointer) this.interior.pointer("up", this.rayFrom(e));
+  };
+
+  private onPointerDown = (e: PointerEvent) => {
+    if (this.interior?.pointer) {
+      this.interior.pointer("down", this.rayFrom(e));
+      return;
+    }
+    if (!this.pet) return;
+    this.rayFrom(e);
     if (this.raycaster.intersectObject(this.pet.root, true).length > 0) {
       this.celebratePet();
       this.opts.onPetTap?.();
@@ -514,8 +579,33 @@ export class World3D {
     } else {
       this.idleT += dt;
     }
-    this.player.root.position.y = this.groundY(this.player.root.position.x, this.player.root.position.z);
-    this.player.update(dt, moving);
+    const anchor = this.mode === "interior" ? this.interior?.playerAnchor?.() : null;
+    if (this.riding) {
+      const r = this.riding;
+      const ride = r.inst.ride!;
+      r.t += dt / ride.duration;
+      const facing = ride.seat(Math.min(1, r.t), this.player.root.position);
+      this.player.setFacingAngle(facing);
+      if (r.t >= 1) {
+        const a = this.attractions.find((x) => x.id === r.id)!;
+        const out = a.position.clone().setY(0).normalize().multiplyScalar(-(a.inst.radius + 2.6));
+        this.player.root.position.set(a.position.x + out.x, 0, a.position.z + out.z);
+        this.player.root.position.y = this.groundY(this.player.root.position.x, this.player.root.position.z);
+        this.riding = null;
+        this.nearAttraction = r.id;
+        this.setInputEnabled(true);
+        this.player.celebrate();
+        this.opts.onRideEnd?.(r.id);
+      }
+    } else if (anchor) {
+      // mini-game rooms place the player themselves (e.g. the golfer beside the ball)
+      this.player.root.position.lerp(anchor.position, Math.min(1, dt * 8));
+      this.player.setFacingAngle(anchor.facing);
+      this.player.root.position.y = this.groundY(this.player.root.position.x, this.player.root.position.z);
+    } else {
+      this.player.root.position.y = this.groundY(this.player.root.position.x, this.player.root.position.z);
+    }
+    this.player.update(dt, moving || (!!anchor && this.player.root.position.distanceTo(anchor.position) > 0.1));
     if (this.mode === "exterior") this.terrain.update(this.player.root.position);
 
     if (this.pet) {
@@ -621,10 +711,14 @@ export class World3D {
       }
     }
 
-    const offset = this.mode === "interior" ? (this.interior?.cameraOffset ?? INTERIOR_CAMERA_OFFSET) : CAMERA_OFFSET;
-    const desired = this.player.root.position.clone().add(offset);
+    const offset =
+      this.mode === "interior"
+        ? (this.interior?.cameraOffset ?? INTERIOR_CAMERA_OFFSET)
+        : (this.riding?.inst.ride?.cameraOffset ?? CAMERA_OFFSET);
+    const focus = this.mode === "interior" && this.interior?.cameraFocus ? this.interior.cameraFocus() : this.player.root.position;
+    const desired = focus.clone().add(offset);
     this.camera.position.lerp(desired, Math.min(1, dt * 4));
-    const lookAt = this.player.root.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+    const lookAt = focus.clone().add(new THREE.Vector3(0, 1.1, 0));
     this.camera.lookAt(lookAt);
 
     this.renderer.render(this.activeScene, this.camera);
@@ -636,6 +730,8 @@ export class World3D {
     this.stop();
     this.resizeObserver.disconnect();
     this.renderer.domElement.removeEventListener("pointerdown", this.onPointerDown);
+    this.renderer.domElement.removeEventListener("pointermove", this.onPointerMove);
+    window.removeEventListener("pointerup", this.onPointerUp);
     document.removeEventListener("visibilitychange", this.onVisibility);
     if (this.interior) {
       this.clearBursts(this.interior.scene);

@@ -17,6 +17,8 @@ export interface HabitState {
   /** pet care streak from the database */
   petCareStreak: number;
   dailyGiftReady: boolean;
+  /** has the kid finished a round of mini golf today (per device) */
+  playedGolfToday: boolean;
 }
 
 export interface HookEffects {
@@ -68,6 +70,10 @@ export const HOOKS: WorldHook[] = [
       attractionState: { "daily-gift": { ready: s.dailyGiftReady } },
       ...(s.dailyGiftReady ? { beacons: { "daily-gift": "🎁" }, greeting: "Your daily gift is waiting on the plaza! 🎁" } : {}),
     }),
+  },
+  {
+    id: "try-minigolf",
+    evaluate: (s) => (s.playedGolfToday ? {} : { beacons: { minigolf: "⛳" } }),
   },
   {
     id: "visit-streak",
@@ -124,6 +130,15 @@ export function recordVisit(kidId: string): number {
   streak = last === yesterday ? streak + 1 : 1;
   write(key, `${today}|${streak}`);
   return streak;
+}
+
+/** Generic "done today?" flag for any daily activity (mini golf round, rides, ...). */
+export function doneToday(kidId: string, what: string): boolean {
+  return read(`cucaino.world.${what}.${kidId}`) === todayStr();
+}
+
+export function markDoneToday(kidId: string, what: string) {
+  write(`cucaino.world.${what}.${kidId}`, todayStr());
 }
 
 export function isDailyGiftReady(kidId: string): boolean {

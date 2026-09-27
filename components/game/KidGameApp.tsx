@@ -2,45 +2,54 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import type { World3D as World3DClass } from "@/lib/game3d/engine";
+import { loadWorld, prefetchWorld } from "@/lib/game3d/loadWorld";
 import type { SurpriseFind } from "@/lib/game3d/surprises";
 import { seedFromString } from "@/lib/game3d/noise";
-import { buildPetHomeInterior } from "@/lib/game3d/interiors/pethome";
-import { buildScheduleInterior } from "@/lib/game3d/interiors/schedule";
-import { buildStoreInterior } from "@/lib/game3d/interiors/store";
-import { buildFriendsInterior } from "@/lib/game3d/interiors/friends";
-import { buildPlayHallInterior, resolveDoorwayRoute } from "@/lib/game3d/interiors/playhall";
+import { resolveDoorwayRoute } from "@/lib/game3d/registry/arcade";
+import type { GolfEvent, GolfControls } from "@/lib/game3d/interiors/minigolf";
 import type { Interior } from "@/lib/game3d/interiors/types";
 import { LANDMARKS, type InitialGameData, type LandmarkKey } from "@/lib/game3d/types";
 import { loadAnimalChoice, saveAnimalChoice, animalForPetSpecies, type AnimalDef } from "@/lib/game3d/registry/animals";
-import { FUN_FACTS } from "@/lib/game3d/registry/attractions";
+import { FUN_FACTS } from "@/lib/game3d/registry/facts";
 import {
   evaluateHooks,
   recordVisit,
   isDailyGiftReady,
   claimDailyGift,
+  doneToday,
+  markDoneToday,
   DAILY_GIFTS,
 } from "@/lib/game3d/registry/hooks";
 import { getTheme } from "@/lib/themes/presets";
 import { getSpecies, moodFor, type Pet } from "@/lib/pet/logic";
 import GameFullscreen from "@/components/games/GameFullscreen";
 import { Joystick } from "./Joystick";
-import { PetPanel } from "./panels/PetPanel";
-import { TodoPanel } from "./panels/TodoPanel";
-import { RewardsPanel } from "./panels/RewardsPanel";
-import { FriendsPanel } from "./panels/FriendsPanel";
-import { QuizHubPanel } from "./panels/QuizHubPanel";
-import { QuizGamePanel } from "./panels/QuizGamePanel";
-import { WardrobePanel } from "./panels/WardrobePanel";
+
+// Panels are only needed once a kid walks into a building, so each loads on demand instead of
+// weighing down the world's first download (QuizGame, FriendsPage, TodoTaskCard... add up).
+const PetPanel = dynamic(() => import("./panels/PetPanel").then((m) => m.PetPanel), { ssr: false });
+const TodoPanel = dynamic(() => import("./panels/TodoPanel").then((m) => m.TodoPanel), { ssr: false });
+const RewardsPanel = dynamic(() => import("./panels/RewardsPanel").then((m) => m.RewardsPanel), { ssr: false });
+const FriendsPanel = dynamic(() => import("./panels/FriendsPanel").then((m) => m.FriendsPanel), { ssr: false });
+const QuizHubPanel = dynamic(() => import("./panels/QuizHubPanel").then((m) => m.QuizHubPanel), { ssr: false });
+const QuizGamePanel = dynamic(() => import("./panels/QuizGamePanel").then((m) => m.QuizGamePanel), { ssr: false });
+const WardrobePanel = dynamic(() => import("./panels/WardrobePanel").then((m) => m.WardrobePanel), { ssr: false });
 
 type SimplePanelKey = "pet" | "work" | "shop" | "friends";
+type Interiors = Awaited<ReturnType<typeof loadWorld>>[1];
 
-const INTERIOR_BUILDERS: Record<SimplePanelKey, (accent: string) => Interior> = {
-  pet: buildPetHomeInterior,
-  work: buildScheduleInterior,
-  shop: buildStoreInterior,
-  friends: buildFriendsInterior,
+const INTERIOR_FOR: Record<SimplePanelKey, keyof Interiors> = {
+  pet: "buildPetHomeInterior",
+  work: "buildScheduleInterior",
+  shop: "buildStoreInterior",
+  friends: "buildFriendsInterior",
 };
+
+// Start downloading three.js + the engine the moment this module is evaluated on the client —
+// in parallel with hydration — instead of waiting for the first useEffect.
+prefetchWorld();
 
 const TOAST_MS = 2800;
 
@@ -69,8 +78,15 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
   const [animal, setAnimal] = useState<AnimalDef | null>(null);
   const [visitStreak, setVisitStreak] = useState(0);
   const [giftReady, setGiftReady] = useState(false);
+  const [golf, setGolf] = useState<{ hole: number; name: string; par: number; strokes: number; scores: number[]; done?: { total: number; par: number } } | null>(null);
+  const [playedGolf, setPlayedGolf] = useState(false);
+  const golfControls = useRef<GolfControls>({});
+  const [riding, setRiding] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [flash, setFlash] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [bootError, setBootError] = useState(false);
+  const interiorsRef = useRef<Interiors | null>(null);
   const toastId = useRef(0);
   const bonusSparkles = useRef(0);
 
@@ -98,16 +114,17 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
         visitStreak,
         petCareStreak: pet?.careStreak ?? 0,
         dailyGiftReady: giftReady,
+        playedGolfToday: playedGolf,
       }),
     // petMood is derived from pet
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.kid.name, pet, tasksDone, data.tasksToday.total, visitStreak, giftReady],
+    [data.kid.name, pet, tasksDone, data.tasksToday.total, visitStreak, giftReady, playedGolf],
   );
 
   const applyEffects = useCallback(() => {
     const world = worldRef.current;
     if (!world) return;
-    const keys = [...LANDMARKS.map((l) => l.key as string), "daily-gift", "wishing-well", "fireworks"];
+    const keys = [...LANDMARKS.map((l) => l.key as string), "daily-gift", "wishing-well", "fireworks", "minigolf", "ferris-wheel", "carousel"];
     for (const k of keys) world.setBeacon(k, effects.beacons[k] ?? null);
     for (const [id, st] of Object.entries(effects.attractionState)) world.setAttractionState(id, st);
     const m = petMood;
@@ -135,6 +152,18 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
       } else if (id === "wishing-well") {
         world?.setAttractionState("wishing-well", { splash: true });
         toast(`🪙 Did you know? ${FUN_FACTS[Math.floor(Math.random() * FUN_FACTS.length)]}`);
+      } else if (id === "ferris-wheel" || id === "carousel") {
+        if (world?.isRiding) return;
+        world?.startRide(id);
+        setRiding(id);
+        toast(id === "ferris-wheel" ? "Up, up and away! 🎡 Look at the whole park!" : "Wheee! Round and round! 🎠");
+      } else if (id === "minigolf") {
+        enterMiniGolf();
+      } else if (id === "balloons") {
+        world?.celebrate();
+        toast("Here's a balloon for you! 🎈 Have a happy day!");
+      } else if (id === "park-gate") {
+        toast("🎡 Welcome to Cucaino Park! Ride, play and explore!");
       } else if (id === "fireworks") {
         const left = data.tasksToday.total - tasksDone;
         toast(left > 0 ? `Finish ${left} more chore${left === 1 ? "" : "s"} to light the fireworks! 🎆` : "Woohoo! Enjoy the show! 🎆");
@@ -142,6 +171,49 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     },
     [kidId, toast, addSparkles, data.tasksToday.total, tasksDone],
   );
+  const handleGolf = useCallback(
+    (e: GolfEvent) => {
+      if (e.type === "hole-start") {
+        setGolf((g) => ({ hole: e.hole, name: e.name, par: e.par, strokes: 0, scores: e.hole === 1 ? [] : (g?.scores ?? []) }));
+        if (e.hole > 1) toast(`⛳ Hole ${e.hole}: ${e.name} · Par ${e.par}`);
+      } else if (e.type === "stroke") {
+        setGolf((g) => (g ? { ...g, strokes: e.strokes } : g));
+      } else if (e.type === "sunk") {
+        setGolf((g) => (g ? { ...g, scores: [...g.scores, e.strokes] } : g));
+        worldRef.current?.celebrate();
+        const bonus = Math.max(1, 6 - (e.strokes - e.par) * 2);
+        addSparkles(bonus);
+        toast(`${e.label} (${e.strokes} stroke${e.strokes === 1 ? "" : "s"}) +${bonus} ✨`);
+      } else if (e.type === "course-done") {
+        setGolf((g) => (g ? { ...g, done: { total: e.total, par: e.par } } : g));
+        markDoneToday(kidId, "golf");
+        setPlayedGolf(true);
+        worldRef.current?.celebrate();
+        addSparkles(20);
+        toast(`🏆 Course complete! ${e.total} strokes (par ${e.par}) +20 ✨`);
+      }
+    },
+    [toast, addSparkles, kidId],
+  );
+
+  const enterMiniGolf = useCallback(() => {
+    const world = worldRef.current;
+    if (!world) return;
+    setFlash(true);
+    window.setTimeout(() => setFlash(false), 260);
+    const build = interiorsRef.current?.buildMiniGolfInterior;
+    if (!build) return;
+    world.enterInterior((accent) => build(accent, (e) => golfRef.current(e), golfControls.current), "minigolf");
+    toast("⛳ Drag back from anywhere to aim, let go to putt!");
+  }, [toast]);
+  const golfRef = useRef(handleGolf);
+  golfRef.current = handleGolf;
+
+  const leaveMiniGolf = useCallback(() => {
+    worldRef.current?.exitInterior();
+    setGolf(null);
+  }, []);
+
   const attractionRef = useRef(handleAttraction);
   attractionRef.current = handleAttraction;
 
@@ -175,11 +247,12 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     worldRef.current?.setInputEnabled(false);
     window.setTimeout(() => {
       setArrival(null);
-      if (key === "playground") {
-        worldRef.current?.enterInterior(buildPlayHallInterior, key);
+      const interiors = interiorsRef.current;
+      if (interiors && key === "playground") {
+        worldRef.current?.enterInterior(interiors.buildPlayHallInterior, key);
         setInPlayHall(true);
-      } else {
-        worldRef.current?.enterInterior(INTERIOR_BUILDERS[key as SimplePanelKey], key);
+      } else if (interiors) {
+        worldRef.current?.enterInterior(interiors[INTERIOR_FOR[key as SimplePanelKey]] as (accent: string) => Interior, key);
         setActivePanel(key as SimplePanelKey);
       }
       worldRef.current?.setInputEnabled(true);
@@ -206,9 +279,12 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     const streak = recordVisit(kidId);
     setVisitStreak(streak);
     setGiftReady(isDailyGiftReady(kidId));
+    setPlayedGolf(doneToday(kidId, "golf"));
 
-    import("@/lib/game3d/engine").then(({ World3D }) => {
+    loadWorld()
+      .then(([{ World3D }, interiors]) => {
       if (disposed || !hostRef.current) return;
+      interiorsRef.current = interiors;
       world = new World3D(hostRef.current, {
         playerAccent: theme.accent,
         playerAnimal: chosen,
@@ -222,11 +298,17 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
         onPetTap: handlePetTap,
         onAttraction: (id) => attractionRef.current(id),
         onSurprise: handleSurprise,
+        onRideEnd: () => setRiding(null),
+        onReady: () => setReady(true),
       });
       worldRef.current = world;
       world.waveHello();
       applyEffectsRef.current();
-    });
+    })
+      .catch(() => {
+        // chunk failed to download, or WebGL unavailable — don't leave the loader up forever
+        if (!disposed) setBootError(true);
+      });
 
     return () => {
       disposed = true;
@@ -284,12 +366,13 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     worldRef.current?.setPlayerAnimal(a);
   };
 
-  const panelOpen = !!activePanel || showQuizHub || !!activeQuizBankId || showWardrobe;
+  const panelOpen = !!activePanel || showQuizHub || !!activeQuizBankId || showWardrobe || !!golf || !!riding;
 
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#bfe6ff" }}>
       <style>
         {"@keyframes cucaino-flash { from { opacity: 1; } to { opacity: 0; } }" +
+          "@keyframes cucaino-bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-18px); } }" +
           "@keyframes cucaino-pop { 0% { transform: translateY(-8px) scale(0.9); opacity: 0; } 12% { transform: none; opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }"}
       </style>
       <GameFullscreen />
@@ -297,7 +380,11 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
 
       <div style={hudTopStyle}>
         <div style={{ display: "flex", gap: 8 }}>
-          {inPlayHall ? (
+          {golf ? (
+            <button style={backBtnStyle} onClick={leaveMiniGolf}>
+              🚪 Leave Mini Golf
+            </button>
+          ) : inPlayHall ? (
             <button style={backBtnStyle} onClick={leavePlayHall}>
               🚪 Leave Arcade
             </button>
@@ -306,7 +393,7 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
               ← Home
             </button>
           )}
-          {!activePanel && !inPlayHall && (
+          {!activePanel && !inPlayHall && !golf && (
             <button style={backBtnStyle} onClick={() => setShowWardrobe(true)} aria-label="Choose your animal">
               {animal?.emoji ?? "🐾"} Me
             </button>
@@ -319,6 +406,33 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
           {sparkles > 0 && <Chip emoji="✨" value={sparkles} />}
         </div>
       </div>
+
+      {golf && (
+        <div style={golfCardStyle}>
+          {golf.done ? (
+            <>
+              <div style={{ fontWeight: 900, fontSize: 18 }}>🏆 {golf.done.total} strokes · par {golf.done.par}</div>
+              <div style={{ fontSize: 13, opacity: 0.8 }}>{golf.scores.map((s, i) => `${i + 1}:${s}`).join("  ")}</div>
+              <div style={{ display: "flex", gap: 8, marginTop: 6, justifyContent: "center" }}>
+                <button style={golfBtnStyle} onClick={() => { golfControls.current.restart?.(); setGolf((g) => (g ? { ...g, done: undefined, scores: [] } : g)); }}>
+                  🔄 Play again
+                </button>
+                <button style={golfBtnStyle} onClick={leaveMiniGolf}>
+                  🎡 Back to the park
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 900 }}>⛳ Hole {golf.hole} · {golf.name}</div>
+              <div style={{ fontSize: 14 }}>
+                Par {golf.par} · Strokes <b>{golf.strokes}</b>
+                {golf.scores.length > 0 && ` · Total ${golf.scores.reduce((a, c) => a + c, 0)}`}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div style={{ ...arrivalStyle, opacity: arrival ? 1 : 0 }}>
         {arrival && `${LANDMARKS.find((l) => l.key === arrival)?.emoji} ${LANDMARKS.find((l) => l.key === arrival)?.label}!`}
@@ -333,6 +447,27 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
       </div>
 
       {flash && <div style={flashStyle} />}
+
+      {/* stays up until the first real frame is painted, then fades — no blank-sky wait */}
+      <div style={{ ...loaderStyle, opacity: ready ? 0 : 1, pointerEvents: ready ? "none" : "auto" }} aria-hidden={ready}>
+        {bootError ? (
+          <>
+            <div style={{ fontSize: 56 }}>🙈</div>
+            <div style={{ fontWeight: 900, fontSize: 20, color: "#5a3a18", textAlign: "center", padding: "0 24px" }}>
+              The park couldn&apos;t open on this device.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button style={backBtnStyle} onClick={() => window.location.reload()}>🔄 Try again</button>
+              <button style={backBtnStyle} onClick={() => router.push(`/kid/${kidId}/home`)}>🏠 Home</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 64, animation: "cucaino-bounce 0.9s ease-in-out infinite" }}>{animal?.emoji ?? "🎡"}</div>
+            <div style={{ fontWeight: 900, fontSize: 22, color: "#5a3a18" }}>Opening Cucaino Park…</div>
+          </>
+        )}
+      </div>
 
       {!panelOpen && <Joystick onChange={(x, y) => worldRef.current?.setMoveVector(x, y)} />}
 
@@ -471,6 +606,44 @@ const toastStyle: React.CSSProperties = {
   borderRadius: 18,
   boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
   animation: `cucaino-pop ${TOAST_MS}ms ease forwards`,
+};
+
+const golfCardStyle: React.CSSProperties = {
+  position: "fixed",
+  bottom: "max(20px, env(safe-area-inset-bottom))",
+  left: "50%",
+  transform: "translateX(-50%)",
+  background: "rgba(255,255,255,0.94)",
+  color: "#1f5130",
+  borderRadius: 20,
+  padding: "10px 18px",
+  textAlign: "center",
+  boxShadow: "0 6px 20px rgba(0,0,0,0.18)",
+  zIndex: 25,
+  minWidth: 220,
+};
+
+const golfBtnStyle: React.CSSProperties = {
+  border: "none",
+  borderRadius: 999,
+  padding: "8px 14px",
+  fontWeight: 800,
+  background: "#3fb34f",
+  color: "#fff",
+  cursor: "pointer",
+};
+
+const loaderStyle: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 12,
+  background: "linear-gradient(#8fd7ff, #eaf6ff)",
+  transition: "opacity 400ms ease",
+  zIndex: 60,
 };
 
 const flashStyle: React.CSSProperties = {

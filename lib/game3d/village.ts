@@ -384,6 +384,33 @@ export function buildVillage(scene: THREE.Scene, accent: string, opts: VillageOp
     }
   }
 
+  // theme-park bunting: a sagging ring of pennants strung between the plaza lamps.
+  // One InstancedMesh with per-instance colours = a single draw call for all of them.
+  const PENNANTS = 48;
+  const pennantGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.22, 0, 0),
+    new THREE.Vector3(0.22, 0, 0),
+    new THREE.Vector3(0, -0.5, 0),
+  ]);
+  pennantGeo.computeVertexNormals();
+  const pennants = new THREE.InstancedMesh(pennantGeo, new THREE.MeshStandardMaterial({ color: "#ffffff", side: THREE.DoubleSide, flatShading: true }), PENNANTS);
+  const pennantColors = [0xff5d8f, 0xffd447, 0x4ade80, 0x60a5fa, 0xc084fc, 0xfb923c].map((c) => new THREE.Color(c));
+  const pm = new THREE.Matrix4();
+  for (let i = 0; i < PENNANTS; i++) {
+    const a = (i / PENNANTS) * Math.PI * 2;
+    const seg = (((a - Math.PI / 4) / (Math.PI / 2)) % 1 + 1) % 1; // 0..1 between neighbouring lamps (at 45°, 135°, ...)
+    const sag = Math.sin(seg * Math.PI) * 0.7;
+    const r = 6.5;
+    pm.compose(
+      new THREE.Vector3(Math.sin(a) * r, 4.05 - sag, Math.cos(a) * r),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, a + Math.PI / 2, 0)),
+      new THREE.Vector3(1, 1, 1),
+    );
+    pennants.setMatrixAt(i, pm);
+    pennants.setColorAt(i, pennantColors[i % pennantColors.length]);
+  }
+  scene.add(pennants);
+
   // landmarks laid out around the plaza, joined by paths
   const pathTex = makeDirtPathTexture();
   const landmarks: LandmarkNode[] = [];
@@ -431,8 +458,9 @@ export function buildVillage(scene: THREE.Scene, accent: string, opts: VillageOp
     landmarks.push({ key: def.key, position: pos.clone().setY(1.5), radius });
   }
 
-  const attractionSpots = ATTRACTIONS.map((a) => attractionPosition(a, 0));
-  const nearAttraction = (x: number, z: number, pad: number) => attractionSpots.some((p) => Math.hypot(x - p.x, z - p.z) < pad);
+  const attractionSpots = ATTRACTIONS.map((a) => ({ p: attractionPosition(a, 0), clear: a.clearance ?? 4 }));
+  const nearAttraction = (x: number, z: number, pad: number) =>
+    attractionSpots.some(({ p, clear }) => Math.hypot(x - p.x, z - p.z) < Math.max(pad, clear));
   scatterTrees(scene, (x, z) => {
     if (Math.hypot(x, z) < 8 || nearAttraction(x, z, 4)) return true;
     for (const l of landmarks) if (Math.hypot(x - l.position.x, z - l.position.z) < l.radius + 2.2) return true;
