@@ -60,3 +60,6 @@ public/swe-worker-*.js
 mockups/2026-06-12-game-world/canvas-smoke.js
 mockups/2026-06-12-game-world/game/
 mockups/2026-06-12-game-world/smoke-*.png
+
+# Cucaino Park asset pipeline download cache (scripts/park-assets.mjs)
+.park-assets-cache/

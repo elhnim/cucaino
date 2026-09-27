@@ -8,7 +8,7 @@ import { signOut, verifyParentPin } from "@/lib/actions/auth";
 import { AmbientBackdrop } from "@/components/game/AmbientBackdrop";
 import type { AmbientCharacter } from "@/lib/game3d/ambient";
 import { loadAnimalChoice } from "@/lib/game3d/registry/animals";
-import { prefetchWorld } from "@/lib/game3d/loadWorld";
+import { prefetchPark } from "@/lib/park/loadPark";
 import type { Kid } from "@/lib/domain/types";
 import type { Theme } from "@/lib/themes/presets";
 
@@ -44,7 +44,7 @@ export default function SelectKidClient({
 
   const tap = (kid: Kid) => {
     // start rendering their world on the server while they type the PIN
-    router.prefetch(`/kid/${kid.id}/world`);
+    router.prefetch(`/park/${kid.id}`);
     if (kid.pin) {
       setModal({ kind: "verify", kid });
     } else {
@@ -72,8 +72,8 @@ export default function SelectKidClient({
   // already cached from this meadow) so the park opens almost instantly afterwards.
   useEffect(() => {
     const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
-    if (idle) idle(() => prefetchWorld());
-    else window.setTimeout(prefetchWorld, 1200);
+    if (idle) idle(() => prefetchPark());
+    else window.setTimeout(prefetchPark, 1200);
   }, []);
 
   const goToParent = () => {
@@ -174,7 +174,7 @@ export default function SelectKidClient({
                 accent={themeById.get(modal.kid.themeId)?.accent ?? "#6366f1"}
                 prompt={`Enter ${modal.kid.name}'s PIN`}
                 onCancel={() => setModal(null)}
-                onSuccess={() => { setModal(null); router.push(`/kid/${modal.kid.id}/world`); }}
+                onSuccess={() => { setModal(null); router.push(`/park/${modal.kid.id}`); }}
               />
             ) : modal.kind === "parent-verify" ? (
               <PinPad
@@ -207,7 +207,7 @@ export default function SelectKidClient({
                   onSet={(pin) => {
                     startTransition(async () => {
                       await setKidPin(modal.kid.id, pin);
-                      router.push(`/kid/${modal.kid.id}/world`);
+                      router.push(`/park/${modal.kid.id}`);
                     });
                   }}
                 />
@@ -216,7 +216,7 @@ export default function SelectKidClient({
                 ) : null}
                 <button
                   type="button"
-                  onClick={() => router.push(`/kid/${modal.kid.id}/world`)}
+                  onClick={() => router.push(`/park/${modal.kid.id}`)}
                   className="w-full mt-2 text-sm text-gray-400 hover:text-gray-600 font-bold py-2"
                 >
                   Skip for now

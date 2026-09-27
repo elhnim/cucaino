@@ -30,9 +30,9 @@ function wmoIcon(code: number): string {
   return "🌩️";
 }
 
-// Everything lives in the 3D world now: every tab drops the kid into the matching building
+// Everything lives in Cucaino Park now: every tab drops the kid into the matching building
 // (?enter=) instead of a flat page, so there's no way to get "stuck" outside the park.
-const worldHref = (id: string, enter?: string) => `/kid/${id}/world${enter ? `?enter=${enter}` : ""}`;
+const worldHref = (id: string, enter?: string) => `/park/${id}${enter ? `?enter=${enter}` : ""}`;
 const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "play" | "users"; href: (kidId: string) => string }[] = [
   { key: "home",    label: "Park",     icon: "home",     href: (id) => worldHref(id) },
   { key: "todo",    label: "Schedule", icon: "calendar", href: (id) => worldHref(id, "work") },

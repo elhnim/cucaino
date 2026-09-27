@@ -47,7 +47,8 @@ export async function updateSession(request: NextRequest) {
       path.startsWith("/parent") ||
       path.startsWith("/select-kid") ||
       path.startsWith("/kid") ||
-      path.startsWith("/play");
+      path.startsWith("/play") ||
+      path.startsWith("/park");
     if (needsAuth) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
@@ -105,7 +106,8 @@ export async function updateSession(request: NextRequest) {
     url.startsWith("/parent") ||
     url.startsWith("/select-kid") ||
     url.startsWith("/kid") ||
-    url.startsWith("/play");
+    url.startsWith("/play") ||
+    url.startsWith("/park");
 
   // Public paths
   const isAuthRoute =
