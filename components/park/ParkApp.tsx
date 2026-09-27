@@ -706,14 +706,27 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
 
   const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf;
 
+  // iPhone Safari can show the page behind the fixed 3D view (where its toolbar was): paint the
+  // page the same colour as the scene so there's never a grey strip
+  const pageBg = golf ? "#a6e8bd" : "#ffe3f1";
+  useEffect(() => {
+    const html = document.documentElement;
+    const prev = [html.style.background, document.body.style.background];
+    html.style.background = document.body.style.background = pageBg;
+    return () => {
+      html.style.background = prev[0];
+      document.body.style.background = prev[1];
+    };
+  }, [pageBg]);
+
   return (
-    <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#ffe3f1" }} className="font-fun">
+    <div style={{ position: "fixed", inset: 0, height: "100lvh", overflow: "hidden", background: golf ? "#a6e8bd" : "#ffe3f1" }} className="font-fun">
       <style>{css}</style>
       <GameFullscreen />
       <div ref={hostRef} style={{ position: "absolute", inset: 0, touchAction: "none" }} />
 
       {/* top HUD */}
-      <div style={{ ...hudTop, display: building ? "none" : "flex" }}>
+      <div style={{ ...hudTop, display: building || coaster || golf ? "none" : "flex" }}>
         <div style={{ display: "flex", gap: 8 }}>
           <button style={pill} onClick={() => router.push("/select-kid")} aria-label="Switch profile">
             🔄
