@@ -1,6 +1,6 @@
 // No-auth smoke harness for Cucaino Park (lib/park). Bundle with:
 //   npx esbuild scripts/smoke/park-harness.ts --bundle --format=iife --outfile=<dir>/park-smoke.js
-// and serve <dir> alongside a copy of public/park.
+// and serve <dir> alongside a copy of public/park-assets.
 import * as THREE from "three";
 import { ParkWorld } from "../../lib/park/engine/ParkWorld";
 

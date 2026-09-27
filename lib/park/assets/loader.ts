@@ -1,4 +1,4 @@
-// Loads Cucaino Park's Kenney kits (public/park/*.glb, built by scripts/park-assets.mjs),
+// Loads Cucaino Park's Kenney kits (public/park-assets/*.glb, built by scripts/park-assets.mjs),
 // repaints them candy-coloured and converts every material to one soft toon look.
 //
 // - kits are fetched once and cached; `spawn(kit, id)` clones a model (shares GPU buffers)
@@ -14,7 +14,9 @@ import { PARK_ASSETS } from "./manifest.gen";
 export type KitName = Exclude<keyof typeof PARK_ASSETS, "pets">;
 export type AnimalId = keyof (typeof PARK_ASSETS)["pets"]["models"];
 
-const BASE = "/park";
+// NOT under /park/: that prefix is the protected kid route, and the auth middleware must never
+// sit in front of model downloads.
+const BASE = "/park-assets";
 
 let loader: GLTFLoader | null = null;
 function getLoader() {

@@ -15,6 +15,6 @@ export const config = {
      * - /launch: the static PWA splash must paint instantly (no auth work at all)
      * - service worker / manifest / static scripts, styles, fonts, audio
      */
-    "/((?!_next/static|_next/image|favicon.ico|launch|sw.js|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|mp3|wav|json)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|launch|sw.js|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|js|css|woff2?|mp3|wav|json|glb|gltf|bin)$).*)",
   ],
 };

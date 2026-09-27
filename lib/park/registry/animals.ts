@@ -1,4 +1,4 @@
-// Playable animals in Cucaino Park — the 24 animated Kenney "Cube Pets" (public/park/pets).
+// Playable animals in Cucaino Park — the 24 animated Kenney "Cube Pets" (public/park-assets/pets).
 // Kids pick one as themselves; their Star Pet is shown as the matching animal too.
 // To add an animal: add its model to scripts/park-assets.json ("pets" kit) and an entry here.
 import type { AnimalId } from "../assets/loader";
