@@ -7,7 +7,18 @@ import TodoTaskCard from "@/components/kid/TodoTaskCard";
 import AddTaskButton from "@/components/kid/AddTaskButton";
 import WeeklyGoals from "@/components/kid/WeeklyGoals";
 
-export function TodoPanel({ kidId, accentColor, onClose }: { kidId: string; accentColor: string; onClose: () => void }) {
+export function TodoPanel({
+  kidId,
+  accentColor,
+  onClose,
+  onOpenPage,
+}: {
+  kidId: string;
+  accentColor: string;
+  onClose: () => void;
+  /** open a full app page inside the world (week view, other days, ...) */
+  onOpenPage?: (src: string, title: string) => void;
+}) {
   const [data, setData] = useState<TodoPanelData | null | "loading">("loading");
 
   useEffect(() => {
@@ -28,6 +39,11 @@ export function TodoPanel({ kidId, accentColor, onClose }: { kidId: string; acce
         <p style={{ textAlign: "center", color: "#a06a3c", padding: "24px 0" }}>Couldn&apos;t load your schedule.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {onOpenPage && (
+            <button type="button" style={moreBtnStyle} onClick={() => onOpenPage(`/kid/${kidId}/todo`, "📅 My whole week")}>
+              📅 See my whole week
+            </button>
+          )}
           {data.selfAddableTasks.length > 0 && (
             <AddTaskButton
               kidId={kidId}
@@ -65,3 +81,14 @@ export function TodoPanel({ kidId, accentColor, onClose }: { kidId: string; acce
     </WorldPanelShell>
   );
 }
+
+const moreBtnStyle: React.CSSProperties = {
+  width: "100%",
+  border: "2px dashed #e8c07a",
+  borderRadius: 16,
+  padding: "10px 14px",
+  fontWeight: 800,
+  color: "#6b4a1f",
+  background: "#fffaf0",
+  cursor: "pointer",
+};

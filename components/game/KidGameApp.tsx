@@ -7,7 +7,9 @@ import type { World3D as World3DClass } from "@/lib/game3d/engine";
 import { loadWorld, prefetchWorld } from "@/lib/game3d/loadWorld";
 import type { SurpriseFind } from "@/lib/game3d/surprises";
 import { seedFromString } from "@/lib/game3d/noise";
-import { resolveDoorwayRoute } from "@/lib/game3d/registry/arcade";
+import { resolveDoorwayRoute, CABINETS } from "@/lib/game3d/registry/arcade";
+import { isEmbedded, closeWorldWindow } from "@/lib/embed";
+import { WorldPageWindow } from "./WorldPageWindow";
 import type { GolfEvent, GolfControls } from "@/lib/game3d/interiors/minigolf";
 import type { Interior } from "@/lib/game3d/interiors/types";
 import { LANDMARKS, type InitialGameData, type LandmarkKey } from "@/lib/game3d/types";
@@ -86,6 +88,9 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
   const [flash, setFlash] = useState(false);
   const [ready, setReady] = useState(false);
   const [bootError, setBootError] = useState(false);
+  // an app page shown inside the world (arcade game, full week, badges...) — never leave the park
+  const [pageWindow, setPageWindow] = useState<{ src: string; title: string } | null>(null);
+  const openPage = useCallback((src: string, title: string) => setPageWindow({ src, title }), []);
   const interiorsRef = useRef<Interiors | null>(null);
   const toastId = useRef(0);
   const bonusSparkles = useRef(0);
@@ -206,6 +211,8 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     world.enterInterior((accent) => build(accent, (e) => golfRef.current(e), golfControls.current), "minigolf");
     toast("⛳ Drag back from anywhere to aim, let go to putt!");
   }, [toast]);
+  const enterMiniGolfRef = useRef(enterMiniGolf);
+  enterMiniGolfRef.current = enterMiniGolf;
   const golfRef = useRef(handleGolf);
   golfRef.current = handleGolf;
 
@@ -233,10 +240,23 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
         return;
       }
       const route = resolveDoorwayRoute(key, kidId);
-      if (route) router.push(route);
+      const cab = CABINETS.find((c) => c.key === key);
+      if (route) setPageWindow({ src: route, title: cab ? `${cab.emoji} ${cab.label}` : "🕹️ Arcade" });
     },
-    [kidId, router],
+    [kidId],
   );
+
+  const enterBuilding = useCallback((key: LandmarkKey) => {
+    const interiors = interiorsRef.current;
+    if (!interiors) return;
+    if (key === "playground") {
+      worldRef.current?.enterInterior(interiors.buildPlayHallInterior, key);
+      setInPlayHall(true);
+    } else {
+      worldRef.current?.enterInterior(interiors[INTERIOR_FOR[key as SimplePanelKey]] as (accent: string) => Interior, key);
+      setActivePanel(key as SimplePanelKey);
+    }
+  }, []);
 
   const handleArrive = useCallback((key: LandmarkKey) => {
     const def = LANDMARKS.find((l) => l.key === key);
@@ -247,17 +267,12 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     worldRef.current?.setInputEnabled(false);
     window.setTimeout(() => {
       setArrival(null);
-      const interiors = interiorsRef.current;
-      if (interiors && key === "playground") {
-        worldRef.current?.enterInterior(interiors.buildPlayHallInterior, key);
-        setInPlayHall(true);
-      } else if (interiors) {
-        worldRef.current?.enterInterior(interiors[INTERIOR_FOR[key as SimplePanelKey]] as (accent: string) => Interior, key);
-        setActivePanel(key as SimplePanelKey);
-      }
+      enterBuilding(key);
       worldRef.current?.setInputEnabled(true);
     }, 420);
-  }, []);
+  }, [enterBuilding]);
+  const enterBuildingRef = useRef(enterBuilding);
+  enterBuildingRef.current = enterBuilding;
 
   const handlePetTap = useCallback(() => {
     const p = petRef.current;
@@ -272,6 +287,12 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    // A page inside an in-world window linked back to the world: never nest a second 3D world,
+    // just close the window so the kid is back in the real one.
+    if (isEmbedded()) {
+      closeWorldWindow();
+      return;
+    }
     let disposed = false;
     let world: World3DClass | undefined;
     const chosen = loadAnimalChoice(kidId, data.kid.avatar);
@@ -299,7 +320,16 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
         onAttraction: (id) => attractionRef.current(id),
         onSurprise: handleSurprise,
         onRideEnd: () => setRiding(null),
-        onReady: () => setReady(true),
+        onReady: () => {
+          setReady(true);
+          // deep link from the nav bar / old links: /world?enter=work|shop|friends|pet|playground|minigolf
+          const enter = new URLSearchParams(window.location.search).get("enter");
+          if (enter) {
+            window.history.replaceState(null, "", window.location.pathname);
+            if (enter === "minigolf") enterMiniGolfRef.current();
+            else if (LANDMARKS.some((l) => l.key === enter)) enterBuildingRef.current(enter as LandmarkKey);
+          }
+        },
       });
       worldRef.current = world;
       world.waveHello();
@@ -350,10 +380,10 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     };
   }, [data.tasksToday.total]);
 
-  // the quiz covers the whole screen — stop rendering 3D underneath it to save battery
+  // the quiz / a page window covers the whole screen — stop rendering 3D underneath to save battery
   useEffect(() => {
-    worldRef.current?.setPaused(!!activeQuizBankId);
-  }, [activeQuizBankId]);
+    worldRef.current?.setPaused(!!activeQuizBankId || !!pageWindow);
+  }, [activeQuizBankId, pageWindow]);
 
   const closePanel = () => {
     setActivePanel(null);
@@ -366,7 +396,7 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
     worldRef.current?.setPlayerAnimal(a);
   };
 
-  const panelOpen = !!activePanel || showQuizHub || !!activeQuizBankId || showWardrobe || !!golf || !!riding;
+  const panelOpen = !!activePanel || showQuizHub || !!activeQuizBankId || showWardrobe || !!golf || !!riding || !!pageWindow;
 
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#bfe6ff" }}>
@@ -389,8 +419,8 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
               🚪 Leave Arcade
             </button>
           ) : (
-            <button style={backBtnStyle} onClick={() => router.push(`/kid/${kidId}/home`)}>
-              ← Home
+            <button style={backBtnStyle} onClick={() => router.push("/select-kid")} aria-label="Switch profile">
+              🔄 Switch
             </button>
           )}
           {!activePanel && !inPlayHall && !golf && (
@@ -458,7 +488,7 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <button style={backBtnStyle} onClick={() => window.location.reload()}>🔄 Try again</button>
-              <button style={backBtnStyle} onClick={() => router.push(`/kid/${kidId}/home`)}>🏠 Home</button>
+              <button style={backBtnStyle} onClick={() => router.push(`/kid/${kidId}/home`)}>📋 Simple view</button>
             </div>
           </>
         ) : (
@@ -481,8 +511,9 @@ export default function KidGameApp({ data }: { data: InitialGameData }) {
           onReaction={() => worldRef.current?.celebratePet()}
         />
       )}
-      {activePanel === "work" && <TodoPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} />}
-      {activePanel === "shop" && <RewardsPanel kidId={kidId} onClose={closePanel} />}
+      {activePanel === "work" && <TodoPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} onOpenPage={openPage} />}
+      {activePanel === "shop" && <RewardsPanel kidId={kidId} onClose={closePanel} onOpenPage={openPage} />}
+      {pageWindow && <WorldPageWindow src={pageWindow.src} title={pageWindow.title} onClose={() => setPageWindow(null)} />}
       {activePanel === "friends" && <FriendsPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} />}
 
       {showWardrobe && (

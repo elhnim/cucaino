@@ -12,6 +12,7 @@ import NavIcon from "@/components/ui/NavIcon";
 import BadgeUnlockModal from "@/components/kid/BadgeUnlockModal";
 import { BADGE_META } from "@/lib/domain/badge-config";
 import { FULLSCREEN_EVENT, isImmersive } from "@/lib/fullscreen/fullscreen-manager";
+import { useIsEmbedded } from "@/lib/embed";
 import { updateWeatherLocation } from "@/lib/actions/parent-settings";
 
 type NavKey = "home" | "todo" | "rewards" | "play" | "friends";
@@ -29,12 +30,15 @@ function wmoIcon(code: number): string {
   return "🌩️";
 }
 
+// Everything lives in the 3D world now: every tab drops the kid into the matching building
+// (?enter=) instead of a flat page, so there's no way to get "stuck" outside the park.
+const worldHref = (id: string, enter?: string) => `/kid/${id}/world${enter ? `?enter=${enter}` : ""}`;
 const NAV_ITEMS: { key: NavKey; label: string; icon: "home" | "calendar" | "gift" | "play" | "users"; href: (kidId: string) => string }[] = [
-  { key: "home",    label: "Home",     icon: "home",     href: (id) => `/kid/${id}/home` },
-  { key: "todo",    label: "Schedule", icon: "calendar", href: (id) => `/kid/${id}/todo` },
-  { key: "rewards", label: "Store",    icon: "gift",     href: (id) => `/kid/${id}/rewards` },
-  { key: "play",    label: "Play",     icon: "play",     href: (id) => `/kid/${id}/play` },
-  { key: "friends", label: "Friends",  icon: "users",    href: (id) => `/kid/${id}/friends` },
+  { key: "home",    label: "Park",     icon: "home",     href: (id) => worldHref(id) },
+  { key: "todo",    label: "Schedule", icon: "calendar", href: (id) => worldHref(id, "work") },
+  { key: "rewards", label: "Store",    icon: "gift",     href: (id) => worldHref(id, "shop") },
+  { key: "play",    label: "Play",     icon: "play",     href: (id) => worldHref(id, "playground") },
+  { key: "friends", label: "Friends",  icon: "users",    href: (id) => worldHref(id, "friends") },
 ];
 
 export function KidAvatarMenu({ kid, accent }: { kid: Kid; accent: string }) {
@@ -128,6 +132,8 @@ export default function KidShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  // shown inside an in-world window: the window already has "Back to the park"
+  const embedded = useIsEmbedded();
 
   const navigateWithTransition = useCallback((href: string) => {
     if (typeof document !== "undefined" && "startViewTransition" in document) {
@@ -240,7 +246,7 @@ export default function KidShell({
   return (
     <main className={`h-dvh bg-gradient-to-br ${theme.pageGradient} font-fun flex flex-col`}>
 
-      {!isGameFullscreen && (
+      {!isGameFullscreen && !embedded && (
       <header
         className={`bg-gradient-to-br ${theme.headerGradient} text-white flex-shrink-0`}
         style={{ paddingTop: 32, paddingLeft: 16, paddingRight: 16, paddingBottom: headerExtra ? 12 : 16 }}
@@ -374,8 +380,26 @@ export default function KidShell({
 
       <div className="flex-1 overflow-y-auto scroll-area">{children}</div>
 
+      {/* Always a way home: a floating park button, even inside full-screen games */}
+      {!embedded && (
+        <button
+          type="button"
+          onClick={() => navigateWithTransition(worldHref(kid.id))}
+          aria-label="Back to the park"
+          className="fixed z-[70] rounded-full bg-white/90 backdrop-blur shadow-lg px-3.5 py-2 font-black text-sm active:scale-90 transition-transform"
+          style={{
+            left: "max(12px, env(safe-area-inset-left))",
+            bottom: isGameFullscreen ? "max(12px, env(safe-area-inset-bottom))" : "calc(72px + env(safe-area-inset-bottom, 0px))",
+            color: theme.accent,
+            border: `2px solid ${theme.accent}`,
+          }}
+        >
+          🎡 Park
+        </button>
+      )}
+
       {/* Bottom nav */}
-      {!isGameFullscreen && (
+      {!isGameFullscreen && !embedded && (
       <nav className="bg-white border-t border-gray-100 flex flex-shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {NAV_ITEMS.map((item) => {
           const isActive = item.key === active;

@@ -64,7 +64,16 @@ function WorldRewardCard({ reward: r, pointsBalance, cashBalance, kidId, activeS
   );
 }
 
-export function RewardsPanel({ kidId, onClose }: { kidId: string; onClose: () => void }) {
+export function RewardsPanel({
+  kidId,
+  onClose,
+  onOpenPage,
+}: {
+  kidId: string;
+  onClose: () => void;
+  /** open a full app page inside the world (badges, wishlist, ...) */
+  onOpenPage?: (src: string, title: string) => void;
+}) {
   const [data, setData] = useState<RewardsPanelData | null | "loading">("loading");
 
   useEffect(() => {
@@ -85,6 +94,11 @@ export function RewardsPanel({ kidId, onClose }: { kidId: string; onClose: () =>
         <p style={{ textAlign: "center", color: "#a06a3c", padding: "24px 0" }}>Couldn&apos;t load the store.</p>
       ) : (
         <>
+          {onOpenPage && (
+            <button type="button" style={{ ...moreBtnStyle, marginBottom: 12 }} onClick={() => onOpenPage(`/kid/${kidId}/rewards`, "🏅 Badges & wishlist")}>
+              🏅 My badges & wishlist
+            </button>
+          )}
           <p style={{ color: "#a06a3c", fontWeight: 700, margin: "0 0 12px" }}>
             ⭐ {data.pointsBalance} stars{data.cashBalance > 0 ? ` · 💵 $${(data.cashBalance / 100).toFixed(2)}` : ""}
           </p>
@@ -109,3 +123,14 @@ export function RewardsPanel({ kidId, onClose }: { kidId: string; onClose: () =>
     </WorldPanelShell>
   );
 }
+
+const moreBtnStyle: React.CSSProperties = {
+  width: "100%",
+  border: "2px dashed #e8c07a",
+  borderRadius: 16,
+  padding: "10px 14px",
+  fontWeight: 800,
+  color: "#6b4a1f",
+  background: "#fffaf0",
+  cursor: "pointer",
+};

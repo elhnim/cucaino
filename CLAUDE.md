@@ -24,8 +24,10 @@ No test runner is configured.
 ### Routing
 
 - `/select-kid` — Home screen (tablet kid picker)
-- `/kid/[kidId]/{home,todo,rewards,progress,profile,practice,timetable,tuner,play}` — Kid-side views, all parameterised by kid ID
-  - Kid bottom nav (4 tabs in `KidShell`): **Home** · **Schedule** (`/todo`) · **Store** (`/rewards`) · **Play**
+- `/kid/[kidId]/world` — **the kid's home: the 3D theme-park world** (`components/game/KidGameApp.tsx`, `lib/game3d/`). Everything a kid does happens here; `?enter=work|shop|friends|pet|playground|minigolf` deep-links straight into a building. It deliberately sits OUTSIDE the `(shell)` route group so it doesn't pay for the KidShell layout's queries.
+- `/kid/[kidId]/(shell)/{home,todo,rewards,progress,profile,practice,timetable,tuner,play,...}` — flat kid views wrapped by `KidShell` (the `(shell)` group holds the layout; URLs are unchanged)
+  - Kid bottom nav tabs all lead INTO the world (Park · Schedule · Store · Play · Friends → `/world?enter=…`), and a floating 🎡 Park button is on every KidShell page, even in full-screen games
+  - Flat pages / arcade games opened from inside the world render in an in-world iframe window (`components/game/WorldPageWindow.tsx`); `lib/embed.ts` makes KidShell hide its chrome when framed, and a framed `/world` closes the window instead of nesting
   - `/progress` exists but is NOT linked in the kid nav
 - `/parent/{overview,kids,tasks,rewards,requests,feedback,quizzes}` — Parent dashboard (mobile-first)
 - `/play` and `/play/[bankId]` — Quiz hub and live quiz (nav bar injected via `?kid=<id>` query param so KidShell wraps all play screens)
@@ -86,7 +88,7 @@ Copy `.env.example` to `.env.local` and fill in:
 
 - `getKid` is wrapped with `React.cache()` so multiple server components in one render hit the DB only once.
 - Do **not** call `router.refresh()` from `TodoTaskCard` after task completion — it triggers a full RSC re-fetch and kills INP. Optimistic state updates immediately; counts/stars update on next navigation via `revalidatePath`.
-- Profile route has `app/kid/[kidId]/profile/loading.tsx` to stream a skeleton and eliminate blank-screen TTFB.
+- Profile route has `app/kid/[kidId]/(shell)/profile/loading.tsx` to stream a skeleton and eliminate blank-screen TTFB.
 - `netlify/functions/keepalive.mts` pings Supabase every 10 minutes (cron) to prevent free-tier project sleeping.
 
 ### Task completion insert
