@@ -30,6 +30,26 @@ function landAt(x: number, z: number): LandDef | undefined {
   return LANDS.find((l) => Math.hypot(x - l.x, z - l.z) < l.radius + 3);
 }
 
+/** A marker for an important place, e.g. the Quest Board with how many quests are left. */
+export interface MapPin {
+  id: string;
+  x: number;
+  z: number;
+  emoji: string;
+  label: string;
+  /** red count bubble (e.g. quests left); 0/undefined hides it */
+  badge?: number;
+  /** pulse to draw the eye */
+  pulse?: boolean;
+}
+
+/** Route from where the kid stands to a spot on the plaza (e.g. the Quest Board). */
+export function routeToSpot(pose: { x: number; z: number }, x: number, z: number): [number, number][] {
+  const here = landAt(pose.x, pose.z);
+  const out = here ? [...pathOf(here)].reverse() : [];
+  return [...out, [x, z]];
+}
+
 /** Route from where the kid stands to a land, following the paths through the plaza. */
 export function routeTo(pose: { x: number; z: number }, to: LandDef): [number, number][] {
   const here = landAt(pose.x, pose.z);
@@ -38,7 +58,7 @@ export function routeTo(pose: { x: number; z: number }, to: LandDef): [number, n
   return [...out, ...pathOf(to), [to.x, to.z]];
 }
 
-export function MiniMap({ world, hidden }: { world: React.RefObject<ParkWorld | null>; hidden?: boolean }) {
+export function MiniMap({ world, hidden, pins = [] }: { world: React.RefObject<ParkWorld | null>; hidden?: boolean; pins?: MapPin[] }) {
   const [pose, setPose] = useState<Pose | null>(null);
   const [big, setBig] = useState(false);
   const last = useRef("");
@@ -65,24 +85,47 @@ export function MiniMap({ world, hidden }: { world: React.RefObject<ParkWorld | 
     world.current?.walkKidPath(routeTo(pose, land));
     setBig(false);
   };
+  const goToPin = (pin: MapPin) => {
+    playSfx("tap");
+    // stop just in front of it (the door opens the place)
+    world.current?.walkKidPath(routeToSpot(pose, pin.x, pin.z + 4));
+    setBig(false);
+  };
 
   return (
     <>
-      <button type="button" onClick={() => { playSfx("tap"); setBig(true); }} style={miniBtn} aria-label="Open the park map">
-        <MapSvg pose={pose} size={128} />
+      <button
+        type="button"
+        onClick={() => {
+          playSfx("tap");
+          setBig(true);
+        }}
+        style={miniBtn}
+        aria-label="Open the park map"
+      >
+        <MapSvg pose={pose} size={128} pins={pins} />
         <span style={hereTag}>{here ? `${here.emoji} ${here.name}` : "🍭 Park paths"}</span>
       </button>
       {big && (
         <div style={bigWrap} onClick={() => setBig(false)}>
           <div style={bigCard} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
               <div>
                 <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>🗺️ Park Map</div>
                 <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>Tap a place and I&apos;ll walk you there!</div>
               </div>
-              <button type="button" style={closeBtn} onClick={() => setBig(false)} aria-label="Close map">✕</button>
+              <button type="button" style={closeBtn} onClick={() => setBig(false)} aria-label="Close map">
+                ✕
+              </button>
             </div>
-            <MapSvg pose={pose} size={0} labels onLand={goTo} hereId={here?.id} />
+            <MapSvg pose={pose} size={0} labels onLand={goTo} onPin={goToPin} hereId={here?.id} pins={pins} />
           </div>
         </div>
       )}
@@ -90,7 +133,23 @@ export function MiniMap({ world, hidden }: { world: React.RefObject<ParkWorld | 
   );
 }
 
-function MapSvg({ pose, size, labels, onLand, hereId }: { pose: Pose; size: number; labels?: boolean; onLand?: (l: LandDef) => void; hereId?: string }) {
+function MapSvg({
+  pose,
+  size,
+  labels,
+  onLand,
+  onPin,
+  hereId,
+  pins = [],
+}: {
+  pose: Pose;
+  size: number;
+  labels?: boolean;
+  onLand?: (l: LandDef) => void;
+  onPin?: (p: MapPin) => void;
+  hereId?: string;
+  pins?: MapPin[];
+}) {
   const deg = (pose.yaw * 180) / Math.PI;
   const VIEW = labels ? WORLD_VIEW : NEAR_VIEW;
   // small map: centred on the kid; big map: centred on the park
@@ -102,7 +161,13 @@ function MapSvg({ pose, size, labels, onLand, hereId }: { pose: Pose; size: numb
       viewBox={`${-VIEW} ${-VIEW} ${VIEW * 2} ${VIEW * 2}`}
       width={size || "100%"}
       height={size || undefined}
-      style={{ display: "block", aspectRatio: "1", fontFamily: "inherit", maxHeight: size ? undefined : "min(70vh, 520px)", margin: "0 auto" }}
+      style={{
+        display: "block",
+        aspectRatio: "1",
+        fontFamily: "inherit",
+        maxHeight: size ? undefined : "min(70vh, 520px)",
+        margin: "0 auto",
+      }}
       role="img"
       aria-label="Map of Cucaino Park"
     >
@@ -116,7 +181,17 @@ function MapSvg({ pose, size, labels, onLand, hereId }: { pose: Pose; size: numb
         <g transform={`rotate(${deg})${follow}`}>
           <circle r={PARK_RADIUS} fill="#a6e8bd" stroke="#ffffff" strokeWidth={3} />
           {LANDS.map((l) => (
-            <polyline key={`p-${l.id}`} points={pathOf(l).map((p) => p.join(",")).join(" ")} fill="none" stroke="#ff9fcd" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
+            <polyline
+              key={`p-${l.id}`}
+              points={pathOf(l)
+                .map((p) => p.join(","))
+                .join(" ")}
+              fill="none"
+              stroke="#ff9fcd"
+              strokeWidth={4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           ))}
           <circle r={PLAZA_R + 1} fill="#ffd0e6" stroke="#ff9fcd" strokeWidth={2} />
           {LANDS.map((l) => (
@@ -146,6 +221,50 @@ function MapSvg({ pose, size, labels, onLand, hereId }: { pose: Pose; size: numb
             </g>
           ))}
           {pose.pet && <circle pointerEvents="none" cx={pose.pet.x} cy={pose.pet.z} r={labels ? 2.6 : 2} fill="#ffb020" stroke="#fff" strokeWidth={1.2} />}
+          {/* important places, e.g. the Quest Board and how many quests are left */}
+          {pins.map((pin) => {
+            // on the small map, a far-away pin sticks to the rim, pointing the way
+            let p = pin;
+            if (!labels) {
+              const dx = pin.x - pose.x;
+              const dz = pin.z - pose.z;
+              const d = Math.hypot(dx, dz);
+              const max = NEAR_VIEW - 9;
+              if (d > max)
+                p = {
+                  ...pin,
+                  x: pose.x + (dx / d) * max,
+                  z: pose.z + (dz / d) * max,
+                };
+            }
+            return (
+              <g key={p.id} transform={upright(p.x, p.z)} onClick={onPin ? () => onPin(p) : undefined} style={{ cursor: onPin ? "pointer" : undefined }}>
+                {p.pulse && (
+                  <circle cx={p.x} cy={p.z} r={labels ? 8 : 6} fill="none" stroke="#ff2f6d" strokeWidth={labels ? 2 : 1.6}>
+                    <animate attributeName="r" values={labels ? "7;13;7" : "5;10;5"} dur="1.2s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite" />
+                  </circle>
+                )}
+                <circle cx={p.x} cy={p.z} r={labels ? 7.5 : 6} fill="#ffffff" stroke="#ff9fcd" strokeWidth={1.5} />
+                <text x={p.x} y={p.z + (labels ? 3.6 : 3)} textAnchor="middle" fontSize={labels ? 10 : 8.5}>
+                  {p.emoji}
+                </text>
+                {!!p.badge && (
+                  <g>
+                    <circle cx={p.x + (labels ? 6.5 : 5)} cy={p.z - (labels ? 6.5 : 5)} r={labels ? 4.6 : 4} fill="#ff2f6d" stroke="#fff" strokeWidth={1} />
+                    <text x={p.x + (labels ? 6.5 : 5)} y={p.z - (labels ? 4.6 : 3.3)} textAnchor="middle" fontSize={labels ? 6 : 5.2} fontWeight={900} fill="#fff">
+                      {p.badge}
+                    </text>
+                  </g>
+                )}
+                {labels && (
+                  <text x={p.x} y={p.z + 15} textAnchor="middle" fontSize={6} fontWeight={900} fill="#c2185b" stroke="#ffffff" strokeWidth={2.2} paintOrder="stroke">
+                    {p.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
           {/* you are here: an arrow pointing the way your animal faces */}
           <g transform={`translate(${pose.x} ${pose.z}) rotate(${(-pose.facing * 180) / Math.PI})`} pointerEvents="none">
             <circle r={labels ? 7 : 4.5} fill="#ff4f9e" opacity={0.25}>

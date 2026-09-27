@@ -9,4 +9,4 @@ import type { ParkWorld } from "../../lib/park/engine/ParkWorld";
 const host = document.createElement("div");
 document.body.appendChild(host);
 const ref = { get current() { return (window as unknown as { __park: ParkWorld }).__park; } };
-createRoot(host).render(<MiniMap world={ref} />);
+createRoot(host).render(<MiniMap world={ref} pins={[{ id: "quest-board", x: 0, z: -17, emoji: "📋", label: "Quest Board", badge: 3, pulse: true }]} />);

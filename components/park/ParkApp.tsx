@@ -34,7 +34,7 @@ import { seedFromString } from "@/lib/game3d/noise";
 import { CandySheet } from "./ui/CandySheet";
 import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
-import { MiniMap } from "./MiniMap";
+import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
 
 // Every building panel loads on demand, never in the park's first download.
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
@@ -189,6 +189,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
 
   // walking up to a building asks first ("Go into the Prize Shop?") instead of popping it open
   const [ask, setAsk] = useState<PlaceDef | null>(null);
+  const [questNudge, setQuestNudge] = useState(false);
   const enterPlace = useCallback(
     (place: PlaceDef) => {
       if (place.action === "gift") {
@@ -529,6 +530,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       } catch {}
     }
     const left = data.tasksToday.total - done;
+    // chores first: a friendly nudge that walks you straight to the Quest Board
+    if (left > 0) window.setTimeout(() => setQuestNudge(true), 4200);
     const lines = [
       streak >= 2 ? `Welcome back ${data.kid.name}! 🔥 ${streak} days in a row` : `Hi ${data.kid.name}! Welcome to Cucaino Park 🍭`,
       left > 0 ? `${left} quest${left === 1 ? "" : "s"} waiting on the Quest Board 📋` : giftReady ? "Your daily gift is on the plaza 🎁" : "",
@@ -706,6 +709,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   };
 
   const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf;
+  const questsLeft = Math.max(0, data.tasksToday.total - done);
+  const questBoard = getPlace("quest-board");
+  const mapPins: MapPin[] = questBoard
+    ? [{ id: "quest-board", x: questBoard.x, z: questBoard.z, emoji: "📋", label: "Quest Board", badge: questsLeft, pulse: questsLeft > 0 }]
+    : [];
 
   // iPhone Safari can show the page behind the fixed 3D view (where its toolbar was): paint the
   // page the same colour as the scene so there's never a grey strip
@@ -761,7 +769,51 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         ))}
       </div>
 
-      {ready && <MiniMap world={worldRef} hidden={busy || building} />}
+      {ready && <MiniMap world={worldRef} hidden={busy || building} pins={mapPins} />}
+      {ready && !busy && !building && (
+        <button
+          type="button"
+          onClick={() => openPanel("quests", "quest-board")}
+          className={questsLeft > 0 ? "quest-wiggle" : undefined}
+          style={{ ...questBtn, background: questsLeft > 0 ? "linear-gradient(#ff8ac2, #ff4f9e)" : "linear-gradient(#6fe2a4, #2fcf8f)", boxShadow: questsLeft > 0 ? "0 5px 0 #d23a82, 0 10px 22px rgba(210,58,130,0.35)" : "0 5px 0 #1f9a64" }}
+          aria-label="Open my quests"
+        >
+          <span style={{ fontSize: 26 }}>{questsLeft > 0 ? "📋" : "✅"}</span>
+          <span style={{ textAlign: "left", lineHeight: 1.1 }}>
+            <span style={{ display: "block", fontSize: 16 }}>{questsLeft > 0 ? "My Quests" : "All done!"}</span>
+            <span style={{ display: "block", fontSize: 12, opacity: 0.92 }}>
+              {data.tasksToday.total === 0 ? "No quests today" : questsLeft > 0 ? `${questsLeft} to do · earn ⭐ + 🎟️` : `${done}/${data.tasksToday.total} finished`}
+            </span>
+          </span>
+        </button>
+      )}
+      {questNudge && !busy && !ask && (
+        <div style={askCard}>
+          <div style={{ fontSize: 38, lineHeight: 1 }}>📋</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>
+              {questsLeft} quest{questsLeft === 1 ? "" : "s"} to do today!
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>Finish them to earn ⭐ stars and 🎟️ tickets for the park</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setQuestNudge(false)}>
+              Later
+            </button>
+            <button
+              style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }}
+              onClick={() => {
+                setQuestNudge(false);
+                const p = worldRef.current?.getPose();
+                const qb = getPlace("quest-board");
+                if (p && qb) worldRef.current?.walkKidPath(routeToSpot(p, qb.x, qb.z + 4));
+              }}
+            >
+              Take me there! →
+            </button>
+          </div>
+        </div>
+      )}
       {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={turnBar}>
@@ -1018,7 +1070,10 @@ function Chip({ emoji, value }: { emoji: string; value: string }) {
 
 const css =
   "@keyframes park-bounce { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-18px) rotate(4deg); } }" +
-  "@keyframes park-pop { 0% { transform: translateY(-10px) scale(0.85); opacity: 0; } 10% { transform: none; opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }";
+  "@keyframes park-pop { 0% { transform: translateY(-10px) scale(0.85); opacity: 0; } 10% { transform: none; opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }" +
+  // the quest button gives a little wiggle every few seconds until today's quests are done
+  "@keyframes quest-wiggle { 0%,86%,100% { transform: none; } 89% { transform: rotate(-5deg) scale(1.06); } 92% { transform: rotate(5deg) scale(1.06); } 95% { transform: rotate(-3deg); } }" +
+  ".quest-wiggle { animation: quest-wiggle 3.2s ease-in-out infinite; }";
 
 const hudTop: React.CSSProperties = {
   position: "fixed",
@@ -1138,6 +1193,22 @@ const askCard: React.CSSProperties = {
   padding: "12px 14px",
   background: "linear-gradient(#ffffff, #fff4fa)",
   boxShadow: "0 6px 0 #ffb8d9, 0 12px 28px rgba(122,46,98,0.22)",
+};
+
+const questBtn: React.CSSProperties = {
+  position: "fixed",
+  left: "max(16px, env(safe-area-inset-left))",
+  bottom: "calc(max(22px, env(safe-area-inset-bottom)) + 70px)",
+  zIndex: 21,
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 16px 10px 12px",
+  border: "none",
+  borderRadius: 22,
+  color: "#fff",
+  fontWeight: 900,
+  cursor: "pointer",
 };
 
 const turnBar: React.CSSProperties = {
