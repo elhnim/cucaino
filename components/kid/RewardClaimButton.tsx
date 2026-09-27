@@ -58,6 +58,10 @@ export default function RewardClaimButton({
           usedCash: paymentType === "cash",
         });
         if (requiresApproval) setRequested(true);
+        // let the park HUD (and anything else listening) update the star balance straight away
+        if (!requiresApproval && paymentType === "stars" && costPoints > 0) {
+          window.dispatchEvent(new CustomEvent("stars-spent", { detail: { amount: costPoints } }));
+        }
       }
     });
   };

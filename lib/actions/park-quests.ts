@@ -18,6 +18,14 @@ import {
 } from "@/lib/data/stub";
 import { isoWeekday, tasksForDay } from "@/lib/domain/schedule";
 import type { DayOfWeek, Task, TaskCompletion } from "@/lib/domain/types";
+import {
+  listRewardsForKid,
+  listBadgeProgress,
+  listWishlistItems,
+  listCustomBadgeProgress,
+  listActiveStrikes,
+} from "@/lib/data/stub";
+import type { Reward, BadgeProgress, WishlistItem, CustomBadgeProgress } from "@/lib/domain/types";
 
 const DAY_LABELS: Record<DayOfWeek, string> = { 1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun" };
 
@@ -110,5 +118,40 @@ export async function getQuestBoard(kidId: string, dow?: number): Promise<QuestB
         count: weekCounts[t.id] ?? 0,
         addedToday: addedSet.has(t.id),
       })),
+  };
+}
+
+// ── Prize Shop + Trophy Hall (same queries as the flat /rewards page) ──
+
+export interface PrizeShopData {
+  rewards: Reward[];
+  wishlist: WishlistItem[];
+  badges: BadgeProgress[];
+  customBadges: CustomBadgeProgress[];
+  stars: number;
+  cash: number;
+  strikes: number;
+  totalStarsEarned: number;
+}
+
+export async function getPrizeShop(kidId: string): Promise<PrizeShopData | null> {
+  const [kid, rewards, badges, wishlist, custom, strikes] = await Promise.all([
+    getKid(kidId),
+    listRewardsForKid(kidId),
+    listBadgeProgress(kidId),
+    listWishlistItems(kidId),
+    listCustomBadgeProgress(kidId),
+    listActiveStrikes(kidId),
+  ]);
+  if (!kid) return null;
+  return {
+    rewards: rewards.filter((r) => r.active && r.who !== "team"),
+    wishlist,
+    badges,
+    customBadges: custom,
+    stars: kid.pointsBalance,
+    cash: kid.cashBalance,
+    strikes: strikes.length,
+    totalStarsEarned: kid.totalStarsEarned ?? 0,
   };
 }

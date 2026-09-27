@@ -18,6 +18,9 @@ import { Joystick } from "@/components/game/Joystick";
 import { WorldPageWindow } from "@/components/game/WorldPageWindow";
 import { RidesMenu, type RideEntry } from "./RidesMenu";
 import type { UnlockedBadge } from "@/lib/domain/types";
+import { getQuizGameData, type QuizGameData } from "@/lib/actions/world-panels";
+import type { CoasterControls } from "@/lib/park/rides/quizCoaster";
+import type { GolfEvent, GolfControls } from "@/lib/game3d/interiors/minigolf";
 import { getDreamPark, placePiece, movePiece, removePiece, type DreamPark } from "@/lib/actions/park";
 import { getPiece } from "@/lib/park/registry/pieces";
 import { TICKETS_PER_QUEST, cellCenter, zoneBounds } from "@/lib/park/builder/rules";
@@ -34,7 +37,7 @@ import { CandySheet } from "./ui/CandySheet";
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const QuestBoard = dynamic(() => import("./quests/QuestBoard").then((m) => m.QuestBoard), { ssr: false });
 const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal"), { ssr: false });
-const RewardsPanel = dynamic(() => import("@/components/game/panels/RewardsPanel").then((m) => m.RewardsPanel), { ssr: false });
+const PrizeShop = dynamic(() => import("./shop/PrizeShop").then((m) => m.PrizeShop), { ssr: false });
 const FriendsPanel = dynamic(() => import("@/components/game/panels/FriendsPanel").then((m) => m.FriendsPanel), { ssr: false });
 const QuizHubPanel = dynamic(() => import("@/components/game/panels/QuizHubPanel").then((m) => m.QuizHubPanel), { ssr: false });
 const QuizGamePanel = dynamic(() => import("@/components/game/panels/QuizGamePanel").then((m) => m.QuizGamePanel), { ssr: false });
@@ -104,6 +107,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const lastTap = useRef<{ x: number; z: number }>({ x: 0, z: 0 });
   // ── Fetch Field game ──
   const [fetchGame, setFetchGame] = useState<{ score: number; left: number } | null>(null);
+  // ── rides ──
+  const [coaster, setCoaster] = useState<{ quiz: QuizGameData; gate: number | null; answered: number | null; correct: number; done: boolean } | null>(null);
+  const coasterCtl = useRef<CoasterControls>({});
+  const [golf, setGolf] = useState<{ hole: number; name: string; par: number; strokes: number; scores: number[]; done?: { total: number; par: number } } | null>(null);
+  const golfCtl = useRef<GolfControls>({});
   const fetchScore = useRef(0);
   const [questRefresh, setQuestRefresh] = useState(0);
   const firedAllDone = useRef(data.tasksToday.total > 0 && data.tasksToday.done >= data.tasksToday.total);
@@ -501,6 +509,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       }
     };
     window.addEventListener("badge-unlocked", onBadge);
+    const onSpent = (e: Event) => {
+      const amt = (e as CustomEvent<{ amount?: number }>).detail?.amount ?? 0;
+      setPoints((p) => Math.max(0, p - amt));
+      worldRef.current?.celebrate(true);
+      playSfx("win");
+    };
+    window.addEventListener("stars-spent", onSpent);
     const onUndone = (e: Event) => {
       const pts = (e as CustomEvent<{ points?: number }>).detail?.points ?? 0;
       setDone((d) => Math.max(0, d - 1));
@@ -513,6 +528,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       window.removeEventListener("task-completed", onDone);
       window.removeEventListener("task-uncompleted", onUndone);
       window.removeEventListener("badge-unlocked", onBadge);
+      window.removeEventListener("stars-spent", onSpent);
     };
   }, [data.tasksToday.total, toast]);
 
@@ -535,8 +551,81 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   }, [quizBank, page]);
 
   const pickRide = (r: RideEntry) => {
-    if (r.route === "quiz") setPanel({ kind: "quiz-hub", placeId: panel?.placeId });
+    if (r.route === "coaster") setPanel({ kind: "quiz-hub", placeId: panel?.placeId });
+    else if (r.route === "golf") void startGolf();
     else setPage({ src: r.route(kidId), title: `${r.emoji} ${r.name}` });
+  };
+
+  const startCoaster = async (bankId: string) => {
+    const quiz = await getQuizGameData(kidId, bankId);
+    if (!quiz || quiz.questions.length === 0) {
+      toast("That quiz has no questions yet!");
+      return;
+    }
+    const { buildQuizCoaster } = await import("@/lib/park/rides/quizCoaster");
+    const questions = quiz.questions.slice(0, 6);
+    const q = { ...quiz, questions };
+    setPanel(null);
+    setCoaster({ quiz: q, gate: null, answered: null, correct: 0, done: false });
+    worldRef.current?.enterRide(
+      buildQuizCoaster(
+        questions.length,
+        (i) => {
+          setCoaster((c) => (c ? { ...c, gate: i, answered: null } : c));
+          playSfx("tap");
+        },
+        () => {
+          setCoaster((c) => (c ? { ...c, gate: null, done: true } : c));
+          playSfx("win");
+        },
+        coasterCtl.current,
+      ),
+    );
+    toast("🎢 Hold on tight! Answer at every gate!");
+  };
+
+  const answerCoaster = (choice: number) => {
+    setCoaster((c) => {
+      if (!c || c.gate === null || c.answered !== null) return c;
+      const right = c.quiz.questions[c.gate].choices[choice]?.isCorrect ?? false;
+      playSfx(right ? "correct" : "wrong");
+      window.setTimeout(() => {
+        setCoaster((cc) => (cc ? { ...cc, gate: null, answered: null } : cc));
+        coasterCtl.current.resume?.(right);
+      }, 1100);
+      return { ...c, answered: choice, correct: c.correct + (right ? 1 : 0) };
+    });
+  };
+
+  const leaveRide = () => {
+    worldRef.current?.exitRide();
+    setCoaster(null);
+    setGolf(null);
+  };
+
+  const onGolf = useCallback(
+    (e: GolfEvent) => {
+      if (e.type === "hole-start") setGolf((g) => ({ hole: e.hole, name: e.name, par: e.par, strokes: 0, scores: e.hole === 1 ? [] : (g?.scores ?? []) }));
+      else if (e.type === "stroke") setGolf((g) => (g ? { ...g, strokes: e.strokes } : g));
+      else if (e.type === "sunk") {
+        setGolf((g) => (g ? { ...g, scores: [...g.scores, e.strokes] } : g));
+        playSfx("win");
+        toast(`${e.label} (${e.strokes} stroke${e.strokes === 1 ? "" : "s"})`);
+      } else if (e.type === "course-done") {
+        setGolf((g) => (g ? { ...g, done: { total: e.total, par: e.par } } : g));
+        playSfx("win");
+      }
+    },
+    [toast],
+  );
+  const golfRef = useRef(onGolf);
+  golfRef.current = onGolf;
+
+  const startGolf = async () => {
+    const { buildMiniGolfInterior } = await import("@/lib/game3d/interiors/minigolf");
+    setPanel(null);
+    worldRef.current?.enterRide((accent) => buildMiniGolfInterior(accent, (e) => golfRef.current(e), golfCtl.current));
+    toast("⛳ Drag back from anywhere to aim, let go to putt!");
   };
 
   const pickAnimal = (a: ParkAnimal) => {
@@ -546,7 +635,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     playSfx("sparkle");
   };
 
-  const busy = !!panel || !!quizBank || !!page;
+  const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf;
 
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden", background: "#ffe3f1" }} className="font-fun">
@@ -637,7 +726,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {panel?.kind === "quests" && (
         <QuestBoard kidId={kidId} accentColor={theme.accent} onClose={closePanel} onOpenPage={(src, title) => setPage({ src, title })} refreshKey={questRefresh} />
       )}
-      {panel?.kind === "shop" && <RewardsPanel kidId={kidId} onClose={closePanel} onOpenPage={(src, title) => setPage({ src, title })} />}
+      {panel?.kind === "shop" && <PrizeShop kidId={kidId} onClose={closePanel} />}
       {panel?.kind === "friends" && <FriendsPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} />}
       {panel && PET_MODE[panel.kind] && (
         <PetCareSheet
@@ -669,7 +758,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         <QuizHubPanel
           onClose={closePanel}
           onPick={(bankId) => {
-            setQuizBank(bankId);
+            void startCoaster(bankId);
           }}
         />
       )}
@@ -686,6 +775,63 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         />
       )}
       {badges.length > 0 && <BadgeUnlockModal badges={badges} onDismiss={() => setBadges([])} />}
+
+      {(coaster || golf) && (
+        <button style={{ ...pill, position: "fixed", top: "max(14px, env(safe-area-inset-top))", left: 14, zIndex: 32 }} onClick={leaveRide}>
+          🚪 Back to the park
+        </button>
+      )}
+      {coaster && coaster.gate !== null && (
+        <div style={rideCard}>
+          <div style={{ fontWeight: 900, fontSize: 13, color: "#c26a9f" }}>
+            ❓ Gate {coaster.gate + 1} of {coaster.quiz.questions.length} · {coaster.quiz.bankName}
+          </div>
+          <div style={{ fontWeight: 900, fontSize: 19, color: "#5a2350", margin: "6px 0 12px" }}>{coaster.quiz.questions[coaster.gate].prompt}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {coaster.quiz.questions[coaster.gate].choices.map((ch, i) => {
+              const picked = coaster.answered === i;
+              const show = coaster.answered !== null;
+              const bg = show ? (ch.isCorrect ? "#2fcf8f" : picked ? "#ff4f6d" : "#e9dbe4") : ["#ff5fa8", "#36b8ff", "#f5b400", "#a96bff"][i % 4];
+              return (
+                <button key={i} type="button" onClick={() => answerCoaster(i)} disabled={show} style={{ border: "none", borderRadius: 18, padding: "12px 10px", fontWeight: 900, fontSize: 15, color: "#fff", background: bg, boxShadow: "0 4px 0 rgba(0,0,0,0.15)", cursor: "pointer" }}>
+                  {ch.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {coaster?.done && (
+        <div style={rideCard}>
+          <div style={{ fontSize: 44, textAlign: "center" }}>{coaster.correct === coaster.quiz.questions.length ? "🏆" : "🎉"}</div>
+          <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350", textAlign: "center" }}>
+            {coaster.correct}/{coaster.quiz.questions.length} gates right!
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
+            <button style={pill} onClick={leaveRide}>🎡 Back to the park</button>
+          </div>
+        </div>
+      )}
+      {golf && (
+        <div style={{ ...rideCard, top: "auto", bottom: "max(18px, env(safe-area-inset-bottom))", textAlign: "center" }}>
+          {golf.done ? (
+            <>
+              <div style={{ fontWeight: 900, fontSize: 18, color: "#1f5130" }}>🏆 {golf.done.total} strokes · par {golf.done.par}</div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 8 }}>
+                <button style={pill} onClick={() => { golfCtl.current.restart?.(); setGolf((g) => (g ? { ...g, done: undefined, scores: [] } : g)); }}>🔄 Play again</button>
+                <button style={pill} onClick={leaveRide}>🎡 Park</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 900, color: "#1f5130" }}>⛳ Hole {golf.hole} · {golf.name}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#1f5130" }}>
+                Par {golf.par} · Strokes <b>{golf.strokes}</b>{golf.scores.length > 0 && ` · Total ${golf.scores.reduce((a, c) => a + c, 0)}`}
+              </div>
+            </>
+          )}
+        </div>
+      )}
       {showAlbum && (
         <CandySheet title="📒 My Sticker Album" subtitle={`${foundToday.length}/${TREASURES_PER_DAY} treasures found today · new ones hide every day!`} color="#a96bff" onClose={() => setShowAlbum(false)}>
           {album.length === 0 ? (
@@ -778,6 +924,19 @@ const toastStyle: React.CSSProperties = {
   background: "linear-gradient(#ffffff, #ffeaf5)",
   boxShadow: "0 5px 0 #ffb8d9, 0 10px 22px rgba(122,46,98,0.2)",
   animation: `park-pop ${TOAST_MS}ms ease forwards`,
+};
+
+const rideCard: React.CSSProperties = {
+  position: "fixed",
+  top: "calc(max(14px, env(safe-area-inset-top)) + 58px)",
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: "min(560px, calc(100vw - 24px))",
+  zIndex: 31,
+  borderRadius: 26,
+  padding: "14px 16px",
+  background: "linear-gradient(#ffffff, #fff4fa)",
+  boxShadow: "0 6px 0 #ffb8d9, 0 12px 28px rgba(122,46,98,0.22)",
 };
 
 const fetchHud: React.CSSProperties = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { WorldPanelShell } from "./WorldPanelShell";
+import { CandySheet } from "@/components/park/ui/CandySheet";
 import {
   getFriendsPanelData,
   getFriendChatData,
@@ -47,7 +47,7 @@ export function FriendsPanel({ kidId, accentColor, onClose }: { kidId: string; a
   };
 
   return (
-    <WorldPanelShell title="💌 Friends" onClose={onClose}>
+    <CandySheet title="💌 Friends Café" color="#36b8ff" onClose={onClose}>
       {chatFriendId ? (
         chat === "loading" || chat === null ? (
           <p style={{ textAlign: "center", color: "#a06a3c", padding: "24px 0" }}>Opening chat…</p>
@@ -77,6 +77,6 @@ export function FriendsPanel({ kidId, accentColor, onClose }: { kidId: string; a
           onOpenChat={setChatFriendId}
         />
       )}
-    </WorldPanelShell>
+    </CandySheet>
   );
 }

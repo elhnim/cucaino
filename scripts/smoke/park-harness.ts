@@ -16,3 +16,13 @@ const world = new ParkWorld(document.getElementById("app")!, {
 });
 (window as unknown as Record<string, unknown>).__park = world;
 (window as unknown as Record<string, unknown>).__THREE = THREE;
+
+// rides, for poking in devtools: __rides.coaster(n) / __rides.golf()
+import { buildQuizCoaster } from "../../lib/park/rides/quizCoaster";
+import { buildMiniGolfInterior } from "../../lib/game3d/interiors/minigolf";
+const coasterCtl: { resume?: (c: boolean) => void } = {};
+(window as unknown as Record<string, unknown>).__rides = {
+  ctl: coasterCtl,
+  coaster: (n = 4) => world.enterRide(buildQuizCoaster(n, (i) => console.log("[ride] gate", i), () => console.log("[ride] finish"), coasterCtl)),
+  golf: () => world.enterRide((a) => buildMiniGolfInterior(a, (e) => console.log("[ride] golf", e.type))),
+};

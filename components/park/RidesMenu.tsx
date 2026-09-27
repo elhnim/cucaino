@@ -1,21 +1,22 @@
 "use client";
 
-import { WorldPanelShell } from "@/components/game/panels/WorldPanelShell";
+import { CandySheet } from "./ui/CandySheet";
 
-// Rides & Games at the station. Phase 1 opens today's games; each becomes a real 3D ride
-// (Quiz Coaster, Nugget Market street, Theatre...) in later phases of the park rebuild.
+// Rides & Games at the station: real 3D rides (Quiz Coaster, Mini Golf) plus the money,
+// reading and brain games, which open inside an in-park window.
 export interface RideEntry {
   id: string;
   emoji: string;
   name: string;
   blurb: string;
   color: string;
-  /** "quiz" opens the in-park quiz; otherwise a page route shown in an in-park window */
-  route: ((kidId: string) => string) | "quiz";
+  /** "coaster" / "golf" are real 3D rides; otherwise a page route shown in an in-park window */
+  route: ((kidId: string) => string) | "coaster" | "golf";
 }
 
 export const RIDES: RideEntry[] = [
-  { id: "quiz", emoji: "🎯", name: "Quiz Coaster", blurb: "Answer questions, win stars", color: "#ff5fa8", route: "quiz" },
+  { id: "coaster", emoji: "🎢", name: "Quiz Coaster", blurb: "Ride the rails, answer at every gate!", color: "#ff5fa8", route: "coaster" },
+  { id: "golf", emoji: "⛳", name: "Mini Golf", blurb: "5 holes · windmills & bumpers", color: "#2fcf8f", route: "golf" },
   { id: "trading", emoji: "📈", name: "Nugget Market", blurb: "Buy low, sell high!", color: "#22c55e", route: (id) => `/play/trading?kid=${id}` },
   { id: "invest", emoji: "🏦", name: "The Bank", blurb: "Grow your money", color: "#4f46e5", route: (id) => `/play/invest?kid=${id}` },
   { id: "arcade", emoji: "🕹️", name: "AI Arcade", blurb: "Emoji stories & brain games", color: "#06b6d4", route: (id) => `/play/arcade?kid=${id}` },
@@ -26,7 +27,7 @@ export const RIDES: RideEntry[] = [
 
 export function RidesMenu({ onPick, onClose }: { onPick: (ride: RideEntry) => void; onClose: () => void }) {
   return (
-    <WorldPanelShell title="🎢 Rides & Games" onClose={onClose}>
+    <CandySheet title="🎢 Rides & Games" color="#a96bff" onClose={onClose}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
         {RIDES.map((r) => (
           <button
@@ -51,6 +52,6 @@ export function RidesMenu({ onPick, onClose }: { onPick: (ride: RideEntry) => vo
           </button>
         ))}
       </div>
-    </WorldPanelShell>
+    </CandySheet>
   );
 }

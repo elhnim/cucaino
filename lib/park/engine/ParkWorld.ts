@@ -11,6 +11,14 @@ import { SPAWN, PARK_RADIUS, type PlaceDef } from "../registry/places";
 import { emojiSprite, labelSprite } from "@/lib/game3d/buildingKit";
 import { PARK_ANIMALS } from "../registry/animals";
 import { createTreasures, type TreasureView } from "../world/treasures";
+import type { Interior } from "@/lib/game3d/interiors/types";
+
+/**
+ * A ride takes over the screen with its own scene (Mini Golf, Quiz Coaster...). It uses the
+ * same contract as the original 3D world's mini-game rooms, plus an optional `camera` hook for
+ * rides that fly the camera themselves (e.g. riding a coaster).
+ */
+export type Ride = Interior & { camera?: (cam: THREE.PerspectiveCamera, dt: number) => void; hideKid?: boolean };
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 
 export type QualityTier = "standard" | "low";
@@ -79,6 +87,8 @@ export class ParkWorld {
   private dream: DreamParkView | null = null;
   private building = false;
   private treasures: TreasureView | null = null;
+  private ride: Ride | null = null;
+  private rideReturn: THREE.Vector3 | null = null;
   // ── pet behaviour ──
   private petMode: "follow" | "goto" | "sleep" | "fetch" = "follow";
   private petTarget: THREE.Vector3 | null = null;
@@ -128,6 +138,7 @@ export class ParkWorld {
     this.ro.observe(container);
     this.renderer.domElement.addEventListener("pointerdown", this.onDown);
     this.renderer.domElement.addEventListener("pointerup", this.onUp);
+    this.renderer.domElement.addEventListener("pointermove", this.onMove);
     document.addEventListener("visibilitychange", this.onVisibility);
     void this.boot();
   }
@@ -330,6 +341,45 @@ export class ParkWorld {
     this.petZzz = null;
   }
 
+  // ── rides ──
+  /** Enter a ride scene: the kid (and pet) travel into it, the park pauses behind it. */
+  enterRide(build: (accent: string) => Ride) {
+    if (this.ride || !this.kid) return;
+    const ride = build("#ff5fa8");
+    this.ride = ride;
+    this.rideReturn = this.kid.root.position.clone();
+    this.scene.remove(this.kid.root);
+    if (this.pet) this.scene.remove(this.pet.root);
+    this.kid.root.position.copy(ride.spawnPoint);
+    if (!ride.hideKid) ride.scene.add(this.kid.root);
+    if (this.pet && !ride.hideKid) {
+      this.pet.root.position.copy(ride.spawnPoint).add(new THREE.Vector3(1.2, 0, 0.8));
+      ride.scene.add(this.pet.root);
+    }
+    this.walkTarget = null;
+    this.move = { x: 0, y: 0 };
+  }
+  exitRide() {
+    const ride = this.ride;
+    if (!ride || !this.kid) return;
+    ride.scene.remove(this.kid.root);
+    if (this.pet) ride.scene.remove(this.pet.root);
+    ride.dispose();
+    this.ride = null;
+    this.kid.root.position.copy(this.rideReturn ?? new THREE.Vector3(SPAWN.x, 0, SPAWN.z));
+    this.kid.root.position.y = 0;
+    this.scene.add(this.kid.root);
+    if (this.pet) {
+      this.pet.root.position.copy(this.kid.root.position).add(new THREE.Vector3(1.6, 0, 1));
+      this.pet.root.position.y = 0;
+      this.scene.add(this.pet.root);
+    }
+    this.nearPlace = null;
+  }
+  get inRide() {
+    return !!this.ride;
+  }
+
   // ── Dream Park builder ──
   async setLayout(layout: Placed[]) {
     await this.dream?.setLayout(layout);
@@ -488,12 +538,25 @@ export class ParkWorld {
   }
 
   // ── input ──
+  private rayAt(e: PointerEvent) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.raycaster.setFromCamera(new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1), this.camera);
+    return this.raycaster.ray;
+  }
   private onDown = (e: PointerEvent) => {
     this.downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+    if (this.ride?.pointer) this.ride.pointer("down", this.rayAt(e));
+  };
+  private onMove = (e: PointerEvent) => {
+    if (this.ride?.pointer) this.ride.pointer("move", this.rayAt(e));
   };
   private onUp = (e: PointerEvent) => {
     const d = this.downAt;
     this.downAt = null;
+    if (this.ride) {
+      this.ride.pointer?.("up", this.rayAt(e));
+      return;
+    }
     if (!d || !this.park || (!this.inputOn && !this.building && !this.fetch)) return;
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12 || performance.now() - d.t > 500) return; // a drag, not a tap
     const rect = this.renderer.domElement.getBoundingClientRect();
@@ -581,6 +644,33 @@ export class ParkWorld {
     this.time += dt;
     const kid = this.kid;
     const pos = kid.root.position;
+
+    if (this.ride) {
+      const ride = this.ride;
+      const anchor = ride.playerAnchor?.();
+      if (anchor) {
+        pos.lerp(anchor.position, Math.min(1, dt * 8));
+        kid.facing = anchor.facing;
+      }
+      turnTowards(kid, dt);
+      kid.mixer?.update(dt);
+      if (this.pet) {
+        const pt = pos.clone().add(new THREE.Vector3(1.3, 0, 1.1));
+        this.pet.root.position.lerp(pt, Math.min(1, dt * 3));
+        this.pet.mixer?.update(dt);
+      }
+      ride.update?.(dt, pos);
+      if (ride.camera) ride.camera(this.camera, dt);
+      else {
+        const focus = ride.cameraFocus ? ride.cameraFocus() : pos;
+        const off = ride.cameraOffset ?? new THREE.Vector3(0, 9, 9);
+        this.camera.position.lerp(focus.clone().add(off), Math.min(1, dt * 4));
+        this.camera.lookAt(focus.x, focus.y + 0.8, focus.z);
+      }
+      this.renderer.render(ride.scene, this.camera);
+      this.frame = requestAnimationFrame(this.tick);
+      return;
+    }
 
     // movement: joystick first, else tap-to-walk target
     let vx = 0;
@@ -796,6 +886,8 @@ export class ParkWorld {
     this.ro.disconnect();
     this.renderer.domElement.removeEventListener("pointerdown", this.onDown);
     this.renderer.domElement.removeEventListener("pointerup", this.onUp);
+    this.renderer.domElement.removeEventListener("pointermove", this.onMove);
+    this.ride?.dispose();
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.park?.dispose();
     this.treasures?.dispose();
