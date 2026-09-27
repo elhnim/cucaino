@@ -17,10 +17,16 @@ import GameFullscreen from "@/components/games/GameFullscreen";
 import { Joystick } from "@/components/game/Joystick";
 import { WorldPageWindow } from "@/components/game/WorldPageWindow";
 import { RidesMenu, type RideEntry } from "./RidesMenu";
+import type { UnlockedBadge } from "@/lib/domain/types";
+import { getDreamPark, placePiece, movePiece, removePiece, type DreamPark } from "@/lib/actions/park";
+import { getPiece } from "@/lib/park/registry/pieces";
+import { TICKETS_PER_QUEST, cellCenter, zoneBounds } from "@/lib/park/builder/rules";
+import { BuilderBar, type BuilderSelection } from "./builder/BuilderBar";
 
 // Every building panel loads on demand, never in the park's first download.
 const PetPanel = dynamic(() => import("@/components/game/panels/PetPanel").then((m) => m.PetPanel), { ssr: false });
-const TodoPanel = dynamic(() => import("@/components/game/panels/TodoPanel").then((m) => m.TodoPanel), { ssr: false });
+const QuestBoard = dynamic(() => import("./quests/QuestBoard").then((m) => m.QuestBoard), { ssr: false });
+const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal"), { ssr: false });
 const RewardsPanel = dynamic(() => import("@/components/game/panels/RewardsPanel").then((m) => m.RewardsPanel), { ssr: false });
 const FriendsPanel = dynamic(() => import("@/components/game/panels/FriendsPanel").then((m) => m.FriendsPanel), { ssr: false });
 const QuizHubPanel = dynamic(() => import("@/components/game/panels/QuizHubPanel").then((m) => m.QuizHubPanel), { ssr: false });
@@ -63,6 +69,17 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [streak, setStreak] = useState(0);
   const [giftReady, setGiftReady] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
+  const [badges, setBadges] = useState<UnlockedBadge[]>([]);
+  // ── Dream Park builder ──
+  const [dream, setDream] = useState<DreamPark | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [selection, setSelection] = useState<BuilderSelection | null>(null);
+  const [selectedPlaced, setSelectedPlaced] = useState<{ uid: string; piece: string } | null>(null);
+  const [buildBusy, setBuildBusy] = useState(false);
+  const [buildMsg, setBuildMsg] = useState<string | null>(null);
+  const lastTap = useRef<{ x: number; z: number }>({ x: 0, z: 0 });
+  const [questRefresh, setQuestRefresh] = useState(0);
+  const firedAllDone = useRef(data.tasksToday.total > 0 && data.tasksToday.done >= data.tasksToday.total);
   const toastId = useRef(0);
 
   const toast = useCallback((text: string) => {
@@ -100,12 +117,140 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         return;
       }
       if (place.action === "none") return;
+      if (place.action === "build") {
+        enterBuildRef.current();
+        return;
+      }
       openPanel(place.action, place.id);
     },
     [kidId, openPanel, toast],
   );
   const placeRef = useRef(handlePlace);
   placeRef.current = handlePlace;
+
+  const flash = useCallback((text: string) => {
+    setBuildMsg(text);
+    window.setTimeout(() => setBuildMsg((m) => (m === text ? null : m)), 2600);
+  }, []);
+
+  const enterBuild = useCallback(() => {
+    worldRef.current?.setInputEnabled(false);
+    worldRef.current?.setBuildMode(true);
+    setBuilding(true);
+    setSelection(null);
+    setSelectedPlaced(null);
+    playSfx("tap");
+  }, []);
+  const enterBuildRef = useRef(enterBuild);
+  enterBuildRef.current = enterBuild;
+
+  const exitBuild = useCallback(() => {
+    worldRef.current?.setBuildMode(false);
+    worldRef.current?.stepOutOf("dream-park");
+    worldRef.current?.setInputEnabled(true);
+    setBuilding(false);
+    setSelection(null);
+    setSelectedPlaced(null);
+  }, []);
+
+  const moveGhost = useCallback((sel: BuilderSelection, x: number, z: number) => {
+    lastTap.current = { x, z };
+    const cell = worldRef.current?.setGhost(sel.pieceId, x, z, sel.r, sel.uid) ?? null;
+    setSelection({ ...sel, cell });
+  }, []);
+
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const onBuildTap = useCallback(
+    (x: number, z: number) => {
+      const sel = selectionRef.current;
+      if (sel) moveGhost(sel, x, z);
+      else {
+        setSelectedPlaced(null);
+        worldRef.current?.highlightPiece(null);
+      }
+    },
+    [moveGhost],
+  );
+  const dreamRef = useRef(dream);
+  dreamRef.current = dream;
+  const onPieceTap = useCallback((uid: string) => {
+    if (selectionRef.current) return;
+    const item = dreamRef.current?.layout.find((p) => p.uid === uid);
+    if (!item) return;
+    setSelectedPlaced({ uid, piece: item.piece });
+    worldRef.current?.highlightPiece(uid);
+    playSfx("tap");
+  }, []);
+  const buildTapRef = useRef(onBuildTap);
+  buildTapRef.current = onBuildTap;
+  const pieceTapRef = useRef(onPieceTap);
+  pieceTapRef.current = onPieceTap;
+
+  const pickPiece = (pieceId: string) => {
+    const def = getPiece(pieceId);
+    if (!def || !dream) return;
+    if (dream.tickets < def.cost) {
+      flash(`You need ${def.cost - dream.tickets} more 🎟️ — finish a quest to earn tickets!`);
+      playSfx("wrong");
+      return;
+    }
+    const zb = zoneBounds();
+    moveGhost({ pieceId, r: 0, cell: null }, (zb.minX + zb.maxX) / 2, (zb.minZ + zb.maxZ) / 2);
+    playSfx("tap");
+  };
+
+  const applyPark = (p: DreamPark) => {
+    setDream(p);
+    void worldRef.current?.setLayout(p.layout);
+  };
+
+  const confirmBuild = async () => {
+    const sel = selection;
+    if (!sel?.cell?.ok || buildBusy) return;
+    setBuildBusy(true);
+    const res = sel.uid
+      ? await movePiece(kidId, sel.uid, sel.cell.gx, sel.cell.gz, sel.r)
+      : await placePiece(kidId, sel.pieceId, sel.cell.gx, sel.cell.gz, sel.r);
+    setBuildBusy(false);
+    if (!res.ok) {
+      flash(res.error);
+      playSfx("wrong");
+      return;
+    }
+    applyPark(res.park);
+    worldRef.current?.setGhost(null);
+    const c = cellCenter(sel.pieceId, sel.cell.gx, sel.cell.gz, sel.r);
+    worldRef.current?.cheerAt(c.x, c.z);
+    playSfx(sel.uid ? "tap" : "win");
+    if (!sel.uid) flash(`${getPiece(sel.pieceId)?.emoji ?? "✨"} Your park is growing!`);
+    setSelection(null);
+  };
+
+  const removeSelected = async () => {
+    if (!selectedPlaced || buildBusy) return;
+    setBuildBusy(true);
+    const res = await removePiece(kidId, selectedPlaced.uid);
+    setBuildBusy(false);
+    if (!res.ok) {
+      flash(res.error);
+      return;
+    }
+    applyPark(res.park);
+    worldRef.current?.highlightPiece(null);
+    setSelectedPlaced(null);
+    playSfx("tap");
+  };
+
+  const startMove = () => {
+    if (!selectedPlaced) return;
+    const item = dream?.layout.find((p) => p.uid === selectedPlaced.uid);
+    if (!item) return;
+    worldRef.current?.highlightPiece(null);
+    const c = cellCenter(item.piece, item.gx, item.gz, item.r);
+    moveGhost({ pieceId: item.piece, uid: item.uid, r: item.r, cell: null }, c.x, c.z);
+    setSelectedPlaced(null);
+  };
 
   // ── boot the 3D park once ──
   useEffect(() => {
@@ -130,9 +275,18 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           petAnimal: data.pet ? parkAnimalForPet(data.pet.species) : null,
           themeId: data.kid.themeId,
           onPlace: (p) => placeRef.current(p),
+          onBuildTap: (x, z) => buildTapRef.current(x, z),
+          onPieceTap: (uid) => pieceTapRef.current(uid),
           onError: () => !disposed && setBootError(true),
           onReady: () => {
             setReady(true);
+            getDreamPark(kidId)
+              .then((p) => {
+                if (!p || disposed) return;
+                setDream(p);
+                void world?.setLayout(p.layout);
+              })
+              .catch(() => {});
             const enter = new URLSearchParams(window.location.search).get("enter");
             if (enter && ENTER_MAP[enter]) {
               window.history.replaceState(null, "", window.location.pathname);
@@ -179,24 +333,50 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // quests finished inside the Quest Board → confetti, happy pet, sound, live counts
   useEffect(() => {
     const onDone = (e: Event) => {
-      const pts = (e as CustomEvent<{ points?: number }>).detail?.points ?? 0;
+      const detail = (e as CustomEvent<{ points?: number; name?: string; icon?: string }>).detail ?? {};
+      const pts = detail.points ?? 0;
       setDone((d) => Math.min(data.tasksToday.total, d + 1));
       setPoints((p) => p + pts);
+      setDream((d) => (d ? { ...d, tickets: d.tickets + TICKETS_PER_QUEST } : d));
       worldRef.current?.celebrate(true);
       playSfx("coin");
+      if (detail.name) toast(`${detail.icon ?? "🎉"} Quest complete! +${pts} ⭐ +${TICKETS_PER_QUEST} 🎟️`);
     };
+    const onBadge = (e: Event) => {
+      const b = (e as CustomEvent<{ badges?: UnlockedBadge[] }>).detail?.badges;
+      if (b?.length) {
+        setBadges(b);
+        playSfx("win");
+      }
+    };
+    window.addEventListener("badge-unlocked", onBadge);
     const onUndone = (e: Event) => {
       const pts = (e as CustomEvent<{ points?: number }>).detail?.points ?? 0;
       setDone((d) => Math.max(0, d - 1));
       setPoints((p) => Math.max(0, p - pts));
+      setDream((d) => (d ? { ...d, tickets: Math.max(0, d.tickets - TICKETS_PER_QUEST) } : d));
     };
     window.addEventListener("task-completed", onDone);
     window.addEventListener("task-uncompleted", onUndone);
     return () => {
       window.removeEventListener("task-completed", onDone);
       window.removeEventListener("task-uncompleted", onUndone);
+      window.removeEventListener("badge-unlocked", onBadge);
     };
-  }, [data.tasksToday.total]);
+  }, [data.tasksToday.total, toast]);
+
+  // every quest done today → the park's fireworks show (once per visit)
+  useEffect(() => {
+    if (!ready || firedAllDone.current) return;
+    if (data.tasksToday.total > 0 && done >= data.tasksToday.total) {
+      firedAllDone.current = true;
+      window.setTimeout(() => {
+        worldRef.current?.fireworks(6);
+        playSfx("win");
+        toast("🎆 ALL QUESTS DONE! Fireworks for you! 🎆");
+      }, 1200);
+    }
+  }, [ready, done, data.tasksToday.total, toast]);
 
   // full-screen overlays cover the canvas: stop drawing 3D under them (battery)
   useEffect(() => {
@@ -224,7 +404,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       <div ref={hostRef} style={{ position: "absolute", inset: 0, touchAction: "none" }} />
 
       {/* top HUD */}
-      <div style={hudTop}>
+      <div style={{ ...hudTop, display: building ? "none" : "flex" }}>
         <div style={{ display: "flex", gap: 8 }}>
           <button style={pill} onClick={() => router.push("/select-kid")} aria-label="Switch profile">
             🔄
@@ -232,10 +412,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           <button style={pill} onClick={() => openPanel("dressup")} aria-label="Choose your animal">
             {animal?.emoji ?? "🐾"} Me
           </button>
+          <button style={pill} onClick={enterBuild} aria-label="Build my Dream Park">
+            🔨 Build
+          </button>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <Chip emoji="⭐" value={`${points}`} />
           <Chip emoji="📋" value={`${done}/${data.tasksToday.total}`} />
+          {dream && <Chip emoji="🎟️" value={`${dream.tickets}`} />}
           {Math.max(streak, data.kid.currentStreak) >= 2 && <Chip emoji="🔥" value={`${Math.max(streak, data.kid.currentStreak)}`} />}
         </div>
       </div>
@@ -248,7 +432,31 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         ))}
       </div>
 
-      {ready && !busy && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
+
+      {building && (
+        <BuilderBar
+          tickets={dream?.tickets ?? 0}
+          level={dream?.level ?? 1}
+          streak={dream?.streak ?? 0}
+          selection={selection}
+          selectedPlaced={selectedPlaced}
+          busy={buildBusy}
+          message={buildMsg}
+          onPick={pickPiece}
+          onRotate={() => selection && moveGhost({ ...selection, r: (selection.r + 1) % 4 }, lastTap.current.x, lastTap.current.z)}
+          onConfirm={confirmBuild}
+          onCancel={() => {
+            worldRef.current?.setGhost(null);
+            worldRef.current?.highlightPiece(null);
+            setSelection(null);
+            setSelectedPlaced(null);
+          }}
+          onMove={startMove}
+          onRemove={removeSelected}
+          onDone={exitBuild}
+        />
+      )}
 
       {/* loader stays until the first real frame is on screen */}
       <div style={{ ...loader, opacity: ready ? 0 : 1, pointerEvents: ready ? "none" : "auto" }}>
@@ -269,7 +477,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         )}
       </div>
 
-      {panel?.kind === "quests" && <TodoPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} onOpenPage={(src, title) => setPage({ src, title })} />}
+      {panel?.kind === "quests" && (
+        <QuestBoard kidId={kidId} accentColor={theme.accent} onClose={closePanel} onOpenPage={(src, title) => setPage({ src, title })} refreshKey={questRefresh} />
+      )}
       {panel?.kind === "shop" && <RewardsPanel kidId={kidId} onClose={closePanel} onOpenPage={(src, title) => setPage({ src, title })} />}
       {panel?.kind === "friends" && <FriendsPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} />}
       {panel?.kind === "pet" && (
@@ -293,7 +503,17 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       )}
       {panel?.kind === "dressup" && <DressUpPanel currentId={animal?.id ?? ""} onPick={pickAnimal} onClose={closePanel} />}
       {quizBank && <QuizGamePanel kidId={kidId} bankId={quizBank} onExit={() => setQuizBank(null)} />}
-      {page && <WorldPageWindow src={page.src} title={page.title} onClose={() => setPage(null)} />}
+      {page && (
+        <WorldPageWindow
+          src={page.src}
+          title={page.title}
+          onClose={() => {
+            setPage(null);
+            setQuestRefresh((n) => n + 1); // a Practice Stage may have completed a quest
+          }}
+        />
+      )}
+      {badges.length > 0 && <BadgeUnlockModal badges={badges} onDismiss={() => setBadges([])} />}
     </div>
   );
 }

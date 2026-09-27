@@ -4,6 +4,7 @@ import * as THREE from "three";
 import type { ParkAssets, KitName } from "../assets/loader";
 import { PLACES, SPAWN, type PlaceDef } from "../registry/places";
 import { labelSprite } from "@/lib/game3d/buildingKit";
+import { zoneBounds } from "../builder/rules";
 
 export interface BuiltPark {
   /** meshes that can be tapped, tagged with userData.placeId */
@@ -172,7 +173,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets): Promise
       const t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz)));
       return Math.hypot(x - (x0 + dx * t), z - (z0 + dz * t)) < pad;
     });
-  const nearPlace = (x: number, z: number, pad: number) => PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < p.radius + pad);
+  const zb = zoneBounds();
+  const inDreamZone = (x: number, z: number, pad: number) => x > zb.minX - pad && x < zb.maxX + pad && z > zb.minZ - pad && z < zb.maxZ + pad;
+  const nearPlace = (x: number, z: number, pad: number) =>
+    inDreamZone(x, z, pad) || PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < p.radius + pad);
 
   // ── places ──
   const tappables: THREE.Object3D[] = [];

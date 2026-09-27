@@ -5,6 +5,8 @@ import * as THREE from "three";
 import { ParkAssets, type AnimalId } from "../assets/loader";
 import { DEFAULT_CANDY, THEME_CANDY_HUE } from "../assets/candy";
 import { buildPark, type BuiltPark } from "../world/buildPark";
+import { createDreamPark, type DreamParkView } from "../world/dreamPark";
+import { zoneBounds, type Placed } from "../builder/rules";
 import { SPAWN, type PlaceDef } from "../registry/places";
 import { emojiSprite } from "@/lib/game3d/buildingKit";
 import { makeSparkleTexture } from "@/lib/game3d/textures";
@@ -24,6 +26,10 @@ export interface ParkWorldOptions {
   quality?: QualityTier;
   /** kid walked into / tapped a place */
   onPlace?: (place: PlaceDef) => void;
+  /** build mode: kid tapped the lawn at world (x, z) */
+  onBuildTap?: (x: number, z: number) => void;
+  /** build mode: kid tapped one of their placed pieces */
+  onPieceTap?: (uid: string) => void;
   /** first frame is on screen */
   onReady?: () => void;
   onError?: (err: unknown) => void;
@@ -63,6 +69,8 @@ export class ParkWorld {
   private camera = new THREE.PerspectiveCamera(42, 1, 0.1, 600);
   private assets: ParkAssets;
   private park: BuiltPark | null = null;
+  private dream: DreamParkView | null = null;
+  private building = false;
   private kid: Actor | null = null;
   private pet: Actor | null = null;
   private clock = new THREE.Clock();
@@ -130,6 +138,20 @@ export class ParkWorld {
     if (this.pet) this.play(this.pet, "gesture-positive", true);
     this.burst(this.kid.root.position.clone().setY(2.2), big ? 70 : 40);
   }
+  /** A fireworks show over the plaza — the reward for finishing every quest today. */
+  fireworks(seconds = 5) {
+    const shots = Math.round(seconds * 2.4);
+    for (let i = 0; i < shots; i++) {
+      window.setTimeout(() => {
+        if (this.disposed) return;
+        const a = Math.random() * Math.PI * 2;
+        const r = 4 + Math.random() * 10;
+        this.burst(new THREE.Vector3(Math.sin(a) * r, 12 + Math.random() * 8, -6 + Math.cos(a) * r), 60);
+      }, i * (1000 / 2.4));
+    }
+    if (this.kid) this.play(this.kid, "dance", true);
+  }
+
   /** Floating emoji marker over a place ("❗" quests waiting, "🍖" pet hungry...). */
   setBeacon(placeId: string, emoji: string | null) {
     const old = this.beacons.get(placeId);
@@ -147,6 +169,31 @@ export class ParkWorld {
     this.scene.add(s);
     this.beacons.set(placeId, { sprite: s, base });
   }
+  // ── Dream Park builder ──
+  async setLayout(layout: Placed[]) {
+    await this.dream?.setLayout(layout);
+  }
+  /** Build mode: camera swoops overhead the Dream Park lawn and taps go to the builder. */
+  setBuildMode(on: boolean) {
+    this.building = on;
+    this.walkTarget = null;
+    this.move = { x: 0, y: 0 };
+    if (!on) {
+      this.dream?.setGhost(null);
+      this.dream?.highlight(null);
+    }
+  }
+  setGhost(pieceId: string | null, x?: number, z?: number, r?: number, ignoreUid?: string) {
+    return this.dream?.setGhost(pieceId, x, z, r, ignoreUid) ?? null;
+  }
+  highlightPiece(uid: string | null) {
+    this.dream?.highlight(uid);
+  }
+  /** Big celebration at a spot in the Dream Park (a new piece just landed). */
+  cheerAt(x: number, z: number) {
+    this.burst(new THREE.Vector3(x, 2.5, z), 45);
+  }
+
   /** Swap the kid's animal live (dress-up). */
   async setKidAnimal(id: AnimalId) {
     const next = await this.makeActor(id, 2.1);
@@ -165,13 +212,15 @@ export class ParkWorld {
   // ── boot ──
   private async boot() {
     try {
-      const [park, kid, pet] = await Promise.all([
+      const [park, dream, kid, pet] = await Promise.all([
         buildPark(this.scene, this.assets),
+        createDreamPark(this.scene, this.assets),
         this.makeActor(this.opts.kidAnimal, 2.1),
         this.opts.petAnimal ? this.makeActor(this.opts.petAnimal, 1.25) : Promise.resolve(null),
       ]);
       if (this.disposed) return;
       this.park = park;
+      this.dream = dream;
       this.kid = kid;
       kid.root.position.set(SPAWN.x, 0, SPAWN.z);
       kid.facing = Math.PI;
@@ -241,11 +290,22 @@ export class ParkWorld {
   private onUp = (e: PointerEvent) => {
     const d = this.downAt;
     this.downAt = null;
-    if (!d || !this.inputOn || !this.park) return;
+    if (!d || !this.park || (!this.inputOn && !this.building)) return;
     if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 12 || performance.now() - d.t > 500) return; // a drag, not a tap
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
+    if (this.building) {
+      const pieceHit = this.dream ? this.raycaster.intersectObjects(this.dream.tappables(), true)[0] : undefined;
+      const uid = pieceHit?.object.userData.pieceUid as string | undefined;
+      if (uid) {
+        this.opts.onPieceTap?.(uid);
+        return;
+      }
+      const g = new THREE.Vector3();
+      if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), g)) this.opts.onBuildTap?.(g.x, g.z);
+      return;
+    }
     const hit = this.raycaster.intersectObjects(this.park.tappables, true)[0];
     const placeId = hit?.object.userData.placeId as string | undefined;
     if (placeId) {
@@ -391,6 +451,7 @@ export class ParkWorld {
     }
 
     this.park.update(dt, this.time);
+    this.dream?.update(dt, this.time);
     for (const b of this.beacons.values()) b.sprite.position.y = b.base + Math.sin(this.time * 3) * 0.35;
     for (let i = this.bursts.length - 1; i >= 0; i--) {
       const b = this.bursts[i];
@@ -413,9 +474,21 @@ export class ParkWorld {
       }
     }
 
-    const desired = pos.clone().add(CAM_OFFSET);
-    this.camera.position.lerp(desired, Math.min(1, dt * 3.5));
-    this.camera.lookAt(pos.x, 1.2, pos.z);
+    if (this.building) {
+      // overhead view of the whole Dream Park lawn
+      const zb = zoneBounds();
+      const cx = (zb.minX + zb.maxX) / 2;
+      const cz = (zb.minZ + zb.maxZ) / 2;
+      const span = Math.max(zb.maxX - zb.minX, zb.maxZ - zb.minZ);
+      const portrait = this.camera.aspect < 0.8;
+      // a friendly 3/4 view (not straight down) so tall candy pieces still read well
+      this.camera.position.lerp(new THREE.Vector3(cx, span * (portrait ? 1.25 : 0.72), cz + span * (portrait ? 0.95 : 0.9)), Math.min(1, dt * 3));
+      this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
+    } else {
+      const desired = pos.clone().add(CAM_OFFSET);
+      this.camera.position.lerp(desired, Math.min(1, dt * 3.5));
+      this.camera.lookAt(pos.x, 1.2, pos.z);
+    }
     this.renderer.render(this.scene, this.camera);
     this.frame = requestAnimationFrame(this.tick);
   };
@@ -438,6 +511,7 @@ export class ParkWorld {
     this.renderer.domElement.removeEventListener("pointerup", this.onUp);
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.park?.dispose();
+    this.dream?.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.geometry && !(o as THREE.InstancedMesh).isInstancedMesh) m.geometry.dispose();

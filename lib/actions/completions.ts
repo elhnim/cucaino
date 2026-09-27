@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { awardTickets } from "@/lib/data/park-tickets";
+import { TICKETS_PER_QUEST } from "@/lib/park/builder/rules";
 import { createClient } from "@/lib/supabase/server";
 import { localDateString } from "@/lib/data/queries";
 import {
@@ -238,6 +240,9 @@ export async function completeTask(
     }
   }
 
+  // Cucaino Park: every completed quest also earns a Dream Park ticket
+  await awardTickets(supabase, kidId, TICKETS_PER_QUEST);
+
   revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true, newTiers: newTiers.length > 0 ? newTiers : undefined };
 }
@@ -365,6 +370,9 @@ export async function uncompleteTask(
     });
   }
 
+  // undoing a quest takes its Dream Park ticket back (never below 0)
+  await awardTickets(supabase, kidId, -TICKETS_PER_QUEST);
+
   revalidatePath(`/kid/${kidId}/todo`);
   return { ok: true };
 }
@@ -414,6 +422,8 @@ export async function approveCompletion(completionId: string): Promise<ActionRes
       }),
     ]);
   }
+
+  await awardTickets(supabase, kid_id, TICKETS_PER_QUEST);
 
   revalidatePath("/parent");
   revalidatePath(`/kid/${kid_id}/todo`);

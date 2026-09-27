@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
 
-export default async function TodayRedirectPage({
-  params,
-}: {
-  params: Promise<{ kidId: string }>;
-}) {
+// Chores are quests on the Quest Board in Cucaino Park now.
+export default async function QuestsRedirect({ params }: { params: Promise<{ kidId: string }> }) {
   const { kidId } = await params;
-  redirect(`/kid/${kidId}/home`);
+  redirect(`/park/${kidId}?enter=quests`);
 }

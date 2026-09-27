@@ -2,7 +2,7 @@
 // the HUD decides what opening each one does (by `action`). To add a place, add an entry.
 import type { KitName } from "../assets/loader";
 
-export type PlaceAction = "quests" | "shop" | "pet" | "friends" | "rides" | "gift" | "none";
+export type PlaceAction = "quests" | "shop" | "pet" | "friends" | "rides" | "gift" | "build" | "none";
 
 export interface PlaceModel {
   kit: KitName;
@@ -121,6 +121,24 @@ export const PLACES: PlaceDef[] = [
     models: [
       { kit: "holiday", id: "present-a-round", scale: 2.6 },
       { kit: "holiday", id: "present-b-cube", scale: 1.8, offset: [1, 0.6] },
+    ],
+  },
+  {
+    // entrance to the kid's own Dream Park lawn (lib/park/builder/rules.ts DREAM_ZONE)
+    id: "dream-park",
+    label: "My Dream Park",
+    emoji: "🔨",
+    x: 23.6,
+    z: 12.4,
+    radius: 0,
+    doorRadius: 2.6,
+    action: "build",
+    signY: 5.6,
+    models: [
+      { kit: "town", id: "banner-green", scale: 3.2, offset: [-2.6, 0] },
+      { kit: "town", id: "banner-red", scale: 3.2, offset: [2.6, 0] },
+      { kit: "food", id: "lollypop", scale: 8, offset: [-3.4, 0.6] },
+      { kit: "food", id: "lollypop", scale: 8, offset: [3.4, 0.6] },
     ],
   },
   {
