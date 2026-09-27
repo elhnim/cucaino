@@ -23,6 +23,7 @@ export type PlaceAction =
   | "arcade"
   | "money-town"
   | "bank"
+  | "golf"
   | "none";
 
 export interface PlaceModel {
@@ -293,6 +294,24 @@ export const PLACES: PlaceDef[] = [
     action: "arcade",
     signY: 6,
     models: [{ kit: "city", id: "building-a", scale: 3.6 }],
+  },
+  {
+    id: "mini-golf",
+    label: "Candy Golf",
+    emoji: "⛳",
+    land: "rides",
+    x: -45,
+    z: -45,
+    radius: 2.4,
+    doorRadius: 4.6,
+    action: "golf",
+    signY: 6.4,
+    models: [
+      { kit: "town", id: "windmill", scale: 2.6 },
+      { kit: "holiday", id: "candy-cane-red", scale: 2.2, offset: [-2.6, 1.6] },
+      { kit: "holiday", id: "candy-cane-green", scale: 2.2, offset: [2.6, 1.6] },
+      { kit: "coaster", id: "flowers", scale: 2, offset: [0, 3] },
+    ],
   },
   {
     id: "money-town",

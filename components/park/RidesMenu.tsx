@@ -16,7 +16,7 @@ export interface RideEntry {
 
 export const RIDES: RideEntry[] = [
   { id: "coaster", emoji: "🎢", name: "Quiz Coaster", blurb: "Ride the rails, answer at every gate!", color: "#ff5fa8", route: "coaster" },
-  { id: "golf", emoji: "⛳", name: "Mini Golf", blurb: "5 holes · windmills & bumpers", color: "#2fcf8f", route: "golf" },
+  { id: "golf", emoji: "⛳", name: "Mini Golf", blurb: "18 candy holes · portals, hills & water", color: "#2fcf8f", route: "golf" },
   { id: "trading", emoji: "📈", name: "Nugget Market", blurb: "Buy low, sell high!", color: "#22c55e", route: "market" },
   { id: "invest", emoji: "🏦", name: "The Bank", blurb: "Grow your money", color: "#4f46e5", route: "bank" },
   { id: "arcade", emoji: "🕹️", name: "AI Arcade", blurb: "Emoji stories & brain games", color: "#06b6d4", route: "arcade" },

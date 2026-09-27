@@ -18,7 +18,12 @@ import type { Interior } from "@/lib/game3d/interiors/types";
  * same contract as the original 3D world's mini-game rooms, plus an optional `camera` hook for
  * rides that fly the camera themselves (e.g. riding a coaster).
  */
-export type Ride = Interior & { camera?: (cam: THREE.PerspectiveCamera, dt: number) => void; hideKid?: boolean };
+export type Ride = Interior & {
+  camera?: (cam: THREE.PerspectiveCamera, dt: number) => void;
+  hideKid?: boolean;
+  /** shrink (or grow) the kid and pet while in this ride, e.g. to golfer size next to a tiny ball */
+  actorScale?: number;
+};
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 
 export type QualityTier = "standard" | "low";
@@ -374,6 +379,8 @@ export class ParkWorld {
     this.scene.remove(this.kid.root);
     if (this.pet) this.scene.remove(this.pet.root);
     this.kid.root.position.copy(ride.spawnPoint);
+    this.kid.root.scale.setScalar(ride.actorScale ?? 1);
+    this.pet?.root.scale.setScalar(ride.actorScale ?? 1);
     if (!ride.hideKid) ride.scene.add(this.kid.root);
     if (this.pet && !ride.hideKid) {
       this.pet.root.position.copy(ride.spawnPoint).add(new THREE.Vector3(1.2, 0, 0.8));
@@ -390,6 +397,8 @@ export class ParkWorld {
     if (this.pet) ride.scene.remove(this.pet.root);
     ride.dispose();
     this.ride = null;
+    this.kid.root.scale.setScalar(1);
+    this.pet?.root.scale.setScalar(1);
     this.kid.root.position.copy(this.rideReturn ?? new THREE.Vector3(SPAWN.x, 0, SPAWN.z));
     this.kid.root.position.y = 0;
     this.scene.add(this.kid.root);
@@ -722,7 +731,7 @@ export class ParkWorld {
       turnTowards(kid, dt);
       kid.mixer?.update(dt);
       if (this.pet) {
-        const pt = pos.clone().add(new THREE.Vector3(1.3, 0, 1.1));
+        const pt = ride.petAnchor?.() ?? pos.clone().add(new THREE.Vector3(1.3, 0, 1.1).multiplyScalar(ride.actorScale ?? 1));
         this.pet.root.position.lerp(pt, Math.min(1, dt * 3));
         this.pet.mixer?.update(dt);
       }

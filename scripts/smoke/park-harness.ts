@@ -24,5 +24,6 @@ const coasterCtl: { resume?: (c: boolean) => void } = {};
 (window as unknown as Record<string, unknown>).__rides = {
   ctl: coasterCtl,
   coaster: (n = 4) => world.enterRide(buildQuizCoaster(n, (i) => console.log("[ride] gate", i), () => console.log("[ride] finish"), coasterCtl)),
-  golf: () => world.enterRide((a) => buildMiniGolfInterior(a, (e) => console.log("[ride] golf", e.type))),
+  golfCtl: {} as { skip?: () => void },
+  golf: (from = 0) => world.enterRide((a) => buildMiniGolfInterior(a, (e) => console.log("[ride] golf", JSON.stringify(e)), (window as unknown as { __rides: { golfCtl: object } }).__rides.golfCtl, { from })),
 };

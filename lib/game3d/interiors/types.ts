@@ -26,6 +26,8 @@ export interface Interior {
   pointer?: (kind: "down" | "move" | "up", ray: THREE.Ray) => void;
   cameraFocus?: () => THREE.Vector3;
   playerAnchor?: () => { position: THREE.Vector3; facing: number } | null;
+  /** where the pet should hang out in this room (defaults to beside the player) */
+  petAnchor?: () => THREE.Vector3 | null;
   /** Optional ambient animation hook, mirrors Village.update. */
   update?: (dt: number, playerPos: THREE.Vector3) => void;
   dispose: () => void;

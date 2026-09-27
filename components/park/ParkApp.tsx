@@ -88,6 +88,7 @@ const ENTER_MAP: Record<string, Panel> = {
   arcade: "arcade",
   "money-town": "money-town",
   bank: "bank",
+  golf: "golf",
 };
 
 export default function ParkApp({ data }: { data: ParkInitialData }) {
@@ -125,7 +126,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // ── rides ──
   const [coaster, setCoaster] = useState<{ quiz: QuizGameData; gate: number | null; answered: number | null; correct: number; done: boolean } | null>(null);
   const coasterCtl = useRef<CoasterControls>({});
-  const [golf, setGolf] = useState<{ hole: number; name: string; par: number; strokes: number; scores: number[]; done?: { total: number; par: number } } | null>(null);
+  const [golf, setGolf] = useState<{ hole: number; of: number; name: string; par: number; tip: string | null; strokes: number; scores: number[]; done?: { total: number; par: number } } | null>(null);
   const golfCtl = useRef<GolfControls>({});
   const fetchScore = useRef(0);
   const [questRefresh, setQuestRefresh] = useState(0);
@@ -598,7 +599,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
 
   const pickRide = (r: RideEntry) => {
     if (r.route === "coaster") setPanel({ kind: "quiz-hub", placeId: panel?.placeId });
-    else if (r.route === "golf") void startGolf();
+    else if (r.route === "golf") setPanel({ kind: "golf", placeId: panel?.placeId });
     else if (r.route === "market") setPanel({ kind: "market", placeId: panel?.placeId });
     else if (typeof r.route === "function") setPage({ src: r.route(kidId), title: `${r.emoji} ${r.name}` });
     else if ((HALLS as readonly string[]).includes(r.route)) setPanel({ kind: r.route as Hall, placeId: panel?.placeId });
@@ -645,17 +646,35 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     });
   };
 
+  const rideFrom = useRef<string | undefined>(undefined);
   const leaveRide = () => {
     worldRef.current?.exitRide();
     setCoaster(null);
     setGolf(null);
+    // walk back out of the door we came in by, and hand the controls back
+    if (rideFrom.current) worldRef.current?.stepOutOf(rideFrom.current);
+    rideFrom.current = undefined;
+    worldRef.current?.setInputEnabled(true);
   };
 
   const onGolf = useCallback(
     (e: GolfEvent) => {
-      if (e.type === "hole-start") setGolf((g) => ({ hole: e.hole, name: e.name, par: e.par, strokes: 0, scores: e.hole === 1 ? [] : (g?.scores ?? []) }));
-      else if (e.type === "stroke") setGolf((g) => (g ? { ...g, strokes: e.strokes } : g));
-      else if (e.type === "sunk") {
+      if (e.type === "hole-start") {
+        setGolf((g) => ({ hole: e.hole, of: e.of, name: e.name, par: e.par, tip: e.tip, strokes: 0, scores: g && !g.done ? g.scores : [] }));
+        if (e.tip) toast(e.tip);
+      } else if (e.type === "stroke") {
+        setGolf((g) => (g ? { ...g, strokes: e.strokes } : g));
+        playSfx("tap");
+      } else if (e.type === "splash") {
+        setGolf((g) => (g ? { ...g, strokes: e.strokes } : g));
+        playSfx("wrong");
+        toast("💦 Splash! +1 stroke — try again from where you hit it");
+      } else if (e.type === "fx") {
+        if (e.kind !== "bounce") playSfx("sparkle");
+      } else if (e.type === "picked-up") {
+        setGolf((g) => (g ? { ...g, scores: [...g.scores, e.strokes] } : g));
+        toast("🙌 Picked up! On to the next hole");
+      } else if (e.type === "sunk") {
         setGolf((g) => (g ? { ...g, scores: [...g.scores, e.strokes] } : g));
         playSfx("win");
         toast(`${e.label} (${e.strokes} stroke${e.strokes === 1 ? "" : "s"})`);
@@ -669,10 +688,12 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const golfRef = useRef(onGolf);
   golfRef.current = onGolf;
 
-  const startGolf = async () => {
+  const startGolf = async (from: number, count: number) => {
     const { buildMiniGolfInterior } = await import("@/lib/game3d/interiors/minigolf");
+    rideFrom.current = panel?.placeId;
     setPanel(null);
-    worldRef.current?.enterRide((accent) => buildMiniGolfInterior(accent, (e) => golfRef.current(e), golfCtl.current));
+    setGolf(null);
+    worldRef.current?.enterRide((accent) => buildMiniGolfInterior(accent, (e) => golfRef.current(e), golfCtl.current, { from, count }));
     toast("⛳ Drag back from anywhere to aim, let go to putt!");
   };
 
@@ -835,6 +856,21 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         </div>
       )}
       {panel?.kind === "rides" && <RidesMenu onPick={pickRide} onClose={closePanel} />}
+      {panel?.kind === "golf" && (
+        <CandySheet title="⛳ Candy Golf" subtitle="18 holes of windmills, portals, hills, ice and water!" color="#2fcf8f" onClose={closePanel}>
+          <div style={{ display: "grid", gap: 10 }}>
+            {GOLF_ROUNDS.map((c) => (
+              <button key={c.name} type="button" onClick={() => void startGolf(c.from, c.count)} style={golfPick}>
+                <span style={{ fontSize: 34 }}>{c.emoji}</span>
+                <span style={{ textAlign: "left" }}>
+                  <span style={{ display: "block", fontWeight: 900, fontSize: 18, color: "#1f5130" }}>{c.name}</span>
+                  <span style={{ display: "block", fontWeight: 800, fontSize: 13, color: "#4f8a63" }}>{c.sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </CandySheet>
+      )}
       {panel?.kind === "quiz-hub" && (
         <QuizHubPanel
           onClose={closePanel}
@@ -920,9 +956,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             </>
           ) : (
             <>
-              <div style={{ fontWeight: 900, color: "#1f5130" }}>⛳ Hole {golf.hole} · {golf.name}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#1f5130" }}>
-                Par {golf.par} · Strokes <b>{golf.strokes}</b>{golf.scores.length > 0 && ` · Total ${golf.scores.reduce((a, c) => a + c, 0)}`}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 900, color: "#1f5130" }}>
+                    ⛳ Hole {golf.hole}/{golf.of} · {golf.name}
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#1f5130" }}>
+                    Par {golf.par} · Strokes <b>{golf.strokes}</b>
+                    {golf.scores.length > 0 && ` · Total ${golf.scores.reduce((a, c) => a + c, 0)}`}
+                  </div>
+                </div>
+                <button style={{ ...pill, fontSize: 13, padding: "8px 12px" }} onClick={() => golfCtl.current.skip?.()} aria-label="Skip this hole">
+                  ⏭ Skip
+                </button>
               </div>
             </>
           )}
@@ -1039,8 +1085,27 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   library: "Read stories and chapter books — earn stars",
   arcade: "AI brain games with sparks",
   "money-town": "The family money board game",
+  golf: "18 holes of candy mini golf",
   bank: "Real-money investing (grown-ups switch it on)",
   parent: "A grown-up PIN is needed",
+};
+
+const GOLF_ROUNDS = [
+  { from: 0, count: 9, emoji: "🌱", name: "Front 9", sub: "Holes 1–9 · a great place to start" },
+  { from: 9, count: 9, emoji: "🔥", name: "Back 9", sub: "Holes 10–18 · portals, a volcano & the Grand Finale" },
+  { from: 0, count: 18, emoji: "🏆", name: "All 18 holes", sub: "The full championship course" },
+];
+
+const golfPick: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+  padding: "14px 16px",
+  border: "none",
+  borderRadius: 24,
+  background: "linear-gradient(#ffffff, #eafff1)",
+  boxShadow: "0 5px 0 #a8e8c0, 0 10px 18px rgba(31,81,48,0.1)",
+  cursor: "pointer",
 };
 
 const askCard: React.CSSProperties = {

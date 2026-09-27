@@ -29,7 +29,7 @@ function getLoader() {
 
 /** 3-step toon ramp shared by every material: soft, cartoony shading for almost no GPU cost. */
 let toonRamp: THREE.DataTexture | null = null;
-function getToonRamp() {
+export function getToonRamp() {
   if (!toonRamp) {
     const data = new Uint8Array([150, 150, 150, 255, 210, 210, 210, 255, 255, 255, 255, 255]);
     toonRamp = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat);
