@@ -34,7 +34,8 @@ export default async function SelectKidPage() {
   const themes = listThemes();
   return (
     <SelectKidClient
-      kids={kids}
+      // never ship kid PINs to the browser: keep only a "has a PIN" marker (checked server-side)
+      kids={kids.map((k) => ({ ...k, pin: k.pin ? "set" : null }))}
       themes={themes}
       hasParentPin={!!parentPin}
       familyName={family?.name ?? null}

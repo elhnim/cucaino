@@ -121,24 +121,22 @@ Every page imports from `@/lib/data/stub`. When Supabase is wired:
 
 This is the single seam between presentation and persistence.
 
-## 3D world (`/kid/[kidId]/world`) — adding fun without touching the engine
+## Cucaino Park (`/park/[kidId]`) — adding fun without touching the engine
 
-The three.js world is driven by small registries under `lib/game3d/registry/`. Each one is
-a plain array/table — append an entry and the engine builds, animates and disposes it.
+Everything in the park comes from small registries. Append an entry and the engine builds,
+animates and disposes it.
 
 | Want to add… | Edit | Notes |
 |---|---|---|
-| A playable animal | `registry/animals.ts` → `ANIMALS` | Built from procedural parts (`ears`, `tail`, `extras`) in `character.ts`; shows up in the in-world wardrobe (🐾 Me) and the kid-picker meadow automatically. Choice is stored per device in localStorage. |
-| A pet species look | `registry/animals.ts` → `PET_SPECIES_LOOK` | Maps a Star Pets species id to an animal look. |
-| A plaza attraction | `registry/attractions.ts` → `ATTRACTIONS`, then handle its `id` in `handleAttraction` in `components/game/KidGameApp.tsx` | Pick a free `angleDeg`/`ring` between the landmarks (landmarks sit at ring 24; attractions at ~12–14). Trees auto-avoid it. |
-| A habit hook (beacon / greeting / attraction state) | `registry/hooks.ts` → `HOOKS` | Pure `evaluate(HabitState)`; effects from all hooks are merged. Beacons can target a landmark key or an attraction id. |
-| A "did you know?" fact | `registry/attractions.ts` → `FUN_FACTS` | Popped by the wishing well. |
-| A daily-gift reward message | `registry/hooks.ts` → `DAILY_GIFTS` | |
-| A countryside surprise type | `surprises.ts` → `FINDS`, `KIND_ORDER`, `buildKind()` | One surprise per terrain chunk (seeded per kid); the pet runs to the nearest one. |
-| An arcade game cabinet | `interiors/playhall.ts` → `CABINETS` | Cabinet, animated screen and trigger zone are generated from the entry. |
-| A theme's outdoor look | `biomes.ts` | Sky gradient, fog and grass tint per `ThemeId`. |
+| A 3D model | `scripts/park-assets.json`, then `node scripts/park-assets.mjs` | Kenney CC0 kits; merged per kit into `public/park-assets/<kit>.glb`. |
+| A building / station | `lib/park/registry/places.ts` → `PLACES` | Give it an `action`; handle new actions in `handlePlace` in `components/park/ParkApp.tsx`. |
+| A whole land | `lib/park/registry/places.ts` → `LANDS` | A winding path from the plaza is generated through its `via` points. |
+| A Dream Park piece | `lib/park/registry/pieces.ts` → `PIECES` | Footprint in grid cells, ticket cost, optional level/streak unlock. |
+| A playable animal | `lib/park/registry/animals.ts` → `PARK_ANIMALS` | Cube Pets models; also used by the kid picker. |
+| A ride | `lib/park/rides/<ride>.ts` implementing `Ride` (see `ParkWorld.ts`) + an entry in `components/park/RidesMenu.tsx` | Loaded on demand; `world.enterRide(build)` / `exitRide()`. |
+| A game opened in-park | `components/park/RidesMenu.tsx` → `RIDES` with a `route` | Shown in the in-park window. |
+| A mini golf hole | `lib/game3d/minigolf/courses.ts` → `COURSE` | Physics is pure + tested. |
+| A treasure sticker | `lib/park/world/treasures.ts` → `STICKERS` | 6 treasures hide in new spots every day. |
 
-Performance rules for new content: share geometries/materials across instances, never add
-point-light shadows (one directional shadow per scene only), prefer emissive materials and
-additive sprites for "glow" (there is intentionally no bloom pass), and check the `low`
-quality tier (`detectQualityTier()` in `engine.ts`) still looks fine.
+Performance rules: instance anything repeated, no shadow maps or post-processing, keep
+three.js and ride code out of the page's first-load JS, and check the `low` quality tier.

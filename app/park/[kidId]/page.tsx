@@ -30,6 +30,7 @@ export default async function ParkPage({ params }: { params: Promise<{ kidId: st
       themeId: kid.themeId,
       pointsBalance: kid.pointsBalance,
       currentStreak: kid.currentStreak,
+      tourSeen: kid.tourSeen,
     },
     pet,
     tasksToday: { total: today.length, done: today.filter((t) => done.has(t.id)).length },

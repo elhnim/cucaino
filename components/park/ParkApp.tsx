@@ -32,6 +32,8 @@ import { PLAY_SECONDS } from "@/lib/pet/config";
 import { todaysTreasures, dayKey, TREASURES_PER_DAY } from "@/lib/park/world/treasures";
 import { seedFromString } from "@/lib/game3d/noise";
 import { CandySheet } from "./ui/CandySheet";
+import { MoodCheck } from "./MoodCheck";
+import { WelcomeTour } from "./WelcomeTour";
 
 // Every building panel loads on demand, never in the park's first download.
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
@@ -46,7 +48,7 @@ const DressUpPanel = dynamic(() => import("./DressUpPanel").then((m) => m.DressU
 // start fetching three.js + the engine as soon as this module evaluates (parallel to hydration)
 prefetchPark();
 
-type Panel = Exclude<PlaceAction, "gift" | "none" | "build"> | "dressup" | "quiz-hub";
+type Panel = Exclude<PlaceAction, "gift" | "none" | "build" | "parent"> | "dressup" | "quiz-hub";
 
 const PET_MODE: Partial<Record<Panel, PetMode>> = {
   pet: "home",
@@ -97,6 +99,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [giftReady, setGiftReady] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [badges, setBadges] = useState<UnlockedBadge[]>([]);
+  const [showTour, setShowTour] = useState(false);
+  const [showMood, setShowMood] = useState(false);
   // ── Dream Park builder ──
   const [dream, setDream] = useState<DreamPark | null>(null);
   const [building, setBuilding] = useState(false);
@@ -190,9 +194,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         enterBuildRef.current();
         return;
       }
+      if (place.action === "parent") {
+        router.push("/parent"); // parent area asks for the grown-up PIN
+        return;
+      }
       openPanel(place.action, place.id);
     },
-    [kidId, openPanel, toast],
+    [kidId, openPanel, toast, router],
   );
   const placeRef = useRef(handlePlace);
   placeRef.current = handlePlace;
@@ -481,12 +489,23 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   useEffect(() => {
     if (!ready || greeted.current) return;
     greeted.current = true;
+    if (!data.kid.tourSeen) setShowTour(true);
+    else {
+      try {
+        const key = `cucaino.park.mood.${kidId}.${dayKey()}`;
+        if (!window.localStorage.getItem(key)) {
+          window.localStorage.setItem(key, "1");
+          window.setTimeout(() => setShowMood(true), 2600);
+        }
+      } catch {}
+    }
     const left = data.tasksToday.total - done;
     const lines = [
       streak >= 2 ? `Welcome back ${data.kid.name}! 🔥 ${streak} days in a row` : `Hi ${data.kid.name}! Welcome to Cucaino Park 🍭`,
       left > 0 ? `${left} quest${left === 1 ? "" : "s"} waiting on the Quest Board 📋` : giftReady ? "Your daily gift is on the plaza 🎁" : "",
     ].filter(Boolean);
     lines.forEach((l, i) => window.setTimeout(() => toast(l), 500 + i * 1800));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, streak, done, giftReady, data.kid.name, data.tasksToday.total, toast]);
 
   // quests finished inside the Quest Board → confetti, happy pet, sound, live counts
@@ -775,6 +794,21 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         />
       )}
       {badges.length > 0 && <BadgeUnlockModal badges={badges} onDismiss={() => setBadges([])} />}
+      {showTour && <WelcomeTour kidId={kidId} onDone={() => setShowTour(false)} />}
+      {showMood && (
+        <MoodCheck
+          kidId={kidId}
+          name={data.kid.name}
+          onDone={(reply) => {
+            setShowMood(false);
+            if (reply) {
+              toast(reply);
+              worldRef.current?.celebrate();
+              playSfx("sparkle");
+            }
+          }}
+        />
+      )}
 
       {(coaster || golf) && (
         <button style={{ ...pill, position: "fixed", top: "max(14px, env(safe-area-inset-top))", left: 14, zIndex: 32 }} onClick={leaveRide}>

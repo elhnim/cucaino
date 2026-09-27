@@ -154,3 +154,15 @@ export async function getInvestLicenceStatus(kidId: string): Promise<{
     lessonsCompleted: Array.isArray((data as any).lessons_completed) ? (data as any).lessons_completed : [],
   };
 }
+
+/**
+ * Check a kid's 4-digit PIN on the server. The PIN itself is never sent to the browser any
+ * more — the kid picker only learns *whether* a kid has one.
+ */
+export async function verifyKidPin(kidId: string, pin: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase.from("kids").select("pin_hash").eq("id", kidId).maybeSingle();
+  const stored = (data as { pin_hash: string | null } | null)?.pin_hash ?? null;
+  if (!stored) return true;
+  return stored === pin.trim();
+}

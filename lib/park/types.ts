@@ -10,6 +10,7 @@ export interface ParkInitialData {
     themeId: ThemeId;
     pointsBalance: number;
     currentStreak: number;
+    tourSeen: boolean;
   };
   pet: Pet | null;
   tasksToday: { total: number; done: number };

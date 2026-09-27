@@ -16,6 +16,7 @@ export type PlaceAction =
   | "rides"
   | "gift"
   | "build"
+  | "parent"
   | "none";
 
 export interface PlaceModel {
@@ -280,6 +281,21 @@ export const PLACES: PlaceDef[] = [
       { kit: "food", id: "lollypop", scale: 8, offset: [-3.4, 0.6] },
       { kit: "food", id: "lollypop", scale: 8, offset: [3.4, 0.6] },
     ],
+  },
+
+  // ── Grown-ups' Control Room (parent area, PIN protected) ──
+  {
+    id: "control-room",
+    label: "Grown-ups",
+    emoji: "🔒",
+    land: "gate",
+    x: 9,
+    z: 44,
+    radius: 1.8,
+    doorRadius: 3,
+    action: "parent",
+    signY: 4.4,
+    models: [{ kit: "coaster", id: "stall-information", scale: 2.6 }],
   },
 
   // ── Gate ──

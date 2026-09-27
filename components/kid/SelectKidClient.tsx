@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import PinPad from "@/components/kid/PinPad";
-import { setKidPin } from "@/lib/actions/kids";
+import { setKidPin, verifyKidPin } from "@/lib/actions/kids";
 import { signOut, verifyParentPin } from "@/lib/actions/auth";
 import { AmbientBackdrop } from "@/components/game/AmbientBackdrop";
 import type { PickerCharacter } from "@/lib/park/world/pickerScene";
@@ -170,7 +170,7 @@ export default function SelectKidClient({
             {modal.kind === "verify" ? (
               <PinPad
                 mode="verify"
-                expected={modal.kid.pin ?? ""}
+                onVerify={(pin) => verifyKidPin(modal.kid.id, pin)}
                 accent={themeById.get(modal.kid.themeId)?.accent ?? "#6366f1"}
                 prompt={`Enter ${modal.kid.name}'s PIN`}
                 onCancel={() => setModal(null)}
