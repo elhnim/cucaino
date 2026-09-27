@@ -174,7 +174,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     worldRef.current?.setInputEnabled(true);
   }, [panel]);
 
-  const handlePlace = useCallback(
+  // walking up to a building asks first ("Go into the Prize Shop?") instead of popping it open
+  const [ask, setAsk] = useState<PlaceDef | null>(null);
+  const enterPlace = useCallback(
     (place: PlaceDef) => {
       if (place.action === "gift") {
         if (!isDailyGiftReady(kidId)) {
@@ -201,6 +203,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       openPanel(place.action, place.id);
     },
     [kidId, openPanel, toast, router],
+  );
+  const handlePlace = useCallback(
+    (place: PlaceDef) => {
+      if (place.action === "none") return;
+      if (place.action === "gift") {
+        enterPlace(place); // the daily gift just pops — no need to ask
+        return;
+      }
+      worldRef.current?.setMove(0, 0);
+      setAsk(place);
+      playSfx("tap");
+    },
+    [enterPlace],
   );
   const placeRef = useRef(handlePlace);
   placeRef.current = handlePlace;
@@ -428,6 +443,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           petAnimal: data.pet ? parkAnimalForPet(data.pet.species) : null,
           themeId: data.kid.themeId,
           onPlace: (p) => placeRef.current(p),
+          onLeavePlace: (id) => setAsk((a) => (a?.id === id ? null : a)),
           onBuildTap: (x, z) => buildTapRef.current(x, z),
           onPieceTap: (uid) => pieceTapRef.current(uid),
           onFetchCatch: () => fetchCatchRef.current(),
@@ -698,6 +714,36 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       </div>
 
       {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {ready && !busy && !building && (
+        <div style={turnBar}>
+          <button style={turnBtn} onClick={() => worldRef.current?.rotateView(Math.PI / 4)} aria-label="Turn view left">⟲</button>
+          <button style={turnBtn} onClick={() => worldRef.current?.rotateView(-Math.PI / 4)} aria-label="Turn view right">⟳</button>
+        </div>
+      )}
+      {ask && !busy && (
+        <div style={askCard}>
+          <div style={{ fontSize: 38, lineHeight: 1 }}>{ask.emoji}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>{ask.action === "build" ? "Build your Dream Park?" : ask.action === "parent" ? "Go to the grown-ups' area?" : `Go into ${ask.label}?`}</div>
+            <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{ASK_HINT[ask.action] ?? ""}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setAsk(null)}>
+              Not now
+            </button>
+            <button
+              style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }}
+              onClick={() => {
+                const p = ask;
+                setAsk(null);
+                enterPlace(p);
+              }}
+            >
+              Go in! →
+            </button>
+          </div>
+        </div>
+      )}
 
       {building && (
         <BuilderBar
@@ -958,6 +1004,60 @@ const toastStyle: React.CSSProperties = {
   background: "linear-gradient(#ffffff, #ffeaf5)",
   boxShadow: "0 5px 0 #ffb8d9, 0 10px 22px rgba(122,46,98,0.2)",
   animation: `park-pop ${TOAST_MS}ms ease forwards`,
+};
+
+const ASK_HINT: Partial<Record<PlaceAction, string>> = {
+  quests: "See today's quests and earn stars + tickets",
+  shop: "Spend your stars on prizes",
+  pet: "Visit your pet's home",
+  "pet-feed": "Give your pet a snack",
+  "pet-wash": "Bubble bath time!",
+  "pet-sleep": "Nap time for your pet",
+  "pet-fetch": "Play fetch together",
+  "pet-tricks": "Learn and show off tricks",
+  friends: "Chat with your friends",
+  rides: "Quiz Coaster, Mini Golf and games",
+  build: "Place new things with your tickets",
+  parent: "A grown-up PIN is needed",
+};
+
+const askCard: React.CSSProperties = {
+  position: "fixed",
+  left: "50%",
+  bottom: "calc(max(16px, env(safe-area-inset-bottom)) + 150px)",
+  transform: "translateX(-50%)",
+  width: "min(560px, calc(100vw - 24px))",
+  zIndex: 33,
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  flexWrap: "wrap",
+  borderRadius: 26,
+  padding: "12px 14px",
+  background: "linear-gradient(#ffffff, #fff4fa)",
+  boxShadow: "0 6px 0 #ffb8d9, 0 12px 28px rgba(122,46,98,0.22)",
+};
+
+const turnBar: React.CSSProperties = {
+  position: "fixed",
+  left: "max(16px, env(safe-area-inset-left))",
+  bottom: "max(22px, env(safe-area-inset-bottom))",
+  zIndex: 20,
+  display: "flex",
+  gap: 10,
+};
+
+const turnBtn: React.CSSProperties = {
+  width: 54,
+  height: 54,
+  borderRadius: 999,
+  border: "none",
+  fontSize: 26,
+  fontWeight: 900,
+  color: "#7a2e62",
+  background: "linear-gradient(#ffffff, #ffe6f2)",
+  boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.18)",
+  cursor: "pointer",
 };
 
 const rideCard: React.CSSProperties = {

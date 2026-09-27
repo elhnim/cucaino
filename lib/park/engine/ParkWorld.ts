@@ -36,6 +36,8 @@ export interface ParkWorldOptions {
   quality?: QualityTier;
   /** kid walked into / tapped a place */
   onPlace?: (place: PlaceDef) => void;
+  /** kid walked back out of a place's door area (e.g. to dismiss an "enter?" prompt) */
+  onLeavePlace?: (placeId: string) => void;
   /** today's hidden treasures (lib/park/world/treasures.ts) and which are already found */
   treasures?: { spots: { id: number; x: number; z: number }[]; found: number[] };
   onTreasure?: (id: number) => void;
@@ -113,6 +115,14 @@ export class ParkWorld {
   private sparkTex = makeSparkleTexture();
   private raycaster = new THREE.Raycaster();
   private downAt: { x: number; y: number; t: number } | null = null;
+  // ── free camera: drag to look around, pinch / wheel to zoom ──
+  private camYaw = 0;
+  private lookAtPt = new THREE.Vector3(SPAWN.x, 1.2, SPAWN.z);
+  private camZoom = 1;
+  private dragging = false;
+  private lastDrag: { x: number; y: number } | null = null;
+  private pointers = new Map<number, { x: number; y: number }>();
+  private pinchStart: { dist: number; zoom: number } | null = null;
   private frame = 0;
   private running = false;
   private paused = false;
@@ -139,6 +149,7 @@ export class ParkWorld {
     this.renderer.domElement.addEventListener("pointerdown", this.onDown);
     this.renderer.domElement.addEventListener("pointerup", this.onUp);
     this.renderer.domElement.addEventListener("pointermove", this.onMove);
+    this.renderer.domElement.addEventListener("wheel", this.onWheel, { passive: true });
     document.addEventListener("visibilitychange", this.onVisibility);
     void this.boot();
   }
@@ -545,14 +556,52 @@ export class ParkWorld {
   }
   private onDown = (e: PointerEvent) => {
     this.downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.dragging = false;
+    this.lastDrag = { x: e.clientX, y: e.clientY };
+    if (this.pointers.size === 2) {
+      const [a, b] = [...this.pointers.values()];
+      this.pinchStart = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: this.camZoom };
+    }
     if (this.ride?.pointer) this.ride.pointer("down", this.rayAt(e));
   };
   private onMove = (e: PointerEvent) => {
-    if (this.ride?.pointer) this.ride.pointer("move", this.rayAt(e));
+    if (this.ride?.pointer) {
+      this.ride.pointer("move", this.rayAt(e));
+      return;
+    }
+    if (!this.pointers.has(e.pointerId)) return;
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.pointers.size === 2 && this.pinchStart) {
+      const [a, b] = [...this.pointers.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      this.camZoom = Math.max(0.55, Math.min(1.8, this.pinchStart.zoom * (this.pinchStart.dist / Math.max(20, d))));
+      this.dragging = true;
+      return;
+    }
+    if (this.building || this.fetch || !this.lastDrag || !this.downAt) return;
+    const dx = e.clientX - this.lastDrag.x;
+    if (!this.dragging && Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > 10) this.dragging = true;
+    if (this.dragging) this.camYaw -= dx * 0.009; // drag to turn the view
+    this.lastDrag = { x: e.clientX, y: e.clientY };
   };
+  private onWheel = (e: WheelEvent) => {
+    if (this.ride) return;
+    this.camZoom = Math.max(0.55, Math.min(1.8, this.camZoom * (e.deltaY > 0 ? 1.08 : 0.92)));
+  };
+  /** Turn the view left/right (HUD buttons). */
+  rotateView(delta: number) {
+    this.camYaw += delta;
+  }
   private onUp = (e: PointerEvent) => {
     const d = this.downAt;
     this.downAt = null;
+    this.pointers.delete(e.pointerId);
+    if (this.pointers.size < 2) this.pinchStart = null;
+    const wasDrag = this.dragging;
+    this.dragging = false;
+    this.lastDrag = null;
+    if (wasDrag && !this.ride) return; // that was looking around, not a tap
     if (this.ride) {
       this.ride.pointer?.("up", this.rayAt(e));
       return;
@@ -678,8 +727,13 @@ export class ParkWorld {
     if (this.inputOn) {
       const mag = Math.hypot(this.move.x, this.move.y);
       if (mag > 0.12) {
-        vx = (this.move.x / mag) * Math.min(1, mag);
-        vz = (-this.move.y / mag) * Math.min(1, mag);
+        // joystick "up" = away from the camera, whichever way the kid has turned the view
+        const jx = (this.move.x / mag) * Math.min(1, mag);
+        const jz = (-this.move.y / mag) * Math.min(1, mag);
+        const c = Math.cos(this.camYaw);
+        const sn = Math.sin(this.camYaw);
+        vx = jx * c + jz * sn;
+        vz = -jx * sn + jz * c;
       } else if (this.walkTarget) {
         const dx = this.walkTarget.x - pos.x;
         const dz = this.walkTarget.z - pos.z;
@@ -818,6 +872,7 @@ export class ParkWorld {
         this.walkTarget = null;
         this.opts.onPlace?.(found);
       }
+      if (!found && this.nearPlace) this.opts.onLeavePlace?.(this.nearPlace);
       this.nearPlace = found?.id ?? null;
     }
 
@@ -862,9 +917,14 @@ export class ParkWorld {
       this.camera.position.lerp(new THREE.Vector3(cx, span * (portrait ? 1.25 : 0.72), cz + span * (portrait ? 0.95 : 0.9)), Math.min(1, dt * 3));
       this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
     } else {
-      const desired = pos.clone().add(CAM_OFFSET);
-      this.camera.position.lerp(desired, Math.min(1, dt * 3.5));
-      this.camera.lookAt(pos.x, 1.2, pos.z);
+      const off = CAM_OFFSET.clone().multiplyScalar(this.camZoom).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camYaw);
+      // look a little ahead of where the kid is heading, so they can see what's coming
+      const ahead = moving ? 3 : 1.2;
+      const lx = pos.x + Math.sin(kid.facing) * ahead;
+      const lz = pos.z + Math.cos(kid.facing) * ahead;
+      this.lookAtPt.lerp(new THREE.Vector3(lx, 1.2, lz), Math.min(1, dt * 3));
+      this.camera.position.lerp(new THREE.Vector3(this.lookAtPt.x, 0, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
+      this.camera.lookAt(this.lookAtPt);
     }
     this.renderer.render(this.scene, this.camera);
     this.frame = requestAnimationFrame(this.tick);
@@ -887,6 +947,7 @@ export class ParkWorld {
     this.renderer.domElement.removeEventListener("pointerdown", this.onDown);
     this.renderer.domElement.removeEventListener("pointerup", this.onUp);
     this.renderer.domElement.removeEventListener("pointermove", this.onMove);
+    this.renderer.domElement.removeEventListener("wheel", this.onWheel);
     this.ride?.dispose();
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.park?.dispose();

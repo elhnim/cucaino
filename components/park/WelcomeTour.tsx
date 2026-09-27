@@ -8,7 +8,7 @@ import { markKidTourSeen } from "@/lib/actions/onboarding";
 import { CandySheet, CandyButton } from "./ui/CandySheet";
 
 const STEPS = [
-  { emoji: "🍭", title: "Welcome to Cucaino Park!", body: "This is YOUR park. Walk around with the joystick, or tap anywhere to walk there." },
+  { emoji: "🍭", title: "Welcome to Cucaino Park!", body: "This is YOUR park. Walk with the joystick or tap where to go. Drag the screen (or use ⟲ ⟳) to look around, pinch to zoom!" },
   { emoji: "📋", title: "Do quests, earn stars", body: "Your chores are quests on the Quest Board. Finish one and you win ⭐ stars and a 🎟️ ticket!" },
   { emoji: "🔨", title: "Build your Dream Park", body: "Spend tickets on lollipops, cupcakes, fountains and rides. Your park grows every day!" },
   { emoji: "🐾", title: "Look after your pet", body: "Visit Pet Meadow to feed, bathe, play fetch and teach tricks. Your pet will love you for it!" },
