@@ -35,6 +35,11 @@ yarn-error.log*
 # netlify (local build cache from `netlify build`/`netlify dev`)
 .netlify
 
+# Gutenberg import pipeline (regenerable — see scripts/lookup-books.mjs / import-books.mjs)
+.gutenberg-cache/
+scripts/books-manifest.json
+scripts/import-results.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

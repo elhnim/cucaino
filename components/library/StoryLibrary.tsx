@@ -3,13 +3,60 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { LibraryStory } from "@/lib/stories/types";
-import { completeStory, type StoryProgress } from "@/lib/actions/stories";
+import { completeStory, completeStoryRead, type StoryProgress } from "@/lib/actions/stories";
 
 type View =
   | { mode: "shelf" }
   | { mode: "read"; id: string }
   | { mode: "quiz"; id: string }
   | { mode: "result"; id: string; score: number; passed: boolean; starsAwarded: number; total: number };
+
+// Classic hardcover palette — deterministic per book id so covers stay stable across renders.
+const COVER_PALETTE = [
+  { from: "from-rose-800", to: "to-rose-950", spine: "bg-rose-950" },
+  { from: "from-emerald-800", to: "to-emerald-950", spine: "bg-emerald-950" },
+  { from: "from-indigo-800", to: "to-indigo-950", spine: "bg-indigo-950" },
+  { from: "from-amber-700", to: "to-amber-900", spine: "bg-amber-900" },
+  { from: "from-fuchsia-800", to: "to-fuchsia-950", spine: "bg-fuchsia-950" },
+  { from: "from-teal-800", to: "to-teal-950", spine: "bg-teal-950" },
+  { from: "from-orange-800", to: "to-orange-950", spine: "bg-orange-950" },
+  { from: "from-slate-700", to: "to-slate-900", spine: "bg-slate-900" },
+];
+
+function coverStyle(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return COVER_PALETTE[hash % COVER_PALETTE.length];
+}
+
+function BookCover({
+  story,
+  className = "",
+  size = "sm",
+  children,
+}: {
+  story: LibraryStory;
+  className?: string;
+  size?: "sm" | "lg";
+  children?: React.ReactNode;
+}) {
+  const c = coverStyle(story.id);
+  const titleSize = size === "lg" ? "text-xl" : "text-xs";
+  const authorSize = size === "lg" ? "text-xs" : "text-[9px]";
+  return (
+    <div className={`relative rounded-r-lg rounded-l-sm bg-gradient-to-br ${c.from} ${c.to} shadow-md overflow-hidden flex flex-col items-center justify-center text-center px-3 ${className}`}>
+      <div className={`absolute left-0 top-0 bottom-0 w-2 ${c.spine} shadow-[inset_-2px_0_3px_rgba(0,0,0,0.4)]`} />
+      <div className="absolute right-0 top-1 bottom-1 w-1.5 bg-gradient-to-l from-white/40 to-transparent" />
+      <div className="w-8 h-px bg-white/40 mb-2" />
+      <p className={`font-serif font-black text-white leading-tight drop-shadow-sm line-clamp-4 ${titleSize}`}>
+        {story.title}
+      </p>
+      <div className="w-8 h-px bg-white/40 mt-2" />
+      {story.author && <p className={`${authorSize} font-semibold text-white/70 mt-2 uppercase tracking-wide`}>{story.author}</p>}
+      {children}
+    </div>
+  );
+}
 
 export default function StoryLibrary({
   stories,
@@ -26,11 +73,35 @@ export default function StoryLibrary({
   );
   const [view, setView] = useState<View>({ mode: "shelf" });
   const [chapterIdx, setChapterIdx] = useState<number | null>(null);
+  const [finishing, setFinishing] = useState(false);
   const storyById = (id: string) => stories.find((s) => s.id === id)!;
   const openStory = (id: string) => { setChapterIdx(null); setView({ mode: "read", id }); };
 
+  const finishReading = async (s: LibraryStory) => {
+    let starsAwarded = 0;
+    if (kidId) {
+      setFinishing(true);
+      const res = await completeStoryRead(kidId, s.id);
+      setFinishing(false);
+      if (res.ok) starsAwarded = res.starsAwarded;
+    }
+    setProgress((prev) => ({
+      ...prev,
+      [s.id]: {
+        storyId: s.id,
+        bestScore: 0,
+        total: 0,
+        starsAwarded: (prev[s.id]?.starsAwarded ?? 0) + starsAwarded,
+        completedAt: new Date().toISOString(),
+      },
+    }));
+    setView({ mode: "result", id: s.id, score: 0, passed: true, starsAwarded, total: 0 });
+  };
+
   if (view.mode === "read") {
     const s = storyById(view.id);
+
+    const hasQuiz = (s.quiz?.length ?? 0) > 0;
 
     // ---- Chapter book ----
     if (s.chapters && s.chapters.length > 0) {
@@ -39,12 +110,10 @@ export default function StoryLibrary({
         return (
           <Frame>
             <button onClick={() => setView({ mode: "shelf" })} className="text-sm font-bold text-gray-500 mb-3">← Library</button>
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4">
-              <div className="bg-gradient-to-br from-sky-100 via-indigo-100 to-rose-100 py-8 flex items-center justify-center">
-                <span className="text-5xl" style={{ letterSpacing: "0.15em" }}>{s.illustration}</span>
-              </div>
-              <div className="p-4">
-                <h1 className="text-2xl font-black text-indigo-900">{s.title}</h1>
+            <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 flex gap-4 items-center">
+              <BookCover story={s} size="lg" className="w-24 aspect-[2/3] shrink-0" />
+              <div>
+                <h1 className="text-xl font-black text-indigo-900 leading-tight">{s.title}</h1>
                 {s.author && <p className="text-sm font-bold text-gray-500">by {s.author}</p>}
                 <p className="text-xs font-bold text-gray-400 mt-1">{s.level} · {chapters.length} chapters · ~{s.minutes} min</p>
               </div>
@@ -58,9 +127,15 @@ export default function StoryLibrary({
                 </button>
               ))}
             </div>
-            <button onClick={() => setView({ mode: "quiz", id: s.id })} className="w-full mt-4 py-3.5 rounded-2xl font-black text-indigo-700 border-2 border-indigo-200 hover:bg-indigo-50 transition-colors">
-              Skip to quiz 📝
-            </button>
+            {hasQuiz ? (
+              <button onClick={() => setView({ mode: "quiz", id: s.id })} className="w-full mt-4 py-3.5 rounded-2xl font-black text-indigo-700 border-2 border-indigo-200 hover:bg-indigo-50 transition-colors">
+                Skip to quiz 📝
+              </button>
+            ) : (
+              <button onClick={() => finishReading(s)} disabled={finishing} className="w-full mt-4 py-3.5 rounded-2xl font-black text-indigo-700 border-2 border-indigo-200 hover:bg-indigo-50 transition-colors disabled:opacity-50">
+                {finishing ? "Saving…" : "Mark as finished ✅"}
+              </button>
+            )}
           </Frame>
         );
       }
@@ -82,8 +157,12 @@ export default function StoryLibrary({
             )}
             {!isLast ? (
               <button onClick={() => setChapterIdx(chapterIdx + 1)} className="flex-1 py-3.5 rounded-2xl font-black text-white bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors">Next chapter →</button>
-            ) : (
+            ) : hasQuiz ? (
               <button onClick={() => setView({ mode: "quiz", id: s.id })} className="flex-1 py-3.5 rounded-2xl font-black text-white bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors">Finish · quiz 📝</button>
+            ) : (
+              <button onClick={() => finishReading(s)} disabled={finishing} className="flex-1 py-3.5 rounded-2xl font-black text-white bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors disabled:opacity-50">
+                {finishing ? "Saving…" : "Finish book 🎉"}
+              </button>
             )}
           </div>
         </Frame>
@@ -94,24 +173,31 @@ export default function StoryLibrary({
     return (
       <Frame>
         <button onClick={() => setView({ mode: "shelf" })} className="text-sm font-bold text-gray-500 mb-3">← Library</button>
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden mb-4">
-          <div className="bg-gradient-to-br from-sky-100 via-indigo-100 to-rose-100 py-8 flex items-center justify-center">
-            <span className="text-5xl" style={{ letterSpacing: "0.15em" }}>{s.illustration}</span>
-          </div>
-          <div className="p-4">
-            <h1 className="text-2xl font-black text-indigo-900">{s.title}</h1>
-            <p className="text-xs font-bold text-gray-400 mb-3">{s.level} · ~{s.minutes} min read</p>
-            <div className="space-y-3">
-              {(s.paragraphs ?? []).map((p, i) => (
-                <p key={i} className="text-gray-800 leading-relaxed">{p}</p>
-              ))}
+        <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+          <div className="flex gap-4 items-center mb-4">
+            <BookCover story={s} size="lg" className="w-24 aspect-[2/3] shrink-0" />
+            <div>
+              <h1 className="text-xl font-black text-indigo-900 leading-tight">{s.title}</h1>
+              {s.author && <p className="text-sm font-bold text-gray-500">by {s.author}</p>}
+              <p className="text-xs font-bold text-gray-400 mt-1">{s.level} · ~{s.minutes} min read</p>
             </div>
-            {s.moral && <p className="mt-4 text-sm font-bold text-indigo-700">💡 {s.moral}</p>}
           </div>
+          <div className="space-y-3">
+            {(s.paragraphs ?? []).map((p, i) => (
+              <p key={i} className="text-gray-800 leading-relaxed">{p}</p>
+            ))}
+          </div>
+          {s.moral && <p className="mt-4 text-sm font-bold text-indigo-700">💡 {s.moral}</p>}
         </div>
-        <button onClick={() => setView({ mode: "quiz", id: s.id })} className="w-full py-4 rounded-2xl font-black text-white text-lg bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors">
-          Comprehension quiz 📝
-        </button>
+        {hasQuiz ? (
+          <button onClick={() => setView({ mode: "quiz", id: s.id })} className="w-full py-4 rounded-2xl font-black text-white text-lg bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors">
+            Comprehension quiz 📝
+          </button>
+        ) : (
+          <button onClick={() => finishReading(s)} disabled={finishing} className="w-full py-4 rounded-2xl font-black text-white text-lg bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 transition-colors disabled:opacity-50">
+            {finishing ? "Saving…" : "I've read this! ✅"}
+          </button>
+        )}
       </Frame>
     );
   }
@@ -179,10 +265,10 @@ export default function StoryLibrary({
     <Frame>
       <div className="flex items-center gap-3 mb-4">
         <Link href={backHref} className="text-sm font-bold text-gray-500 shrink-0">← Back</Link>
-        <h1 className="text-2xl font-black text-indigo-900 flex-1">📖 Story Library</h1>
+        <h1 className="text-2xl font-black text-indigo-900 flex-1">Story Library</h1>
       </div>
       <div className="bg-white/80 backdrop-blur rounded-3xl p-4 shadow-sm mb-4">
-        <p className="text-gray-700 font-semibold mb-3">Read a classic tale, then pass the quiz to earn ⭐.</p>
+        <p className="text-gray-700 font-semibold mb-3">Browse the shelf, pick a book, and read to earn stars.</p>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-2 rounded-full bg-gray-200 overflow-hidden">
             <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${(readCount / stories.length) * 100}%` }} />
@@ -190,22 +276,23 @@ export default function StoryLibrary({
           <span className="text-xs font-black text-gray-500">{readCount}/{stories.length}</span>
         </div>
       </div>
-      <div className="space-y-5">
+      <div className="space-y-6">
         {collections.map((group) => (
           <div key={group.collection}>
             <div className="text-[11px] font-black uppercase tracking-widest text-indigo-400 mb-2 px-1">{group.collection}</div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {group.stories.map((s) => {
                 const done = !!progress[s.id]?.completedAt;
                 return (
-                  <button key={s.id} type="button" onClick={() => openStory(s.id)} className="bg-white rounded-2xl shadow-sm overflow-hidden text-left active:scale-[0.98] transition-transform">
-                    <div className="bg-gradient-to-br from-sky-100 to-indigo-100 py-5 flex items-center justify-center">
-                      <span className="text-4xl" style={{ letterSpacing: "0.1em" }}>{s.illustration}</span>
-                    </div>
-                    <div className="p-3">
-                      <div className="font-black text-sm text-gray-900 leading-tight">{s.title}</div>
-                      <div className="text-[11px] text-gray-400 mt-0.5">
-                        {s.chapters ? `${s.chapters.length} chapters` : s.level} · ~{s.minutes} min {done ? "· ✅" : ""}
+                  <button key={s.id} type="button" onClick={() => openStory(s.id)} className="text-left active:scale-[0.97] transition-transform">
+                    <BookCover story={s} className="aspect-[2/3] w-full">
+                      {done && (
+                        <span className="absolute top-1.5 right-2 w-4 h-4 rounded-full bg-white/90 text-emerald-600 text-[10px] font-black flex items-center justify-center shadow">✓</span>
+                      )}
+                    </BookCover>
+                    <div className="mt-1.5 px-0.5">
+                      <div className="text-[11px] text-gray-400">
+                        {s.chapters ? `${s.chapters.length} ch.` : s.level} · ~{s.minutes} min
                       </div>
                     </div>
                   </button>
@@ -238,12 +325,13 @@ function StoryQuiz({
   onDone: (score: number, passed: boolean, starsAwarded: number, total: number) => void;
   onCancel: () => void;
 }) {
-  const total = story.quiz.length;
+  const quiz = story.quiz ?? [];
+  const total = quiz.length;
   const [qi, setQi] = useState(0);
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const question = story.quiz[qi];
+  const question = quiz[qi];
   const answered = picked !== null;
 
   const shuffled = useMemo(() => {
