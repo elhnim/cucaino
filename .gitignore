@@ -68,3 +68,13 @@ mockups/2026-06-12-game-world/smoke-*.png
 
 # Cucaino Park asset pipeline download cache (scripts/park-assets.mjs)
 .park-assets-cache/
+
+# local scratch: dev logs, screenshots, mockup images, brainstorm output, unused art
+.next-*.log
+.next-*.err.log
+screenshots/
+mockups/2026-06-12-cartoon-pet-art/
+mockups/2026-06-12-game-world/
+mockups/2026-06-12-pixel-pet-art/
+.superpowers/
+public/game/
