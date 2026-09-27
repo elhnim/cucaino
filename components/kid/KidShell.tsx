@@ -13,7 +13,6 @@ import BadgeUnlockModal from "@/components/kid/BadgeUnlockModal";
 import { BADGE_META } from "@/lib/domain/badge-config";
 import { FULLSCREEN_EVENT, isImmersive } from "@/lib/fullscreen/fullscreen-manager";
 import { useIsEmbedded } from "@/lib/embed";
-import { updateWeatherLocation } from "@/lib/actions/parent-settings";
 
 type NavKey = "home" | "todo" | "rewards" | "play" | "friends";
 
@@ -234,13 +233,9 @@ export default function KidShell({
     };
     if (weatherLocation) {
       doFetch(weatherLocation.lat, weatherLocation.lon);
-    } else if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(({ coords }) => {
-        doFetch(coords.latitude, coords.longitude);
-        // Persist the granted location so we don't prompt again next time.
-        updateWeatherLocation("My location", coords.latitude, coords.longitude).catch(() => {});
-      });
     }
+    // No geolocation fallback — that would prompt for browser location permission.
+    // Location is set explicitly by a parent via WeatherLocationPicker instead.
   }, [weatherLocation?.lat, weatherLocation?.lon]);
 
   return (

@@ -11,21 +11,32 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@anthropic-ai/sdk@~0.97.1",
+        "npm:@dnd-kit/core@^6.3.1",
+        "npm:@dnd-kit/sortable@10",
+        "npm:@dnd-kit/utilities@^3.2.2",
+        "npm:@ducanh2912/next-pwa@^10.2.9",
         "npm:@netlify/plugin-nextjs@^5.15.10",
         "npm:@supabase/ssr@~0.10.2",
         "npm:@supabase/supabase-js@^2.105.3",
         "npm:@types/node@22",
         "npm:@types/react-dom@19",
         "npm:@types/react@19",
+        "npm:@types/three@0.186",
         "npm:autoprefixer@^10.4.20",
         "npm:cross-env@^10.1.0",
+        "npm:leo-profanity@^1.9.0",
         "npm:next@^16.2.5",
         "npm:pitchy@^4.1.0",
+        "npm:playwright@^1.59.1",
         "npm:postcss@^8.5.0",
         "npm:react-dom@19.0.0",
         "npm:react@19.0.0",
         "npm:tailwindcss@^3.4.17",
-        "npm:typescript@^5.7.0"
+        "npm:three@~0.186.1",
+        "npm:typescript@^5.7.0",
+        "npm:vitest@^4.1.8",
+        "npm:web-vitals@^5.2.0"
       ]
     }
   }
