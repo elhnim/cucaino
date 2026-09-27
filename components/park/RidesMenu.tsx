@@ -11,13 +11,13 @@ export interface RideEntry {
   blurb: string;
   color: string;
   /** "coaster" / "golf" are real 3D rides; otherwise a page route shown in an in-park window */
-  route: ((kidId: string) => string) | "coaster" | "golf";
+  route: ((kidId: string) => string) | "coaster" | "golf" | "market";
 }
 
 export const RIDES: RideEntry[] = [
   { id: "coaster", emoji: "🎢", name: "Quiz Coaster", blurb: "Ride the rails, answer at every gate!", color: "#ff5fa8", route: "coaster" },
   { id: "golf", emoji: "⛳", name: "Mini Golf", blurb: "5 holes · windmills & bumpers", color: "#2fcf8f", route: "golf" },
-  { id: "trading", emoji: "📈", name: "Nugget Market", blurb: "Buy low, sell high!", color: "#22c55e", route: (id) => `/play/trading?kid=${id}` },
+  { id: "trading", emoji: "📈", name: "Nugget Market", blurb: "Buy low, sell high!", color: "#22c55e", route: "market" },
   { id: "invest", emoji: "🏦", name: "The Bank", blurb: "Grow your money", color: "#4f46e5", route: (id) => `/play/invest?kid=${id}` },
   { id: "arcade", emoji: "🕹️", name: "AI Arcade", blurb: "Emoji stories & brain games", color: "#06b6d4", route: (id) => `/play/arcade?kid=${id}` },
   { id: "money-town", emoji: "💰", name: "Money Town", blurb: "Spin, earn and save", color: "#eab308", route: (id) => `/play/money-town?kid=${id}` },

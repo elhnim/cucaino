@@ -17,6 +17,7 @@ export type PlaceAction =
   | "gift"
   | "build"
   | "parent"
+  | "market"
   | "none";
 
 export interface PlaceModel {
@@ -221,6 +222,24 @@ export const PLACES: PlaceDef[] = [
       { kit: "city", id: "building-k", scale: 3.6, rotY: -Math.PI / 2 },
       { kit: "city", id: "detail-parasol-a", scale: 3.2, offset: [-4.2, 2.6] },
       { kit: "food", id: "cupcake", scale: 5, offset: [-4.4, -2.4] },
+    ],
+  },
+
+  {
+    id: "nugget-market",
+    label: "Nugget Market",
+    emoji: "📈",
+    land: "market",
+    x: 38,
+    z: -49,
+    radius: 2,
+    doorRadius: 4,
+    action: "market",
+    signY: 5,
+    models: [
+      { kit: "town", id: "stall-green", scale: 3 },
+      { kit: "town", id: "banner-green", scale: 2.6, offset: [-2, 0.4] },
+      { kit: "holiday", id: "present-a-round", scale: 1.6, offset: [2, 1] },
     ],
   },
 

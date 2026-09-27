@@ -40,6 +40,7 @@ const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.Pe
 const QuestBoard = dynamic(() => import("./quests/QuestBoard").then((m) => m.QuestBoard), { ssr: false });
 const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal"), { ssr: false });
 const PrizeShop = dynamic(() => import("./shop/PrizeShop").then((m) => m.PrizeShop), { ssr: false });
+const NuggetMarket = dynamic(() => import("./market/NuggetMarket").then((m) => m.NuggetMarket), { ssr: false });
 const FriendsPanel = dynamic(() => import("@/components/game/panels/FriendsPanel").then((m) => m.FriendsPanel), { ssr: false });
 const QuizHubPanel = dynamic(() => import("@/components/game/panels/QuizHubPanel").then((m) => m.QuizHubPanel), { ssr: false });
 const QuizGamePanel = dynamic(() => import("@/components/game/panels/QuizGamePanel").then((m) => m.QuizGamePanel), { ssr: false });
@@ -588,6 +589,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const pickRide = (r: RideEntry) => {
     if (r.route === "coaster") setPanel({ kind: "quiz-hub", placeId: panel?.placeId });
     else if (r.route === "golf") void startGolf();
+    else if (r.route === "market") setPanel({ kind: "market", placeId: panel?.placeId });
     else setPage({ src: r.route(kidId), title: `${r.emoji} ${r.name}` });
   };
 
@@ -792,6 +794,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         <QuestBoard kidId={kidId} accentColor={theme.accent} onClose={closePanel} onOpenPage={(src, title) => setPage({ src, title })} refreshKey={questRefresh} />
       )}
       {panel?.kind === "shop" && <PrizeShop kidId={kidId} onClose={closePanel} />}
+      {panel?.kind === "market" && <NuggetMarket kidId={kidId} onClose={closePanel} onStars={setPoints} />}
       {panel?.kind === "friends" && <FriendsPanel kidId={kidId} accentColor={theme.accent} onClose={closePanel} />}
       {panel && PET_MODE[panel.kind] && (
         <PetCareSheet
@@ -1018,6 +1021,7 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   friends: "Chat with your friends",
   rides: "Quiz Coaster, Mini Golf and games",
   build: "Place new things with your tickets",
+  market: "Buy and sell shares with your nuggets",
   parent: "A grown-up PIN is needed",
 };
 
