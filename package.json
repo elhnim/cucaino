@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "perf": "node scripts/perf-audit.mjs",
-    "perf:static": "node scripts/perf-audit.mjs --no-browser"
+    "perf:static": "node scripts/perf-audit.mjs --no-browser",
+    "import:books": "node scripts/import-books.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",

@@ -54,10 +54,21 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Triggers a refresh if the access token is expired
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Triggers a refresh if the access token is expired. Bounded by a timeout so a
+  // slow/unreachable auth service can never hang every request (and thus brick
+  // the whole app on the loading screen) — if it can't verify quickly, let the
+  // request through rather than hang or loop.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  try {
+    const result = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 8000)),
+    ]);
+    if (result === "timeout") return supabaseResponse;
+    user = result.data.user;
+  } catch {
+    return supabaseResponse;
+  }
 
   const url = request.nextUrl.pathname;
 

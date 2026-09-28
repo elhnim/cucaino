@@ -5,9 +5,11 @@ import { TALES_WITH_A_TWIST } from "@/lib/stories/content/tales-with-a-twist";
 import { GREEK_MYTHS } from "@/lib/stories/content/greek-myths";
 import { EGYPTIAN_MYTHS } from "@/lib/stories/content/egyptian-myths";
 import { CHAPTER_BOOKS } from "@/lib/stories/content/chapter-books";
+import { GUTENBERG_BOOKS } from "@/lib/stories/content/gutenberg-books.generated";
 
 // Add more stories here (a content file + this list).
 export const STORIES: LibraryStory[] = [
+  ...GUTENBERG_BOOKS,
   ...CHAPTER_BOOKS,
   ...GREEK_MYTHS,
   ...EGYPTIAN_MYTHS,
