@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucaino — Play Hub (mockup)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; }
+  html,body { height:100%; font-family:"Baloo 2","Comic Sans MS",system-ui,sans-serif; }
+  .frame { position:relative; min-height:100%; height:100%; background:url("art/bg.png") center/cover no-repeat fixed; display:flex; flex-direction:column; }
+  .scrim { position:absolute; inset:0; background:rgba(80,40,140,.10); pointer-events:none; }
+
+  .top { position:sticky; top:0; display:flex; align-items:center; justify-content:space-between; padding:12px 18px; z-index:30; gap:10px; }
+  .back { width:60px; cursor:pointer; filter:drop-shadow(0 4px 4px rgba(0,0,0,.3)); flex:0 0 auto; }
+  .title-ribbon { display:flex; align-items:center; gap:8px; background:#7b53d4; color:#fff; font-weight:900; font-size:clamp(20px,4vw,30px); padding:8px 22px; border-radius:16px; box-shadow:0 6px 0 #573a99; }
+  .pill { display:flex; align-items:center; gap:6px; background:#fff; border-radius:999px; padding:5px 14px 5px 6px; box-shadow:0 4px 0 #cf9b53; font-weight:900; font-size:20px; color:#6b4a1f; flex:0 0 auto; }
+  .pill img { height:34px; }
+
+  .grid { position:relative; z-index:20; flex:1; display:grid; gap:18px; padding:18px; align-content:start;
+          grid-template-columns:repeat(auto-fill, minmax(190px,1fr)); overflow:auto; }
+  .game { background:#fff; border-radius:26px; box-shadow:0 8px 0 #c79ce0, 0 14px 22px rgba(0,0,0,.18); padding:14px; text-align:center; position:relative; transition:transform .15s; cursor:pointer; min-height:210px; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; overflow:hidden; }
+  .game:hover { transform:translateY(-6px); }
+  .game .scene { position:absolute; inset:0; border-radius:26px; opacity:.5; }
+  .game .mascot { width:120px; height:120px; object-fit:contain; filter:drop-shadow(0 6px 6px rgba(0,0,0,.25)); margin-bottom:6px; z-index:1; }
+  .game .emoji { font-size:74px; margin-bottom:4px; z-index:1; }
+  .game .name { font-weight:900; font-size:21px; color:#5a3a8a; z-index:1; }
+  .game .play { margin-top:8px; background:linear-gradient(180deg,#7ed957,#46c43a); color:#fff; font-weight:900; font-size:18px; padding:6px 22px; border-radius:999px; box-shadow:0 4px 0 #2f9426; z-index:1; }
+  .game .badge { position:absolute; top:10px; right:12px; background:#ffce3a; color:#7a4a0f; font-weight:900; font-size:13px; padding:3px 10px; border-radius:999px; box-shadow:0 3px 0 #d6a417; z-index:2; }
+  .sc-pink{background:radial-gradient(circle at 50% 30%,#ffd6ec,#ff9ec4);}
+  .sc-blue{background:radial-gradient(circle at 50% 30%,#cdeBff,#7fc4ff);}
+  .sc-green{background:radial-gradient(circle at 50% 30%,#d6ffce,#86e06a);}
+  .sc-gold{background:radial-gradient(circle at 50% 30%,#fff0c0,#ffd35a);}
+  .sc-purple{background:radial-gradient(circle at 50% 30%,#e8d6ff,#bd9bff);}
+  .sc-teal{background:radial-gradient(circle at 50% 30%,#ccfbf1,#67e8c9);}
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="scrim"></div>
+  <div class="top">
+    <img class="back" src="art/btn-close.png">
+    <div class="title-ribbon">🎮 Play</div>
+    <div class="pill"><img src="art/star.png">24</div>
+  </div>
+
+  <div class="grid">
+    <div class="game"><div class="scene sc-pink"></div><img class="mascot" src="art/pet.png"><div class="name">My Pet</div><div class="play">Play</div></div>
+    <div class="game"><div class="scene sc-gold"></div><span class="badge">NEW</span><div class="emoji">🪙</div><div class="name">Money Town</div><div class="play">Play</div></div>
+    <div class="game"><div class="scene sc-green"></div><div class="emoji">🌟</div><div class="name">Dream Life</div><div class="play">Play</div></div>
+    <div class="game"><div class="scene sc-blue"></div><div class="emoji">📈</div><div class="name">Invest</div><div class="play">Play</div></div>
+    <div class="game"><div class="scene sc-purple"></div><img class="mascot" src="art/mascot-monster.png"><div class="name">Quiz Quest</div><div class="play">Play</div></div>
+    <div class="game"><div class="scene sc-teal"></div><img class="mascot" src="art/mascot-penguin.png"><div class="name">Arcade</div><div class="play">Play</div></div>
+  </div>
+</div>
+</body>
+</html>

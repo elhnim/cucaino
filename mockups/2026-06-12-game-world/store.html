@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucaino — Store (mockup)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; }
+  html,body { height:100%; overflow:hidden; font-family:"Baloo 2","Comic Sans MS",system-ui,sans-serif; }
+  .frame { position:relative; width:100%; height:100vh; background:url("art/bg.png") center/cover no-repeat; }
+  .scrim { position:absolute; inset:0; background:rgba(120,60,160,.10); }
+
+  .top { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:14px 22px; z-index:30; }
+  .back { width:70px; cursor:pointer; filter:drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
+  .title-ribbon { display:flex; align-items:center; gap:10px; background:#e94e77; color:#fff; font-weight:900; font-size:30px; padding:8px 28px; border-radius:18px; box-shadow:0 6px 0 #b83257; }
+  .counters { display:flex; gap:10px; }
+  .pill { display:flex; align-items:center; gap:6px; background:#fff; border-radius:999px; padding:5px 16px 5px 7px; box-shadow:0 4px 0 #cf9b53; font-weight:900; font-size:22px; color:#6b4a1f; }
+  .pill img { height:38px; } .pill .s { height:32px; }
+
+  .shelf { position:absolute; top:120px; bottom:30px; left:0; right:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:22px; padding:14px 34px; z-index:20; overflow:auto; align-content:start; }
+  .item { background:#fff; border-radius:26px; box-shadow:0 8px 0 #d98fb6, 0 14px 22px rgba(0,0,0,.18); padding:16px 14px; text-align:center; position:relative; display:flex; flex-direction:column; align-items:center; }
+  .item .thumb { width:140px; height:130px; display:grid; place-items:center; }
+  .item .thumb img { max-width:100%; max-height:100%; filter:drop-shadow(0 6px 6px rgba(0,0,0,.25)); }
+  .item .thumb span { font-size:78px; }
+  .item .name { font-weight:800; font-size:20px; color:#7a4a1e; margin:4px 0 10px; }
+  .buy { display:inline-flex; align-items:center; gap:6px; background:linear-gradient(180deg,#ffd95a,#f4b223); color:#7a4a0f; font-weight:900; font-size:22px; padding:8px 20px; border-radius:999px; box-shadow:0 5px 0 #c98a14; cursor:pointer; }
+  .buy img { height:30px; }
+  .item.locked { filter:grayscale(.4) brightness(.97); }
+  .item .lockbadge { position:absolute; top:10px; right:12px; width:44px; }
+  .item.locked .buy { background:#ddd; color:#888; box-shadow:0 5px 0 #bbb; }
+  .ribbon-tag { position:absolute; top:-10px; left:-8px; background:#46c43a; color:#fff; font-weight:900; font-size:14px; padding:4px 12px; border-radius:12px; box-shadow:0 3px 0 #2f9426; transform:rotate(-8deg); }
+
+  .hint { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); z-index:40; background:rgba(0,0,0,.45); color:#fff; padding:5px 16px; border-radius:999px; font-size:13px; }
+  @media (max-aspect-ratio: 3/4) {
+    .title-ribbon { font-size:22px; padding:6px 18px; }
+    .shelf { grid-template-columns:repeat(auto-fill,minmax(44vw,1fr)); gap:14px; padding:10px 14px 80px; }
+    .item .thumb { width:100px; height:96px; } .item .thumb span { font-size:54px; }
+    .item .name { font-size:17px; } .buy { font-size:19px; padding:7px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="scrim"></div>
+
+  <div class="top">
+    <img class="back" src="art/btn-close.png">
+    <div class="title-ribbon">🎁 Reward Store</div>
+    <div class="counters">
+      <div class="pill"><img src="art/star.png" class="s">24</div>
+    </div>
+  </div>
+
+  <div class="shelf">
+    <div class="item">
+      <span class="ribbon-tag">NEW</span>
+      <div class="thumb"><span>📺</span></div>
+      <div class="name">30 min TV</div>
+      <div class="buy"><img src="art/star.png">10</div>
+    </div>
+    <div class="item">
+      <div class="thumb"><span>🍦</span></div>
+      <div class="name">Ice cream</div>
+      <div class="buy"><img src="art/star.png">15</div>
+    </div>
+    <div class="item">
+      <div class="thumb"><span>🎮</span></div>
+      <div class="name">Game time</div>
+      <div class="buy"><img src="art/star.png">20</div>
+    </div>
+    <div class="item">
+      <div class="thumb"><img src="art/chest-gold.png"></div>
+      <div class="name">Mystery chest</div>
+      <div class="buy"><img src="art/star.png">25</div>
+    </div>
+    <div class="item">
+      <div class="thumb"><span>🏊</span></div>
+      <div class="name">Pool trip</div>
+      <div class="buy"><img src="art/star.png">30</div>
+    </div>
+    <div class="item locked">
+      <img class="lockbadge" src="art/lock.png">
+      <div class="thumb"><span>🚲</span></div>
+      <div class="name">New bike</div>
+      <div class="buy"><img src="art/star.png">200</div>
+    </div>
+    <div class="item locked">
+      <img class="lockbadge" src="art/lock.png">
+      <div class="thumb"><span>🎡</span></div>
+      <div class="name">Theme park</div>
+      <div class="buy"><img src="art/star.png">150</div>
+    </div>
+    <div class="item">
+      <div class="thumb"><span>🍕</span></div>
+      <div class="name">Pizza night</div>
+      <div class="buy"><img src="art/star.png">40</div>
+    </div>
+  </div>
+
+  <div class="hint">Mockup — Reward Store. Spend stars; locked items show how close they are; chest = surprise reward.</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucaino — Game World Home (mockup)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+  html, body { height: 100%; overflow: hidden; font-family: "Baloo 2", "Comic Sans MS", system-ui, sans-serif; }
+  .frame {
+    position: relative; width: 100%; height: 100vh;
+    background: url("art/bg.png") center/cover no-repeat;
+  }
+  /* drifting clouds */
+  .cloud { position: absolute; opacity: .9; pointer-events: none; }
+  .cloud img { width: 100%; display: block; }
+  .c1 { width: 220px; top: 6%; left: -260px; animation: drift 38s linear infinite; }
+  .c2 { width: 160px; top: 16%; left: -200px; animation: drift 52s linear infinite; animation-delay: -20s; }
+  @keyframes drift { to { transform: translateX(120vw); } }
+
+  /* ---------- TOP HUD ---------- */
+  .hud { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: flex-start; justify-content: space-between; padding: 16px 22px; z-index: 30; }
+  .player { display: flex; align-items: center; gap: 12px; }
+  .avatar-frame {
+    width: 84px; height: 84px; border-radius: 24px; background: linear-gradient(160deg,#fff,#ffe9c7);
+    border: 5px solid #fff; box-shadow: 0 6px 0 #e29b45, 0 10px 18px rgba(0,0,0,.25);
+    display: grid; place-items: center; overflow: hidden;
+  }
+  .avatar-frame img { width: 92%; }
+  .player .name {
+    background: #fff; color: #b5572a; font-weight: 800; font-size: 20px;
+    padding: 6px 16px 8px; border-radius: 18px; box-shadow: 0 4px 0 #e29b45; margin-top: 8px;
+  }
+  .counters { display: flex; gap: 12px; }
+  .pill {
+    display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 999px;
+    padding: 6px 18px 6px 8px; box-shadow: 0 5px 0 #cf9b53, 0 8px 14px rgba(0,0,0,.2);
+    font-weight: 900; font-size: 26px; color: #6b4a1f;
+  }
+  .pill img { height: 46px; }
+  .pill .star { height: 40px; }
+
+  /* ---------- WORLD ---------- */
+  .world { position: absolute; inset: 0; z-index: 10; }
+  .dest {
+    position: absolute; cursor: pointer; text-align: center;
+    transition: transform .15s ease; animation: bob 3.2s ease-in-out infinite;
+  }
+  .dest:hover { transform: scale(1.06); }
+  .dest img { display: block; filter: drop-shadow(0 10px 12px rgba(0,0,0,.3)); }
+  .dest .label {
+    margin: 6px auto 0; display: inline-block; background: #ffffff; color: #b5572a;
+    font-weight: 800; font-size: 22px; padding: 5px 18px 7px; border-radius: 16px;
+    box-shadow: 0 4px 0 #e29b45;
+  }
+  @keyframes bob { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-10px);} }
+
+  .d-schedule { top: 30%; left: 9%; }   .d-schedule img { width: 200px; }
+  .d-store    { top: 25%; left: 38%; }   .d-store img { width: 210px; }
+  .d-play     { top: 27%; right: 9%; }   .d-play img { width: 200px; }
+  .d-progress { bottom: 20%; left: 21%; } .d-progress img { width: 150px; }
+
+  /* tree decor */
+  .tree { position: absolute; bottom: 6%; right: 3%; width: 150px; z-index: 9; filter: drop-shadow(0 8px 8px rgba(0,0,0,.25)); animation: sway 5s ease-in-out infinite; transform-origin: bottom center; }
+  @keyframes sway { 0%,100%{ transform: rotate(-2deg);} 50%{ transform: rotate(2deg);} }
+
+  /* the pet wandering the world */
+  .pet { position: absolute; bottom: 10%; left: 45%; width: 150px; z-index: 20; animation: walk 14s ease-in-out infinite; }
+  .pet img { width: 100%; animation: hop .9s ease-in-out infinite; filter: drop-shadow(0 8px 8px rgba(0,0,0,.3)); }
+  @keyframes walk {
+    0% { left: 30%; transform: scaleX(1); }
+    25% { left: 62%; transform: scaleX(1); }
+    26% { transform: scaleX(-1); }
+    50% { left: 20%; transform: scaleX(-1); }
+    51% { transform: scaleX(1); }
+    75% { left: 55%; }
+    100% { left: 30%; }
+  }
+  @keyframes hop { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-8px);} }
+  .pet .chat {
+    position: absolute; top: -34px; left: 50%; transform: translateX(-50%);
+    background: #fff; color: #7a4a8c; font-weight: 800; font-size: 15px; white-space: nowrap;
+    padding: 5px 12px; border-radius: 14px; box-shadow: 0 3px 0 rgba(0,0,0,.12);
+  }
+  .pet .chat::after { content:""; position:absolute; bottom:-7px; left:50%; transform:translateX(-50%); border:7px solid transparent; border-top-color:#fff; }
+
+  /* pet-house destination (built from a candy badge) */
+  .d-pet { bottom: 16%; right: 26%; }
+  .d-pet .house {
+    width: 150px; height: 130px; border-radius: 26px 26px 18px 18px;
+    background: linear-gradient(160deg,#ffd27d,#f0a83e); border: 5px solid #fff;
+    box-shadow: 0 8px 0 #c97f22, 0 12px 20px rgba(0,0,0,.25); position: relative;
+    display: grid; place-items: end center;
+  }
+  .d-pet .house::before { content:""; position:absolute; top:-34px; left:50%; transform:translateX(-50%); border-left:90px solid transparent; border-right:90px solid transparent; border-bottom:42px solid #e76f63; }
+  .d-pet .door { width: 60px; height: 70px; background:#9c5a2c; border-radius: 30px 30px 0 0; margin-bottom: 0; box-shadow: inset 0 0 0 5px #7a4520; }
+
+  /* bottom hint */
+  .hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 40; background: rgba(0,0,0,.45); color: #fff; padding: 6px 16px; border-radius: 999px; font-size: 14px; }
+  .settings { position:absolute; top: 20px; right: 50%; }
+
+  /* ---------- PHONE PORTRAIT: keep the world/map feel, scaled & re-arranged for a tall screen ---------- */
+  @media (max-aspect-ratio: 3/4) {
+    /* landmarks stay on the scene, laid out down a portrait map instead of across */
+    .dest .label { font-size: 16px; padding: 4px 12px 6px; border-radius: 12px; }
+    .d-schedule { top: 20%; left: 6%; right: auto; }   .d-schedule img { width: 132px; }
+    .d-store    { top: 30%; left: auto; right: 6%; }    .d-store img { width: 140px; }
+    .d-play     { top: 49%; left: 8%; right: auto; }    .d-play img { width: 132px; }
+    .d-pet      { top: 58%; bottom: auto; left: auto; right: 10%; }
+    .d-pet .house { width: 120px; height: 104px; }
+    .d-pet .house::before { top: -28px; border-left-width: 72px; border-right-width: 72px; border-bottom-width: 34px; }
+    .d-pet .door { width: 48px; height: 56px; }
+
+    .tree { width: 96px; bottom: 3%; right: 2%; }
+    .pet { width: 104px; bottom: 6%; }
+    .pet .chat { font-size: 12px; }
+
+    .hud { padding: 12px 14px; }
+    .avatar-frame { width: 64px; height: 64px; border-radius: 18px; }
+    .player .name { font-size: 16px; padding: 4px 12px 6px; }
+    .counters { flex-direction: column; gap: 8px; }
+    .counters .pill { font-size: 20px; padding: 4px 14px 4px 6px; } .pill img { height: 34px; } .pill .star { height: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="cloud c1"><img src="art/cloud1.png"></div>
+  <div class="cloud c2"><img src="art/cloud2.png"></div>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="player">
+      <div class="avatar-frame"><img src="art/avatar.png"></div>
+      <div class="name">Mia</div>
+    </div>
+    <div class="counters">
+      <div class="pill"><img src="art/coins.png">128</div>
+      <div class="pill"><img class="star" src="art/star.png">24</div>
+    </div>
+  </div>
+
+  <!-- WORLD -->
+  <div class="world">
+    <div class="dest d-schedule"><img src="art/dest-schedule.png"><span class="label">📋 My Day</span></div>
+    <div class="dest d-store"><img src="art/dest-store.png"><span class="label">🎁 Store</span></div>
+    <div class="dest d-play"><img src="art/dest-play.png"><span class="label">🎮 Play</span></div>
+
+    <div class="dest d-pet">
+      <div class="house"><div class="door"></div></div>
+      <span class="label">🏠 Pet Home</span>
+    </div>
+
+    <img class="tree" src="art/tree.png">
+
+    <div class="pet">
+      <div class="chat">Let's do my tasks!</div>
+      <img src="art/pet.png">
+    </div>
+  </div>
+
+  <div class="hint">Mockup — tap a building to enter that part of the app. Pet wanders the world.</div>
+</div>
+</body>
+</html>

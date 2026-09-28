@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cucaino — My Day (mockup)</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; user-select:none; }
+  html,body { height:100%; overflow:hidden; font-family:"Baloo 2","Comic Sans MS",system-ui,sans-serif; }
+  .frame { position:relative; width:100%; height:100vh; background:url("art/bg.png") center/cover no-repeat; }
+  .scrim { position:absolute; inset:0; background:rgba(255,255,255,.12); }
+
+  /* top bar: back + banner + counters */
+  .top { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; justify-content:space-between; padding:14px 22px; z-index:30; }
+  .back { width:70px; cursor:pointer; filter:drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
+  .banner { height:96px; filter:drop-shadow(0 5px 6px rgba(0,0,0,.25)); }
+  .counters { display:flex; gap:10px; }
+  .pill { display:flex; align-items:center; gap:6px; background:#fff; border-radius:999px; padding:5px 16px 5px 7px; box-shadow:0 4px 0 #cf9b53; font-weight:900; font-size:22px; color:#6b4a1f; }
+  .pill img { height:38px; } .pill .s { height:32px; }
+
+  /* progress ribbon */
+  .progress { position:absolute; top:120px; left:50%; transform:translateX(-50%); z-index:25; background:#fff; border-radius:999px; padding:8px 10px; box-shadow:0 5px 0 #e29b45; display:flex; align-items:center; gap:12px; }
+  .progress .bar { width:320px; height:26px; background:#f1ddc0; border-radius:999px; overflow:hidden; box-shadow:inset 0 2px 4px rgba(0,0,0,.2); }
+  .progress .fill { width:60%; height:100%; background:linear-gradient(90deg,#7ed957,#46c43a); border-radius:999px; }
+  .progress .txt { font-weight:900; color:#b5572a; font-size:20px; padding-right:8px; }
+
+  /* task cards row */
+  .tasks { position:absolute; top:185px; bottom:120px; left:0; right:0; display:flex; gap:22px; align-items:center; justify-content:center; padding:0 30px; z-index:20; }
+  .card { width:210px; background:#fff; border-radius:28px; box-shadow:0 8px 0 #e0a655, 0 14px 22px rgba(0,0,0,.2); padding:18px 16px 20px; text-align:center; position:relative; transition:transform .15s; }
+  .card:hover { transform:translateY(-6px); }
+  .card.done { background:#eafbe3; }
+  .card .thumb { width:120px; height:120px; margin:0 auto 8px; border-radius:22px; background:linear-gradient(160deg,#fff3df,#ffe2b0); display:grid; place-items:center; box-shadow:inset 0 0 0 4px #ffd089; }
+  .card .thumb span { font-size:64px; }
+  .card .title { font-weight:800; font-size:21px; color:#7a4a1e; }
+  .card .reward { margin-top:8px; display:inline-flex; align-items:center; gap:5px; background:#fff5d8; color:#c8860f; font-weight:900; font-size:18px; padding:3px 12px; border-radius:999px; }
+  .card .reward img { height:26px; }
+  .check { position:absolute; top:-14px; right:-10px; width:54px; height:54px; border-radius:50%; background:#fff; box-shadow:0 4px 0 #c9c9c9; display:grid; place-items:center; font-size:30px; }
+  .card.done .check { background:#46c43a; box-shadow:0 4px 0 #2f9426; color:#fff; }
+  .stamp { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }
+  .card.done .stamp::after { content:"✓ DONE"; font-weight:900; color:#46c43a; font-size:34px; transform:rotate(-12deg); background:rgba(255,255,255,.0); }
+
+  /* pet cheering */
+  .pet { position:absolute; bottom:96px; right:40px; width:130px; z-index:25; animation:hop 1s ease-in-out infinite; }
+  .pet img { width:100%; filter:drop-shadow(0 8px 8px rgba(0,0,0,.3)); }
+  @keyframes hop { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);} }
+  .pet .chat { position:absolute; top:-30px; left:50%; transform:translateX(-50%); background:#fff; color:#7a4a8c; font-weight:800; font-size:14px; white-space:nowrap; padding:5px 12px; border-radius:14px; box-shadow:0 3px 0 rgba(0,0,0,.12); }
+  .pet .chat::after { content:""; position:absolute; bottom:-7px; left:50%; transform:translateX(-50%); border:7px solid transparent; border-top-color:#fff; }
+
+  .hint { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); z-index:40; background:rgba(0,0,0,.45); color:#fff; padding:6px 16px; border-radius:999px; font-size:14px; }
+
+  /* PHONE PORTRAIT: tasks become a vertical scroll list */
+  @media (max-aspect-ratio: 3/4) {
+    .banner { height:74px; }
+    .progress { top:104px; padding:6px 10px; } .progress .bar { width:42vw; }
+    .tasks { top:160px; bottom:20px; flex-direction:column; flex-wrap:nowrap; overflow-y:auto; gap:14px; padding:6px 16px 90px; justify-content:flex-start; }
+    .card { width:100%; max-width:380px; display:flex; align-items:center; gap:16px; text-align:left; padding:14px 18px; }
+    .card .thumb { width:74px; height:74px; margin:0; flex:0 0 auto; } .card .thumb span { font-size:40px; }
+    .card .body-txt { flex:1; }
+    .check { top:-10px; right:-6px; width:44px; height:44px; font-size:24px; }
+    .pet { display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="scrim"></div>
+
+  <div class="top">
+    <img class="back" src="art/btn-close.png">
+    <img class="banner" src="art/banner-levelselect.png" style="content-visibility:auto">
+    <div class="counters">
+      <div class="pill"><img src="art/coins.png">128</div>
+      <div class="pill"><img class="s" src="art/star.png">24</div>
+    </div>
+  </div>
+
+  <div class="progress">
+    <span class="txt">My Day</span>
+    <div class="bar"><div class="fill"></div></div>
+    <span class="txt">3 / 5</span>
+  </div>
+
+  <div class="tasks">
+    <div class="card done">
+      <div class="check">✓</div>
+      <div class="thumb"><span>🦷</span></div>
+      <div class="title">Brush teeth</div>
+      <div class="reward"><img src="art/star.png">+2</div>
+      <div class="stamp"></div>
+    </div>
+    <div class="card done">
+      <div class="check">✓</div>
+      <div class="thumb"><span>🛏️</span></div>
+      <div class="title">Make bed</div>
+      <div class="reward"><img src="art/star.png">+2</div>
+      <div class="stamp"></div>
+    </div>
+    <div class="card">
+      <div class="check">○</div>
+      <div class="thumb"><span>📚</span></div>
+      <div class="title">Reading</div>
+      <div class="reward"><img src="art/star.png">+3</div>
+    </div>
+    <div class="card">
+      <div class="check">○</div>
+      <div class="thumb"><span>🎹</span></div>
+      <div class="title">Piano practice</div>
+      <div class="reward"><img src="art/star.png">+5</div>
+    </div>
+    <div class="card">
+      <div class="check">○</div>
+      <div class="thumb"><span>🧺</span></div>
+      <div class="title">Tidy toys</div>
+      <div class="reward"><img src="art/star.png">+2</div>
+    </div>
+  </div>
+
+  <div class="pet">
+    <div class="chat">2 more to go! 🎉</div>
+    <img src="art/pet.png">
+  </div>
+
+  <div class="hint">Mockup — My Day. Tap a card to tick a task; pet cheers progress; bar fills toward a daily chest.</div>
+</div>
+</body>
+</html>
