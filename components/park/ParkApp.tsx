@@ -1082,7 +1082,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         <div style={askCard}>
           <div style={{ fontSize: 38, lineHeight: 1 }}>{ask.emoji}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>{ask.action === "build" ? "Build your Dream Park?" : ask.action === "parent" ? "Go to the grown-ups' area?" : ask.action === "wizard" ? `Talk to ${ask.label}?` : `Go into ${ask.label}?`}</div>
+            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>{(ASK_TEXT[ask.action]?.q ?? ((l: string) => `Visit ${l}?`))(ask.label)}</div>
             <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{ASK_HINT[ask.action] ?? ""}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -1097,7 +1097,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                 enterPlace(p);
               }}
             >
-              Go in! →
+              {ASK_TEXT[ask.action]?.go ?? "Let's go! →"}
             </button>
           </div>
         </div>
@@ -1458,6 +1458,32 @@ const toastStyle: React.CSSProperties = {
   background: "linear-gradient(#ffffff, #ffeaf5)",
   boxShadow: "0 5px 0 #ffb8d9, 0 10px 22px rgba(122,46,98,0.2)",
   animation: `park-pop ${TOAST_MS}ms ease forwards`,
+};
+
+/** what the walk-up prompt says for each kind of place (a fountain isn't something you "go into") */
+const ASK_TEXT: Partial<Record<PlaceAction, { q: (label: string) => string; go: string }>> = {
+  quests: { q: () => "Check the Quest Board?", go: "Let's see! 📋" },
+  shop: { q: (l) => `Visit the ${l}?`, go: "Let's shop! 🛍️" },
+  pet: { q: () => "Visit your pet's home?", go: "Let's go! 🏠" },
+  "pet-feed": { q: () => "Give your pet a snack?", go: "Yum! 🍪" },
+  "pet-wash": { q: () => "Bubble bath time?", go: "Splash! 🫧" },
+  "pet-sleep": { q: () => "Nap time for your pet?", go: "Snuggle 💤" },
+  "pet-fetch": { q: () => "Play fetch together?", go: "Let's play! 🎾" },
+  "pet-tricks": { q: () => "Practise some tricks?", go: "Show time! ✨" },
+  friends: { q: () => "Pop into the Friends Café?", go: "Let's chat! 💌" },
+  rides: { q: () => "Take a ride?", go: "All aboard! 🎢" },
+  market: { q: () => "Trade at the Nugget Market?", go: "Let's trade! 📈" },
+  learn: { q: () => "Learn something at the Learning Tree?", go: "Let's learn! 🎓" },
+  library: { q: () => "Read a book at the Library?", go: "Let's read! 📚" },
+  theatre: { q: () => "Story time at the Story Theatre?", go: "Story time! 🎭" },
+  arcade: { q: () => "Play in the AI Arcade?", go: "Let's play! 🕹️" },
+  retro: { q: () => "Play at the Retro Arcade?", go: "Game on! 👾" },
+  "money-town": { q: () => "Play Money Town?", go: "Let's play! 💰" },
+  bank: { q: () => "Visit the Bank?", go: "Let's go! 🏦" },
+  golf: { q: () => "Play Candy Golf?", go: "Tee off! ⛳" },
+  wizard: { q: (l) => `Talk to ${l}?`, go: "Hello! 👋" },
+  build: { q: () => "Build your Dream Park?", go: "Let's build! 🔨" },
+  parent: { q: () => "Go to the grown-ups' area?", go: "OK →" },
 };
 
 const ASK_HINT: Partial<Record<PlaceAction, string>> = {
