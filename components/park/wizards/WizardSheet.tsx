@@ -1,12 +1,14 @@
 "use client";
 
-// Talking to a wizard: a greeting, then today's lesson one line at a time (read aloud), a
+// Talking to a wizard, RPG style (portrait + name plate + dialogue box): a greeting, then today's lesson one line at a time (read aloud), a
 // "try it" or fun fact, one easy question, and the lesson joins your Book of Wisdom. Each wizard
 // teaches one lesson a day — come back tomorrow for the next.
 import { useEffect, useMemo, useState } from "react";
 import type { Lesson, WizardDef } from "@/lib/park/wizards";
 import { speak, stopSpeaking } from "@/lib/park/wizards/wisdomBook";
 import { getMuted, playSfx } from "@/lib/audio/sound-manager";
+import { C, FONT, PARK_CSS, alpha, cardStyle, display, glass } from "../ui/theme";
+import { GameButton } from "../ui/GameButton";
 
 const VOICE: Record<string, { pitch: number; rate: number }> = {
   sage: { pitch: 0.75, rate: 0.85 },
@@ -83,122 +85,174 @@ export function WizardSheet({
 
   return (
     <div style={wrap} onClick={onClose}>
-      <div style={{ ...card, background: `linear-gradient(160deg, ${wizard.robe}33, #fff8fc 45%, ${wizard.hat}22)` }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ ...avatar, background: wizard.robe }}>🧙</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 19, color: "#3b2a6a" }}>{wizard.name}</div>
-            <div style={{ fontWeight: 800, fontSize: 12, color: "#7b6aa8" }}>{wizard.title}</div>
-          </div>
-          <button type="button" onClick={toggleTalk} style={iconBtn} aria-label={talk ? "Stop reading aloud" : "Read aloud"}>
+      <style>{PARK_CSS + "@keyframes wiz-pop { 0% { transform: translateY(6px); opacity: 0; } 100% { transform: none; opacity: 1; } } .wiz-pop { animation: wiz-pop 0.28s ease-out; } @keyframes wiz-nudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(3px); } } .wiz-nudge { display: inline-block; animation: wiz-nudge 1s ease-in-out infinite; }"}</style>
+      <div style={frame} onClick={(e) => e.stopPropagation()} className="gp-sheet">
+        {/* portrait + name plate sit on the dialogue box's top edge */}
+        <div style={{ ...portrait, background: `radial-gradient(circle at 50% 30%, ${wizard.robe}, ${alpha(wizard.hat, 0.9)} 75%)` }} aria-hidden>
+          <span style={{ fontSize: 44, lineHeight: 1, filter: "drop-shadow(0 3px 3px rgba(0,0,0,0.45))" }}>🧙</span>
+        </div>
+        <div style={namePlate}>
+          <div style={{ ...display(19, C.goldHi), whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{wizard.name}</div>
+          <div style={{ fontWeight: 800, fontSize: 11.5, letterSpacing: 0.4, color: C.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{wizard.title}</div>
+        </div>
+        <div style={{ position: "absolute", top: 50, right: 10, display: "flex", gap: 8, zIndex: 2 }}>
+          <button type="button" onClick={toggleTalk} style={iconBtn} className="gp-press" aria-label={talk ? "Stop reading aloud" : "Read aloud"}>
             {talk ? "🔊" : "🔇"}
           </button>
-          <button type="button" onClick={onClose} style={iconBtn} aria-label="Close">
+          <button type="button" onClick={onClose} style={iconBtn} className="gp-press" aria-label="Close">
             ✕
           </button>
         </div>
 
-        <div style={lessonTag}>
-          <span style={{ fontSize: 22 }}>{lesson.emoji}</span> <span>Today&apos;s lesson: {lesson.title}</span>
+        <div style={{ ...glass({ edge: wizard.robe, fill: "rgba(16,14,42,0.9)", blur: 12 }), ...box }}>
+          <div style={lessonTag}>
+            <span style={{ fontSize: 18 }}>{lesson.emoji}</span> <span>Today&apos;s lesson · {lesson.title}</span>
+          </div>
+
+          {/* already learned today */}
+          {i === -1 && (
+            <>
+              <div style={bubble}>{wizard.farewell[0]} You&apos;ve learned today&apos;s lesson — come back tomorrow for a brand new one! ✨</div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <GameButton variant="secondary" onClick={() => setI(1)}>
+                  📖 Hear it again
+                </GameButton>
+                <GameButton onClick={onClose}>Bye! 👋</GameButton>
+              </div>
+            </>
+          )}
+
+          {step && step.kind !== "quiz" && step.kind !== "done" && (
+            <>
+              <div style={{ ...bubble, ...(step.kind !== "say" ? { ...cardStyle(step.kind === "try" ? C.success : C.gold, step.kind === "try" ? "rgba(20,60,44,0.6)" : "rgba(64,48,12,0.6)"), padding: "12px 14px" } : {}) }} key={i} className="wiz-pop">
+                {step.kind === "try" && <b style={{ color: C.success }}>🪄 Try this today: </b>}
+                {step.kind === "fact" && <b style={{ color: C.gold }}>🌟 Fun fact! </b>}
+                {step.text}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {steps.slice(0, -1).map((_, k) => (
+                    <span key={k} style={{ width: 8, height: 8, borderRadius: 2, transform: "rotate(45deg)", background: k <= i ? C.gold : "rgba(255,255,255,0.18)", boxShadow: k === i ? `0 0 8px ${C.gold}` : undefined }} />
+                  ))}
+                </div>
+                <GameButton onClick={next}>
+                  Next <span className="wiz-nudge">▶</span>
+                </GameButton>
+              </div>
+            </>
+          )}
+
+          {step?.kind === "quiz" && lesson.quiz && (
+            <>
+              <div style={bubble}>❓ {lesson.quiz.q}</div>
+              <div style={{ display: "grid", gap: 8 }}>
+                {lesson.quiz.options.map((o, k) => {
+                  const show = picked !== null;
+                  const right = k === lesson.quiz!.answer;
+                  const lit = show && (picked === k || (right && picked === lesson.quiz!.answer));
+                  const tone = lit ? (right ? C.success : C.danger) : "soft";
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      disabled={show && picked === lesson.quiz!.answer}
+                      onClick={() => {
+                        setPicked(k);
+                        playSfx(right ? "correct" : "wrong");
+                      }}
+                      className="gp-press"
+                      style={{ ...cardStyle(tone, lit ? alpha(right ? C.success : C.danger, 0.28) : "rgba(40,36,90,0.7)"), ...optBtn }}
+                    >
+                      <span style={{ ...display(15, C.gold), width: 24, flexShrink: 0 }}>{String.fromCharCode(65 + k)}</span>
+                      {o}
+                    </button>
+                  );
+                })}
+              </div>
+              {picked !== null && (
+                <div style={{ fontWeight: 800, fontSize: 14, color: picked === lesson.quiz.answer ? C.success : "#ff9aa8", textAlign: "center" }}>
+                  {picked === lesson.quiz.answer ? `✅ Yes! ${lesson.quiz.explain}` : "Not quite — have another go! 💪"}
+                </div>
+              )}
+              {picked === lesson.quiz.answer && (
+                <GameButton style={{ alignSelf: "center" }} onClick={next}>
+                  Collect my card 📖
+                </GameButton>
+              )}
+            </>
+          )}
+
+          {step?.kind === "done" && (
+            <>
+              <div style={{ ...cardStyle(wizard.robe, "rgba(40,30,90,0.85)"), ...cardReveal, boxShadow: `0 0 24px ${alpha(wizard.robe, 0.6)}` }} className="wiz-pop">
+                <div style={{ fontSize: 46 }}>{lesson.emoji}</div>
+                <div style={display(18)}>{lesson.title}</div>
+                <div style={{ fontWeight: 800, fontSize: 12, color: C.gold, marginTop: 4 }}>New card for your Book of Wisdom!</div>
+              </div>
+              <div style={bubble}>{wizard.farewell[Math.floor(Math.random() * wizard.farewell.length)]}</div>
+              <GameButton style={{ alignSelf: "center" }} onClick={onClose}>
+                Thank you! 🌟
+              </GameButton>
+            </>
+          )}
         </div>
-
-        {/* already learned today */}
-        {i === -1 && (
-          <>
-            <div style={bubble}>{wizard.farewell[0]} You&apos;ve learned today&apos;s lesson — come back tomorrow for a brand new one! ✨</div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <button type="button" style={softBtn} onClick={() => setI(1)}>
-                📖 Hear it again
-              </button>
-              <button type="button" style={mainBtn} onClick={onClose}>
-                Bye! 👋
-              </button>
-            </div>
-          </>
-        )}
-
-        {step && step.kind !== "quiz" && step.kind !== "done" && (
-          <>
-            <div style={{ ...bubble, ...(step.kind !== "say" ? { background: step.kind === "try" ? "#e9fff1" : "#fff7e0" } : {}) }} key={i} className="wiz-pop">
-              {step.kind === "try" && <b>🪄 Try this today: </b>}
-              {step.kind === "fact" && <b>🌟 Fun fact! </b>}
-              {step.text}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: 4 }}>
-                {steps.slice(0, -1).map((_, k) => (
-                  <span key={k} style={{ width: 8, height: 8, borderRadius: 99, background: k <= i ? wizard.robe : "#e5dcf2" }} />
-                ))}
-              </div>
-              <button type="button" style={mainBtn} onClick={next}>
-                Next ✨
-              </button>
-            </div>
-          </>
-        )}
-
-        {step?.kind === "quiz" && lesson.quiz && (
-          <>
-            <div style={bubble}>❓ {lesson.quiz.q}</div>
-            <div style={{ display: "grid", gap: 8 }}>
-              {lesson.quiz.options.map((o, k) => {
-                const show = picked !== null;
-                const right = k === lesson.quiz!.answer;
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    disabled={show && picked === lesson.quiz!.answer}
-                    onClick={() => {
-                      setPicked(k);
-                      playSfx(right ? "correct" : "wrong");
-                    }}
-                    style={{ ...optBtn, background: show && picked === k ? (right ? "#2fcf8f" : "#ff8a8a") : show && right && picked === lesson.quiz!.answer ? "#2fcf8f" : "#ffffff", color: show && (picked === k || (right && picked === lesson.quiz!.answer)) ? "#fff" : "#3b2a6a" }}
-                  >
-                    {o}
-                  </button>
-                );
-              })}
-            </div>
-            {picked !== null && (
-              <div style={{ fontWeight: 800, fontSize: 14, color: picked === lesson.quiz.answer ? "#15803d" : "#b91c1c", textAlign: "center" }}>
-                {picked === lesson.quiz.answer ? `✅ Yes! ${lesson.quiz.explain}` : "Not quite — have another go! 💪"}
-              </div>
-            )}
-            {picked === lesson.quiz.answer && (
-              <button type="button" style={{ ...mainBtn, alignSelf: "center" }} onClick={next}>
-                Collect my card 📖
-              </button>
-            )}
-          </>
-        )}
-
-        {step?.kind === "done" && (
-          <>
-            <div style={{ ...cardReveal, borderColor: wizard.robe }} className="wiz-pop">
-              <div style={{ fontSize: 46 }}>{lesson.emoji}</div>
-              <div style={{ fontWeight: 900, fontSize: 17, color: "#3b2a6a" }}>{lesson.title}</div>
-              <div style={{ fontWeight: 800, fontSize: 12, color: "#7b6aa8" }}>New card for your Book of Wisdom!</div>
-            </div>
-            <div style={bubble}>{wizard.farewell[Math.floor(Math.random() * wizard.farewell.length)]}</div>
-            <button type="button" style={{ ...mainBtn, alignSelf: "center" }} onClick={onClose}>
-              Thank you! 🌟
-            </button>
-          </>
-        )}
       </div>
-      <style>{"@keyframes wiz-pop { 0% { transform: scale(0.92); opacity: 0; } 100% { transform: none; opacity: 1; } } .wiz-pop { animation: wiz-pop 0.3s ease-out; }"}</style>
     </div>
   );
 }
 
-const wrap: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "16px 12px max(16px, env(safe-area-inset-bottom))", background: "rgba(40,20,80,0.25)" };
-const card: React.CSSProperties = { width: "min(560px, 100%)", borderRadius: 30, padding: 16, display: "flex", flexDirection: "column", gap: 12, boxShadow: "0 8px 0 #d9c8f5, 0 20px 40px rgba(60,30,120,0.3)", maxHeight: "86vh", overflowY: "auto" };
-const avatar: React.CSSProperties = { width: 52, height: 52, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0, boxShadow: "inset 0 -4px 0 rgba(0,0,0,0.15)" };
-const iconBtn: React.CSSProperties = { width: 40, height: 40, borderRadius: 999, border: "none", background: "#ffffff", boxShadow: "0 3px 0 #e2d6f5", fontSize: 18, cursor: "pointer", flexShrink: 0 };
-const lessonTag: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, fontWeight: 900, fontSize: 14, color: "#5a3a8a", background: "#ffffffcc", borderRadius: 16, padding: "6px 12px" };
-const bubble: React.CSSProperties = { background: "#ffffff", borderRadius: 22, padding: "14px 16px", fontWeight: 800, fontSize: 18, lineHeight: 1.4, color: "#3b2a6a", boxShadow: "0 4px 0 #e8dcf8" };
-const mainBtn: React.CSSProperties = { border: "none", borderRadius: 999, padding: "12px 20px", fontWeight: 900, fontSize: 16, color: "#fff", background: "linear-gradient(#a98bff, #7c5cff)", boxShadow: "0 4px 0 #5a3fd1", cursor: "pointer" };
-const softBtn: React.CSSProperties = { ...mainBtn, color: "#5a3a8a", background: "#ffffff", boxShadow: "0 4px 0 #e2d6f5" };
-const optBtn: React.CSSProperties = { border: "none", borderRadius: 18, padding: "12px 14px", fontWeight: 900, fontSize: 16, textAlign: "left", boxShadow: "0 3px 0 #e2d6f5", cursor: "pointer" };
-const cardReveal: React.CSSProperties = { alignSelf: "center", width: 200, borderRadius: 22, padding: 16, textAlign: "center", background: "linear-gradient(#ffffff, #f6f0ff)", border: "4px solid", boxShadow: "0 6px 0 #e2d6f5" };
+const wrap: React.CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 50,
+  display: "flex",
+  alignItems: "flex-end",
+  justifyContent: "center",
+  padding: "16px 12px max(16px, env(safe-area-inset-bottom))",
+  background: "linear-gradient(to top, rgba(5,4,18,0.6), rgba(5,4,18,0.1) 70%)",
+  fontFamily: FONT.body,
+};
+const frame: React.CSSProperties = { position: "relative", width: "min(620px, 100%)", paddingTop: 40 };
+const box: React.CSSProperties = { borderRadius: 20, padding: "48px 16px 16px", display: "flex", flexDirection: "column", gap: 12, maxHeight: "calc(86vh - 40px)", overflowY: "auto" };
+const portrait: React.CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: 14,
+  zIndex: 2,
+  width: 78,
+  height: 78,
+  borderRadius: 999,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: "3px solid #ffd36b",
+  boxShadow: "0 0 0 2px rgba(0,0,0,0.5), 0 0 18px rgba(255,211,107,0.5), 0 8px 16px rgba(0,0,0,0.5), inset 0 -6px 12px rgba(0,0,0,0.3)",
+};
+const namePlate: React.CSSProperties = {
+  position: "absolute",
+  top: 22,
+  left: 84,
+  zIndex: 1,
+  padding: "6px 16px 6px 18px",
+  borderRadius: "0 12px 12px 0",
+  background: "linear-gradient(rgba(40,30,8,0.96), rgba(24,18,6,0.96)) padding-box, linear-gradient(90deg, #ffe9a8, #e89a1c) border-box",
+  border: "1.5px solid transparent",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.45)",
+  maxWidth: "calc(100% - 196px)",
+};
+const iconBtn: React.CSSProperties = {
+  width: 44,
+  height: 44,
+  borderRadius: 999,
+  border: "1.5px solid rgba(160,200,255,0.4)",
+  background: "radial-gradient(circle at 50% 30%, rgba(90,86,160,0.8), rgba(20,18,50,0.9))",
+  color: "#f5f3ff",
+  boxShadow: "0 4px 10px rgba(0,0,0,0.4)",
+  fontSize: 17,
+  cursor: "pointer",
+  flexShrink: 0,
+};
+const lessonTag: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, paddingRight: 100, fontFamily: FONT.display, fontWeight: 400, letterSpacing: 0.4, fontSize: 14, color: C.cyan, textShadow: "0 0 10px rgba(94,242,255,0.35)" };
+const bubble: React.CSSProperties = { fontWeight: 700, fontSize: 18.5, lineHeight: 1.45, color: C.text, padding: "2px 2px" };
+const optBtn: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, minHeight: 48, padding: "10px 14px", fontWeight: 800, fontSize: 16, textAlign: "left", cursor: "pointer" };
+const cardReveal: React.CSSProperties = { alignSelf: "center", width: 210, padding: 16, textAlign: "center", borderRadius: 18 };

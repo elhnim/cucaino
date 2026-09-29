@@ -1,0 +1,241 @@
+// Cucaino Park's fantasy nature & landmarks kit: a wind-swept grass field that follows the
+// player, groves of stylised trees, mossy boulders, glowing crystals, ancient rune ruins, the
+// Glow Forest's giant ancient trees (with glowing mushrooms, hanging vines, light shafts and
+// ground mist) and floating islands with waterfalls in the sky. Everything is procedural,
+// instanced and merged (~18 draw calls + shadow casters), placed by planFantasy() (pure,
+// tested) and animated by a handful of shared uniforms in update().
+import * as THREE from "three";
+import { bakeGrassMask, type GrassMask } from "./mask";
+import { planFantasy, SPECIES, type FantasyPlan, type FreeFn } from "./placement";
+import { buildGrassField } from "./grass";
+import { buildGiantTreeGeometry, buildMushroomClusterGeometry, buildTreeGeometry, tintFor } from "./trees";
+import { buildCrystalGeometry, buildRockGeometry, buildRuinsGeometry, CRYSTAL_HUES } from "./stones";
+import { buildSkyIslands } from "./sky";
+import { buildLeaves, buildShafts, buildSprites, SPRITE_FOREST_MIST, SPRITE_HALO, SPRITE_MIST, type SpriteDef } from "./particles";
+import { fxMaterial, ISL_WORLD, makeUniforms } from "./shaders";
+import { makeHeightTexture } from "./terrainMesh";
+import { col } from "./geo";
+import { LANDS } from "../../registry/places";
+
+export { buildTerrainMesh, makeHeightTexture, groundColor } from "./terrainMesh";
+export { defaultFantasyFree, planFantasy } from "./placement";
+export { bakeGrassMask } from "./mask";
+export type { FantasyPlan, FreeFn } from "./placement";
+
+export interface FantasyWorld {
+  /** call every frame; `focus` = the player's position (grass follows the player); glow 0 = day .. 1 = twilight */
+  update(dt: number, t: number, focus: THREE.Vector3, glow: number): void;
+  /** round obstacles the player should walk around (big rocks, ruin pillars), x/z/r */
+  obstacles: { x: number; z: number; r: number }[];
+  dispose(): void;
+  /** everything the kit added, in one group */
+  group: THREE.Group;
+  /** where things went (for the map, walk-to routes, debugging) */
+  plan: FantasyPlan;
+  /** numbers for perf reporting */
+  stats: { blades: number; trees: number; rocks: number; crystals: number; ruins: number; islands: number; meshes: number };
+  /** the grass mask (CPU copy) — pass to buildTerrainMesh({ mask }) to paint bare earth under trails */
+  mask: GrassMask;
+}
+
+export interface FantasyOptions {
+  free: FreeFn;
+  lowQuality?: boolean;
+  /** grass/foliage receive shadows (default: on at standard quality, off at low) */
+  receiveShadow?: boolean;
+}
+
+const MUSHROOM_HUES = [col("#46f0ff"), col("#b680ff"), col("#ffb347")];
+
+export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): FantasyWorld {
+  const low = !!opts.lowQuality;
+  const shadowsIn = opts.receiveShadow ?? !low;
+  const U = makeUniforms();
+  const plan = planFantasy(opts.free, { lowQuality: low });
+  const group = new THREE.Group();
+  group.name = "fantasy-world";
+  const disposables: { dispose(): void }[] = [];
+  const track = <T extends { dispose(): void }>(d: T) => (disposables.push(d), d);
+
+  // ── textures: the grass mask + terrain heights ──
+  const mask = bakeGrassMask(low ? 512 : 1024);
+  const maskTex = track(new THREE.DataTexture(mask.data, mask.n, mask.n, THREE.RGBAFormat, THREE.UnsignedByteType));
+  maskTex.minFilter = THREE.LinearFilter;
+  maskTex.magFilter = THREE.LinearFilter;
+  maskTex.generateMipmaps = false;
+  maskTex.needsUpdate = true;
+  const heightTex = track(makeHeightTexture());
+
+  // ── grass + wildflowers ──
+  const grass = buildGrassField(U, maskTex, heightTex, { lowQuality: low, receiveShadow: shadowsIn });
+  disposables.push(grass);
+  for (const m of grass.meshes) group.add(m);
+
+  const m4 = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const v = new THREE.Vector3();
+  const s3 = new THREE.Vector3();
+  const c = new THREE.Color();
+  const instanced = (geo: THREE.BufferGeometry, mat: THREE.Material, n: number, name: string, cast = true) => {
+    const im = new THREE.InstancedMesh(track(geo), mat, Math.max(1, n));
+    im.count = n;
+    im.castShadow = cast;
+    im.receiveShadow = true;
+    im.name = name;
+    group.add(im);
+    return im;
+  };
+  const finish = (im: THREE.InstancedMesh) => {
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.computeBoundingSphere();
+  };
+
+  // ── trees: one instanced mesh per species (bark + canopy + pods in one geometry) ──
+  const foliageMat = track(fxMaterial(U, { roughness: 0.82, metalness: 0 }));
+  for (const sp of SPECIES) {
+    const list = plan.trees.filter((t) => t.species === sp);
+    if (!list.length) continue;
+    const im = instanced(buildTreeGeometry(sp, low).geometry, foliageMat, list.length, `fantasy-trees-${sp}`);
+    list.forEach((t, i) => {
+      e.set(0, t.rot, 0);
+      m4.compose(v.set(t.x, t.y - 0.12 * t.s, t.z), q.setFromEuler(e), s3.setScalar(t.s));
+      im.setMatrixAt(i, m4);
+      im.setColorAt(i, tintFor(sp, t.tint, c));
+    });
+    finish(im);
+  }
+
+  // ── the Glow Forest: giant ancient trees + glowing mushroom clusters + light shafts ──
+  if (plan.giants.length) {
+    const im = instanced(buildGiantTreeGeometry(low), foliageMat, plan.giants.length, "fantasy-giant-trees");
+    plan.giants.forEach((g, i) => {
+      e.set(0, g.rot, 0);
+      m4.compose(v.set(g.x, g.y - 0.3, g.z), q.setFromEuler(e), s3.setScalar(g.s));
+      im.setMatrixAt(i, m4);
+      im.setColorAt(i, c.set("#3f9e4c").lerp(new THREE.Color("#2e9078"), (i % 3) / 2));
+    });
+    finish(im);
+  }
+  if (plan.mushrooms.length) {
+    const im = instanced(buildMushroomClusterGeometry(), foliageMat, plan.mushrooms.length, "fantasy-mushrooms", false);
+    plan.mushrooms.forEach((mu, i) => {
+      e.set(0, mu.rot, 0);
+      m4.compose(v.set(mu.x, mu.y - 0.05, mu.z), q.setFromEuler(e), s3.setScalar(mu.s));
+      im.setMatrixAt(i, m4);
+      im.setColorAt(i, MUSHROOM_HUES[mu.hue]);
+    });
+    finish(im);
+  }
+  if (plan.shafts.length) {
+    const shafts = buildShafts(U, plan.shafts);
+    track(shafts.geometry);
+    track(shafts.material as THREE.Material);
+    group.add(shafts);
+  }
+
+  // ── rocks & boulders (one faceted rock, instanced at every size) ──
+  const stoneMat = track(fxMaterial(U, { roughness: 0.9, metalness: 0 }));
+  if (plan.rocks.length) {
+    const im = instanced(buildRockGeometry(low), stoneMat, plan.rocks.length, "fantasy-rocks");
+    plan.rocks.forEach((r, i) => {
+      e.set(r.tilt, r.rot, r.tilt * 0.6, "YXZ");
+      m4.compose(v.set(r.x, r.y, r.z), q.setFromEuler(e), s3.set(r.s * r.sx, r.s * r.sy, r.s * r.sz));
+      im.setMatrixAt(i, m4);
+      im.setColorAt(i, c.setRGB(0.95 + (i % 5) * 0.025, 0.95 + (i % 3) * 0.02, 0.98 + (i % 4) * 0.02));
+    });
+    finish(im);
+  }
+
+  // ── crystals ──
+  const crystalMat = track(fxMaterial(U, { roughness: 0.22, metalness: 0.05 }));
+  if (plan.crystals.length) {
+    const im = instanced(buildCrystalGeometry(), crystalMat, plan.crystals.length, "fantasy-crystals");
+    plan.crystals.forEach((cr, i) => {
+      e.set(cr.tiltX, cr.rot, cr.tiltZ, "YXZ");
+      m4.compose(v.set(cr.x, cr.y, cr.z), q.setFromEuler(e), s3.setScalar(cr.s));
+      im.setMatrixAt(i, m4);
+      im.setColorAt(i, CRYSTAL_HUES[cr.hue]);
+    });
+    finish(im);
+  }
+
+  // ── ancient ruins (all sites merged: 1 draw call) ──
+  const ruinsGeo = buildRuinsGeometry(plan.ruins);
+  if (ruinsGeo) {
+    const ruins = new THREE.Mesh(track(ruinsGeo), stoneMat);
+    ruins.castShadow = true;
+    ruins.receiveShadow = true;
+    ruins.name = "fantasy-ruins";
+    group.add(ruins);
+  }
+
+  // ── floating islands + waterfalls ──
+  const sky = buildSkyIslands(U, plan.islands, { lowQuality: low });
+  disposables.push(sky);
+  group.add(sky.mesh, sky.falls);
+
+  // ── soft sprites: waterfall mist, forest ground mist, glow halos ──
+  const sprites: SpriteDef[] = [];
+  const white = col("#eaf6ff");
+  for (const [x, y, z, isl, size] of sky.mist) sprites.push({ x, y, z, isl, size, color: white, kind: SPRITE_MIST });
+  const forest = LANDS.find((l) => l.id === "forest")!;
+  const mistN = low ? 14 : 30;
+  for (let i = 0; i < mistN; i++) {
+    const a = (i / mistN) * Math.PI * 2 * 3.7;
+    const d = Math.sqrt((i + 0.5) / mistN) * (forest.radius + 6);
+    const x = forest.x + Math.sin(a) * d;
+    const z = forest.z + Math.cos(a) * d;
+    const gy = plan.giants.length ? plan.giants[0].y : 0;
+    sprites.push({ x, y: gy + 1.6 + (i % 3) * 0.9, z, isl: ISL_WORLD, size: 9 + (i % 4) * 2.5, color: col("#dff2e8"), kind: SPRITE_FOREST_MIST });
+  }
+  for (const cr of plan.crystals) if (cr.s > 0.9) sprites.push({ x: cr.x, y: cr.y + 1.6 * cr.s, z: cr.z, isl: ISL_WORLD, size: 5.5 * cr.s, color: CRYSTAL_HUES[cr.hue], kind: SPRITE_HALO });
+  plan.mushrooms.forEach((mu, i) => {
+    if (i % 2 === 0) sprites.push({ x: mu.x, y: mu.y + 1.2 * mu.s, z: mu.z, isl: ISL_WORLD, size: 3.6 * mu.s, color: MUSHROOM_HUES[mu.hue], kind: SPRITE_HALO });
+  });
+  for (const site of plan.ruins)
+    for (const p of site.parts) if (p.kind === "altar") sprites.push({ x: p.x, y: p.y + 2 * p.h, z: p.z, isl: ISL_WORLD, size: 4.5, color: site.kind === "shrine" ? col("#ffcf5a") : col("#5ff4ff"), kind: SPRITE_HALO });
+  plan.islands.forEach((s, i) => {
+    if (s.top === "crystals") sprites.push({ x: 0, y: 3, z: 0, isl: i, size: 14, color: CRYSTAL_HUES[i % 3], kind: SPRITE_HALO });
+  });
+  const spriteMesh = buildSprites(U, sprites);
+  track(spriteMesh.geometry);
+  track(spriteMesh.material as THREE.Material);
+  group.add(spriteMesh);
+
+  // ── drifting leaves & petals round the player ──
+  const leaves = buildLeaves(U, heightTex, low ? 110 : 260);
+  track(leaves.geometry);
+  track(leaves.material as THREE.Material);
+  group.add(leaves);
+
+  scene.add(group);
+  U.uIslMat.value[ISL_WORLD].identity();
+  sky.update(0);
+
+  let meshes = 0;
+  group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints) meshes++;
+  });
+
+  return {
+    group,
+    plan,
+    mask,
+    obstacles: plan.obstacles,
+    stats: { blades: grass.blades, trees: plan.trees.length + plan.giants.length, rocks: plan.rocks.length, crystals: plan.crystals.length, ruins: plan.ruins.length, islands: plan.islands.length, meshes },
+    update(_dt, t, focus, glow) {
+      U.uTime.value = t;
+      U.uGlow.value = glow;
+      U.uGlowK.value = 0.8 + glow * 1.7;
+      U.uPulse.value = glow;
+      U.uFocus.value.set(focus.x, focus.z);
+      sky.update(t);
+    },
+    dispose() {
+      scene.remove(group);
+      for (const d of disposables) d.dispose();
+    },
+  };
+}

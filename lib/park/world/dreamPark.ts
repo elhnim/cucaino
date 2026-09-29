@@ -2,6 +2,7 @@
 // pieces bought with tickets are placed. Owns the zone visuals, the placed piece objects and
 // the build-mode ghost preview. Pure layout rules live in builder/rules.ts.
 import * as THREE from "three";
+import { groundY } from "../registry/terrain";
 import type { ParkAssets } from "../assets/loader";
 import { getPiece } from "../registry/pieces";
 import { DREAM_ZONE, canPlace, cellCenter, worldToCell, footprint, zoneBounds, type Placed } from "../builder/rules";
@@ -39,6 +40,7 @@ export async function createDreamPark(scene: THREE.Scene, assets: ParkAssets): P
   const group = new THREE.Group();
   scene.add(group);
   const b = zoneBounds();
+  group.position.y = groundY((b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2);
   const w = b.maxX - b.minX;
   const d = b.maxZ - b.minZ;
   const disposables: { dispose: () => void }[] = [];

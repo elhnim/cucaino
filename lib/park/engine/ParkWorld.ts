@@ -2,6 +2,10 @@
 // camera and effects. React (components/park/*) owns every 2D overlay and talks to this
 // class through a few methods + callbacks.
 import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { ParkAssets, type AnimalId } from "../assets/loader";
 import { DEFAULT_CANDY, THEME_CANDY_HUE } from "../assets/candy";
 import { buildPark, type BuiltPark } from "../world/buildPark";
@@ -28,6 +32,7 @@ import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
 import { buildMount, type MountKind, type MountRig } from "../characters/mounts";
+import { groundY } from "../registry/terrain";
 
 export type QualityTier = "standard" | "low";
 
@@ -156,6 +161,11 @@ export class ParkWorld {
   private camYaw = 0;
   /** camera height angle: drag up/down to look from low (almost eye level) to high overhead */
   private camPitch = Math.atan2(CAM_OFFSET.y, CAM_OFFSET.z);
+  /** extra camera height to see over a hill between the camera and the kid (eased) */
+  private camLift = 0;
+  /** eased camera distance when something blocks the view (see the tree check in tick) */
+  private camPull = 99;
+  private camBase = new THREE.Vector3(SPAWN.x, 12, SPAWN.z + 14);
   private lookAtPt = new THREE.Vector3(SPAWN.x, 1.2, SPAWN.z);
   private camZoom = 1;
   private dragging = false;
@@ -167,6 +177,8 @@ export class ParkWorld {
   private paused = false;
   private disposed = false;
   private ro: ResizeObserver;
+  private composer: EffectComposer | null = null;
+  private bloom: UnrealBloomPass | null = null;
 
   constructor(private container: HTMLElement, private opts: ParkWorldOptions) {
     this.quality = opts.quality ?? detectQuality();
@@ -174,9 +186,18 @@ export class ParkWorld {
     this.renderer = new THREE.WebGLRenderer({ antialias: !low, powerPreference: low ? "low-power" : "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, low ? 1.25 : 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // no tone mapping: toon materials + candy palette are authored for straight sRGB output,
-    // any filmic curve desaturates them into pastel mush
-    this.renderer.toneMapping = THREE.NoToneMapping;
+    // filmic colour + soft sun shadows + bloom: a rich, magical fantasy look
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.12;
+    this.renderer.shadowMap.enabled = !low;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    if (!low) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.55, 0.6, 1.02); // only HDR magic (>1) blooms, not white signs
+      this.composer.addPass(this.bloom);
+      this.composer.addPass(new OutputPass());
+    }
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.touchAction = "none";
     Object.assign(this.renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%", display: "block" });
@@ -581,12 +602,14 @@ export class ParkWorld {
       seed: Math.floor(Math.random() * 1e6),
     });
     const root = new THREE.Group();
+    rig.root.traverse((o) => ((o as THREE.Mesh).isMesh && (o.castShadow = true)));
     root.add(rig.root, blobShadow(height * 1.3));
     return { root, mixer: null, actions: new Map(), current: "", facing: 0, rig, last: new THREE.Vector3(Number.NaN, 0, 0), hold: 0 };
   }
 
   /** Advance an actor's animation: chibi rigs are driven by how fast they're moving. */
-  private tickActor(a: Actor, dt: number, forceSpeed?: number) {
+  private tickActor(a: Actor, dt: number, forceSpeed?: number, snap = true) {
+    if (snap && !this.ride) a.root.position.y = groundY(a.root.position.x, a.root.position.z) + (a === this.pet && this.petMode === "sleep" ? 0.45 : 0);
     if (!a.rig) {
       a.mixer?.update(dt);
       return;
@@ -711,7 +734,7 @@ export class ParkWorld {
     this.raycaster.setFromCamera(ndc, this.camera);
     if (this.fetch) {
       const g = new THREE.Vector3();
-      if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), g)) this.throwBall(g.x, g.z);
+      if (this.groundHit(g)) this.throwBall(g.x, g.z);
       return;
     }
     if (this.building) {
@@ -722,7 +745,7 @@ export class ParkWorld {
         return;
       }
       const g = new THREE.Vector3();
-      if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), g)) this.opts.onBuildTap?.(g.x, g.z);
+      if (this.groundHit(g)) this.opts.onBuildTap?.(g.x, g.z);
       return;
     }
     const hit = this.raycaster.intersectObjects(this.park.tappables, true)[0];
@@ -739,7 +762,7 @@ export class ParkWorld {
       }
     }
     const ground = new THREE.Vector3();
-    if (this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), ground)) {
+    if (this.groundHit(ground)) {
       this.walkTarget = ground;
       this.walkQueue = [];
     }
@@ -757,6 +780,8 @@ export class ParkWorld {
     this.camera.fov = this.camera.aspect < 0.8 ? 58 : 42;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false); // CSS keeps it at 100% x 100%
+    this.composer?.setSize(w, h);
+    this.bloom?.resolution.set(w / 2, h / 2);
   }
 
   private start() {
@@ -903,22 +928,25 @@ export class ParkWorld {
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
     if (this.mount) {
       const m = this.mount;
-      pos.y = this.alt;
-      m.root.position.set(pos.x, this.alt, pos.z);
+      pos.y = groundY(pos.x, pos.z) + this.alt;
+      m.root.position.set(pos.x, pos.y, pos.z);
       m.root.rotation.y = kid.root.rotation.y;
       m.root.rotation.z = moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
-      m.update(dt, moving ? WALK_SPEED * 2 : 0, m.flies && this.alt > 0.4, this.park.atmosphere.glow);
+      m.update(dt, moving ? WALK_SPEED * 2 : 0, m.flies && this.alt > 0.4, this.park.atmosphere.glow, this.alt);
       if (kid.rig) kid.rig.root.position.copy(m.seat);
-      this.tickActor(kid, dt, 0);
+      this.tickActor(kid, dt, 0, false);
       // a sparkly trail behind fliers
       if (m.flies && this.alt > 1 && moving) {
         this.flySparkle -= dt;
         if (this.flySparkle <= 0) {
           this.flySparkle = 0.12;
-          this.burst(pos.clone().setY(this.alt + 0.4), 4);
+          this.burst(pos.clone().setY(pos.y + 0.4), 4);
         }
       }
-    } else this.tickActor(kid, dt);
+    } else {
+      pos.y = groundY(pos.x, pos.z);
+      this.tickActor(kid, dt, undefined, false);
+    }
 
     // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
     if (this.pet && this.mount && this.petMode === "follow") {
@@ -926,7 +954,7 @@ export class ParkWorld {
       this.pet.root.position.copy(seat);
       this.pet.root.rotation.y = kid.root.rotation.y;
       this.pet.facing = kid.facing;
-      this.tickActor(this.pet, dt, 0);
+      this.tickActor(this.pet, dt, 0, false);
     } else if (this.pet) {
       const pet = this.pet;
       let target: THREE.Vector3 | null = null;
@@ -1036,7 +1064,7 @@ export class ParkWorld {
 
     this.park.update(dt, this.time, pos);
     if (!this.heroLight.parent) this.scene.add(this.heroLight);
-    this.heroLight.position.set(pos.x, 4.5, pos.z + 1.5);
+    this.heroLight.position.set(pos.x, pos.y + 4.5, pos.z + 1.5);
     this.heroLight.intensity = this.park.atmosphere.glow * 7;
     // at twilight your footsteps leave a little trail of sparkles
     if (moving && this.park.atmosphere.glow > 0.45) {
@@ -1049,7 +1077,7 @@ export class ParkWorld {
     for (const w of this.wizards) {
       const near = w.model.root.position.distanceTo(pos) < 12 ? pos : null;
       w.model.update(dt, this.time, near, this.park.atmosphere.glow);
-      if (w.star) w.star.position.y = 6.1 + Math.sin(this.time * 2.4) * 0.25;
+      if (w.star) w.star.position.y = w.model.root.position.y + 6.1 + Math.sin(this.time * 2.4) * 0.25;
     }
     const foundId = this.treasures?.update(dt, this.time, pos) ?? null;
     if (foundId !== null) {
@@ -1091,20 +1119,74 @@ export class ParkWorld {
       this.camera.position.lerp(new THREE.Vector3(cx, span * (portrait ? 1.25 : 0.72), cz + span * (portrait ? 0.95 : 0.9)), Math.min(1, dt * 3));
       this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
     } else {
-      const dist = CAM_OFFSET.length() * this.camZoom * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
+      let dist = CAM_OFFSET.length() * this.camZoom * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
+      // a tree (or big rock) between the camera and the kid? slide the camera in closer, like
+      // a proper third-person camera, instead of staring at a trunk
+      if (!(this.mount?.flies && this.alt > 3)) {
+        const dirX = Math.sin(this.camYaw) * Math.cos(this.camPitch);
+        const dirZ = Math.cos(this.camYaw) * Math.cos(this.camPitch);
+        let want = dist;
+        for (const o of this.park.obstacles) {
+          const ox = o.x - pos.x;
+          const oz = o.z - pos.z;
+          const along = ox * dirX + oz * dirZ; // how far along the view line (horizontal)
+          if (along <= 1.5 || along >= want) continue;
+          const side = Math.abs(ox * dirZ - oz * dirX);
+          const reach = Math.max(1.2, o.r * 3.2); // canopies spread well past the trunk
+          if (side < reach) want = Math.min(want, Math.max(5, (along - 1) / Math.max(0.3, Math.cos(this.camPitch))));
+        }
+        this.camPull += (want - this.camPull) * Math.min(1, dt * (want < this.camPull ? 6 : 2));
+        dist = Math.min(dist, this.camPull);
+      }
       const off = new THREE.Vector3(0, Math.sin(this.camPitch) * dist, Math.cos(this.camPitch) * dist).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camYaw);
       // look a little ahead of where the kid is heading, so they can see what's coming
       const ahead = moving ? 3 : 1.2;
       const lx = pos.x + Math.sin(kid.facing) * ahead;
       const lz = pos.z + Math.cos(kid.facing) * ahead;
-      this.lookAtPt.lerp(new THREE.Vector3(lx, 1.2 + this.alt, lz), Math.min(1, dt * 3));
-      this.camera.position.lerp(new THREE.Vector3(this.lookAtPt.x, this.lookAtPt.y - 1.2, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
-      if (this.camera.position.y < 0.8) this.camera.position.y = 0.8; // never dip under the grass
+      this.lookAtPt.lerp(new THREE.Vector3(lx, pos.y + 1.2, lz), Math.min(1, dt * 3));
+      // ease an un-lifted camera position, then add the hill lift on top (so the lift can't feed back)
+      this.camBase.lerp(new THREE.Vector3(this.lookAtPt.x, this.lookAtPt.y - 1.2, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
+      this.camera.position.copy(this.camBase);
+      // keep the view clear over hills: march from the kid to the camera and lift the camera
+      // until the line of sight clears the ground (and never let it dip into a hill)
+      const cp = this.camera.position;
+      let lift = 0;
+      for (let k = 1; k <= 8; k++) {
+        const u = k / 9;
+        const sx = this.lookAtPt.x + (cp.x - this.lookAtPt.x) * u;
+        const sz = this.lookAtPt.z + (cp.z - this.lookAtPt.z) * u;
+        const lineY = this.lookAtPt.y + (cp.y - this.lookAtPt.y) * u;
+        const need = groundY(sx, sz) + 1.4 - lineY;
+        if (need > 0) lift = Math.max(lift, need / u);
+      }
+      this.camLift += (Math.min(lift, 30) - this.camLift) * Math.min(1, dt * 4);
+      cp.y += this.camLift;
+      const under = groundY(cp.x, cp.z) + 1.2;
+      if (cp.y < under) cp.y = under;
       this.camera.lookAt(this.lookAtPt);
     }
-    this.renderer.render(this.scene, this.camera);
+    // bloom a little stronger at twilight, when the magic comes out
+    const glowNow = this.park.atmosphere.glow;
+    if (this.bloom) this.bloom.strength = 0.4 + glowNow * 0.6;
+    // lift the exposure at twilight so the world stays readable around the glow
+    this.renderer.toneMappingExposure = 1.12 + glowNow * 0.55;
+    if (this.composer) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
     this.frame = requestAnimationFrame(this.tick);
   };
+
+  /** where the pointer ray meets the ground (the terrain mesh, else a flat plane) */
+  private groundHit(out: THREE.Vector3): boolean {
+    const g = this.park?.ground;
+    if (g) {
+      const hit = this.raycaster.intersectObject(g, false)[0];
+      if (hit) {
+        out.copy(hit.point);
+        return true;
+      }
+    }
+    return !!this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), out);
+  }
 
   private allPlaces(): PlaceDef[] {
     const base = this.park?.places ?? [];
@@ -1151,17 +1233,18 @@ export class ParkWorld {
       const x = spot.x + (-spot.z / r) * 3.4 * side;
       const z = spot.z + (spot.x / r) * 3.4 * side;
       const model = buildWizardModel({ robe: w.robe, hat: w.hat, orb: w.orb });
-      model.root.position.set(x, 0, z);
+      const gy = groundY(x, z);
+      model.root.position.set(x, gy, z);
       model.root.traverse((o) => (o.userData.placeId = `wizard:${w.id}`));
       this.scene.add(model.root);
       this.park.tappables.push(model.root);
       const sign = nameTag(`🧙 ${w.name}`, w.robe);
-      sign.position.set(x, 4.9, z);
+      sign.position.set(x, gy + 4.9, z);
       this.scene.add(sign);
       let star: THREE.Sprite | null = null;
       if (w.hasLesson) {
         star = emojiSprite("✨", 1.3);
-        star.position.set(x, 6.1, z);
+        star.position.set(x, gy + 6.1, z);
         this.scene.add(star);
       }
       const place: PlaceDef = { id: `wizard:${w.id}`, label: w.name, emoji: "🧙", land: "plaza", x, z, radius: 1.1, doorRadius: 3.4, action: "wizard", signY: 0, models: [] };
@@ -1188,6 +1271,7 @@ export class ParkWorld {
     if (!this.kid || this.ride) return;
     this.dismount(true);
     const m = buildMount(kind, accent ?? this.opts.accent);
+    m.root.traverse((o) => ((o as THREE.Mesh).isMesh && o.name !== "mount-shadow" && (o.castShadow = true)));
     this.mount = m;
     this.scene.add(m.root);
     m.root.position.copy(this.kid.root.position).setY(0);
@@ -1217,7 +1301,7 @@ export class ParkWorld {
     this.landing = false;
     this.alt = 0;
     this.altTarget = 0;
-    this.kid.root.position.y = 0;
+    this.kid.root.position.y = groundY(this.kid.root.position.x, this.kid.root.position.z);
     if (this.kid.rig) this.kid.rig.root.position.set(0, 0, 0);
     const shadow = this.kid.root.children[1];
     if (shadow) shadow.visible = true;

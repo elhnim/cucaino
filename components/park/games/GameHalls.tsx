@@ -1,7 +1,7 @@
 "use client";
 
 // The park-native homes of the learning & money games. Each hall is a candy hub (shelf, game
-// picker, wallet) that runs the existing game components natively on a GameStage — same
+// picker, wallet) in the park's glass style that runs the existing game components natively on a GameStage — same
 // server actions, same progress, same rewards — instead of opening the old flat pages.
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
@@ -15,6 +15,8 @@ import { playSfx } from "@/lib/audio/sound-manager";
 import type { Kid } from "@/lib/domain/types";
 import { GameStage } from "./GameStage";
 import { CandyButton } from "../ui/CandySheet";
+import { C, alpha, cardStyle, display } from "../ui/theme";
+import { IconChip } from "../ui/IconChip";
 
 const CourseClient = dynamic(() => import("@/components/course/CourseClient"), { ssr: false });
 const StoryLibrary = dynamic(() => import("@/components/library/StoryLibrary"), { ssr: false });
@@ -124,8 +126,8 @@ function ArcadeHall({ kidId, onClose }: { kidId: string; onClose: () => void }) 
       ) : (
         <Shelf intro="Brain games powered by AI. Each game costs a few ⚡ sparks — turn your stars into sparks here.">
           <div style={{ ...wallet, gridColumn: "1 / -1" }}>
-            <div style={{ fontWeight: 900, fontSize: 18, color: "#0e5d73" }}>
-              ⚡ {info.sparks} sparks <span style={{ fontSize: 13, color: "#5a8a98" }}>· ⭐ {info.stars} stars · 1 ⭐ = 5 ⚡</span>
+            <div style={display(22, C.cyan)}>
+              ⚡ {info.sparks} sparks <span style={{ fontSize: 13, color: C.dim, fontFamily: "inherit" }}>· ⭐ {info.stars} stars · 1 ⭐ = 5 ⚡</span>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {[1, 3, 5].map((n) => (
@@ -134,7 +136,7 @@ function ArcadeHall({ kidId, onClose }: { kidId: string; onClose: () => void }) 
                 </CandyButton>
               ))}
             </div>
-            {msg && <div style={{ fontWeight: 900, color: "#0e5d73" }}>{msg}</div>}
+            {msg && <div style={{ fontWeight: 900, color: C.gold }}>{msg}</div>}
           </div>
           {ARCADE_GAMES.map((g) => (
             <ShelfCard
@@ -179,8 +181,8 @@ function BankHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
       ) : !data || !data.enabled ? (
         <div style={{ maxWidth: 460, margin: "40px auto", textAlign: "center", padding: 16 }}>
           <div style={{ fontSize: 64 }}>🔒</div>
-          <div style={{ fontWeight: 900, fontSize: 22, color: "#3b2a7a" }}>The Bank is locked</div>
-          <p style={{ fontWeight: 800, color: "#6b5aa0" }}>Ask a grown-up to switch on investing when your family is ready for real money ups and downs. Until then, practise in the Nugget Market! 📈</p>
+          <div style={{ ...display(24, "#241c4d") }}>The Bank is locked</div>
+          <p style={{ fontWeight: 800, color: "#5b5486" }}>Ask a grown-up to switch on investing when your family is ready for real money ups and downs. Until then, practise in the Nugget Market! 📈</p>
         </div>
       ) : (
         <InvestHub kid={data.kid} account={data.account} licence={data.licence} holdings={data.holdings} transactions={data.transactions} prices={data.prices} assets={REAL_ASSETS} />
@@ -191,14 +193,16 @@ function BankHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
 
 // ── shared bits ──
 function Loading() {
-  return <div style={{ textAlign: "center", padding: "48px 0", fontWeight: 900, color: "#b0799f", fontSize: 18 }}>🍭 Loading…</div>;
+  return <div style={{ textAlign: "center", padding: "48px 0", fontWeight: 900, color: "#6a64a0", fontSize: 18 }}>✨ Loading…</div>;
 }
 
 function Shelf({ intro, children }: { intro: string; children: React.ReactNode }) {
   return (
-    <div style={{ maxWidth: 820, margin: "0 auto", padding: 16 }}>
-      <p style={{ fontWeight: 800, color: "#9b7090", marginTop: 0 }}>{intro}</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>{children}</div>
+    <div style={shelfFloor}>
+      <div style={shelf}>
+        <p style={{ fontWeight: 800, color: C.dim, marginTop: 0 }}>{intro}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>{children}</div>
+      </div>
     </div>
   );
 }
@@ -208,35 +212,43 @@ function ShelfCard({ emoji, title, sub, color, locked, onClick }: { emoji: strin
     <button
       type="button"
       onClick={onClick}
+      className="gp-press"
       style={{
-        border: "none",
-        borderRadius: 24,
-        padding: 14,
+        ...cardStyle(color, "rgba(30,27,74,0.9)"),
+        borderRadius: 16,
+        padding: 12,
         textAlign: "left",
         display: "flex",
         alignItems: "center",
         gap: 12,
-        background: "#fff",
-        boxShadow: `0 5px 0 ${color}55, 0 10px 18px rgba(122,46,98,0.08)`,
+        boxShadow: `0 6px 16px rgba(0,0,0,0.35), 0 0 14px ${alpha(color, 0.25)}`,
         cursor: "pointer",
-        opacity: locked ? 0.7 : 1,
+        opacity: locked ? 0.6 : 1,
       }}
     >
-      <div style={{ width: 58, height: 58, borderRadius: 20, background: `${color}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, flexShrink: 0 }}>{emoji}</div>
+      <IconChip color={color} size={56} style={{ fontSize: 30 }}>
+        {emoji}
+      </IconChip>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 900, fontSize: 16, color: "#5a2350" }}>{title}</div>
-        <div style={{ fontWeight: 800, fontSize: 12, color: "#9b7090" }}>{locked ? "Need more ⚡ sparks" : sub}</div>
+        <div style={display(18)}>{title}</div>
+        <div style={{ fontWeight: 700, fontSize: 12.5, color: C.dim, marginTop: 2 }}>{locked ? "🔒 Need more ⚡ sparks" : sub}</div>
       </div>
     </button>
   );
 }
 
 const wallet: React.CSSProperties = {
-  borderRadius: 24,
+  ...cardStyle(C.cyan, "rgba(18,40,70,0.85)"),
+  borderRadius: 16,
   padding: 14,
   display: "flex",
   flexDirection: "column",
   gap: 10,
-  background: "linear-gradient(#e6fbff, #ffffff)",
-  boxShadow: "0 5px 0 #b6ecf5",
 };
+/** the hall picker screens sit on a dark glass floor (the games themselves keep their light skin) */
+const shelfFloor: React.CSSProperties = {
+  minHeight: "100%",
+  background: "radial-gradient(120% 70% at 50% 0%, #2c2572, #120f33 65%)",
+  color: C.text,
+};
+const shelf: React.CSSProperties = { maxWidth: 860, margin: "0 auto", padding: 16 };

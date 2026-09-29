@@ -9,6 +9,10 @@ import { PET_ACCESSORIES, PET_FOODS, PET_PERSONALITIES, PET_SPECIES, PET_TRICKS,
 import { getPetSpeech, levelFromXp, moodFor, stageFromLevel, xpForLevel, type Pet, type SpeechAction } from "@/lib/pet/logic";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { CandySheet, CandyButton } from "../ui/CandySheet";
+import { C, FONT, alpha, cardStyle, display } from "../ui/theme";
+import { ProgressBar } from "../ui/ProgressBar";
+import { Badge } from "../ui/Badge";
+import { IconChip } from "../ui/IconChip";
 
 export type PetMode = "home" | "feed" | "wash" | "sleep" | "tricks" | "fetch";
 
@@ -92,15 +96,18 @@ export function PetCareSheet({
 
   const header = (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-      <div style={{ fontSize: 44 }}>{stage === "teen" || stage === "adult" ? species?.adultEmoji : species?.babyEmoji}</div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>
-          {pet.name} <span style={{ fontSize: 13, color: "#b0799f" }}>· Level {level}</span>
+      <IconChip color={color} size={64} round style={{ fontSize: 38 }}>
+        {stage === "teen" || stage === "adult" ? species?.adultEmoji : species?.babyEmoji}
+      </IconChip>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={display(20)}>{pet.name}</span>
+          <Badge color={C.cyan}>Lv {level}</Badge>
         </div>
-        <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{mood.emoji} {mood.message}</div>
+        <div style={{ fontWeight: 800, fontSize: 13, color: C.dim }}>{mood.emoji} {mood.message}</div>
         <XpBar xp={pet.xp} level={level} />
       </div>
-      <div style={{ fontWeight: 900, color: "#946200", background: "#fff3c4", borderRadius: 999, padding: "4px 10px" }}>⭐ {points}</div>
+      <Badge color={C.gold}>⭐ {points}</Badge>
     </div>
   );
 
@@ -148,7 +155,7 @@ export function PetCareSheet({
         >
           {pet.isSleeping ? "☀️ Wake up" : "🌙 Time for a nap"}
         </CandyButton>
-        <p style={{ fontWeight: 800, color: "#9b7090", textAlign: "center", margin: 0 }}>Sleeping pets get their energy back — perfect for bedtime!</p>
+        <p style={{ fontWeight: 800, color: C.dim, textAlign: "center", margin: 0 }}>Sleeping pets get their energy back — perfect for bedtime!</p>
       </div>
     );
   } else if (mode === "tricks") {
@@ -179,11 +186,11 @@ export function PetCareSheet({
     body = (
       <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", textAlign: "center" }}>
         <Stat label="⚡ Energy" value={pet.energy} color="#4cc9ff" />
-        <p style={{ fontWeight: 800, color: "#9b7090", margin: 0 }}>Tap anywhere on the field to throw the ball. How many can {pet.name} catch in 15 seconds?</p>
+        <p style={{ fontWeight: 800, color: C.dim, margin: 0 }}>Tap anywhere on the field to throw the ball. How many can {pet.name} catch in 15 seconds?</p>
         <CandyButton color="#f5b400" disabled={pet.isSleeping || pet.energy < 10} onClick={onStartFetch}>
           🎾 Play fetch · ⭐ {PLAY_COST}
         </CandyButton>
-        {pet.energy < 10 && <p style={{ fontWeight: 800, color: "#ff4f6d", margin: 0 }}>Too tired — let {pet.name} nap first 💤</p>}
+        {pet.energy < 10 && <p style={{ fontWeight: 800, color: "#ff9aa8", margin: 0 }}>Too tired — let {pet.name} nap first 💤</p>}
       </div>
     );
   } else {
@@ -196,7 +203,7 @@ export function PetCareSheet({
           <Stat label="⚡ Energy" value={pet.energy} color="#4cc9ff" />
           <Stat label="🫧 Clean" value={pet.cleanliness} color="#7be0b0" />
         </div>
-        <div style={{ fontWeight: 800, color: "#9b7090" }}>🔥 Care streak: {pet.careStreak} day{pet.careStreak === 1 ? "" : "s"} · the Snack Bar, Bubble Bath, Cosy Bed, Fetch Field and Trick Stage are all here in the meadow!</div>
+        <div style={{ fontWeight: 800, color: C.dim }}>🔥 Care streak: {pet.careStreak} day{pet.careStreak === 1 ? "" : "s"} · the Snack Bar, Bubble Bath, Cosy Bed, Fetch Field and Trick Stage are all here in the meadow!</div>
         <CandyButton
           color="#ff8a3d"
           disabled={busy}
@@ -225,7 +232,7 @@ export function PetCareSheet({
         >
           🎁 {pet.name}&apos;s daily gift
         </CandyButton>
-        <div style={{ fontWeight: 900, color: "#c26a9f", fontSize: 13, textTransform: "uppercase", letterSpacing: 1 }}>🛍️ Toys & outfits</div>
+        <div style={{ fontFamily: FONT.display, fontWeight: 400, color: C.gold, fontSize: 14, textTransform: "uppercase", letterSpacing: 1.2 }}>🛍️ Toys & outfits</div>
         <Grid>
           {PET_ACCESSORIES.map((a) => {
             const owned = pet.accessories.includes(a.id);
@@ -266,24 +273,24 @@ function AdoptSheet({ kidId, onPet, onClose }: { kidId: string; onPet: (p: Pet, 
   const toggle = (id: string) => setTraits((t) => (t.includes(id) ? t.filter((x) => x !== id) : t.length < 3 ? [...t, id] : t));
   return (
     <CandySheet title="🥚 Adopt a pet!" subtitle="Your very own friend for the park" color="#ff8a3d" onClose={onClose}>
-      <div style={{ fontWeight: 900, color: "#c26a9f", marginBottom: 8 }}>1. Pick your pet</div>
+      <div style={{ ...display(16, C.gold), marginBottom: 8 }}>1. Pick your pet</div>
       <Grid>
         {PET_SPECIES.map((s) => (
-          <button key={s.id} type="button" onClick={() => setSpecies(s.id)} style={{ ...tile, outline: species === s.id ? "4px solid #ff8a3d" : "none" }}>
+          <button key={s.id} type="button" onClick={() => setSpecies(s.id)} className="gp-press" style={{ ...tile, ...(species === s.id ? { borderColor: C.gold, boxShadow: `0 0 16px ${alpha(C.gold, 0.55)}` } : null) }}>
             <div style={{ fontSize: 36 }}>{s.babyEmoji}</div>
-            <div style={{ fontWeight: 900, fontSize: 13, color: "#5a2350" }}>{s.name}</div>
+            <div style={{ fontWeight: 900, fontSize: 13, color: C.text }}>{s.name}</div>
           </button>
         ))}
       </Grid>
-      <div style={{ fontWeight: 900, color: "#c26a9f", margin: "14px 0 8px" }}>2. Pick 3 personalities ({traits.length}/3)</div>
+      <div style={{ ...display(16, C.gold), margin: "16px 0 8px" }}>2. Pick 3 personalities ({traits.length}/3)</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {PET_PERSONALITIES.map((p) => (
-          <button key={p.id} type="button" onClick={() => toggle(p.id)} style={{ ...chip, background: traits.includes(p.id) ? "#ffe0c7" : "#fff", borderColor: traits.includes(p.id) ? "#ff8a3d" : "#f5d3e6" }}>
+          <button key={p.id} type="button" onClick={() => toggle(p.id)} className="gp-press" style={{ ...chip, background: traits.includes(p.id) ? alpha(C.gold, 0.2) : "rgba(255,255,255,0.05)", borderColor: traits.includes(p.id) ? C.gold : "rgba(160,190,255,0.25)", color: traits.includes(p.id) ? C.goldHi : C.text }}>
             {p.emoji} {p.label}
           </button>
         ))}
       </div>
-      <div style={{ fontWeight: 900, color: "#c26a9f", margin: "14px 0 8px" }}>3. Give them a name</div>
+      <div style={{ ...display(16, C.gold), margin: "16px 0 8px" }}>3. Give them a name</div>
       <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="e.g. Sprinkles" style={input} />
       {err && <div style={{ ...msgStyle, marginTop: 10 }}>{err}</div>}
       <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
@@ -312,19 +319,17 @@ function XpBar({ xp, level }: { xp: number; level: number }) {
   const to = xpForLevel(level + 1);
   const k = to > from ? (xp - from) / (to - from) : 1;
   return (
-    <div style={{ height: 8, borderRadius: 999, background: "#f3dbe8", overflow: "hidden", marginTop: 4, maxWidth: 220 }}>
-      <div style={{ height: "100%", width: `${Math.max(4, Math.min(1, k) * 100)}%`, background: "linear-gradient(90deg,#ff7fbd,#ffd84a)" }} />
-    </div>
+    <ProgressBar value={Math.max(0.04, Math.min(1, k))} color={C.cyan} to="#d8fbff" height={7} style={{ marginTop: 6, maxWidth: 220 }} />
   );
 }
 
 function Stat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div style={{ width: "100%" }}>
-      <div style={{ fontWeight: 900, fontSize: 13, color: "#7a2e62" }}>{label} · {Math.round(value)}</div>
-      <div style={{ height: 12, borderRadius: 999, background: "#f3dbe8", overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${Math.max(3, Math.min(100, value))}%`, background: value < 30 ? "#ff4f6d" : color, transition: "width 300ms ease" }} />
+      <div style={{ fontWeight: 900, fontSize: 13, color: C.text, marginBottom: 4 }}>
+        {label} <span style={{ color: value < 30 ? "#ff9aa8" : C.dim }}>· {Math.round(value)}</span>
       </div>
+      <ProgressBar value={Math.max(0.03, Math.min(100, value) / 100)} color={value < 30 ? C.danger : color} to={value < 30 ? "#ffb3bd" : undefined} height={11} />
     </div>
   );
 }
@@ -335,16 +340,26 @@ function Grid({ children }: { children: React.ReactNode }) {
 
 function Tile({ emoji, name, cost, note, disabled, onClick }: { emoji: string; name: string; cost?: number; note?: string; disabled?: boolean; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} style={{ ...tile, opacity: disabled ? 0.55 : 1 }}>
-      <div style={{ fontSize: 36, lineHeight: 1 }}>{emoji}</div>
-      <div style={{ fontWeight: 900, fontSize: 13, color: "#5a2350", marginTop: 4 }}>{name}</div>
-      {cost !== undefined && <div style={{ fontWeight: 900, fontSize: 12, color: "#946200" }}>⭐ {cost}</div>}
-      {note && <div style={{ fontWeight: 800, fontSize: 11, color: "#9b7090" }}>{note}</div>}
+    <button type="button" onClick={onClick} disabled={disabled} className="gp-press" style={{ ...tile, opacity: disabled ? 0.5 : 1 }}>
+      <div style={{ fontSize: 36, lineHeight: 1, filter: "drop-shadow(0 3px 3px rgba(0,0,0,0.4))" }}>{emoji}</div>
+      <div style={{ fontWeight: 900, fontSize: 13, color: C.text, marginTop: 4 }}>{name}</div>
+      {cost !== undefined && <div style={{ fontWeight: 900, fontSize: 12, color: C.gold }}>⭐ {cost}</div>}
+      {note && <div style={{ fontWeight: 800, fontSize: 11, color: C.dim }}>{note}</div>}
     </button>
   );
 }
 
-const tile: React.CSSProperties = { border: "none", borderRadius: 20, padding: "12px 6px", background: "#fff", boxShadow: "0 4px 0 #f5d3e6, 0 6px 12px rgba(122,46,98,0.08)", cursor: "pointer", textAlign: "center" };
-const chip: React.CSSProperties = { border: "3px solid", borderRadius: 999, padding: "6px 12px", fontWeight: 900, color: "#5a2350", cursor: "pointer" };
-const input: React.CSSProperties = { width: "100%", borderRadius: 16, border: "3px solid #f5d3e6", padding: "10px 14px", fontWeight: 800, fontSize: 16, color: "#5a2350", outline: "none" };
-const msgStyle: React.CSSProperties = { borderRadius: 16, padding: "8px 12px", fontWeight: 900, color: "#7a2e62", background: "#fff0f7", marginBottom: 10, textAlign: "center" };
+const tile: React.CSSProperties = {
+  border: "1.5px solid rgba(160,190,255,0.22)",
+  borderRadius: 16,
+  padding: "12px 6px",
+  minHeight: 96,
+  background: "radial-gradient(circle at 50% 25%, rgba(90,86,170,0.5), rgba(24,22,60,0.85) 75%)",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08)",
+  cursor: "pointer",
+  textAlign: "center",
+  color: C.text,
+};
+const chip: React.CSSProperties = { border: "1.5px solid", borderRadius: 999, minHeight: 44, padding: "0 14px", fontWeight: 900, cursor: "pointer" };
+const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", minHeight: 48, borderRadius: 14, border: `1.5px solid ${alpha(C.cyan, 0.45)}`, padding: "10px 14px", fontWeight: 800, fontSize: 16, color: C.text, background: "rgba(0,0,0,0.3)", outline: "none" };
+const msgStyle: React.CSSProperties = { ...cardStyle(C.cyan, "rgba(18,40,70,0.8)"), padding: "8px 12px", fontWeight: 900, color: C.text, marginBottom: 10, textAlign: "center" };

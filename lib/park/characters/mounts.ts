@@ -20,7 +20,8 @@ export interface MountRig {
   seat: THREE.Vector3;
   /** where the pet sits (just behind the kid) */
   petSeat: THREE.Vector3;
-  update(dt: number, speed: number, airborne: boolean, glow: number): void;
+  /** `above` = height above the ground (the shadow stays on the ground) */
+  update(dt: number, speed: number, airborne: boolean, glow: number, above?: number): void;
   dispose(): void;
 }
 
@@ -316,7 +317,7 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8"): MountRig {
     root,
     seat,
     petSeat,
-    update(dt, speed, airborne, glow) {
+    update(dt, speed, airborne, glow, above) {
       t += dt;
       anim(t, speed, airborne);
       blink -= dt;
@@ -324,7 +325,7 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8"): MountRig {
       for (const e of eyeList) e.scale.y = closed ? 0.15 : 1;
       if (blink < 0) blink = 2 + Math.random() * 3;
       // keep the shadow on the ground, shrinking and fading as we climb
-      const h = root.position.y;
+      const h = above ?? root.position.y;
       shadow.position.y = -h + 0.03;
       shadow.scale.setScalar(Math.max(0.35, 1 - h * 0.025));
       (shadow.material as THREE.MeshBasicMaterial).opacity = Math.max(0.2, 1 - h * 0.03);

@@ -7,6 +7,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { makeSparkTexture } from "./atmosphere";
 import { getToonRamp } from "../assets/loader";
 import { ISLAND_R, coastR } from "../registry/island";
+import { groundY } from "../registry/terrain";
 
 export const BEACH_IN = ISLAND_R; // where grass meets the sand (plus the coast wobble)
 export const SHORE_R = ISLAND_R + 14; // where the sand meets the water
@@ -44,9 +45,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const add = <T extends THREE.Object3D>(o: T) => (scene.add(o), added.push(o), o);
 
   // ── beach ──
-  const sand = add(new THREE.Mesh(track(wobbleToCoast(new THREE.RingGeometry(BEACH_IN - 2, SHORE_R + 6, 160, 1))), toon("#ffe7bf")));
-  sand.rotation.x = -Math.PI / 2;
-  sand.position.y = 0.01;
+
   // shells and starfish dotted on the sand
   const shellGeo = track(new THREE.SphereGeometry(0.35, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2));
   const shells = add(new THREE.InstancedMesh(shellGeo, toon("#ffffff"), 70));
@@ -62,14 +61,14 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   for (let i = 0; i < 70; i++) {
     const a = rnd() * Math.PI * 2;
     const rad = (BEACH_IN + 2 + rnd() * (SHORE_R - BEACH_IN - 1)) * (coastR(a) / ISLAND_R);
-    mm.compose(new THREE.Vector3(Math.sin(a) * rad, 0.02, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 0.5, 1.3).multiplyScalar(0.6 + rnd() * 0.8));
+    mm.compose(new THREE.Vector3(Math.sin(a) * rad, groundY(Math.sin(a) * rad, Math.cos(a) * rad) + 0.02, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 0.5, 1.3).multiplyScalar(0.6 + rnd() * 0.8));
     shells.setMatrixAt(i, mm);
     shells.setColorAt(i, new THREE.Color(shellCols[i % shellCols.length]));
   }
   for (let i = 0; i < 40; i++) {
     const a = rnd() * Math.PI * 2;
     const rad = (BEACH_IN + 3 + rnd() * (SHORE_R - BEACH_IN - 2)) * (coastR(a) / ISLAND_R);
-    mm.compose(new THREE.Vector3(Math.sin(a) * rad, 0.05, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + rnd() * 0.6));
+    mm.compose(new THREE.Vector3(Math.sin(a) * rad, groundY(Math.sin(a) * rad, Math.cos(a) * rad) + 0.05, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + rnd() * 0.6));
     stars.setMatrixAt(i, mm);
     stars.setColorAt(i, new THREE.Color(starCols[i % starCols.length]));
   }
@@ -258,7 +257,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
       bells.instanceMatrix.needsUpdate = true;
       tents.instanceMatrix.needsUpdate = true;
       jellyHaloGeo.attributes.position.needsUpdate = true;
-      jellyMat.color.copy(dayJelly).multiplyScalar(0.8 + glow * 0.2);
+      jellyMat.color.copy(dayJelly).multiplyScalar(0.85 + glow * 0.9);
       jellyMat.opacity = 0.62 + glow * 0.3;
       haloMat.opacity = 0.15 + glow * 0.75;
       haloMat.size = 6 + glow * 6;

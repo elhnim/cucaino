@@ -1,6 +1,6 @@
 "use client";
 
-// Nugget Market, park style: a candy market street of 10 company stalls. Kids move stars into
+// Nugget Market, park style: a glowing market street of 10 company stalls. Kids move stars into
 // their nugget wallet, watch prices move with the daily news, buy and sell shares. All trades
 // use the existing trading actions (same rules, prices and dividends as before).
 import { useCallback, useEffect, useState } from "react";
@@ -9,6 +9,7 @@ import { buyAsset, sellAsset, depositToTrading, withdrawFromTrading } from "@/li
 import { TRADING_ASSETS, NUGGETS_PER_STAR } from "@/lib/trading/assets";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { CandySheet, CandyButton } from "../ui/CandySheet";
+import { C, FONT, alpha, cardStyle, mutedText } from "../ui/theme";
 
 const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${Math.round(n)}`);
 
@@ -45,7 +46,7 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
 
   if (data === "loading" || !data) {
     return (
-      <CandySheet title="📈 Nugget Market" color="#22c55e" onClose={onClose}>
+      <CandySheet title="📈 Nugget Market" color={C.success} onClose={onClose}>
         <p style={muted}>{data === "loading" ? "Opening the market…" : "The market is closed right now — try again soon!"}</p>
       </CandySheet>
     );
@@ -66,7 +67,7 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
     <CandySheet
       title="📈 Nugget Market"
       subtitle={`🪙 ${fmt(data.nuggets)} nuggets · 📦 ${fmt(invested)} in shares · ⭐ ${data.stars} stars`}
-      color="#22c55e"
+      color={C.success}
       onClose={onClose}
       wide
     >
@@ -74,9 +75,9 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
 
       {/* wallet */}
       <div style={{ ...card, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-        <div style={{ flex: 1, minWidth: 160, fontWeight: 800, color: "#5a2350" }}>
+        <div style={{ flex: 1, minWidth: 160, fontWeight: 800, color: C.text }}>
           🪙 Nugget wallet · 1 ⭐ = {NUGGETS_PER_STAR.toLocaleString()} nuggets
-          <div style={{ fontSize: 12, color: "#9b7090" }}>Prices change every day with the news. Buy low, sell high!</div>
+          <div style={{ fontSize: 12, color: C.dim }}>Prices change every day with the news. Buy low, sell high!</div>
         </div>
         {[1, 5].map((n) => (
           <CandyButton key={`in${n}`} small color="#22c55e" disabled={busy || data.stars < n} onClick={() => act(() => depositToTrading(kidId, n), `+${(n * NUGGETS_PER_STAR).toLocaleString()} nuggets!`)}>
@@ -88,22 +89,22 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
         </CandyButton>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+      <div style={tabsWrap}>
         {(["market", "mine"] as const).map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)} style={{ ...tabBtn, background: tab === t ? "linear-gradient(#4ade80,#16a34a)" : "#fff", color: tab === t ? "#fff" : "#1f5130" }}>
+          <button key={t} type="button" onClick={() => setTab(t)} className="gp-press" aria-pressed={tab === t} style={{ ...tabBtn, ...(tab === t ? tabOn : null) }}>
             {t === "market" ? "🏪 Market stalls" : `📦 My shares${data.holdings.length ? ` (${data.holdings.length})` : ""}`}
           </button>
         ))}
       </div>
 
       {asset ? (
-        <div style={{ ...card, borderColor: "#bdf0cf" }}>
+        <div style={{ ...card, ...cardStyle(C.success, "rgba(24,40,60,0.86)") }}>
           <button type="button" onClick={() => setOpen(null)} style={backLink}>← All stalls</button>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
             <div style={{ fontSize: 48 }}>{asset.emoji}</div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>{asset.name}</div>
-              <div style={{ fontWeight: 800, color: "#9b7090", fontSize: 13 }}>{asset.industry}{asset.paysDividend ? " · pays a bonus every week 💝" : ""}</div>
+              <div style={{ fontWeight: 900, fontSize: 20, color: C.text }}>{asset.name}</div>
+              <div style={{ fontWeight: 800, color: C.dim, fontSize: 13 }}>{asset.industry}{asset.paysDividend ? " · pays a bonus every week 💝" : ""}</div>
             </div>
             <Price value={price(asset.symbol)} pct={change(asset.symbol)} big />
           </div>
@@ -114,8 +115,8 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
               {data.prices[asset.symbol].current.newsBody && <div style={{ fontWeight: 700, marginTop: 4 }}>{data.prices[asset.symbol].current.newsBody}</div>}
             </div>
           )}
-          <p style={{ fontWeight: 700, color: "#7a5a70", fontSize: 14 }}>{asset.description}</p>
-          <div style={{ fontWeight: 900, color: "#1f5130", marginBottom: 8 }}>You own {owned(asset.symbol).toFixed(owned(asset.symbol) % 1 ? 1 : 0)} share{owned(asset.symbol) === 1 ? "" : "s"}</div>
+          <p style={{ fontWeight: 700, color: C.dim, fontSize: 14 }}>{asset.description}</p>
+          <div style={{ fontWeight: 900, color: C.text, marginBottom: 8 }}>You own {owned(asset.symbol).toFixed(owned(asset.symbol) % 1 ? 1 : 0)} share{owned(asset.symbol) === 1 ? "" : "s"}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {[1, 5, 10].map((q) => (
               <CandyButton key={`b${q}`} small color="#22c55e" disabled={busy || data.nuggets < q * price(asset.symbol)} onClick={() => act(() => buyAsset(kidId, asset.symbol, q), `You bought ${q} ${asset.name} share${q === 1 ? "" : "s"}! 🎉`)}>
@@ -123,7 +124,7 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
               </CandyButton>
             ))}
             {owned(asset.symbol) > 0 && (
-              <CandyButton small color="#ff5fa8" disabled={busy} onClick={() => act(() => sellAsset(kidId, asset.symbol, owned(asset.symbol)), `Sold! +🪙${fmt(owned(asset.symbol) * price(asset.symbol))}`)}>
+              <CandyButton small color="#ff4f6d" disabled={busy} onClick={() => act(() => sellAsset(kidId, asset.symbol, owned(asset.symbol)), `Sold! +🪙${fmt(owned(asset.symbol) * price(asset.symbol))}`)}>
                 Sell all · 🪙{fmt(owned(asset.symbol) * price(asset.symbol))}
               </CandyButton>
             )}
@@ -132,12 +133,12 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
       ) : tab === "market" ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px,1fr))", gap: 10 }}>
           {TRADING_ASSETS.map((a) => (
-            <button key={a.symbol} type="button" onClick={() => setOpen(a.symbol)} style={{ ...card, textAlign: "left", cursor: "pointer", borderColor: owned(a.symbol) > 0 ? "#bdf0cf" : "#f3e2ec" }}>
+            <button key={a.symbol} type="button" onClick={() => setOpen(a.symbol)} className="gp-press" style={{ ...card, ...cardStyle(owned(a.symbol) > 0 ? C.success : "soft", "rgba(30,27,74,0.86)"), textAlign: "left", cursor: "pointer" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ fontSize: 34 }}>{a.emoji}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 900, color: "#5a2350" }}>{a.name}</div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#9b7090" }}>{owned(a.symbol) > 0 ? `You own ${owned(a.symbol).toFixed(owned(a.symbol) % 1 ? 1 : 0)}` : a.industry}</div>
+                  <div style={{ fontWeight: 900, color: C.text }}>{a.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.dim }}>{owned(a.symbol) > 0 ? `You own ${owned(a.symbol).toFixed(owned(a.symbol) % 1 ? 1 : 0)}` : a.industry}</div>
                 </div>
                 <Price value={price(a.symbol)} pct={change(a.symbol)} />
               </div>
@@ -149,7 +150,7 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
         <p style={muted}>No shares yet — pick a stall and buy your first one! 🏪</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ ...card, fontWeight: 900, color: invested >= cost ? "#15803d" : "#be123c" }}>
+          <div style={{ ...card, fontWeight: 900, color: invested >= cost ? C.success : "#ff9aa8" }}>
             {invested >= cost ? "📈 Up" : "📉 Down"} {fmt(Math.abs(invested - cost))} nuggets overall — {invested >= cost ? "nice investing!" : "hold on, prices can bounce back!"}
           </div>
           {data.holdings.map((h) => {
@@ -157,13 +158,13 @@ export function NuggetMarket({ kidId, onClose, onStars }: { kidId: string; onClo
             const now = h.quantity * price(h.assetSymbol);
             const was = h.quantity * h.avgCostNuggets;
             return (
-              <button key={h.id} type="button" onClick={() => setOpen(h.assetSymbol)} style={{ ...card, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", textAlign: "left" }}>
+              <button key={h.id} type="button" onClick={() => setOpen(h.assetSymbol)} className="gp-press" style={{ ...card, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", textAlign: "left" }}>
                 <div style={{ fontSize: 30 }}>{a?.emoji}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 900, color: "#5a2350" }}>{a?.name}</div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#9b7090" }}>{h.quantity.toFixed(h.quantity % 1 ? 1 : 0)} shares · worth 🪙{fmt(now)}</div>
+                  <div style={{ fontWeight: 900, color: C.text }}>{a?.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.dim }}>{h.quantity.toFixed(h.quantity % 1 ? 1 : 0)} shares · worth 🪙{fmt(now)}</div>
                 </div>
-                <div style={{ fontWeight: 900, color: now >= was ? "#15803d" : "#be123c" }}>{now >= was ? "+" : "−"}{fmt(Math.abs(now - was))}</div>
+                <div style={{ fontWeight: 900, color: now >= was ? C.success : C.danger }}>{now >= was ? "+" : "−"}{fmt(Math.abs(now - was))}</div>
               </button>
             );
           })}
@@ -177,8 +178,8 @@ function Price({ value, pct, big }: { value: number; pct: number; big?: boolean 
   const up = pct >= 0;
   return (
     <div style={{ textAlign: "right" }}>
-      <div style={{ fontWeight: 900, fontSize: big ? 22 : 16, color: "#5a2350" }}>🪙{Math.round(value)}</div>
-      <div style={{ fontWeight: 900, fontSize: 12, color: up ? "#15803d" : "#be123c" }}>
+      <div style={{ fontFamily: FONT.display, fontWeight: 400, fontSize: big ? 24 : 17, color: C.gold }}>🪙{Math.round(value)}</div>
+      <div style={{ fontWeight: 900, fontSize: 12, color: up ? C.success : "#ff8a9a" }}>
         {up ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}%
       </div>
     </div>
@@ -194,14 +195,16 @@ function Spark({ values, height }: { values: number[]; height: number }) {
   const up = values[values.length - 1] >= values[0];
   return (
     <svg viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" style={{ width: "100%", height, marginTop: 6 }}>
-      <polyline points={pts} fill="none" stroke={up ? "#22c55e" : "#ff4f6d"} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts} fill="none" stroke={up ? C.success : C.danger} strokeWidth="3" style={{ filter: `drop-shadow(0 0 4px ${up ? C.success : C.danger})` }} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
 
-const muted: React.CSSProperties = { textAlign: "center", color: "#b0799f", fontWeight: 800, padding: "18px 0" };
-const card: React.CSSProperties = { borderRadius: 22, border: "3px solid #f3e2ec", padding: 12, background: "#fff", boxShadow: "0 4px 0 #d9f5e3, 0 8px 18px rgba(20,90,50,0.08)" };
-const tabBtn: React.CSSProperties = { border: "none", borderRadius: 999, padding: "9px 16px", fontWeight: 900, fontSize: 15, boxShadow: "0 3px 0 #cdeedd", cursor: "pointer" };
-const msgStyle: React.CSSProperties = { borderRadius: 16, padding: "8px 12px", fontWeight: 900, color: "#1f5130", background: "#e8fbef", marginBottom: 10, textAlign: "center" };
-const newsStyle: React.CSSProperties = { borderRadius: 16, padding: "10px 12px", color: "#5a4a10", background: "#fff7d1", fontSize: 14 };
-const backLink: React.CSSProperties = { border: "none", background: "transparent", fontWeight: 900, color: "#16a34a", cursor: "pointer", padding: 0 };
+const muted = mutedText;
+const card: React.CSSProperties = { ...cardStyle("soft", "rgba(30,27,74,0.86)"), padding: 12, borderRadius: 16 };
+const tabsWrap: React.CSSProperties = { display: "flex", gap: 4, marginBottom: 12, padding: 4, borderRadius: 14, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(160,190,255,0.16)" };
+const tabBtn: React.CSSProperties = { flex: 1, minHeight: 44, border: "1px solid transparent", borderRadius: 10, padding: "0 12px", fontFamily: FONT.display, fontWeight: 400, letterSpacing: 0.4, fontSize: 15, color: C.dim, background: "transparent", cursor: "pointer" };
+const tabOn: React.CSSProperties = { color: "#062a19", background: `linear-gradient(#9cf5c8, ${C.success} 50%, ${C.successDeep})`, borderColor: "#dcffee", boxShadow: `0 0 12px ${alpha(C.success, 0.45)}` };
+const msgStyle: React.CSSProperties = { ...cardStyle(C.success, "rgba(20,60,44,0.7)"), padding: "8px 12px", fontWeight: 900, color: "#c8ffe4", marginBottom: 10, textAlign: "center" };
+const newsStyle: React.CSSProperties = { ...cardStyle(C.gold, "rgba(64,48,12,0.6)"), padding: "10px 12px", color: "#ffeec2", fontSize: 14 };
+const backLink: React.CSSProperties = { border: "none", background: "transparent", fontWeight: 900, color: C.success, cursor: "pointer", padding: "0 0 0 0", minHeight: 44 };

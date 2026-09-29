@@ -1,12 +1,18 @@
 "use client";
 
 // One chore = one quest card. Same completion rules as the flat TodoTaskCard (same server
-// actions, same window events, optimistic with rollback) in the candy park style, plus
+// actions, same window events, optimistic with rollback) as a game quest card — rarity edge by
+// star value, reward chips, a clear Complete button — plus
 // reps/checklist progress that survives a reload.
 import { useEffect, useState, useTransition } from "react";
 import { completeTask, uncompleteTask } from "@/lib/actions/completions";
 import type { Task, TaskCompletion } from "@/lib/domain/types";
-import { CandyButton } from "../ui/CandySheet";
+import { GameButton } from "../ui/GameButton";
+import { Badge } from "../ui/Badge";
+import { IconChip } from "../ui/IconChip";
+import { ProgressBar } from "../ui/ProgressBar";
+import { C, FONT, RARITY, alpha, rarityForStars } from "../ui/theme";
+import { TICKETS_PER_QUEST } from "@/lib/park/builder/rules";
 
 export const CATEGORY_COLORS: Record<string, string> = {
   chore: "#ff5fa8",
@@ -54,7 +60,8 @@ export function QuestCard({
   /** timed / music tasks open the Practice Stage inside the park */
   onOpenPage: (src: string, title: string) => void;
 }) {
-  const color = CATEGORY_COLORS[task.category] ?? "#ff5fa8";
+  const rarity = rarityForStars(task.points);
+  const color = RARITY[rarity].color;
   const mine = completions.filter((c) => c.taskId === task.id);
   const freq = Math.max(1, task.frequencyPerDay ?? 1);
   const [count, setCount] = useState(Math.min(mine.length, freq));
@@ -152,82 +159,92 @@ export function QuestCard({
 
   let action: React.ReactNode = null;
   if (pendingApproval) {
-    action = <span style={{ ...tag, background: "#fff3c4", color: "#946200" }}>✋ Waiting for a grown-up</span>;
+    action = <Badge color={C.gold}>✋ Waiting for a grown-up</Badge>;
   } else if (done) {
     action = (
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ ...tag, background: "#dcfce7", color: "#15803d" }}>✅ +{task.points * freq} ⭐</span>
+        <Badge color={C.success}>✓ +{task.points * freq} ⭐</Badge>
         {isToday && freq === 1 && (
-          <button type="button" onClick={undo} style={undoBtn} aria-label="Undo">
+          <button type="button" onClick={undo} style={undoBtn} aria-label="Undo" className="gp-press">
             ↩
           </button>
         )}
       </div>
     );
   } else if (!isToday) {
-    action = <span style={{ ...tag, background: "#f3e8f1", color: "#9b7090" }}>{isPast ? "Missed" : "Coming up"}</span>;
+    action = <Badge color={C.mute}>{isPast ? "Missed" : "Coming up"}</Badge>;
   } else if (freq > 1) {
     action = (
-      <CandyButton color={color} onClick={complete} disabled={isPending}>
+      <GameButton small onClick={complete} disabled={isPending}>
         +1 · {count}/{freq}
-      </CandyButton>
+      </GameButton>
     );
   } else if (task.target === "reps" && task.targetReps) {
     action = (
-      <CandyButton color={color} onClick={addRep} disabled={isPending}>
+      <GameButton small onClick={addRep} disabled={isPending}>
         +1 · {reps}/{task.targetReps}
-      </CandyButton>
+      </GameButton>
     );
   } else if (timed) {
     action = (
-      <CandyButton color={color} onClick={() => onOpenPage(`/kid/${kidId}/practice/${task.id}?from=park`, `${task.icon} ${task.name}`)}>
+      <GameButton small variant="magic" onClick={() => onOpenPage(`/kid/${kidId}/practice/${task.id}?from=park`, `${task.icon} ${task.name}`)}>
         ▶ Start
-      </CandyButton>
+      </GameButton>
     );
   } else if (!(task.target === "checklist" && task.checklistItems?.length)) {
     action = (
-      <CandyButton color={color} onClick={complete} disabled={isPending}>
-        Done!
-      </CandyButton>
+      <GameButton small onClick={complete} disabled={isPending}>
+        Complete
+      </GameButton>
     );
   }
 
+  const edge = done ? C.success : color;
   return (
     <div
       style={{
         ...card,
-        borderColor: done ? "#bdf0cf" : `${color}55`,
-        background: done ? "#f3fff7" : "#ffffff",
-        transform: pop ? "scale(1.04)" : "none",
-        boxShadow: pop ? `0 0 0 4px ${color}66, 0 10px 24px ${color}44` : card.boxShadow,
-        opacity: !isToday && !done ? 0.75 : 1,
+        background: `linear-gradient(90deg, ${alpha(edge, done ? 0.16 : 0.2)}, rgba(30,27,70,0.78) 38%) padding-box, linear-gradient(135deg, ${alpha(edge, 0.85)}, ${alpha(edge, 0.2)} 50%, ${alpha(edge, 0.55)}) border-box`,
+        transform: pop ? "scale(1.03)" : "none",
+        boxShadow: pop ? `0 0 0 2px ${alpha(color, 0.7)}, 0 0 28px ${alpha(color, 0.6)}` : `0 4px 14px rgba(0,0,0,0.3)${rarity === "legendary" && !done ? `, 0 0 16px ${alpha(color, 0.35)}` : ""}`,
+        opacity: !isToday && !done ? 0.7 : 1,
       }}
     >
+      {/* the rarity edge */}
+      <span aria-hidden style={{ position: "absolute", left: 0, top: 8, bottom: 8, width: 4, borderRadius: "0 4px 4px 0", background: edge, boxShadow: `0 0 10px ${edge}` }} />
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ ...iconBubble, background: `${color}22` }}>{pop ? "🎉" : task.icon}</div>
+        <IconChip color={done ? C.success : color} size={50} style={{ fontSize: 28, filter: done ? "saturate(0.6)" : undefined }}>
+          {pop ? "🎉" : task.icon}
+        </IconChip>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 900, fontSize: 16, color: done ? "#6b9b7d" : "#5a2350", textDecoration: done ? "line-through" : "none" }}>{task.name}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-            {!done && <span style={{ ...tag, background: "#fff3c4", color: "#946200" }}>⭐ {task.points}</span>}
-            {task.cashValueCents > 0 && <span style={{ ...tag, background: "#e8fbef", color: "#15803d" }}>💵 ${(task.cashValueCents / 100).toFixed(2)}</span>}
-            {minutes && timed ? <span style={{ ...tag, background: "#efe6ff", color: "#6b3fc9" }}>⏱ {minutes} min</span> : null}
-            {task.description && <span style={{ fontSize: 12, color: "#9b7090", fontWeight: 700 }}>{task.description}</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            {!done && (
+              <span style={{ fontFamily: FONT.display, fontWeight: 400, fontSize: 10.5, letterSpacing: 1.2, textTransform: "uppercase", color }}>{RARITY[rarity].label}</span>
+            )}
+          </div>
+          <div style={{ fontWeight: 900, fontSize: 16.5, lineHeight: 1.2, color: done ? C.dim : C.text, textDecoration: done ? "line-through" : "none", textDecorationColor: alpha(C.success, 0.8) }}>{task.name}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 5 }}>
+            {!done && <Badge color={C.gold}>⭐ {task.points}</Badge>}
+            {!done && <Badge color={C.cyan}>🎟️ 1</Badge>}
+            {task.cashValueCents > 0 && <Badge color={C.success}>💵 ${(task.cashValueCents / 100).toFixed(2)}</Badge>}
+            {minutes && timed ? <Badge color={C.violet}>⏱ {minutes} min</Badge> : null}
+            {task.description && <span style={{ fontSize: 12, color: C.dim, fontWeight: 700 }}>{task.description}</span>}
           </div>
         </div>
         <div style={{ flexShrink: 0 }}>{action}</div>
       </div>
 
       {task.target === "reps" && task.targetReps && !done && isToday && (
-        <Bar value={reps / task.targetReps} color={color} label={`${reps} / ${task.targetReps} ${task.targetRepLabel ?? "reps"}`} />
+        <ProgressBar value={reps / task.targetReps} color={color} height={10} style={{ marginTop: 10 }} label={`${reps} / ${task.targetReps} ${task.targetRepLabel ?? "reps"}`} />
       )}
       {task.target === "checklist" && (task.checklistItems?.length ?? 0) > 0 && !done && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
           {(task.checklistItems ?? []).map((item, i) => {
             const on = checked.includes(i);
             return (
-              <button key={i} type="button" onClick={() => toggleItem(i)} disabled={!canAct} style={{ ...checkRow, background: on ? `${color}18` : "#fff7fb" }}>
-                <span style={{ ...checkBox, borderColor: color, background: on ? color : "#fff" }}>{on ? "✓" : ""}</span>
-                <span style={{ fontWeight: 800, color: on ? "#9b7090" : "#5a2350", textDecoration: on ? "line-through" : "none" }}>{item}</span>
+              <button key={i} type="button" onClick={() => toggleItem(i)} disabled={!canAct} className="gp-press" style={{ ...checkRow, background: on ? alpha(C.success, 0.12) : "rgba(255,255,255,0.05)", borderColor: on ? alpha(C.success, 0.5) : "rgba(160,190,255,0.16)" }}>
+                <span style={{ ...checkBox, borderColor: on ? C.success : alpha(color, 0.8), background: on ? C.success : "rgba(0,0,0,0.25)", boxShadow: on ? `0 0 8px ${alpha(C.success, 0.7)}` : undefined }}>{on ? "✓" : ""}</span>
+                <span style={{ fontWeight: 800, color: on ? C.dim : C.text, textDecoration: on ? "line-through" : "none" }}>{item}</span>
               </button>
             );
           })}
@@ -237,26 +254,24 @@ export function QuestCard({
   );
 }
 
-function Bar({ value, color, label }: { value: number; color: string; label: string }) {
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ height: 12, borderRadius: 999, background: "#f7e3ef", overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${Math.min(1, value) * 100}%`, borderRadius: 999, background: `linear-gradient(90deg, ${color}, #ffd84a)`, transition: "width 250ms ease" }} />
-      </div>
-      <div style={{ fontSize: 12, fontWeight: 800, color: "#9b7090", marginTop: 4 }}>{label}</div>
-    </div>
-  );
-}
-
 const card: React.CSSProperties = {
-  borderRadius: 22,
-  border: "3px solid",
-  padding: 12,
-  boxShadow: "0 4px 0 #f5d3e6, 0 8px 18px rgba(122,46,98,0.08)",
+  position: "relative",
+  borderRadius: 16,
+  border: "1.5px solid transparent",
+  padding: "12px 12px 12px 16px",
+  color: C.text,
   transition: "transform 200ms cubic-bezier(.2,1.5,.4,1), box-shadow 200ms ease",
 };
-const iconBubble: React.CSSProperties = { width: 52, height: 52, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, flexShrink: 0 };
-const tag: React.CSSProperties = { borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap" };
-const undoBtn: React.CSSProperties = { border: "none", background: "#f3e8f1", color: "#9b7090", borderRadius: 999, width: 34, height: 34, fontWeight: 900, cursor: "pointer" };
-const checkRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, border: "none", borderRadius: 14, padding: "8px 10px", textAlign: "left", cursor: "pointer" };
-const checkBox: React.CSSProperties = { width: 24, height: 24, borderRadius: 8, border: "3px solid", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 900, fontSize: 14, flexShrink: 0 };
+const undoBtn: React.CSSProperties = {
+  border: "1px solid rgba(160,190,255,0.3)",
+  background: "rgba(255,255,255,0.08)",
+  color: C.dim,
+  borderRadius: 999,
+  width: 44,
+  height: 44,
+  fontWeight: 900,
+  fontSize: 16,
+  cursor: "pointer",
+};
+const checkRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, border: "1px solid", borderRadius: 12, padding: "9px 10px", minHeight: 44, textAlign: "left", cursor: "pointer" };
+const checkBox: React.CSSProperties = { width: 24, height: 24, borderRadius: 7, border: "2px solid", display: "flex", alignItems: "center", justifyContent: "center", color: "#062a19", fontWeight: 900, fontSize: 14, flexShrink: 0 };

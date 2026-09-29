@@ -30,6 +30,7 @@ export default async function ParkPage({ params }: { params: Promise<{ kidId: st
       pointsBalance: kid.pointsBalance,
       currentStreak: kid.currentStreak,
       tourSeen: kid.tourSeen,
+      totalStarsEarned: kid.totalStarsEarned ?? 0,
     },
     pet,
     tasksToday: questsToday(tasks, completions, dow),

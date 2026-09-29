@@ -118,7 +118,7 @@ export function buildWizardModel(opts: { robe: string; hat: string; beard?: stri
   staff.position.set(0.35, -0.25, 0.1);
   staff.add(mesh(new THREE.CylinderGeometry(0.05, 0.06, 2.6, 8), toon("#9a6a44")));
   const orbColor = new THREE.Color(opts.orb ?? "#8ff7ff");
-  const orbMat = new THREE.MeshBasicMaterial({ color: orbColor.clone() });
+  const orbMat = new THREE.MeshBasicMaterial({ color: orbColor.clone().multiplyScalar(1.8) });
   track(orbMat);
   const orb = mesh(new THREE.SphereGeometry(0.2, 14, 10), orbMat);
   orb.position.y = 1.42;

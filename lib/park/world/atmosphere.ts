@@ -4,6 +4,7 @@
 // light up flowers, jellyfish, fireflies and paths. Walking into the Glow Forest pulls the
 // light towards twilight too, so it always feels magical in there.
 import * as THREE from "three";
+import { groundY } from "../registry/terrain";
 
 export interface Atmosphere {
   /** 0 = full day, 1 = full twilight glow (after the forest pull) */
@@ -40,7 +41,7 @@ const pal = (top: string, mid: string, horizon: string, fog: string, hemiSky: st
 // day -> golden hour -> twilight (the glow world); lerped by the glow amount
 const DAY = pal("#a9b8ff", "#ffc6e6", "#fff1d9", "#ffd6ea", "#ffffff", "#d6c8ff", "#ffffff", 0.95, 1.15);
 const GOLDEN = pal("#8f7cff", "#ff9fcf", "#ffd49a", "#ffb9c9", "#ffe2f0", "#b8a0ff", "#ffc98a", 0.85, 0.9);
-const TWILIGHT = pal("#070625", "#241456", "#9a3d9a", "#171243", "#5b5fd0", "#1d1650", "#9d8cff", 0.48, 0.22);
+const TWILIGHT = pal("#0c0a34", "#2c1a66", "#a8469f", "#1d1650", "#7d82e8", "#2a2168", "#b3a4ff", 0.85, 0.34);
 
 /** How glowy the real clock is: 0 by day, ramps through golden hour to 1 after dusk. */
 export function clockGlow(hour: number): number {
@@ -146,7 +147,12 @@ export function buildAtmosphere(
   const hemi = new THREE.HemisphereLight(0xffffff, 0xd6c8ff, 0.95);
   const sun = new THREE.DirectionalLight(0xffffff, 1.15);
   sun.position.set(-30, 50, 25);
-  scene.add(hemi, sun);
+  sun.castShadow = !opts.lowQuality;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 220 });
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.5;
+  scene.add(hemi, sun, sun.target);
 
   // ── fireflies / floating spores: faint sparkly pollen by day, glowing wisps at night ──
   const N = opts.lowQuality ? 260 : 620;
@@ -162,8 +168,8 @@ export function buildAtmosphere(
     const a = rnd() * Math.PI * 2;
     const r = Math.sqrt(rnd()) * (inForest ? opts.forest.radius + 6 : 140);
     pos[i * 3] = (inForest ? opts.forest.x : 0) + Math.sin(a) * r;
-    pos[i * 3 + 1] = 0.6 + rnd() * (inForest ? 7 : 5);
     pos[i * 3 + 2] = (inForest ? opts.forest.z : 0) + Math.cos(a) * r;
+    pos[i * 3 + 1] = groundY(pos[i * 3], pos[i * 3 + 2]) + 0.6 + rnd() * (inForest ? 7 : 5);
     seed[i] = rnd() * 100;
     const c = palette[i % palette.length];
     col.set([c.r, c.g, c.b], i * 3);
@@ -244,7 +250,13 @@ export function buildAtmosphere(
       hemi.groundColor.copy(cur.hemiGround);
       hemi.intensity = cur.hemiI;
       sun.color.copy(cur.sun);
-      sun.intensity = cur.sunI;
+      sun.intensity = cur.sunI * 1.25;
+      // the shadow camera follows the player (snapped to texels so shadows don't shimmer)
+      const snap = 96 / 2048;
+      const fx = Math.round(focus.x / snap) * snap;
+      const fz = Math.round(focus.z / snap) * snap;
+      sun.target.position.set(fx, focus.y, fz);
+      sun.position.set(fx - 45, focus.y + 80, fz + 38);
 
       // sun sinks and the moon rises as it glows
       sunDisc.position.set(-160, 220 - glow * 260, -300);

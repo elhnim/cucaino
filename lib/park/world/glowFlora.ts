@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { makeSparkTexture } from "./atmosphere";
 import { getToonRamp } from "../assets/loader";
+import { groundY, slopeAt } from "../registry/terrain";
 
 export interface GlowFlora {
   update(dt: number, t: number, glow: number): void;
@@ -222,6 +223,7 @@ export function buildGlowFlora(
       const z = p.area.z + Math.cos(a) * rad;
       const pad = KIND_PAD[p.kind];
       if (!opts.free(x, z, p.kind === "tree" ? pad + 6 : pad)) continue;
+      if (slopeAt(x, z) > 0.45 || groundY(x, z) > 18) continue;
       if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < t.pad + pad)) continue;
       taken.push({ x, z, pad });
       const [s0, s1] = KIND_SCALE[p.kind];
@@ -245,7 +247,7 @@ export function buildGlowFlora(
       const im = new THREE.InstancedMesh(geo, mat, list.length);
       list.forEach((pl, i) => {
         quat.setFromAxisAngle(up, pl.rot);
-        m.compose(new THREE.Vector3(pl.x, 0, pl.z), quat, new THREE.Vector3(pl.s, pl.s, pl.s));
+        m.compose(new THREE.Vector3(pl.x, groundY(pl.x, pl.z) - 0.05, pl.z), quat, new THREE.Vector3(pl.s, pl.s, pl.s));
         im.setMatrixAt(i, m);
         im.setColorAt(i, new THREE.Color(colorOf(pl.ci)));
       });
@@ -261,7 +263,7 @@ export function buildGlowFlora(
       const c = new THREE.Color(GLOW_COLORS[pl.ci % GLOW_COLORS.length]);
       for (const h of parts.halos) {
         const hp = h.clone().multiplyScalar(pl.s).applyAxisAngle(up, pl.rot);
-        halos.push({ p: new THREE.Vector3(pl.x + hp.x, hp.y, pl.z + hp.z), c, big: kind === "tree" ? 2.2 : kind === "mushroom" ? 3.4 * pl.s : 1.6 });
+        halos.push({ p: new THREE.Vector3(pl.x + hp.x, groundY(pl.x, pl.z) + hp.y, pl.z + hp.z), c, big: kind === "tree" ? 2.2 : kind === "mushroom" ? 3.4 * pl.s : 1.6 });
       }
     }
   }
@@ -312,8 +314,8 @@ export function buildGlowFlora(
   return {
     update(_dt, t, glow) {
       // by day the glowing parts are soft pastels; at twilight they shine
-      glowMat.color.copy(dayGlow).multiplyScalar(0.78 + glow * 0.22);
-      canopyMat.emissive.setRGB(0.18 * glow, 0.12 * glow, 0.3 * glow);
+      glowMat.color.copy(dayGlow).multiplyScalar(0.82 + glow * 1.1);
+      canopyMat.emissive.setRGB(0.1 * glow, 0.07 * glow, 0.18 * glow);
       hMat.uniforms.uGlow.value = glow;
       hMat.uniforms.uTime.value = t;
     },

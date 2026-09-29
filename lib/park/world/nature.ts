@@ -5,7 +5,8 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { getToonRamp } from "../assets/loader";
-import { BRIDGES, HILLS, POND, STREAM_POINTS, STREAM_WIDTH, type P2 } from "../registry/island";
+import { groundY } from "../registry/terrain";
+import { BRIDGES, POND, STREAM_POINTS, STREAM_WIDTH, type P2 } from "../registry/island";
 
 export interface Nature {
   /** round obstacles the kid walks around (the hills) */
@@ -32,7 +33,8 @@ function ribbon(points: P2[], width: number, y: number): THREE.BufferGeometry {
     // a little wider towards the sea
     const w = (width / 2) * (0.85 + (i / points.length) * 0.5);
     if (i > 0) len += Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]);
-    pos.push(p[0] + nx * w, y, p[1] + nz * w, p[0] - nx * w, y, p[1] - nz * w);
+    const gy = groundY(p[0], p[1]) + y;
+    pos.push(p[0] + nx * w, gy, p[1] + nz * w, p[0] - nx * w, gy, p[1] - nz * w);
     uv.push(len / 6, 0, len / 6, 1);
     if (i > 0) {
       const k = i * 2;
@@ -98,7 +100,9 @@ export function buildNature(scene: THREE.Scene): Nature {
     const d = Math.hypot(dx, dz) || 1;
     const side = rnd() < 0.5 ? -1 : 1;
     const off = STREAM_WIDTH / 2 + 0.4 + rnd() * 0.8;
-    m.compose(new THREE.Vector3(p[0] + (-dz / d) * off * side, 0.08, p[1] + (dx / d) * off * side), q.identity(), new THREE.Vector3(1, 0.45, 0.8).multiplyScalar(0.6 + rnd() * 0.9));
+    const px = p[0] + (-dz / d) * off * side;
+    const pz = p[1] + (dx / d) * off * side;
+    m.compose(new THREE.Vector3(px, groundY(px, pz) + 0.08, pz), q.identity(), new THREE.Vector3(1, 0.45, 0.8).multiplyScalar(0.6 + rnd() * 0.9));
     pebbles.setMatrixAt(i, m);
     pebbles.setColorAt(i, new THREE.Color(pebCols[i % pebCols.length]));
   }
@@ -106,10 +110,11 @@ export function buildNature(scene: THREE.Scene): Nature {
   // ── the lily pond the stream runs into ──
   const bank = new THREE.Mesh(track(new THREE.CircleGeometry(POND.r + 1.4, 40)), toon("#f5dcae"));
   bank.rotation.x = -Math.PI / 2;
-  bank.position.set(POND.x, 0.035, POND.z);
+  const pondY = groundY(POND.x, POND.z);
+  bank.position.set(POND.x, pondY + 0.035, POND.z);
   const pond = new THREE.Mesh(track(new THREE.CircleGeometry(POND.r, 40)), streamMat);
   pond.rotation.x = -Math.PI / 2;
-  pond.position.set(POND.x, 0.065, POND.z);
+  pond.position.set(POND.x, pondY + 0.065, POND.z);
   add(bank);
   add(pond);
   const padGeo = track(new THREE.CircleGeometry(0.9, 14, 0.4, Math.PI * 2 - 0.8));
@@ -119,10 +124,10 @@ export function buildNature(scene: THREE.Scene): Nature {
   for (let i = 0; i < 9; i++) {
     const a = i * 2.3;
     const r = 1.2 + (i % 3) * 1.5;
-    m.compose(new THREE.Vector3(POND.x + Math.sin(a) * r, 0.09, POND.z + Math.cos(a) * r), q.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, a)), new THREE.Vector3(1, 1, 1).multiplyScalar(0.8 + (i % 2) * 0.4));
+    m.compose(new THREE.Vector3(POND.x + Math.sin(a) * r, pondY + 0.09, POND.z + Math.cos(a) * r), q.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, a)), new THREE.Vector3(1, 1, 1).multiplyScalar(0.8 + (i % 2) * 0.4));
     pads.setMatrixAt(i, m);
     if (i < 4) {
-      m.compose(new THREE.Vector3(POND.x + Math.sin(a) * r, 0.3, POND.z + Math.cos(a) * r), q.identity(), new THREE.Vector3(1, 1, 1));
+      m.compose(new THREE.Vector3(POND.x + Math.sin(a) * r, pondY + 0.3, POND.z + Math.cos(a) * r), q.identity(), new THREE.Vector3(1, 1, 1));
       lotus.setMatrixAt(i, m);
     }
   }
@@ -153,39 +158,15 @@ export function buildNature(scene: THREE.Scene): Nature {
       for (const u of [0, 0.5, 1]) rails.push(place(new THREE.CylinderGeometry(0.1, 0.1, 0.9, 6), side * 1.7, 0.5 + Math.sin(u * Math.PI) * 0.55, (u - 0.5) * span));
     }
     const g = new THREE.Group();
-    g.position.set(b.x, 0, b.z);
+    g.position.set(b.x, groundY(b.x, b.z) + 0.1, b.z);
     g.rotation.y = b.heading;
     g.add(new THREE.Mesh(track(mergeGeometries(planks)!), plank), new THREE.Mesh(track(mergeGeometries(rails)!), rail));
     for (const x of [...planks, ...rails]) x.dispose();
     add(g);
   }
 
-  // ── gentle grassy hills with flower tufts on top ──
-  const hillGeo = track(new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2));
-  const hills = add(new THREE.InstancedMesh(hillGeo, toon("#ffffff"), HILLS.length));
-  const hillCols = ["#8ee6b0", "#9eeab6", "#b2f0c2", "#8fdcc0", "#a8e8a8"];
-  const tuftGeo = track(new THREE.SphereGeometry(0.4, 8, 6));
-  const tufts = add(new THREE.InstancedMesh(tuftGeo, toon("#ffffff"), HILLS.length * 5));
-  const tuftCols = ["#ff9fd6", "#fff09a", "#c6b3ff", "#ffffff", "#9ad8ff"];
-  HILLS.forEach((h, i) => {
-    m.compose(new THREE.Vector3(h.x, -0.05, h.z), q.identity(), new THREE.Vector3(h.r, h.h, h.r * 0.85));
-    hills.setMatrixAt(i, m);
-    hills.setColorAt(i, new THREE.Color(hillCols[i % hillCols.length]));
-    for (let k = 0; k < 5; k++) {
-      const a = rnd() * Math.PI * 2;
-      const rr = rnd() * h.r * 0.55;
-      const lx = Math.sin(a) * rr;
-      const lz = Math.cos(a) * rr * 0.85;
-      // sit on the dome's surface
-      const y = h.h * Math.sqrt(Math.max(0, 1 - (lx / h.r) ** 2 - (lz / (h.r * 0.85)) ** 2));
-      m.compose(new THREE.Vector3(h.x + lx, y, h.z + lz), q.identity(), new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + rnd() * 0.6));
-      tufts.setMatrixAt(i * 5 + k, m);
-      tufts.setColorAt(i * 5 + k, new THREE.Color(tuftCols[(i + k) % tuftCols.length]));
-    }
-  });
-
   return {
-    obstacles: [...HILLS.map((h) => ({ x: h.x, z: h.z, r: h.r * 0.82 })), { x: POND.x, z: POND.z, r: POND.r + 0.6 }],
+    obstacles: [{ x: POND.x, z: POND.z, r: POND.r + 0.6 }],
     update(_dt, t, glow) {
       streamMat.uniforms.uTime.value = t;
       streamMat.uniforms.uGlow.value = glow;

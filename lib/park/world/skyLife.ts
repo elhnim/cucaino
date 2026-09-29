@@ -2,6 +2,7 @@
 // the park by day (and glow like moths at twilight), bird flocks gliding across the sky by day,
 // and shooting stars streaking over the twilight. Two instanced meshes + a few lines.
 import * as THREE from "three";
+import { groundY } from "../registry/terrain";
 
 export interface SkyLife {
   update(dt: number, t: number, glow: number): void;
@@ -71,7 +72,7 @@ export function buildSkyLife(scene: THREE.Scene, opts: { radius: number; lowQual
         const u = t * b.sp + b.ph;
         const x = b.cx + Math.sin(u) * b.rad + Math.sin(u * 2.3) * 0.8;
         const z = b.cz + Math.cos(u * 0.8) * b.rad;
-        const y = b.h + Math.sin(u * 3.1) * 0.4;
+        const y = groundY(x, z) + b.h + Math.sin(u * 3.1) * 0.4;
         const heading = Math.atan2(Math.cos(u) * b.rad, -Math.sin(u * 0.8) * b.rad * 0.8);
         const flap = Math.sin(t * 14 + b.ph) * 1.1;
         e.set(0, heading, 0);

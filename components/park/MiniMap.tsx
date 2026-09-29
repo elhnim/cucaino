@@ -10,6 +10,7 @@ import type { ParkWorld } from "@/lib/park/engine/ParkWorld";
 import { LANDS, PLACES, type LandDef } from "@/lib/park/registry/places";
 import { HILLS, ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, coastR, nearStream, nearTrail, routeBetween, type P2 } from "@/lib/park/registry/island";
 import { playSfx } from "@/lib/audio/sound-manager";
+import { TERRAIN_EXTENT, TERRAIN_N, terrainGrid } from "@/lib/park/registry/terrain";
 
 type Pose = NonNullable<ReturnType<ParkWorld["getPose"]>>;
 
@@ -89,6 +90,42 @@ const TREES: { x: number; z: number; s: number; c: string }[] = (() => {
   }
   return out;
 })();
+/** a shaded-relief picture of the terrain (hills, valleys, mountains, snow), drawn once */
+let reliefUrl: string | null = null;
+function relief(): string | null {
+  if (reliefUrl || typeof document === "undefined") return reliefUrl;
+  const g = terrainGrid();
+  const N = TERRAIN_N;
+  const S = 200;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const c = cv.getContext("2d");
+  if (!c) return null;
+  const img = c.createImageData(S, S);
+  const at = (i: number, j: number) => g[Math.min(N - 1, Math.max(0, j)) * N + Math.min(N - 1, Math.max(0, i))];
+  for (let y = 0; y < S; y++)
+    for (let x = 0; x < S; x++) {
+      const i = Math.round((x / (S - 1)) * (N - 1));
+      const j = Math.round((y / (S - 1)) * (N - 1));
+      const h = at(i, j);
+      // light from the north-west
+      const shade = Math.max(-1, Math.min(1, (at(i - 1, j - 1) - at(i + 1, j + 1)) * 0.35));
+      let r = 124, gr = 204, b = 132;
+      if (h > 6) [r, gr, b] = [110, 178, 112];
+      if (h > 12) [r, gr, b] = [150, 142, 124];
+      if (h > 22) [r, gr, b] = [236, 238, 250];
+      const k = 1 + shade * 0.35;
+      const o = (y * S + x) * 4;
+      img.data[o] = Math.min(255, r * k);
+      img.data[o + 1] = Math.min(255, gr * k);
+      img.data[o + 2] = Math.min(255, b * k);
+      img.data[o + 3] = h > 0.2 ? 200 : 0;
+    }
+  c.putImageData(img, 0, 0);
+  reliefUrl = cv.toDataURL();
+  return reliefUrl;
+}
+
 const forest = LANDS.find((l) => l.id === "forest")!;
 const GLOW_TREES = Array.from({ length: 16 }, (_, i) => {
   const a = i * 2.39996;
@@ -155,8 +192,8 @@ export function MiniMap({ world, hidden, pins = [] }: { world: React.RefObject<P
           <div style={bigCard} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>🗺️ Map of Cucaino Island</div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>Tap a place and I&apos;ll walk you there!</div>
+                <div style={mapTitle}>🗺️ Map of Cucaino Island</div>
+                <div style={{ fontWeight: 800, fontSize: 13, color: "rgba(226,230,255,0.74)", marginTop: 2 }}>Tap a place and I&apos;ll walk you there!</div>
               </div>
               <button type="button" style={closeBtn} onClick={() => setBig(false)} aria-label="Close map">
                 ✕
@@ -207,6 +244,9 @@ function MapSvg({
     >
       <defs>
         <clipPath id={clipId}>{labels ? <rect x={-VIEW} y={-VIEW} width={VIEW * 2} height={VIEW * 2} rx={VIEW * 0.12} /> : <circle r={VIEW} />}</clipPath>
+        <clipPath id={`coast-${size}`}>
+          <path d={COAST} />
+        </clipPath>
         <pattern id={`waves-${size}`} width="18" height="10" patternUnits="userSpaceOnUse">
           <path d="M0 6 q4.5 -5 9 0 t9 0" fill="none" stroke="#ffffff" strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round" />
         </pattern>
@@ -218,10 +258,8 @@ function MapSvg({
           {/* beach + island */}
           <path d={BEACH} fill="#ffe7bf" stroke="#ffffff" strokeWidth={2 * k} />
           <path d={COAST} fill="#a6e8bd" />
-          {/* hills */}
-          {HILLS.map((h, i) => (
-            <ellipse key={i} cx={h.x} cy={h.z} rx={h.r} ry={h.r * 0.85} fill="#8fdcaa" stroke="#7acc98" strokeWidth={0.8} />
-          ))}
+          {/* the terrain: hills, valleys and the snowy northern mountains */}
+          {relief() && <image href={relief()!} x={-TERRAIN_EXTENT} y={-TERRAIN_EXTENT} width={TERRAIN_EXTENT * 2} height={TERRAIN_EXTENT * 2} preserveAspectRatio="none" clipPath={`url(#coast-${size})`} pointerEvents="none" />}
           {/* the stream */}
           <path d={STREAM_PATH} fill="none" stroke="#f5dcae" strokeWidth={STREAM_WIDTH + 2.2} strokeLinecap="round" strokeLinejoin="round" />
           <path d={STREAM_PATH} fill="none" stroke="#6cc6f5" strokeWidth={STREAM_WIDTH} strokeLinecap="round" strokeLinejoin="round" />
@@ -355,16 +393,17 @@ function MapSvg({
   );
 }
 
+// map chrome: a gold-rimmed compass frame + dark glass, matching the park HUD (components/park/ui)
 const miniBtn: React.CSSProperties = {
   position: "fixed",
-  top: "calc(max(14px, env(safe-area-inset-top)) + 70px)",
+  top: "calc(max(14px, env(safe-area-inset-top)) + 88px)",
   left: "max(14px, env(safe-area-inset-left))",
   zIndex: 20,
-  padding: 4,
+  padding: 3,
   border: "none",
   borderRadius: 999,
-  background: "#ffffff",
-  boxShadow: "0 4px 0 #f3b6d6, 0 8px 18px rgba(122,46,98,0.18)",
+  background: "conic-gradient(from 200deg, #ffe9a8, #e89a1c, #ffd36b, #fff2c2, #e89a1c, #ffe9a8)",
+  boxShadow: "0 0 14px rgba(255,211,107,0.35), 0 8px 18px rgba(0,0,0,0.45)",
   cursor: "pointer",
 };
 const hereTag: React.CSSProperties = {
@@ -373,19 +412,28 @@ const hereTag: React.CSSProperties = {
   bottom: -12,
   transform: "translateX(-50%)",
   whiteSpace: "nowrap",
-  padding: "3px 9px",
-  borderRadius: 999,
-  background: "#ffffff",
-  boxShadow: "0 2px 0 #f3b6d6",
+  padding: "3px 10px",
+  borderRadius: 8,
+  border: "1px solid rgba(255,211,107,0.7)",
+  background: "rgba(16,14,42,0.9)",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.45)",
   fontWeight: 900,
   fontSize: 11.5,
-  color: "#7a2e62",
+  color: "#f5f3ff",
+};
+const mapTitle: React.CSSProperties = {
+  fontFamily: "var(--font-park-display), 'Lilita One', system-ui, sans-serif",
+  fontWeight: 400,
+  fontSize: 22,
+  letterSpacing: 0.4,
+  color: "#f5f3ff",
+  textShadow: "0 2px 0 rgba(0,0,0,0.35), 0 0 16px rgba(94,242,255,0.3)",
 };
 const bigWrap: React.CSSProperties = {
   position: "fixed",
   inset: 0,
   zIndex: 45,
-  background: "rgba(90,35,80,0.28)",
+  background: "rgba(5,4,18,0.55)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -393,24 +441,28 @@ const bigWrap: React.CSSProperties = {
 };
 const bigCard: React.CSSProperties = {
   width: "min(620px, 100%)",
-  borderRadius: 32,
+  borderRadius: 22,
   padding: 16,
   display: "flex",
   flexDirection: "column",
   gap: 10,
-  background: "linear-gradient(#fff8fc, #ffeaf5)",
-  boxShadow: "0 8px 0 #f3b6d6, 0 20px 40px rgba(122,46,98,0.25)",
+  border: "1.5px solid transparent",
+  background: "linear-gradient(rgba(18,16,44,0.88), rgba(18,16,44,0.88)) padding-box, linear-gradient(135deg, rgba(255,233,168,0.95), rgba(232,154,28,0.6) 50%, rgba(94,242,255,0.7)) border-box",
+  backdropFilter: "blur(12px)",
+  WebkitBackdropFilter: "blur(12px)",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.14), 0 20px 40px rgba(0,0,0,0.5)",
+  color: "#f5f3ff",
 };
 const closeBtn: React.CSSProperties = {
-  width: 42,
-  height: 42,
+  width: 44,
+  height: 44,
   flexShrink: 0,
-  border: "none",
+  border: "1.5px solid rgba(160,200,255,0.4)",
   borderRadius: 999,
   fontWeight: 900,
-  fontSize: 18,
-  color: "#7a2e62",
-  background: "#ffffff",
-  boxShadow: "0 3px 0 #f3b6d6",
+  fontSize: 17,
+  color: "#f5f3ff",
+  background: "radial-gradient(circle at 50% 30%, rgba(90,86,160,0.7), rgba(20,18,50,0.85))",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 10px rgba(0,0,0,0.35)",
   cursor: "pointer",
 };

@@ -27,7 +27,7 @@ import { getHabits, type HabitState, type ChestPrize } from "@/lib/actions/park-
 import { PET_TREAT_XP } from "@/lib/data/park-tickets";
 import { levelFromXp, stageFromLevel } from "@/lib/pet/logic";
 import { getPiece } from "@/lib/park/registry/pieces";
-import { TICKETS_PER_QUEST, cellCenter, zoneBounds } from "@/lib/park/builder/rules";
+import { TICKETS_PER_QUEST, cellCenter, zoneBounds, levelFor, LEVELS } from "@/lib/park/builder/rules";
 import { BuilderBar, type BuilderSelection } from "./builder/BuilderBar";
 import type { PetMode, PetFx } from "./pet/PetCareSheet";
 import { getPlace } from "@/lib/park/registry/places";
@@ -36,6 +36,11 @@ import { PLAY_SECONDS } from "@/lib/pet/config";
 import { todaysTreasures, dayKey, TREASURES_PER_DAY } from "@/lib/park/world/treasures";
 import { seedFromString } from "@/lib/game3d/noise";
 import { CandySheet } from "./ui/CandySheet";
+import { C, FONT, PARK_CSS, alpha, cardStyle, display, glass } from "./ui/theme";
+import { GameButton } from "./ui/GameButton";
+import { GameDialog } from "./ui/GameDialog";
+import { IconChip } from "./ui/IconChip";
+import { PlayerBadge, WalletBar, QuestBanner, RoundButton, Toast, PromptCard } from "./ui/Hud";
 import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
 import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
@@ -123,6 +128,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [showChest, setShowChest] = useState(false);
   const [petXp, setPetXp] = useState(data.pet?.xp ?? 0);
   const [points, setPoints] = useState(data.kid.pointsBalance);
+  // lifetime stars earned -> the HUD level + XP bar (same levels as the Dream Park)
+  const [starsEarned, setStarsEarned] = useState(data.kid.totalStarsEarned ?? 0);
   const [done, setDone] = useState(data.tasksToday.done);
   const [animal, setAnimal] = useState<ParkAnimal | null>(null);
   const [streak, setStreak] = useState(0);
@@ -516,6 +523,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           petAnimal: data.pet ? parkAnimalForPet(data.pet.species) : null,
           themeId: data.kid.themeId,
           accent: theme.accent,
+          // ?hour=21 previews the twilight (handy for grown-ups and for screenshots)
+          hour: (() => {
+            const h = Number(new URLSearchParams(window.location.search).get("hour"));
+            return Number.isFinite(h) && h > 0 && h <= 24 ? () => h : undefined;
+          })(),
           onPlace: (p) => placeRef.current(p),
           onLeavePlace: (id) => setAsk((a) => (a?.id === id ? null : a)),
           onBuildTap: (x, z) => buildTapRef.current(x, z),
@@ -607,6 +619,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       const pts = detail.points ?? 0;
       setDone((d) => Math.min(data.tasksToday.total, d + 1));
       setPoints((p) => p + pts);
+      setStarsEarned((s) => s + pts);
       setDream((d) => (d ? { ...d, tickets: d.tickets + TICKETS_PER_QUEST } : d));
       setPetXp((x) => x + PET_TREAT_XP);
       worldRef.current?.celebrate(true);
@@ -632,6 +645,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       const pts = (e as CustomEvent<{ points?: number }>).detail?.points ?? 0;
       setDone((d) => Math.max(0, d - 1));
       setPoints((p) => Math.max(0, p - pts));
+      setStarsEarned((s) => Math.max(0, s - pts));
       setDream((d) => (d ? { ...d, tickets: Math.max(0, d.tickets - TICKETS_PER_QUEST) } : d));
       setPetXp((x) => Math.max(0, x - PET_TREAT_XP));
     };
@@ -894,6 +908,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const questsLeft = Math.max(0, data.tasksToday.total - done);
+  const hudLevel = levelFor(starsEarned);
+  const levelFloor = LEVELS[hudLevel - 1] ?? 0;
+  const levelCeil = LEVELS[hudLevel];
+  const hudXp = levelCeil === undefined ? 1 : (starsEarned - levelFloor) / Math.max(1, levelCeil - levelFloor);
+  const shownStreak = Math.max(streak, data.kid.currentStreak);
   const questBoard = getPlace("quest-board");
   const mapPins: MapPin[] = [
     ...(questBoard ? [{ id: "quest-board", x: questBoard.x, z: questBoard.z, emoji: "📋", label: "Quest Board", badge: questsLeft, pulse: questsLeft > 0 }] : []),
@@ -907,7 +926,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
 
   // iPhone Safari can show the page behind the fixed 3D view (where its toolbar was): paint the
   // page the same colour as the scene so there's never a grey strip
-  const pageBg = golf ? "#a6e8bd" : "#ffe3f1";
+  const pageBg = golf ? "#a6e8bd" : "#141233";
   useEffect(() => {
     const html = document.documentElement;
     const prev = [html.style.background, document.body.style.background];
@@ -919,32 +938,32 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   }, [pageBg]);
 
   return (
-    <div style={{ position: "fixed", inset: 0, height: "100lvh", overflow: "hidden", background: golf ? "#a6e8bd" : "#ffe3f1" }} className="font-fun">
-      <style>{css}</style>
+    <div style={{ position: "fixed", inset: 0, height: "100lvh", overflow: "hidden", background: pageBg, fontFamily: FONT.body }} className="font-fun">
+      <style>{PARK_CSS + css}</style>
       {/* keeps KidShell chrome hidden; its ⤡ toggle isn't needed in the park (and iPhone can't go full screen) */}
       <GameFullscreen className="hidden" />
       <div ref={hostRef} style={{ position: "absolute", inset: 0, touchAction: "none" }} />
 
       {/* top HUD: one "Me" menu button (left) and one wallet pill (right) — nothing else up here */}
       <div style={{ ...hudTop, display: building || coaster || golf ? "none" : "flex" }}>
-        <button style={meBtn} onClick={() => setMenuOpen((m) => !m)} aria-label="Open my menu">
-          <span style={{ fontSize: 30, lineHeight: 1 }}>{animal?.emoji ?? "🐾"}</span>
-        </button>
-        <div style={wallet}>
-          <span>⭐ {points}</span>
-          <span style={{ opacity: 0.35 }}>·</span>
-          <span>🎟️ {dream?.tickets ?? 0}</span>
-          {Math.max(streak, data.kid.currentStreak) >= 2 && (
-            <>
-              <span style={{ opacity: 0.35 }}>·</span>
-              <span>🔥 {Math.max(streak, data.kid.currentStreak)}</span>
-            </>
-          )}
-        </div>
+        <PlayerBadge emoji={animal?.emoji ?? "🐾"} level={hudLevel} xp={hudXp} open={menuOpen} onClick={() => setMenuOpen((m) => !m)} />
+        <WalletBar
+          items={[
+            { icon: "⭐", value: points, color: C.gold, label: "stars" },
+            { icon: "🎟️", value: dream?.tickets ?? 0, color: C.cyan, label: "tickets" },
+            ...(shownStreak >= 2 ? [{ icon: "🔥", value: shownStreak, color: C.fire, label: "day streak" }] : []),
+          ]}
+        />
       </div>
       {menuOpen && (
         <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)}>
-          <div style={menuCard} onClick={(e) => e.stopPropagation()}>
+          <div style={menuCard} className="gp-popin" onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: "4px 6px 8px" }}>
+              <div style={display(20)}>{data.kid.name}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.dim, marginTop: 2 }}>
+                Level {hudLevel} · {levelCeil === undefined ? "max level!" : `${Math.max(0, levelCeil - starsEarned)} ⭐ to level ${hudLevel + 1}`}
+              </div>
+            </div>
             {[
               { e: animal?.emoji ?? "🐾", t: "Dress up my animal", on: () => openPanel("dressup") },
               { e: "🔨", t: "Build my Dream Park", on: () => enterBuild() },
@@ -962,8 +981,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   it.on();
                 }}
               >
-                <span style={{ fontSize: 22, width: 30, textAlign: "center" }}>{it.e}</span>
+                <IconChip color={C.cyan} size={36} style={{ fontSize: 20 }}>
+                  {it.e}
+                </IconChip>
                 <span>{it.t}</span>
+                <span aria-hidden style={{ marginLeft: "auto", color: C.mute, fontSize: 20 }}>›</span>
               </button>
             ))}
           </div>
@@ -972,60 +994,35 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
 
       <div style={toastStack}>
         {toasts.slice(-1).map((t) => (
-          <div key={t.id} style={toastStyle}>
-            {t.text}
-          </div>
+          <Toast key={t.id} text={t.text} ms={TOAST_MS} />
         ))}
       </div>
 
       {ready && <MiniMap world={worldRef} hidden={busy || building} pins={mapPins} />}
       {ready && !busy && !building && (
-        <button
-          type="button"
+        <QuestBanner
+          state={chestReady ? "chest" : questsLeft > 0 ? "todo" : data.tasksToday.total === 0 ? "none" : "done"}
+          left={questsLeft}
           onClick={() => (chestReady ? setShowChest(true) : openPanel("quests", "quest-board"))}
-          className={questsLeft > 0 || chestReady ? "quest-wiggle" : undefined}
-          style={{
-            ...questBtn,
-            background: chestReady ? "linear-gradient(#ffd66b, #ffab1f)" : questsLeft > 0 ? "linear-gradient(#ff8ac2, #ff4f9e)" : "linear-gradient(#6fe2a4, #2fcf8f)",
-            boxShadow: chestReady ? "0 5px 0 #d68300, 0 10px 22px rgba(214,131,0,0.4)" : questsLeft > 0 ? "0 5px 0 #d23a82, 0 10px 22px rgba(210,58,130,0.35)" : "0 5px 0 #1f9a64",
-          }}
-          aria-label={chestReady ? "Open your mystery chest" : "Open my quests"}
-        >
-          <span style={{ fontSize: 26 }}>{chestReady ? "🎁" : questsLeft > 0 ? "📋" : "✅"}</span>
-          <span style={{ textAlign: "left", lineHeight: 1.1 }}>
-            <span style={{ display: "block", fontSize: 16 }}>{chestReady ? "Open your chest!" : questsLeft > 0 ? "My Quests" : "All done!"}</span>
-            <span style={{ display: "block", fontSize: 12, opacity: 0.92 }}>
-              {data.tasksToday.total === 0 ? "No quests today" : questsLeft > 0 ? `${questsLeft} to do · earn ⭐ + 🎟️` : `${done}/${data.tasksToday.total} finished`}
-            </span>
-          </span>
-        </button>
+          label={chestReady ? "Open your mystery chest" : "Open my quests"}
+          sub={chestReady ? "A reward is waiting ✨" : data.tasksToday.total === 0 ? "No quests today" : questsLeft > 0 ? `${questsLeft} to do · ⭐ + 🎟️` : `${done}/${data.tasksToday.total} finished`}
+        />
       )}
       {questNudge && !busy && !ask && (
-        <div style={askCard}>
-          <div style={{ fontSize: 38, lineHeight: 1 }}>📋</div>
-          <div style={{ flex: "1 1 190px", minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>
-              {questsLeft} quest{questsLeft === 1 ? "" : "s"} to do today!
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>Finish them to earn ⭐ stars and 🎟️ tickets for the park</div>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-            <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setQuestNudge(false)}>
-              Later
-            </button>
-            <button
-              style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }}
-              onClick={() => {
-                setQuestNudge(false);
-                const p = worldRef.current?.getPose();
-                const qb = getPlace("quest-board");
-                if (p && qb) worldRef.current?.walkKidPath(routeToSpot(p, qb.x, qb.z + 4));
-              }}
-            >
-              Take me there! →
-            </button>
-          </div>
-        </div>
+        <PromptCard
+          icon="📜"
+          title={`${questsLeft} quest${questsLeft === 1 ? "" : "s"} to do today!`}
+          hint="Finish them to earn ⭐ stars and 🎟️ tickets for the park"
+          no="Later"
+          yes="Take me there! →"
+          onNo={() => setQuestNudge(false)}
+          onYes={() => {
+            setQuestNudge(false);
+            const p = worldRef.current?.getPose();
+            const qb = getPlace("quest-board");
+            if (p && qb) worldRef.current?.walkKidPath(routeToSpot(p, qb.x, qb.z + 4));
+          }}
+        />
       )}
       {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
@@ -1033,10 +1030,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           {riding && MOUNTS.find((m) => m.kind === riding.kind)?.flies && !riding.landing && (
             <>
               {(["up", "down"] as const).map((dir) => (
-                <button
+                <RoundButton
                   key={dir}
-                  type="button"
-                  style={{ ...turnBtn, width: 50, height: 50, fontSize: 22, touchAction: "none" }}
+                  size={50}
+                  style={{ fontSize: 20, touchAction: "none" }}
                   onPointerDown={(e) => {
                     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
                     worldRef.current?.setFly(dir === "up" ? 1 : -1);
@@ -1046,13 +1043,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   aria-label={dir === "up" ? "Fly higher" : "Fly lower"}
                 >
                   {dir === "up" ? "▲" : "▼"}
-                </button>
+                </RoundButton>
               ))}
             </>
           )}
-          <button
-            type="button"
-            style={{ ...turnBtn, width: 60, height: 60, fontSize: riding ? 15 : 30, background: riding ? "linear-gradient(#fff4c2, #ffd66b)" : turnBtn.background }}
+          <RoundButton
+            size={62}
+            active={!!riding}
+            style={{ fontSize: riding ? 14 : 30, lineHeight: 1.05, textAlign: "center" }}
             onClick={() => {
               if (riding) {
                 worldRef.current?.dismount();
@@ -1062,55 +1060,50 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             aria-label={riding ? "Hop off" : "Ride an animal"}
           >
             {riding ? (riding.landing ? "…" : "Hop off") : "🦄"}
-          </button>
+          </RoundButton>
         </div>
       )}
       {pickMount && (
-        <div style={payWrap} onClick={() => setPickMount(false)}>
-          <div style={payCard} onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>Who shall we ride? ✨</div>
-            <div style={{ display: "grid", gap: 8, width: "100%" }}>
-              {MOUNTS.map((m) => (
-                <button key={m.kind} type="button" onClick={() => hopOn(m.kind)} style={mountPick}>
-                  <span style={{ fontSize: 34 }}>{m.emoji}</span>
-                  <span style={{ textAlign: "left" }}>
-                    <span style={{ display: "block", fontWeight: 900, fontSize: 17, color: "#5a2350" }}>
-                      {m.name} {m.flies ? "· flies" : "· gallops"}
+        <GameDialog onDismiss={() => setPickMount(false)} edge="cyan">
+          <div style={display(24)}>Choose your mount</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: C.dim, marginTop: -6 }}>Ride round the whole island ✨</div>
+          <div style={{ display: "grid", gap: 8, width: "100%" }}>
+            {MOUNTS.map((m) => (
+              <button key={m.kind} type="button" onClick={() => hopOn(m.kind)} style={{ ...cardStyle(m.flies ? C.violet : C.gold), ...mountPick }} className="gp-press">
+                <IconChip color={m.flies ? C.violet : C.gold} size={52} style={{ fontSize: 30 }}>
+                  {m.emoji}
+                </IconChip>
+                <span style={{ textAlign: "left", flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, ...display(18) }}>
+                    {m.name}
+                    <span style={{ fontSize: 11, letterSpacing: 1, padding: "2px 7px", borderRadius: 6, color: m.flies ? "#e4ccff" : C.goldHi, background: alpha(m.flies ? C.violet : C.gold, 0.18), border: `1px solid ${alpha(m.flies ? C.violet : C.gold, 0.5)}` }}>
+                      {m.flies ? "FLIES" : "GALLOPS"}
                     </span>
-                    <span style={{ display: "block", fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{m.blurb}</span>
                   </span>
-                </button>
-              ))}
-            </div>
-            <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setPickMount(false)}>
-              Maybe later
-            </button>
+                  <span style={{ display: "block", fontWeight: 700, fontSize: 13, color: C.dim, marginTop: 2 }}>{m.blurb}</span>
+                </span>
+              </button>
+            ))}
           </div>
-        </div>
+          <GameButton variant="secondary" small onClick={() => setPickMount(false)}>
+            Maybe later
+          </GameButton>
+        </GameDialog>
       )}
       {ask && !busy && (
-        <div style={askCard}>
-          <div style={{ fontSize: 38, lineHeight: 1 }}>{ask.emoji}</div>
-          <div style={{ flex: "1 1 190px", minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>{(ASK_TEXT[ask.action]?.q ?? ((l: string) => `Visit ${l}?`))(ask.label)}</div>
-            <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{ASK_HINT[ask.action] ?? ""}</div>
-          </div>
-          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-            <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setAsk(null)}>
-              Not now
-            </button>
-            <button
-              style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }}
-              onClick={() => {
-                const p = ask;
-                setAsk(null);
-                enterPlace(p);
-              }}
-            >
-              {ASK_TEXT[ask.action]?.go ?? "Let's go! →"}
-            </button>
-          </div>
-        </div>
+        <PromptCard
+          icon={ask.emoji}
+          title={(ASK_TEXT[ask.action]?.q ?? ((l: string) => `Visit ${l}?`))(ask.label)}
+          hint={ASK_HINT[ask.action] ?? ""}
+          no="Not now"
+          yes={ASK_TEXT[ask.action]?.go ?? "Let's go! →"}
+          onNo={() => setAsk(null)}
+          onYes={() => {
+            const p = ask;
+            setAsk(null);
+            enterPlace(p);
+          }}
+        />
       )}
 
       {building && (
@@ -1142,16 +1135,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         {bootError ? (
           <>
             <div style={{ fontSize: 56 }}>🙈</div>
-            <div style={{ fontWeight: 900, fontSize: 20, color: "#7a2e62", textAlign: "center", padding: "0 24px" }}>The park couldn&apos;t open on this device.</div>
+            <div style={{ ...display(22), textAlign: "center", padding: "0 24px" }}>The park couldn&apos;t open on this device.</div>
             <div style={{ display: "flex", gap: 10 }}>
-              <button style={pill} onClick={() => window.location.reload()}>🔄 Try again</button>
-              <button style={pill} onClick={() => router.push(`/kid/${kidId}/home`)}>📋 Simple view</button>
+              <GameButton variant="primary" onClick={() => window.location.reload()}>🔄 Try again</GameButton>
+              <GameButton variant="secondary" onClick={() => router.push(`/kid/${kidId}/home`)}>📋 Simple view</GameButton>
             </div>
           </>
         ) : (
           <>
-            <div style={{ fontSize: 72, animation: "park-bounce 0.9s ease-in-out infinite" }}>{animal?.emoji ?? "🍭"}</div>
-            <div style={{ fontWeight: 900, fontSize: 22, color: "#7a2e62" }}>Opening Cucaino Park…</div>
+            <div style={loaderRing}>
+              <div style={loaderSpin} />
+              <div style={{ fontSize: 60, lineHeight: 1, animation: "gp-float 1.8s ease-in-out infinite", filter: "drop-shadow(0 0 14px rgba(255,211,107,0.6))" }}>{animal?.emoji ?? "✨"}</div>
+            </div>
+            <div style={{ ...display(24), textShadow: "0 0 18px rgba(94,242,255,0.45), 0 2px 0 rgba(0,0,0,0.4)" }}>Opening Cucaino Park…</div>
           </>
         )}
       </div>
@@ -1181,17 +1177,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       )}
       {fetchGame && (
         <div style={fetchHud}>
-          <div style={{ fontSize: 28 }}>🎾</div>
+          <IconChip color={C.gold} size={42} round>
+            🎾
+          </IconChip>
           <div>
-            <div style={{ fontWeight: 900, fontSize: 20 }}>Catches: {fetchGame.score}</div>
-            <div style={{ fontWeight: 800, fontSize: 14 }}>Tap the field to throw! ⏱ {fetchGame.left}s</div>
+            <div style={display(21)}>Catches: {fetchGame.score}</div>
+            <div style={{ fontWeight: 800, fontSize: 13.5, color: C.dim }}>Tap the field to throw! ⏱ {fetchGame.left}s</div>
           </div>
         </div>
       )}
       {panel?.kind === "rides" && <RidesMenu onPick={pickRide} onClose={closePanel} />}
       {panel?.kind === "retro" && <RetroArcade kidId={kidId} onClose={closePanel} pay={payPlay} />}
       {panel?.kind === "golf" && (
-        <CandySheet title="⛳ Candy Golf" subtitle="18 holes of windmills, portals, hills, ice and water!" color="#2fcf8f" onClose={closePanel}>
+        <CandySheet title="⛳ Candy Golf" subtitle="18 holes of windmills, portals, hills, ice and water!" color={C.success} onClose={closePanel}>
           <div style={{ display: "grid", gap: 10 }}>
             {GOLF_ROUNDS.map((c) => (
               <button
@@ -1200,13 +1198,17 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                 onClick={() => void payPlay("golf", "a round of Candy Golf").then((ok) => {
                     if (ok) void startGolf(c.from, c.count);
                   })}
-                style={golfPick}
+                style={{ ...cardStyle(c.count === 18 ? "gold" : C.success), ...golfPick }}
+                className="gp-press"
               >
-                <span style={{ fontSize: 34 }}>{c.emoji}</span>
-                <span style={{ textAlign: "left" }}>
-                  <span style={{ display: "block", fontWeight: 900, fontSize: 18, color: "#1f5130" }}>{c.name}</span>
-                  <span style={{ display: "block", fontWeight: 800, fontSize: 13, color: "#4f8a63" }}>{c.sub}</span>
+                <IconChip color={c.count === 18 ? C.gold : C.success} size={54} style={{ fontSize: 30 }}>
+                  {c.emoji}
+                </IconChip>
+                <span style={{ textAlign: "left", flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", ...display(19) }}>{c.name}</span>
+                  <span style={{ display: "block", fontWeight: 700, fontSize: 13, color: C.dim, marginTop: 2 }}>{c.sub}</span>
                 </span>
+                <span aria-hidden style={display(24, C.gold)}>›</span>
               </button>
             ))}
           </div>
@@ -1250,23 +1252,31 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       )}
 
       {(coaster || golf) && (
-        <button style={{ ...pill, position: "fixed", top: "max(14px, env(safe-area-inset-top))", left: 14, zIndex: 32 }} onClick={leaveRide}>
+        <GameButton variant="secondary" small style={{ position: "fixed", top: "max(14px, env(safe-area-inset-top))", left: 14, zIndex: 32 }} onClick={leaveRide}>
           🚪 Back to the park
-        </button>
+        </GameButton>
       )}
       {coaster && coaster.gate !== null && (
         <div style={rideCard}>
-          <div style={{ fontWeight: 900, fontSize: 13, color: "#c26a9f" }}>
-            ❓ Gate {coaster.gate + 1} of {coaster.quiz.questions.length} · {coaster.quiz.bankName}
+          <div style={{ ...display(13, C.cyan), letterSpacing: 1, textTransform: "uppercase" }}>
+            Gate {coaster.gate + 1} of {coaster.quiz.questions.length} · {coaster.quiz.bankName}
           </div>
-          <div style={{ fontWeight: 900, fontSize: 19, color: "#5a2350", margin: "6px 0 12px" }}>{coaster.quiz.questions[coaster.gate].prompt}</div>
+          <div style={{ fontWeight: 900, fontSize: 19, color: C.text, margin: "6px 0 12px", lineHeight: 1.3 }}>{coaster.quiz.questions[coaster.gate].prompt}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {coaster.quiz.questions[coaster.gate].choices.map((ch, i) => {
               const picked = coaster.answered === i;
               const show = coaster.answered !== null;
-              const bg = show ? (ch.isCorrect ? "#2fcf8f" : picked ? "#ff4f6d" : "#e9dbe4") : ["#ff5fa8", "#36b8ff", "#f5b400", "#a96bff"][i % 4];
+              const tone = show ? (ch.isCorrect ? C.success : picked ? C.danger : "#6b6f8e") : [C.cyan, C.gold, C.violet, "#ff7ab8"][i % 4];
               return (
-                <button key={i} type="button" onClick={() => answerCoaster(i)} disabled={show} style={{ border: "none", borderRadius: 18, padding: "12px 10px", fontWeight: 900, fontSize: 15, color: "#fff", background: bg, boxShadow: "0 4px 0 rgba(0,0,0,0.15)", cursor: "pointer" }}>
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => answerCoaster(i)}
+                  disabled={show}
+                  className="gp-press"
+                  style={{ ...cardStyle(tone, alpha(tone, show && (ch.isCorrect || picked) ? 0.45 : 0.16)), minHeight: 52, padding: "10px 10px", fontWeight: 900, fontSize: 15, color: C.text, cursor: "pointer", opacity: show && !ch.isCorrect && !picked ? 0.55 : 1 }}
+                >
+                  {show && ch.isCorrect ? "✓ " : show && picked ? "✕ " : ""}
                   {ch.label}
                 </button>
               );
@@ -1277,11 +1287,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {coaster?.done && (
         <div style={rideCard}>
           <div style={{ fontSize: 44, textAlign: "center" }}>{coaster.correct === coaster.quiz.questions.length ? "🏆" : "🎉"}</div>
-          <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350", textAlign: "center" }}>
+          <div style={{ ...display(24), textAlign: "center" }}>
             {coaster.correct}/{coaster.quiz.questions.length} gates right!
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
-            <button style={pill} onClick={leaveRide}>🎡 Back to the park</button>
+            <GameButton onClick={leaveRide}>🎡 Back to the park</GameButton>
           </div>
         </div>
       )}
@@ -1289,27 +1299,27 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         <div style={{ ...rideCard, top: "auto", bottom: "max(18px, env(safe-area-inset-bottom))", textAlign: "center" }}>
           {golf.done ? (
             <>
-              <div style={{ fontWeight: 900, fontSize: 18, color: "#1f5130" }}>🏆 {golf.done.total} strokes · par {golf.done.par}</div>
-              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 8 }}>
-                <button style={pill} onClick={() => { golfCtl.current.restart?.(); setGolf((g) => (g ? { ...g, done: undefined, scores: [] } : g)); }}>🔄 Play again</button>
-                <button style={pill} onClick={leaveRide}>🎡 Park</button>
+              <div style={display(20)}>🏆 {golf.done.total} strokes · par {golf.done.par}</div>
+              <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 10 }}>
+                <GameButton small onClick={() => { golfCtl.current.restart?.(); setGolf((g) => (g ? { ...g, done: undefined, scores: [] } : g)); }}>🔄 Play again</GameButton>
+                <GameButton small variant="secondary" onClick={leaveRide}>🎡 Park</GameButton>
               </div>
             </>
           ) : (
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
                 <div>
-                  <div style={{ fontWeight: 900, color: "#1f5130" }}>
+                  <div style={display(17)}>
                     ⛳ Hole {golf.hole}/{golf.of} · {golf.name}
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: "#1f5130" }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: C.dim, marginTop: 2 }}>
                     Par {golf.par} · Strokes <b>{golf.strokes}</b>
                     {golf.scores.length > 0 && ` · Total ${golf.scores.reduce((a, c) => a + c, 0)}`}
                   </div>
                 </div>
-                <button style={{ ...pill, fontSize: 13, padding: "8px 12px" }} onClick={() => golfCtl.current.skip?.()} aria-label="Skip this hole">
+                <GameButton small variant="secondary" onClick={() => golfCtl.current.skip?.()} aria-label="Skip this hole">
                   ⏭ Skip
-                </button>
+                </GameButton>
               </div>
             </>
           )}
@@ -1332,55 +1342,52 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {showBook && <BookOfWisdom kidId={kidId} onClose={() => setShowBook(false)} />}
       {showChest && <MysteryChest kidId={kidId} onClose={() => setShowChest(false)} onPrize={onChestPrize} />}
       {payAsk && (
-        <div style={payWrap}>
-          <div style={payCard}>
-            <div style={{ fontSize: 44, lineHeight: 1 }}>🎟️</div>
+        <GameDialog edge="gold">
+          <div style={payTicket}>🎟️</div>
+          {(dream?.tickets ?? 0) > 0 ? (
+            <>
+              <div style={display(22)}>Use 1 ticket for {payAsk.what}?</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: C.dim }}>
+                You have <b style={{ color: C.cyan }}>🎟️ {dream?.tickets ?? 0}</b>. Today&apos;s free play is used, so this one costs a ticket.
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={display(22)}>You need a ticket to play again</div>
+              <div style={{ fontWeight: 700, fontSize: 14, color: C.dim }}>Finish a quest to earn 🎟️ tickets. Every quest = 1 ticket!</div>
+            </>
+          )}
+          {payAsk.error && <div style={{ fontWeight: 900, color: C.danger }}>{payAsk.error}</div>}
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 4 }}>
+            <GameButton variant="secondary" onClick={() => closePay(false)}>
+              Not now
+            </GameButton>
             {(dream?.tickets ?? 0) > 0 ? (
-              <>
-                <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>Use 1 ticket for {payAsk.what}?</div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "#9b7090" }}>
-                  You have 🎟️ {dream?.tickets ?? 0}. Today&apos;s free play is used, so this one costs a ticket.
-                </div>
-              </>
+              <GameButton disabled={payAsk.busy} onClick={() => void confirmPay()}>
+                {payAsk.busy ? "…" : "Play! 🎟️ 1"}
+              </GameButton>
             ) : (
-              <>
-                <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>You need a ticket to play again</div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "#9b7090" }}>Finish a quest to earn 🎟️ tickets. Every quest = 1 ticket!</div>
-              </>
+              <GameButton
+                onClick={() => {
+                  closePay(false);
+                  if (worldRef.current?.inRide) leaveRide();
+                  setPanel({ kind: "quests", placeId: "quest-board" });
+                }}
+              >
+                📜 My Quests
+              </GameButton>
             )}
-            {payAsk.error && <div style={{ fontWeight: 900, color: "#e11d48" }}>{payAsk.error}</div>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-              <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => closePay(false)}>
-                Not now
-              </button>
-              {(dream?.tickets ?? 0) > 0 ? (
-                <button disabled={payAsk.busy} style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }} onClick={() => void confirmPay()}>
-                  {payAsk.busy ? "…" : "Play! 🎟️ 1"}
-                </button>
-              ) : (
-                <button
-                  style={{ ...pill, color: "#fff", background: "linear-gradient(#ff7fbd,#ff4f9e)", boxShadow: "0 4px 0 #d23a82" }}
-                  onClick={() => {
-                    closePay(false);
-                    if (worldRef.current?.inRide) leaveRide();
-                    setPanel({ kind: "quests", placeId: "quest-board" });
-                  }}
-                >
-                  📋 My Quests
-                </button>
-              )}
-            </div>
           </div>
-        </div>
+        </GameDialog>
       )}
       {showAlbum && (
-        <CandySheet title="📒 My Sticker Album" subtitle={`${foundToday.length}/${TREASURES_PER_DAY} treasures found today · new ones hide every day!`} color="#a96bff" onClose={() => setShowAlbum(false)}>
+        <CandySheet title="📒 My Sticker Album" subtitle={`${foundToday.length}/${TREASURES_PER_DAY} treasures found today · new ones hide every day!`} color={C.violet} onClose={() => setShowAlbum(false)}>
           {album.length === 0 ? (
-            <p style={{ textAlign: "center", fontWeight: 800, color: "#9b7090" }}>No stickers yet — treasures are hiding in the Sweet Forest 🍄 and all over the park!</p>
+            <p style={{ textAlign: "center", fontWeight: 800, color: C.dim }}>No stickers yet — treasures are hiding in the Sweet Forest 🍄 and all over the park!</p>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(64px, 1fr))", gap: 8 }}>
               {album.map((s, i) => (
-                <div key={i} style={{ fontSize: 40, textAlign: "center", background: "#fff", borderRadius: 18, padding: 6, boxShadow: "0 3px 0 #f5d3e6" }}>
+                <div key={i} style={{ ...cardStyle(C.violet), fontSize: 40, textAlign: "center", padding: 8 }}>
                   {s}
                 </div>
               ))}
@@ -1412,75 +1419,34 @@ const hudTop: React.CSSProperties = {
   pointerEvents: "none",
 };
 
-const pill: React.CSSProperties = {
-  pointerEvents: "auto",
-  border: "none",
-  borderRadius: 999,
-  padding: "10px 16px",
-  fontWeight: 900,
-  fontSize: 15,
-  color: "#7a2e62",
-  background: "linear-gradient(#ffffff, #ffe6f2)",
-  boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.18)",
-  cursor: "pointer",
-};
-
-const meBtn: React.CSSProperties = {
-  pointerEvents: "auto",
-  width: 58,
-  height: 58,
-  borderRadius: 999,
-  border: "none",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "linear-gradient(#ffffff, #ffe6f2)",
-  boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.18)",
-  cursor: "pointer",
-};
-const wallet: React.CSSProperties = {
-  pointerEvents: "none",
-  display: "flex",
-  alignItems: "center",
-  gap: 7,
-  borderRadius: 999,
-  padding: "9px 14px",
-  fontWeight: 900,
-  fontSize: 16,
-  color: "#7a2e62",
-  background: "linear-gradient(#ffffff, #fff0f8)",
-  boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.16)",
-  whiteSpace: "nowrap",
-};
 const menuCard: React.CSSProperties = {
+  ...glass({ edge: "cyan", fill: "rgba(18,16,44,0.9)", blur: 12 }),
   position: "fixed",
-  top: "calc(max(14px, env(safe-area-inset-top)) + 66px)",
+  top: "calc(max(14px, env(safe-area-inset-top)) + 84px)",
   left: "max(14px, env(safe-area-inset-left))",
   display: "flex",
   flexDirection: "column",
-  gap: 6,
+  gap: 4,
   padding: 10,
-  borderRadius: 24,
-  background: "linear-gradient(#fff8fc, #ffeaf5)",
-  boxShadow: "0 6px 0 #f3b6d6, 0 16px 30px rgba(122,46,98,0.25)",
-  minWidth: 240,
+  borderRadius: 18,
+  minWidth: 260,
+  maxWidth: "calc(100vw - 28px)",
 };
 const menuItem: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 10,
-  padding: "11px 12px",
-  border: "none",
-  borderRadius: 16,
-  background: "#ffffff",
-  fontWeight: 900,
+  gap: 12,
+  minHeight: 48,
+  padding: "6px 10px 6px 6px",
+  border: "1px solid rgba(160,190,255,0.12)",
+  borderRadius: 12,
+  background: "rgba(255,255,255,0.05)",
+  fontWeight: 800,
   fontSize: 15,
-  color: "#5a2350",
+  color: C.text,
   textAlign: "left",
   cursor: "pointer",
-  boxShadow: "0 2px 0 #f6d3e6",
 };
-
 
 const toastStack: React.CSSProperties = {
   position: "fixed",
@@ -1493,19 +1459,6 @@ const toastStack: React.CSSProperties = {
   gap: 8,
   zIndex: 30,
   pointerEvents: "none",
-};
-
-const toastStyle: React.CSSProperties = {
-  maxWidth: "min(420px, 86vw)",
-  textAlign: "center",
-  borderRadius: 22,
-  padding: "10px 18px",
-  fontWeight: 900,
-  fontSize: 16,
-  color: "#7a2e62",
-  background: "linear-gradient(#ffffff, #ffeaf5)",
-  boxShadow: "0 5px 0 #ffb8d9, 0 10px 22px rgba(122,46,98,0.2)",
-  animation: `park-pop ${TOAST_MS}ms ease forwards`,
 };
 
 /** what the walk-up prompt says for each kind of place (a fountain isn't something you "go into") */
@@ -1569,70 +1522,26 @@ const golfPick: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 14,
-  padding: "14px 16px",
-  border: "none",
-  borderRadius: 24,
-  background: "linear-gradient(#ffffff, #eafff1)",
-  boxShadow: "0 5px 0 #a8e8c0, 0 10px 18px rgba(31,81,48,0.1)",
+  padding: "12px 16px 12px 12px",
+  borderRadius: 18,
   cursor: "pointer",
 };
 
-const askCard: React.CSSProperties = {
-  position: "fixed",
-  left: "50%",
-  bottom: "calc(max(16px, env(safe-area-inset-bottom)) + 150px)",
-  transform: "translateX(-50%)",
-  width: "min(560px, calc(100vw - 24px))",
-  zIndex: 33,
+const mountPick: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 12,
-  flexWrap: "wrap",
-  borderRadius: 26,
-  padding: "12px 14px",
-  background: "linear-gradient(#ffffff, #fff4fa)",
-  boxShadow: "0 6px 0 #ffb8d9, 0 12px 28px rgba(122,46,98,0.22)",
-};
-
-const payWrap: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  zIndex: 90,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 16,
-  background: "rgba(90,35,80,0.35)",
-};
-const payCard: React.CSSProperties = {
-  width: "min(420px, 100%)",
-  borderRadius: 30,
-  padding: 20,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  gap: 10,
-  textAlign: "center",
-  background: "linear-gradient(#fff8fc, #ffeaf5)",
-  boxShadow: "0 8px 0 #f3b6d6, 0 20px 40px rgba(122,46,98,0.25)",
-};
-
-const questBtn: React.CSSProperties = {
-  position: "fixed",
-  left: "max(16px, env(safe-area-inset-left))",
-  bottom: "max(22px, env(safe-area-inset-bottom))",
-  zIndex: 21,
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  padding: "10px 16px 10px 12px",
-  border: "none",
-  borderRadius: 22,
-  color: "#fff",
-  fontWeight: 900,
+  padding: "10px 14px 10px 10px",
+  borderRadius: 16,
   cursor: "pointer",
 };
 
+const payTicket: React.CSSProperties = {
+  fontSize: 46,
+  lineHeight: 1,
+  filter: "drop-shadow(0 0 16px rgba(94,242,255,0.7))",
+  animation: "gp-float 2s ease-in-out infinite",
+};
 
 const rideBar: React.CSSProperties = {
   position: "fixed",
@@ -1643,45 +1552,22 @@ const rideBar: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
 };
-const mountPick: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "12px 14px",
-  border: "none",
-  borderRadius: 22,
-  background: "linear-gradient(#ffffff, #fff0f8)",
-  boxShadow: "0 4px 0 #f3b6d6",
-  cursor: "pointer",
-};
-
-const turnBtn: React.CSSProperties = {
-  width: 54,
-  height: 54,
-  borderRadius: 999,
-  border: "none",
-  fontSize: 26,
-  fontWeight: 900,
-  color: "#7a2e62",
-  background: "linear-gradient(#ffffff, #ffe6f2)",
-  boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.18)",
-  cursor: "pointer",
-};
 
 const rideCard: React.CSSProperties = {
+  ...glass({ edge: "cyan", fill: "rgba(18,16,44,0.86)" }),
   position: "fixed",
-  top: "calc(max(14px, env(safe-area-inset-top)) + 58px)",
-  left: "50%",
-  transform: "translateX(-50%)",
+  top: "calc(max(14px, env(safe-area-inset-top)) + 62px)",
+  left: 0,
+  right: 0,
+  margin: "0 auto",
   width: "min(560px, calc(100vw - 24px))",
   zIndex: 31,
-  borderRadius: 26,
+  borderRadius: 20,
   padding: "14px 16px",
-  background: "linear-gradient(#ffffff, #fff4fa)",
-  boxShadow: "0 6px 0 #ffb8d9, 0 12px 28px rgba(122,46,98,0.22)",
 };
 
 const fetchHud: React.CSSProperties = {
+  ...glass({ edge: "gold", fill: "rgba(18,16,44,0.84)" }),
   position: "fixed",
   top: "max(14px, env(safe-area-inset-top))",
   left: "50%",
@@ -1690,12 +1576,21 @@ const fetchHud: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 12,
-  borderRadius: 24,
-  padding: "10px 20px",
-  color: "#7a2e62",
-  background: "linear-gradient(#fff,#fff6d6)",
-  boxShadow: "0 5px 0 #ffd84a, 0 10px 22px rgba(122,46,98,0.2)",
+  borderRadius: 18,
+  padding: "8px 18px 8px 8px",
   pointerEvents: "none",
+};
+
+const loaderRing: React.CSSProperties = { position: "relative", width: 132, height: 132, display: "flex", alignItems: "center", justifyContent: "center" };
+const loaderSpin: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  borderRadius: "50%",
+  background: "conic-gradient(from 0deg, transparent, #5ef2ff, transparent 35%, #ffd36b 55%, transparent 70%, #b06bff, transparent)",
+  WebkitMask: "radial-gradient(circle, transparent 58%, #000 60%, #000 66%, transparent 68%)",
+  mask: "radial-gradient(circle, transparent 58%, #000 60%, #000 66%, transparent 68%)",
+  animation: "gp-spin 2.4s linear infinite",
+  filter: "drop-shadow(0 0 10px rgba(94,242,255,0.6))",
 };
 
 const loader: React.CSSProperties = {
@@ -1705,8 +1600,9 @@ const loader: React.CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   justifyContent: "center",
-  gap: 14,
-  background: "linear-gradient(#b9a6ff, #ffc2e2 55%, #ffe3cc)",
+  gap: 20,
+  background: "radial-gradient(120% 80% at 50% 30%, #3a2f8f 0%, #1a1650 40%, #090818 80%)",
+  color: C.text,
   transition: "opacity 450ms ease",
   zIndex: 60,
 };

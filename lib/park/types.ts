@@ -11,6 +11,8 @@ export interface ParkInitialData {
     pointsBalance: number;
     currentStreak: number;
     tourSeen: boolean;
+    /** lifetime stars earned (drives the HUD level + XP bar, same as the Dream Park level) */
+    totalStarsEarned: number;
   };
   pet: Pet | null;
   tasksToday: { total: number; done: number };

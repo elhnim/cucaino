@@ -70,17 +70,17 @@ export interface LandDef {
 }
 
 export const LANDS: LandDef[] = [
-  { id: "pets", name: "Pet Meadow", emoji: "🐾", x: -78, z: 18, radius: 18, ground: "#fff1a8" },
-  { id: "market", name: "Market Street", emoji: "🏪", x: 52, z: -72, radius: 16, ground: "#ffd0e6" },
-  { id: "rides", name: "Ride Land", emoji: "🎢", x: -50, z: -68, radius: 15, ground: "#e3d4ff" },
-  { id: "friends", name: "Friends Café", emoji: "💌", x: -55, z: 80, radius: 13, ground: "#cdeeff" },
-  { id: "dream", name: "My Dream Park", emoji: "🔨", x: 82, z: 8, radius: 18, ground: "#c9f7de" },
-  { id: "forest", name: "Glow Forest", emoji: "🌌", x: 68, z: 80, radius: 28, ground: "#9fe8bf" },
+  { id: "pets", name: "Pet Meadow", emoji: "🐾", x: -78, z: 18, radius: 18, ground: "#dcd690" },
+  { id: "market", name: "Market Street", emoji: "🏪", x: 52, z: -72, radius: 16, ground: "#d9c8a6" },
+  { id: "rides", name: "Ride Land", emoji: "🎢", x: -50, z: -68, radius: 15, ground: "#c9c2ae" },
+  { id: "friends", name: "Friends Café", emoji: "💌", x: -55, z: 80, radius: 13, ground: "#b9d9c6" },
+  { id: "dream", name: "My Dream Park", emoji: "🔨", x: 82, z: 8, radius: 18, ground: "#a6d69c" },
+  { id: "forest", name: "Glow Forest", emoji: "🌌", x: 68, z: 80, radius: 28, ground: "#5d9c7c" },
   // outer lands: each gets its own winding path from the plaza
-  { id: "books", name: "Book Nook", emoji: "📚", x: 112, z: -42, radius: 14, ground: "#ffe9b8" },
-  { id: "golf", name: "Golf Green", emoji: "⛳", x: -115, z: -30, radius: 16, ground: "#c6f5a8" },
-  { id: "arcade", name: "Arcade Alley", emoji: "🕹️", x: 0, z: -118, radius: 15, ground: "#e0d0ff" },
-  { id: "gate", name: "Park Gate", emoji: "🍭", x: 0, z: 62, radius: 6, ground: "#ffd0e6" },
+  { id: "books", name: "Book Nook", emoji: "📚", x: 112, z: -42, radius: 14, ground: "#dccb9e" },
+  { id: "golf", name: "Golf Green", emoji: "⛳", x: -115, z: -30, radius: 16, ground: "#9ed688" },
+  { id: "arcade", name: "Arcade Alley", emoji: "🕹️", x: 0, z: -118, radius: 15, ground: "#bdb4c9" },
+  { id: "gate", name: "Park Gate", emoji: "🍭", x: 0, z: 62, radius: 6, ground: "#d9c8a6" },
 ];
 
 export const PLACES: PlaceDef[] = [

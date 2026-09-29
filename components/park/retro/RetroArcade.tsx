@@ -8,6 +8,7 @@ import type { RetroGameDef } from "@/lib/retro/engine";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { hasFreePlay } from "@/lib/park/freePlays";
 import { RetroPlayer, readBest, CREDITS_PER_TICKET } from "./RetroPlayer";
+import { C, FONT, PARK_CSS, alpha } from "../ui/theme";
 
 const GENRES = ["All", "Action", "Shooter", "Platformer", "Puzzle", "Classic", "Racing", "Sports", "Adventure"] as const;
 
@@ -34,9 +35,10 @@ export function RetroArcade({ kidId, onClose, pay }: { kidId: string; onClose: (
 
   return (
     <div style={hall}>
+      <style>{PARK_CSS}</style>
       <div style={bar}>
-        <button type="button" onClick={onClose} style={backBtn}>
-          🎡 Back to the park
+        <button type="button" onClick={onClose} style={backBtn} className="gp-press">
+          ← Park
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={neonTitle}>RETRO ARCADE</div>
@@ -49,7 +51,8 @@ export function RetroArcade({ kidId, onClose, pay }: { kidId: string; onClose: (
             key={g}
             type="button"
             onClick={() => setGenre(g)}
-            style={{ border: "none", borderRadius: 999, padding: "7px 12px", fontWeight: 900, fontSize: 13, whiteSpace: "nowrap", cursor: "pointer", color: genre === g ? "#0d0b1a" : "#cfd2e6", background: genre === g ? "#5ef2ff" : "#2d2a4d" }}
+            className="gp-press"
+            style={{ border: `1px solid ${genre === g ? "#c9fbff" : "rgba(160,190,255,0.22)"}`, borderRadius: 10, minHeight: 40, padding: "0 13px", fontFamily: FONT.display, fontWeight: 400, letterSpacing: 0.4, fontSize: 14, whiteSpace: "nowrap", cursor: "pointer", color: genre === g ? "#062a33" : "#cfd2e6", background: genre === g ? `linear-gradient(#b8fbff, ${C.cyan} 50%, ${C.cyanDeep})` : "rgba(255,255,255,0.06)", boxShadow: genre === g ? `0 0 12px ${alpha(C.cyan, 0.5)}` : undefined }}
           >
             {g}
           </button>
@@ -66,7 +69,8 @@ export function RetroArcade({ kidId, onClose, pay }: { kidId: string; onClose: (
                 if (ok) setPlaying(g);
               });
             }}
-            style={{ ...cabinet, boxShadow: `0 0 0 3px ${g.color}55, 0 6px 0 #120f24, 0 0 24px ${g.color}33` }}
+            className="gp-press"
+            style={{ ...cabinet, boxShadow: `0 0 0 1.5px ${g.color}88, 0 6px 16px rgba(0,0,0,0.5), 0 0 22px ${g.color}33` }}
           >
             <div style={{ ...marquee, background: g.color }}>{g.title}</div>
             <div style={screenBox}>
@@ -93,8 +97,23 @@ const hall: React.CSSProperties = {
   background: "radial-gradient(circle at 50% 0%, #3a2470, #0d0b1a 65%)",
 };
 const bar: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "max(12px, env(safe-area-inset-top)) 14px 10px", flexShrink: 0 };
-const backBtn: React.CSSProperties = { border: "none", borderRadius: 999, padding: "9px 14px", fontWeight: 900, color: "#0d0b1a", background: "#ffe14d", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 };
-const neonTitle: React.CSSProperties = { fontWeight: 900, fontSize: 24, letterSpacing: 3, color: "#ff6fcf", textShadow: "0 0 10px #ff6fcf, 0 0 22px #9a5cff" };
+const backBtn: React.CSSProperties = {
+  minHeight: 44,
+  border: "1.5px solid #fff0b8",
+  borderRadius: 12,
+  padding: "0 14px",
+  fontFamily: FONT.display,
+  fontWeight: 400,
+  fontSize: 16,
+  letterSpacing: 0.4,
+  color: C.ink,
+  background: `linear-gradient(${C.goldHi}, ${C.gold} 50%, ${C.goldDeep})`,
+  boxShadow: "0 3px 0 #9a5c00, 0 6px 12px rgba(0,0,0,0.4)",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+};
+const neonTitle: React.CSSProperties = { fontFamily: FONT.display, fontWeight: 400, fontSize: 26, letterSpacing: 3, color: "#ff8fdc", textShadow: "0 0 10px #ff6fcf, 0 0 22px #9a5cff" };
 const grid: React.CSSProperties = {
   flex: 1,
   overflowY: "auto",
@@ -107,17 +126,17 @@ const grid: React.CSSProperties = {
 };
 const cabinet: React.CSSProperties = {
   border: "none",
-  borderRadius: 18,
+  borderRadius: 16,
   padding: 10,
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
   gap: 8,
-  background: "linear-gradient(#2d2a4d, #1b1535)",
+  background: "linear-gradient(rgba(52,46,110,0.95), rgba(22,18,52,0.95))",
   cursor: "pointer",
   textAlign: "center",
 };
-const marquee: React.CSSProperties = { width: "100%", borderRadius: 10, padding: "5px 4px", fontWeight: 900, fontSize: 13, color: "#0d0b1a", letterSpacing: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const marquee: React.CSSProperties = { width: "100%", borderRadius: 8, padding: "5px 4px", fontFamily: FONT.display, fontWeight: 400, fontSize: 14, color: "#0d0b1a", letterSpacing: 0.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const screenBox: React.CSSProperties = {
   width: "100%",
   aspectRatio: "256 / 190",

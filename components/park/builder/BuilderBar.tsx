@@ -7,6 +7,8 @@ import { useState } from "react";
 import { PIECES, PIECE_CATEGORIES, getPiece, type PieceCategory } from "@/lib/park/registry/pieces";
 import { isUnlocked, refundFor, unlockHint } from "@/lib/park/builder/rules";
 import { CandyButton } from "../ui/CandySheet";
+import { C, FONT, PARK_CSS, alpha, cardStyle, display, glass } from "../ui/theme";
+import { IconChip } from "../ui/IconChip";
 
 export interface BuilderSelection {
   pieceId: string;
@@ -54,11 +56,12 @@ export function BuilderBar({
 
   return (
     <>
+      <style>{PARK_CSS}</style>
       <div style={topBar}>
         <div style={ticketChip}>
-          🎟️ <b style={{ fontSize: 20 }}>{tickets}</b> <span style={{ fontSize: 13 }}>tickets</span>
+          <span style={{ fontSize: 18 }}>🎟️</span> <b style={display(22, C.text)}>{tickets}</b> <span style={{ fontSize: 13, color: C.dim }}>tickets</span>
         </div>
-        <div style={{ ...ticketChip, fontSize: 14 }}>🔨 Building my Dream Park</div>
+        <div style={{ ...ticketChip, ...display(15, C.goldHi) }}>🔨 Building my Dream Park</div>
         <CandyButton color="#36b8ff" onClick={onDone} style={{ pointerEvents: "auto" }}>
           ✓ Done
         </CandyButton>
@@ -69,9 +72,9 @@ export function BuilderBar({
       <div style={dock}>
         {selection && selDef ? (
           <div style={actionRow}>
-            <div style={{ fontWeight: 900, color: "#7a2e62", flex: 1, minWidth: 0 }}>
+            <div style={{ ...display(18), flex: 1, minWidth: 0 }}>
               {selDef.emoji} {selDef.name}
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#b0799f" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, fontFamily: FONT.body, color: selection.cell && !selection.cell.ok ? "#ff9aa8" : C.dim, marginTop: 2 }}>
                 {selection.cell ? (selection.cell.ok ? "Looks great here!" : "Can't go there — try another spot") : "Tap a spot on your lawn 👇"}
               </div>
             </div>
@@ -87,7 +90,7 @@ export function BuilderBar({
           </div>
         ) : selectedPlaced && placedDef ? (
           <div style={actionRow}>
-            <div style={{ fontWeight: 900, color: "#7a2e62", flex: 1 }}>
+            <div style={{ ...display(18), flex: 1 }}>
               {placedDef.emoji} {placedDef.name}
             </div>
             <CandyButton small color="#a96bff" onClick={onMove}>
@@ -108,11 +111,12 @@ export function BuilderBar({
                   key={c.id}
                   type="button"
                   onClick={() => setCat(c.id)}
+                  className="gp-press"
                   style={{
                     ...tab,
-                    background: cat === c.id ? "linear-gradient(#ff7fbd,#ff4f9e)" : "#fff",
-                    color: cat === c.id ? "#fff" : "#7a2e62",
-                    boxShadow: cat === c.id ? "0 3px 0 #d23a82" : "0 3px 0 #f5d3e6",
+                    ...(cat === c.id
+                      ? { color: C.ink, background: `linear-gradient(${C.goldHi}, ${C.gold} 50%, ${C.goldDeep})`, borderColor: "#fff0b8", boxShadow: `0 0 12px ${alpha(C.gold, 0.45)}` }
+                      : { color: C.text, background: "rgba(255,255,255,0.06)", borderColor: "rgba(160,190,255,0.22)" }),
                   }}
                 >
                   {c.emoji} {c.label}
@@ -128,11 +132,12 @@ export function BuilderBar({
                     key={p.id}
                     type="button"
                     onClick={() => unlocked && onPick(p.id)}
-                    style={{ ...pieceCard, opacity: unlocked ? 1 : 0.55, filter: unlocked ? "none" : "grayscale(0.6)" }}
+                    className="gp-press"
+                    style={{ ...pieceCard, ...cardStyle(unlocked && afford ? C.cyan : "soft", "rgba(30,27,74,0.9)"), opacity: unlocked ? 1 : 0.55, filter: unlocked ? "none" : "grayscale(0.6)" }}
                   >
-                    <div style={{ fontSize: 34, lineHeight: 1 }}>{unlocked ? p.emoji : "🔒"}</div>
-                    <div style={{ fontWeight: 900, fontSize: 12, color: "#5a2350", marginTop: 4 }}>{p.name}</div>
-                    <div style={{ fontWeight: 900, fontSize: 12, color: afford ? "#d23a82" : "#b0799f" }}>
+                    <div style={{ fontSize: 34, lineHeight: 1, filter: "drop-shadow(0 3px 3px rgba(0,0,0,0.4))" }}>{unlocked ? p.emoji : "🔒"}</div>
+                    <div style={{ fontWeight: 900, fontSize: 12, color: C.text, marginTop: 5 }}>{p.name}</div>
+                    <div style={{ fontFamily: FONT.display, fontWeight: 400, fontSize: 13, color: afford ? C.cyan : C.mute, marginTop: 2 }}>
                       {unlocked ? `🎟️ ${p.cost}` : unlockHint(p).replace("Unlocks at ", "")}
                     </div>
                   </button>
@@ -159,13 +164,14 @@ const topBar: React.CSSProperties = {
   pointerEvents: "none",
 };
 const ticketChip: React.CSSProperties = {
+  ...glass({ edge: "cyan", fill: "rgba(14,12,38,0.78)" }),
   pointerEvents: "auto",
-  borderRadius: 999,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  borderRadius: 14,
   padding: "8px 14px",
   fontWeight: 900,
-  color: "#7a2e62",
-  background: "linear-gradient(#fff,#fff0f8)",
-  boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.16)",
 };
 const msg: React.CSSProperties = {
   position: "fixed",
@@ -173,12 +179,10 @@ const msg: React.CSSProperties = {
   left: "50%",
   transform: "translateX(-50%)",
   zIndex: 25,
-  borderRadius: 18,
+  ...glass({ edge: "gold", fill: "rgba(18,16,44,0.88)" }),
+  borderRadius: 14,
   padding: "8px 16px",
   fontWeight: 900,
-  color: "#7a2e62",
-  background: "#fff",
-  boxShadow: "0 4px 0 #ffb8d9",
   pointerEvents: "none",
   maxWidth: "90vw",
   textAlign: "center",
@@ -189,20 +193,17 @@ const dock: React.CSSProperties = {
   right: 0,
   bottom: 0,
   zIndex: 25,
+  ...glass({ edge: "cyan", fill: "rgba(16,14,42,0.86)", blur: 12 }),
+  borderBottomWidth: 0,
   padding: "12px 12px calc(12px + env(safe-area-inset-bottom))",
-  background: "linear-gradient(rgba(255,248,252,0.92), #fff8fc)",
-  borderRadius: "26px 26px 0 0",
-  boxShadow: "0 -8px 24px rgba(122,46,98,0.18)",
+  borderRadius: "22px 22px 0 0",
 };
 const actionRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" };
-const tab: React.CSSProperties = { border: "none", borderRadius: 999, padding: "7px 14px", fontWeight: 900, fontSize: 14, whiteSpace: "nowrap", cursor: "pointer" };
+const tab: React.CSSProperties = { border: "1px solid", borderRadius: 10, minHeight: 40, padding: "0 14px", fontFamily: FONT.display, fontWeight: 400, letterSpacing: 0.3, fontSize: 14, whiteSpace: "nowrap", cursor: "pointer" };
 const pieceCard: React.CSSProperties = {
   flex: "0 0 96px",
-  border: "none",
-  borderRadius: 20,
+  borderRadius: 14,
   padding: "10px 6px",
-  background: "#fff",
-  boxShadow: "0 4px 0 #f5d3e6, 0 6px 12px rgba(122,46,98,0.08)",
   cursor: "pointer",
   textAlign: "center",
 };

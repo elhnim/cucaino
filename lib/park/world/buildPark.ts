@@ -10,7 +10,9 @@ import { buildAtmosphere, type Atmosphere } from "./atmosphere";
 import { buildGlowFlora } from "./glowFlora";
 import { buildOcean, BEACH_IN, wobbleToCoast } from "./ocean";
 import { buildNature } from "./nature";
-import { TRAILS, ISLAND_R, nearStream } from "../registry/island";
+import { TRAILS, ISLAND_R, nearStream, coastR } from "../registry/island";
+import { groundY, slopeAt } from "../registry/terrain";
+import { buildFantasyWorld, buildTerrainMesh } from "./fantasy";
 import { buildSkyLife } from "./skyLife";
 
 export interface BuiltPark {
@@ -20,6 +22,8 @@ export interface BuiltPark {
   lands: LandDef[];
   /** sampled points along every path (NPCs stroll between these) */
   pathPoints: THREE.Vector3[];
+  /** the terrain mesh (taps are raycast against it) */
+  ground: THREE.Mesh;
   /** round things to walk around (hills) */
   obstacles: { x: number; z: number; r: number }[];
   /** the dreamy day <-> twilight sky; atmosphere.glow lights up the whole world */
@@ -89,7 +93,7 @@ function plazaTexture() {
     (c) => {
       for (let y = 0; y < 8; y++)
         for (let x = 0; x < 8; x++) {
-          c.fillStyle = (x + y) % 2 ? "#ffb0d5" : "#fff2f8";
+          c.fillStyle = (x + y) % 2 ? "#cdbfa6" : "#e4d9c4";
           c.fillRect(x * 16, y * 16, 16, 16);
         }
     },
@@ -122,7 +126,7 @@ function landTexture(color: string) {
 function stripeTexture() {
   return canvasTexture(64, (c) => {
     for (let i = 0; i < 8; i++) {
-      c.fillStyle = i % 2 ? "#ffffff" : "#ff5fa8";
+      c.fillStyle = i % 2 ? "#a8763f" : "#8a5c2e";
       c.fillRect(0, i * 8, 64, 8);
     }
   });
@@ -130,6 +134,8 @@ function stripeTexture() {
 
 const m4 = (x: number, y: number, z: number, s: number, rotY = 0, sy = s) =>
   new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0)), new THREE.Vector3(s, sy, s));
+/** like m4, but standing on the terrain (y is a lift above the ground) */
+const m4g = (x: number, lift: number, z: number, s: number, rotY = 0, sy = s) => m4(x, groundY(x, z) + lift, z, s, rotY, sy);
 
 export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { hour?: () => number; lowQuality?: boolean } = {}): Promise<BuiltPark> {
   const disposables: { dispose: () => void }[] = [];
@@ -143,27 +149,19 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   disposables.push(atmosphere);
 
   // ── ground (the meadow island) + plaza; the beach and ocean ring it ──
-  const ground = new THREE.Mesh(track(wobbleToCoast(new THREE.CircleGeometry(BEACH_IN + 1, 160))), track(new THREE.MeshToonMaterial({ map: track(meadowTexture()) })));
-  ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
+  // (the ground itself is built further down, once the trails and places are known)
   const plaza = new THREE.Mesh(track(new THREE.CylinderGeometry(8.5, 8.8, 0.25, 48)), track(new THREE.MeshToonMaterial({ map: track(plazaTexture()) })));
   plaza.position.y = 0.12;
   scene.add(plaza);
-  const rim = new THREE.Mesh(track(new THREE.TorusGeometry(8.7, 0.28, 8, 64)), toon("#ff9ccf"));
+  const rim = new THREE.Mesh(track(new THREE.TorusGeometry(8.7, 0.28, 8, 64)), toon("#9c8a6c"));
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.26;
   scene.add(rim);
 
   // each land gets its own softly-tinted ground
   const discGeo = track(new THREE.CircleGeometry(1, 40));
-  for (const land of LANDS) {
-    if (land.id === "dream") continue; // the Dream Park draws its own checker lawn
-    const disc = new THREE.Mesh(discGeo, track(new THREE.MeshToonMaterial({ map: track(landTexture(land.ground)), transparent: true, depthWrite: false })));
-    disc.rotation.x = -Math.PI / 2;
-    disc.scale.setScalar(land.radius + 3);
-    disc.position.set(land.x, 0.015, land.z);
-    scene.add(disc);
-  }
+  // (lands no longer paint coloured ground discs: the terrain, grass and props define them now)
+
 
   // ── natural trails: a loop round the island, four trails from the plaza, one into each land ──
   const pathMats: THREE.Matrix4[] = [];
@@ -177,18 +175,13 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       const u = i / n;
       const p = curve.getPointAt(u);
       const tg = curve.getTangentAt(u);
-      pathMats.push(m4(p.x, 0.02, p.z, 3, Math.atan2(tg.x, tg.z), 1));
+      pathMats.push(m4g(p.x, 0.04, p.z, 3, Math.atan2(tg.x, tg.z), 1));
       pathSamples.push(p);
       if (i % 3 === 0) pathPoints.push(p.clone());
     }
   };
   for (const tr of TRAILS) addCurve(tr.pts.map(([x, z]) => new THREE.Vector3(x, 0, z)), !!tr.closed);
-  const paths = await assets.instanced("coaster", "path-straight", pathMats);
-  const pathMat = toon("#ff9fcd");
-  paths.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).material = pathMat;
-  });
-  scene.add(paths);
+  void pathMats; // trails are painted into the terrain (buildTerrainMesh paths: true)
 
   const nearPath = (x: number, z: number, pad: number) => pathSamples.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < pad * pad);
   const zb = zoneBounds();
@@ -212,10 +205,11 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const bobbers: { obj: THREE.Object3D; base: number; phase: number }[] = [];
   for (const p of PLACES) {
     const group = new THREE.Group();
-    group.position.set(p.x, 0, p.z);
+    group.position.set(p.x, groundY(p.x, p.z), p.z);
     group.rotation.y = p.face ?? Math.atan2(-p.x, -p.z);
     for (const m of p.models) {
       const obj = await assets.spawn(m.kit as KitName, m.id);
+      obj.traverse((o) => ((o as THREE.Mesh).isMesh && ((o.castShadow = true), (o.receiveShadow = true))));
       obj.scale.setScalar(m.scale);
       if (m.offset) obj.position.set(m.offset[0], 0, m.offset[1]);
       if (m.rotY) obj.rotation.y = m.rotY;
@@ -232,11 +226,11 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     }
     const sign = labelSprite(`${p.emoji} ${p.label}`);
     sign.scale.multiplyScalar(p.id === "gate" ? 1.3 : 0.9);
-    sign.position.set(p.x, p.signY, p.z);
+    sign.position.set(p.x, groundY(p.x, p.z) + p.signY, p.z);
     track(sign.material);
     if ((sign.material as THREE.SpriteMaterial).map) track((sign.material as THREE.SpriteMaterial).map!);
     scene.add(sign);
-    bobbers.push({ obj: sign, base: p.signY, phase: p.x * 0.3 });
+    bobbers.push({ obj: sign, base: groundY(p.x, p.z) + p.signY, phase: p.x * 0.3 });
     scene.add(group);
   }
   // land name banners floating over each land
@@ -244,11 +238,11 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     if (land.id === "gate") continue;
     const s = labelSprite(`${land.emoji} ${land.name}`);
     s.scale.multiplyScalar(1.25);
-    s.position.set(land.x, 11, land.z);
+    s.position.set(land.x, groundY(land.x, land.z) + 11, land.z);
     track(s.material);
     if ((s.material as THREE.SpriteMaterial).map) track((s.material as THREE.SpriteMaterial).map!);
     scene.add(s);
-    bobbers.push({ obj: s, base: 11, phase: land.z });
+    bobbers.push({ obj: s, base: groundY(land.x, land.z) + 11, phase: land.z });
   }
 
   // centrepiece fountain with a giant swirl lollipop
@@ -256,10 +250,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   fountain.scale.setScalar(3.2);
   fountain.position.y = 0.25;
   scene.add(fountain);
-  const lolly = await assets.spawn("food", "lollypop");
-  lolly.scale.setScalar(9);
-  lolly.position.y = 1.2;
-  scene.add(lolly);
+  const lolly = new THREE.Object3D(); // (the candy centrepiece is gone; the fountain stands alone)
 
   // ── themed land decor ──
   const pets = LANDS.find((l) => l.id === "pets")!;
@@ -268,13 +259,13 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     const x = pets.x + Math.sin(a) * pets.radius;
     const z = pets.z + Math.cos(a) * pets.radius;
     if (nearPath(x, z, 4)) continue; // gap where the path comes in
-    hedgeMats.push(m4(x, 0, z, 3.2, a + Math.PI / 2));
+    hedgeMats.push(m4g(x, 0, z, 3.2, a + Math.PI / 2));
   }
   scene.add(await assets.instanced("town", "hedge", hedgeMats));
   // fetch field: a white chalk ring
   const fetchRing = new THREE.Mesh(track(new THREE.TorusGeometry(5.5, 0.12, 6, 48)), toon("#ffffff"));
   fetchRing.rotation.x = Math.PI / 2;
-  fetchRing.position.set(pets.x + 1, 0.06, pets.z);
+  fetchRing.position.set(pets.x + 1, groundY(pets.x + 1, pets.z) + 0.08, pets.z);
   scene.add(fetchRing);
 
   // Market Street: a row of stalls either side of the street
@@ -288,7 +279,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     const x = market.x + t * 16 - 2;
     const z = market.z + 9 - t * 14 + (i % 2 ? 5 : -5);
     if (!stallMats.has(key)) stallMats.set(key, []);
-    stallMats.get(key)!.push(m4(x, 0, z, 2.6, i % 2 ? Math.PI * 0.8 : -Math.PI * 0.2));
+    stallMats.get(key)!.push(m4g(x, 0, z, 2.6, i % 2 ? Math.PI * 0.8 : -Math.PI * 0.2));
   }
   for (const [key, mats] of stallMats) {
     const [kit, id] = key.split("/") as [KitName, string];
@@ -300,12 +291,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const friends = LANDS.find((l) => l.id === "friends")!;
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    benchMats.push(m4(friends.x + Math.sin(a) * 7, 0, friends.z - 2 + Math.cos(a) * 6, 2.6, a + Math.PI));
+    benchMats.push(m4g(friends.x + Math.sin(a) * 7, 0, friends.z - 2 + Math.cos(a) * 6, 2.6, a + Math.PI));
   }
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
     if (nearPath(Math.sin(a) * 10.5, Math.cos(a) * 10.5, 2)) continue;
-    benchMats.push(m4(Math.sin(a) * 10.5, 0, Math.cos(a) * 10.5, 2.6, a + Math.PI));
+    benchMats.push(m4g(Math.sin(a) * 10.5, 0, Math.cos(a) * 10.5, 2.6, a + Math.PI));
   }
   scene.add(await assets.instanced("coaster", "bench", benchMats));
 
@@ -313,34 +304,26 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const bigMill = await assets.spawn("town", "windmill");
   bigMill.scale.setScalar(3.4);
   const rides = LANDS.find((l) => l.id === "rides")!;
-  bigMill.position.set(rides.x - 8, 0, rides.z - 6);
+  bigMill.position.set(rides.x - 8, groundY(rides.x - 8, rides.z - 6), rides.z - 6);
   bigMill.rotation.y = 0.6;
   scene.add(bigMill);
 
   // ── scattered candy decor: lighter everywhere, dense in the Sweet Forest ──
   type Kind = { kit: KitName; id: string; count: number; s: [number, number]; minR: number; maxR: number; pad: number; land?: string };
   const KINDS: Kind[] = [
-    { kit: "food", id: "lollypop", count: 18, s: [9, 13], minR: 30, maxR: 139, pad: 2.5 },
     { kit: "nature", id: "tree_default", count: 51, s: [2.6, 3.6], minR: 18, maxR: 146, pad: 2.5 },
     { kit: "nature", id: "tree_oak", count: 44, s: [2.8, 3.8], minR: 18, maxR: 146, pad: 2.5 },
     { kit: "nature", id: "tree_fat", count: 41, s: [2.8, 3.6], minR: 20, maxR: 146, pad: 2.5 },
     { kit: "nature", id: "tree_cone", count: 34, s: [2.6, 3.4], minR: 24, maxR: 146, pad: 2.5 },
-    { kit: "food", id: "cupcake", count: 8, s: [4, 6], minR: 30, maxR: 102, pad: 3 },
-    { kit: "food", id: "donut-sprinkles", count: 9, s: [8, 11], minR: 30, maxR: 117, pad: 3 },
-    { kit: "food", id: "ice-cream", count: 7, s: [5, 7], minR: 30, maxR: 117, pad: 2.5 },
-    { kit: "food", id: "popsicle", count: 7, s: [6, 8], minR: 30, maxR: 117, pad: 2 },
-    { kit: "food", id: "sundae", count: 5, s: [5, 6], minR: 30, maxR: 102, pad: 2 },
     { kit: "nature", id: "mushroom_redGroup", count: 46, s: [3.5, 5], minR: 11, maxR: 131, pad: 1.4 },
     { kit: "nature", id: "plant_bush", count: 70, s: [3.5, 5], minR: 11, maxR: 139, pad: 1.4 },
     { kit: "nature", id: "flower_purpleA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
     { kit: "nature", id: "flower_redA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
     { kit: "nature", id: "flower_yellowA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
-    { kit: "holiday", id: "present-a-cube", count: 8, s: [1.6, 2.4], minR: 24, maxR: 88, pad: 1.4 },
     // Sweet Forest: thick with candy trees, mushrooms and lollipops
     { kit: "nature", id: "tree_default", count: 20, s: [2.8, 3.8], minR: 0, maxR: 1, pad: 3.2, land: "forest" },
     { kit: "nature", id: "tree_fat", count: 14, s: [2.8, 3.6], minR: 0, maxR: 1, pad: 3.2, land: "forest" },
     { kit: "nature", id: "mushroom_redGroup", count: 30, s: [4.5, 6.5], minR: 0, maxR: 1, pad: 1.2, land: "forest" },
-    { kit: "food", id: "lollypop", count: 14, s: [10, 14], minR: 0, maxR: 1, pad: 2.2, land: "forest" },
     // Pet Meadow: flower beds
     { kit: "coaster", id: "flowers", count: 18, s: [2.2, 3], minR: 0, maxR: 1, pad: 1.2, land: "pets" },
     // Book Nook: a quiet reading garden
@@ -351,10 +334,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     { kit: "nature", id: "plant_bush", count: 12, s: [3.5, 4.5], minR: 0, maxR: 1, pad: 1.6, land: "golf" },
     { kit: "nature", id: "flower_redA", count: 14, s: [2.8, 3.6], minR: 0, maxR: 1, pad: 1, land: "golf" },
     // Arcade Alley: giant lollipops and lanterns
-    { kit: "food", id: "lollypop", count: 6, s: [10, 13], minR: 0, maxR: 1, pad: 2.4, land: "arcade" },
     { kit: "town", id: "lantern", count: 6, s: [2.2, 2.6], minR: 0, maxR: 1, pad: 2, land: "arcade" },
   ];
-  for (const k of KINDS) {
+  for (const k of KINDS.filter((kk) => kk.land && kk.land !== "forest")) {
     const mats: THREE.Matrix4[] = [];
     let tries = 0;
     const land = k.land ? LANDS.find((l) => l.id === k.land)! : null;
@@ -376,10 +358,28 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       }
       if (nearPath(x, z, k.pad + 1.6) || nearPlace(x, z, k.pad + 1.5) || nearStream(x, z, k.pad) || nearHill(x, z, k.pad)) continue;
       if (!land && inLand(x, z, "forest")) continue;
-      mats.push(m4(x, 0, z, k.s[0] + r() * (k.s[1] - k.s[0]), r() * Math.PI * 2));
+      if (slopeAt(x, z) > 0.45 || groundY(x, z) > 18) continue; // not on cliffs or peaks
+      if (Math.hypot(x - 0, z - 30) < 16) continue; // keep the view from the start point open
+      mats.push(m4g(x, 0, z, k.s[0] + r() * (k.s[1] - k.s[0]), r() * Math.PI * 2));
     }
-    scene.add(await assets.instanced(k.kit, k.id, mats));
+    const inst = await assets.instanced(k.kit, k.id, mats);
+    inst.traverse((o) => ((o as THREE.Mesh).isMesh && (o.castShadow = true)));
+    scene.add(inst);
   }
+
+  // ── the fantasy world: wind-swept grass, trees, rocks, crystals, ruins, floating islands,
+  //    the giant Glow Forest — and the ground with natural earth trails painted in ──
+  const fantasy = buildFantasyWorld(scene, {
+    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad),
+    lowQuality: opts.lowQuality,
+  });
+  disposables.push(fantasy);
+  const ground = buildTerrainMesh({ lowQuality: opts.lowQuality, mask: fantasy.mask, paths: true });
+  ground.name = "terrain";
+  ground.receiveShadow = true;
+  track(ground.geometry);
+  track(ground.material as THREE.Material);
+  scene.add(ground);
 
   // ── the sea: beach, glowing ocean, jellyfish (some float over the Glow Forest), whales, mantas, dolphins ──
   const ocean = buildOcean(scene, { skyJellies: { x: forestLand.x, z: forestLand.z, radius: forestLand.radius + 4 }, lowQuality: opts.lowQuality });
@@ -402,21 +402,21 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     const x = p.x + nx * 2.1 * side;
     const z = p.z + nz * 2.1 * side;
     if (Math.hypot(x, z) < 9.5 || nearPlace(x, z, 0.5)) continue;
-    if (i % 6 === 3) lanternMats.push(m4(x, 0, z, 2.2));
-    else caneMats.push(m4(x, 0, z, 5.5, Math.atan2(nx, nz)));
+    if (i % 6 === 3) lanternMats.push(m4g(x, 0, z, 2.2));
+    else caneMats.push(m4g(x, 0, z, 5.5, Math.atan2(nx, nz)));
   }
-  scene.add(await assets.instanced("holiday", "candy-cane-red", caneMats));
+  void caneMats;
   scene.add(await assets.instanced("town", "lantern", lanternMats));
 
   // ── magical glowing plants: a dense Glow Forest of giant dream trees, and glowing flowers everywhere ──
   const glowFlora = buildGlowFlora(scene, {
-    forest: { x: forestLand.x + 4, z: forestLand.z + 6, radius: forestLand.radius + 12, count: opts.lowQuality ? 120 : 190 },
-    park: { x: 0, z: 0, radius: ISLAND_R - 6, count: opts.lowQuality ? 150 : 240 },
+    forest: { x: forestLand.x + 4, z: forestLand.z + 6, radius: forestLand.radius + 12, count: opts.lowQuality ? 40 : 70 },
+    park: { x: 0, z: 0, radius: ISLAND_R - 6, count: opts.lowQuality ? 80 : 140 },
     free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 3 && Math.hypot(x, z) > 24 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearHill(x, z, pad),
     lowQuality: opts.lowQuality,
     lights: lanternMats.map((mx) => {
       const p = new THREE.Vector3().setFromMatrixPosition(mx);
-      return { x: p.x, y: 2.6, z: p.z, color: "#ffd68a", size: 1.8 };
+      return { x: p.x, y: p.y + 2.6, z: p.z, color: "#ffd68a", size: 1.8 };
     }),
   });
   disposables.push(glowFlora);
@@ -427,15 +427,18 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
     const rad = 100 + Math.sin(a * 3) * 8;
-    loopPts.push(new THREE.Vector3(Math.sin(a) * rad, 8 + Math.sin(a * 2) * 2.5, Math.cos(a) * rad));
+    const lx = Math.sin(a) * rad;
+    const lz = Math.cos(a) * rad;
+    loopPts.push(new THREE.Vector3(lx, Math.max(8 + Math.sin(a * 2) * 2.5, groundY(lx, lz) + 7), lz));
   }
   const loop = new THREE.CatmullRomCurve3(loopPts, true, "centripetal");
-  scene.add(new THREE.Mesh(track(new THREE.TubeGeometry(loop, 320, 0.35, 8, true)), toon("#ff7fbd")));
+  scene.add(new THREE.Mesh(track(new THREE.TubeGeometry(loop, 320, 0.35, 8, true)), toon("#b8864f")));
   const stripeMat = track(new THREE.MeshToonMaterial({ map: track(stripeTexture()) }));
   const pillars = new THREE.InstancedMesh(track(new THREE.CylinderGeometry(0.35, 0.45, 1, 10)), stripeMat, 40);
   for (let i = 0; i < 40; i++) {
     const p = loop.getPointAt(i / 40);
-    pillars.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(p.x, p.y / 2, p.z), new THREE.Quaternion(), new THREE.Vector3(1, p.y, 1)));
+    const gy = groundY(p.x, p.z);
+    pillars.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(p.x, (p.y + gy) / 2, p.z), new THREE.Quaternion(), new THREE.Vector3(1, Math.max(0.1, p.y - gy), 1)));
   }
   scene.add(pillars);
   const cars: THREE.Object3D[] = [];
@@ -450,7 +453,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
 
   // ── gumdrop hills + cotton-candy clouds on the horizon ──
   const hillGeo = track(new THREE.SphereGeometry(1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2));
-  const hillColors = ["#ffb3d6", "#b3f0d4", "#fff0a3", "#d6c2ff", "#a8dcff", "#ffcfa8"];
+  const hillColors = ["#6f9a6a", "#7fa37a", "#8d9aa8", "#a3b08f", "#5f8a6a", "#98a58a"];
   const hills = new THREE.InstancedMesh(hillGeo, track(new THREE.MeshToonMaterial({ color: "#ffffff" })), 40);
   for (let i = 0; i < 40; i++) {
     const a = (i / 40) * Math.PI * 2 + r() * 0.12;
@@ -471,7 +474,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     const cy = 26 + r() * 16;
     for (let p = 0; p < 5; p++, i++) {
       cloudBase.push({ x: cx + (p - 2) * 2.6, y: cy + r() * 1.2, z: cz + r() * 1.5, s: 2.8 + r() * 2.4, speed: 0.6 + r() * 0.4 });
-      clouds.setColorAt(i, new THREE.Color(p % 2 ? "#ffffff" : "#ffe3f1"));
+      clouds.setColorAt(i, new THREE.Color(p % 2 ? "#ffffff" : "#eef2fb"));
     }
   }
   scene.add(clouds);
@@ -486,7 +489,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     places: PLACES,
     lands: LANDS,
     pathPoints,
-    obstacles: nature.obstacles,
+    ground,
+    obstacles: [...nature.obstacles, ...fantasy.obstacles],
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
@@ -494,6 +498,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog);
       skyLife.update(dt, t, atmosphere.glow);
       nature.update(dt, t, atmosphere.glow);
+      fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       lolly.rotation.y += dt * 0.5;
       for (const b of bobbers) b.obj.position.y = b.base + Math.sin(t * 2 + b.phase) * 0.18;
       cloudBase.forEach((c, i) => {

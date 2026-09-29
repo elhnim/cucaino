@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { H, W, emptyInput, type Button, type GameInstance, type IO, type Input, type RetroGameDef } from "@/lib/retro/engine";
 import { canvasGfx, webAudioSfx } from "@/lib/retro/canvas";
 import { getMuted } from "@/lib/audio/sound-manager";
+import { FONT } from "../ui/theme";
 
 type Phase = "title" | "play" | "paused" | "over" | "won";
 
@@ -271,7 +272,7 @@ export function RetroPlayer({
         <button type="button" onClick={onExit} style={topBtn}>
           ← Arcade
         </button>
-        <div style={{ flex: 1, textAlign: "center", color: game.color, fontWeight: 900, letterSpacing: 1 }}>{game.title}</div>
+        <div style={{ flex: 1, textAlign: "center", color: game.color, fontFamily: FONT.display, fontWeight: 400, fontSize: 19, letterSpacing: 1, textShadow: `0 0 12px ${game.color}88` }}>{game.title}</div>
         <div style={{ color: "#fff", fontWeight: 900, fontVariantNumeric: "tabular-nums", minWidth: 100, textAlign: "right" }}>
           {score} <span style={{ color: "#9aa0b8", fontSize: 12 }}>BEST {Math.max(best, score)}</span>
           {Number.isFinite(credits) && <div style={{ color: credits > 0 ? "#5ef2ff" : "#ff6fcf", fontSize: 11 }}>{credits > 0 ? `${credits} PLAY${credits === 1 ? "" : "S"} LEFT` : "NEED A 🎟️"}</div>}
@@ -428,10 +429,24 @@ function PadButton({ label, hint, color, big, onChange }: { label: string; hint:
 
 const wrap: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 60, display: "flex", flexDirection: "column", background: "radial-gradient(circle at 50% 20%, #2a1f55, #0d0b1a 70%)", userSelect: "none", WebkitUserSelect: "none" };
 const topBar: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, padding: "max(8px, env(safe-area-inset-top)) 12px 8px", flexShrink: 0 };
-const topBtn: React.CSSProperties = { border: "none", borderRadius: 999, padding: "8px 12px", fontWeight: 900, color: "#fff", background: "#2d2a4d", cursor: "pointer" };
+const topBtn: React.CSSProperties = {
+  minHeight: 44,
+  minWidth: 44,
+  border: "1.5px solid rgba(160,200,255,0.4)",
+  borderRadius: 12,
+  padding: "0 12px",
+  fontFamily: FONT.display,
+  fontWeight: 400,
+  fontSize: 15,
+  letterSpacing: 0.4,
+  color: "#fff",
+  background: "radial-gradient(circle at 50% 30%, rgba(90,86,160,0.8), rgba(20,18,50,0.9))",
+  boxShadow: "0 4px 10px rgba(0,0,0,0.4)",
+  cursor: "pointer",
+};
 const body: React.CSSProperties = { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, position: "relative", minHeight: 0, padding: "0 10px" };
 const screenWrap: React.CSSProperties = { position: "relative", width: "min(100%, calc((100dvh - 280px) * 256 / 224), 960px)", aspectRatio: "256 / 224", flexShrink: 1, minWidth: 256 };
 const screen: React.CSSProperties = { width: "100%", height: "100%", imageRendering: "pixelated", borderRadius: 10, boxShadow: "0 0 0 4px #2d2a4d, 0 0 40px rgba(154,92,255,0.45)", touchAction: "none", background: "#0d0b1a", display: "block" };
 const overlay: React.CSSProperties = { position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "rgba(13,11,26,0.78)", borderRadius: 10, textAlign: "center", padding: 12 };
-const bigBtn: React.CSSProperties = { border: "none", borderRadius: 999, padding: "12px 16px", fontWeight: 900, fontSize: 15, color: "#0d0b1a", background: "#ffe14d", cursor: "pointer" };
+const bigBtn: React.CSSProperties = { minHeight: 48, border: "1.5px solid #fff0b8", borderRadius: 12, padding: "0 16px", fontFamily: FONT.display, fontWeight: 400, letterSpacing: 0.4, fontSize: 16, color: "#2a1a00", background: "linear-gradient(#ffe9a8, #ffd36b 50%, #e89a1c)", boxShadow: "0 3px 0 #9a5c00, 0 6px 12px rgba(0,0,0,0.4)", cursor: "pointer" };
 const padRow: React.CSSProperties = { width: "100%", maxWidth: 720, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 14px max(14px, env(safe-area-inset-bottom))", gap: 8 };

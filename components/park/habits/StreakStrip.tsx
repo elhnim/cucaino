@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { claimStreakReward, getHabits, type HabitState } from "@/lib/actions/park-habits";
 import { STREAK_MILESTONES, claimableMilestones } from "@/lib/park/streak";
 import { playSfx } from "@/lib/audio/sound-manager";
+import { C, FONT, alpha, cardStyle } from "../ui/theme";
 
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 
@@ -57,10 +58,10 @@ export function StreakStrip({ kidId, refreshKey }: { kidId: string; refreshKey?:
   return (
     <div style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ textAlign: "center", minWidth: 64 }}>
-          <div style={{ fontSize: 30, lineHeight: 1, filter: streak.current ? undefined : "grayscale(1)" }}>🔥</div>
-          <div style={{ fontWeight: 900, fontSize: 20, color: "#c2410c" }}>{streak.current}</div>
-          <div style={{ fontWeight: 800, fontSize: 11, color: "#9a6a4a" }}>day{streak.current === 1 ? "" : "s"}</div>
+        <div style={{ textAlign: "center", minWidth: 58 }}>
+          <div style={{ fontSize: 30, lineHeight: 1, filter: streak.current ? `drop-shadow(0 0 10px ${alpha(C.fire, 0.9)})` : "grayscale(1) opacity(0.6)" }}>🔥</div>
+          <div style={{ fontFamily: FONT.display, fontWeight: 400, fontSize: 26, lineHeight: 1.05, color: streak.current ? "#ffc58a" : C.dim, textShadow: streak.current ? `0 0 12px ${alpha(C.fire, 0.6)}` : undefined }}>{streak.current}</div>
+          <div style={{ fontWeight: 800, fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase", color: C.dim }}>day{streak.current === 1 ? "" : "s"}</div>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
@@ -68,29 +69,31 @@ export function StreakStrip({ kidId, refreshKey }: { kidId: string; refreshKey?:
               const [y, m, dd] = d.date.split("-").map(Number);
               const dow = new Date(Date.UTC(y, m - 1, dd)).getUTCDay();
               const icon = d.state === "done" ? "🔥" : d.state === "shield" ? "🛡️" : d.state === "today" ? "⭐" : "·";
+              const tone = d.state === "done" ? C.fire : d.state === "shield" ? "#4fa8ff" : d.state === "today" ? C.gold : "#6b6f8e";
               return (
                 <div key={d.date} style={{ flex: 1, textAlign: "center" }}>
                   <div
                     style={{
                       height: 34,
-                      borderRadius: 12,
+                      borderRadius: 10,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: d.state === "missed" ? 22 : 18,
-                      color: "#d6b4a0",
-                      background: d.state === "done" ? "#ffe2c2" : d.state === "shield" ? "#dbeafe" : d.state === "today" ? "#fff" : "#f7ede6",
-                      boxShadow: d.state === "today" ? "inset 0 0 0 2px #fb923c" : undefined,
+                      fontSize: d.state === "missed" ? 22 : 17,
+                      color: C.mute,
+                      background: d.state === "missed" ? "rgba(255,255,255,0.04)" : alpha(tone, 0.16),
+                      border: `1px solid ${alpha(tone, d.state === "missed" ? 0.25 : 0.6)}`,
+                      boxShadow: d.state === "today" ? `0 0 10px ${alpha(C.gold, 0.6)}` : d.state === "done" ? `inset 0 0 10px ${alpha(C.fire, 0.25)}` : undefined,
                     }}
                   >
                     {icon}
                   </div>
-                  <div style={{ fontSize: 10, fontWeight: 900, color: "#9a6a4a", marginTop: 2 }}>{d.state === "today" || (d.state === "done" && d === streak.week[6]) ? "TODAY" : DOW[dow]}</div>
+                  <div style={{ fontSize: 9.5, fontWeight: 900, letterSpacing: 0.4, color: d.state === "today" ? C.gold : C.mute, marginTop: 3 }}>{d.state === "today" || (d.state === "done" && d === streak.week[6]) ? "TODAY" : DOW[dow]}</div>
                 </div>
               );
             })}
           </div>
-          <div style={{ fontWeight: 800, fontSize: 12, color: "#9a6a4a", marginTop: 6 }}>
+          <div style={{ fontWeight: 800, fontSize: 12.5, color: C.dim, marginTop: 7 }}>
             {!streak.doneToday
               ? streak.current > 0
                 ? "Finish a quest today to keep your flame alive!"
@@ -112,18 +115,21 @@ export function StreakStrip({ kidId, refreshKey }: { kidId: string; refreshKey?:
               type="button"
               disabled={!can || claiming !== null}
               onClick={() => void claim(m.days)}
-              className={can ? "quest-wiggle" : undefined}
+              className={can ? "gp-press gp-glow" : undefined}
               style={{
                 flex: "1 1 70px",
-                border: "none",
-                borderRadius: 14,
-                padding: "6px 4px",
-                fontWeight: 900,
-                fontSize: 12,
+                minHeight: 44,
+                borderRadius: 12,
+                padding: "5px 4px",
+                fontFamily: FONT.display,
+                fontWeight: 400,
+                fontSize: 13,
+                letterSpacing: 0.3,
+                lineHeight: 1.15,
                 cursor: can ? "pointer" : "default",
-                color: can ? "#fff" : got ? "#15803d" : "#b08a70",
-                background: can ? "linear-gradient(#fb923c, #f97316)" : got ? "#dcfce7" : "#f7ede6",
-                boxShadow: can ? "0 3px 0 #c2410c" : undefined,
+                color: can ? C.ink : got ? C.success : C.dim,
+                border: `1px solid ${can ? "#fff0b8" : got ? alpha(C.success, 0.5) : "rgba(160,190,255,0.18)"}`,
+                background: can ? `linear-gradient(${C.goldHi}, ${C.gold} 50%, ${C.goldDeep})` : got ? alpha(C.success, 0.12) : "rgba(255,255,255,0.04)",
               }}
             >
               {m.emoji} {m.days}d {got ? "✓" : can ? `Claim +${m.tickets}🎟️` : `+${m.tickets}🎟️`}
@@ -131,16 +137,14 @@ export function StreakStrip({ kidId, refreshKey }: { kidId: string; refreshKey?:
           );
         })}
       </div>
-      <div style={{ fontWeight: 800, fontSize: 11, color: "#9a6a4a", marginTop: 6 }}>🛡️ Each week one missed day is covered by a free shield.</div>
-      {msg && <div style={{ fontWeight: 900, fontSize: 13, color: "#c2410c", marginTop: 6 }}>{msg}</div>}
+      <div style={{ fontWeight: 700, fontSize: 11.5, color: C.mute, marginTop: 7 }}>🛡️ Each week one missed day is covered by a free shield.</div>
+      {msg && <div style={{ fontWeight: 900, fontSize: 13, color: C.gold, marginTop: 6 }}>{msg}</div>}
     </div>
   );
 }
 
 const card: React.CSSProperties = {
-  borderRadius: 22,
+  ...cardStyle(C.fire, "rgba(40,24,40,0.72)"),
   padding: 12,
   marginBottom: 12,
-  background: "linear-gradient(#fff7ed, #ffffff)",
-  boxShadow: "0 4px 0 #fed7aa",
 };

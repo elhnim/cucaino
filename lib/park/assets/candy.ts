@@ -9,7 +9,7 @@ export interface CandyPalette {
   strength: number;
 }
 
-export const DEFAULT_CANDY: CandyPalette = { neutralHue: 0.9, strength: 1 };
+export const DEFAULT_CANDY: CandyPalette = { neutralHue: 0.9, strength: 0.22 };
 
 export function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   const max = Math.max(r, g, b);

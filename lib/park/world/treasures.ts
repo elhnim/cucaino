@@ -4,6 +4,7 @@
 import * as THREE from "three";
 import type { ParkAssets } from "../assets/loader";
 import { LANDS } from "../registry/places";
+import { groundY } from "../registry/terrain";
 
 export const STICKERS = ["🦄", "🌈", "🍩", "🧁", "🍭", "⭐", "🎈", "🐙", "🦋", "🍓", "🌟", "🎀", "🐳", "🍦", "🪐", "🦖", "🌸", "🍉"];
 export const TREASURES_PER_DAY = 6;
@@ -70,7 +71,7 @@ export async function createTreasures(scene: THREE.Scene, assets: ParkAssets, sp
     glow.scale.set(3.4, 3.4, 1);
     glow.position.y = 1;
     g.add(glow);
-    g.position.set(s.x, 0, s.z);
+    g.position.set(s.x, groundY(s.x, s.z), s.z);
     scene.add(g);
     live.push({ id: s.id, obj: g, x: s.x, z: s.z, open: -1 });
   }
@@ -81,7 +82,7 @@ export async function createTreasures(scene: THREE.Scene, assets: ParkAssets, sp
         const l = live[i];
         if (l.open >= 0) {
           l.open += dt;
-          l.obj.position.y = l.open * 5;
+          l.obj.position.y = groundY(l.x, l.z) + l.open * 5;
           l.obj.scale.setScalar(Math.max(0.01, 1 - l.open * 1.6));
           if (l.open > 0.65) {
             scene.remove(l.obj);
@@ -90,7 +91,7 @@ export async function createTreasures(scene: THREE.Scene, assets: ParkAssets, sp
           continue;
         }
         l.obj.rotation.y = Math.sin(t * 1.5 + l.id) * 0.4;
-        l.obj.position.y = Math.abs(Math.sin(t * 2.4 + l.id)) * 0.25;
+        l.obj.position.y = groundY(l.x, l.z) + Math.abs(Math.sin(t * 2.4 + l.id)) * 0.25;
         if (foundId === null && (kid.x - l.x) ** 2 + (kid.z - l.z) ** 2 < 3.2) {
           l.open = 0;
           foundId = l.id;

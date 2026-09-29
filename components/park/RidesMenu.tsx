@@ -1,6 +1,8 @@
 "use client";
 
 import { CandySheet } from "./ui/CandySheet";
+import { C, alpha, display } from "./ui/theme";
+import { IconChip } from "./ui/IconChip";
 
 // Rides & Games at the station: real 3D rides (Quiz Coaster, Mini Golf) plus the money,
 // reading and brain games, which open inside an in-park window.
@@ -29,28 +31,34 @@ export const RIDES: RideEntry[] = [
 
 export function RidesMenu({ onPick, onClose }: { onPick: (ride: RideEntry) => void; onClose: () => void }) {
   return (
-    <CandySheet title="🎢 Rides & Games" color="#a96bff" onClose={onClose}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+    <CandySheet title="🎢 Rides & Games" subtitle="Pick an adventure" color={C.violet} onClose={onClose}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 10 }}>
         {RIDES.map((r) => (
           <button
             key={r.id}
             type="button"
             onClick={() => onPick(r)}
+            className="gp-press"
             style={{
-              border: "none",
-              borderRadius: 22,
-              padding: "14px 12px",
+              position: "relative",
+              overflow: "hidden",
+              border: "1.5px solid transparent",
+              borderRadius: 16,
+              padding: "12px 12px 14px",
               textAlign: "left",
-              background: `linear-gradient(160deg, ${r.color}, ${r.color}cc)`,
-              color: "#fff",
-              boxShadow: `0 6px 0 ${r.color}88, 0 10px 18px rgba(0,0,0,0.12)`,
+              background: `radial-gradient(120% 90% at 0% 0%, ${alpha(r.color, 0.4)}, rgba(28,24,70,0.85) 60%) padding-box, linear-gradient(135deg, ${alpha(r.color, 0.95)}, ${alpha(r.color, 0.2)} 55%, ${alpha(C.gold, 0.5)}) border-box`,
+              color: C.text,
+              boxShadow: `0 6px 16px rgba(0,0,0,0.35), 0 0 14px ${alpha(r.color, 0.25)}`,
               cursor: "pointer",
               touchAction: "manipulation",
+              minHeight: 118,
             }}
           >
-            <div style={{ fontSize: 34, lineHeight: 1 }}>{r.emoji}</div>
-            <div style={{ fontWeight: 900, fontSize: 16, marginTop: 6 }}>{r.name}</div>
-            <div style={{ fontSize: 12, opacity: 0.92, fontWeight: 700 }}>{r.blurb}</div>
+            <IconChip color={r.color} size={46} style={{ fontSize: 26 }}>
+              {r.emoji}
+            </IconChip>
+            <div style={{ ...display(17), marginTop: 8 }}>{r.name}</div>
+            <div style={{ fontSize: 12, color: C.dim, fontWeight: 700, marginTop: 2 }}>{r.blurb}</div>
           </button>
         ))}
       </div>
