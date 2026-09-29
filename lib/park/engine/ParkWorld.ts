@@ -31,7 +31,7 @@ export type Ride = Interior & {
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
-import { buildMount, type MountKind, type MountRig } from "../characters/mounts";
+import { buildMount, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
 import { groundY } from "../registry/terrain";
 
 export type QualityTier = "standard" | "low";
@@ -66,6 +66,10 @@ export interface ParkWorldOptions {
   onPieceTap?: (uid: string) => void;
   /** first frame is on screen */
   onReady?: () => void;
+  /** a Star Shard was collected (id 0..29) */
+  onShard?: (id: number) => void;
+  /** flew through Sky Ring `passed` of 12; `lap` = seconds when the course is complete */
+  onRing?: (passed: number, lap?: number) => void;
   onError?: (err: unknown) => void;
 }
 
@@ -160,7 +164,7 @@ export class ParkWorld {
   // ── free camera: drag to look around, pinch / wheel to zoom ──
   private camYaw = 0;
   /** camera height angle: drag up/down to look from low (almost eye level) to high overhead */
-  private camPitch = Math.atan2(CAM_OFFSET.y, CAM_OFFSET.z);
+  private camPitch = 0.46; // ~26°: the horizon, mountains and floating islands are in the view
   /** extra camera height to see over a hill between the camera and the kid (eased) */
   private camLift = 0;
   /** eased camera distance when something blocks the view (see the tree check in tick) */
@@ -268,8 +272,8 @@ export class ParkWorld {
     }
     const place = this.allPlaces().find((p) => p.id === placeId);
     if (!emoji || !place) return;
-    const s = emojiSprite(emoji, 2);
-    const base = place.signY + 2;
+    const s = badgeSprite(emoji, 2.2);
+    const base = groundY(place.x, place.z) + place.signY + 2;
     s.position.set(place.x, base, place.z);
     this.scene.add(s);
     this.beacons.set(placeId, { sprite: s, base });
@@ -1063,6 +1067,16 @@ export class ParkWorld {
     }
 
     this.park.update(dt, this.time, pos);
+    const q3 = this.park.quests3d.update(dt, this.time, pos, !!this.mount?.flies && this.alt > 2, this.park.atmosphere.glow);
+    if (q3.shard !== null) {
+      this.burst(pos.clone().setY(pos.y + 1.6), 70);
+      this.play(kid, "cheer", true);
+      this.opts.onShard?.(q3.shard);
+    }
+    if (q3.ring) {
+      this.burst(pos.clone().setY(pos.y + 1), q3.ring.lap !== undefined ? 90 : 30);
+      this.opts.onRing?.(q3.ring.passed, q3.ring.lap);
+    }
     if (!this.heroLight.parent) this.scene.add(this.heroLight);
     this.heroLight.position.set(pos.x, pos.y + 4.5, pos.z + 1.5);
     this.heroLight.intensity = this.park.atmosphere.glow * 7;
@@ -1132,7 +1146,7 @@ export class ParkWorld {
           const along = ox * dirX + oz * dirZ; // how far along the view line (horizontal)
           if (along <= 1.5 || along >= want) continue;
           const side = Math.abs(ox * dirZ - oz * dirX);
-          const reach = Math.max(1.2, o.r * 3.2); // canopies spread well past the trunk
+          const reach = Math.max(1.6, o.r * 5.5); // canopies spread well past the trunk
           if (side < reach) want = Math.min(want, Math.max(5, (along - 1) / Math.max(0.3, Math.cos(this.camPitch))));
         }
         this.camPull += (want - this.camPull) * Math.min(1, dt * (want < this.camPull ? 6 : 2));
@@ -1163,11 +1177,14 @@ export class ParkWorld {
       cp.y += this.camLift;
       const under = groundY(cp.x, cp.z) + 1.2;
       if (cp.y < under) cp.y = under;
-      this.camera.lookAt(this.lookAtPt);
+      // aim a little above the kid: they sit in the lower third and the world fills the frame
+      // (aiming straight at them left the bottom half of the screen as empty grass)
+      const aimUp = dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35);
+      this.camera.lookAt(this.lookAtPt.x, this.lookAtPt.y + aimUp, this.lookAtPt.z);
     }
     // bloom a little stronger at twilight, when the magic comes out
     const glowNow = this.park.atmosphere.glow;
-    if (this.bloom) this.bloom.strength = 0.4 + glowNow * 0.6;
+    if (this.bloom) this.bloom.strength = 0.28 + glowNow * 0.5;
     // lift the exposure at twilight so the world stays readable around the glow
     this.renderer.toneMappingExposure = 1.12 + glowNow * 0.55;
     if (this.composer) this.composer.render();
@@ -1267,10 +1284,10 @@ export class ParkWorld {
   }
 
   /** Hop on a mount (pony gallops, manta/dragon fly). Replaces any current mount. */
-  mountUp(kind: MountKind, accent?: string) {
+  mountUp(kind: MountKind, accent?: string, skin?: MountSkin) {
     if (!this.kid || this.ride) return;
     this.dismount(true);
-    const m = buildMount(kind, accent ?? this.opts.accent);
+    const m = buildMount(kind, accent ?? this.opts.accent, skin);
     m.root.traverse((o) => ((o as THREE.Mesh).isMesh && o.name !== "mount-shadow" && (o.castShadow = true)));
     this.mount = m;
     this.scene.add(m.root);
@@ -1309,6 +1326,11 @@ export class ParkWorld {
     const r = Math.hypot(this.kid.root.position.x, this.kid.root.position.z);
     if (r > PARK_RADIUS) this.kid.root.position.multiplyScalar(PARK_RADIUS / r);
     if (this.pet) this.pet.root.position.set(this.kid.root.position.x + 1.6, 0, this.kid.root.position.z + 1);
+  }
+
+  /** Which Star Shards this kid has already found (they vanish from the world). */
+  setShardsFound(ids: number[]) {
+    this.park?.quests3d.setFound(ids);
   }
 
   /** While flying: +1 climb, -1 dive, 0 hold. */
@@ -1379,6 +1401,38 @@ export class ParkWorld {
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
+}
+
+/** a glowing dark-glass badge with a gold ring (the park's markers: ❗ quests, 🎁 gift...) */
+function badgeSprite(emoji: string, size: number): THREE.Sprite {
+  const px = 128;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = px;
+  const c = cv.getContext("2d")!;
+  const glow = c.createRadialGradient(64, 64, 30, 64, 64, 64);
+  glow.addColorStop(0, "rgba(255,211,107,0.55)");
+  glow.addColorStop(1, "rgba(255,211,107,0)");
+  c.fillStyle = glow;
+  c.fillRect(0, 0, px, px);
+  c.beginPath();
+  c.arc(64, 64, 40, 0, Math.PI * 2);
+  const fill = c.createLinearGradient(0, 24, 0, 104);
+  fill.addColorStop(0, "#2c2766");
+  fill.addColorStop(1, "#12102c");
+  c.fillStyle = fill;
+  c.fill();
+  c.lineWidth = 5;
+  c.strokeStyle = "#ffd36b";
+  c.stroke();
+  c.font = "46px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.fillText(emoji, 64, 68);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true }));
+  s.scale.set(size, size, 1);
+  return s;
 }
 
 function turnTowards(a: Actor, dt: number) {

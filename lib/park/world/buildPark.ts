@@ -13,6 +13,8 @@ import { buildNature } from "./nature";
 import { TRAILS, ISLAND_R, nearStream, coastR } from "../registry/island";
 import { groundY, slopeAt } from "../registry/terrain";
 import { buildFantasyWorld, buildTerrainMesh } from "./fantasy";
+import { buildQuests3D, type Quests3D } from "./quests3d";
+import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
 
 export interface BuiltPark {
@@ -24,6 +26,8 @@ export interface BuiltPark {
   pathPoints: THREE.Vector3[];
   /** the terrain mesh (taps are raycast against it) */
   ground: THREE.Mesh;
+  /** Star Shards + Sky Rings (the engine drives them with the kid's position) */
+  quests3d: Quests3D;
   /** round things to walk around (hills) */
   obstacles: { x: number; z: number; r: number }[];
   /** the dreamy day <-> twilight sky; atmosphere.glow lights up the whole world */
@@ -87,18 +91,66 @@ function meadowTexture() {
   );
 }
 
+/** Old radial flagstones: rings of irregular stones, a gold star inlay, moss creeping in at the edge. */
 function plazaTexture() {
-  return canvasTexture(
-    128,
-    (c) => {
-      for (let y = 0; y < 8; y++)
-        for (let x = 0; x < 8; x++) {
-          c.fillStyle = (x + y) % 2 ? "#cdbfa6" : "#e4d9c4";
-          c.fillRect(x * 16, y * 16, 16, 16);
-        }
-    },
-    5,
-  );
+  const tex = canvasTexture(1024, (c) => {
+    const R = 512;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    c.fillStyle = "#6f6456";
+    c.fillRect(0, 0, 1024, 1024);
+    const rings = [0, 70, 150, 225, 300, 370, 435, 490, 512];
+    for (let k = 0; k < rings.length - 1; k++) {
+      const r0 = rings[k] + 3;
+      const r1 = rings[k + 1] - 3;
+      const n = Math.max(6, Math.round(((r0 + r1) * Math.PI) / 70));
+      const off = rnd() * 6.28;
+      for (let i = 0; i < n; i++) {
+        const a0 = off + (i / n) * Math.PI * 2 + 0.012;
+        const a1 = off + ((i + 1) / n) * Math.PI * 2 - 0.012;
+        const l = 62 + rnd() * 18;
+        const moss = Math.max(0, (k - 5) / 2.5) * rnd();
+        c.fillStyle = `hsl(${36 - moss * 40 + rnd() * 10}, ${14 + moss * 30}%, ${l - moss * 18}%)`;
+        c.beginPath();
+        c.arc(R, R, r1, a0, a1);
+        c.arc(R, R, Math.max(1, r0), a1, a0, true);
+        c.closePath();
+        c.fill();
+        // wear: a lighter top edge and a few cracks
+        c.strokeStyle = "rgba(255,248,230,0.18)";
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(R, R, r1 - 2, a0 + 0.01, a1 - 0.01);
+        c.stroke();
+      }
+    }
+    // gold star inlay round the fountain
+    c.save();
+    c.translate(R, R);
+    c.strokeStyle = "#caa24a";
+    c.lineWidth = 6;
+    c.beginPath();
+    for (let i = 0; i <= 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const r = i % 2 ? 265 : 330;
+      c.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    c.stroke();
+    c.beginPath();
+    c.arc(0, 0, 440, 0, Math.PI * 2);
+    c.stroke();
+    c.restore();
+    // moss and grass tufts creeping over the outer ring
+    for (let i = 0; i < 900; i++) {
+      const a = rnd() * 6.28;
+      const r = 440 + Math.pow(rnd(), 0.5) * 72;
+      c.fillStyle = `rgba(${70 + rnd() * 40},${110 + rnd() * 50},${50 + rnd() * 30},${0.35 + rnd() * 0.4})`;
+      c.beginPath();
+      c.arc(R + Math.cos(a) * r, R + Math.sin(a) * r, 2 + rnd() * 7, 0, 6.28);
+      c.fill();
+    }
+  });
+  return tex;
 }
 
 function blobTexture() {
@@ -150,13 +202,13 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
 
   // ── ground (the meadow island) + plaza; the beach and ocean ring it ──
   // (the ground itself is built further down, once the trails and places are known)
-  const plaza = new THREE.Mesh(track(new THREE.CylinderGeometry(8.5, 8.8, 0.25, 48)), track(new THREE.MeshToonMaterial({ map: track(plazaTexture()) })));
-  plaza.position.y = 0.12;
+  // top face only (a CircleGeometry): the cylinder's side and a torus rim made a hard, plastic edge
+  const plazaGeo = track(new THREE.CircleGeometry(9.2, 64));
+  plazaGeo.rotateX(-Math.PI / 2);
+  const plaza = new THREE.Mesh(plazaGeo, track(new THREE.MeshStandardMaterial({ map: track(plazaTexture()), roughness: 0.95 })));
+  plaza.position.y = 0.1;
+  plaza.receiveShadow = true;
   scene.add(plaza);
-  const rim = new THREE.Mesh(track(new THREE.TorusGeometry(8.7, 0.28, 8, 64)), toon("#9c8a6c"));
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = 0.26;
-  scene.add(rim);
 
   // each land gets its own softly-tinted ground
   const discGeo = track(new THREE.CircleGeometry(1, 40));
@@ -203,10 +255,20 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const blobMat = track(new THREE.MeshBasicMaterial({ map: track(blobTexture()), transparent: true, depthWrite: false }));
   const blobGeo = track(new THREE.PlaneGeometry(1, 1));
   const bobbers: { obj: THREE.Object3D; base: number; phase: number }[] = [];
+  const landmarks: Landmark[] = [];
   for (const p of PLACES) {
     const group = new THREE.Group();
     group.position.set(p.x, groundY(p.x, p.z), p.z);
     group.rotation.y = p.face ?? Math.atan2(-p.x, -p.z);
+    // hand-built landmarks for the most important places
+    const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : null;
+    if (special) {
+      landmarks.push(special);
+      disposables.push(special);
+      special.group.traverse((o) => (o.userData.placeId = p.id));
+      group.add(special.group);
+      tappables.push(special.group);
+    }
     for (const m of p.models) {
       const obj = await assets.spawn(m.kit as KitName, m.id);
       obj.traverse((o) => ((o as THREE.Mesh).isMesh && ((o.castShadow = true), (o.receiveShadow = true))));
@@ -224,8 +286,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       blob.position.y = 0.03;
       group.add(blob);
     }
-    const sign = labelSprite(`${p.emoji} ${p.label}`);
-    sign.scale.multiplyScalar(p.id === "gate" ? 1.3 : 0.9);
+    const sign = plateSprite(`${p.emoji} ${p.label}`, "#ffd36b", p.id === "gate" ? 1.5 : 1.05);
     sign.position.set(p.x, groundY(p.x, p.z) + p.signY, p.z);
     track(sign.material);
     if ((sign.material as THREE.SpriteMaterial).map) track((sign.material as THREE.SpriteMaterial).map!);
@@ -236,8 +297,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // land name banners floating over each land
   for (const land of LANDS) {
     if (land.id === "gate") continue;
-    const s = labelSprite(`${land.emoji} ${land.name}`);
-    s.scale.multiplyScalar(1.25);
+    const s = plateSprite(`${land.emoji} ${land.name}`, "#5ef2ff", 1.6);
     s.position.set(land.x, groundY(land.x, land.z) + 11, land.z);
     track(s.material);
     if ((s.material as THREE.SpriteMaterial).map) track((s.material as THREE.SpriteMaterial).map!);
@@ -246,10 +306,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   }
 
   // centrepiece fountain with a giant swirl lollipop
-  const fountain = await assets.spawn("town", "fountain-round-detail");
-  fountain.scale.setScalar(3.2);
-  fountain.position.y = 0.25;
-  scene.add(fountain);
+  // the Heart of the Island: a tiered fountain with a great floating crystal
+  const heart = buildHeartOfIsland();
+  heart.group.position.y = 0.25;
+  scene.add(heart.group);
+  landmarks.push(heart);
+  disposables.push(heart);
   const lolly = new THREE.Object3D(); // (the candy centrepiece is gone; the fountain stands alone)
 
   // ── themed land decor ──
@@ -293,11 +355,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     const a = (i / 6) * Math.PI * 2;
     benchMats.push(m4g(friends.x + Math.sin(a) * 7, 0, friends.z - 2 + Math.cos(a) * 6, 2.6, a + Math.PI));
   }
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
-    if (nearPath(Math.sin(a) * 10.5, Math.cos(a) * 10.5, 2)) continue;
-    benchMats.push(m4g(Math.sin(a) * 10.5, 0, Math.cos(a) * 10.5, 2.6, a + Math.PI));
-  }
+  // (no plastic benches ringing the plaza any more: the Heart of the Island stands in the open)
   scene.add(await assets.instanced("coaster", "bench", benchMats));
 
   // Ride Land: a giant windmill
@@ -374,6 +432,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     lowQuality: opts.lowQuality,
   });
   disposables.push(fantasy);
+  const quests3d = buildQuests3D(scene, fantasy.plan);
+  disposables.push(quests3d);
   const ground = buildTerrainMesh({ lowQuality: opts.lowQuality, mask: fantasy.mask, paths: true });
   ground.name = "terrain";
   ground.receiveShadow = true;
@@ -491,6 +551,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     obstacles: [...nature.obstacles, ...fantasy.obstacles],
+    quests3d,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
@@ -499,6 +560,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       skyLife.update(dt, t, atmosphere.glow);
       nature.update(dt, t, atmosphere.glow);
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
+      for (const l of landmarks) l.update(dt, t, atmosphere.glow);
       lolly.rotation.y += dt * 0.5;
       for (const b of bobbers) b.obj.position.y = b.base + Math.sin(t * 2 + b.phase) * 0.18;
       cloudBase.forEach((c, i) => {

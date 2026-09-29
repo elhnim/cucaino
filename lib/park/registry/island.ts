@@ -111,7 +111,7 @@ export const TRAILS: Trail[] = [
     return { id: `plaza-${k}`, pts: bendy(from, to, (k % 2 ? 1 : -1) * 7) };
   }),
   // plaza -> Quest Board
-  { id: "quest", pts: [[0, -8.3], [0, -13.5]] as P2[] },
+  { id: "quest", pts: [[-3.5, -7.5], [-5.6, -11.9]] as P2[] },
   // a short trail into every land
   ...LANDS.filter((l) => l.id !== "plaza").map((l) => {
     const start = nearestOnLoop(l.x, l.z);

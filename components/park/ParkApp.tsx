@@ -45,7 +45,8 @@ import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
 import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
 import { Ambience } from "@/lib/park/audio/ambience";
-import { MOUNTS, type MountKind } from "@/lib/park/characters/mounts";
+import { MOUNTS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/characters/mounts";
+import { SHARD_COUNT, RING_COUNT } from "@/lib/park/world/quests3d";
 import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wizards";
 import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
@@ -222,6 +223,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [menuOpen, setMenuOpen] = useState(false);
   // ── rides round the island: pick a pony, manta or dragon ──
   const [pickMount, setPickMount] = useState(false);
+  // ── exploration: Star Shards found (per device) + the Sky Rings course ──
+  const shardKey = `cucaino.shards.${kidId}`;
+  const [shards, setShards] = useState<number[]>([]);
+  const [skin, setSkin] = useState<MountSkin>("classic");
+  const [ringRun, setRingRun] = useState<{ passed: number; t0: number } | null>(null);
+  const shardRef = useRef<(id: number) => void>(() => {});
+  const ringRef = useRef<(passed: number, lap?: number) => void>(() => {});
   const [riding, setRiding] = useState<{ kind: MountKind; flying: boolean; landing: boolean } | null>(null);
 
   // ── plays cost a ticket (earned from quests); every game's first play each day is free ──
@@ -535,9 +543,20 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           onFetchCatch: () => fetchCatchRef.current(),
           treasures: { spots: treasures.current, found },
           onTreasure: (id) => treasureRef.current(id),
+          onShard: (id) => shardRef.current(id),
+          onRing: (passed, lap) => ringRef.current(passed, lap),
           onError: () => !disposed && setBootError(true),
           onReady: () => {
             setReady(true);
+            try {
+              const saved = JSON.parse(window.localStorage.getItem(`cucaino.shards.${kidId}`) ?? "[]") as number[];
+              if (Array.isArray(saved)) {
+                setShards(saved);
+                world?.setShardsFound(saved);
+              }
+              const sk = window.localStorage.getItem(`cucaino.mountskin.${kidId}`) as MountSkin | null;
+              if (sk) setSkin(sk);
+            } catch {}
             getDreamPark(kidId)
               .then((p) => {
                 if (!p || disposed) return;
@@ -603,7 +622,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     }
     const left = data.tasksToday.total - done;
     // chores first: a friendly nudge that walks you straight to the Quest Board
-    if (left > 0) window.setTimeout(() => setQuestNudge(true), 4200);
+    if (left > 0) {
+      window.setTimeout(() => setQuestNudge(true), 4200);
+      window.setTimeout(() => setQuestNudge(false), 16000);
+    }
     const lines = [
       streak >= 2 ? `Welcome back ${data.kid.name}! 🔥 ${streak} days in a row` : `Hi ${data.kid.name}! Welcome to Cucaino Park 🍭`,
       left > 0 ? `${left} quest${left === 1 ? "" : "s"} waiting on the Quest Board 📋` : giftReady ? "Your daily gift is on the plaza 🎁" : "",
@@ -730,9 +752,37 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     }, 200);
     return () => window.clearInterval(id);
   }, [ready]);
+  shardRef.current = (id: number) => {
+    setShards((cur) => {
+      if (cur.includes(id)) return cur;
+      const next = [...cur, id];
+      try {
+        window.localStorage.setItem(shardKey, JSON.stringify(next));
+      } catch {}
+      playSfx("win");
+      const unlocked = MOUNT_SKINS.find((s) => s.shards === next.length && s.shards > 0);
+      toast(unlocked ? `✦ Star Shard ${next.length}/${SHARD_COUNT}! You unlocked the ${unlocked.name} mount colours!` : `✦ Star Shard ${next.length}/${SHARD_COUNT} found!`);
+      return next;
+    });
+  };
+  ringRef.current = (passed: number, lap?: number) => {
+    playSfx(lap !== undefined ? "win" : "sparkle");
+    if (lap !== undefined) {
+      setRingRun(null);
+      const key = `cucaino.rings.best.${kidId}`;
+      let best = Infinity;
+      try {
+        best = Number(window.localStorage.getItem(key) ?? Infinity);
+        if (lap < best) window.localStorage.setItem(key, String(lap));
+      } catch {}
+      const secs = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+      toast(lap < best ? `🏆 Sky Rings in ${secs(lap)} — a new best!` : `🏁 Sky Rings in ${secs(lap)} (best ${secs(best)})`);
+      worldRef.current?.fireworks(4);
+    } else setRingRun((r) => ({ passed, t0: passed === 1 ? performance.now() : r?.t0 ?? performance.now() }));
+  };
   const hopOn = (kind: MountKind) => {
     setPickMount(false);
-    worldRef.current?.mountUp(kind, theme.accent);
+    worldRef.current?.mountUp(kind, theme.accent, skin);
     playSfx("sparkle");
     const m = MOUNTS.find((x) => x.kind === kind)!;
     toast(m.flies ? `${m.emoji} Up we go! Hold ▲ to fly higher, ▼ to swoop down` : `${m.emoji} Giddy-up! Off we gallop`);
@@ -969,6 +1019,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               { e: "🔨", t: "Build my Dream Park", on: () => enterBuild() },
               { e: "📖", t: `Book of Wisdom · ${Object.keys(wisdom).length}`, on: () => setShowBook(true) },
               { e: "🗺️", t: `Sticker album · ${foundToday.length}/${TREASURES_PER_DAY} today`, on: () => setShowAlbum(true) },
+              { e: "✦", t: `Star Shards · ${shards.length}/${SHARD_COUNT}`, on: () => toast(shards.length >= SHARD_COUNT ? "✦ You found every Star Shard — a true explorer!" : "✦ Star Shards hide on peaks, sky islands, ruins, ancient trees, crystals and coves. Fly to reach the high ones!") },
               { e: "🔄", t: "Switch player", on: () => router.push("/select-kid") },
             ].map((it) => (
               <button
@@ -1008,21 +1059,25 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           sub={chestReady ? "A reward is waiting ✨" : data.tasksToday.total === 0 ? "No quests today" : questsLeft > 0 ? `${questsLeft} to do · ⭐ + 🎟️` : `${done}/${data.tasksToday.total} finished`}
         />
       )}
-      {questNudge && !busy && !ask && (
-        <PromptCard
-          icon="📜"
-          title={`${questsLeft} quest${questsLeft === 1 ? "" : "s"} to do today!`}
-          hint="Finish them to earn ⭐ stars and 🎟️ tickets for the park"
-          no="Later"
-          yes="Take me there! →"
-          onNo={() => setQuestNudge(false)}
-          onYes={() => {
-            setQuestNudge(false);
-            const p = worldRef.current?.getPose();
-            const qb = getPlace("quest-board");
-            if (p && qb) worldRef.current?.walkKidPath(routeToSpot(p, qb.x, qb.z + 4));
-          }}
-        />
+      {questNudge && !busy && !ask && !building && (
+        // a slim one-line hint above the quest button (a big card here hid half the world on phones)
+        <div style={nudgePill}>
+          <button
+            type="button"
+            style={nudgeGo}
+            onClick={() => {
+              setQuestNudge(false);
+              const p = worldRef.current?.getPose();
+              const qb = getPlace("quest-board");
+              if (p && qb) worldRef.current?.walkKidPath(routeToSpot(p, qb.x, qb.z + 4));
+            }}
+          >
+            📜 Walk me to the Quest Board
+          </button>
+          <button type="button" aria-label="Not now" style={nudgeX} onClick={() => setQuestNudge(false)}>
+            ✕
+          </button>
+        </div>
       )}
       {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
@@ -1063,6 +1118,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           </RoundButton>
         </div>
       )}
+      {ringRun && riding?.flying && (
+        <div style={{ position: "fixed", top: "calc(max(14px, env(safe-area-inset-top)) + 64px)", left: "50%", transform: "translateX(-50%)", zIndex: 22, pointerEvents: "none", padding: "8px 14px", borderRadius: 14, background: "rgba(18,16,44,0.78)", border: `1px solid ${alpha(C.cyan, 0.5)}`, color: "#fff", fontWeight: 900, fontSize: 15 }}>
+          ◎ Sky Rings {ringRun.passed}/{RING_COUNT}
+        </div>
+      )}
       {pickMount && (
         <GameDialog onDismiss={() => setPickMount(false)} edge="cyan">
           <div style={display(24)}>Choose your mount</div>
@@ -1084,6 +1144,30 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                 </span>
               </button>
             ))}
+          </div>
+          <div style={{ width: "100%" }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: C.dim, letterSpacing: 1, marginBottom: 6 }}>COLOURS · ✦ {shards.length}/{SHARD_COUNT} STAR SHARDS</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {MOUNT_SKINS.map((s) => {
+                const open = shards.length >= s.shards;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    disabled={!open}
+                    onClick={() => {
+                      setSkin(s.id);
+                      try {
+                        window.localStorage.setItem(`cucaino.mountskin.${kidId}`, s.id);
+                      } catch {}
+                    }}
+                    style={{ flex: "1 1 70px", minHeight: 40, borderRadius: 10, border: `1px solid ${skin === s.id ? C.gold : alpha(C.cyan, 0.3)}`, background: skin === s.id ? alpha(C.gold, 0.2) : alpha("#000000", 0.25), color: open ? "#fff" : C.dim, fontWeight: 900, fontSize: 12, cursor: open ? "pointer" : "default" }}
+                  >
+                    {open ? s.name : `🔒 ${s.shards}✦`}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <GameButton variant="secondary" small onClick={() => setPickMount(false)}>
             Maybe later
@@ -1448,10 +1532,28 @@ const menuItem: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const toastStack: React.CSSProperties = {
+const nudgePill: React.CSSProperties = {
   position: "fixed",
-  top: "58%",
-  left: 16,
+  left: "max(16px, env(safe-area-inset-left))",
+  // above the joystick's reach (it sits bottom-right and is ~150px tall)
+  bottom: "calc(max(20px, env(safe-area-inset-bottom)) + 160px)",
+  zIndex: 22,
+  display: "flex",
+  alignItems: "stretch",
+  borderRadius: 999,
+  overflow: "hidden",
+  border: `1px solid ${alpha(C.gold, 0.6)}`,
+  background: "rgba(18,16,44,0.82)",
+  boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+};
+const nudgeGo: React.CSSProperties = { background: "none", border: 0, color: "#fff", fontWeight: 900, fontSize: 14, padding: "10px 12px 10px 14px", cursor: "pointer", fontFamily: "inherit" };
+const nudgeX: React.CSSProperties = { background: "rgba(255,255,255,0.08)", border: 0, color: C.dim, fontWeight: 900, fontSize: 13, padding: "0 12px", cursor: "pointer", minWidth: 40 };
+
+const toastStack: React.CSSProperties = {
+  // up top, beside the mini map and under the wallet: mid-screen they sat right on the kid
+  position: "fixed",
+  top: "calc(max(14px, env(safe-area-inset-top)) + 58px)",
+  left: "min(128px, 30vw)",
   right: 16,
   display: "flex",
   flexDirection: "column",

@@ -184,7 +184,7 @@ export function MiniMap({ world, hidden, pins = [] }: { world: React.RefObject<P
         style={miniBtn}
         aria-label="Open the park map"
       >
-        <MapSvg pose={pose} size={128} pins={pins} />
+        <MapSvg pose={pose} size={typeof window !== "undefined" && window.innerWidth < 520 ? 96 : 128} pins={pins} />
         <span style={hereTag}>{here ? `${here.emoji} ${here.name}` : "🍭 Park trails"}</span>
       </button>
       {big && (

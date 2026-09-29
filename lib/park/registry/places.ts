@@ -90,19 +90,14 @@ export const PLACES: PlaceDef[] = [
     label: "Quest Board",
     emoji: "📋",
     land: "plaza",
-    x: 0,
-    z: -17,
+    // off the fountain's axis, so the crystal never hides it from the plaza's south side
+    x: -6.8,
+    z: -14.6,
     radius: 2.6,
     doorRadius: 5,
     action: "quests",
     signY: 6.2,
-    models: [
-      { kit: "town", id: "stall-red", scale: 3.4 },
-      { kit: "town", id: "banner-red", scale: 3, offset: [-2.2, 0.6] },
-      { kit: "town", id: "banner-green", scale: 3, offset: [2.2, 0.6] },
-      { kit: "holiday", id: "present-a-cube", scale: 2, offset: [-2.6, 2.2] },
-      { kit: "holiday", id: "present-b-rectangle", scale: 2, offset: [2.7, 2] },
-    ],
+    models: [], // hand-built in lib/park/world/landmarks.ts
   },
   {
     id: "daily-gift",
@@ -115,10 +110,7 @@ export const PLACES: PlaceDef[] = [
     doorRadius: 2.4,
     action: "gift",
     signY: 3.4,
-    models: [
-      { kit: "holiday", id: "present-a-round", scale: 2.6 },
-      { kit: "holiday", id: "present-b-cube", scale: 1.8, offset: [1, 0.6] },
-    ],
+    models: [], // hand-built in lib/park/world/landmarks.ts
   },
 
   // ── Pet Meadow ──

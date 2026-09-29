@@ -12,6 +12,20 @@ export const MOUNTS: { kind: MountKind; name: string; emoji: string; flies: bool
   { kind: "dragon", name: "Cloud Dragon", emoji: "🐉", flies: true, blurb: "Flaps high over everything!" },
 ];
 
+/** colour skins unlocked with Star Shards (10 / 20 / 30) */
+export type MountSkin = "classic" | "aurora" | "golden" | "starlight";
+export const MOUNT_SKINS: { id: MountSkin; name: string; shards: number }[] = [
+  { id: "classic", name: "Classic", shards: 0 },
+  { id: "aurora", name: "Aurora", shards: 10 },
+  { id: "golden", name: "Golden", shards: 20 },
+  { id: "starlight", name: "Starlight", shards: 30 },
+];
+const SKIN_COLORS: Record<MountKind, Record<MountSkin, string>> = {
+  pony: { classic: "#fff4fb", aurora: "#b8f4ff", golden: "#ffe08a", starlight: "#d6c6ff" },
+  manta: { classic: "#6a5ab8", aurora: "#2fb8c8", golden: "#c9962e", starlight: "#2a2a6a" },
+  dragon: { classic: "#8fe0c8", aurora: "#8fb8ff", golden: "#f0c040", starlight: "#9a7ae8" },
+};
+
 export interface MountRig {
   kind: MountKind;
   flies: boolean;
@@ -25,7 +39,8 @@ export interface MountRig {
   dispose(): void;
 }
 
-export function buildMount(kind: MountKind, accent = "#ff5fa8"): MountRig {
+export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin = "classic"): MountRig {
+  const main = SKIN_COLORS[kind][skin] ?? SKIN_COLORS[kind].classic;
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(d: T) => (disposables.push(d), d);
   const ramp = getToonRamp();
@@ -80,7 +95,7 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8"): MountRig {
 
   if (kind === "pony") {
     // a fluffy pastel unicorn pony with a rainbow mane and a glowing horn
-    const coat = toon("#fff4fb");
+    const coat = toon(main);
     const torso = mesh(new THREE.CapsuleGeometry(0.62, 1.1, 6, 14), coat);
     torso.rotation.x = Math.PI / 2;
     torso.position.y = 1.15;
@@ -146,7 +161,7 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8"): MountRig {
     };
   } else if (kind === "manta") {
     // a big friendly manta ray with glowing spots, gently flapping
-    const top = toon("#6a5ab8");
+    const top = toon(main);
     const belly = toon("#e8e0ff");
     const core = mesh(new THREE.SphereGeometry(1, 20, 12), top);
     core.scale.set(1.1, 0.35, 1.3);
@@ -205,7 +220,7 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8"): MountRig {
     };
   } else {
     // a small round cloud dragon with bat wings, little horns and a curly tail
-    const scale = toon("#8fe0c8");
+    const scale = toon(main);
     const tummy = toon("#fff3c8");
     const torso = mesh(new THREE.SphereGeometry(0.85, 18, 14), scale);
     torso.scale.set(1, 0.9, 1.25);
