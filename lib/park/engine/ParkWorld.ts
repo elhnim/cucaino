@@ -179,6 +179,7 @@ export class ParkWorld {
     this.renderer.toneMapping = THREE.NoToneMapping;
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.touchAction = "none";
+    Object.assign(this.renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%", display: "block" });
     this.assets = new ParkAssets({ ...DEFAULT_CANDY, neutralHue: THEME_CANDY_HUE[opts.themeId ?? ""] ?? DEFAULT_CANDY.neutralHue });
     this.camera.position.set(SPAWN.x, 0, SPAWN.z).add(CAM_OFFSET);
     this.camera.lookAt(SPAWN.x, 1, SPAWN.z);
@@ -755,7 +756,7 @@ export class ParkWorld {
     // portrait phones: widen the view so the plaza still fits
     this.camera.fov = this.camera.aspect < 0.8 ? 58 : 42;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setSize(w, h, false); // CSS keeps it at 100% x 100%
   }
 
   private start() {

@@ -357,7 +357,7 @@ function MapSvg({
 
 const miniBtn: React.CSSProperties = {
   position: "fixed",
-  top: "calc(max(14px, env(safe-area-inset-top)) + 58px)",
+  top: "calc(max(14px, env(safe-area-inset-top)) + 70px)",
   left: "max(14px, env(safe-area-inset-left))",
   zIndex: 20,
   padding: 4,

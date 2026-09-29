@@ -320,22 +320,22 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── scattered candy decor: lighter everywhere, dense in the Sweet Forest ──
   type Kind = { kit: KitName; id: string; count: number; s: [number, number]; minR: number; maxR: number; pad: number; land?: string };
   const KINDS: Kind[] = [
-    { kit: "food", id: "lollypop", count: 51, s: [9, 13], minR: 15, maxR: 139, pad: 2.5 },
+    { kit: "food", id: "lollypop", count: 18, s: [9, 13], minR: 30, maxR: 139, pad: 2.5 },
     { kit: "nature", id: "tree_default", count: 51, s: [2.6, 3.6], minR: 18, maxR: 146, pad: 2.5 },
     { kit: "nature", id: "tree_oak", count: 44, s: [2.8, 3.8], minR: 18, maxR: 146, pad: 2.5 },
     { kit: "nature", id: "tree_fat", count: 41, s: [2.8, 3.6], minR: 20, maxR: 146, pad: 2.5 },
     { kit: "nature", id: "tree_cone", count: 34, s: [2.6, 3.4], minR: 24, maxR: 146, pad: 2.5 },
-    { kit: "food", id: "cupcake", count: 17, s: [4, 6], minR: 13, maxR: 102, pad: 3 },
-    { kit: "food", id: "donut-sprinkles", count: 20, s: [8, 11], minR: 13, maxR: 117, pad: 3 },
-    { kit: "food", id: "ice-cream", count: 15, s: [5, 7], minR: 15, maxR: 117, pad: 2.5 },
-    { kit: "food", id: "popsicle", count: 17, s: [6, 8], minR: 15, maxR: 117, pad: 2 },
-    { kit: "food", id: "sundae", count: 10, s: [5, 6], minR: 18, maxR: 102, pad: 2 },
+    { kit: "food", id: "cupcake", count: 8, s: [4, 6], minR: 30, maxR: 102, pad: 3 },
+    { kit: "food", id: "donut-sprinkles", count: 9, s: [8, 11], minR: 30, maxR: 117, pad: 3 },
+    { kit: "food", id: "ice-cream", count: 7, s: [5, 7], minR: 30, maxR: 117, pad: 2.5 },
+    { kit: "food", id: "popsicle", count: 7, s: [6, 8], minR: 30, maxR: 117, pad: 2 },
+    { kit: "food", id: "sundae", count: 5, s: [5, 6], minR: 30, maxR: 102, pad: 2 },
     { kit: "nature", id: "mushroom_redGroup", count: 46, s: [3.5, 5], minR: 11, maxR: 131, pad: 1.4 },
     { kit: "nature", id: "plant_bush", count: 70, s: [3.5, 5], minR: 11, maxR: 139, pad: 1.4 },
     { kit: "nature", id: "flower_purpleA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
     { kit: "nature", id: "flower_redA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
     { kit: "nature", id: "flower_yellowA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
-    { kit: "holiday", id: "present-a-cube", count: 20, s: [1.6, 2.4], minR: 11, maxR: 88, pad: 1.4 },
+    { kit: "holiday", id: "present-a-cube", count: 8, s: [1.6, 2.4], minR: 24, maxR: 88, pad: 1.4 },
     // Sweet Forest: thick with candy trees, mushrooms and lollipops
     { kit: "nature", id: "tree_default", count: 20, s: [2.8, 3.8], minR: 0, maxR: 1, pad: 3.2, land: "forest" },
     { kit: "nature", id: "tree_fat", count: 14, s: [2.8, 3.6], minR: 0, maxR: 1, pad: 3.2, land: "forest" },
@@ -411,8 +411,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── magical glowing plants: a dense Glow Forest of giant dream trees, and glowing flowers everywhere ──
   const glowFlora = buildGlowFlora(scene, {
     forest: { x: forestLand.x + 4, z: forestLand.z + 6, radius: forestLand.radius + 12, count: opts.lowQuality ? 120 : 190 },
-    park: { x: 0, z: 0, radius: ISLAND_R - 6, count: opts.lowQuality ? 180 : 300 },
-    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 3 && Math.hypot(x, z) > 11 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearHill(x, z, pad),
+    park: { x: 0, z: 0, radius: ISLAND_R - 6, count: opts.lowQuality ? 150 : 240 },
+    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 3 && Math.hypot(x, z) > 24 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearHill(x, z, pad),
     lowQuality: opts.lowQuality,
     lights: lanternMats.map((mx) => {
       const p = new THREE.Vector3().setFromMatrixPosition(mx);

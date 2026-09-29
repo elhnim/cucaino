@@ -212,6 +212,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // walking up to a building asks first ("Go into the Prize Shop?") instead of popping it open
   const [ask, setAsk] = useState<PlaceDef | null>(null);
   const [questNudge, setQuestNudge] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   // ── rides round the island: pick a pony, manta or dragon ──
   const [pickMount, setPickMount] = useState(false);
   const [riding, setRiding] = useState<{ kind: MountKind; flying: boolean; landing: boolean } | null>(null);
@@ -920,42 +921,57 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   return (
     <div style={{ position: "fixed", inset: 0, height: "100lvh", overflow: "hidden", background: golf ? "#a6e8bd" : "#ffe3f1" }} className="font-fun">
       <style>{css}</style>
-      <GameFullscreen />
+      {/* keeps KidShell chrome hidden; its ⤡ toggle isn't needed in the park (and iPhone can't go full screen) */}
+      <GameFullscreen className="hidden" />
       <div ref={hostRef} style={{ position: "absolute", inset: 0, touchAction: "none" }} />
 
-      {/* top HUD */}
+      {/* top HUD: one "Me" menu button (left) and one wallet pill (right) — nothing else up here */}
       <div style={{ ...hudTop, display: building || coaster || golf ? "none" : "flex" }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button style={pill} onClick={() => router.push("/select-kid")} aria-label="Switch profile">
-            🔄
-          </button>
-          <button style={pill} onClick={() => openPanel("dressup")} aria-label="Choose your animal">
-            {animal?.emoji ?? "🐾"} Me
-          </button>
-          <button style={pill} onClick={enterBuild} aria-label="Build my Dream Park">
-            🔨 Build
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <Chip emoji="⭐" value={`${points}`} />
-          <Chip emoji="📋" value={`${done}/${data.tasksToday.total}`} />
-          {dream && <Chip emoji="🎟️" value={`${dream.tickets}`} />}
-          <button style={{ ...chip, border: "none", cursor: "pointer", pointerEvents: "auto" }} onClick={() => setShowBook(true)} aria-label="Book of Wisdom">
-            <span style={{ fontSize: 20 }}>📖</span>
-            <span style={{ fontWeight: 900, color: "#7a2e62" }}>{Object.keys(wisdom).length}</span>
-          </button>
-          <button style={{ ...chip, border: "none", cursor: "pointer", pointerEvents: "auto" }} onClick={() => setShowAlbum(true)} aria-label="Sticker album">
-            <span style={{ fontSize: 20 }}>🗺️</span>
-            <span style={{ fontWeight: 900, color: "#7a2e62" }}>
-              {foundToday.length}/{TREASURES_PER_DAY}
-            </span>
-          </button>
-          {Math.max(streak, data.kid.currentStreak) >= 2 && <Chip emoji="🔥" value={`${Math.max(streak, data.kid.currentStreak)}`} />}
+        <button style={meBtn} onClick={() => setMenuOpen((m) => !m)} aria-label="Open my menu">
+          <span style={{ fontSize: 30, lineHeight: 1 }}>{animal?.emoji ?? "🐾"}</span>
+        </button>
+        <div style={wallet}>
+          <span>⭐ {points}</span>
+          <span style={{ opacity: 0.35 }}>·</span>
+          <span>🎟️ {dream?.tickets ?? 0}</span>
+          {Math.max(streak, data.kid.currentStreak) >= 2 && (
+            <>
+              <span style={{ opacity: 0.35 }}>·</span>
+              <span>🔥 {Math.max(streak, data.kid.currentStreak)}</span>
+            </>
+          )}
         </div>
       </div>
+      {menuOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 40 }} onClick={() => setMenuOpen(false)}>
+          <div style={menuCard} onClick={(e) => e.stopPropagation()}>
+            {[
+              { e: animal?.emoji ?? "🐾", t: "Dress up my animal", on: () => openPanel("dressup") },
+              { e: "🔨", t: "Build my Dream Park", on: () => enterBuild() },
+              { e: "📖", t: `Book of Wisdom · ${Object.keys(wisdom).length}`, on: () => setShowBook(true) },
+              { e: "🗺️", t: `Sticker album · ${foundToday.length}/${TREASURES_PER_DAY} today`, on: () => setShowAlbum(true) },
+              { e: "🔄", t: "Switch player", on: () => router.push("/select-kid") },
+            ].map((it) => (
+              <button
+                key={it.t}
+                type="button"
+                style={menuItem}
+                onClick={() => {
+                  setMenuOpen(false);
+                  playSfx("tap");
+                  it.on();
+                }}
+              >
+                <span style={{ fontSize: 22, width: 30, textAlign: "center" }}>{it.e}</span>
+                <span>{it.t}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={toastStack}>
-        {toasts.map((t) => (
+        {toasts.slice(-1).map((t) => (
           <div key={t.id} style={toastStyle}>
             {t.text}
           </div>
@@ -987,13 +1003,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {questNudge && !busy && !ask && (
         <div style={askCard}>
           <div style={{ fontSize: 38, lineHeight: 1 }}>📋</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: "1 1 190px", minWidth: 0 }}>
             <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>
               {questsLeft} quest{questsLeft === 1 ? "" : "s"} to do today!
             </div>
             <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>Finish them to earn ⭐ stars and 🎟️ tickets for the park</div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
             <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setQuestNudge(false)}>
               Later
             </button>
@@ -1072,20 +1088,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           </div>
         </div>
       )}
-      {ready && !busy && !building && (
-        <div style={turnBar}>
-          <button style={turnBtn} onClick={() => worldRef.current?.rotateView(Math.PI / 4)} aria-label="Turn view left">⟲</button>
-          <button style={turnBtn} onClick={() => worldRef.current?.rotateView(-Math.PI / 4)} aria-label="Turn view right">⟳</button>
-        </div>
-      )}
       {ask && !busy && (
         <div style={askCard}>
           <div style={{ fontSize: 38, lineHeight: 1 }}>{ask.emoji}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: "1 1 190px", minWidth: 0 }}>
             <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>{(ASK_TEXT[ask.action]?.q ?? ((l: string) => `Visit ${l}?`))(ask.label)}</div>
             <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{ASK_HINT[ask.action] ?? ""}</div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
             <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setAsk(null)}>
               Not now
             </button>
@@ -1382,15 +1392,6 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   );
 }
 
-function Chip({ emoji, value }: { emoji: string; value: string }) {
-  return (
-    <div style={chip}>
-      <span style={{ fontSize: 20 }}>{emoji}</span>
-      <span style={{ fontWeight: 900, color: "#7a2e62" }}>{value}</span>
-    </div>
-  );
-}
-
 const css =
   "@keyframes park-bounce { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-18px) rotate(4deg); } }" +
   "@keyframes park-pop { 0% { transform: translateY(-10px) scale(0.85); opacity: 0; } 10% { transform: none; opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }" +
@@ -1424,19 +1425,66 @@ const pill: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const chip: React.CSSProperties = {
+const meBtn: React.CSSProperties = {
+  pointerEvents: "auto",
+  width: 58,
+  height: 58,
+  borderRadius: 999,
+  border: "none",
   display: "flex",
   alignItems: "center",
-  gap: 6,
+  justifyContent: "center",
+  background: "linear-gradient(#ffffff, #ffe6f2)",
+  boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.18)",
+  cursor: "pointer",
+};
+const wallet: React.CSSProperties = {
+  pointerEvents: "none",
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
   borderRadius: 999,
-  padding: "7px 14px",
+  padding: "9px 14px",
+  fontWeight: 900,
+  fontSize: 16,
+  color: "#7a2e62",
   background: "linear-gradient(#ffffff, #fff0f8)",
   boxShadow: "0 4px 0 #ffb8d9, 0 8px 16px rgba(122,46,98,0.16)",
+  whiteSpace: "nowrap",
 };
+const menuCard: React.CSSProperties = {
+  position: "fixed",
+  top: "calc(max(14px, env(safe-area-inset-top)) + 66px)",
+  left: "max(14px, env(safe-area-inset-left))",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+  padding: 10,
+  borderRadius: 24,
+  background: "linear-gradient(#fff8fc, #ffeaf5)",
+  boxShadow: "0 6px 0 #f3b6d6, 0 16px 30px rgba(122,46,98,0.25)",
+  minWidth: 240,
+};
+const menuItem: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "11px 12px",
+  border: "none",
+  borderRadius: 16,
+  background: "#ffffff",
+  fontWeight: 900,
+  fontSize: 15,
+  color: "#5a2350",
+  textAlign: "left",
+  cursor: "pointer",
+  boxShadow: "0 2px 0 #f6d3e6",
+};
+
 
 const toastStack: React.CSSProperties = {
   position: "fixed",
-  top: "18%",
+  top: "58%",
   left: 16,
   right: 16,
   display: "flex",
@@ -1448,12 +1496,12 @@ const toastStack: React.CSSProperties = {
 };
 
 const toastStyle: React.CSSProperties = {
-  maxWidth: 520,
+  maxWidth: "min(420px, 86vw)",
   textAlign: "center",
   borderRadius: 22,
-  padding: "11px 20px",
+  padding: "10px 18px",
   fontWeight: 900,
-  fontSize: 17,
+  fontSize: 16,
   color: "#7a2e62",
   background: "linear-gradient(#ffffff, #ffeaf5)",
   boxShadow: "0 5px 0 #ffb8d9, 0 10px 22px rgba(122,46,98,0.2)",
@@ -1572,7 +1620,7 @@ const payCard: React.CSSProperties = {
 const questBtn: React.CSSProperties = {
   position: "fixed",
   left: "max(16px, env(safe-area-inset-left))",
-  bottom: "calc(max(22px, env(safe-area-inset-bottom)) + 70px)",
+  bottom: "max(22px, env(safe-area-inset-bottom))",
   zIndex: 21,
   display: "flex",
   alignItems: "center",
@@ -1585,14 +1633,6 @@ const questBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const turnBar: React.CSSProperties = {
-  position: "fixed",
-  left: "max(16px, env(safe-area-inset-left))",
-  bottom: "max(22px, env(safe-area-inset-bottom))",
-  zIndex: 20,
-  display: "flex",
-  gap: 10,
-};
 
 const rideBar: React.CSSProperties = {
   position: "fixed",
