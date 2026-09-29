@@ -32,6 +32,12 @@ export interface EyeOpts {
   places?: [Place, Place];
   /** white ball behind the iris (stalk eyes) */
   ball?: string;
+  /** iris colour (default: the dark chibi eye) and what it glows at night */
+  iris?: string;
+  irisGlow?: string;
+  irisGlowStrength?: number;
+  /** a slit pupil in this colour over the iris (dragon eyes) */
+  pupil?: string;
 }
 
 /** Big glossy chibi eyes (+ the closed "u u" / happy "^ ^" arcs). */
@@ -39,7 +45,7 @@ export function eyes(k: Kit, o: EyeOpts = {}) {
   const x = o.x ?? 0.12, y = o.y ?? -0.025, size = o.size ?? 1;
   const [sw, sh] = o.shape ?? [1, 1];
   const surf = o.on ?? k.headE;
-  const iris = k.glow(EYE, "#8f6bff", 0.45);
+  const iris = k.glow(o.iris ?? EYE, o.irisGlow ?? "#8f6bff", o.irisGlowStrength ?? 0.45);
   const sparkle = k.basic(WHITE);
   const places: [Place, Place] = o.places ?? [surf.front(x, y, o.lift ?? 0), surf.front(-x, y, o.lift ?? 0)];
   k.eyePlaces = places;
@@ -52,6 +58,7 @@ export function eyes(k: Kit, o: EyeOpts = {}) {
     const closed = k.joint(s > 0 ? "closedL" : "closedR", k.head, pl.pv, [e.x, e.y, e.z]);
     if (o.ball) k.add(eye, o.ball, ell([0.07 * size, 0.075 * size, 0.06 * size], { p: [0, 0, -0.035 * size] }, [12, 9]));
     k.add(eye, iris, ell([0.056 * size * sw, 0.07 * size * sh, 0.03 * size], {}, [12, 9]));
+    if (o.pupil) k.add(eye, o.pupil, ell([0.02 * size * sw, 0.052 * size * sh, 0.012 * size], { p: [0, -0.004 * size, 0.022 * size] }, [8, 7]));
     // two sparkles, same light direction on both eyes (upper-left as you look at them)
     k.add(eye, sparkle,
       ell([0.022 * size, 0.024 * size, 0.012 * size], { p: [-0.019 * size * sw, 0.024 * size * sh, 0.024 * size] }, [8, 6]),

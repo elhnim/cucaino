@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       }
       case "mystery": {
         if (step === "new" || !step) {
-          const c = await runMysteryNew(coerceMysteryDifficulty(body.difficulty), trace);
+          const c = await runMysteryNew(coerceMysteryDifficulty(body.difficulty), trace, Array.isArray(body.avoid) ? body.avoid.map((a) => String(a).slice(0, 80)).slice(0, 12) : []);
           parsed = c;
           extras.publicView = publicCase(c);
           break;

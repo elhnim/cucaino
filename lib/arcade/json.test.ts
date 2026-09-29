@@ -57,3 +57,13 @@ describe("clean helpers", () => {
     expect(sanitizeKidText(undefined)).toBe("");
   });
 });
+
+describe("repairBrackets (via extractJsonObject)", () => {
+  it("mends an array the model forgot to close", () => {
+    const j = extractJsonObject('```json\n{"paragraphs":["One.","Two.","Moral line."}\n```');
+    expect(j).toEqual({ paragraphs: ["One.", "Two.", "Moral line."] });
+  });
+  it("leaves brackets inside strings alone", () => {
+    expect(extractJsonObject('{"a":["x ] y","z"}')).toEqual({ a: ["x ] y", "z"] });
+  });
+});

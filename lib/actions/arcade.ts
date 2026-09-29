@@ -404,11 +404,12 @@ async function openMystery(kidId: string | null | undefined, token: string): Pro
   return { state, secret };
 }
 
-export async function startMystery(kidId: string | null, difficulty: string): Promise<ArcadeResult<MysteryStart>> {
+export async function startMystery(kidId: string | null, difficulty: string, recent?: string[]): Promise<ArcadeResult<MysteryStart>> {
   try {
     const secret = secretOrFail();
     const id = await requireSparks(kidId, MYSTERY_SPARK_COST);
-    const caseFile = await runMysteryNew(coerceMysteryDifficulty(difficulty));
+    const avoid = (Array.isArray(recent) ? recent : []).map((r) => sanitizeKidText(r, 80)).filter(Boolean).slice(0, 12);
+    const caseFile = await runMysteryNew(coerceMysteryDifficulty(difficulty), undefined, avoid);
     const state = newMysteryState(newId(), id, caseFile);
     const sparks = await chargeSparks(id, MYSTERY_SPARK_COST);
     return { ok: true, data: { ...sealMystery(state, secret), case: publicCase(caseFile) }, sparks };

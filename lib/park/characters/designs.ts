@@ -3,7 +3,7 @@
 // (head centre ≈ (0, 0.29, 0.01)), body-group space for body parts (body centre (0, 0.11, 0)).
 import * as THREE from "three";
 import type { AnimalId } from "@/lib/park/assets/loader";
-import { arms, bandY, bandZ, belly, bodyShell, earPair, eyes, face, headShell, legs, mouth, blush, tailJoint, type ArmOpts, type LegOpts } from "./base";
+import { EYE, arms, bandY, bandZ, belly, bodyShell, earPair, eyes, face, headShell, legs, mouth, blush, tailJoint, type ArmOpts, type LegOpts } from "./base";
 import { Ell, STD_LAYOUT, capsule, cone, cyl, ell, box, orient, taperTube, torus, type Kit, type Layout, type Place, type V3 } from "./parts";
 
 export interface DesignCtx {
@@ -816,5 +816,227 @@ export const DESIGNS: Record<AnimalId, Design> = {
       };
     },
   },
-};
+  // ═══════════════════ Star Pets-only designs (not kid-selectable: they're not in PARK_ANIMALS)
 
+  // ─────────────────────────────── DRAGON: swept-back horns, bat wings that flap, spiked tail with a
+  // spade tip, banded belly scales, amber slit eyes that glow at twilight
+  "animal-dragon": {
+    layout: { headR: [0.315, 0.275, 0.27] },
+    build(k) {
+      const skin = "#3fbf9c", light = "#86e3c6", bellyC = "#ffe3a3", band = "#f2b85a", horn = "#fff0c8", dark = "#23705f";
+      const spike = k.glow("#9b7dff", "#b89cff", 0.9);
+      const membrane = k.glow("#b9a2ff", "#c9b4ff", 0.35);
+      headShell(k, skin);
+      const mz = face(k, {
+        eyes: { y: 0.0, x: 0.125, size: 1.02, iris: "#ffb43d", irisGlow: "#ffc24a", irisGlowStrength: 1.3, pupil: "#2b1630", shape: [1.02, 1] },
+        blush: { x: 0.215, y: -0.095, r: [0.048, 0.028] },
+        muzzle: { color: light, y: -0.12, r: [0.155, 0.09, 0.1], sink: 0.32 },
+        nose: false,
+        mouth: { style: "smile", size: 1.15 },
+      })!;
+      // nostrils + a tiny fang peeking out of the smile
+      for (const s of [1, -1]) k.decal(k.head, dark, mz.dir(s * 0.36, 0.5, 1), [0.02, 0.012, 0.007], s * 0.5);
+      k.add(k.mouth, "#ffffff", cone(0.011, 0.024, { p: [0.019, -0.004, 0.004], r: [PI, 0, 0] }, 5));
+      // swept-back horns
+      for (const s of [1, -1]) {
+        const pl = k.headE.dir(s * 0.42, 0.9, -0.2, -0.015);
+        k.add(k.head, horn, taperTube([at(pl), at(pl, s * 0.03, 0.08, -0.03), at(pl, s * 0.05, 0.14, -0.1), at(pl, s * 0.05, 0.16, -0.17)], 0.04, 0.009, {}, 10, 6));
+      }
+      // crest spikes down the middle of the head
+      for (const [z, h] of [[0.15, 0.075], [-0.2, 0.1], [-0.6, 0.095], [-1.05, 0.075], [-1.6, 0.06]] as const) {
+        const pl = k.headE.dir(0, 1, z, -0.01);
+        k.add(k.head, spike, cone(h * 0.45, h, { p: at(pl), q: orient(pl, 0, [-PI / 2 - 0.35, 0, 0]), s: [0.55, 1, 1] }, 6));
+      }
+      // finned ears
+      earPair(k, [1, 0.28, -0.3], [0, -0.5, -1.25], (j) => {
+        k.add(j, membrane, cone(0.055, 0.15, { p: [0, 0.07, 0], s: [1, 1, 0.3] }, 6));
+      }, -0.03);
+      stdBody(k, skin, { leg: { foot: bellyC } });
+      // banded belly plates
+      const br: V3 = [0.115, 0.108, 0.05];
+      belly(k, bellyC, br, -0.005);
+      const bpl = k.bodyE.front(0, -0.005, -br[2] * 0.62);
+      const be = new Ell(bpl.pv, br);
+      for (const y of [0.05, 0.0, -0.05]) k.decal(k.body, band, be.front(0, y, -0.002), [Math.sqrt(1 - (y / br[1]) ** 2) * br[0] * 0.85, 0.006, 0.012]);
+      // back spikes
+      for (const [y, h] of [[0.12, 0.06], [0.05, 0.065], [-0.02, 0.055]] as const) {
+        const pl = k.bodyE.back(0, y);
+        k.add(k.body, spike, cone(h * 0.45, h, { p: pl.pv, q: orient(pl, 0, [PI / 2 - 0.5, 0, 0]), s: [0.55, 1, 1] }, 6));
+      }
+      // claws on the toes
+      for (const leg of [k.legL, k.legR]) if (leg) for (const x of [-0.028, 0, 0.028]) k.add(leg, bellyC, cone(0.012, 0.03, { p: [x, -0.07, 0.09], r: [PI / 2, 0, 0] }, 5));
+      // wings: a bone along the leading edge + a scalloped membrane
+      for (const s of [1, -1] as const) {
+        const w = k.joint(s > 0 ? "wingL" : "wingR", k.body, [s * 0.07, 0.19, -0.1], [0.1, s * 0.45, s * 0.38]);
+        const W = 1.42;
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.quadraticCurveTo(0.1 * W, 0.17 * W, 0.28 * W, 0.2 * W);
+        shape.quadraticCurveTo(0.24 * W, 0.12 * W, 0.26 * W, 0.04 * W);
+        shape.quadraticCurveTo(0.2 * W, 0.08 * W, 0.16 * W, 0.0);
+        shape.quadraticCurveTo(0.12 * W, 0.04 * W, 0.07 * W, -0.04 * W);
+        shape.quadraticCurveTo(0.05 * W, 0.0, 0, 0);
+        const g = new THREE.ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: false, curveSegments: 5 });
+        g.translate(0, 0, -0.006);
+        if (s < 0) g.scale(-1, 1, 1);
+        k.add(w, membrane, g);
+        // arm bone along the leading edge, finger struts to the scallop points, a claw on top
+        k.add(w, skin,
+          taperTube([[0, 0, 0.004], [s * 0.1 * W, 0.16 * W, 0.004], [s * 0.28 * W, 0.2 * W, 0.004]], 0.024, 0.01, {}, 8, 5),
+          taperTube([[s * 0.1 * W, 0.15 * W, 0.006], [s * 0.26 * W, 0.04 * W, 0.006]], 0.009, 0.006, {}, 3, 4),
+          taperTube([[s * 0.09 * W, 0.14 * W, 0.006], [s * 0.16 * W, 0.0, 0.006]], 0.009, 0.006, {}, 3, 4),
+          cone(0.014, 0.05, { p: [s * 0.3 * W, 0.215 * W, 0.004], r: [0, 0, -s * 1.1] }, 5));
+        k.extra[s > 0 ? "wingL" : "wingR"] = w;
+      }
+      // tail: thick, curling up and to one side, spiked, spade tip
+      const pts: V3[] = [[0, 0, 0], [0, -0.03, -0.09], [0.02, -0.02, -0.19], [0.06, 0.03, -0.27], [0.1, 0.1, -0.3]];
+      const t = tailJoint(k, [0, 0.03, -0.12]);
+      k.add(t, skin, taperTube(pts, 0.055, 0.016, {}, 14, 7));
+      const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p)));
+      const Y = new THREE.Vector3(0, 1, 0);
+      for (const [u, h] of [[0.25, 0.05], [0.47, 0.045], [0.67, 0.038]] as const) {
+        const p = curve.getPointAt(u);
+        const tg = curve.getTangentAt(u);
+        const up = Y.clone().addScaledVector(tg, -tg.y).normalize();
+        const q = new THREE.Quaternion().setFromUnitVectors(Y, up.clone().addScaledVector(tg, -0.5).normalize());
+        const r = 0.055 + (0.016 - 0.055) * u;
+        k.add(t, spike, cone(h * 0.45, h, { p: [p.x + up.x * r * 0.8, p.y + up.y * r * 0.8, p.z + up.z * r * 0.8], q, s: [0.55, 1, 1] }, 6));
+      }
+      const end = curve.getPointAt(1), etg = curve.getTangentAt(1);
+      const eq = new THREE.Quaternion().setFromUnitVectors(Y, etg);
+      k.add(t, spike, cone(0.05, 0.085, { p: [end.x + etg.x * 0.035, end.y + etg.y * 0.035, end.z + etg.z * 0.035], q: eq, s: [1, 1, 0.3] }, 8));
+      k.back = { at: [0, 0.12, -0.14], r: [0.085, 0.09, 0.05] };
+      k.fit = 1.02;
+      k.animate = (a) => {
+        const L = k.extra.wingL, R = k.extra.wingR;
+        const busy = Math.min(1, (a.w.cheer ?? 0) + (a.w.dance ?? 0) + (a.w.fetch ?? 0) + a.run * a.move);
+        const rest = Math.min(1, (a.w.sleep ?? 0) + 0.8 * (a.w.sad ?? 0));
+        const f = Math.sin(a.t * (5 + 9 * busy)) * (0.22 + 0.35 * busy) * (1 - 0.85 * rest);
+        L.g.rotation.z = L.r0.z + f - 0.3 * rest;
+        R.g.rotation.z = R.r0.z - f + 0.3 * rest;
+        L.g.rotation.y = L.r0.y + 0.25 * f;
+        R.g.rotation.y = R.r0.y - 0.25 * f;
+      };
+    },
+  },
+
+  // ─────────────────────────────── UNICORN: spiral golden horn (glows), flowing pastel mane & tail,
+  // lashes, golden hooves, a star mark and a few sparkles
+  "animal-unicorn": {
+    build(k) {
+      const coat = "#fdf8ff", maneA = "#ff9fd2", maneB = "#a996ff", hoof = "#f4c95d", nostril = "#f4a7c5", inner = "#ffd2e6";
+      const hornM = k.glow("#ffe08a", "#ffe38a", 1.1);
+      const sparkle = k.glow("#fff2a8", "#fff08a", 1.4);
+      headShell(k, coat);
+      const mz = face(k, {
+        eyes: { y: -0.005, iris: "#4a2c6e", irisGlow: "#b48cff", irisGlowStrength: 0.8 },
+        blush: { x: 0.205, y: -0.09 },
+        muzzle: { color: "#f6ecff", y: -0.12, r: [0.125, 0.08, 0.085], sink: 0.45 },
+        nose: false,
+        mouth: { style: "smile" },
+      })!;
+      for (const s of [1, -1]) k.decal(k.head, nostril, mz.dir(s * 0.4, 0.45, 1), [0.014, 0.01, 0.006], s * 0.5);
+      for (const [i, s] of [[0, 1], [1, -1]] as const) {
+        const eye = i === 0 ? k.eyeL : k.eyeR;
+        k.add(eye, EYE, cone(0.01, 0.035, { p: [s * 0.05, 0.055, 0.01], r: [0, 0, -s * 0.8] }, 4), cone(0.009, 0.03, { p: [s * 0.062, 0.035, 0.008], r: [0, 0, -s * 1.3] }, 4));
+      }
+      // horn: a cone with a spiral ridge wrapped round it
+      const hp = k.headE.dir(0, 0.85, 0.5, -0.03);
+      const hq = orient(hp, 0, [PI / 2 - 0.2, 0, 0]);
+      const hornUp = new THREE.Vector3(0, 1, 0).applyQuaternion(hq);
+      const HH = 0.31, R0 = 0.058;
+      const horn = cone(R0, HH, { p: [0, HH / 2, 0] }, 12);
+      const helix: V3[] = [];
+      for (let i = 0; i <= 24; i++) {
+        const u = i / 24, a = u * PI * 2 * 2.6;
+        const r = R0 * (1 - u) + 0.002;
+        helix.push([Math.cos(a) * r, u * HH * 0.92, Math.sin(a) * r]);
+      }
+      const ridge = taperTube(helix, 0.012, 0.004, {}, 30, 4);
+      for (const g of [horn, ridge]) {
+        g.applyQuaternion(hq);
+        g.translate(hp.p.x, hp.p.y, hp.p.z);
+      }
+      k.add(k.head, hornM, horn);
+      k.add(k.head, hoof, ridge);
+      const tip = hp.p.clone().addScaledVector(hornUp, HH + 0.03);
+      // four-point sparkles round the horn tip
+      const star = (c: THREE.Vector3, r: number) => [
+        ell([r * 0.28, r, r * 0.28], { p: [c.x, c.y, c.z] }, [6, 4]),
+        ell([r, r * 0.28, r * 0.28], { p: [c.x, c.y, c.z] }, [6, 4]),
+      ];
+      k.add(k.head, sparkle, ...star(tip.clone().add(new THREE.Vector3(0.07, -0.02, 0)), 0.03), ...star(tip.clone().add(new THREE.Vector3(-0.08, -0.08, 0.02)), 0.022));
+      // flowing mane: a forelock + locks falling down the back of the head
+      const H = k.headE;
+      k.add(k.head, maneA,
+        taperTube([at(H.dir(0.04, 1, 0.3), 0, 0.01), at(H.front(-0.1, 0.2, 0.015)), at(H.front(-0.2, 0.13, 0.012)), at(H.front(-0.26, 0.04, 0.008))], 0.05, 0.022, {}, 10, 6),
+        taperTube([at(H.dir(0.1, 1, 0.05)), at(H.dir(0.2, 0.9, -0.3), 0.02, 0.03), at(H.dir(0.25, 0.5, -0.8), 0.04), at(H.dir(0.2, -0.1, -1), 0.03, 0, -0.02)], 0.075, 0.04, {}, 12, 6),
+        taperTube([at(H.dir(-0.15, 1, -0.3)), at(H.dir(-0.2, 0.6, -0.9), -0.02, 0, -0.03), at(H.dir(-0.15, -0.2, -1), -0.01, -0.02, -0.03)], 0.07, 0.036, {}, 10, 6));
+      k.add(k.head, maneB,
+        taperTube([at(H.dir(0, 1, -0.1)), at(H.dir(0, 0.8, -0.6), 0, 0.03, 0.01), at(H.dir(0, 0.2, -1), 0, 0, -0.04), at(H.dir(0.05, -0.35, -1), 0.02, 0, -0.03)], 0.08, 0.042, {}, 12, 6),
+        taperTube([at(H.dir(0.28, 0.85, -0.15)), at(H.dir(0.5, 0.4, -0.55), 0.03), at(H.dir(0.45, -0.2, -0.7), 0.02, 0, -0.02)], 0.06, 0.032, {}, 10, 6));
+      // pointy horse ears
+      earPair(k, [0.66, 0.72, -0.15], [0, 0.2, -0.5], (j) => {
+        k.add(j, coat, cone(0.052, 0.13, { p: [0, 0.06, 0], s: [1, 1, 0.6] }, 8));
+        k.add(j, inner, cone(0.03, 0.085, { p: [0, 0.05, 0.022], s: [1, 1, 0.3] }, 6));
+      });
+      stdBody(k, coat, { arm: {}, leg: { foot: hoof } });
+      // star mark on each hip
+      for (const s of [1, -1]) {
+        const pl = k.bodyE.dir(s, 0.05, -0.4, 0.004);
+        const g: THREE.BufferGeometry[] = [];
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * PI * 2;
+          g.push(ell([0.009, 0.026, 0.006], { p: [Math.sin(a) * 0.016, Math.cos(a) * 0.016, 0], r: [0, 0, -a] }, [5, 4]));
+        }
+        g.push(ell([0.014, 0.014, 0.007], {}, [6, 4]));
+        const q = orient(pl);
+        for (const x of g) {
+          x.applyQuaternion(q);
+          x.translate(pl.p.x, pl.p.y, pl.p.z);
+        }
+        k.add(k.body, sparkle, ...g);
+      }
+      // flowing two-tone tail
+      const t = tailJoint(k, [0, 0.06, -0.13], [-0.2, 0, 0]);
+      k.add(t, maneA, taperTube([[0, 0, 0], [0.01, 0.02, -0.08], [0.03, -0.04, -0.16], [0.02, -0.12, -0.2]], 0.045, 0.028, {}, 10, 6));
+      k.add(t, maneB, taperTube([[0, 0.01, -0.01], [-0.02, 0.05, -0.09], [-0.04, 0.0, -0.18], [-0.03, -0.08, -0.23]], 0.04, 0.024, {}, 10, 6));
+      k.fit = 1.06;
+    },
+  },
+
+  // ─────────────────────────────── HIPPO: huge round snout with big nostrils, tiny high ears & eyes,
+  // two little teeth, chubby tummy, stubby legs, tufted tail
+  "animal-hippo": {
+    layout: { bodyR: [0.185, 0.15, 0.165], headR: [0.32, 0.27, 0.27] },
+    build(k) {
+      const skin = "#b4a0dc", snout = "#dccbf3", inner = "#ff9fc0", nostril = "#6e4f94", tummy = "#e6dbf7";
+      headShell(k, skin);
+      const mz = face(k, {
+        eyes: { y: 0.075, x: 0.125, size: 0.9, lift: 0.004 },
+        blush: { x: 0.225, y: -0.035, r: [0.048, 0.03] },
+        muzzle: { color: snout, y: -0.105, r: [0.23, 0.135, 0.13], sink: 0.55 },
+        nose: false,
+        mouth: { style: "smile", size: 1.9, y: -0.05 },
+      })!;
+      for (const s of [1, -1]) {
+        const c = mz.dir(s * 0.45, 0.8, 0.55);
+        k.add(k.head, snout, ell([0.048, 0.034, 0.04], { p: c.pv }, [8, 6]));
+        k.decal(k.head, nostril, new Ell(c.pv, [0.048, 0.034, 0.04]).dir(0, 0.6, 1), [0.024, 0.017, 0.008], s * 0.5);
+        // the eye bumps that make a hippo's silhouette
+        k.add(k.head, skin, ell([0.085, 0.065, 0.06], { p: at(k.headE.front(s * 0.14, 0.19, -0.03)) }, [10, 7]));
+      }
+      for (const s of [1, -1]) k.add(k.mouth, "#ffffff", box(0.026, 0.028, 0.012, { p: [s * 0.03, -0.018, 0.0] }));
+      earPair(k, [0.55, 0.85, -0.1], [0, 0, -0.35], (j) => {
+        k.add(j, skin, ell([0.045, 0.04, 0.03], { p: [0, 0.02, 0] }, [8, 6]));
+        k.add(j, inner, ell([0.026, 0.024, 0.01], { p: [0, 0.02, 0.024] }, [6, 4]));
+      });
+      stdBody(k, skin, { belly: tummy, bellyR: [0.13, 0.115, 0.05], arm: { paw: snout, x: 0.165 }, leg: { foot: snout, x: 0.09, r: [0.07, 0.055, 0.075] } });
+      const t = tailJoint(k, [0, 0.05, -0.155]);
+      k.add(t, skin, taperTube([[0, 0, 0], [0, -0.02, -0.04], [0, -0.05, -0.06]], 0.016, 0.012, {}, 6, 5));
+      k.add(t, nostril, ell([0.018, 0.024, 0.018], { p: [0, -0.07, -0.065] }, [6, 5]));
+      k.neck.r = [0.13, 0.115];
+      k.fit = 0.98;
+    },
+  },
+};

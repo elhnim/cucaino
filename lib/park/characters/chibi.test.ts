@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { buildChibi, CHIBI_IDS, type ChibiAction } from "./chibi";
+import { PARK_ANIMALS, parkAnimalForPet } from "@/lib/park/registry/animals";
+import { PET_SPECIES } from "@/lib/pet/config";
 
 const ROLES = ["kid", "pet", "visitor"] as const;
 const ACTIONS: ChibiAction[] = ["idle", "walk", "run", "wave", "cheer", "eat", "dance", "sad", "sleep", "fetch"];
@@ -27,9 +29,36 @@ function finite(root: THREE.Object3D) {
 }
 
 describe("chibi characters", () => {
-  it("supports all 24 park animals", () => {
-    expect(CHIBI_IDS.length).toBe(24);
-    expect(new Set(CHIBI_IDS).size).toBe(24);
+  it("supports all 24 park animals + the 3 Star Pets-only designs", () => {
+    expect(CHIBI_IDS.length).toBe(27);
+    expect(new Set(CHIBI_IDS).size).toBe(27);
+    for (const a of PARK_ANIMALS) expect(CHIBI_IDS).toContain(a.id);
+  });
+
+  it("gives every Star Pets species its own design (no stand-ins)", () => {
+    for (const s of PET_SPECIES) expect(CHIBI_IDS).toContain(parkAnimalForPet(s.id));
+    expect(parkAnimalForPet("dragon")).toBe("animal-dragon");
+    expect(parkAnimalForPet("unicorn")).toBe("animal-unicorn");
+    expect(parkAnimalForPet("hippo")).toBe("animal-hippo");
+    expect(new Set(PET_SPECIES.map((s) => parkAnimalForPet(s.id))).size).toBe(PET_SPECIES.length);
+  });
+
+  it("keeps the pet-only designs out of the kid animal picker", () => {
+    const kid = PARK_ANIMALS.map((a) => a.id as string);
+    for (const id of ["animal-dragon", "animal-unicorn", "animal-hippo"]) expect(kid).not.toContain(id);
+  });
+
+  it("dragon wings flap", () => {
+    const rig = buildChibi("animal-dragon", { height: 1.25, role: "pet", seed: 3 });
+    const wing = rig.root.getObjectByName("wingL")!;
+    expect(wing).toBeTruthy();
+    const seen = new Set<number>();
+    for (let i = 0; i < 30; i++) {
+      rig.update(1 / 30, 0);
+      seen.add(Math.round(wing.rotation.z * 100));
+    }
+    expect(seen.size).toBeGreaterThan(5);
+    rig.dispose();
   });
 
   for (const id of CHIBI_IDS) {

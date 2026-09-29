@@ -28,6 +28,36 @@ function balancedEnd(s: string, start: number): number {
 }
 
 /**
+ * Mend mismatched brackets outside strings — models sometimes forget to close an array before
+ * the object ends (`{"paragraphs":["a","b"}`). A closer that doesn't match the innermost open
+ * bracket gets the missing closers inserted in front of it.
+ */
+export function repairBrackets(s: string): string {
+  const stack: string[] = [];
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (const ch of s) {
+    if (inString) {
+      out += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
+    else if (ch === "}" || ch === "]") {
+      if (!stack.includes(ch)) continue; // a stray closer: drop it
+      while (stack.length && stack[stack.length - 1] !== ch) out += stack.pop();
+      stack.pop();
+    }
+    out += ch;
+  }
+  return out;
+}
+
+/**
  * Pull the first JSON object out of a model reply. Returns null when there is no
  * parseable object (the caller then retries or shows a friendly error).
  */
@@ -41,7 +71,13 @@ export function extractJsonObject(text: string | null | undefined): Record<strin
       const v: unknown = JSON.parse(s.slice(start, end + 1));
       if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
     } catch {
-      // try the next "{"
+      // a forgotten "]" is the usual slip: mend the brackets once, else try the next "{"
+      try {
+        const v: unknown = JSON.parse(repairBrackets(s.slice(start, end + 1)));
+        if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
+      } catch {
+        // not this one
+      }
     }
   }
   return null;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hideName,
   MYSTERY_QUESTIONS,
   MYSTERY_SEARCHES,
   applyAsk,
@@ -91,19 +92,26 @@ describe("validateCase", () => {
     // bad kind
     expect(validateCase({ ...r, clues: [clues[0], { ...clues[1], kind: "maybe" }, clues[2]] }, "easy")).toBeNull();
   });
-  it("needs at least 2 implicating clues and 1 clearing clue", () => {
+  it("needs at least 1 implicating clue and 1 clearing clue", () => {
     const r = rawCase();
     const clues = r.clues as Json[];
+    // one pointing + two clearing is still solvable
     const oneImplicates = [clues[0], { ...clues[1], kind: "clears", suspect: "s4" }, clues[2]];
-    expect(validateCase({ ...r, clues: oneImplicates }, "easy")).toBeNull();
+    expect(validateCase({ ...r, clues: oneImplicates }, "easy")).not.toBeNull();
+    const noImplicates = clues.map((c, i) => ({ ...c, kind: "clears", suspect: ["s1", "s3", "s4"][i] }));
+    expect(validateCase({ ...r, clues: noImplicates }, "easy")).toBeNull();
     const noClears = [clues[0], clues[1], { ...clues[2], kind: "implicates", suspect: "s2" }];
     expect(validateCase({ ...r, clues: noClears }, "easy")).toBeNull();
   });
   it("rejects clues that name the culprit outright", () => {
     const r = rawCase();
     const clues = r.clues as Json[];
-    const leak = [{ ...clues[0], text: "Penny dropped her feather here!" }, clues[1], clues[2]];
+    // flat-out blame spoils the case
+    const leak = [{ ...clues[0], text: "It was Penny — she stole the ticket!" }, clues[1], clues[2]];
     expect(validateCase({ ...r, clues: leak }, "easy")).toBeNull();
+    // a mere mention is a fair direct clue on easy
+    const mention = [{ ...clues[0], text: "A feather that matches Penny's tail is stuck here." }, clues[1], clues[2]];
+    expect(validateCase({ ...r, clues: mention }, "easy")).not.toBeNull();
     expect(nameWords("Captain Waffles the Otter")).toEqual(["waffles"]);
     expect(nameWords("Penny Peacock")).toEqual(["penny"]);
   });
@@ -220,5 +228,12 @@ describe("mystery prompts", () => {
     expect(innocent).toContain("You are innocent");
     expect(innocent).toContain("Snores loudly");
     expect(innocent).toContain("Detective to Otto Otter: Q");
+  });
+});
+
+describe("hideName", () => {
+  it("turns the culprit's name into someone", () => {
+    expect(hideName("They match Frankie's webbed feet! Frankie ran.", "Frankie")).toBe("They match someone's webbed feet! someone ran.");
+    expect(hideName("Captain Waffles left crumbs", "Captain Waffles the Otter")).toBe("Captain someone left crumbs");
   });
 });

@@ -13,6 +13,8 @@ import { C, FONT, alpha, cardStyle, display } from "../ui/theme";
 import { ProgressBar } from "../ui/ProgressBar";
 import { Badge } from "../ui/Badge";
 import { IconChip } from "../ui/IconChip";
+import { ChibiPortrait } from "../ui/ChibiPortrait";
+import { parkAnimalForPet } from "@/lib/park/registry/animals";
 
 export type PetMode = "home" | "feed" | "wash" | "sleep" | "tricks" | "fetch";
 
@@ -96,8 +98,15 @@ export function PetCareSheet({
 
   const header = (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-      <IconChip color={color} size={64} round style={{ fontSize: 38 }}>
-        {stage === "teen" || stage === "adult" ? species?.adultEmoji : species?.babyEmoji}
+      <IconChip color={color} size={64} round style={{ fontSize: 38, overflow: "hidden" }}>
+        {/* the same chibi that walks around the park (emoji only if WebGL is unavailable) */}
+        <ChibiPortrait
+          id={parkAnimalForPet(pet.species)}
+          framing="head"
+          pose={pet.isSleeping ? "sleep" : mood.id === "ecstatic" ? "cheer" : mood.id === "happy" ? "idle" : "sad"}
+          width={60}
+          fallback={stage === "teen" || stage === "adult" ? species?.adultEmoji : species?.babyEmoji}
+        />
       </IconChip>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -277,7 +286,9 @@ function AdoptSheet({ kidId, onPet, onClose }: { kidId: string; onPet: (p: Pet, 
       <Grid>
         {PET_SPECIES.map((s) => (
           <button key={s.id} type="button" onClick={() => setSpecies(s.id)} className="gp-press" style={{ ...tile, ...(species === s.id ? { borderColor: C.gold, boxShadow: `0 0 16px ${alpha(C.gold, 0.55)}` } : null) }}>
-            <div style={{ fontSize: 36 }}>{s.babyEmoji}</div>
+            <div style={{ fontSize: 36, height: 72, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+              <ChibiPortrait id={parkAnimalForPet(s.id)} pose={species === s.id ? "cheer" : "idle"} width={64} height={72} fallback={s.babyEmoji} style={{ filter: "drop-shadow(0 3px 3px rgba(0,0,0,0.35))" }} />
+            </div>
             <div style={{ fontWeight: 900, fontSize: 13, color: C.text }}>{s.name}</div>
           </button>
         ))}

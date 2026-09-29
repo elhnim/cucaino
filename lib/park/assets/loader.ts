@@ -12,7 +12,14 @@ import { candyColor, candyPixels, type CandyPalette } from "./candy";
 import { PARK_ASSETS } from "./manifest.gen";
 
 export type KitName = Exclude<keyof typeof PARK_ASSETS, "pets">;
-export type AnimalId = keyof (typeof PARK_ASSETS)["pets"]["models"];
+/** the Kenney Cube Pets that have a model file in public/park-assets/pets */
+export type CubePetId = keyof (typeof PARK_ASSETS)["pets"]["models"];
+/**
+ * Every character id the park can show. Cube Pets ids plus procedural-only chibi designs
+ * (lib/park/characters/designs.ts) that have no model file — the Star Pets dragon, unicorn and
+ * hippo. Pet-only ids are NOT in PARK_ANIMALS, so kids can't pick them as themselves.
+ */
+export type AnimalId = CubePetId | "animal-dragon" | "animal-unicorn" | "animal-hippo";
 
 // NOT under /park/: that prefix is the protected kid route, and the auth middleware must never
 // sit in front of model downloads.
@@ -100,7 +107,7 @@ function toonify(root: THREE.Object3D, pal: CandyPalette, cache: Map<THREE.Mater
 
 export class ParkAssets {
   private kits = new Map<KitName, Promise<Map<string, THREE.Object3D>>>();
-  private animals = new Map<AnimalId, Promise<GLTF>>();
+  private animals = new Map<CubePetId, Promise<GLTF>>();
   private matCache = new Map<THREE.Material, THREE.Material>();
   private texCache = new Map<THREE.Texture, THREE.Texture>();
   // animals keep their natural colours (a panda must still look like a panda) — only a light
@@ -159,7 +166,7 @@ export class ParkAssets {
     return group;
   }
 
-  loadAnimal(id: AnimalId): Promise<GLTF> {
+  loadAnimal(id: CubePetId): Promise<GLTF> {
     let p = this.animals.get(id);
     if (!p) {
       p = getLoader()
@@ -174,7 +181,7 @@ export class ParkAssets {
   }
 
   /** A fresh animated copy of an animal (skinned-safe clone) + its clips. */
-  async spawnAnimal(id: AnimalId): Promise<{ root: THREE.Object3D; clips: THREE.AnimationClip[] }> {
+  async spawnAnimal(id: CubePetId): Promise<{ root: THREE.Object3D; clips: THREE.AnimationClip[] }> {
     const gltf = await this.loadAnimal(id);
     return { root: cloneSkinned(gltf.scene), clips: gltf.animations };
   }

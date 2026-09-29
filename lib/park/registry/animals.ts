@@ -61,7 +61,8 @@ export function parkAnimalForAvatar(avatar: string | null | undefined): ParkAnim
   return (alike && PARK_ANIMALS.find((a) => a.id === alike)) || PARK_ANIMALS[0];
 }
 
-/** Star Pets species (lib/pet/config.ts) -> the Cube Pets model that plays them. */
+/** Star Pets species (lib/pet/config.ts) -> the chibi design that plays them. Dragon, unicorn and
+ * hippo are pet-only designs (not in PARK_ANIMALS, so not kid-selectable). */
 const PET_LOOK: Record<string, AnimalId> = {
   kitten: "animal-cat",
   puppy: "animal-dog",
@@ -70,9 +71,9 @@ const PET_LOOK: Record<string, AnimalId> = {
   elephant: "animal-elephant",
   lion: "animal-lion",
   monkey: "animal-monkey",
-  hippo: "animal-hog",
-  unicorn: "animal-deer",
-  dragon: "animal-caterpillar",
+  hippo: "animal-hippo",
+  unicorn: "animal-unicorn",
+  dragon: "animal-dragon",
 };
 
 export function parkAnimalForPet(species: string): AnimalId {

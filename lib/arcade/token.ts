@@ -47,8 +47,10 @@ export function sealToken(payload: unknown, secret: string, purpose: string, ttl
 export function openToken<T = unknown>(token: unknown, secret: string, purpose: string, now = Date.now()): T | null {
   if (typeof token !== "string" || token.length > 60_000 || !token.startsWith(`${VERSION}.`)) return null;
   try {
-    const raw = fromB64url(token.slice(VERSION.length + 1));
-    if (raw.length < 29) return null;
+    const enc = token.slice(VERSION.length + 1);
+    const raw = fromB64url(enc);
+    // only the exact encoding we issued (base64 decoding quietly ignores stray trailing chars)
+    if (raw.length < 29 || b64url(raw) !== enc) return null;
     const decipher = createDecipheriv("aes-256-gcm", keyFrom(secret, purpose), raw.subarray(0, 12));
     decipher.setAAD(Buffer.from(`${VERSION}:${purpose}`));
     decipher.setAuthTag(raw.subarray(12, 28));

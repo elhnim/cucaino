@@ -74,7 +74,12 @@ export default function MysteryDetective({ kidId, sparksBalance }: MysteryDetect
     if (!kidId) return;
     setError(null);
     setPhase("loading");
-    const res = await safeAction(() => startMystery(kidId, difficulty));
+    // remember the last few cases on this device so the next one is something new
+    let recent: string[] = [];
+    try {
+      recent = JSON.parse(window.localStorage.getItem("arcade:mystery:recent") ?? "[]") as string[];
+    } catch {}
+    const res = await safeAction(() => startMystery(kidId, difficulty, Array.isArray(recent) ? recent : []));
     if (!res.ok) {
       setError(res.error);
       setPhase("idle");
@@ -83,6 +88,10 @@ export default function MysteryDetective({ kidId, sparksBalance }: MysteryDetect
     setSparks(res.sparks);
     token.current = res.data.token;
     setPc(res.data.case);
+    try {
+      const seen = `${res.data.case.title} (${res.data.case.item})`;
+      window.localStorage.setItem("arcade:mystery:recent", JSON.stringify([seen, ...recent.filter((r) => r !== seen)].slice(0, 10)));
+    } catch {}
     setQuestionsLeft(res.data.questionsLeft);
     setSearchesLeft(res.data.searchesLeft);
     setFound([]);

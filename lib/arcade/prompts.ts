@@ -120,12 +120,14 @@ const LEVEL_GUIDE: Record<MysteryDifficulty, string> = {
   hard: "HARD: clues are subtle, two innocents have suspicious-looking harmless secrets, and the culprit's lie is a small detail (a time, a colour, an item).",
 };
 
-export function mysteryCasePrompt(input: { difficulty: MysteryDifficulty; premise: string; cast: string[]; seed: string }): string {
+export function mysteryCasePrompt(input: { difficulty: MysteryDifficulty; premise: string; cast: string[]; seed: string; avoid?: string[] }): string {
+  const avoid = input.avoid?.length ? `
+This detective already solved these — make the missing item, the title and the suspects completely different: ${input.avoid.join("; ")}.` : "";
   const n = MYSTERY_LEVELS[input.difficulty].clues;
   const places = MYSTERY_LOCATIONS.map((l) => `${l.id} (${l.name})`).join(", ");
   return `Invent a brand-new whodunit for a kids' detective game set in Cucaino Park, a candy-coloured theme park with rides, a Pet Meadow, Mini Golf, a Friends Café, a Prize Shop and a Quest Board. (variety seed: ${input.seed})
 Mystery idea to build on (you may twist it): ${input.premise}
-Suspect inspiration (use, mix or replace): ${input.cast.join("; ")}.
+Suspect inspiration (use, mix or replace): ${input.cast.join("; ")}.${avoid}
 
 Tone: cartoon mischief only — something went missing, got swapped, hidden or pranked. Nobody is hurt, nothing scary, no real-crime words (no murder, kidnap, weapons, jail). The culprit has an understandable, even slightly sweet motive (wanted to surprise a friend, felt left out, got carried away) and everything is put right in the end.
 
@@ -135,10 +137,13 @@ Clues: exactly ${n} clues, each hidden in a DIFFERENT place, using only these pl
 - kind "implicates": evidence pointing at the culprit (a trait, an item, a habit, a time) — NEVER their name (describing their species, look or habits is fine and fair). At least 2 of these, and one must contradict the culprit's lie. Set "suspect" to the culprit's id.
 - kind "clears": proves one innocent suspect could not have done it (set "suspect" to that innocent's id). At least 1.
 - Every clue is concrete and fair, something a child can reason with ("Orange fur snagged on the ticket stand", "A café receipt shows Pip bought 3 muffins at 2pm — she was in the café the whole time").
+- Use exactly ${n - (n >= 5 ? 2 : n >= 4 ? 2 : 1)} "implicates" clues and ${n >= 4 ? 2 : 1} "clears" clue(s), and put each clue in a place where it would naturally be found.
 - ${LEVEL_GUIDE[input.difficulty]}
 - The case must be solvable from the clues plus questioning the suspects.
 
 "solution": 2–3 sentences explaining exactly how the clues prove who did it.
+
+KEEP IT SHORT (the game has to load fast): intro ≤ 45 words; personality ≤ 8 words; alibi, truth, secret ≤ 16 words each; motive and lie ≤ 16 words; clue title ≤ 5 words, clue text ≤ 22 words; solution ≤ 50 words. No extra fields, no commentary — just the JSON.
 
 JSON shape:
 {"title":"The Case of the ...","emoji":"🎟️","intro":"2–3 lively sentences setting the scene for the detective (the child), ending with a question like: who did it?","item":"golden ticket","crime_scene":"prize-shop","suspects":[{"id":"s1","name":"...","emoji":"🦦","personality":"...","alibi":"...","truth":"...","secret":"..."}],"culprit":"s2","motive":"...","lie":"...","clues":[{"location":"pet-meadow","title":"Sticky paw prints","text":"...","kind":"implicates","suspect":"s2"}],"solution":"..."}`;

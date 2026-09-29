@@ -52,7 +52,9 @@ export function validateStoryStart(j: Json | null): StoryStart | null {
 export function validateStoryEnd(j: Json | null): StoryEnd | null {
   if (!j) return null;
   const paragraphs = cleanStrArray(j.paragraphs, 700).slice(0, 4);
-  const moral = cleanStr(j.moral, 200) ?? "";
+  let moral = cleanStr(j.moral, 200) ?? "";
+  // no "moral" field? models often write it as a short final paragraph instead
+  if (!moral && paragraphs.length >= 3 && paragraphs[paragraphs.length - 1].length <= 180) moral = paragraphs.pop()!;
   if (paragraphs.length < 1) return null;
   return { paragraphs, moral };
 }

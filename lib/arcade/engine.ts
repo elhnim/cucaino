@@ -154,15 +154,16 @@ export async function runDoodleLook(
 
 // ---- Mystery Detective -----------------------------------------------------
 
-export async function runMysteryNew(difficulty: unknown, trace?: CallTrace): Promise<CaseFile> {
+export async function runMysteryNew(difficulty: unknown, trace?: CallTrace, avoid: string[] = []): Promise<CaseFile> {
   const d: MysteryDifficulty = coerceMysteryDifficulty(difficulty);
   return callJSON({
     tag: "mystery-new",
-    models: [MODEL_SMART, MODEL_FAST],
-    prompt: mysteryCasePrompt({ difficulty: d, premise: pick(MYSTERY_PREMISES), cast: sample(MYSTERY_CAST, 4), seed: freshSeed() }),
-    maxTokens: 2_000,
-    // Sonnet writes the most consistent cases; if it is slow or muddled, Haiku gets the rest
-    attemptTimeoutMs: 14_000,
+    // Haiku first: Sonnet couldn't write a whole case inside the function's time limit in
+    // play-tests (both attempts timed out); the strict case validator guards the quality
+    models: [MODEL_FAST, MODEL_SMART],
+    prompt: mysteryCasePrompt({ difficulty: d, premise: pick(MYSTERY_PREMISES), cast: sample(MYSTERY_CAST, 4), seed: freshSeed(), avoid }),
+    maxTokens: 1_400,
+    attemptTimeoutMs: 13_000,
     fallbackOnFail: true,
     validate: (j) => validateCase(j, d),
     trace,
