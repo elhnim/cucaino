@@ -40,6 +40,7 @@ import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
 import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
 import { Ambience } from "@/lib/park/audio/ambience";
+import { MOUNTS, type MountKind } from "@/lib/park/characters/mounts";
 import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wizards";
 import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
@@ -211,6 +212,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // walking up to a building asks first ("Go into the Prize Shop?") instead of popping it open
   const [ask, setAsk] = useState<PlaceDef | null>(null);
   const [questNudge, setQuestNudge] = useState(false);
+  // ── rides round the island: pick a pony, manta or dragon ──
+  const [pickMount, setPickMount] = useState(false);
+  const [riding, setRiding] = useState<{ kind: MountKind; flying: boolean; landing: boolean } | null>(null);
 
   // ── plays cost a ticket (earned from quests); every game's first play each day is free ──
   const [payAsk, setPayAsk] = useState<{ game: string; what: string; busy?: boolean; error?: string } | null>(null);
@@ -703,6 +707,22 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, kidId]);
 
+  useEffect(() => {
+    if (!ready) return;
+    const id = window.setInterval(() => {
+      const r = worldRef.current?.riding ?? null;
+      setRiding((cur) => (cur?.kind === r?.kind && cur?.flying === r?.flying && cur?.landing === r?.landing ? cur : r));
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [ready]);
+  const hopOn = (kind: MountKind) => {
+    setPickMount(false);
+    worldRef.current?.mountUp(kind, theme.accent);
+    playSfx("sparkle");
+    const m = MOUNTS.find((x) => x.kind === kind)!;
+    toast(m.flies ? `${m.emoji} Up we go! Hold ▲ to fly higher, ▼ to swoop down` : `${m.emoji} Giddy-up! Off we gallop`);
+  };
+
   // streak + chest state from the server (re-read after quests change)
   useEffect(() => {
     if (!ready) return;
@@ -992,6 +1012,66 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         </div>
       )}
       {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {ready && !busy && !building && (
+        <div style={rideBar}>
+          {riding && MOUNTS.find((m) => m.kind === riding.kind)?.flies && !riding.landing && (
+            <>
+              {(["up", "down"] as const).map((dir) => (
+                <button
+                  key={dir}
+                  type="button"
+                  style={{ ...turnBtn, width: 50, height: 50, fontSize: 22, touchAction: "none" }}
+                  onPointerDown={(e) => {
+                    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+                    worldRef.current?.setFly(dir === "up" ? 1 : -1);
+                  }}
+                  onPointerUp={() => worldRef.current?.setFly(0)}
+                  onPointerCancel={() => worldRef.current?.setFly(0)}
+                  aria-label={dir === "up" ? "Fly higher" : "Fly lower"}
+                >
+                  {dir === "up" ? "▲" : "▼"}
+                </button>
+              ))}
+            </>
+          )}
+          <button
+            type="button"
+            style={{ ...turnBtn, width: 60, height: 60, fontSize: riding ? 15 : 30, background: riding ? "linear-gradient(#fff4c2, #ffd66b)" : turnBtn.background }}
+            onClick={() => {
+              if (riding) {
+                worldRef.current?.dismount();
+                playSfx("tap");
+              } else setPickMount(true);
+            }}
+            aria-label={riding ? "Hop off" : "Ride an animal"}
+          >
+            {riding ? (riding.landing ? "…" : "Hop off") : "🦄"}
+          </button>
+        </div>
+      )}
+      {pickMount && (
+        <div style={payWrap} onClick={() => setPickMount(false)}>
+          <div style={payCard} onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontWeight: 900, fontSize: 20, color: "#5a2350" }}>Who shall we ride? ✨</div>
+            <div style={{ display: "grid", gap: 8, width: "100%" }}>
+              {MOUNTS.map((m) => (
+                <button key={m.kind} type="button" onClick={() => hopOn(m.kind)} style={mountPick}>
+                  <span style={{ fontSize: 34 }}>{m.emoji}</span>
+                  <span style={{ textAlign: "left" }}>
+                    <span style={{ display: "block", fontWeight: 900, fontSize: 17, color: "#5a2350" }}>
+                      {m.name} {m.flies ? "· flies" : "· gallops"}
+                    </span>
+                    <span style={{ display: "block", fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{m.blurb}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button style={{ ...pill, background: "linear-gradient(#ffffff,#f3e8f1)" }} onClick={() => setPickMount(false)}>
+              Maybe later
+            </button>
+          </div>
+        </div>
+      )}
       {ready && !busy && !building && (
         <div style={turnBar}>
           <button style={turnBtn} onClick={() => worldRef.current?.rotateView(Math.PI / 4)} aria-label="Turn view left">⟲</button>
@@ -1486,6 +1566,27 @@ const turnBar: React.CSSProperties = {
   zIndex: 20,
   display: "flex",
   gap: 10,
+};
+
+const rideBar: React.CSSProperties = {
+  position: "fixed",
+  right: "max(22px, env(safe-area-inset-right))",
+  bottom: "calc(max(20px, env(safe-area-inset-bottom)) + 150px)",
+  zIndex: 21,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+const mountPick: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  padding: "12px 14px",
+  border: "none",
+  borderRadius: 22,
+  background: "linear-gradient(#ffffff, #fff0f8)",
+  boxShadow: "0 4px 0 #f3b6d6",
+  cursor: "pointer",
 };
 
 const turnBtn: React.CSSProperties = {

@@ -27,6 +27,7 @@ export type Ride = Interior & {
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
+import { buildMount, type MountKind, type MountRig } from "../characters/mounts";
 
 export type QualityTier = "standard" | "low";
 
@@ -136,6 +137,13 @@ export class ParkWorld {
   private walkQueue: THREE.Vector3[] = [];
   /** following a route from the map: jog a bit faster (the island is big) */
   private routing = false;
+  // ── riding: a mount the kid (and pet) sit on; fliers climb to `altTarget` ──
+  private mount: MountRig | null = null;
+  private alt = 0;
+  private altTarget = 0;
+  private flyInput = 0;
+  private landing = false;
+  private flySparkle = 0;
   private inputOn = true;
   private nearPlace: string | null = null;
   private idleT = 0;
@@ -146,6 +154,8 @@ export class ParkWorld {
   private downAt: { x: number; y: number; t: number } | null = null;
   // ── free camera: drag to look around, pinch / wheel to zoom ──
   private camYaw = 0;
+  /** camera height angle: drag up/down to look from low (almost eye level) to high overhead */
+  private camPitch = Math.atan2(CAM_OFFSET.y, CAM_OFFSET.z);
   private lookAtPt = new THREE.Vector3(SPAWN.x, 1.2, SPAWN.z);
   private camZoom = 1;
   private dragging = false;
@@ -397,6 +407,7 @@ export class ParkWorld {
   /** Enter a ride scene: the kid (and pet) travel into it, the park pauses behind it. */
   enterRide(build: (accent: string) => Ride) {
     if (this.ride || !this.kid) return;
+    this.dismount(true);
     const ride = build("#ff5fa8");
     this.ride = ride;
     this.rideReturn = this.kid.root.position.clone();
@@ -574,13 +585,13 @@ export class ParkWorld {
   }
 
   /** Advance an actor's animation: chibi rigs are driven by how fast they're moving. */
-  private tickActor(a: Actor, dt: number) {
+  private tickActor(a: Actor, dt: number, forceSpeed?: number) {
     if (!a.rig) {
       a.mixer?.update(dt);
       return;
     }
     const p = a.root.position;
-    const speed = Number.isNaN(a.last!.x) || dt <= 0 ? 0 : Math.hypot(p.x - a.last!.x, p.z - a.last!.z) / dt;
+    const speed = forceSpeed ?? (Number.isNaN(a.last!.x) || dt <= 0 ? 0 : Math.hypot(p.x - a.last!.x, p.z - a.last!.z) / dt);
     a.last!.copy(p);
     a.rig.update(dt, speed);
     a.rig.setGlow(this.park?.atmosphere.glow ?? 0);
@@ -663,8 +674,12 @@ export class ParkWorld {
     }
     if (this.building || this.fetch || !this.lastDrag || !this.downAt) return;
     const dx = e.clientX - this.lastDrag.x;
+    const dy = e.clientY - this.lastDrag.y;
     if (!this.dragging && Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > 10) this.dragging = true;
-    if (this.dragging) this.camYaw -= dx * 0.009; // drag to turn the view
+    if (this.dragging) {
+      this.camYaw -= dx * 0.009; // drag sideways to turn the view
+      this.camPitch = Math.max(0.16, Math.min(1.38, this.camPitch + dy * 0.006)); // drag up/down to tilt it
+    }
     this.lastDrag = { x: e.clientX, y: e.clientY };
   };
   private onWheel = (e: WheelEvent) => {
@@ -834,7 +849,7 @@ export class ParkWorld {
     const moving = Math.hypot(vx, vz) > 0.01;
     if (moving) {
       if (!this.walkTarget) this.routing = false;
-      const sp = WALK_SPEED * (this.routing && this.walkTarget ? 1.6 : 1);
+      const sp = WALK_SPEED * (this.mount ? (this.mount.flies ? 2.4 : 1.9) : this.routing && this.walkTarget ? 1.6 : 1);
       pos.x += vx * sp * dt;
       pos.z += vz * sp * dt;
       kid.facing = Math.atan2(vx, vz);
@@ -843,7 +858,7 @@ export class ParkWorld {
     } else {
       this.idleT += dt;
       // stood still for a moment: turn round to face the camera and give a little wave
-      if (this.idleT > 2.2 && !this.building && !this.fetch) {
+      if (this.idleT > 2.2 && !this.building && !this.fetch && !this.mount) {
         kid.facing = Math.atan2(this.camera.position.x - pos.x, this.camera.position.z - pos.z);
         if (!this.waved) {
           this.waved = true;
@@ -851,11 +866,20 @@ export class ParkWorld {
         }
       }
     }
-    // keep inside the park and out of buildings
+    // riding: climb/dive/land, and the mount follows us
+    if (this.mount) {
+      const m = this.mount;
+      if (m.flies && !this.landing) this.altTarget = Math.max(4, Math.min(34, this.altTarget + this.flyInput * 9 * dt));
+      this.alt += (this.altTarget - this.alt) * Math.min(1, dt * (this.landing ? 1.6 : 2.2));
+      if (this.landing && this.alt < 0.25) this.dismount(true);
+    }
+    const aloft = this.alt > 3;
+    // keep inside the park (fliers may roam out over the sea) and out of buildings
     const r = Math.hypot(pos.x, pos.z);
-    if (r > PARK_RADIUS) pos.multiplyScalar(PARK_RADIUS / r);
+    const limit = aloft ? PARK_RADIUS + 70 : PARK_RADIUS;
+    if (r > limit) pos.multiplyScalar(limit / r);
     // walk round the grassy hills
-    for (const o of this.park.obstacles) {
+    for (const o of aloft ? [] : this.park.obstacles) {
       const dx = pos.x - o.x;
       const dz = pos.z - o.z;
       const d = Math.hypot(dx, dz);
@@ -864,7 +888,7 @@ export class ParkWorld {
         pos.z = o.z + (dz / d) * o.r;
       }
     }
-    for (const p of this.allPlaces()) {
+    for (const p of aloft ? [] : this.allPlaces()) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;
       const dz = pos.z - p.z;
@@ -875,11 +899,34 @@ export class ParkWorld {
       }
     }
     turnTowards(kid, dt);
-    if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving ? "walk" : "idle");
-    this.tickActor(kid, dt);
+    if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
+    if (this.mount) {
+      const m = this.mount;
+      pos.y = this.alt;
+      m.root.position.set(pos.x, this.alt, pos.z);
+      m.root.rotation.y = kid.root.rotation.y;
+      m.root.rotation.z = moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
+      m.update(dt, moving ? WALK_SPEED * 2 : 0, m.flies && this.alt > 0.4, this.park.atmosphere.glow);
+      if (kid.rig) kid.rig.root.position.copy(m.seat);
+      this.tickActor(kid, dt, 0);
+      // a sparkly trail behind fliers
+      if (m.flies && this.alt > 1 && moving) {
+        this.flySparkle -= dt;
+        if (this.flySparkle <= 0) {
+          this.flySparkle = 0.12;
+          this.burst(pos.clone().setY(this.alt + 0.4), 4);
+        }
+      }
+    } else this.tickActor(kid, dt);
 
     // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
-    if (this.pet) {
+    if (this.pet && this.mount && this.petMode === "follow") {
+      const seat = this.mount.root.localToWorld(this.mount.petSeat.clone());
+      this.pet.root.position.copy(seat);
+      this.pet.root.rotation.y = kid.root.rotation.y;
+      this.pet.facing = kid.facing;
+      this.tickActor(this.pet, dt, 0);
+    } else if (this.pet) {
       const pet = this.pet;
       let target: THREE.Vector3 | null = null;
       let speed = 3.5;
@@ -968,7 +1015,7 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn) {
+    if (this.inputOn && !aloft) {
       let found: PlaceDef | null = null;
       for (const p of this.allPlaces()) {
         if (p.doorRadius <= 0) continue;
@@ -1043,13 +1090,15 @@ export class ParkWorld {
       this.camera.position.lerp(new THREE.Vector3(cx, span * (portrait ? 1.25 : 0.72), cz + span * (portrait ? 0.95 : 0.9)), Math.min(1, dt * 3));
       this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
     } else {
-      const off = CAM_OFFSET.clone().multiplyScalar(this.camZoom).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camYaw);
+      const dist = CAM_OFFSET.length() * this.camZoom * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
+      const off = new THREE.Vector3(0, Math.sin(this.camPitch) * dist, Math.cos(this.camPitch) * dist).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camYaw);
       // look a little ahead of where the kid is heading, so they can see what's coming
       const ahead = moving ? 3 : 1.2;
       const lx = pos.x + Math.sin(kid.facing) * ahead;
       const lz = pos.z + Math.cos(kid.facing) * ahead;
-      this.lookAtPt.lerp(new THREE.Vector3(lx, 1.2, lz), Math.min(1, dt * 3));
-      this.camera.position.lerp(new THREE.Vector3(this.lookAtPt.x, 0, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
+      this.lookAtPt.lerp(new THREE.Vector3(lx, 1.2 + this.alt, lz), Math.min(1, dt * 3));
+      this.camera.position.lerp(new THREE.Vector3(this.lookAtPt.x, this.lookAtPt.y - 1.2, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
+      if (this.camera.position.y < 0.8) this.camera.position.y = 0.8; // never dip under the grass
       this.camera.lookAt(this.lookAtPt);
     }
     this.renderer.render(this.scene, this.camera);
@@ -1131,6 +1180,60 @@ export class ParkWorld {
       w.star.material.dispose();
       w.star = null;
     }
+  }
+
+  /** Hop on a mount (pony gallops, manta/dragon fly). Replaces any current mount. */
+  mountUp(kind: MountKind, accent?: string) {
+    if (!this.kid || this.ride) return;
+    this.dismount(true);
+    const m = buildMount(kind, accent ?? this.opts.accent);
+    this.mount = m;
+    this.scene.add(m.root);
+    m.root.position.copy(this.kid.root.position).setY(0);
+    this.landing = false;
+    this.alt = 0;
+    this.altTarget = m.flies ? 9 : 0;
+    this.flyInput = 0;
+    if (this.kid.rig) this.kid.rig.root.position.copy(m.seat);
+    const shadow = this.kid.root.children[1];
+    if (shadow) shadow.visible = false;
+    this.burst(this.kid.root.position.clone().setY(1.5), 50);
+    this.walkTarget = null;
+    this.walkQueue = [];
+  }
+
+  /** Hop off. Fliers glide down and land first (unless `now`). */
+  dismount(now = false) {
+    const m = this.mount;
+    if (!m || !this.kid) return;
+    if (m.flies && this.alt > 0.4 && !now) {
+      this.landing = true;
+      this.altTarget = 0;
+      return;
+    }
+    m.dispose();
+    this.mount = null;
+    this.landing = false;
+    this.alt = 0;
+    this.altTarget = 0;
+    this.kid.root.position.y = 0;
+    if (this.kid.rig) this.kid.rig.root.position.set(0, 0, 0);
+    const shadow = this.kid.root.children[1];
+    if (shadow) shadow.visible = true;
+    // landed somewhere out over the sea? hop back onto the beach
+    const r = Math.hypot(this.kid.root.position.x, this.kid.root.position.z);
+    if (r > PARK_RADIUS) this.kid.root.position.multiplyScalar(PARK_RADIUS / r);
+    if (this.pet) this.pet.root.position.set(this.kid.root.position.x + 1.6, 0, this.kid.root.position.z + 1);
+  }
+
+  /** While flying: +1 climb, -1 dive, 0 hold. */
+  setFly(dir: number) {
+    this.flyInput = Math.max(-1, Math.min(1, dir));
+  }
+
+  /** What we're riding right now (for the HUD). */
+  get riding(): { kind: MountKind; flying: boolean; landing: boolean } | null {
+    return this.mount ? { kind: this.mount.kind, flying: this.mount.flies && this.alt > 0.4, landing: this.landing } : null;
   }
 
   /** What the world feels like right now, for the soundscape: twilight glow, forest depth, sea closeness. */
