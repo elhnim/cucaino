@@ -6,6 +6,10 @@ import type { ParkAssets, KitName } from "../assets/loader";
 import { PLACES, LANDS, type PlaceDef, type LandDef } from "../registry/places";
 import { labelSprite } from "@/lib/game3d/buildingKit";
 import { zoneBounds } from "../builder/rules";
+import { buildAtmosphere, type Atmosphere } from "./atmosphere";
+import { buildGlowFlora } from "./glowFlora";
+import { buildOcean, BEACH_IN } from "./ocean";
+import { buildSkyLife } from "./skyLife";
 
 export interface BuiltPark {
   /** meshes that can be tapped, tagged with userData.placeId */
@@ -14,7 +18,10 @@ export interface BuiltPark {
   lands: LandDef[];
   /** sampled points along every path (NPCs stroll between these) */
   pathPoints: THREE.Vector3[];
-  update(dt: number, t: number): void;
+  /** the dreamy day <-> twilight sky; atmosphere.glow lights up the whole world */
+  atmosphere: Atmosphere;
+  /** focus = where the kid is (walking into the Glow Forest pulls the light to twilight) */
+  update(dt: number, t: number, focus?: THREE.Vector3): void;
   dispose(): void;
 }
 
@@ -86,18 +93,6 @@ function plazaTexture() {
   );
 }
 
-function skyTexture() {
-  return canvasTexture(256, (c) => {
-    const g = c.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, "#b9a6ff");
-    g.addColorStop(0.45, "#ffc2e2");
-    g.addColorStop(0.75, "#ffe3cc");
-    g.addColorStop(1, "#fff1d9");
-    c.fillStyle = g;
-    c.fillRect(0, 0, 256, 256);
-  });
-}
-
 function blobTexture() {
   return canvasTexture(64, (c) => {
     const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -132,23 +127,19 @@ function stripeTexture() {
 const m4 = (x: number, y: number, z: number, s: number, rotY = 0, sy = s) =>
   new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0)), new THREE.Vector3(s, sy, s));
 
-export async function buildPark(scene: THREE.Scene, assets: ParkAssets): Promise<BuiltPark> {
+export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { hour?: () => number; lowQuality?: boolean } = {}): Promise<BuiltPark> {
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(d: T) => (disposables.push(d), d);
   const toon = (color: string) => track(new THREE.MeshToonMaterial({ color }));
   const r = rng(20260927);
 
-  // ── sky, fog, light ──
-  const sky = new THREE.Mesh(track(new THREE.SphereGeometry(450, 24, 16)), track(new THREE.MeshBasicMaterial({ map: track(skyTexture()), side: THREE.BackSide, fog: false, depthWrite: false })));
-  scene.add(sky);
-  scene.fog = new THREE.Fog(0xffd0e6, 150, 420);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xd6c8ff, 0.95));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.15);
-  sun.position.set(-30, 50, 25);
-  scene.add(sun);
+  // ── the dreamy sky: day -> golden hour -> glowing twilight, following the real clock ──
+  const forestLand = LANDS.find((l) => l.id === "forest")!;
+  const atmosphere = buildAtmosphere(scene, { forest: { x: forestLand.x, z: forestLand.z, radius: forestLand.radius + 8 }, hour: opts.hour, lowQuality: opts.lowQuality });
+  disposables.push(atmosphere);
 
-  // ── ground + plaza ──
-  const ground = new THREE.Mesh(track(new THREE.CircleGeometry(400, 64)), track(new THREE.MeshToonMaterial({ map: track(meadowTexture()) })));
+  // ── ground (the meadow island) + plaza; the beach and ocean ring it ──
+  const ground = new THREE.Mesh(track(new THREE.CircleGeometry(BEACH_IN + 1, 72)), track(new THREE.MeshToonMaterial({ map: track(meadowTexture()) })));
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
   const plaza = new THREE.Mesh(track(new THREE.CylinderGeometry(8.5, 8.8, 0.25, 48)), track(new THREE.MeshToonMaterial({ map: track(plazaTexture()) })));
@@ -384,6 +375,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets): Promise
     scene.add(await assets.instanced(k.kit, k.id, mats));
   }
 
+  // ── the sea: beach, glowing ocean, jellyfish (some float over the Glow Forest), whales, mantas, dolphins ──
+  const ocean = buildOcean(scene, { skyJellies: { x: forestLand.x, z: forestLand.z, radius: forestLand.radius + 4 }, lowQuality: opts.lowQuality });
+  disposables.push(ocean);
+  const skyLife = buildSkyLife(scene, { radius: BEACH_IN - 4, lowQuality: opts.lowQuality });
+  disposables.push(skyLife);
+
   // candy canes + lanterns lining the paths
   const caneMats: THREE.Matrix4[] = [];
   const lanternMats: THREE.Matrix4[] = [];
@@ -404,6 +401,20 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets): Promise
   }
   scene.add(await assets.instanced("holiday", "candy-cane-red", caneMats));
   scene.add(await assets.instanced("town", "lantern", lanternMats));
+
+  // ── magical glowing plants: a dense Glow Forest of giant dream trees, and glowing flowers everywhere ──
+  const glowFlora = buildGlowFlora(scene, {
+    forest: { x: forestLand.x + 4, z: forestLand.z + 6, radius: forestLand.radius + 12, count: opts.lowQuality ? 120 : 190 },
+    park: { x: 0, z: 0, radius: BEACH_IN - 6, count: opts.lowQuality ? 140 : 240 },
+    free: (x, z, pad) => Math.hypot(x, z) < BEACH_IN - 3 && Math.hypot(x, z) > 11 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad),
+    lowQuality: opts.lowQuality,
+    lights: lanternMats.map((mx) => {
+      const p = new THREE.Vector3().setFromMatrixPosition(mx);
+      return { x: p.x, y: 2.6, z: p.z, color: "#ffd68a", size: 1.8 };
+    }),
+  });
+  disposables.push(glowFlora);
+
 
   // ── the Sky Train: a candy rail looping the whole park overhead, with a train on it ──
   const loopPts: THREE.Vector3[] = [];
@@ -469,7 +480,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets): Promise
     places: PLACES,
     lands: LANDS,
     pathPoints,
-    update(dt, t) {
+    atmosphere,
+    update(dt, t, focus) {
+      atmosphere.update(dt, t, focus ?? new THREE.Vector3());
+      glowFlora.update(dt, t, atmosphere.glow);
+      ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog);
+      skyLife.update(dt, t, atmosphere.glow);
       lolly.rotation.y += dt * 0.5;
       for (const b of bobbers) b.obj.position.y = b.base + Math.sin(t * 2 + b.phase) * 0.18;
       cloudBase.forEach((c, i) => {

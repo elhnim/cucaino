@@ -39,9 +39,14 @@ import { CandySheet } from "./ui/CandySheet";
 import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
 import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
+import { Ambience } from "@/lib/park/audio/ambience";
+import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wizards";
+import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
 // Every building panel loads on demand, never in the park's first download.
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
+const WizardSheet = dynamic(() => import("./wizards/WizardSheet").then((m) => m.WizardSheet), { ssr: false });
+const BookOfWisdom = dynamic(() => import("./wizards/BookOfWisdom").then((m) => m.BookOfWisdom), { ssr: false });
 const MysteryChest = dynamic(() => import("./habits/MysteryChest").then((m) => m.MysteryChest), { ssr: false });
 const QuestBoard = dynamic(() => import("./quests/QuestBoard").then((m) => m.QuestBoard), { ssr: false });
 const BadgeUnlockModal = dynamic(() => import("@/components/kid/BadgeUnlockModal"), { ssr: false });
@@ -156,6 +161,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [foundToday, setFoundToday] = useState<number[]>([]);
   const [album, setAlbum] = useState<string[]>([]);
   const [showAlbum, setShowAlbum] = useState(false);
+  // ── wizards: 6 of them hide somewhere new each day, each with one lesson ──
+  const wizDay = useRef(dayNumber(new Date()));
+  const [wisdom, setWisdom] = useState<Record<string, string>>({});
+  const [wizardSpots, setWizardSpots] = useState<{ id: string; x: number; z: number }[]>([]);
+  const [showBook, setShowBook] = useState(false);
   const huntKey = `cucaino.park.hunt.${kidId}.${dayKey()}`;
   const albumKey = `cucaino.park.album.${kidId}`;
   const onTreasure = useCallback(
@@ -649,6 +659,49 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     }
   }, [ready, done, data.tasksToday.total, toast]);
 
+  // ── the dreamy soundscape: starts on the first tap (browsers need one), follows the world ──
+  const ambience = useRef<Ambience | null>(null);
+  useEffect(() => {
+    if (!ready) return;
+    const amb = (ambience.current = new Ambience());
+    const kick = () => amb.start();
+    window.addEventListener("pointerdown", kick, { once: false });
+    return () => {
+      window.removeEventListener("pointerdown", kick);
+      amb.stop();
+      ambience.current = null;
+    };
+  }, [ready]);
+  useEffect(() => {
+    if (!ready) return;
+    const id = window.setInterval(() => {
+      const a = worldRef.current?.getAmbient();
+      if (a) ambience.current?.setScene({ ...a, quiet: busyRef.current });
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const book = readWisdom(kidId);
+    setWisdom(book);
+    const day = wizDay.current;
+    const spots =
+      worldRef.current?.setWizards(
+        WIZARDS.map((w) => ({ id: w.id, name: w.name, robe: w.robe, hat: w.hat, hasLesson: !book[todaysLesson(w.id, day).id] })),
+        day * 7919 + 13,
+      ) ?? [];
+    setWizardSpots(spots);
+    try {
+      const k = `cucaino.wizards.hello.${kidId}.${day}`;
+      if (!window.localStorage.getItem(k)) {
+        window.localStorage.setItem(k, "1");
+        window.setTimeout(() => toast("🧙 The wizards have moved! Find them in the park for today's lessons ✨"), 9000);
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, kidId]);
+
   // streak + chest state from the server (re-read after quests change)
   useEffect(() => {
     if (!ready) return;
@@ -816,11 +869,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   };
 
   const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
   const questsLeft = Math.max(0, data.tasksToday.total - done);
   const questBoard = getPlace("quest-board");
-  const mapPins: MapPin[] = questBoard
-    ? [{ id: "quest-board", x: questBoard.x, z: questBoard.z, emoji: "📋", label: "Quest Board", badge: questsLeft, pulse: questsLeft > 0 }]
-    : [];
+  const mapPins: MapPin[] = [
+    ...(questBoard ? [{ id: "quest-board", x: questBoard.x, z: questBoard.z, emoji: "📋", label: "Quest Board", badge: questsLeft, pulse: questsLeft > 0 }] : []),
+    ...wizardSpots.map((s) => {
+      const w = WIZARDS.find((x) => x.id === s.id)!;
+      const fresh = !wisdom[todaysLesson(w.id, wizDay.current).id];
+      return { id: `wizard:${s.id}`, x: s.x, z: s.z, emoji: "🧙", label: w.name.split(" ")[0], pulse: fresh };
+    }),
+  ];
+  const wizardOpen = panel?.kind === "wizard" && panel.placeId ? WIZARDS.find((w) => `wizard:${w.id}` === panel.placeId) : undefined;
 
   // iPhone Safari can show the page behind the fixed 3D view (where its toolbar was): paint the
   // page the same colour as the scene so there's never a grey strip
@@ -858,6 +919,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           <Chip emoji="⭐" value={`${points}`} />
           <Chip emoji="📋" value={`${done}/${data.tasksToday.total}`} />
           {dream && <Chip emoji="🎟️" value={`${dream.tickets}`} />}
+          <button style={{ ...chip, border: "none", cursor: "pointer", pointerEvents: "auto" }} onClick={() => setShowBook(true)} aria-label="Book of Wisdom">
+            <span style={{ fontSize: 20 }}>📖</span>
+            <span style={{ fontWeight: 900, color: "#7a2e62" }}>{Object.keys(wisdom).length}</span>
+          </button>
           <button style={{ ...chip, border: "none", cursor: "pointer", pointerEvents: "auto" }} onClick={() => setShowAlbum(true)} aria-label="Sticker album">
             <span style={{ fontSize: 20 }}>🗺️</span>
             <span style={{ fontWeight: 900, color: "#7a2e62" }}>
@@ -936,7 +1001,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         <div style={askCard}>
           <div style={{ fontSize: 38, lineHeight: 1 }}>{ask.emoji}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>{ask.action === "build" ? "Build your Dream Park?" : ask.action === "parent" ? "Go to the grown-ups' area?" : `Go into ${ask.label}?`}</div>
+            <div style={{ fontWeight: 900, fontSize: 18, color: "#5a2350" }}>{ask.action === "build" ? "Build your Dream Park?" : ask.action === "parent" ? "Go to the grown-ups' area?" : ask.action === "wizard" ? `Talk to ${ask.label}?` : `Go into ${ask.label}?`}</div>
             <div style={{ fontWeight: 800, fontSize: 13, color: "#9b7090" }}>{ASK_HINT[ask.action] ?? ""}</div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -1159,6 +1224,21 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           )}
         </div>
       )}
+      {wizardOpen && (
+        <WizardSheet
+          wizard={wizardOpen}
+          lesson={todaysLesson(wizardOpen.id as WizardId, wizDay.current)}
+          learned={!!wisdom[todaysLesson(wizardOpen.id as WizardId, wizDay.current).id]}
+          onLearned={() => {
+            const l = todaysLesson(wizardOpen.id as WizardId, wizDay.current);
+            setWisdom(addWisdom(kidId, l.id, dayKey()));
+            worldRef.current?.setWizardSparkle(wizardOpen.id, false);
+            worldRef.current?.celebrate(true);
+          }}
+          onClose={closePanel}
+        />
+      )}
+      {showBook && <BookOfWisdom kidId={kidId} onClose={() => setShowBook(false)} />}
       {showChest && <MysteryChest kidId={kidId} onClose={() => setShowChest(false)} onPrize={onChestPrize} />}
       {payAsk && (
         <div style={payWrap}>
@@ -1317,6 +1397,7 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   theatre: "Fables, myths and short tales — earn stars",
   arcade: "AI brain games with sparks",
   "money-town": "The family money board game",
+  wizard: "A wizard with a lesson for you today ✨",
   golf: "18 holes of candy mini golf",
   retro: "20 classic-style pixel games",
   bank: "Real-money investing (grown-ups switch it on)",

@@ -25,6 +25,7 @@ export type Ride = Interior & {
   actorScale?: number;
 };
 import { makeSparkleTexture } from "@/lib/game3d/textures";
+import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 
 export type QualityTier = "standard" | "low";
 
@@ -35,6 +36,8 @@ export function detectQuality(): QualityTier {
 }
 
 export interface ParkWorldOptions {
+  /** the hour of day (0–24) that drives the day <-> twilight cycle; defaults to the real clock */
+  hour?: () => number;
   kidAnimal: AnimalId;
   petAnimal?: AnimalId | null;
   themeId?: string;
@@ -108,8 +111,12 @@ export class ParkWorld {
   private npcs: { actor: Actor; target: THREE.Vector3; wait: number }[] = [];
   private kid: Actor | null = null;
   private pet: Actor | null = null;
+  // ── wizards: placed somewhere new each day; they act like little walk-up places ──
+  private wizards: { model: WizardModel; place: PlaceDef; sign: THREE.Sprite; star: THREE.Sprite | null }[] = [];
   /** how big the pet has grown (it grows with the kid's chores; see setPetGrowth) */
   private petGrowth = 1;
+  /** time until the next magic footstep sparkle (twilight only) */
+  private stepSparkle = 0;
   private clock = new THREE.Clock();
   private time = 0;
   private move = { x: 0, y: 0 };
@@ -213,7 +220,7 @@ export class ParkWorld {
       old.sprite.material.dispose();
       this.beacons.delete(placeId);
     }
-    const place = this.park?.places.find((p) => p.id === placeId);
+    const place = this.allPlaces().find((p) => p.id === placeId);
     if (!emoji || !place) return;
     const s = emojiSprite(emoji, 2);
     const base = place.signY + 2;
@@ -477,7 +484,7 @@ export class ParkWorld {
   private async boot() {
     try {
       const [park, dream, kid, pet] = await Promise.all([
-        buildPark(this.scene, this.assets),
+        buildPark(this.scene, this.assets, { hour: this.opts.hour, lowQuality: this.quality === "low" }),
         createDreamPark(this.scene, this.assets),
         this.makeActor(this.opts.kidAnimal, 2.1),
         this.opts.petAnimal ? this.makeActor(this.opts.petAnimal, 1.25) : Promise.resolve(null),
@@ -657,7 +664,7 @@ export class ParkWorld {
     const hit = this.raycaster.intersectObjects(this.park.tappables, true)[0];
     const placeId = hit?.object.userData.placeId as string | undefined;
     if (placeId) {
-      const place = this.park.places.find((p) => p.id === placeId);
+      const place = this.allPlaces().find((p) => p.id === placeId);
       if (place) {
         // walk to the door, it opens on arrival
         const dir = new THREE.Vector3(-place.x, 0, -place.z).normalize();
@@ -786,7 +793,7 @@ export class ParkWorld {
     // keep inside the park and out of buildings
     const r = Math.hypot(pos.x, pos.z);
     if (r > PARK_RADIUS) pos.multiplyScalar(PARK_RADIUS / r);
-    for (const p of this.park.places) {
+    for (const p of this.allPlaces()) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;
       const dz = pos.z - p.z;
@@ -892,7 +899,7 @@ export class ParkWorld {
     // doors
     if (this.inputOn) {
       let found: PlaceDef | null = null;
-      for (const p of this.park.places) {
+      for (const p of this.allPlaces()) {
         if (p.doorRadius <= 0) continue;
         if (Math.hypot(pos.x - p.x, pos.z - p.z) < p.doorRadius) {
           found = p;
@@ -908,7 +915,20 @@ export class ParkWorld {
       this.nearPlace = found?.id ?? null;
     }
 
-    this.park.update(dt, this.time);
+    this.park.update(dt, this.time, pos);
+    // at twilight your footsteps leave a little trail of sparkles
+    if (moving && this.park.atmosphere.glow > 0.45) {
+      this.stepSparkle -= dt;
+      if (this.stepSparkle <= 0) {
+        this.stepSparkle = 0.28;
+        this.burst(pos.clone().setY(0.25), 5);
+      }
+    }
+    for (const w of this.wizards) {
+      const near = w.model.root.position.distanceTo(pos) < 12 ? pos : null;
+      w.model.update(dt, this.time, near, this.park.atmosphere.glow);
+      if (w.star) w.star.position.y = 6.1 + Math.sin(this.time * 2.4) * 0.25;
+    }
     const foundId = this.treasures?.update(dt, this.time, pos) ?? null;
     if (foundId !== null) {
       this.burst(pos.clone().setY(2), 60);
@@ -962,6 +982,91 @@ export class ParkWorld {
     this.frame = requestAnimationFrame(this.tick);
   };
 
+  private allPlaces(): PlaceDef[] {
+    const base = this.park?.places ?? [];
+    return this.wizards.length ? [...base, ...this.wizards.map((w) => w.place)] : base;
+  }
+
+  /**
+   * Put today's wizards in the park. Spots are picked beside the paths (away from buildings and
+   * each other) from `seed`, so they move every day but stay put all day. Returns where they went.
+   */
+  setWizards(list: { id: string; name: string; robe: string; hat: string; orb?: string; hasLesson: boolean }[], seed: number): { id: string; x: number; z: number }[] {
+    for (const w of this.wizards) {
+      this.scene.remove(w.model.root, w.sign);
+      if (w.star) this.scene.remove(w.star);
+      w.model.dispose();
+      w.sign.material.map?.dispose();
+      w.sign.material.dispose();
+      if (w.star) {
+        w.star.material.map?.dispose();
+        w.star.material.dispose();
+      }
+      if (this.park) this.park.tappables = this.park.tappables.filter((o) => !(o.userData.placeId as string | undefined)?.startsWith("wizard:"));
+    }
+    this.wizards = [];
+    if (!this.park) return [];
+    let s = seed >>> 0 || 1;
+    const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    const pts = this.park.pathPoints.filter((p) => Math.hypot(p.x, p.z) > 16 && !this.park!.places.some((pl) => Math.hypot(pl.x - p.x, pl.z - p.z) < pl.doorRadius + 5));
+    const chosen: THREE.Vector3[] = [];
+    const out: { id: string; x: number; z: number }[] = [];
+    for (const w of list) {
+      let spot: THREE.Vector3 | null = null;
+      for (let tries = 0; tries < 60 && pts.length; tries++) {
+        const p = pts[Math.floor(rnd() * pts.length)];
+        if (chosen.some((c) => c.distanceTo(p) < 22)) continue;
+        spot = p;
+        break;
+      }
+      if (!spot) continue;
+      chosen.push(spot);
+      // step off the path to the side (perpendicular to the way back to the plaza)
+      const side = rnd() < 0.5 ? -1 : 1;
+      const r = Math.hypot(spot.x, spot.z) || 1;
+      const x = spot.x + (-spot.z / r) * 3.4 * side;
+      const z = spot.z + (spot.x / r) * 3.4 * side;
+      const model = buildWizardModel({ robe: w.robe, hat: w.hat, orb: w.orb });
+      model.root.position.set(x, 0, z);
+      model.root.traverse((o) => (o.userData.placeId = `wizard:${w.id}`));
+      this.scene.add(model.root);
+      this.park.tappables.push(model.root);
+      const sign = nameTag(`🧙 ${w.name}`, w.robe);
+      sign.position.set(x, 4.9, z);
+      this.scene.add(sign);
+      let star: THREE.Sprite | null = null;
+      if (w.hasLesson) {
+        star = emojiSprite("✨", 1.3);
+        star.position.set(x, 6.1, z);
+        this.scene.add(star);
+      }
+      const place: PlaceDef = { id: `wizard:${w.id}`, label: w.name, emoji: "🧙", land: "plaza", x, z, radius: 1.1, doorRadius: 3.4, action: "wizard", signY: 0, models: [] };
+      this.wizards.push({ model, place, sign, star });
+      out.push({ id: w.id, x, z });
+    }
+    return out;
+  }
+
+  /** Show or hide the ✨ over a wizard (✨ = today's lesson not learned yet). */
+  setWizardSparkle(id: string, on: boolean) {
+    const w = this.wizards.find((x) => x.place.id === `wizard:${id}`);
+    if (!w) return;
+    if (!on && w.star) {
+      this.scene.remove(w.star);
+      w.star.material.map?.dispose();
+      w.star.material.dispose();
+      w.star = null;
+    }
+  }
+
+  /** What the world feels like right now, for the soundscape: twilight glow, forest depth, sea closeness. */
+  getAmbient(): { glow: number; forest: number; shore: number } {
+    const a = this.park?.atmosphere;
+    const p = this.kid?.root.position;
+    const r = p ? Math.hypot(p.x, p.z) : 0;
+    return { glow: a?.glow ?? 0, forest: a?.forest ?? 0, shore: Math.min(1, Math.max(0, (r - 78) / 36)) };
+  }
+
   /** Grow (or shrink) the pet in the park, e.g. 0.7 for a baby up to ~1.35 fully grown. */
   setPetGrowth(scale: number, celebrate = false) {
     this.petGrowth = scale;
@@ -982,7 +1087,7 @@ export class ParkWorld {
 
   /** Leave a place: step back out of its door so it doesn't reopen straight away. */
   stepOutOf(placeId: string) {
-    const p = this.park?.places.find((x) => x.id === placeId);
+    const p = this.allPlaces().find((x) => x.id === placeId);
     if (!p || !this.kid) return;
     const dir = new THREE.Vector3(-p.x, 0, -p.z).normalize();
     this.kid.root.position.set(p.x, 0, p.z).addScaledVector(dir, p.doorRadius + 1);

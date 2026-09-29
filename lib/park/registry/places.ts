@@ -26,6 +26,7 @@ export type PlaceAction =
   | "golf"
   | "theatre"
   | "retro"
+  | "wizard"
   | "none";
 
 export interface PlaceModel {
@@ -78,7 +79,7 @@ export const LANDS: LandDef[] = [
   { id: "rides", name: "Ride Land", emoji: "🎢", x: -34, z: -40, radius: 15, ground: "#e3d4ff", entrance: [-22, -30], via: [[-9, -12], [-17, -22]] },
   { id: "friends", name: "Friends Café", emoji: "💌", x: -30, z: 40, radius: 12, ground: "#cdeeff", entrance: [-21, 31], via: [[-8, 13], [-15, 24]] },
   { id: "dream", name: "My Dream Park", emoji: "🔨", x: 40, z: 12, radius: 18, ground: "#c9f7de", entrance: [23.6, 12.4], via: [[10, 5], [17, 12]] },
-  { id: "forest", name: "Sweet Forest", emoji: "🍄", x: 42, z: 50, radius: 18, ground: "#9fe8bf", entrance: [28, 38], via: [[9, 14], [18, 30]] },
+  { id: "forest", name: "Glow Forest", emoji: "🌌", x: 42, z: 50, radius: 18, ground: "#9fe8bf", entrance: [28, 38], via: [[9, 14], [18, 30]] },
   // outer lands: each gets its own winding path from the plaza
   { id: "books", name: "Book Nook", emoji: "📚", x: 76, z: -20, radius: 13, ground: "#ffe9b8", entrance: [62, -19], via: [[14, -4], [40, -14], [54, -18]] },
   { id: "golf", name: "Golf Green", emoji: "⛳", x: -74, z: -24, radius: 14, ground: "#c6f5a8", entrance: [-60, -21], via: [[-14, -3], [-40, -13], [-54, -19]] },
@@ -481,4 +482,4 @@ export function getPlace(id: string): PlaceDef | undefined {
 }
 
 /** Walkable limit of the park (the kid is kept inside this radius). */
-export const PARK_RADIUS = 95;
+export const PARK_RADIUS = 114;
