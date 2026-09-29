@@ -1,340 +1,302 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { createPortal } from "react-dom";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { askStumpQuestion } from "@/lib/actions/arcade";
+import { STUMP_MAX_GUESSES, STUMP_MAX_QUESTIONS, stumpProgress, type StumpAnswer, type StumpTurn } from "@/lib/arcade/rules";
+import type { StumpMove } from "@/lib/arcade/validate";
 import { playSfx } from "@/lib/audio/sound-manager";
+import { Celebrate, ErrorBox, PrimaryButton, SecondaryButton, SparkNote, Thinking, readStat, useBusy, useSparks, writeStat, safeAction } from "../ui";
 
-type GameState = "idle" | "thinking" | "playing" | "ai_won" | "kid_won";
+// Rules: think of something secret. The AI has 20 turns to find it; each question or
+// guess uses a turn, and it only gets 3 guesses. Survive all that and you win!
 
-type Message = { role: "user" | "assistant"; content: string };
+type Phase = "idle" | "thinking" | "asking" | "guessing" | "ai_won" | "kid_won";
 
 const CATEGORIES = [
   { label: "Animals", emoji: "🐾", value: "Animals" },
   { label: "Foods", emoji: "🍕", value: "Foods" },
   { label: "Household Items", emoji: "🏠", value: "Household Items" },
-  { label: "Hobbies", emoji: "🎨", value: "Hobbies" },
-  { label: "Popular Characters", emoji: "⭐", value: "Popular Characters" },
+  { label: "Sports & Hobbies", emoji: "⚽", value: "Sports & Hobbies" },
+  { label: "Characters", emoji: "⭐", value: "Cartoon & Story Characters" },
+  { label: "Anything!", emoji: "🎲", value: "Anything!" },
 ];
 
-const CONFETTI = ["🎉","🎊","✨","🌟","🎈","🥳","🏆","💫","⭐","🎯","🦄","🎀","🎁","🌈","🎆"];
+const ANSWERS: { value: StumpAnswer; label: string; cls: string }[] = [
+  { value: "Yes", label: "✅ Yes", cls: "bg-green-500 hover:bg-green-600" },
+  { value: "No", label: "❌ No", cls: "bg-rose-500 hover:bg-rose-600" },
+  { value: "Sometimes", label: "🤏 Sometimes", cls: "bg-amber-500 hover:bg-amber-600" },
+  { value: "Not sure", label: "🤷 Not sure", cls: "bg-slate-500 hover:bg-slate-600" },
+];
+
+const COST = 3;
 
 interface StumpTheAIProps {
   kidId: string | null;
   sparksBalance: number;
 }
 
-function extractGuess(content: string): string {
-  const marker = "My final guess is:";
-  const idx = content.indexOf(marker);
-  if (idx !== -1) {
-    return content.slice(idx + marker.length).trim().replace(/[.!?]+$/, "");
-  }
-  return content;
-}
-
 export default function StumpTheAI({ kidId, sparksBalance }: StumpTheAIProps) {
-  const backHref = `/play/arcade${kidId ? `?kid=${kidId}` : ""}`;
-  const [gameState, setGameState] = useState<GameState>("idle");
+  const [sparks, setSparks] = useSparks(sparksBalance);
+  const [busy, run] = useBusy();
+  const [phase, setPhase] = useState<Phase>("idle");
   const [category, setCategory] = useState("Animals");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [questionCount, setQuestionCount] = useState(0);
-  const [aiGuess, setAiGuess] = useState("");
-  const [revealAnswer, setRevealAnswer] = useState("");
-  const [hasRevealed, setHasRevealed] = useState(false);
+  const [turns, setTurns] = useState<StumpTurn[]>([]);
+  const [move, setMove] = useState<StumpMove | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const [secret, setSecret] = useState("");
+  const [revealed, setRevealed] = useState(false);
+  const [score, setScore] = useState({ kid: 0, ai: 0 });
 
   useEffect(() => {
-    setIsMounted(true);
+    setScore({ kid: readStat("stump:kid"), ai: readStat("stump:ai") });
   }, []);
 
-  const handleStart = useCallback(async () => {
-    if (!kidId || sparksBalance < 3) return;
+  const bump = (who: "kid" | "ai") => {
+    setScore((s) => {
+      const next = { ...s, [who]: s[who] + 1 };
+      writeStat(`stump:${who}`, next[who]);
+      return next;
+    });
+  };
+
+  /** ask the AI for its next move given the game so far */
+  const ask = useCallback((history: StumpTurn[]) => run(async () => {
     setError(null);
-
-    setMessages([]);
-    setQuestionCount(0);
-    setAiGuess("");
-    setRevealAnswer("");
-    setHasRevealed(false);
-    setGameState("thinking");
-
-    const result = await askStumpQuestion(category, [], kidId);
-    if (!result.ok) {
-      setError("Something went wrong, try again");
-      setGameState("idle");
+    setPhase("thinking");
+    const res = await safeAction(() => askStumpQuestion(category, history, kidId));
+    if (!res.ok) {
+      setError(res.error);
+      setPhase(history.length === 0 ? "idle" : "asking");
       return;
     }
+    setSparks(res.sparks);
+    setMove(res.data);
+    setPhase(res.data.type === "guess" ? "guessing" : "asking");
+  }), [run, category, kidId, setSparks]);
 
-    const firstMsg: Message = { role: "assistant", content: result.data.content };
-    setMessages([firstMsg]);
-    setQuestionCount(1);
-    setGameState("playing");
-  }, [kidId, sparksBalance, category]);
+  const start = () => {
+    if (!kidId) return;
+    setTurns([]);
+    setMove(null);
+    setSecret("");
+    setRevealed(false);
+    void ask([]);
+  };
 
-  const handleAnswer = useCallback(async (answer: "Yes" | "No") => {
-    if (gameState !== "playing") return;
-
-    const userMsg: Message = { role: "user", content: answer };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
-    setGameState("thinking");
-
-    const result = await askStumpQuestion(category, updatedMessages);
-    if (!result.ok) {
-      setError("Something went wrong");
-      setGameState("playing");
+  const answer = (a: StumpAnswer) => {
+    if (!move || busy) return;
+    const next = [...turns, { kind: move.type, text: move.text, answer: a }];
+    setTurns(next);
+    if (move.type === "guess" && a === "Yes") {
+      playSfx("wrong");
+      bump("ai");
+      setPhase("ai_won");
       return;
     }
-
-    const assistantMsg: Message = { role: "assistant", content: result.data.content };
-
-    if (result.data.type === "guess") {
-      const guess = extractGuess(result.data.content);
-      setAiGuess(guess);
-      setMessages([...updatedMessages, assistantMsg]);
-      // Show the guess for kid to confirm — handled in a special "guessing" sub-state within playing
-      // We'll use ai_won/kid_won as confirmation states. First show the guess via aiGuess state.
-      // Keep gameState as playing but set aiGuess — we'll detect this in render.
-      setGameState("playing");
-      setMessages((prev) => [...prev.slice(0, -1), assistantMsg]);
-      // Trigger the guess UI by also updating question count
-      setQuestionCount((c) => c + 1);
-    } else {
-      setMessages([...updatedMessages, assistantMsg]);
-      setQuestionCount((c) => c + 1);
-      setGameState("playing");
+    playSfx(move.type === "guess" ? "correct" : "tap");
+    if (stumpProgress(next).kidWon) {
+      playSfx("win");
+      bump("kid");
+      setPhase("kid_won");
+      return;
     }
-  }, [gameState, messages, category]);
+    void ask(next);
+  };
 
-  const handlePlayAgain = useCallback(() => {
-    setMessages([]);
-    setQuestionCount(0);
-    setAiGuess("");
-    setRevealAnswer("");
-    setHasRevealed(false);
+  /** oops, tapped the wrong answer — take back the last one */
+  const undo = () => {
+    if (busy || turns.length === 0) return;
+    const last = turns[turns.length - 1];
+    setTurns(turns.slice(0, -1));
+    setMove({ type: last.kind, text: last.text, reaction: "" });
     setError(null);
-    setGameState("idle");
-  }, []);
+    setPhase(last.kind === "guess" ? "guessing" : "asking");
+  };
 
-  const currentQuestion = messages.length > 0 ? messages[messages.length - 1] : null;
-  const isAiGuessing = aiGuess !== "" && gameState === "playing";
+  const progress = stumpProgress(turns);
+  const guessesLeft = progress.guessesLeft;
 
-  if (gameState === "thinking") {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <div className="text-5xl animate-bounce">🤖</div>
-        <p className="text-lg font-bold text-gray-600">Thinking...</p>
-      </div>
-    );
+  if (phase === "thinking") {
+    return <Thinking emoji="🤖" lines={turns.length ? ["Hmm, let me think…", "Checking my brain files…", "Narrowing it down…"] : ["Getting ready to read your mind…"]} />;
   }
 
-  if (gameState === "ai_won") {
-    return (
-      <div className="max-w-lg mx-auto text-center py-10">
-        <div className="text-6xl mb-4">🤖</div>
-        <h2 className="text-2xl font-black text-gray-900 mb-3">Got you!</h2>
-        <p className="text-gray-600 mb-2">I knew it was <strong>{aiGuess}</strong>!</p>
-        <p className="text-gray-500 text-sm mb-6">Better luck next time... 😏</p>
-        <button
-          type="button"
-          onClick={handlePlayAgain}
-          className="px-8 py-4 rounded-2xl font-black text-white text-lg bg-green-500 hover:bg-green-600 active:bg-green-700 transition-colors"
-        >
-          Play Again 🎮
-        </button>
-      </div>
-    );
-  }
-
-  if (gameState === "kid_won" && isMounted) {
-    const confetti = Array.from({ length: 12 }, () =>
-      CONFETTI[Math.floor(Math.random() * CONFETTI.length)]
-    );
-    return createPortal(
-      <div
-        className="fixed inset-0 z-50 flex flex-col items-center justify-center px-6 text-center"
-        style={{ background: "linear-gradient(160deg, #16a34a 0%, #22c55e 50%, #86efac 100%)" }}
-      >
-        <Link href={backHref} className="absolute top-3 left-4 text-sm font-bold text-white/90 hover:text-white flex items-center gap-1">
-          ← Arcade
-        </Link>
-        <style>{`
-          @keyframes float-stump {
-            0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 1; }
-            50% { transform: translateY(-20px) rotate(15deg); opacity: 0.8; }
-          }
-        `}</style>
-        <div className="flex flex-wrap justify-center gap-3 mb-6 text-3xl">
-          {confetti.map((e, i) => (
-            <span
-              key={i}
-              style={{
-                animation: `float-stump ${1.5 + (i % 5) * 0.3}s ease-in-out infinite`,
-                animationDelay: `${i * 0.1}s`,
-              }}
-            >
-              {e}
-            </span>
-          ))}
-        </div>
-        <h1 className="text-4xl font-black text-white mb-3">🎉 YOU STUMPED ME! 🎉</h1>
-        <p className="text-lg text-white/90 font-bold mb-2">I had no idea!</p>
-        <p className="text-white/70 mb-4">What was it?</p>
-        {!hasRevealed ? (
-          <div className="flex gap-2 w-full max-w-xs mb-6">
-            <input
-              type="text"
-              value={revealAnswer}
-              onChange={(e) => setRevealAnswer(e.target.value)}
-              placeholder="The answer was..."
-              className="flex-1 px-4 py-3 rounded-xl text-gray-900 font-medium focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setHasRevealed(true)}
-              disabled={!revealAnswer.trim()}
-              className="px-4 py-3 rounded-xl font-black text-green-700 bg-white hover:bg-gray-50 disabled:opacity-40 transition-colors"
-            >
-              Reveal
-            </button>
-          </div>
-        ) : (
-          <p className="text-white text-lg font-bold mb-6">
-            You were thinking of <strong>{revealAnswer}</strong>! Amazing!
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={handlePlayAgain}
-          className="px-8 py-4 rounded-2xl font-black text-green-700 text-lg bg-white hover:bg-gray-50 active:scale-95 transition-all"
-        >
-          Play Again 🎮
-        </button>
-      </div>,
-      document.body,
-    );
-  }
-
-  if (gameState === "playing") {
-    // AI is guessing — show confirmation
-    if (isAiGuessing) {
-      return (
-        <div className="max-w-lg mx-auto">
-          <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-6 mb-6 text-center">
-            <p className="text-sm font-bold text-green-600 mb-2">🤖 My final guess is...</p>
-            <p className="text-2xl font-black text-gray-900">{aiGuess}!</p>
-          </div>
-          <p className="text-center text-gray-500 mb-4 text-sm">Am I right?</p>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => { playSfx("wrong"); setGameState("ai_won"); }}
-              className="flex-1 py-4 rounded-2xl font-black text-white text-lg bg-green-500 hover:bg-green-600 transition-colors"
-            >
-              ✅ Yes, you got it!
-            </button>
-            <button
-              type="button"
-              onClick={() => { playSfx("correct"); setGameState("kid_won"); }}
-              className="flex-1 py-4 rounded-2xl font-black text-white text-lg bg-rose-500 hover:bg-rose-600 transition-colors"
-            >
-              ❌ Nope, wrong!
-            </button>
-          </div>
-        </div>
-      );
-    }
-
+  if (phase === "ai_won") {
     return (
       <div className="max-w-lg mx-auto">
-        <p className="text-sm font-bold text-gray-500 text-center mb-4">
-          Question {questionCount} of 10
-        </p>
+        <div className="bg-white rounded-3xl shadow-sm p-6 text-center mb-4">
+          <p className="text-6xl mb-2">🤖</p>
+          <h2 className="text-2xl font-black text-gray-900 mb-1">Got you!</h2>
+          <p className="text-gray-700">
+            I knew it was <strong className="text-gray-900">{move?.text}</strong> — in {turns.length} {turns.length === 1 ? "turn" : "turns"}!
+          </p>
+          <p className="text-sm font-bold text-gray-500 mt-2">Tip: pick something unusual — and remember I only get {STUMP_MAX_GUESSES} guesses.</p>
+        </div>
+        <Score score={score} />
+        <PlayAgain onClick={start} disabled={busy || !kidId || sparks < COST} sparks={sparks} />
+        <div className="mt-3"><SecondaryButton onClick={() => setPhase("idle")}>Change category</SecondaryButton></div>
+      </div>
+    );
+  }
 
-        {currentQuestion && (
-          <div className="bg-white rounded-2xl shadow-sm p-6 mb-6">
+  if (phase === "kid_won") {
+    return (
+      <div className="max-w-lg mx-auto">
+        <Celebrate title="YOU STUMPED ME! 🎉" gradient="linear-gradient(160deg,#16a34a,#22c55e 55%,#86efac)">
+          <p className="font-bold">
+            {progress.left === 0 ? `I used all ${STUMP_MAX_QUESTIONS} turns and still don't know!` : `I used all ${STUMP_MAX_GUESSES} guesses and got them all wrong!`}
+          </p>
+          {!revealed ? (
+            <form className="flex gap-2 mt-4" onSubmit={(e) => { e.preventDefault(); if (secret.trim()) setRevealed(true); }}>
+              <input
+                type="text"
+                value={secret}
+                maxLength={40}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder="So what was it?"
+                className="flex-1 min-w-0 px-4 min-h-[48px] rounded-xl text-gray-900 font-bold focus:outline-none"
+              />
+              <button type="submit" disabled={!secret.trim()} className="px-4 min-h-[48px] rounded-xl font-black text-green-700 bg-white disabled:opacity-50">
+                Reveal
+              </button>
+            </form>
+          ) : (
+            <p className="text-xl font-black mt-3">It was {secret}! 🤯 Genius pick!</p>
+          )}
+        </Celebrate>
+        <Score score={score} />
+        <PlayAgain onClick={start} disabled={busy || !kidId || sparks < COST} sparks={sparks} />
+        <div className="mt-3"><SecondaryButton onClick={() => setPhase("idle")}>Change category</SecondaryButton></div>
+      </div>
+    );
+  }
+
+  if ((phase === "asking" || phase === "guessing") && move) {
+    const turnNo = turns.length + 1;
+    return (
+      <div className="max-w-lg mx-auto">
+        <div className="flex items-center justify-between mb-2 text-sm font-black">
+          <span className="text-gray-600">Turn {Math.min(turnNo, STUMP_MAX_QUESTIONS)} / {STUMP_MAX_QUESTIONS}</span>
+          <span className="text-gray-600" aria-label={`${guessesLeft} guesses left`}>
+            AI guesses: {"🎯".repeat(guessesLeft)}{"▫️".repeat(STUMP_MAX_GUESSES - guessesLeft)}
+          </span>
+        </div>
+        <div className="h-2.5 rounded-full bg-gray-200 overflow-hidden mb-4">
+          <div className="h-full bg-green-500 transition-all" style={{ width: `${(turns.length / STUMP_MAX_QUESTIONS) * 100}%` }} />
+        </div>
+
+        {phase === "guessing" ? (
+          <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-6 mb-5 text-center">
+            {move.reaction && <p className="text-sm font-bold text-green-700 mb-1">{move.reaction}</p>}
+            <p className="text-sm font-black text-green-700 mb-2">🤖 Is it…</p>
+            <p className="text-3xl font-black text-gray-900 capitalize">{move.text}?</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-sm p-5 mb-5">
+            {move.reaction && <p className="text-sm font-bold text-gray-500 mb-1">{move.reaction}</p>}
             <div className="flex items-start gap-3">
-              <span className="text-2xl">🤖</span>
-              <p className="text-lg text-gray-800 leading-relaxed">{currentQuestion.content}</p>
+              <span className="text-3xl">🤖</span>
+              <p className="text-xl font-black text-gray-900 leading-snug">{move.text}</p>
             </div>
           </div>
         )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-sm text-red-700 text-center">
-            {error}
-          </div>
-        )}
+        {error && <ErrorBox message={error} onRetry={() => void ask(turns)} />}
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => handleAnswer("Yes")}
-            className="flex-1 py-5 rounded-2xl font-black text-white text-xl bg-green-500 hover:bg-green-600 active:scale-95 transition-all"
-          >
-            ✅ YES
-          </button>
-          <button
-            type="button"
-            onClick={() => handleAnswer("No")}
-            className="flex-1 py-5 rounded-2xl font-black text-white text-xl bg-rose-500 hover:bg-rose-600 active:scale-95 transition-all"
-          >
-            ❌ NO
-          </button>
-        </div>
+        {!error && (phase === "guessing" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button type="button" onClick={() => answer("Yes")} disabled={busy} className="min-h-[64px] rounded-2xl font-black text-white text-lg bg-green-500 hover:bg-green-600 active:scale-95 transition-all">
+              ✅ Yes, you got it
+            </button>
+            <button type="button" onClick={() => answer("No")} disabled={busy} className="min-h-[64px] rounded-2xl font-black text-white text-lg bg-rose-500 hover:bg-rose-600 active:scale-95 transition-all">
+              ❌ Nope!
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {ANSWERS.map((a) => (
+              <button key={a.value} type="button" onClick={() => answer(a.value)} disabled={busy} className={`min-h-[60px] rounded-2xl font-black text-white text-lg active:scale-95 transition-all ${a.cls}`}>
+                {a.label}
+              </button>
+            ))}
+          </div>
+        ))}
+
+        {turns.length > 0 && (
+          <>
+            <button type="button" onClick={undo} disabled={busy} className="w-full mt-3 min-h-[40px] text-sm font-bold text-gray-500 underline">
+              ↩️ Oops, undo my last answer
+            </button>
+            <details className="bg-white rounded-2xl shadow-sm p-4 mt-3">
+              <summary className="font-black text-gray-700 cursor-pointer">What I know so far ({turns.length})</summary>
+              <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                {turns.map((t, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="font-black text-gray-400 w-6 shrink-0">{i + 1}.</span>
+                    <span className="flex-1">{t.kind === "guess" ? `Guess: ${t.text}?` : t.text}</span>
+                    <span className="font-black">{t.answer}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </>
+        )}
       </div>
     );
   }
 
-  // idle state
+  // idle
   return (
     <div className="max-w-lg mx-auto">
       <h1 className="text-2xl font-black text-center text-gray-900 mb-2">🐾 Stump The AI</h1>
-      <p className="text-center text-gray-500 mb-6 text-sm">
-        Think of a {category.toLowerCase()}. I&apos;ll ask yes/no questions to figure out what it is. Can you stump me?
-      </p>
+      <div className="bg-white rounded-2xl shadow-sm p-4 mb-5 text-gray-700 font-bold space-y-1">
+        <p>🤫 Think of something secret (don&apos;t say it!).</p>
+        <p>🤖 The AI asks yes/no questions to work it out.</p>
+        <p>🎯 It has {STUMP_MAX_QUESTIONS} turns and only {STUMP_MAX_GUESSES} guesses.</p>
+        <p>🏆 Survive them all to WIN!</p>
+      </div>
 
-      <div className="grid grid-cols-2 gap-2 mb-6">
+      <p className="text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Category</p>
+      <div className="grid grid-cols-2 gap-2 mb-5">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.value}
             type="button"
             onClick={() => setCategory(cat.value)}
-            className={`py-3 px-2 rounded-xl font-bold text-sm flex items-center gap-2 border-2 transition-all ${
-              category === cat.value
-                ? "border-green-400 bg-green-50 text-green-800"
-                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            className={`min-h-[52px] px-3 rounded-xl font-bold text-sm flex items-center gap-2 border-2 transition-all ${
+              category === cat.value ? "border-green-400 bg-green-50 text-green-800" : "border-gray-200 bg-white text-gray-700"
             }`}
           >
             <span className="text-xl">{cat.emoji}</span>
-            <span>{cat.label}</span>
+            <span className="text-left">{cat.label}</span>
           </button>
         ))}
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-sm text-red-700 text-center">
-          {error}
-        </div>
-      )}
-
-      {sparksBalance < 3 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-sm text-amber-700 text-center">
-          You need ⚡ Sparks to play — get some from the Arcade!
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={handleStart}
-        disabled={sparksBalance < 3 || !kidId}
-        className="w-full py-4 rounded-2xl font-black text-white text-lg bg-green-500 hover:bg-green-600 active:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-      >
-        I&apos;ve got one! Start — 3 ⚡
-      </button>
+      {(score.kid > 0 || score.ai > 0) && <Score score={score} />}
+      {error && <ErrorBox message={error} onRetry={sparks >= COST ? start : undefined} />}
+      <PrimaryButton color="bg-green-500 hover:bg-green-600" onClick={start} disabled={busy || !kidId || sparks < COST}>
+        I&apos;ve got one! Start — {COST} ⚡
+      </PrimaryButton>
+      <SparkNote cost={COST} sparks={sparks} />
     </div>
+  );
+}
+
+function Score({ score }: { score: { kid: number; ai: number } }) {
+  return (
+    <p className="text-center font-black text-gray-700 mb-4">
+      Scoreboard: 🧒 You {score.kid} – {score.ai} AI 🤖
+    </p>
+  );
+}
+
+function PlayAgain({ onClick, disabled, sparks }: { onClick: () => void; disabled: boolean; sparks: number }) {
+  return (
+    <>
+      <PrimaryButton color="bg-green-500 hover:bg-green-600" onClick={onClick} disabled={disabled}>
+        🎮 Rematch — {COST} ⚡
+      </PrimaryButton>
+      <SparkNote cost={COST} sparks={sparks} />
+    </>
   );
 }

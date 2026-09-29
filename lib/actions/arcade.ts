@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import Anthropic from "@anthropic-ai/sdk";
 import {
-  avoidNote,
   freshSeed,
   pick,
   sample,
@@ -14,42 +13,197 @@ import {
   WORD_THEMES,
   WYR_TOPICS,
 } from "@/lib/arcade/variety";
-
-const SYSTEM_PROMPT = `You are a friendly, creative assistant for children aged 5–12.
-Always follow these rules:
-- Keep all content positive, safe, and age-appropriate
-- No violence, weapons, scary content, or adult themes
-- No mean-spirited humour, bullying, or body shaming
-- No political, religious, or controversial topics
-- Always end stories and responses on an uplifting note
-- Use simple, fun language suitable for children
-- Be playful, warm, and encouraging at all times
-- Return raw JSON only. Do not wrap your response in markdown code fences.`;
+import { extractJsonObject, sanitizeKidText } from "@/lib/arcade/json";
+import {
+  KID_SAFE_SYSTEM,
+  liePrompt,
+  storyEndPrompt,
+  storyStartPrompt,
+  stumpPrompt,
+  whatAmIPrompt,
+  wordDetectivePrompt,
+  wyrPackPrompt,
+} from "@/lib/arcade/prompts";
+import { LIE_MAX_QUESTIONS, stumpProgress, WYR_ROUNDS, type StumpAnswer, type StumpTurn } from "@/lib/arcade/rules";
+import {
+  validateClueRound,
+  validateLieMove,
+  validateStoryEnd,
+  validateStoryStart,
+  validateStumpMove,
+  validateWyrPack,
+  type ClueRound,
+  type LieMove,
+  type StoryEnd,
+  type StoryStart,
+  type StumpMove,
+  type WyrRound,
+} from "@/lib/arcade/validate";
 
 export type ArcadeResult<T = undefined> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; /** the kid's sparks after this call, when it changed */ sparks?: number }
   | { ok: false; error: string };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseJSON(text: string): any {
-  const stripped = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  return JSON.parse(stripped);
+// ---------------------------------------------------------------------------
+// Models
+// Haiku 4.5 for the one-shot generators (fast, cheap, plenty for stories/clues).
+// Sonnet 5 for the two reasoning games — 20 Questions needs real deduction over a long
+// yes/no history (Haiku repeats questions and guesses wildly), and the Lie Detector has to
+// weigh a kid's answers. Their replies are tiny, so the extra latency is ~1-2s a turn.
+// If the Sonnet id is ever unavailable we fall back to Haiku instead of breaking the game.
+// ---------------------------------------------------------------------------
+const MODEL_FAST = "claude-haiku-4-5-20251001";
+const MODEL_SMART = "claude-sonnet-5";
+
+/** Netlify's server handler is killed at 26s (netlify.toml) — stay well inside it. */
+const TOTAL_BUDGET_MS = 21_000;
+
+const MSG = {
+  noKey: "The AI Arcade is having a nap 😴 A grown-up needs to switch it on (it needs an AI key). No sparks were used.",
+  busy: "The AI is super busy right now 🐝 Try again in a moment — no sparks were used.",
+  slow: "The AI took too long to think 🐢 Try again — no sparks were used.",
+  bad: "The AI got its words in a muddle 🤪 Try again — no sparks were used.",
+  generic: "Something went wobbly 🙈 Try again — no sparks were used.",
+  offline: "Can't reach the AI — check the internet and try again. No sparks were used.",
+} as const;
+
+class ArcadeFail extends Error {
+  constructor(public kidMessage: string, detail?: string) {
+    super(detail ?? kidMessage);
+  }
 }
 
-// Deduct sparks AFTER a successful game call (no validation — UI guards entry)
-async function deductSparks(kidId: string, amount: number): Promise<void> {
+/**
+ * One robust model call: strict-JSON prompt, defensive parse, validation, one retry on a
+ * bad/transient reply, model fallback, hard time budget. Throws ArcadeFail with a
+ * kid-friendly message.
+ */
+async function callJSON<T>(opts: {
+  tag: string;
+  models: readonly string[];
+  prompt: string;
+  maxTokens: number;
+  validate: (json: Record<string, unknown> | null) => T | null;
+}): Promise<T> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new ArcadeFail(MSG.noKey, "ANTHROPIC_API_KEY is not set");
+
+  const client = new Anthropic({ apiKey, maxRetries: 0 });
+  const deadline = Date.now() + TOTAL_BUDGET_MS;
+  let modelIdx = 0;
+  let tries = 0;
+  let lastFail: string = MSG.generic;
+
+  while (tries < 2 && modelIdx < opts.models.length) {
+    const remaining = deadline - Date.now();
+    if (remaining < 2_500) break;
+    const model = opts.models[modelIdx];
+    try {
+      const msg = await client.messages.create(
+        {
+          model,
+          max_tokens: opts.maxTokens,
+          system: KID_SAFE_SYSTEM,
+          messages: [{ role: "user", content: opts.prompt }],
+        },
+        { timeout: remaining },
+      );
+      const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+      const value = opts.validate(extractJsonObject(text));
+      if (value !== null) return value;
+      console.warn(`[arcade:${opts.tag}] unusable output from ${model} (stop=${msg.stop_reason})`);
+      lastFail = MSG.bad;
+      tries++;
+    } catch (err) {
+      const canFallBack = modelIdx < opts.models.length - 1;
+      if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
+        console.error(`[arcade:${opts.tag}] API key rejected (${err.status})`);
+        throw new ArcadeFail(MSG.noKey, "API key rejected");
+      }
+      if ((err instanceof Anthropic.NotFoundError || err instanceof Anthropic.BadRequestError) && canFallBack) {
+        console.warn(`[arcade:${opts.tag}] ${model} rejected (${err.status}); falling back`);
+        modelIdx++;
+        continue;
+      }
+      if (err instanceof Anthropic.APIConnectionTimeoutError) lastFail = MSG.slow;
+      else if (err instanceof Anthropic.APIConnectionError) lastFail = MSG.offline;
+      else if (err instanceof Anthropic.RateLimitError || err instanceof Anthropic.InternalServerError) lastFail = MSG.busy;
+      else {
+        console.error(`[arcade:${opts.tag}]`, err instanceof Error ? err.message : err);
+        throw new ArcadeFail(MSG.generic);
+      }
+      console.warn(`[arcade:${opts.tag}] transient error on ${model}:`, err instanceof Error ? err.message : err);
+      tries++;
+    }
+  }
+  throw new ArcadeFail(lastFail);
+}
+
+function fail(err: unknown): { ok: false; error: string } {
+  if (err instanceof ArcadeFail) return { ok: false, error: err.kidMessage };
+  console.error("[arcade]", err instanceof Error ? err.message : err);
+  return { ok: false, error: MSG.generic };
+}
+
+// ---------------------------------------------------------------------------
+// Sparks: check BEFORE the AI call, charge only AFTER it succeeded.
+// ---------------------------------------------------------------------------
+
+async function readSparks(kidId: string): Promise<number | null> {
   const supabase = await createClient();
-  const { data: kidRow } = await supabase
+  const { data } = await supabase.from("kids").select("sparks_balance").eq("id", kidId).maybeSingle();
+  return data ? (data.sparks_balance ?? 0) : null;
+}
+
+/**
+ * The caller must be signed in AND the kid must be in the caller's own family. RLS alone is
+ * not enough: the "kids: friend read" policy lets a family READ an accepted friend's kid row,
+ * so without this check one family could play on another family's sparks (the charge then
+ * silently fails RLS and the game is free). Every AI call goes through here (cost 0 for
+ * free / follow-up turns) so anonymous callers can't burn the API key either.
+ */
+async function requireSparks(kidId: string | null | undefined, cost: number): Promise<string> {
+  if (!kidId || typeof kidId !== "string") throw new ArcadeFail("Pick your player first, then come back to play!");
+  const supabase = await createClient();
+  const { data: familyId } = await supabase.rpc("current_family_id");
+  if (!familyId) throw new ArcadeFail("Ask a grown-up to sign in, then come back to play!");
+  const { data: kid } = await supabase
     .from("kids")
     .select("sparks_balance")
     .eq("id", kidId)
+    .eq("family_id", familyId)
     .maybeSingle();
-  const current: number = (kidRow as any)?.sparks_balance ?? 0;
-  await supabase
-    .from("kids")
-    .update({ sparks_balance: Math.max(0, current - amount) })
-    .eq("id", kidId);
-  revalidatePath("/play/arcade");
+  if (!kid) throw new ArcadeFail("Couldn't find your player — go back and try again.");
+  const sparks = kid.sparks_balance ?? 0;
+  if (sparks < cost) {
+    throw new ArcadeFail(`You need ${cost} ⚡ sparks for this game — swap some ⭐ stars for sparks in the Arcade!`);
+  }
+  return kidId;
+}
+
+/** Compare-and-set so two quick taps can't both spend the same sparks. Returns the new balance. */
+async function chargeSparks(kidId: string, cost: number): Promise<number | undefined> {
+  const supabase = await createClient();
+  for (let i = 0; i < 3; i++) {
+    const current = await readSparks(kidId);
+    if (current === null) return undefined;
+    const next = Math.max(0, current - cost);
+    const { data, error } = await supabase
+      .from("kids")
+      .update({ sparks_balance: next })
+      .eq("id", kidId)
+      .eq("sparks_balance", current)
+      .select("sparks_balance");
+    if (error) {
+      console.error("[arcade] charge failed:", error.message);
+      return undefined;
+    }
+    if (data && data.length > 0) {
+      revalidatePath("/play/arcade");
+      return next;
+    }
+  }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,7 +214,12 @@ export async function convertStarsToSparks(
   kidId: string,
   stars: number,
 ): Promise<ArcadeResult> {
-  if (stars < 1) return { ok: false, error: "Enter at least 1 star" };
+  if (!Number.isInteger(stars) || stars < 1) return { ok: false, error: "Enter at least 1 star" };
+  try {
+    await requireSparks(kidId, 0); // own family's kid only (friends' kid rows are readable)
+  } catch (err) {
+    return fail(err);
+  }
 
   const supabase = await createClient();
 
@@ -82,7 +241,7 @@ export async function convertStarsToSparks(
   });
   if (decrErr) return { ok: false, error: decrErr.message };
 
-  const currentSparks: number = (kidRow as any).sparks_balance ?? 0;
+  const currentSparks: number = kidRow.sparks_balance ?? 0;
   const { error: updateErr } = await supabase
     .from("kids")
     .update({ sparks_balance: currentSparks + stars * 5 })
@@ -93,352 +252,233 @@ export async function convertStarsToSparks(
   return { ok: true, data: undefined };
 }
 
-// ---------------------------------------------------------------------------
-// spendSparks (kept for legacy / manual use)
-// ---------------------------------------------------------------------------
-
-export async function spendSparks(
-  kidId: string,
-  amount: number,
-): Promise<ArcadeResult> {
-  const supabase = await createClient();
-
-  const { data: kidRow, error: fetchErr } = await supabase
-    .from("kids")
-    .select("sparks_balance")
-    .eq("id", kidId)
-    .maybeSingle();
-
-  if (fetchErr || !kidRow) return { ok: false, error: "Kid not found" };
-
-  const currentSparks: number = (kidRow as any).sparks_balance ?? 0;
-  if (currentSparks < amount) {
-    return { ok: false, error: "Not enough Sparks" };
-  }
-
-  const { error: updateErr } = await supabase
-    .from("kids")
-    .update({ sparks_balance: currentSparks - amount })
-    .eq("id", kidId);
-  if (updateErr) return { ok: false, error: updateErr.message };
-
-  revalidatePath("/play/arcade");
-  return { ok: true, data: undefined };
-}
+// spendSparks / awardArcadeStars were removed: nothing called them, and as exported server
+// actions they let any client spend sparks or mint unlimited stars for any readable kid id.
 
 // ---------------------------------------------------------------------------
-// awardArcadeStars
+// Emoji Story — choose-your-path. Part 1 costs 1 spark; the ending is free.
 // ---------------------------------------------------------------------------
 
-export async function awardArcadeStars(
-  kidId: string,
-  amount: number,
-): Promise<void> {
-  const supabase = await createClient();
-  await supabase.rpc("increment_kid_points", {
-    p_kid_id: kidId,
-    p_amount: amount,
-  });
-  revalidatePath("/play/arcade");
-}
-
-// ---------------------------------------------------------------------------
-// generateEmojiStory — deducts 1 spark AFTER success
-// ---------------------------------------------------------------------------
+const EMOJI_MAX = 5;
 
 export async function generateEmojiStory(
   emojis: string[],
   kidId: string | null,
-): Promise<ArcadeResult<{ title: string; paragraphs: string[]; twist: string; moral: string }>> {
+  opts?: { style?: string; hero?: string },
+): Promise<ArcadeResult<StoryStart>> {
   try {
-    const client = new Anthropic();
-    const genre = pick(STORY_GENRES);
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 800,
-      temperature: 1,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Write a children's book story inspired by these 5 elements: ${emojis.join(" ")}
-Tell it as ${genre}, with fresh characters and an unexpected setting. (variety: ${freshSeed()})
-
-Requirements:
-- Title: a fun, catchy name for the story
-- Story: exactly 5 paragraphs, each with exactly 2 sentences
-- The story should be funny, light-hearted and positive
-- Include a surprising twist near the end
-- End with a warm moral lesson (one sentence)
-- Write in flowing prose like a real children's book — NOT a poem
-- Do NOT include the emojis in the story text
-
-Return valid JSON only, no markdown:
-{"title":"...","paragraphs":["para1","para2","para3","para4","para5"],"twist":"...","moral":"..."}`,
-        },
-      ],
+    const id = await requireSparks(kidId, 1);
+    const list = (Array.isArray(emojis) ? emojis : []).map((e) => sanitizeKidText(e, 8)).filter(Boolean).slice(0, EMOJI_MAX);
+    if (list.length < 3) return { ok: false, error: "Pick at least 3 emojis first!" };
+    const style = sanitizeKidText(opts?.style, 40) || pick(STORY_GENRES);
+    const data = await callJSON({
+      tag: "story-start",
+      models: [MODEL_FAST],
+      prompt: storyStartPrompt({ emojis: list, style, hero: sanitizeKidText(opts?.hero, 24), seed: freshSeed() }),
+      maxTokens: 900,
+      validate: validateStoryStart,
     });
-    const block = msg.content[0];
-    if (block.type !== "text") throw new Error("no text block");
-    const parsed = parseJSON(block.text);
-    if (kidId) await deductSparks(kidId, 1);
-    return { ok: true, data: parsed };
+    const sparks = await chargeSparks(id, 1);
+    return { ok: true, data, sparks };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg };
+    return fail(err);
+  }
+}
+
+export async function continueEmojiStory(input: {
+  emojis: string[];
+  title: string;
+  paragraphs: string[];
+  choice: string;
+  hero?: string;
+  kidId?: string | null;
+}): Promise<ArcadeResult<StoryEnd>> {
+  try {
+    // free, but only for a signed-in family's own kid (stops anonymous API-cost abuse)
+    await requireSparks(input?.kidId, 0);
+    const data = await callJSON({
+      tag: "story-end",
+      models: [MODEL_FAST],
+      prompt: storyEndPrompt({
+        emojis: (input.emojis ?? []).map((e) => sanitizeKidText(e, 8)).slice(0, EMOJI_MAX),
+        title: sanitizeKidText(input.title, 80),
+        story: (input.paragraphs ?? []).map((p) => sanitizeKidText(p, 700)).slice(0, 4),
+        choice: sanitizeKidText(input.choice, 140),
+        hero: sanitizeKidText(input.hero, 24),
+      }),
+      maxTokens: 700,
+      validate: validateStoryEnd,
+    });
+    return { ok: true, data };
+  } catch (err) {
+    return fail(err);
   }
 }
 
 // ---------------------------------------------------------------------------
-// generateWouldYouRather — deducts 2 sparks AFTER success
+// Would You Rather — one call makes a whole 5-round pack (2 sparks), including the AI's
+// counter-arguments, so rounds flow instantly with no waiting between them.
 // ---------------------------------------------------------------------------
 
 export async function generateWouldYouRather(
   kidId: string | null,
   avoid?: string[],
-): Promise<ArcadeResult<{ option_a: string; option_b: string }>> {
+): Promise<ArcadeResult<{ rounds: WyrRound[] }>> {
   try {
-    const client = new Anthropic();
-    const [topicA, topicB] = sample(WYR_TOPICS, 2);
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 120,
-      temperature: 1,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Generate a funny, silly "Would You Rather" dilemma for kids aged 5-12.
-Build this one around: ${topicA} and ${topicB}. (variety: ${freshSeed()})
-Both options must be absurd, harmless, and equally funny — no embarrassing or mean choices.
-Make it fresh and unexpected — not a common or obvious dilemma.${avoidNote(avoid)}
-
-Return valid JSON only:
-{"option_a":"...","option_b":"..."}`,
-        },
-      ],
+    const id = await requireSparks(kidId, 2);
+    const rounds = await callJSON({
+      tag: "wyr",
+      models: [MODEL_FAST],
+      prompt: wyrPackPrompt({
+        topics: sample(WYR_TOPICS, 4),
+        seed: freshSeed(),
+        avoid: (avoid ?? []).map((a) => sanitizeKidText(a, 80)).filter(Boolean),
+        rounds: WYR_ROUNDS,
+      }),
+      maxTokens: 1600,
+      validate: (j) => validateWyrPack(j, 3),
     });
-    const block = msg.content[0];
-    if (block.type !== "text") throw new Error("no text block");
-    const parsed = parseJSON(block.text);
-    if (kidId) await deductSparks(kidId, 2);
-    return { ok: true, data: parsed };
+    const sparks = await chargeSparks(id, 2);
+    return { ok: true, data: { rounds: rounds.slice(0, WYR_ROUNDS) }, sparks };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg };
+    return fail(err);
   }
 }
 
 // ---------------------------------------------------------------------------
-// generateWouldYouRatherArgument — free (sparks already charged at step 1)
+// What Am I? — 1 spark
 // ---------------------------------------------------------------------------
 
-export async function generateWouldYouRatherArgument(
-  chosen: string,
-  rejected: string,
-): Promise<ArcadeResult<{ argument: string }>> {
-  try {
-    const client = new Anthropic();
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
-      temperature: 1,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `A kid chose "${chosen}" over "${rejected}" in a Would You Rather game.
-Write a funny 2-3 sentence argument defending "${rejected}" — trying to convince them they made the wrong choice.
-Be playful and silly, never mean or insulting.
-
-Return valid JSON only:
-{"argument":"..."}`,
-        },
-      ],
-    });
-    const block = msg.content[0];
-    if (block.type !== "text") throw new Error("no text block");
-    const parsed = parseJSON(block.text);
-    return { ok: true, data: parsed };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// generateWhatAmI — deducts 1 spark AFTER success
-// ---------------------------------------------------------------------------
+const WHATAMI_CATEGORIES = ["animal", "food", "place", "vehicle"] as const;
 
 export async function generateWhatAmI(
   category: string,
   kidId: string | null,
   avoid?: string[],
-): Promise<ArcadeResult<{ answer: string; clues: string[] }>> {
+): Promise<ArcadeResult<ClueRound>> {
   try {
-    const client = new Anthropic();
-    const flavors = WHATAMI_FLAVORS[category] ?? [];
-    const flavor = flavors.length ? pick(flavors) : "";
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      temperature: 1,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Think of a ${category} that a child aged 5-12 would know.
-${flavor ? `Lean towards ${flavor}. ` : ""}Surprise me — avoid the most obvious choice. (variety: ${freshSeed()})
-Generate 5 clues about it, starting very cryptic and getting progressively more obvious.
-The clues should be fun and indirect — don't mention the answer directly in any clue.${avoidNote(avoid)}
-
-Return valid JSON only:
-{"answer":"...","clues":["cryptic clue","...","...","...","most obvious clue"]}`,
-        },
-      ],
+    const cat = (WHATAMI_CATEGORIES as readonly string[]).includes(category) ? category : "animal";
+    const id = await requireSparks(kidId, 1);
+    const flavors = WHATAMI_FLAVORS[cat] ?? [];
+    const data = await callJSON({
+      tag: "whatami",
+      models: [MODEL_FAST],
+      prompt: whatAmIPrompt({
+        category: cat,
+        flavor: flavors.length ? pick(flavors) : "",
+        seed: freshSeed(),
+        avoid: (avoid ?? []).map((a) => sanitizeKidText(a, 40)).filter(Boolean),
+      }),
+      maxTokens: 700,
+      validate: (j) => validateClueRound(j),
     });
-    const block = msg.content[0];
-    if (block.type !== "text") throw new Error("no text block");
-    const parsed = parseJSON(block.text);
-    if (kidId) await deductSparks(kidId, 1);
-    return { ok: true, data: parsed };
+    const sparks = await chargeSparks(id, 1);
+    return { ok: true, data, sparks };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg };
+    return fail(err);
   }
 }
 
 // ---------------------------------------------------------------------------
-// generateWordDetective — deducts 1 spark AFTER success
+// Word Detective — 1 spark
 // ---------------------------------------------------------------------------
 
 export async function generateWordDetective(
   kidId: string | null,
   avoid?: string[],
-): Promise<ArcadeResult<{ word: string; clues: string[] }>> {
+): Promise<ArcadeResult<ClueRound & { theme: string }>> {
   try {
-    const client = new Anthropic();
+    const id = await requireSparks(kidId, 1);
     const theme = pick(WORD_THEMES);
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      temperature: 1,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Think of a fun word that a child aged 5-12 would know (not too easy, not too hard — examples: rainbow, submarine, volcano, telescope, butterfly).
-Pick a word connected to: ${theme}. Choose a fresh, surprising one. (variety: ${freshSeed()})
-Generate 5 clues that describe this word indirectly, starting very cryptic and getting progressively more obvious.
-Never mention the word itself in the clues.${avoidNote(avoid)}
-
-Return valid JSON only:
-{"word":"...","clues":["most cryptic","...","...","...","most obvious"]}`,
-        },
-      ],
+    const data = await callJSON({
+      tag: "word",
+      models: [MODEL_FAST],
+      prompt: wordDetectivePrompt({
+        theme,
+        seed: freshSeed(),
+        avoid: (avoid ?? []).map((a) => sanitizeKidText(a, 40)).filter(Boolean),
+      }),
+      maxTokens: 700,
+      validate: (j) => validateClueRound(j, { singleWord: true }),
     });
-    const block = msg.content[0];
-    if (block.type !== "text") throw new Error("no text block");
-    const parsed = parseJSON(block.text);
-    if (kidId) await deductSparks(kidId, 1);
-    return { ok: true, data: parsed };
+    const sparks = await chargeSparks(id, 1);
+    return { ok: true, data: { ...data, answer: data.answer.toLowerCase(), theme }, sparks };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg };
+    return fail(err);
   }
 }
 
 // ---------------------------------------------------------------------------
-// askStumpQuestion — deducts 3 sparks on first turn AFTER success
-// Bug fix: injects starter user message when messages is empty (Anthropic requires ≥1 message)
+// Stump The AI — 20 questions, up to 3 guesses. 3 sparks, charged on the first turn.
 // ---------------------------------------------------------------------------
+
+const STUMP_ANSWERS: readonly StumpAnswer[] = ["Yes", "No", "Sometimes", "Not sure"];
+const STUMP_CATEGORIES =["Animals", "Foods", "Household Items", "Sports & Hobbies", "Cartoon & Story Characters", "Anything!"] as const;
 
 export async function askStumpQuestion(
   category: string,
-  messages: { role: "user" | "assistant"; content: string }[],
+  turns: StumpTurn[],
   kidId?: string | null,
-): Promise<ArcadeResult<{ type: "question" | "guess"; content: string }>> {
-  const isFirstTurn = messages.length === 0;
-  const apiMessages = isFirstTurn
-    ? [{ role: "user" as const, content: `I've thought of a ${category}. Ask your first yes/no question.` }]
-    : messages;
-
+): Promise<ArcadeResult<StumpMove>> {
   try {
-    const client = new Anthropic();
-    const opener = isFirstTurn ? pick(STUMP_OPENERS) : "";
-    const systemPrompt =
-      SYSTEM_PROMPT +
-      `\n\nYou are playing 20 questions. A child is thinking of a ${category}. Ask yes/no questions to figure out what it is. When you are confident enough OR have asked 10 questions, make your final guess starting with exactly: "My final guess is:". Otherwise ask one yes/no question.` +
-      (opener ? ` For your FIRST question, start by exploring ${opener} — don't always open the same way.` : "") +
-      ` Return valid JSON only: {"type":"question","content":"your yes/no question"} OR {"type":"guess","content":"My final guess is: [answer]"}`;
-
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 100,
-      temperature: 1,
-      system: systemPrompt,
-      messages: apiMessages,
+    const cat = (STUMP_CATEGORIES as readonly string[]).includes(category) ? category : "Anything!";
+    const history: StumpTurn[] = (Array.isArray(turns) ? turns : []).slice(0, 25).map((t) => ({
+      kind: t?.kind === "guess" ? "guess" : "question",
+      text: sanitizeKidText(t?.text, 160),
+      answer: STUMP_ANSWERS.includes(t?.answer) ? t.answer : "Not sure",
+    }));
+    const isFirstTurn = history.length === 0;
+    const progress = stumpProgress(history);
+    if (progress.kidWon) return { ok: false, error: "This game is already over — start a new one!" };
+    // follow-up turns are free but still need a signed-in family's own kid
+    const id = await requireSparks(kidId, isFirstTurn ? 3 : 0);
+    const data = await callJSON({
+      tag: "stump",
+      models: [MODEL_SMART, MODEL_FAST],
+      prompt: stumpPrompt({
+        category: cat === "Anything!" ? "anything a kid would know (an animal, object, food, place or character)" : cat,
+        turns: history,
+        opener: isFirstTurn ? pick(STUMP_OPENERS) : "",
+        mustGuess: progress.mustGuess,
+      }),
+      maxTokens: 300,
+      validate: (j) => validateStumpMove(j, progress.mustGuess),
     });
-    const block = msg.content[0];
-    if (block.type !== "text") throw new Error("no text block");
-    const parsed = parseJSON(block.text);
-    if (isFirstTurn && kidId) await deductSparks(kidId, 3);
-    return { ok: true, data: parsed };
+    const sparks = isFirstTurn ? await chargeSparks(id, 3) : undefined;
+    return { ok: true, data, sparks };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg };
+    return fail(err);
   }
 }
 
 // ---------------------------------------------------------------------------
-// askLieDetectorQuestion — deducts 2 sparks on first turn AFTER success
-// Bug fix: injects starter user message when messages is empty
+// AI Lie Detector — up to 3 questions, then an accusation. 2 sparks, charged on the first turn.
 // ---------------------------------------------------------------------------
 
 export async function askLieDetectorQuestion(
   statements: [string, string, string],
-  messages: { role: "user" | "assistant"; content: string }[],
+  qa: { q: string; a: string }[],
   kidId?: string | null,
-): Promise<
-  ArcadeResult<{
-    type: "question" | "guess";
-    content: string;
-    guessedStatement?: 1 | 2 | 3;
-  }>
-> {
-  const isFirstTurn = messages.length === 0;
-  const apiMessages = isFirstTurn
-    ? [{ role: "user" as const, content: "I've entered my three statements. Ask your first question." }]
-    : messages;
-
+): Promise<ArcadeResult<LieMove>> {
   try {
-    const client = new Anthropic();
-    const systemPrompt =
-      SYSTEM_PROMPT +
-      `\n\nA child has given you 3 statements about themselves, one of which is a lie. Your job is to figure out which one is false by asking follow-up questions. After at most 3 questions you MUST make a guess.
-
-The statements are:
-1. ${statements[0]}
-2. ${statements[1]}
-3. ${statements[2]}
-
-If asking a question: {"type":"question","content":"your follow-up question"}
-If guessing: {"type":"guess","content":"I think statement N is the lie!","guessedStatement":N}`;
-
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      temperature: 1,
-      system: systemPrompt,
-      messages: apiMessages,
+    const stmts = (Array.isArray(statements) ? statements : []).map((s) => sanitizeKidText(s, 120));
+    if (stmts.length !== 3 || stmts.some((s) => s.length < 3)) {
+      return { ok: false, error: "Write all 3 statements first!" };
+    }
+    const history = (Array.isArray(qa) ? qa : []).slice(0, LIE_MAX_QUESTIONS).map((x) => ({ q: sanitizeKidText(x?.q, 240), a: sanitizeKidText(x?.a, 200) }));
+    const isFirstTurn = history.length === 0;
+    const mustGuess = history.length >= LIE_MAX_QUESTIONS;
+    const id = await requireSparks(kidId, isFirstTurn ? 2 : 0);
+    const data = await callJSON({
+      tag: "lie",
+      models: [MODEL_SMART, MODEL_FAST],
+      prompt: liePrompt({ statements: stmts, qa: history, mustGuess }),
+      maxTokens: 350,
+      validate: (j) => validateLieMove(j, mustGuess, history.length < 2),
     });
-    const block = msg.content[0];
-    if (block.type !== "text") throw new Error("no text block");
-    const parsed = parseJSON(block.text);
-    if (isFirstTurn && kidId) await deductSparks(kidId, 2);
-    return { ok: true, data: parsed };
+    const sparks = isFirstTurn ? await chargeSparks(id, 2) : undefined;
+    return { ok: true, data, sparks };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return { ok: false, error: msg };
+    return fail(err);
   }
 }
