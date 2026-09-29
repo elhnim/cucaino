@@ -134,6 +134,8 @@ export class ParkWorld {
   private move = { x: 0, y: 0 };
   private walkTarget: THREE.Vector3 | null = null;
   private walkQueue: THREE.Vector3[] = [];
+  /** following a route from the map: jog a bit faster (the island is big) */
+  private routing = false;
   private inputOn = true;
   private nearPlace: string | null = null;
   private idleT = 0;
@@ -371,6 +373,7 @@ export class ParkWorld {
   }
   /** Walk the kid along a route of points (e.g. the park paths to a land). */
   walkKidPath(points: [number, number][]) {
+    this.routing = points.length > 2;
     const q = points.map(([x, z]) => new THREE.Vector3(x, 0, z));
     this.walkTarget = q.shift() ?? null;
     this.walkQueue = q;
@@ -830,8 +833,10 @@ export class ParkWorld {
     }
     const moving = Math.hypot(vx, vz) > 0.01;
     if (moving) {
-      pos.x += vx * WALK_SPEED * dt;
-      pos.z += vz * WALK_SPEED * dt;
+      if (!this.walkTarget) this.routing = false;
+      const sp = WALK_SPEED * (this.routing && this.walkTarget ? 1.6 : 1);
+      pos.x += vx * sp * dt;
+      pos.z += vz * sp * dt;
       kid.facing = Math.atan2(vx, vz);
       this.idleT = 0;
       this.waved = false;
@@ -849,6 +854,16 @@ export class ParkWorld {
     // keep inside the park and out of buildings
     const r = Math.hypot(pos.x, pos.z);
     if (r > PARK_RADIUS) pos.multiplyScalar(PARK_RADIUS / r);
+    // walk round the grassy hills
+    for (const o of this.park.obstacles) {
+      const dx = pos.x - o.x;
+      const dz = pos.z - o.z;
+      const d = Math.hypot(dx, dz);
+      if (d < o.r && d > 0.001) {
+        pos.x = o.x + (dx / d) * o.r;
+        pos.z = o.z + (dz / d) * o.r;
+      }
+    }
     for (const p of this.allPlaces()) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;

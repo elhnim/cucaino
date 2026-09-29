@@ -30,10 +30,10 @@ export function todaysTreasures(kidSeed: number, key = dayKey()) {
   const forest = LANDS.find((l) => l.id === "forest")!;
   const spots: { id: number; x: number; z: number; sticker: string }[] = [];
   for (let i = 0; i < TREASURES_PER_DAY; i++) {
-    // two thirds in the Sweet Forest, the rest hidden elsewhere in the park
+    // two thirds in the Glow Forest, the rest hidden elsewhere on the island
     const inForest = i < 4;
     const a = r() * Math.PI * 2;
-    const rad = inForest ? 3 + r() * (forest.radius - 4) : 24 + r() * 58;
+    const rad = inForest ? 3 + r() * (forest.radius - 4) : 24 + r() * 100;
     const cx = inForest ? forest.x : 0;
     const cz = inForest ? forest.z : 0;
     spots.push({ id: i, x: cx + Math.sin(a) * rad, z: cz + Math.cos(a) * rad, sticker: STICKERS[Math.floor(r() * STICKERS.length)] });

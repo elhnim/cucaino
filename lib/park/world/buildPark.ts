@@ -8,7 +8,9 @@ import { labelSprite } from "@/lib/game3d/buildingKit";
 import { zoneBounds } from "../builder/rules";
 import { buildAtmosphere, type Atmosphere } from "./atmosphere";
 import { buildGlowFlora } from "./glowFlora";
-import { buildOcean, BEACH_IN } from "./ocean";
+import { buildOcean, BEACH_IN, wobbleToCoast } from "./ocean";
+import { buildNature } from "./nature";
+import { TRAILS, ISLAND_R, nearStream } from "../registry/island";
 import { buildSkyLife } from "./skyLife";
 
 export interface BuiltPark {
@@ -18,6 +20,8 @@ export interface BuiltPark {
   lands: LandDef[];
   /** sampled points along every path (NPCs stroll between these) */
   pathPoints: THREE.Vector3[];
+  /** round things to walk around (hills) */
+  obstacles: { x: number; z: number; r: number }[];
   /** the dreamy day <-> twilight sky; atmosphere.glow lights up the whole world */
   atmosphere: Atmosphere;
   /** focus = where the kid is (walking into the Glow Forest pulls the light to twilight) */
@@ -139,7 +143,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   disposables.push(atmosphere);
 
   // ── ground (the meadow island) + plaza; the beach and ocean ring it ──
-  const ground = new THREE.Mesh(track(new THREE.CircleGeometry(BEACH_IN + 1, 72)), track(new THREE.MeshToonMaterial({ map: track(meadowTexture()) })));
+  const ground = new THREE.Mesh(track(wobbleToCoast(new THREE.CircleGeometry(BEACH_IN + 1, 160))), track(new THREE.MeshToonMaterial({ map: track(meadowTexture()) })));
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
   const plaza = new THREE.Mesh(track(new THREE.CylinderGeometry(8.5, 8.8, 0.25, 48)), track(new THREE.MeshToonMaterial({ map: track(plazaTexture()) })));
@@ -161,12 +165,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     scene.add(disc);
   }
 
-  // ── winding paths: plaza -> each land entrance ──
+  // ── natural trails: a loop round the island, four trails from the plaza, one into each land ──
   const pathMats: THREE.Matrix4[] = [];
   const pathPoints: THREE.Vector3[] = [];
   const pathSamples: THREE.Vector3[] = [];
-  const addCurve = (pts: THREE.Vector3[]) => {
-    const curve = new THREE.CatmullRomCurve3(pts, false, "centripetal");
+  const addCurve = (pts: THREE.Vector3[], closed = false) => {
+    const curve = new THREE.CatmullRomCurve3(pts, closed, "centripetal");
     const len = curve.getLength();
     const n = Math.max(2, Math.ceil(len / 2.4));
     for (let i = 0; i <= n; i++) {
@@ -178,13 +182,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       if (i % 3 === 0) pathPoints.push(p.clone());
     }
   };
-  for (const land of LANDS) {
-    const first = land.via[0] ?? land.entrance;
-    const dir = new THREE.Vector3(first[0], 0, first[1]).normalize();
-    const pts = [dir.clone().multiplyScalar(8.3), ...land.via.map(([x, z]) => new THREE.Vector3(x, 0, z)), new THREE.Vector3(land.entrance[0], 0, land.entrance[1])];
-    addCurve(pts);
-  }
-  addCurve([new THREE.Vector3(0, 0, -8.3), new THREE.Vector3(0, 0, -13.5)]); // plaza -> Quest Board
+  for (const tr of TRAILS) addCurve(tr.pts.map(([x, z]) => new THREE.Vector3(x, 0, z)), !!tr.closed);
   const paths = await assets.instanced("coaster", "path-straight", pathMats);
   const pathMat = toon("#ff9fcd");
   paths.traverse((o) => {
@@ -201,6 +199,11 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     const l = LANDS.find((q) => q.id === id)!;
     return Math.hypot(x - l.x, z - l.z) < l.radius;
   };
+
+  // ── the stream, its bridges and the grassy hills ──
+  const nature = buildNature(scene);
+  disposables.push(nature);
+  const nearHill = (x: number, z: number, pad: number) => nature.obstacles.some((h) => Math.hypot(x - h.x, z - h.z) < h.r * 1.2 + pad);
 
   // ── places ──
   const tappables: THREE.Object3D[] = [];
@@ -271,18 +274,19 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // fetch field: a white chalk ring
   const fetchRing = new THREE.Mesh(track(new THREE.TorusGeometry(5.5, 0.12, 6, 48)), toon("#ffffff"));
   fetchRing.rotation.x = Math.PI / 2;
-  fetchRing.position.set(-46, 0.06, 6);
+  fetchRing.position.set(pets.x + 1, 0.06, pets.z);
   scene.add(fetchRing);
 
   // Market Street: a row of stalls either side of the street
   const stallKinds: [KitName, string][] = [["coaster", "stall-food"], ["coaster", "stall-drinks"], ["town", "stall-red"], ["town", "stall-green"], ["coaster", "stall-information"], ["town", "cart"]];
   const stallMats = new Map<string, THREE.Matrix4[]>();
+  const market = LANDS.find((l) => l.id === "market")!;
   for (let i = 0; i < 8; i++) {
     const k = stallKinds[i % stallKinds.length];
     const key = `${k[0]}/${k[1]}`;
     const t = i / 7;
-    const x = 30 + t * 16;
-    const z = -33 - t * 14 + (i % 2 ? 5 : -5);
+    const x = market.x + t * 16 - 2;
+    const z = market.z + 9 - t * 14 + (i % 2 ? 5 : -5);
     if (!stallMats.has(key)) stallMats.set(key, []);
     stallMats.get(key)!.push(m4(x, 0, z, 2.6, i % 2 ? Math.PI * 0.8 : -Math.PI * 0.2));
   }
@@ -293,9 +297,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
 
   // Friends Café terrace + plaza benches
   const benchMats: THREE.Matrix4[] = [];
+  const friends = LANDS.find((l) => l.id === "friends")!;
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    benchMats.push(m4(-30 + Math.sin(a) * 7, 0, 38 + Math.cos(a) * 6, 2.6, a + Math.PI));
+    benchMats.push(m4(friends.x + Math.sin(a) * 7, 0, friends.z - 2 + Math.cos(a) * 6, 2.6, a + Math.PI));
   }
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
@@ -307,29 +312,30 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // Ride Land: a giant windmill
   const bigMill = await assets.spawn("town", "windmill");
   bigMill.scale.setScalar(3.4);
-  bigMill.position.set(-42, 0, -46);
+  const rides = LANDS.find((l) => l.id === "rides")!;
+  bigMill.position.set(rides.x - 8, 0, rides.z - 6);
   bigMill.rotation.y = 0.6;
   scene.add(bigMill);
 
   // ── scattered candy decor: lighter everywhere, dense in the Sweet Forest ──
   type Kind = { kit: KitName; id: string; count: number; s: [number, number]; minR: number; maxR: number; pad: number; land?: string };
   const KINDS: Kind[] = [
-    { kit: "food", id: "lollypop", count: 30, s: [9, 13], minR: 14, maxR: 95, pad: 2.5 },
-    { kit: "nature", id: "tree_default", count: 30, s: [2.6, 3.6], minR: 16, maxR: 110, pad: 2.5 },
-    { kit: "nature", id: "tree_oak", count: 26, s: [2.8, 3.8], minR: 16, maxR: 110, pad: 2.5 },
-    { kit: "nature", id: "tree_fat", count: 24, s: [2.8, 3.6], minR: 18, maxR: 110, pad: 2.5 },
-    { kit: "nature", id: "tree_cone", count: 20, s: [2.6, 3.4], minR: 22, maxR: 110, pad: 2.5 },
-    { kit: "food", id: "cupcake", count: 10, s: [4, 6], minR: 12, maxR: 70, pad: 3 },
-    { kit: "food", id: "donut-sprinkles", count: 12, s: [8, 11], minR: 12, maxR: 80, pad: 3 },
-    { kit: "food", id: "ice-cream", count: 9, s: [5, 7], minR: 14, maxR: 80, pad: 2.5 },
-    { kit: "food", id: "popsicle", count: 10, s: [6, 8], minR: 14, maxR: 80, pad: 2 },
-    { kit: "food", id: "sundae", count: 6, s: [5, 6], minR: 16, maxR: 70, pad: 2 },
-    { kit: "nature", id: "mushroom_redGroup", count: 34, s: [3.5, 5], minR: 10, maxR: 90, pad: 1.4 },
-    { kit: "nature", id: "plant_bush", count: 50, s: [3.5, 5], minR: 10, maxR: 95, pad: 1.4 },
-    { kit: "nature", id: "flower_purpleA", count: 70, s: [2.8, 3.8], minR: 9, maxR: 85, pad: 1 },
-    { kit: "nature", id: "flower_redA", count: 70, s: [2.8, 3.8], minR: 9, maxR: 85, pad: 1 },
-    { kit: "nature", id: "flower_yellowA", count: 70, s: [2.8, 3.8], minR: 9, maxR: 85, pad: 1 },
-    { kit: "holiday", id: "present-a-cube", count: 12, s: [1.6, 2.4], minR: 10, maxR: 60, pad: 1.4 },
+    { kit: "food", id: "lollypop", count: 51, s: [9, 13], minR: 15, maxR: 139, pad: 2.5 },
+    { kit: "nature", id: "tree_default", count: 51, s: [2.6, 3.6], minR: 18, maxR: 146, pad: 2.5 },
+    { kit: "nature", id: "tree_oak", count: 44, s: [2.8, 3.8], minR: 18, maxR: 146, pad: 2.5 },
+    { kit: "nature", id: "tree_fat", count: 41, s: [2.8, 3.6], minR: 20, maxR: 146, pad: 2.5 },
+    { kit: "nature", id: "tree_cone", count: 34, s: [2.6, 3.4], minR: 24, maxR: 146, pad: 2.5 },
+    { kit: "food", id: "cupcake", count: 17, s: [4, 6], minR: 13, maxR: 102, pad: 3 },
+    { kit: "food", id: "donut-sprinkles", count: 20, s: [8, 11], minR: 13, maxR: 117, pad: 3 },
+    { kit: "food", id: "ice-cream", count: 15, s: [5, 7], minR: 15, maxR: 117, pad: 2.5 },
+    { kit: "food", id: "popsicle", count: 17, s: [6, 8], minR: 15, maxR: 117, pad: 2 },
+    { kit: "food", id: "sundae", count: 10, s: [5, 6], minR: 18, maxR: 102, pad: 2 },
+    { kit: "nature", id: "mushroom_redGroup", count: 46, s: [3.5, 5], minR: 11, maxR: 131, pad: 1.4 },
+    { kit: "nature", id: "plant_bush", count: 70, s: [3.5, 5], minR: 11, maxR: 139, pad: 1.4 },
+    { kit: "nature", id: "flower_purpleA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
+    { kit: "nature", id: "flower_redA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
+    { kit: "nature", id: "flower_yellowA", count: 90, s: [2.8, 3.8], minR: 10, maxR: 124, pad: 1 },
+    { kit: "holiday", id: "present-a-cube", count: 20, s: [1.6, 2.4], minR: 11, maxR: 88, pad: 1.4 },
     // Sweet Forest: thick with candy trees, mushrooms and lollipops
     { kit: "nature", id: "tree_default", count: 20, s: [2.8, 3.8], minR: 0, maxR: 1, pad: 3.2, land: "forest" },
     { kit: "nature", id: "tree_fat", count: 14, s: [2.8, 3.6], minR: 0, maxR: 1, pad: 3.2, land: "forest" },
@@ -360,7 +366,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
         const rad = Math.sqrt(r()) * land.radius;
         x = land.x + Math.sin(a) * rad;
         z = land.z + Math.cos(a) * rad;
-        if (land.id === "pets" && Math.hypot(x + 46, z - 6) < 6.5) continue; // keep the fetch field clear
+        if (land.id === "pets" && Math.hypot(x - pets.x - 1, z - pets.z) < 6.5) continue; // keep the fetch field clear
       } else {
         const a = r() * Math.PI * 2;
         const rad = k.minR + r() * (k.maxR - k.minR);
@@ -368,7 +374,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
         z = Math.cos(a) * rad;
         if (LANDS.some((l) => l.id !== "forest" && Math.hypot(x - l.x, z - l.z) < l.radius + 1)) continue;
       }
-      if (nearPath(x, z, k.pad + 1.6) || nearPlace(x, z, k.pad + 1.5)) continue;
+      if (nearPath(x, z, k.pad + 1.6) || nearPlace(x, z, k.pad + 1.5) || nearStream(x, z, k.pad) || nearHill(x, z, k.pad)) continue;
       if (!land && inLand(x, z, "forest")) continue;
       mats.push(m4(x, 0, z, k.s[0] + r() * (k.s[1] - k.s[0]), r() * Math.PI * 2));
     }
@@ -405,8 +411,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── magical glowing plants: a dense Glow Forest of giant dream trees, and glowing flowers everywhere ──
   const glowFlora = buildGlowFlora(scene, {
     forest: { x: forestLand.x + 4, z: forestLand.z + 6, radius: forestLand.radius + 12, count: opts.lowQuality ? 120 : 190 },
-    park: { x: 0, z: 0, radius: BEACH_IN - 6, count: opts.lowQuality ? 140 : 240 },
-    free: (x, z, pad) => Math.hypot(x, z) < BEACH_IN - 3 && Math.hypot(x, z) > 11 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad),
+    park: { x: 0, z: 0, radius: ISLAND_R - 6, count: opts.lowQuality ? 180 : 300 },
+    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 3 && Math.hypot(x, z) > 11 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearHill(x, z, pad),
     lowQuality: opts.lowQuality,
     lights: lanternMats.map((mx) => {
       const p = new THREE.Vector3().setFromMatrixPosition(mx);
@@ -420,7 +426,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const loopPts: THREE.Vector3[] = [];
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
-    const rad = 70 + Math.sin(a * 3) * 8;
+    const rad = 100 + Math.sin(a * 3) * 8;
     loopPts.push(new THREE.Vector3(Math.sin(a) * rad, 8 + Math.sin(a * 2) * 2.5, Math.cos(a) * rad));
   }
   const loop = new THREE.CatmullRomCurve3(loopPts, true, "centripetal");
@@ -448,7 +454,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const hills = new THREE.InstancedMesh(hillGeo, track(new THREE.MeshToonMaterial({ color: "#ffffff" })), 40);
   for (let i = 0; i < 40; i++) {
     const a = (i / 40) * Math.PI * 2 + r() * 0.12;
-    const rad = 150 + r() * 70;
+    const rad = 235 + r() * 70;
     const s = 22 + r() * 30;
     hills.setMatrixAt(i, m4(Math.sin(a) * rad, -1, Math.cos(a) * rad, s, 0, s * (0.55 + r() * 0.35)));
     hills.setColorAt(i, new THREE.Color(hillColors[i % hillColors.length]));
@@ -480,12 +486,14 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     places: PLACES,
     lands: LANDS,
     pathPoints,
+    obstacles: nature.obstacles,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
       glowFlora.update(dt, t, atmosphere.glow);
       ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog);
       skyLife.update(dt, t, atmosphere.glow);
+      nature.update(dt, t, atmosphere.glow);
       lolly.rotation.y += dt * 0.5;
       for (const b of bobbers) b.obj.position.y = b.base + Math.sin(t * 2 + b.phase) * 0.18;
       cloudBase.forEach((c, i) => {

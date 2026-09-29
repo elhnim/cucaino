@@ -3,7 +3,7 @@
 import { getPiece, type PieceDef } from "../registry/pieces";
 
 /** The fenced Dream Park lawn east of the plaza, as a grid of CELL-sized squares. */
-export const DREAM_ZONE = { x0: 26, z0: -2, cols: 12, rows: 12, cell: 2.4 } as const;
+export const DREAM_ZONE = { x0: 68, z0: -6, cols: 12, rows: 12, cell: 2.4 } as const;
 
 export interface Placed {
   uid: string;

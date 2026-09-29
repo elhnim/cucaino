@@ -160,7 +160,7 @@ export function buildAtmosphere(
     // denser in the forest, the rest spread over the park
     const inForest = i < N * 0.45;
     const a = rnd() * Math.PI * 2;
-    const r = Math.sqrt(rnd()) * (inForest ? opts.forest.radius + 6 : 95);
+    const r = Math.sqrt(rnd()) * (inForest ? opts.forest.radius + 6 : 140);
     pos[i * 3] = (inForest ? opts.forest.x : 0) + Math.sin(a) * r;
     pos[i * 3 + 1] = 0.6 + rnd() * (inForest ? 7 : 5);
     pos[i * 3 + 2] = (inForest ? opts.forest.z : 0) + Math.cos(a) * r;

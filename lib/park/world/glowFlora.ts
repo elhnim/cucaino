@@ -32,7 +32,7 @@ function rngOf(seed: number) {
 function treeParts() {
   // a twisted trunk rising to a wide, layered canopy with hanging glowing vines and bulbs
   const trunkCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.35, 3, 0.2), new THREE.Vector3(-0.3, 6.5, -0.2), new THREE.Vector3(0.1, 9.5, 0.1)]);
-  const trunk = new THREE.TubeGeometry(trunkCurve, 24, 0.55, 8, false);
+  const trunk = new THREE.TubeGeometry(trunkCurve, 16, 0.55, 7, false);
   const roots: THREE.BufferGeometry[] = [trunk];
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
@@ -47,7 +47,7 @@ function treeParts() {
     [0.2, 12.4, -1.2, 2.8, 1.1],
   ];
   for (const [x, y, z, r, h] of layers) {
-    const g = new THREE.SphereGeometry(1, 16, 10);
+    const g = new THREE.SphereGeometry(1, 12, 8);
     g.scale(r, h, r);
     g.translate(x, y, z);
     canopyParts.push(g);
@@ -65,7 +65,7 @@ function treeParts() {
     const v = new THREE.CylinderGeometry(0.045, 0.03, len, 4);
     v.translate(x, top - len / 2, z);
     vines.push(v);
-    const b = new THREE.SphereGeometry(0.16 + r() * 0.12, 8, 6);
+    const b = new THREE.SphereGeometry(0.16 + r() * 0.12, 6, 4);
     b.translate(x, top - len, z);
     bulbs.push(b);
   }
@@ -75,16 +75,16 @@ function treeParts() {
 function mushroomParts() {
   const stem = new THREE.CylinderGeometry(0.28, 0.42, 2.2, 10);
   stem.translate(0, 1.1, 0);
-  const cap = new THREE.SphereGeometry(1.3, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+  const cap = new THREE.SphereGeometry(1.3, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2);
   cap.scale(1, 0.62, 1);
   cap.translate(0, 2.1, 0);
-  const gills = new THREE.CircleGeometry(1.25, 18);
+  const gills = new THREE.CircleGeometry(1.25, 14);
   gills.rotateX(Math.PI / 2);
   gills.translate(0, 2.09, 0);
   const spots: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2;
-    const s = new THREE.SphereGeometry(0.16, 6, 5);
+    const s = new THREE.SphereGeometry(0.16, 5, 4);
     s.translate(Math.cos(a) * 0.75, 2.62, Math.sin(a) * 0.75);
     spots.push(s);
   }
@@ -105,8 +105,8 @@ function lilyParts() {
     const rad = 0.18 + u * 0.55;
     pts.push(new THREE.Vector3(Math.cos(a) * rad, 1.2 + u * 2.6, Math.sin(a) * rad));
   }
-  const spiral = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 80, 0.07, 5, false);
-  const bud = new THREE.SphereGeometry(0.28, 10, 8);
+  const spiral = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 36, 0.07, 4, false);
+  const bud = new THREE.SphereGeometry(0.28, 8, 6);
   bud.scale(1, 1.5, 1);
   bud.translate(0, 3.55, 0);
   return { solid: stalk, canopy: null, glow: mergeGeometries([spiral, bud])!, halos: [new THREE.Vector3(0, 3.5, 0)] };
@@ -122,8 +122,8 @@ function bellParts() {
     const x = Math.cos(a) * 0.35;
     const z = Math.sin(a) * 0.35;
     const c = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(x, h * 0.7, z), new THREE.Vector3(x * 2.2, h, z * 2.2), new THREE.Vector3(x * 2.6, h - 0.25, z * 2.6)]);
-    stems.push(new THREE.TubeGeometry(c, 10, 0.035, 4, false));
-    const bell = new THREE.ConeGeometry(0.22, 0.4, 10, 1, true);
+    stems.push(new THREE.TubeGeometry(c, 6, 0.035, 3, false));
+    const bell = new THREE.ConeGeometry(0.22, 0.4, 7, 1, true);
     bell.translate(x * 2.6, h - 0.45, z * 2.6);
     bells.push(bell);
     halos.push(new THREE.Vector3(x * 2.6, h - 0.5, z * 2.6));

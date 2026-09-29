@@ -6,9 +6,28 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { makeSparkTexture } from "./atmosphere";
 import { getToonRamp } from "../assets/loader";
+import { ISLAND_R, coastR } from "../registry/island";
 
-export const SHORE_R = 118; // where the sand meets the water
-export const BEACH_IN = 104; // where grass meets the sand
+export const BEACH_IN = ISLAND_R; // where grass meets the sand (plus the coast wobble)
+export const SHORE_R = ISLAND_R + 14; // where the sand meets the water
+
+/** bend a ring/disc geometry (lying in XY before rotation) so its edge follows the natural coastline */
+export function wobbleToCoast(geo: THREE.BufferGeometry, minR = 0) {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const r = Math.hypot(x, y);
+    if (r <= minR + 0.01) continue;
+    // after rotation.x = -PI/2, local (x, y) maps to world (x, -z)
+    const a = Math.atan2(x, -y);
+    const k = coastR(a) / ISLAND_R;
+    pos.setXY(i, x * k, y * k);
+  }
+  pos.needsUpdate = true;
+  geo.computeBoundingSphere();
+  return geo;
+}
 
 export interface Ocean {
   update(dt: number, t: number, glow: number, fog: THREE.Fog): void;
@@ -25,7 +44,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const add = <T extends THREE.Object3D>(o: T) => (scene.add(o), added.push(o), o);
 
   // ── beach ──
-  const sand = add(new THREE.Mesh(track(new THREE.RingGeometry(BEACH_IN - 2, SHORE_R + 6, 96, 1)), toon("#ffe7bf")));
+  const sand = add(new THREE.Mesh(track(wobbleToCoast(new THREE.RingGeometry(BEACH_IN - 2, SHORE_R + 6, 160, 1))), toon("#ffe7bf")));
   sand.rotation.x = -Math.PI / 2;
   sand.position.y = 0.01;
   // shells and starfish dotted on the sand
@@ -42,14 +61,14 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let i = 0; i < 70; i++) {
     const a = rnd() * Math.PI * 2;
-    const rad = BEACH_IN + 2 + rnd() * (SHORE_R - BEACH_IN - 1);
+    const rad = (BEACH_IN + 2 + rnd() * (SHORE_R - BEACH_IN - 1)) * (coastR(a) / ISLAND_R);
     mm.compose(new THREE.Vector3(Math.sin(a) * rad, 0.02, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 0.5, 1.3).multiplyScalar(0.6 + rnd() * 0.8));
     shells.setMatrixAt(i, mm);
     shells.setColorAt(i, new THREE.Color(shellCols[i % shellCols.length]));
   }
   for (let i = 0; i < 40; i++) {
     const a = rnd() * Math.PI * 2;
-    const rad = BEACH_IN + 3 + rnd() * (SHORE_R - BEACH_IN - 2);
+    const rad = (BEACH_IN + 3 + rnd() * (SHORE_R - BEACH_IN - 2)) * (coastR(a) / ISLAND_R);
     mm.compose(new THREE.Vector3(Math.sin(a) * rad, 0.05, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + rnd() * 0.6));
     stars.setMatrixAt(i, mm);
     stars.setColorAt(i, new THREE.Color(starCols[i % starCols.length]));
@@ -86,7 +105,9 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         varying float vR; varying vec2 vXZ; varying float vWave; varying float vDist;
         float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
         void main() {
-          float depth = smoothstep(uShore, uShore + 90.0, vR);
+          float ang = atan(vXZ.x, vXZ.y);
+          float shore = uShore * (1.0 + (sin(ang * 4.0 + 0.5) * 5.0 + sin(ang * 9.0 + 2.0) * 2.5) / ${ISLAND_R.toFixed(1)});
+          float depth = smoothstep(shore, shore + 90.0, vR);
           vec3 shallow = mix(vec3(0.45, 0.93, 0.93), vec3(0.16, 0.52, 0.72), uGlow);
           vec3 deep = mix(vec3(0.24, 0.55, 0.95), vec3(0.05, 0.08, 0.3), uGlow);
           vec3 col = mix(shallow, deep, depth);
@@ -98,12 +119,12 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
           float dotG = 1.0 - smoothstep(0.08, 0.22, length(fract(q) - 0.5));
           col += step(0.97, g) * dotG * smoothstep(0.1, 0.7, vWave) * vec3(1.0) * 0.7;
           // foam lapping at the shore
-          float foam = smoothstep(uShore + 3.5 + sin(uTime * 1.3 + vXZ.x * 0.2) * 1.2, uShore, vR);
+          float foam = smoothstep(shore + 3.5 + sin(uTime * 1.3 + vXZ.x * 0.2) * 1.2, shore, vR);
           col = mix(col, vec3(1.0, 0.98, 0.96), foam * 0.85);
           // glowing plankton near the shore and on crests at twilight
           vec2 pq = vXZ * 1.6;
           float pk = step(0.9, hash(floor(pq) + floor(uTime * 0.5))) * (1.0 - smoothstep(0.05, 0.3, length(fract(pq) - 0.5)));
-          float near = 1.0 - smoothstep(uShore + 2.0, uShore + 45.0, vR);
+          float near = 1.0 - smoothstep(shore + 2.0, shore + 45.0, vR);
           col += uGlow * pk * (0.4 + near) * vec3(0.3, 1.0, 0.95) * 0.7;
           float fog = smoothstep(uFogNear, uFogFar, vDist);
           col = mix(col, uFogColor, fog);
@@ -111,7 +132,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         }`,
     }),
   );
-  const water = add(new THREE.Mesh(track(new THREE.RingGeometry(SHORE_R - 6, 520, low ? 96 : 160, low ? 24 : 40)), waterMat));
+  const water = add(new THREE.Mesh(track(wobbleToCoast(new THREE.RingGeometry(SHORE_R - 6, 600, low ? 120 : 200, low ? 24 : 40))), waterMat));
   water.rotation.x = -Math.PI / 2;
   water.position.y = 0;
 
@@ -169,7 +190,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
     g.add(new THREE.Mesh(whaleBody, whaleMat), new THREE.Mesh(whaleSpots, whaleGlowMat));
     g.scale.setScalar(2.6 + i * 0.4);
     add(g);
-    whales.push({ g, a: (i / 3) * Math.PI * 2, rad: 175 + i * 28, speed: 0.018 + i * 0.004, breachAt: 8 + i * 9, breachT: -1, spout: 0 });
+    whales.push({ g, a: (i / 3) * Math.PI * 2, rad: SHORE_R + 60 + i * 28, speed: 0.018 + i * 0.004, breachAt: 8 + i * 9, breachT: -1, spout: 0 });
   }
   // spout + splash particles
   const splashN = 120;
@@ -194,12 +215,12 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   // ── manta rays gliding and hopping, dolphin pods leaping, turtles paddling ──
   const mantaGeo = track(mantaGeometry());
   const mantas = add(new THREE.InstancedMesh(mantaGeo, toon("#6a5ab8"), low ? 3 : 6));
-  const mantaState = Array.from({ length: mantas.count }, (_, i) => ({ a: rnd() * 6.28, rad: 140 + rnd() * 70, speed: 0.03 + rnd() * 0.02, ph: rnd() * 10, dir: i % 2 ? 1 : -1 }));
+  const mantaState = Array.from({ length: mantas.count }, (_, i) => ({ a: rnd() * 6.28, rad: SHORE_R + 24 + rnd() * 70, speed: 0.03 + rnd() * 0.02, ph: rnd() * 10, dir: i % 2 ? 1 : -1 }));
   const dolphinGeo = track(dolphinGeometry());
   const dolphins = add(new THREE.InstancedMesh(dolphinGeo, toon("#8fb6e8"), low ? 4 : 8));
   const pods = [
-    { a: 1, rad: 150, speed: 0.05 },
-    { a: 4, rad: 165, speed: -0.045 },
+    { a: 1, rad: SHORE_R + 32, speed: 0.04 },
+    { a: 4, rad: SHORE_R + 48, speed: -0.036 },
   ];
   const turtleGeo = track(turtleGeometry());
   const turtles = add(new THREE.InstancedMesh(turtleGeo, toon("#5fbf7f"), low ? 3 : 6));
