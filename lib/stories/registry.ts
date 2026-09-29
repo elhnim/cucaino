@@ -5,6 +5,7 @@ import { TALES_WITH_A_TWIST } from "@/lib/stories/content/tales-with-a-twist";
 import { GREEK_MYTHS } from "@/lib/stories/content/greek-myths";
 import { EGYPTIAN_MYTHS } from "@/lib/stories/content/egyptian-myths";
 import { CHAPTER_BOOKS } from "@/lib/stories/content/chapter-books";
+import { GUTENBERG_BOOKS } from "@/lib/stories/content/gutenberg-books.generated";
 import { WIZARD_OF_OZ } from "@/lib/stories/content/wizard-of-oz";
 import { PETER_AND_WENDY } from "@/lib/stories/content/peter-and-wendy";
 import { ALICES_ADVENTURES_IN_WONDERLAND } from "@/lib/stories/content/alices-adventures-in-wonderland";
@@ -34,7 +35,9 @@ import { THE_STORY_OF_THE_TREASURE_SEEKERS } from "@/lib/stories/content/the-sto
 import { THE_RAILWAY_CHILDREN } from "@/lib/stories/content/the-railway-children";
 
 // Add more stories here (a content file + this list).
-export const STORIES: LibraryStory[] = [
+// Books from `npm run import:books` (scripts/import-gutenberg.mjs), minus any title the
+// library already has as its own content file — so nothing ever shows up twice.
+const HANDMADE: LibraryStory[] = [
   ...CHAPTER_BOOKS,
   ...WIZARD_OF_OZ,
   ...PETER_AND_WENDY,
@@ -69,6 +72,8 @@ export const STORIES: LibraryStory[] = [
   ...JUST_SO_STORIES,
   ...TALES_WITH_A_TWIST,
 ];
+const HANDMADE_TITLES = new Set(HANDMADE.map((s) => s.title.toLowerCase()));
+export const STORIES: LibraryStory[] = [...GUTENBERG_BOOKS.filter((b) => !HANDMADE_TITLES.has(b.title.toLowerCase())), ...HANDMADE];
 
 export function getStory(id: string): LibraryStory | undefined {
   return STORIES.find((s) => s.id === id);
