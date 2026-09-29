@@ -86,6 +86,18 @@ function seabedDrop(x: number, z: number, d: number): number {
 export const DEEP_FLOOR = -22;
 /** the sea's surface height (the water mesh's resting level) */
 export const WATER_Y = -0.25;
+/** The ocean has no edge: sail, swim or fly past this radius and you come back in from the
+ *  opposite side of the world (like going round a little planet) — see wrapWorld(). */
+export const WRAP_R = 640;
+/** where you reappear after crossing WRAP_R: the antipode, just inside the edge, same heading */
+export function wrapWorld(p: { x: number; z: number }): boolean {
+  const r = Math.hypot(p.x, p.z);
+  if (r <= WRAP_R) return false;
+  const k = -(WRAP_R - 2) / r;
+  p.x *= k;
+  p.z *= k;
+  return true;
+}
 
 let grid: Float32Array | null = null;
 

@@ -3,7 +3,7 @@
 // shadows (soft blob shadows instead) and every repeated prop is one draw call per part.
 import * as THREE from "three";
 import type { ParkAssets, KitName } from "../assets/loader";
-import { PLACES, LANDS, type PlaceDef, type LandDef } from "../registry/places";
+import { PLACES, LANDS, SKY_LOOP_N, SKY_STATION_I, skyLoopXZ, type PlaceDef, type LandDef } from "../registry/places";
 import { labelSprite } from "@/lib/game3d/buildingKit";
 import { zoneBounds } from "../builder/rules";
 import { buildAtmosphere, type Atmosphere } from "./atmosphere";
@@ -31,6 +31,8 @@ export interface BuiltPark {
   ground: THREE.Mesh;
   /** Star Shards + Sky Rings (the engine drives them with the kid's position) */
   quests3d: Quests3D;
+  /** the Sky Coaster: its track and where its train is (the engine drives it while you ride) */
+  skyTrain: { loop: THREE.CatmullRomCurve3; len: number; u: number; held: boolean; stationU: number };
   /** the reef, fish, orcas, mantas, jellies, wreck and pearls under (and on) the sea */
   underwater: Underwater;
   /** round things to walk around (hills) */
@@ -432,8 +434,22 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
 
   // ── the fantasy world: wind-swept grass, trees, rocks, crystals, ruins, floating islands,
   //    the giant Glow Forest — and the ground with natural earth trails painted in ──
+  // keep the Sky Coaster's corridor clear (trees were growing through the track)
+  const skyXZ = new THREE.CatmullRomCurve3(
+    Array.from({ length: SKY_LOOP_N }, (_, i) => {
+      const [x, z] = skyLoopXZ(i);
+      return new THREE.Vector3(x, 0, z);
+    }),
+    true,
+    "centripetal",
+  ).getSpacedPoints(360);
+  const nearSky = (x: number, z: number, pad: number) => {
+    if (Math.abs(Math.hypot(x, z) - 100) > 18 + pad) return false;
+    const rr = (5.5 + pad) ** 2;
+    return skyXZ.some((q) => (q.x - x) ** 2 + (q.z - z) ** 2 < rr);
+  };
   const fantasy = buildFantasyWorld(scene, {
-    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad),
+    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearSky(x, z, pad),
     lowQuality: opts.lowQuality,
   });
   disposables.push(fantasy);
@@ -492,13 +508,18 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
 
 
   // ── the Sky Train: a candy rail looping the whole park overhead, with a train on it ──
+  // a proper coaster: low at the station, a long climb, big drops and camel-back hills
   const loopPts: THREE.Vector3[] = [];
-  for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2;
-    const rad = 100 + Math.sin(a * 3) * 8;
-    const lx = Math.sin(a) * rad;
-    const lz = Math.cos(a) * rad;
-    loopPts.push(new THREE.Vector3(lx, Math.max(8 + Math.sin(a * 2) * 2.5, groundY(lx, lz) + 7), lz));
+  for (let i = 0; i < SKY_LOOP_N; i++) {
+    const a = (i / SKY_LOOP_N) * Math.PI * 2;
+    const [lx, lz] = skyLoopXZ(i);
+    const gy = groundY(lx, lz);
+    const k = (i - SKY_STATION_I + SKY_LOOP_N) % SKY_LOOP_N; // 0 at the station
+    const station = k === 0 || k === SKY_LOOP_N - 1;
+    const lift = k <= 5 ? (k / 5) * 20 : 0; // the chain lift up out of the station
+    const hills = 12 + Math.sin(a * 3 + 0.6) * 7 + Math.sin(a * 5) * 3;
+    const y = station ? gy + 3.2 : Math.max(gy + 6, k <= 5 ? gy + 3.2 + lift : hills);
+    loopPts.push(new THREE.Vector3(lx, y, lz));
   }
   const loop = new THREE.CatmullRomCurve3(loopPts, true, "centripetal");
   scene.add(new THREE.Mesh(track(new THREE.TubeGeometry(loop, 320, 0.35, 8, true)), toon("#b8864f")));
@@ -518,20 +539,28 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     cars.push(car);
   }
   const loopLen = loop.getLength();
+  // where along the track (0..1) the station is
+  const stationPt = loopPts[SKY_STATION_I];
+  let stationU = 0;
+  for (let k = 0, best = Infinity; k < 600; k++) {
+    const d = loop.getPointAt(k / 600).distanceToSquared(stationPt);
+    if (d < best) {
+      best = d;
+      stationU = k / 600;
+    }
+  }
+  const skyTrain = { loop, len: loopLen, u: stationU, held: false, stationU };
   const up = new THREE.Vector3(0, 1, 0);
 
-  // ── gumdrop hills + cotton-candy clouds on the horizon ──
-  const hillGeo = track(new THREE.SphereGeometry(1, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2));
-  const hillColors = ["#6f9a6a", "#7fa37a", "#8d9aa8", "#a3b08f", "#5f8a6a", "#98a58a"];
-  const hills = new THREE.InstancedMesh(hillGeo, track(new THREE.MeshToonMaterial({ color: "#ffffff" })), 40);
+  // ── cotton-candy clouds ── (the old ring of gumdrop "horizon hills" is gone: the ocean runs to
+  // the real horizon now and you can sail out there, where they were giant blobs in the sea.
+  // Their random draws are kept so every other decoration stays exactly where it was.)
   for (let i = 0; i < 40; i++) {
-    const a = (i / 40) * Math.PI * 2 + r() * 0.12;
-    const rad = 235 + r() * 70;
-    const s = 22 + r() * 30;
-    hills.setMatrixAt(i, m4(Math.sin(a) * rad, -1, Math.cos(a) * rad, s, 0, s * (0.55 + r() * 0.35)));
-    hills.setColorAt(i, new THREE.Color(hillColors[i % hillColors.length]));
+    r();
+    r();
+    r();
+    r();
   }
-  scene.add(hills);
 
   const clouds = new THREE.InstancedMesh(track(new THREE.SphereGeometry(1, 12, 8)), track(new THREE.MeshToonMaterial({ color: "#ffffff" })), 90);
   const cloudBase: { x: number; y: number; z: number; s: number; speed: number }[] = [];
@@ -563,11 +592,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS],
     quests3d,
     underwater,
+    skyTrain,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
       glowFlora.update(dt, t, atmosphere.glow);
-      ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog);
+      ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog, focus);
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       nature.update(dt, t, atmosphere.glow);
@@ -581,7 +611,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       });
       clouds.instanceMatrix.needsUpdate = true;
       // sky train glides round the loop, each car a little behind the one in front
-      const head = ((t * 11) % loopLen) / loopLen;
+      if (!skyTrain.held) skyTrain.u = (skyTrain.u + (dt * 11) / loopLen) % 1;
+      const head = skyTrain.u;
       cars.forEach((car, i) => {
         const u = (head - (i * 3.4) / loopLen + 1) % 1;
         const p = loop.getPointAt(u);

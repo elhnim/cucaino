@@ -27,7 +27,19 @@ export type PlaceAction =
   | "theatre"
   | "retro"
   | "wizard"
+  | "skycoaster"
   | "none";
+
+/** The Sky Coaster's track: control points round the island (buildPark adds the hills and drops). */
+export const SKY_LOOP_N = 32;
+export function skyLoopXZ(i: number): [number, number] {
+  const a = (i / SKY_LOOP_N) * Math.PI * 2;
+  const rad = 100 + Math.sin(a * 3) * 8;
+  return [Math.sin(a) * rad, Math.cos(a) * rad];
+}
+/** the control point where the station sits (south-west, beside Rides land) */
+export const SKY_STATION_I = 20;
+const [SKY_SX, SKY_SZ] = skyLoopXZ(SKY_STATION_I);
 
 export interface PlaceModel {
   kit: KitName;
@@ -275,6 +287,21 @@ export const PLACES: PlaceDef[] = [
       { kit: "coaster", id: "coaster-train-front", scale: 3, offset: [0.4, 0.2], rotY: Math.PI / 4 },
       { kit: "coaster", id: "ride-entrance", scale: 3, offset: [3.2, 2.4], rotY: Math.PI / 4 },
     ],
+  },
+
+  {
+    id: "sky-coaster",
+    label: "Sky Coaster",
+    emoji: "🎢",
+    land: "rides",
+    // just inside the track, so you step up under the train
+    x: SKY_SX * 0.93,
+    z: SKY_SZ * 0.93,
+    radius: 1.6,
+    doorRadius: 4.6,
+    action: "skycoaster",
+    signY: 5.2,
+    models: [{ kit: "coaster", id: "ride-entrance", scale: 3, rotY: Math.PI / 4 }],
   },
 
   {

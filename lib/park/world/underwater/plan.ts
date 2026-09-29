@@ -10,6 +10,7 @@
 import { coastR } from "../../registry/island";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { fbm2, noise2, rngOf, smoothstep } from "../fantasy/noise";
+import { seaFloorY } from "../sea/wander";
 
 export const PEARL_COUNT = 15;
 /** angular buckets round the island for streaming the reef */
@@ -382,15 +383,15 @@ export const SPECIES = { clown: 0, blueTang: 1, yellowTang: 2, anthias: 3, sardi
 export interface SchoolDef {
   species: number;
   n: number;
-  /** home (the school wanders round it) */
+  /** home (the school roams round it) */
   ax: number;
   ay: number;
   az: number;
-  /** how far it wanders */
+  /** how far it roams (its leash is ~2.4x this) */
   rad: number;
   /** formation half-size (along, up, across) */
   spread: [number, number, number];
-  /** wander speed (radians of the path per second) */
+  /** (legacy) path speed — schools now roam freely (../sea/wander.ts) */
   speed: number;
   /** fish size (metres, nose to tail) */
   size: number;
@@ -403,7 +404,7 @@ export interface SchoolDef {
 
 /** a comfy swimming height at (x, z): between the floor and the surface */
 export function midWater(x: number, z: number, frac = 0.4, minAbove = 1.6): number {
-  const floor = groundY(x, z);
+  const floor = seaFloorY(x, z);
   const top = WATER_Y - 1.2;
   return Math.min(top, Math.max(floor + minAbove, floor + (top - floor) * frac));
 }
@@ -441,8 +442,9 @@ export function planSchools(opts: { lowQuality?: boolean } = {}): SchoolDef[] {
   // the glow kelp forest: anthias weaving between the strands
   add(SPECIES.anthias, 28, Gl.x, Gl.z, { rad: 9, spread: [3, 1.6, 2.6], speed: 0.06, size: 0.4, frac: 0.45 });
   // a mixed school that keeps near the kid, wherever they swim
-  add(SPECIES.blueTang, 16, W.x, W.z, { rad: 6, spread: [2.2, 0.9, 1.7], speed: 0.12, size: 0.58, follow: true });
-  add(SPECIES.yellowTang, 14, W.x, W.z, { rad: 6, spread: [2, 0.8, 1.5], speed: 0.14, size: 0.52, follow: true, ph: 3 });
+  // (out over the deep they become shoals of silver sardines: see ../underwater/index.ts)
+  add(SPECIES.blueTang, 26, W.x, W.z, { rad: 6, spread: [2.8, 1.1, 2.1], speed: 0.12, size: 0.58, follow: true });
+  add(SPECIES.yellowTang, 22, W.x, W.z, { rad: 6, spread: [2.5, 1, 1.9], speed: 0.14, size: 0.52, follow: true, ph: 3 });
   // big fish: groupers lurk by the wreck and temple, parrotfish graze the gardens
   const big: [number, Garden, number, number][] = [
     [SPECIES.grouper, W, -5, 4],
@@ -476,25 +478,9 @@ export interface V3 {
   z: number;
 }
 
-/** where a school's centre is at time t (a lazy wandering loop round its home, kept in the water) */
-export function schoolCentre(s: { ax: number; ay: number; az: number; rad: number; speed: number; ph: number; spread: [number, number, number] }, t: number, out: V3): V3 {
-  const u = t * s.speed + s.ph;
-  out.x = s.ax + Math.sin(u) * s.rad + Math.sin(u * 2.3 + 1.1) * s.rad * 0.3;
-  out.z = s.az + Math.cos(u * 0.83) * s.rad + Math.cos(u * 1.9 + 0.4) * s.rad * 0.25;
-  // never wander into water too shallow for the school: pull back toward home
-  const need = (s.spread[1] + 0.6) * 1.5 + 1.4;
-  for (let k = 0; k < 6 && WATER_Y - groundY(out.x, out.z) < need; k++) {
-    out.x = s.ax + (out.x - s.ax) * 0.5;
-    out.z = s.az + (out.z - s.az) * 0.5;
-  }
-  const y = s.ay + Math.sin(u * 1.7 + 0.5) * 0.6;
-  out.y = clampWater(out.x, out.z, y, s.spread[1] + 0.6);
-  return out;
-}
-
 /** keep y inside the water: above the sea floor and below the surface by `margin` */
 export function clampWater(x: number, z: number, y: number, margin: number): number {
-  const floor = groundY(x, z) + margin;
+  const floor = seaFloorY(x, z) + margin;
   const top = WATER_Y - 0.6 - margin * 0.5;
   if (floor >= top) return (floor + top) / 2;
   return Math.min(top, Math.max(floor, y));
@@ -544,28 +530,6 @@ export function stepFish(p: Float32Array, v: Float32Array, i: number, tx: number
   p[k + 1] += vy * dt;
   p[k + 2] += vz * dt;
   return Math.min(sp, maxSpeed);
-}
-
-/** a manta's graceful banking figure-of-eight round (cx, cy, cz) */
-export function mantaPath(m: { cx: number; cy: number; cz: number; r: number; rot: number; speed: number; ph: number }, t: number, out: V3): V3 {
-  const u = t * m.speed + m.ph;
-  const lx = Math.sin(u) * m.r;
-  const lz = Math.sin(u) * Math.cos(u) * m.r * 1.1;
-  const s = Math.sin(m.rot);
-  const c = Math.cos(m.rot);
-  out.x = m.cx + lx * c + lz * s;
-  out.z = m.cz - lx * s + lz * c;
-  out.y = m.cy + Math.sin(u * 2 + 0.7) * 1.2;
-  return out;
-}
-
-/** the orca pod's lap round the island (leader), just past the reef wall */
-export function orcaLap(t: number, speed: number, out: V3): V3 {
-  const a = t * speed;
-  const d = 58 + Math.sin(a * 3 + 0.4) * 8;
-  atSea(a, d, out as unknown as { x: number; z: number });
-  out.y = -2.2;
-  return out;
 }
 
 // ── jellyfish blooms ──

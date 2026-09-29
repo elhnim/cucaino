@@ -1,13 +1,17 @@
-// The sea around Cucaino Park: a sandy beach ring, a shimmering ocean that glows with plankton
-// at twilight, and majestic sea life — glowing jellyfish (some even drift through the air over
-// the Glow Forest), breaching whales with glowing markings, gliding manta rays, leaping dolphin
-// pods and turtles. All procedural and cheap: one mesh per creature part, animated by matrices.
+// The sea around Cucaino Park: a sandy beach ring and a boundless, shimmering ocean that glows
+// with plankton at twilight — the water follows you to the horizon wherever you sail, swim or fly
+// (and past WRAP_R the world wraps round like a little planet) — with sea life that roams it all:
+// glowing jellyfish (some even drift through the air over the Glow Forest), gliding and hopping
+// manta rays, leaping dolphin pods and turtles, each on its own wandering heading (./sea/wander)
+// and gathering round wherever you are. (The giant whales and orcas live with ./underwater.)
+// All procedural and cheap: one mesh per creature kind, animated by matrices.
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { makeSparkTexture } from "./atmosphere";
 import { getToonRamp } from "../assets/loader";
 import { ISLAND_R, coastR } from "../registry/island";
 import { groundY } from "../registry/terrain";
+import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, swim, trackFocus, type Swimmer, type SwimStyle } from "./sea/wander";
 
 export const BEACH_IN = ISLAND_R; // where grass meets the sand (plus the coast wobble)
 export const SHORE_R = ISLAND_R + 14; // where the sand meets the water
@@ -31,7 +35,8 @@ export function wobbleToCoast(geo: THREE.BufferGeometry, minR = 0) {
 }
 
 export interface Ocean {
-  update(dt: number, t: number, glow: number, fog: THREE.Fog): void;
+  /** `focus` = the kid / camera focus: the sea and its roaming life follow it (default: the origin) */
+  update(dt: number, t: number, glow: number, fog: THREE.Fog, focus?: THREE.Vector3): void;
   dispose(): void;
 }
 
@@ -73,7 +78,17 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
     stars.setColorAt(i, new THREE.Color(starCols[i % starCols.length]));
   }
 
-  // ── the ocean: gentle waves, turquoise shallows -> deep blue, foam at the shore, glowing plankton at night ──
+  // ── the ocean: a boundless sea. One big disc of water follows the player (snapped, and every
+  //    wave, colour and sparkle is computed from world position, so moving it is invisible) out to
+  //    past the fog, wherever you sail, swim or fly. Turquoise shallows -> deep blue, foam at the
+  //    shore, whitecaps and glints out at sea, the sky mirrored at grazing angles, glowing plankton
+  //    at twilight. ──
+  const WAVES = /* glsl */ `
+    // a few long swells from different directions (world space: the same wherever the mesh is)
+    float seaWave( vec2 p, float t ) {
+      return sin( p.x * 0.08 + t * 0.9 ) * 0.35 + sin( p.y * 0.11 - t * 1.1 ) * 0.28 + sin( ( p.x + p.y ) * 0.05 + t * 0.6 ) * 0.4
+           + sin( dot( p, vec2( 0.13, -0.21 ) ) + t * 1.45 ) * 0.12;
+    }`;
   const waterMat = track(
     new THREE.ShaderMaterial({
       transparent: true,
@@ -87,70 +102,115 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         uFogFar: { value: 430 },
       },
       vertexShader: /* glsl */ `
-        uniform float uTime; varying float vR; varying vec2 vXZ; varying float vWave; varying float vDist;
+        uniform float uTime;
+        varying float vR; varying vec2 vXZ; varying float vWave; varying float vDist; varying vec3 vN; varying vec3 vW;
+        ${WAVES}
         void main() {
-          vec3 p = position;
-          vec4 w = modelMatrix * vec4(p, 1.0);
-          float r = length(w.xz);
-          float wave = sin(w.x * 0.08 + uTime * 0.9) * 0.35 + sin(w.z * 0.11 - uTime * 1.1) * 0.28 + sin((w.x + w.z) * 0.05 + uTime * 0.6) * 0.4;
-          float shoreDamp = smoothstep(${SHORE_R.toFixed(1)}, ${(SHORE_R + 25).toFixed(1)}, r);
+          vec4 w = modelMatrix * vec4( position, 1.0 );
+          float r = length( w.xz );
+          float shoreDamp = smoothstep( ${SHORE_R.toFixed(1)}, ${(SHORE_R + 25).toFixed(1)}, r );
+          float wave = seaWave( w.xz, uTime );
+          // slope of the swell (for the sky reflection)
+          float e = 1.5;
+          float wx = seaWave( w.xz + vec2( e, 0.0 ), uTime ) - wave;
+          float wz = seaWave( w.xz + vec2( 0.0, e ), uTime ) - wave;
+          vN = normalize( vec3( -wx / e * shoreDamp, 1.0, -wz / e * shoreDamp ) );
           w.y += wave * shoreDamp - 0.25;
-          vWave = wave; vR = r; vXZ = w.xz;
+          vWave = wave; vR = r; vXZ = w.xz; vW = w.xyz;
           vec4 mv = viewMatrix * w;
           vDist = -mv.z;
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: /* glsl */ `
         uniform float uTime; uniform float uGlow; uniform float uShore; uniform vec3 uFogColor; uniform float uFogNear; uniform float uFogFar;
-        varying float vR; varying vec2 vXZ; varying float vWave; varying float vDist;
-        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        varying float vR; varying vec2 vXZ; varying float vWave; varying float vDist; varying vec3 vN; varying vec3 vW;
+        float hash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+        float vnoise( vec2 p ) {
+          vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
+          return mix( mix( hash( i ), hash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( hash( i + vec2( 0.0, 1.0 ) ), hash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
+        }
         void main() {
-          float ang = atan(vXZ.x, vXZ.y);
-          float shore = uShore * (1.0 + (sin(ang * 4.0 + 0.5) * 5.0 + sin(ang * 9.0 + 2.0) * 2.5) / ${ISLAND_R.toFixed(1)});
-          float depth = smoothstep(shore, shore + 90.0, vR);
+          float ang = atan( vXZ.x, vXZ.y );
+          float coastK = 1.0 + ( sin( ang * 4.0 + 0.5 ) * 5.0 + sin( ang * 9.0 + 2.0 ) * 2.5 ) / ${ISLAND_R.toFixed(1)};
+          // (under the island: the terrain and the beach own that)
+          if ( vR < ${(SHORE_R - 6).toFixed(1)} * coastK ) discard;
+          float shore = uShore * coastK;
+          float depth = smoothstep( shore, shore + 90.0, vR );
           // (linear colours: the output pass brightens them into sRGB)
-          vec3 shallow = mix(vec3(0.05, 0.52, 0.55), vec3(0.04, 0.2, 0.4), uGlow);
-          vec3 deep = mix(vec3(0.07, 0.3, 0.78), vec3(0.03, 0.05, 0.24), uGlow);
-          vec3 col = mix(shallow, deep, depth);
+          vec3 shallow = mix( vec3( 0.05, 0.52, 0.55 ), vec3( 0.04, 0.2, 0.4 ), uGlow );
+          vec3 deep = mix( vec3( 0.07, 0.3, 0.78 ), vec3( 0.03, 0.05, 0.24 ), uGlow );
+          // the open sea isn't one flat blue: broad patches of teal and indigo drift over it
+          float big = vnoise( vXZ * 0.006 + vec2( uTime * 0.004, 0.0 ) ) * 0.6 + vnoise( vXZ * 0.021 - vec2( 0.0, uTime * 0.006 ) ) * 0.4;
+          deep = mix( deep * vec3( 0.86, 0.92, 1.06 ), deep * vec3( 1.02, 1.12, 0.95 ) + vec3( 0.0, 0.02, 0.0 ), smoothstep( 0.3, 0.7, big ) );
+          vec3 col = mix( shallow, deep, depth );
+          // the swell: crests a touch lighter, troughs deeper
+          col *= 0.93 + 0.1 * smoothstep( -0.9, 0.9, vWave );
+          // fine ripples: they tilt the surface normal (faded where they'd be smaller than a pixel)
+          float fw = length( fwidth( vXZ ) );
+          float ripK = 1.0 - smoothstep( 0.3, 1.4, fw );
+          vec2 r1 = vec2( 0.9, 0.4 ) * 1.1; vec2 r2 = vec2( -0.35, 0.8 ) * 1.6; vec2 r3 = vec2( 0.55, -0.7 ) * 2.9; vec2 r4 = vec2( -0.8, -0.45 ) * 5.3;
+          float a1 = dot( vXZ, r1 ) + uTime * 1.7 + vnoise( vXZ * 0.3 ) * 4.0;
+          float a2 = dot( vXZ, r2 ) - uTime * 1.3;
+          float a3 = dot( vXZ, r3 ) + uTime * 2.3 + vnoise( vXZ * 0.9 ) * 3.0;
+          float a4 = dot( vXZ, r4 ) - uTime * 3.1;
+          float ripK2 = 1.0 - smoothstep( 0.1, 0.5, fw );
+          vec2 slope = ( r1 * cos( a1 ) * 0.07 + r2 * cos( a2 ) * 0.05 + r3 * cos( a3 ) * 0.03 ) * ripK + r4 * cos( a4 ) * 0.016 * ripK2;
+          vec3 N = normalize( vN + vec3( -slope.x, 0.0, -slope.y ) );
+          col *= 1.0 + ( sin( a1 ) * 0.03 + sin( a2 ) * 0.02 ) * ripK;
+          // the sky mirrored at grazing angles, and the sun's glitter path
+          vec3 V = normalize( cameraPosition - vW );
+          float fres = pow( 1.0 - max( 0.0, dot( N, V ) ), 5.0 );
+          col = mix( col, uFogColor * mix( 1.0, 0.75, uGlow ), fres * 0.3 );
+          vec3 Rv = reflect( -V, N );
+          float sun = pow( max( 0.0, dot( Rv, normalize( vec3( -0.4, 0.55, -0.75 ) ) ) ), 260.0 );
+          col += vec3( 1.0, 0.95, 0.85 ) * sun * 1.3 * ( 1.0 - uGlow ) * ( 1.0 - smoothstep( 180.0, 420.0, vDist ) );
+          // (at twilight the moon lays a cool path instead)
+          float moon = pow( max( 0.0, dot( Rv, normalize( vec3( 0.42, 0.3, -0.85 ) ) ) ), 120.0 );
+          col += vec3( 0.6, 0.65, 1.0 ) * moon * 0.6 * uGlow;
           // sparkles on the wave tops (sun glints by day, starlight by night)
-          // round glints: a random dot in some cells, twinkling
           vec2 q = vXZ * 0.9;
-          vec2 cell = floor(q);
-          float g = hash(cell + floor(uTime * 1.5));
-          float dotG = 1.0 - smoothstep(0.08, 0.22, length(fract(q) - 0.5));
-          col += step(0.97, g) * dotG * smoothstep(0.1, 0.7, vWave) * vec3(1.0) * 0.7;
+          vec2 cell = floor( q );
+          float g = hash( cell + floor( uTime * 1.5 ) );
+          float dotG = 1.0 - smoothstep( 0.08, 0.22, length( fract( q ) - 0.5 ) );
+          float glintK = 1.0 - smoothstep( 0.6, 1.6, fw );
+          col += step( 0.97, g ) * dotG * smoothstep( 0.1, 0.7, vWave ) * vec3( 1.0 ) * 0.7 * glintK;
+          // whitecaps out at sea: little white flecks riding the crests, forming and fading
+          vec2 wq = vXZ * 0.22 + vec2( uTime * 0.12, uTime * 0.05 );
+          vec2 wc = floor( wq );
+          float wh = hash( wc * 1.7 + floor( uTime * 0.25 + hash( wc ) ) );
+          float wshape = 1.0 - smoothstep( 0.1, 0.34, length( ( fract( wq ) - 0.5 ) * vec2( 1.0, 2.2 ) ) );
+          float cap = step( 0.93, wh ) * wshape * smoothstep( 0.35, 0.95, vWave ) * depth * ( 1.0 - smoothstep( 1.0, 3.0, fw ) );
+          col = mix( col, vec3( 0.96, 0.99, 1.0 ) * mix( 1.0, 0.45, uGlow ), cap * 0.8 );
           // foam lapping at the shore
-          float foam = smoothstep(shore + 3.5 + sin(uTime * 1.3 + vXZ.x * 0.2) * 1.2, shore, vR);
-          col = mix(col, vec3(1.0, 0.98, 0.96), foam * 0.85);
+          float foam = smoothstep( shore + 3.5 + sin( uTime * 1.3 + vXZ.x * 0.2 ) * 1.2, shore, vR );
+          col = mix( col, vec3( 1.0, 0.98, 0.96 ), foam * 0.85 );
           // glowing plankton near the shore and on crests at twilight
           vec2 pq = vXZ * 1.6;
-          float pk = step(0.9, hash(floor(pq) + floor(uTime * 0.5))) * (1.0 - smoothstep(0.05, 0.3, length(fract(pq) - 0.5)));
-          float near = 1.0 - smoothstep(shore + 2.0, shore + 45.0, vR);
-          col += uGlow * pk * (0.4 + near) * vec3(0.3, 1.0, 0.95) * 0.7;
-          float fog = smoothstep(uFogNear, uFogFar, vDist);
-          if (!gl_FrontFacing) {
-            // the underside: a bright sheet of light broken by moving ripples (Snell's window-ish)
-            vec2 uq = vXZ * 0.55;
-            float rip = sin(uq.x * 3.1 + uTime * 1.3) * sin(uq.y * 2.7 - uTime * 1.1) + sin((uq.x + uq.y) * 4.3 + uTime * 0.8) * 0.5;
-            vec3 under = mix(vec3(0.05, 0.3, 0.42), vec3(0.01, 0.05, 0.14), uGlow);
-            under += smoothstep(0.6, 1.25, rip) * mix(vec3(0.3, 0.42, 0.4), vec3(0.06, 0.2, 0.26), uGlow);
-            // murky water swallows the surface quickly: only the patch overhead is bright
-            float murk = smoothstep(2.0, 26.0, vDist);
-            gl_FragColor = vec4(mix(under, uFogColor, max(fog, murk)), 1.0);
-            return;
-          }
-          col = mix(col, uFogColor, fog);
-          // clear lagoon water near the beach (you can see the sand and the reef below), deeper blue further out
-          float clear = 1.0 - smoothstep(shore + 2.0, shore + 34.0, vR);
-          gl_FragColor = vec4(col, mix(0.95, 0.82, clear) + foam * 0.3);
+          float pk = step( 0.9, hash( floor( pq ) + floor( uTime * 0.5 ) ) ) * ( 1.0 - smoothstep( 0.05, 0.3, length( fract( pq ) - 0.5 ) ) );
+          float near = 1.0 - smoothstep( shore + 2.0, shore + 45.0, vR );
+          col += uGlow * pk * ( 0.4 + near ) * vec3( 0.3, 1.0, 0.95 ) * 0.7 * glintK;
+          float fog = smoothstep( uFogNear, uFogFar, vDist );
+          col = mix( col, uFogColor, fog );
+          // clear lagoon water near the beach (you can see the sand and the reef below); out at sea you
+          // can see a little way down close by (a whale rising under you), but it's deep blue beyond
+          float clear = 1.0 - smoothstep( shore + 2.0, shore + 34.0, vR );
+          // (only looking steeply down: at grazing angles the view would run past the deep floor)
+          float seeDown = mix( 0.6, 1.0, max( 1.0 - smoothstep( 0.25, 0.55, V.y ), smoothstep( 60.0, 110.0, vDist ) ) );
+          float open = smoothstep( shore + 44.0, shore + 62.0, vR );
+          gl_FragColor = vec4( col, mix( mix( 0.95, seeDown, open ), 0.82, clear ) + foam * 0.3 + cap * 0.1 );
         }`,
     }),
   );
-  const water = add(new THREE.Mesh(track(wobbleToCoast(new THREE.RingGeometry(SHORE_R - 6, 600, low ? 120 : 200, low ? 24 : 40))), waterMat));
-  water.rotation.x = -Math.PI / 2;
-  water.position.y = 0;
+  const water = add(new THREE.Mesh(track(seaDisc(SEA_R, low ? 40 : 60, low ? 96 : 144)), waterMat));
+  water.name = "sea-surface";
+  water.frustumCulled = false;
+  const snap = 8;
 
-  // ── glowing jellyfish (in the sea, and drifting through the air above the Glow Forest) ──
+  // who's around the player, and big jumps (the world wrap) the roaming sea life follows
+  const ft = makeFocusTracker();
+  const origin = new THREE.Vector3();
+
+  // ── glowing jellyfish (drifting in the sea near you, and through the air above the Glow Forest) ──
   const bellGeo = track(jellyBellGeometry());
   const tentGeo = track(jellyTentacleGeometry());
   const jellyMat = track(new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.8, depthWrite: false }));
@@ -160,21 +220,17 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const nJ = nSea + nSky;
   const bells = add(new THREE.InstancedMesh(bellGeo, jellyMat, nJ));
   const tents = add(new THREE.InstancedMesh(tentGeo, tentMat, nJ));
+  bells.frustumCulled = tents.frustumCulled = false;
   const jellyCols = ["#7af7ff", "#ff8ae6", "#b99bff", "#9dffc9", "#ffd07a"];
-  const jellies: { x: number; y: number; z: number; s: number; ph: number; sky: boolean; drift: number }[] = [];
+  const JELLY: SwimStyle = { speed: [0.1, 0.32], turn: 0.1, wander: 0.03, depth: [0.3, 0.6], clear: 1, need: 2, look: 3, climb: 0.2, bank: 0 };
+  const jellies: { x: number; y: number; z: number; s: number; ph: number; sky: boolean; drift: number; sw: Swimmer }[] = [];
   for (let i = 0; i < nJ; i++) {
     const sky = i >= nSea;
     const a = rnd() * Math.PI * 2;
     const rad = sky ? Math.sqrt(rnd()) * opts.skyJellies.radius : SHORE_R + 8 + rnd() * 70;
-    jellies.push({
-      x: (sky ? opts.skyJellies.x : 0) + Math.sin(a) * rad,
-      y: sky ? 6 + rnd() * 7 : 0.6 + rnd() * 0.8,
-      z: (sky ? opts.skyJellies.z : 0) + Math.cos(a) * rad,
-      s: sky ? 0.8 + rnd() * 0.7 : 1.6 + rnd() * 1.8,
-      ph: rnd() * 10,
-      sky,
-      drift: 0.2 + rnd() * 0.3,
-    });
+    const x = (sky ? opts.skyJellies.x : 0) + Math.sin(a) * rad;
+    const z = (sky ? opts.skyJellies.z : 0) + Math.cos(a) * rad;
+    jellies.push({ x, y: sky ? 6 + rnd() * 7 : -0.55 - rnd() * 0.5, z, s: sky ? 0.8 + rnd() * 0.7 : 1.6 + rnd() * 1.8, ph: rnd() * 10, sky, drift: 0.2 + rnd() * 0.3, sw: makeSwimmer(x, 0, z, rnd() * 6.28, 40 + i, 0.2) });
     const c = new THREE.Color(jellyCols[i % jellyCols.length]);
     bells.setColorAt(i, c);
     tents.setColorAt(i, c);
@@ -193,20 +249,9 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const jellyHalos = add(new THREE.Points(jellyHaloGeo, haloMat));
   jellyHalos.frustumCulled = false;
 
-  // ── whales: slow and majestic, with glowing markings; now and then one breaches ──
-  const whaleBody = track(whaleGeometry());
-  const whaleSpots = track(whaleSpotsGeometry());
-  const whaleMat = toon("#5a7bd6");
-  const whaleGlowMat = track(new THREE.MeshBasicMaterial({ color: "#8ff7ff" }));
-  const whales: { g: THREE.Group; a: number; rad: number; speed: number; breachAt: number; breachT: number; spout: number }[] = [];
-  for (let i = 0; i < (low ? 2 : 3); i++) {
-    const g = new THREE.Group();
-    g.add(new THREE.Mesh(whaleBody, whaleMat), new THREE.Mesh(whaleSpots, whaleGlowMat));
-    g.scale.setScalar(2.6 + i * 0.4);
-    add(g);
-    whales.push({ g, a: (i / 3) * Math.PI * 2, rad: SHORE_R + 60 + i * 28, speed: 0.018 + i * 0.004, breachAt: 8 + i * 9, breachT: -1, spout: 0 });
-  }
-  // spout + splash particles
+  // (the giant whales live with the underwater world: ./underwater + ./sea/whales)
+
+  // splash particles (leaping dolphins)
   const splashN = 120;
   const sp = new Float32Array(splashN * 3);
   const sv = new Float32Array(splashN * 3);
@@ -220,25 +265,47 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const emit = (x: number, y: number, z: number, n: number, up = 9, spread = 4) => {
     for (let k = 0; k < n; k++) {
       const i = splashNext++ % splashN;
-      sp.set([x, y, z], i * 3);
-      sv.set([(rnd() - 0.5) * spread, up * (0.6 + rnd() * 0.6), (rnd() - 0.5) * spread], i * 3);
+      sp[i * 3] = x;
+      sp[i * 3 + 1] = y;
+      sp[i * 3 + 2] = z;
+      sv[i * 3] = (rnd() - 0.5) * spread;
+      sv[i * 3 + 1] = up * (0.6 + rnd() * 0.6);
+      sv[i * 3 + 2] = (rnd() - 0.5) * spread;
       sl[i] = 1.2 + rnd() * 0.6;
     }
   };
 
-  // ── manta rays gliding and hopping, dolphin pods leaping, turtles paddling ──
+  // ── manta rays gliding and hopping, dolphin pods leaping, turtles paddling — all roaming ──
   const mantaGeo = track(mantaGeometry());
   const mantas = add(new THREE.InstancedMesh(mantaGeo, toon("#6a5ab8"), low ? 3 : 6));
-  const mantaState = Array.from({ length: mantas.count }, (_, i) => ({ a: rnd() * 6.28, rad: SHORE_R + 24 + rnd() * 70, speed: 0.03 + rnd() * 0.02, ph: rnd() * 10, dir: i % 2 ? 1 : -1 }));
+  mantas.frustumCulled = false;
+  const MANTA: SwimStyle = { speed: [2, 3.2], turn: 0.25, wander: 0.05, depth: [0.3, 0.6], clear: 1.5, need: 4, look: 20, climb: 0.5, bank: 1.2 };
+  const mantaState = Array.from({ length: mantas.count }, (_, i) => {
+    const a = rnd() * 6.28;
+    const r = SHORE_R + 24 + rnd() * 70;
+    return { sw: makeSwimmer(Math.sin(a) * r, 0, Math.cos(a) * r, a + (i % 2 ? 1 : -1) * Math.PI / 2, 60 + i, 2.5), ph: rnd() * 10 };
+  });
   const dolphinGeo = track(dolphinGeometry());
   const dolphins = add(new THREE.InstancedMesh(dolphinGeo, toon("#8fb6e8"), low ? 4 : 8));
-  const pods = [
-    { a: 1, rad: SHORE_R + 32, speed: 0.04 },
-    { a: 4, rad: SHORE_R + 48, speed: -0.036 },
-  ];
+  dolphins.frustumCulled = false;
+  const DOLPHIN: SwimStyle = { speed: [5, 7.5], turn: 0.3, wander: 0.05, depth: [1, 1.4], clear: 1.5, need: 5, look: 26, climb: 1, bank: 1.5 };
+  const perPod = dolphins.count / 2;
+  const pods = [0, 1].map((p) => {
+    const a = p === 0 ? 1 : 4;
+    const r = SHORE_R + 32 + p * 16;
+    const lead = makeSwimmer(Math.sin(a) * r, -1.2, Math.cos(a) * r, a + (p ? -1 : 1) * Math.PI / 2, 80 + p * 10, 6);
+    const members = Array.from({ length: perPod }, (_, k) => (k === 0 ? lead : makeSwimmer(lead.x - Math.sin(lead.yaw) * 3 * k, -1.2, lead.z - Math.cos(lead.yaw) * 3 * k, lead.yaw, 81 + p * 10 + k, 6)));
+    return { lead, members };
+  });
   const turtleGeo = track(turtleGeometry());
   const turtles = add(new THREE.InstancedMesh(turtleGeo, toon("#5fbf7f"), low ? 3 : 6));
-  const turtleState = Array.from({ length: turtles.count }, () => ({ a: rnd() * 6.28, rad: SHORE_R + 12 + rnd() * 40, speed: (rnd() < 0.5 ? -1 : 1) * (0.008 + rnd() * 0.006), ph: rnd() * 10 }));
+  turtles.frustumCulled = false;
+  const TURTLE: SwimStyle = { speed: [0.5, 0.9], turn: 0.25, wander: 0.05, depth: [0.3, 0.6], clear: 1, need: 2.5, look: 8, climb: 0.3, bank: 0.6 };
+  const turtleState = Array.from({ length: turtles.count }, (_, i) => {
+    const a = rnd() * 6.28;
+    const r = SHORE_R + 12 + rnd() * 40;
+    return { sw: makeSwimmer(Math.sin(a) * r, 0, Math.cos(a) * r, a + (rnd() < 0.5 ? -1 : 1) * Math.PI / 2, 100 + i, 0.7), ph: rnd() * 10 };
+  });
 
   const tmpM = new THREE.Matrix4();
   const tmpQ = new THREE.Quaternion();
@@ -246,29 +313,56 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const tmpV = new THREE.Vector3();
   const tmpS = new THREE.Vector3();
   const dayJelly = new THREE.Color("#ffffff");
+  const jump = (s: { x: number; z: number }) => {
+    s.x += ft.jx;
+    s.z += ft.jz;
+  };
 
   return {
-    update(dt, t, glow, fog) {
+    update(dtIn, t, glow, fog, focusIn) {
+      const dt = Math.min(0.1, Math.max(0, dtIn));
+      const focus = focusIn ?? origin;
       waterMat.uniforms.uTime.value = t;
       waterMat.uniforms.uGlow.value = glow;
       waterMat.uniforms.uFogColor.value.copy(fog.color);
       waterMat.uniforms.uFogNear.value = fog.near;
       waterMat.uniforms.uFogFar.value = fog.far;
+      // the sea follows the player (snapped so the vertices don't swim). (No planet-curvature drop:
+      // any visible curve would lower the lagoon under the beach and float far-off whales.)
+      water.position.set(Math.round(focus.x / snap) * snap, 0, Math.round(focus.z / snap) * snap);
+      if (trackFocus(ft, focus.x, focus.z, dt)) {
+        for (const j of jellies) if (!j.sky) jump(j.sw);
+        for (const m of mantaState) jump(m.sw);
+        for (const p of pods) for (const m of p.members) jump(m);
+        for (const s of turtleState) jump(s.sw);
+      }
 
-      // jellies: pulse (squash/stretch), bob, drift
-      jellies.forEach((j, i) => {
+      // jellies: pulse (squash/stretch), bob, drift (the sea ones roam round you)
+      for (let i = 0; i < nJ; i++) {
+        const j = jellies[i];
         const pulse = Math.sin(t * 2.2 + j.ph);
         const sy = j.s * (1 + pulse * 0.14);
         const sxz = j.s * (1 - pulse * 0.09);
-        const x = j.x + Math.sin(t * 0.1 * j.drift + j.ph) * (j.sky ? 3 : 6);
-        const z = j.z + Math.cos(t * 0.08 * j.drift + j.ph) * (j.sky ? 3 : 6);
+        let x: number;
+        let z: number;
+        if (j.sky) {
+          x = j.x + Math.sin(t * 0.1 * j.drift + j.ph) * 3;
+          z = j.z + Math.cos(t * 0.08 * j.drift + j.ph) * 3;
+        } else {
+          if (dist2(j.sw, focus) > 230 * 230) respawn(j.sw, JELLY, focus, 0, 0, rnd, 70, 210);
+          swim(j.sw, JELLY, dt, t);
+          x = j.sw.x;
+          z = j.sw.z;
+        }
         const y = j.y + Math.sin(t * 0.8 + j.ph) * (j.sky ? 0.9 : 0.25) + Math.max(0, pulse) * 0.2;
         tmpM.compose(tmpV.set(x, y, z), tmpQ.setFromEuler(tmpE.set(Math.sin(t * 0.7 + j.ph) * 0.12, 0, Math.cos(t * 0.6 + j.ph) * 0.12)), tmpS.set(sxz, sy, sxz));
         bells.setMatrixAt(i, tmpM);
         tmpM.compose(tmpV, tmpQ, tmpS.set(sxz, j.s * (1 - pulse * 0.1), sxz));
         tents.setMatrixAt(i, tmpM);
-        jhp.set([x, y + 0.5 * j.s, z], i * 3);
-      });
+        jhp[i * 3] = x;
+        jhp[i * 3 + 1] = y + 0.5 * j.s;
+        jhp[i * 3 + 2] = z;
+      }
       bells.instanceMatrix.needsUpdate = true;
       tents.instanceMatrix.needsUpdate = true;
       jellyHaloGeo.attributes.position.needsUpdate = true;
@@ -276,39 +370,6 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
       jellyMat.opacity = 0.62 + glow * 0.3;
       haloMat.opacity = 0.15 + glow * 0.75;
       haloMat.size = 6 + glow * 6;
-
-      // whales swim a slow lap, occasionally breaching with a big splash + spout
-      for (const w of whales) {
-        w.a += w.speed * dt;
-        w.breachAt -= dt;
-        const x = Math.sin(w.a) * w.rad;
-        const z = Math.cos(w.a) * w.rad;
-        const heading = w.a + Math.PI / 2;
-        let y = -0.9 + Math.sin(t * 0.4 + w.rad) * 0.25; // back just breaking the surface
-        let pitch = 0;
-        if (w.breachAt <= 0 && w.breachT < 0) {
-          w.breachT = 0;
-          w.breachAt = 22 + rnd() * 25;
-        }
-        if (w.breachT >= 0) {
-          w.breachT += dt;
-          const u = w.breachT / 3.2;
-          y = -2 + Math.sin(Math.min(1, u) * Math.PI) * 9;
-          pitch = -(0.9 - u * 1.8);
-          if (w.breachT > 0.05 && w.breachT - dt <= 0.05) emit(x, 0.5, z, 26, 8, 6);
-          if (w.breachT > 3.0 && w.breachT - dt <= 3.0) emit(x, 0.5, z, 40, 11, 9);
-          if (u >= 1) w.breachT = -1;
-        } else {
-          w.spout -= dt;
-          if (w.spout <= 0) {
-            w.spout = 9 + rnd() * 8;
-            emit(x, 1.6, z, 14, 10, 1.2);
-          }
-        }
-        w.g.position.set(x, y, z);
-        w.g.rotation.set(pitch, heading, Math.sin(t * 0.5 + w.rad) * 0.05, "YXZ");
-      }
-      whaleGlowMat.color.setRGB(0.55 + glow * 0.45, 0.95, 1).multiplyScalar(0.5 + glow * 0.6);
 
       // splash particles
       for (let i = 0; i < splashN; i++) {
@@ -324,44 +385,44 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
       }
       splashGeo.attributes.position.needsUpdate = true;
 
-      // mantas glide in wide arcs, flapping, with a joyful hop now and then
-      mantaState.forEach((m, i) => {
-        m.a += m.speed * m.dir * dt;
+      // mantas glide and bank on their own headings, flapping, with a joyful hop now and then
+      for (let i = 0; i < mantaState.length; i++) {
+        const m = mantaState[i];
+        if (dist2(m.sw, focus) > 260 * 260) respawn(m.sw, MANTA, focus, ft.vx, ft.vz, rnd, 150, 230, 1.3);
+        swim(m.sw, MANTA, dt, t, focus, 4);
         const hop = Math.max(0, Math.sin(t * 0.35 + m.ph) - 0.93) * 60;
-        const x = Math.sin(m.a) * m.rad;
-        const z = Math.cos(m.a) * m.rad;
         const flap = Math.sin(t * 3 + m.ph) * 0.15;
-        tmpM.compose(tmpV.set(x, 0.2 + hop, z), tmpQ.setFromEuler(tmpE.set(-hop * 0.08, m.a + (m.dir > 0 ? Math.PI / 2 : -Math.PI / 2), flap)), tmpS.set(3, 3 * (1 + flap), 3));
+        tmpM.compose(tmpV.set(m.sw.x, 0.2 + hop, m.sw.z), tmpQ.setFromEuler(tmpE.set(-hop * 0.08, m.sw.yaw, m.sw.roll * 0.6 + flap, "YXZ")), tmpS.set(3, 3 * (1 + flap), 3));
         mantas.setMatrixAt(i, tmpM);
-      });
+      }
       mantas.instanceMatrix.needsUpdate = true;
 
-      // dolphin pods: each dolphin arcs out of the water one after another
+      // dolphin pods roam the sea: each dolphin arcs out of the water one after another
       let di = 0;
       for (const p of pods) {
-        p.a += p.speed * dt;
-        for (let k = 0; k < dolphins.count / pods.length; k++, di++) {
-          const a = p.a - k * 0.035 * Math.sign(p.speed);
-          const x = Math.sin(a) * (p.rad + (k % 2) * 3);
-          const z = Math.cos(a) * (p.rad + (k % 2) * 3);
+        if (dist2(p.lead, focus) > 260 * 260) respawn(p.lead, DOLPHIN, focus, ft.vx, ft.vz, rnd, 150, 230, 1.3);
+        swim(p.lead, DOLPHIN, dt, t, focus, 5);
+        for (let k = 0; k < p.members.length; k++, di++) {
+          const d = p.members[k];
+          if (k > 0) follow(d, DOLPHIN, p.lead, (k % 2 ? 1 : -1) * (1.5 + k * 0.8), k * 2.6, dt, t);
           const phase = (t * 0.55 + k * 0.23) % 1;
-          const jump = phase < 0.35 ? Math.sin((phase / 0.35) * Math.PI) : 0;
-          const y = -1.2 + jump * 4.5;
+          const jumpK = phase < 0.35 ? Math.sin((phase / 0.35) * Math.PI) : 0;
+          const y = -1.2 + jumpK * 4.5;
           const pitch = phase < 0.35 ? Math.cos((phase / 0.35) * Math.PI) * 0.9 : 0;
-          if (phase < 0.35 && ((t * 0.55 + k * 0.23 - dt * 0.55) % 1) > phase + 0.5) emit(x, 0.3, z, 6, 5, 2);
-          tmpM.compose(tmpV.set(x, y, z), tmpQ.setFromEuler(tmpE.set(-pitch, a + (p.speed > 0 ? Math.PI / 2 : -Math.PI / 2), 0, "YXZ")), tmpS.set(1.6, 1.6, 1.6));
+          if (phase < 0.35 && ((t * 0.55 + k * 0.23 - dt * 0.55) % 1) > phase + 0.5) emit(d.x, 0.3, d.z, 6, 5, 2);
+          tmpM.compose(tmpV.set(d.x, y, d.z), tmpQ.setFromEuler(tmpE.set(-pitch, d.yaw, d.roll * 0.5, "YXZ")), tmpS.set(1.6, 1.6, 1.6));
           dolphins.setMatrixAt(di, tmpM);
         }
       }
       dolphins.instanceMatrix.needsUpdate = true;
 
-      turtleState.forEach((s, i) => {
-        s.a += s.speed * dt;
-        const x = Math.sin(s.a) * s.rad;
-        const z = Math.cos(s.a) * s.rad;
-        tmpM.compose(tmpV.set(x, -0.15 + Math.sin(t + s.ph) * 0.08, z), tmpQ.setFromEuler(tmpE.set(0, s.a + (s.speed > 0 ? Math.PI / 2 : -Math.PI / 2), Math.sin(t * 1.5 + s.ph) * 0.06)), tmpS.set(1.4, 1.4, 1.4));
+      for (let i = 0; i < turtleState.length; i++) {
+        const s = turtleState[i];
+        if (dist2(s.sw, focus) > 220 * 220) respawn(s.sw, TURTLE, focus, ft.vx, ft.vz, rnd, 90, 170, 1.3);
+        swim(s.sw, TURTLE, dt, t, focus, 2.5);
+        tmpM.compose(tmpV.set(s.sw.x, -0.15 + Math.sin(t + s.ph) * 0.08, s.sw.z), tmpQ.setFromEuler(tmpE.set(0, s.sw.yaw, s.sw.roll * 0.5 + Math.sin(t * 1.5 + s.ph) * 0.06)), tmpS.set(1.4, 1.4, 1.4));
         turtles.setMatrixAt(i, tmpM);
-      });
+      }
       turtles.instanceMatrix.needsUpdate = true;
     },
     dispose() {
@@ -369,6 +430,48 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
       for (const d of disposables) d.dispose();
     },
   };
+}
+
+/** radius of the sea disc round the player (past the camera's far plane) */
+export const SEA_R = 640;
+
+/** a polar grid (a disc lying in XZ, facing up): fine rings near the centre, coarser far out */
+export function seaDisc(radius: number, rings: number, segs: number): THREE.BufferGeometry {
+  const pos: number[] = [0, 0, 0];
+  for (let i = 1; i <= rings; i++) {
+    const r = radius * Math.pow(i / rings, 2.2);
+    for (let k = 0; k < segs; k++) {
+      const a = (k / segs) * Math.PI * 2;
+      pos.push(Math.cos(a) * r, 0, Math.sin(a) * r);
+    }
+  }
+  const idx: number[] = [];
+  const ring = (i: number, k: number) => 1 + (i - 1) * segs + (k % segs);
+  for (let k = 0; k < segs; k++) idx.push(0, ring(1, k + 1), ring(1, k));
+  for (let i = 1; i < rings; i++)
+    for (let k = 0; k < segs; k++) {
+      const a = ring(i, k);
+      const b = ring(i, k + 1);
+      const c = ring(i + 1, k);
+      const d = ring(i + 1, k + 1);
+      idx.push(a, b, c, b, d, c);
+    }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  // make sure every triangle faces up
+  const p = (j: number) => new THREE.Vector3().fromArray(pos, idx[j] * 3);
+  const n = new THREE.Vector3().crossVectors(p(1).sub(p(0)), p(2).sub(p(0)));
+  if (n.y < 0) {
+    for (let j = 0; j < idx.length; j += 3) {
+      const tmp = idx[j + 1];
+      idx[j + 1] = idx[j + 2];
+      idx[j + 2] = tmp;
+    }
+    geo.setIndex(idx);
+  }
+  geo.computeBoundingSphere();
+  return geo;
 }
 
 // ── creature geometries (built once, facing +Z) ──
@@ -397,41 +500,6 @@ function jellyTentacleGeometry() {
     const a = (i / 3) * Math.PI * 2;
     const pts = [0, 0.5, 1].map((u) => new THREE.Vector3(Math.cos(a) * 0.15 + Math.sin(u * 4 + i) * 0.15, 0.1 - u * 1.1, Math.sin(a) * 0.15));
     parts.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, 0.09, 5, false));
-  }
-  return mergeGeometries(parts)!;
-}
-
-function whaleGeometry() {
-  const body = new THREE.SphereGeometry(1, 18, 12);
-  body.scale(1.1, 0.9, 3.2);
-  const head = new THREE.SphereGeometry(1, 14, 10);
-  head.scale(1.05, 0.95, 1.3);
-  head.translate(0, 0.05, 2.2);
-  const tail = new THREE.ConeGeometry(0.55, 2.4, 10);
-  tail.rotateX(-Math.PI / 2);
-  tail.translate(0, 0.05, -3.8);
-  const fluke = new THREE.SphereGeometry(1, 12, 6);
-  fluke.scale(1.8, 0.12, 0.7);
-  fluke.translate(0, 0.05, -5);
-  const finL = new THREE.SphereGeometry(1, 8, 6);
-  finL.scale(1.2, 0.1, 0.45);
-  finL.rotateY(0.5);
-  finL.translate(1.3, -0.4, 0.8);
-  const finR = finL.clone();
-  finR.scale(-1, 1, 1);
-  return mergeGeometries([body, head, tail, fluke, finL, finR].map((g) => g.toNonIndexed()))!;
-}
-
-function whaleSpotsGeometry() {
-  // Pandora-ish glowing dots along the back and sides
-  const parts: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 14; i++) {
-    const z = 2.4 - i * 0.45;
-    for (const side of [-1, 1]) {
-      const s = new THREE.SphereGeometry(0.09 + (i % 3) * 0.02, 6, 4);
-      s.translate(side * (0.55 - Math.abs(z) * 0.06), 0.72 - Math.abs(z) * 0.06, z);
-      parts.push(s);
-    }
   }
   return mergeGeometries(parts)!;
 }

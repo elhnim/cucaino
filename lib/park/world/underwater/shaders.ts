@@ -12,7 +12,7 @@
 // Vertex layout is the fantasy kit's (position, normal, color, aFx = tint/motion/glow) plus an
 // optional per-instance `aInst` (x = glow or flap strength, y = phase).
 import * as THREE from "three";
-import { WATER_Y } from "../../registry/terrain";
+import { TERRAIN_EXTENT, WATER_Y } from "../../registry/terrain";
 import { causticField } from "./plan";
 
 export interface UwUniforms {
@@ -64,8 +64,9 @@ export interface UwMatOptions {
   flapSpeed?: number;
   flapWave?: number;
   flapAxis?: "x" | "z";
-  /** extra pattern: brain-coral grooves, sea-fan lace (discard), orca markings (aMark attr) */
-  pattern?: "brain" | "lace" | "orca";
+  /** extra pattern: brain-coral grooves, sea-fan lace (discard), orca markings (aMark attr),
+   *  whale skin (aWh attr: pleats, mouth line, blowholes, mottling), rippled deep-sea sand */
+  pattern?: "brain" | "lace" | "orca" | "blue" | "humpback" | "sand";
 }
 
 export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
@@ -88,6 +89,7 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
       `#define UW_${o.motion.toUpperCase()}`,
       o.flapAxis === "z" ? "#define UW_FLAP_Z" : "",
       o.pattern ? `#define UW_PAT_${o.pattern.toUpperCase()}` : "",
+      o.pattern === "blue" || o.pattern === "humpback" ? "#define UW_PAT_WHALE" : "",
     ].join("\n");
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -100,6 +102,9 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         #endif
         #ifdef UW_PAT_ORCA
           attribute vec2 aMark; varying vec2 vMark;
+        #endif
+        #ifdef UW_PAT_WHALE
+          attribute vec3 aWh; varying vec3 vWh;
         #endif
         uniform float uTime; uniform float uFlapSpeed; uniform float uFlapWave;
         varying vec3 vUwWorld; varying float vUwUp; varying float vUwGlow; varying vec3 vUwLocal; varying float vUwFin; varying float vUwSp;`,
@@ -192,6 +197,9 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
           #ifdef UW_PAT_ORCA
             vMark = aMark;
           #endif
+          #ifdef UW_PAT_WHALE
+            vWh = aWh;
+          #endif
         }`,
       );
     shader.fragmentShader = shader.fragmentShader
@@ -203,6 +211,9 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         varying vec3 vUwWorld; varying float vUwUp; varying float vUwGlow; varying vec3 vUwLocal; varying float vUwFin; varying float vUwSp;
         #ifdef UW_PAT_ORCA
           varying vec2 vMark;
+        #endif
+        #ifdef UW_PAT_WHALE
+          varying vec3 vWh;
         #endif
         ${CAUSTIC_GLSL}
         float uwHash( vec3 p ) { return fract( sin( dot( p, vec3( 127.1, 311.7, 74.7 ) ) ) * 43758.5453 ); }
@@ -312,6 +323,63 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
             diffuseColor.rgb = oc;
           }
         #endif
+        #ifdef UW_PAT_WHALE
+          {
+            // (unit-length whale: nose at z = +0.5) s = 0 on the back .. 1 on the belly
+            vec3 L = vUwLocal;
+            float s = abs( vWh.x );
+            float t = L.z + 0.5;
+            // mottling: soft pale dapples (blue whale), a few white scars and patches (humpback)
+            float n1 = uwNoise( L * vec3( 120.0, 120.0, 75.0 ) );
+            float n2 = uwNoise( L * vec3( 260.0, 260.0, 170.0 ) + 7.0 );
+            float spot = smoothstep( 0.55, 0.8, n1 * 0.7 + n2 * 0.4 ) * vWh.z;
+            #ifdef UW_PAT_BLUE
+              diffuseColor.rgb = mix( diffuseColor.rgb, diffuseColor.rgb * 1.22 + vec3( 0.03, 0.035, 0.04 ), spot );
+              float dark = smoothstep( 0.6, 0.8, uwNoise( L * vec3( 60.0, 60.0, 38.0 ) + 3.0 ) ) * vWh.z;
+              diffuseColor.rgb *= 1.0 - dark * 0.12;
+              float tj = 0.8;
+            #else
+              float scar = smoothstep( 0.78, 0.84, n1 * 0.6 + n2 * 0.5 ) * smoothstep( 0.3, 0.55, s );
+              diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.8, 0.83, 0.86 ), scar * 0.45 * vWh.z );
+              float tj = 0.76;
+            #endif
+            // throat pleats: fine grooves running from the chin to the navel (faded when too fine to see)
+            float f = vWh.x * 44.0;
+            float w = fwidth( f );
+            float g = abs( fract( f ) - 0.5 );
+            float pleat = smoothstep( 0.34 - w, 0.47, g ) * ( 1.0 - smoothstep( 0.35, 0.8, w ) ) * vWh.y;
+            diffuseColor.rgb *= 1.0 - pleat * 0.5;
+            // the mouth line, curving up to the tip of the snout
+            float ms = mix( 0.64, 0.5, smoothstep( tj, 1.0, t ) );
+            float wm = fwidth( s );
+            float mouth = ( 1.0 - smoothstep( 0.006, 0.012 + wm * 1.5, abs( s - ms ) ) ) * smoothstep( tj - 0.01, tj + 0.02, t );
+            diffuseColor.rgb *= 1.0 - mouth * 0.75;
+            // twin blowholes
+            #ifdef UW_PAT_BLUE
+              float zb = 0.33;
+            #else
+              float zb = 0.3;
+            #endif
+            vec2 bh = vec2( ( abs( L.x ) - 0.0055 ) / 0.0028, ( L.z - zb ) / 0.011 );
+            diffuseColor.rgb *= 1.0 - ( 1.0 - smoothstep( 0.6, 1.0, length( bh ) ) ) * step( s, 0.12 ) * 0.8;
+          }
+        #endif
+        #ifdef UW_PAT_SAND
+          {
+            // the deep sandy plain: long ripples, darker patches, a scatter of pale shell grit
+            vec2 p = vUwWorld.xz;
+            // (the island's terrain mesh draws everything over its height grid)
+            if ( max( abs( p.x ), abs( p.y ) ) < ${(TERRAIN_EXTENT - 0.05).toFixed(2)} ) discard;
+            float warp = uwNoise( vec3( p * 0.02, 1.0 ) ) * 12.0;
+            float rip = sin( p.x * 0.55 + p.y * 0.21 + warp );
+            float wr = fwidth( p.x * 0.55 + p.y * 0.21 );
+            rip *= 1.0 - smoothstep( 0.4, 1.6, wr );
+            float sandPatch = uwNoise( vec3( p * 0.035, 5.0 ) ) * 0.65 + uwNoise( vec3( p * 0.11, 9.0 ) ) * 0.35;
+            diffuseColor.rgb *= ( 0.9 + rip * 0.07 ) * mix( 0.78, 1.08, smoothstep( 0.3, 0.7, sandPatch ) );
+            float grit = step( 0.985, uwHash( floor( vec3( p * 3.0, 0.0 ) ) ) ) * ( 1.0 - smoothstep( 0.2, 0.6, fwidth( p.x * 3.0 ) ) );
+            diffuseColor.rgb += grit * 0.12;
+          }
+        #endif
         #ifdef UW_SEA
           // colour absorption with depth: reds fade first
           {
@@ -341,6 +409,19 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
           // in the sky: soft skylight all round, so pale birds stay pale from below
           reflectedLight.indirectDiffuse += diffuseColor.rgb * vec3( 0.34, 0.37, 0.42 ) * ( 1.0 - uGlow * 0.6 );
         #endif`,
+      )
+      .replace(
+        "#include <fog_fragment>",
+        `#ifdef UW_SEA
+          {
+            // seen from above the surface, things under the water fade into the blue with depth
+            float below = max( 0.0, ${WATER_Y_GLSL} - vUwWorld.y );
+            float k = ( 1.0 - exp( -below / 6.5 ) ) * step( ${WATER_Y_GLSL} + 0.05, cameraPosition.y );
+            vec3 deepSea = mix( vec3( 0.06, 0.26, 0.62 ), vec3( 0.025, 0.045, 0.2 ), uGlow );
+            gl_FragColor.rgb = mix( gl_FragColor.rgb, deepSea, k * 0.92 );
+          }
+        #endif
+        #include <fog_fragment>`,
       )
       .replace(
         "#include <emissivemap_fragment>",

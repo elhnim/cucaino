@@ -32,7 +32,8 @@ import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
 import { buildMount, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
-import { groundY, WATER_Y } from "../registry/terrain";
+import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
+import { seaFloorY } from "../world/sea/wander";
 
 export type QualityTier = "standard" | "low";
 
@@ -66,6 +67,10 @@ export interface ParkWorldOptions {
   onPieceTap?: (uid: string) => void;
   /** first frame is on screen */
   onReady?: () => void;
+  /** boarded (true) or stepped off (false) the Sky Coaster */
+  onSkyCoaster?: (riding: boolean) => void;
+  /** crossed the edge of the ocean and came back round from the other side */
+  onWrap?: () => void;
   /** a Sea Pearl was collected from a giant clam on the reef */
   onPearl?: (id: number) => void;
   /** the kid waded into deep water (true) or climbed back onto the beach (false) */
@@ -79,11 +84,11 @@ export interface ParkWorldOptions {
 
 const WALK_SPEED = 7;
 /** how far out to sea you can swim (the reef, and the edge of the deep blue) */
-const SEA_LIMIT = 200;
+const SEA_LIMIT = 200; // (unused now the ocean wraps round — kept for the landing clamp)
 /** water deeper than this and you swim instead of wading */
 const SWIM_DEPTH = 0.9;
 /** how deep the sea is at (x, z) (<= 0 on land) */
-const seaDepth = (x: number, z: number) => WATER_Y - groundY(x, z);
+const seaDepth = (x: number, z: number) => WATER_Y - seaFloorY(x, z); // the same sea floor the art draws
 const CAM_OFFSET = new THREE.Vector3(0, 12, 14);
 const MAX_DT = 1 / 20;
 
@@ -167,6 +172,8 @@ export class ParkWorld {
   private swimPitch = 0;
   private wasInSea = false;
   private camUnder = false;
+  // ── the Sky Coaster: riding the train round the island (speed follows the drops) ──
+  private sky: { v: number; dist: number; cheered: boolean } | null = null;
   private landing = false;
   private flySparkle = 0;
   private inputOn = true;
@@ -896,6 +903,10 @@ export class ParkWorld {
         }
       }
     }
+    if (this.sky) {
+      vx = 0;
+      vz = 0;
+    }
     const moving = Math.hypot(vx, vz) > 0.01;
     if (moving) {
       if (!this.walkTarget) this.routing = false;
@@ -932,9 +943,25 @@ export class ParkWorld {
     }
     const aloft = this.alt > 3;
     // keep inside the park (fliers may roam out over the sea) and out of buildings
-    const r = Math.hypot(pos.x, pos.z);
-    const limit = aloft ? PARK_RADIUS + 70 : SEA_LIMIT;
-    if (r > limit) pos.multiplyScalar(limit / r);
+    // the ocean has no edge: past WRAP_R you come back in from the far side of the world,
+    // heading home (the camera, pet and mount jump with you, so it's seamless in the fog)
+    const beforeX = pos.x;
+    const beforeZ = pos.z;
+    if (wrapWorld(pos)) {
+      const dx = pos.x - beforeX;
+      const dz = pos.z - beforeZ;
+      for (const v of [this.camBase, this.lookAtPt, this.camera.position]) {
+        v.x += dx;
+        v.z += dz;
+      }
+      if (this.pet) {
+        this.pet.root.position.x += dx;
+        this.pet.root.position.z += dz;
+      }
+      this.walkTarget = null;
+      this.walkQueue = [];
+      this.opts.onWrap?.();
+    }
     // walk round the grassy hills
     for (const o of aloft ? [] : this.park.obstacles) {
       const dx = pos.x - o.x;
@@ -957,7 +984,7 @@ export class ParkWorld {
     }
     turnTowards(kid, dt);
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
-    const floorY = groundY(pos.x, pos.z);
+    const floorY = seaFloorY(pos.x, pos.z);
     const seaHere = WATER_Y - floorY;
     if (this.mount) {
       const m = this.mount;
@@ -1011,6 +1038,8 @@ export class ParkWorld {
       kid.rig.root.rotation.x = this.swimPitch;
       kid.rig.root.position.y = this.swimPitch * 0.45;
     }
+
+    if (this.sky) this.tickSky(dt, kid);
 
     // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
     if (this.pet && this.mount && this.petMode === "follow") {
@@ -1081,6 +1110,15 @@ export class ParkWorld {
       if (this.petZzz) this.petZzz.position.set(pet.root.position.x + 0.6, head + 0.4 + Math.sin(this.time * 2) * 0.25, pet.root.position.z);
     }
 
+    // on the coaster the pet rides in the car behind
+    if (this.sky && this.pet) {
+      const st = this.park.skyTrain;
+      const pp = st.loop.getPointAt((st.u - 3.4 / st.len + 1) % 1);
+      this.pet.root.position.set(pp.x, pp.y + 0.95, pp.z);
+      this.pet.facing = kid.facing;
+      this.pet.root.rotation.y = kid.facing;
+    }
+
     // wandering visitors stroll between path points
     for (const n of this.npcs) {
       const a = n.actor;
@@ -1108,7 +1146,7 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn && !aloft) {
+    if (this.inputOn && !aloft && !this.sky) {
       let found: PlaceDef | null = null;
       for (const p of this.allPlaces()) {
         if (p.doorRadius <= 0) continue;
@@ -1191,7 +1229,15 @@ export class ParkWorld {
       }
     }
 
-    if (this.building) {
+    if (this.sky) {
+      // chase cam: behind and above the car, looking down the track
+      const tan = this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
+      const want = new THREE.Vector3(pos.x - tan.x * 9, pos.y - tan.y * 9 + 4.2, pos.z - tan.z * 9);
+      this.camera.position.lerp(want, Math.min(1, dt * 5));
+      this.camera.lookAt(pos.x + tan.x * 12, pos.y + tan.y * 12 + 0.6, pos.z + tan.z * 12);
+      this.camBase.copy(this.camera.position);
+      this.lookAtPt.copy(pos);
+    } else if (this.building) {
       // overhead view of the whole Dream Park lawn
       const zb = zoneBounds();
       const cx = (zb.minX + zb.maxX) / 2;
@@ -1258,7 +1304,7 @@ export class ParkWorld {
         // filled the view with its bright underside)
         // float a little above the kid, over the coral tops (down among the coral, sea fans and
         // grass blocked the view), and never up through the surface
-        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.8, groundY(cp.x, cp.z) + 2.2));
+        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.8, seaFloorY(cp.x, cp.z) + 2.2));
       } else if (seaDepth(cp.x, cp.z) > 0 && cp.y < WATER_Y + 1.2) cp.y = WATER_Y + 1.2;
       // aim a little above the kid: they sit in the lower third and the world fills the frame
       // (aiming straight at them left the bottom half of the screen as empty grass)
@@ -1371,6 +1417,62 @@ export class ParkWorld {
     }
   }
 
+  /** Board the Sky Coaster at its station for one full lap round the island. */
+  rideSkyCoaster(): boolean {
+    if (!this.park || !this.kid || this.ride || this.sky || this.building) return false;
+    this.dismount(true);
+    const st = this.park.skyTrain;
+    st.held = true;
+    st.u = st.stationU;
+    this.sky = { v: 7, dist: 0, cheered: false };
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.burst(this.kid.root.position.clone().setY(this.kid.root.position.y + 1.4), 40);
+    this.opts.onSkyCoaster?.(true);
+    return true;
+  }
+
+  /** Riding the coaster right now? (the HUD hides the joystick) */
+  get onSkyCoaster(): boolean {
+    return !!this.sky;
+  }
+
+  private tickSky(dt: number, kid: Actor) {
+    const s = this.sky!;
+    const st = this.park!.skyTrain;
+    const tan = st.loop.getTangentAt(st.u);
+    // gravity: slow up the climbs, whoosh down the drops (a chain lift keeps it moving)
+    s.v = Math.max(7, Math.min(30, s.v - tan.y * 20 * dt));
+    st.u = (st.u + (s.v * dt) / st.len) % 1;
+    s.dist += s.v * dt;
+    const p = st.loop.getPointAt(st.u);
+    kid.root.position.set(p.x, p.y + 1.0, p.z);
+    kid.facing = Math.atan2(tan.x, tan.z);
+    kid.root.rotation.y = kid.facing;
+    if (tan.y < -0.3 && !s.cheered) {
+      s.cheered = true;
+      this.play(kid, "cheer", true);
+      if (this.pet) this.play(this.pet, "cheer", true);
+    }
+    if (tan.y > 0.05) s.cheered = false;
+    if (s.dist >= st.len - 1) this.endSky();
+  }
+
+  private endSky() {
+    if (!this.park || !this.kid) return;
+    const st = this.park.skyTrain;
+    st.held = false;
+    this.sky = null;
+    // step off at the station, down on the ground
+    const p = st.loop.getPointAt(st.stationU);
+    const kp = this.kid.root.position;
+    kp.set(p.x * 0.93, 0, p.z * 0.93);
+    kp.y = groundY(kp.x, kp.z);
+    if (this.pet) this.pet.root.position.set(kp.x + 1.4, groundY(kp.x + 1.4, kp.z + 1), kp.z + 1);
+    this.burst(kp.clone().setY(kp.y + 1.2), 40);
+    this.opts.onSkyCoaster?.(false);
+  }
+
   /** Hop on a mount (pony gallops, manta/dragon fly). Replaces any current mount. */
   mountUp(kind: MountKind, accent?: string, skin?: MountSkin) {
     if (!this.kid || this.ride) return;
@@ -1419,9 +1521,6 @@ export class ParkWorld {
     if (this.kid.rig) this.kid.rig.root.position.set(0, 0, 0);
     const shadow = this.kid.root.children[1];
     if (shadow) shadow.visible = true;
-    // landed out past the reef? swim back within reach
-    const r = Math.hypot(kp.x, kp.z);
-    if (r > SEA_LIMIT) kp.multiplyScalar(SEA_LIMIT / r);
     if (this.pet) this.pet.root.position.set(this.kid.root.position.x + 1.6, 0, this.kid.root.position.z + 1);
   }
 

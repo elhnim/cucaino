@@ -16,13 +16,10 @@ import {
   causticField,
   clampWater,
   fillWindow,
-  mantaPath,
-  orcaLap,
   planJellies,
   planReef,
   planSchools,
   planVents,
-  schoolCentre,
   seaD,
   sectorOf,
   stepFish,
@@ -30,6 +27,7 @@ import {
 } from "./plan";
 import { anemoneGeometry, brainGeometry, clamBaseGeometry, clamLidGeometry, fanGeometry, fishGeometry, galleonGeometry, jellyGeometry, kelpGeometry, mantaGeometry, orcaGeometry, seagrassGeometry, staghornGeometry, starfishGeometry, tableGeometry, templeGeometry, tubeGeometry, turtleGeometry, urchinGeometry } from "./geometry";
 import { buildRockGeometry } from "../fantasy/stones";
+import { makeSwimmer, seaFloorY, swim, type SwimStyle } from "../sea/wander";
 
 const tris = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position.count) / 3;
 const finite = (g: THREE.BufferGeometry) => Array.from(g.attributes.position.array as Float32Array).every(Number.isFinite);
@@ -214,14 +212,24 @@ describe("fish", () => {
     expect(nl).toBeGreaterThan(n * 0.4);
     expect(nl).toBeLessThan(n * 0.6);
   });
-  it("school centres always stay in the water", () => {
-    const out = { x: 0, y: 0, z: 0 };
-    for (const s of planSchools())
-      for (let t = 0; t < 400; t += 3.7) {
-        schoolCentre(s, t, out);
-        expect(out.y).toBeLessThan(WATER_Y - 0.5);
-        expect(out.y).toBeGreaterThan(groundY(out.x, out.z));
+  it("reef schools roam round their reef (not a fixed loop), always in the water", () => {
+    for (const [si, s] of planSchools().entries()) {
+      if (s.follow || s.n === 1 || s.rad < 1) continue;
+      const st: SwimStyle = { speed: [0.7, 1.5], turn: 0.55, wander: 0.07, depth: [1.4, 30], clear: s.spread[1] + 0.7, need: (s.spread[1] + 0.6) * 1.5 + 1.4, look: 7, climb: 0.4, bank: 0.8, above: [1.6 + s.spread[1], 4.5 + s.spread[1]], home: { x: s.ax, z: s.az, r: s.rad * 2.4 + 8 } };
+      const sw = makeSwimmer(s.ax, s.ay, s.az, si, 300 + si * 7, 1);
+      let far = 0;
+      const seen = new Set<string>();
+      for (let t = 0; t < 600; t += 1 / 15) {
+        swim(sw, st, 1 / 15, t);
+        expect(sw.y).toBeLessThan(WATER_Y - 0.4);
+        expect(sw.y).toBeGreaterThan(seaFloorY(sw.x, sw.z));
+        far = Math.max(far, Math.hypot(sw.x - s.ax, sw.z - s.az));
+        seen.add(`${Math.floor(sw.x / 4)},${Math.floor(sw.z / 4)}`);
       }
+      // stays by its reef, but explores it
+      expect(far).toBeLessThan(st.home!.r * 1.6);
+      expect(seen.size).toBeGreaterThan(12);
+    }
   });
   it("clampWater keeps a point between floor and surface", () => {
     const p = PEARLS[0];
@@ -254,22 +262,6 @@ describe("fish", () => {
 });
 
 describe("big creatures", () => {
-  it("manta loops stay near their centre", () => {
-    const m = { cx: 10, cy: -8, cz: 20, r: 16, rot: 1, speed: 0.07, ph: 0 };
-    const o = { x: 0, y: 0, z: 0 };
-    for (let t = 0; t < 200; t += 1.3) {
-      mantaPath(m, t, o);
-      expect(Math.hypot(o.x - m.cx, o.z - m.cz)).toBeLessThanOrEqual(m.r * 1.6);
-      expect(Math.abs(o.y - m.cy)).toBeLessThanOrEqual(1.3);
-    }
-  });
-  it("the orca pod laps out past the reef wall, in deep water", () => {
-    const o = { x: 0, y: 0, z: 0 };
-    for (let t = 0; t < 400; t += 7) {
-      orcaLap(t, 0.021, o);
-      expect(seaD(o.x, o.z)).toBeGreaterThan(45);
-    }
-  });
   it("jellies and bubble vents are in the water", () => {
     const js = planJellies(30);
     expect(js.length).toBe(30);

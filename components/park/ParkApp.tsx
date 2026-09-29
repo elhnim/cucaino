@@ -237,6 +237,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [riding, setRiding] = useState<{ kind: MountKind; flying: boolean; landing: boolean } | null>(null);
   // swimming in the sea (on foot, or on a manta under the waves): shows the swim up / dive buttons
   const [swim, setSwim] = useState<{ under: boolean } | null>(null);
+  const [onCoaster, setOnCoaster] = useState(false);
   const swimHinted = useRef(false);
 
   // ── plays cost a ticket (earned from quests); every game's first play each day is free ──
@@ -293,6 +294,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       }
       if (place.action === "parent") {
         router.push("/parent"); // parent area asks for the grown-up PIN
+        return;
+      }
+      if (place.action === "skycoaster") {
+        worldRef.current?.rideSkyCoaster();
         return;
       }
       openPanel(place.action, place.id);
@@ -552,6 +557,12 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           onTreasure: (id) => treasureRef.current(id),
           onShard: (id) => shardRef.current(id),
           onPearl: (id) => pearlRef.current(id),
+          onSkyCoaster: (on) => {
+            setOnCoaster(on);
+            playSfx(on ? "win" : "tap");
+            if (on) toast("🎢 Hold on tight! Round the whole island we go!");
+          },
+          onWrap: () => toast("🌍 All the way round the world — and back to Cucaino Island!"),
           onSwim: (inSea) => {
             ambience.current?.splash();
             if (inSea && !swimHinted.current) {
@@ -1115,7 +1126,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           </button>
         </div>
       )}
-      {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {ready && !busy && !building && !onCoaster && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={rideBar}>
           {((riding && MOUNTS.find((m) => m.kind === riding.kind)?.flies && !riding.landing) || (swim && !riding)) && (
@@ -1602,6 +1613,7 @@ const toastStack: React.CSSProperties = {
 /** what the walk-up prompt says for each kind of place (a fountain isn't something you "go into") */
 const ASK_TEXT: Partial<Record<PlaceAction, { q: (label: string) => string; go: string }>> = {
   quests: { q: () => "Check the Quest Board?", go: "Let's see! 📋" },
+  skycoaster: { q: () => "Ride the Sky Coaster round the whole island?", go: "All aboard! 🎢" },
   shop: { q: (l) => `Visit the ${l}?`, go: "Let's shop! 🛍️" },
   pet: { q: () => "Visit your pet's home?", go: "Let's go! 🏠" },
   "pet-feed": { q: () => "Give your pet a snack?", go: "Yum! 🍪" },

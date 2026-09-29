@@ -232,7 +232,7 @@ export function buildAtmosphere(
     setUnderwater(u, depth) {
       under = u;
       underDepth = depth;
-      sky.visible = sunDisc.visible = moon.visible = moonHalo.visible = !u;
+      sky.visible = sunDisc.visible = moon.visible = moonHalo.visible = fireflies.visible = !u;
       if (!u) {
         (scene.fog as THREE.Fog).far = 430;
         scene.background = bgSaved;
@@ -277,10 +277,13 @@ export function buildAtmosphere(
       sun.position.set(fx - 45, focus.y + 80, fz + 38);
 
       // sun sinks and the moon rises as it glows
-      sunDisc.position.set(-160, 220 - glow * 260, -300);
+      // the sky (and sun and moon) travel with you: out at sea, far from the island, you'd
+      // otherwise sail out of the sky dome (camera far plane 600 m, dome 470 m)
+      sky.position.set(focus.x, 0, focus.z);
+      sunDisc.position.set(focus.x - 160, 220 - glow * 260, focus.z - 300);
       (sunDisc.material as THREE.SpriteMaterial).opacity = 1 - glow;
-      moon.position.set(170, 60 + glow * 110, -320);
-      moon.lookAt(0, 0, 0);
+      moon.position.set(focus.x + 170, 60 + glow * 110, focus.z - 320);
+      moon.lookAt(focus.x, 0, focus.z);
       (moon.material as THREE.MeshBasicMaterial).opacity = glow;
       moonHalo.position.copy(moon.position);
       (moonHalo.material as THREE.SpriteMaterial).opacity = glow * 0.6;

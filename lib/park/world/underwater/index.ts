@@ -2,15 +2,18 @@
 // meadows in the lagoon, coral gardens on the shelf, a swaying kelp forest along the drop-off —
 // with four showpiece reef gardens (the Sunken Galleon with its treasure, the Sunken Temple, the
 // Rainbow Reef, the Glow Kelp forest), 15 glowing pearls in giant clams to find, fish schools that
-// scatter round the kid, glowing jellyfish, manta rays, sea turtles, bubbles, god rays, caustics
-// and marine snow. An orca pod circles the island in `surface` (seen from above water too).
+// scatter round the kid, glowing jellyfish, manta rays, sea turtles, bubbles, god rays, caustics,
+// marine snow and the deep sandy plain beyond the reef. Everything that swims roams on its own
+// heading (../sea/wander.ts): reef dwellers round their reef, the rest round the kid — respawned
+// out of sight when left behind, so the whole boundless ocean is alive. In `surface` (seen from
+// above water too): an orca pod, and the giant blue whales and humpbacks (../sea/whales.ts) that
+// surface to blow, lift their flukes and dive, breach, and glide past a diving kid.
 //
-// Budget (standard): `group` ~26 draw calls, `surface` 2. The reef is streamed: items are baked
+// Budget (standard): `group` ~27 draw calls, `surface` 4. The reef is streamed: items are baked
 // once into sectors round the island and only the sectors near the kid are drawn (plan.ts).
 // Update is allocation-free.
 import * as THREE from "three";
 import { WATER_Y, groundY } from "../../registry/terrain";
-import { makeSparkTexture } from "../atmosphere";
 import { col, merge } from "../fantasy/geo";
 import { rngOf } from "../fantasy/noise";
 import { buildBubbles, buildCeiling, buildFloorCaustics, buildGlowSprites, buildRays, buildSnow, jellyMaterial } from "./fx";
@@ -46,6 +49,7 @@ import {
   PEARL_COUNT,
   PEARL_Y,
   REEF_KINDS,
+  SPECIES,
   TEMPLE,
   WRECK,
   atSea,
@@ -53,14 +57,11 @@ import {
   clampWater,
   fillWindow,
   localToWorld,
-  mantaPath,
   midWater,
-  orcaLap,
   planJellies,
   planReef,
   planSchools,
   planVents,
-  schoolCentre,
   sectorOf,
   stepFish,
   type ReefKind,
@@ -68,14 +69,21 @@ import {
 } from "./plan";
 import { makeCausticTexture, makeUwUniforms, uwMaterial } from "./shaders";
 import { buildRockGeometry } from "../fantasy/stones";
+import { buildDeepFloor } from "../sea/deepFloor";
+import { DROP, FOAM, MIST, buildSpray } from "../sea/spray";
+import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFloorY, shiftSwimmers, swim, trackFocus, type Swimmer, type SwimStyle } from "../sea/wander";
+import { blowholeLocal, whaleGeometry } from "../sea/whaleGeometry";
+import { BREACH, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, WHALE_STYLE, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, stepWhale, type Whale } from "../sea/whales";
 
 export { PEARL_COUNT } from "./plan";
 
 export interface Underwater {
   /** everything below the surface; the engine shows it only when the camera/kid is near or under water */
   group: THREE.Group;
-  /** things visible from above water too (orcas breaching, mantas leaping), always shown */
+  /** things visible from above water too (whales, orcas, their spray), always shown */
   surface: THREE.Group;
+  /** the giant whales (read-only; exposed for the smoke harness) */
+  whales: readonly Whale[];
   /** collectable glowing pearls sitting in giant clams on the reef */
   pearls: { id: number; x: number; y: number; z: number }[];
   setPearlsFound(ids: number[]): void;
@@ -319,7 +327,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   });
   clamBase.computeBoundingSphere();
 
-  // ── fish schools ──
+  // ── fish schools: each school's centre is a swimmer roaming round its reef (or round the kid) ──
   const schools = planSchools({ lowQuality: low });
   const nFish = schools.reduce((a, s) => a + s.n, 0);
   const fishMesh = instanced(fishGeometry(), fishMat, nFish, "uw-fish");
@@ -335,7 +343,32 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   const fRoll = new Float32Array(nFish);
   const fPhase = new Float32Array(nFish);
   const fSchool = new Uint16Array(nFish);
-  const sState = schools.map((s) => ({ ...s, cx: s.ax, cy: s.ay, cz: s.az, px: s.ax, pz: s.az, yaw: 0 }));
+  const sr = rngOf(5151);
+  const sState = schools.map((s, si) => {
+    const single = s.n === 1;
+    const clown = !single && s.rad < 1;
+    const home = { x: s.ax, z: s.az, r: 0 };
+    let st: SwimStyle;
+    if (single) st = { speed: [0.35, 0.9], turn: 0.45, wander: 0.07, depth: [1.2, 30], clear: 1, need: 2.5, look: 5, climb: 0.35, bank: 0.6, above: [0.9, 2.6], home: { ...home, r: 12 } };
+    else if (clown) st = { speed: [0.1, 0.3], turn: 1.4, wander: 0.2, depth: [1.1, 30], clear: 1, need: 2.4, look: 1.5, climb: 0.3, bank: 0.3, above: [1.3, 2.1], home: { ...home, r: 1.6 } };
+    else if (s.bait) st = { speed: [0.25, 0.6], turn: 0.5, wander: 0.05, depth: [2, 30], clear: s.spread[1] + 1, need: s.spread[1] * 2 + 3, look: 5, climb: 0.3, bank: 0.2, above: [3, 5.5], home: { ...home, r: 7 } };
+    else
+      st = {
+        speed: [0.7, 1.5],
+        turn: 0.55,
+        wander: 0.07,
+        depth: [1.4, 30],
+        clear: s.spread[1] + 0.7,
+        need: (s.spread[1] + 0.6) * 1.5 + 1.4,
+        look: 7,
+        climb: 0.4,
+        bank: 0.8,
+        above: [1.6 + s.spread[1], 4.5 + s.spread[1]],
+        home: s.follow ? undefined : { ...home, r: s.rad * 2.4 + 8 },
+      };
+    const sw = makeSwimmer(s.ax, s.ay, s.az, sr() * Math.PI * 2, 300 + si * 7, st.speed[0]);
+    return { ...s, st, sw, species0: s.species, size0: s.size, kidHome: { x: 0, z: 0, r: 18 } };
+  });
   {
     const r = rngOf(4545);
     let i = 0;
@@ -367,9 +400,8 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   }
   const tgt: V3 = { x: 0, y: 0, z: 0 };
   const push: V3 = { x: 0, y: 0, z: 0 };
-  const cen: V3 = { x: 0, y: 0, z: 0 };
 
-  // ── jellyfish ──
+  // ── jellyfish: blooms drifting round the gardens, and a few that drift near the kid ──
   const jDefs = planJellies(low ? 16 : 30);
   const jellyK = { value: 1 };
   const jellyMesh = new THREE.InstancedMesh(track(jellyGeometry()), track(jellyMaterial(U, jellyK)), jDefs.length);
@@ -378,33 +410,37 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   jellyMesh.renderOrder = 5;
   jDefs.forEach((j, i) => jellyMesh.setColorAt(i, JELLY_COLS[Math.floor(j.hue * JELLY_COLS.length) % JELLY_COLS.length]));
   group.add(jellyMesh);
+  const jState = jDefs.map((j, i) => ({
+    sw: makeSwimmer(j.x, j.y, j.z, sr() * Math.PI * 2, 500 + i, 0.15),
+    st: { speed: [0.06, 0.22], turn: 0.12, wander: 0.03, depth: [2.4, 14], clear: 2.2 * j.s + 0.4, need: 4, look: 3, climb: 0.12, bank: 0, home: j.follow ? undefined : { x: j.x, z: j.z, r: 16 } } as SwimStyle,
+  }));
 
-  // ── manta rays: graceful banking figure-eights over the reef edge and the deep ──
+  // ── manta rays: graceful banking glides — half keep to a reef garden, half roam near the kid ──
   const nManta = low ? 3 : 6;
   const mantaMesh = instanced(mantaGeometry(), mantaMat, nManta, "uw-mantas");
   mantaMesh.frustumCulled = false;
+  const MANTA: SwimStyle = { speed: [1.5, 2.6], turn: 0.3, wander: 0.05, depth: [3.2, 10], clear: 2.8, need: 6, look: 16, climb: 0.7, bank: 1.4 };
   const mDefs = Array.from({ length: nManta }, (_, i) => {
     const g = GARDENS[i % GARDENS.length];
     const p = atSea(g.a + (i >= 4 ? 0.12 : -0.05), g.d + 12 + (i % 2) * 6);
     const floor = groundY(p.x, p.z);
     const cy = Math.min(WATER_Y - 3.2, Math.max(floor + 4.5, -10));
-    return { cx: p.x, cy, cz: p.z, r: 16 + (i % 3) * 5, rot: g.a + i, speed: 0.06 + (i % 3) * 0.012, ph: i * 1.9, s: 2.1 + (i % 3) * 0.35, yaw: 0, prevYaw: 0, y: cy };
+    const resident = i % 2 === 0;
+    return { sw: makeSwimmer(p.x, cy, p.z, g.a + Math.PI / 2 + i, 700 + i, 2), st: resident ? { ...MANTA, home: { x: p.x, z: p.z, r: 40 } } : MANTA, resident, s: 2.1 + (i % 3) * 0.35 };
   });
-  const mp: V3 = { x: 0, y: 0, z: 0 };
-  const mn: V3 = { x: 0, y: 0, z: 0 };
   mDefs.forEach((_, i) => (mantaMesh.geometry.attributes.aInst as THREE.InstancedBufferAttribute).setXY(i, 1, i * 2.1));
 
   // ── sea turtles ──
   const nTurtle = low ? 2 : 3;
   const turtleMesh = instanced(turtleGeometry(), turtleMat, nTurtle, "uw-turtles");
   turtleMesh.frustumCulled = false;
+  const TURTLE: SwimStyle = { speed: [0.6, 1.1], turn: 0.35, wander: 0.06, depth: [1.5, 6], clear: 1.6, need: 3, look: 7, climb: 0.4, bank: 0.8 };
   const tDefs = Array.from({ length: nTurtle }, (_, i) => {
     const g = GARDENS[(i * 2 + 1) % GARDENS.length];
-    return { ax: g.x, az: g.z, ay: midWater(g.x, g.z, 0.5), rad: 12 + i * 3, speed: 0.035 + i * 0.006, ph: i * 2.3, spread: [0, 1.2, 0] as [number, number, number] };
+    const resident = i % 2 === 0;
+    return { sw: makeSwimmer(g.x, midWater(g.x, g.z, 0.5), g.z, i * 2.3, 800 + i, 0.8), st: resident ? { ...TURTLE, home: { x: g.x, z: g.z, r: 28 } } : TURTLE, resident };
   });
   tDefs.forEach((_, i) => (turtleMesh.geometry.attributes.aInst as THREE.InstancedBufferAttribute).setXY(i, 1, i * 1.3));
-  const tp: V3 = { x: 0, y: 0, z: 0 };
-  const tn: V3 = { x: 0, y: 0, z: 0 };
 
   // ── glow sprites (jellies, pearls, treasure, temple runes, galleon lanterns) ──
   const nGlow = jDefs.length + PEARL_COUNT + 2 + templeGlows.length;
@@ -440,7 +476,28 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   track(caustics);
   group.add(caustics.mesh);
 
-  // ── the orca pod (surface group: seen from above and below) ──
+  // ── the deep sandy plain beyond the reef (follows the kid) ──
+  const sandMat = track(uwMaterial(U, { motion: "none", pattern: "sand" }, { roughness: 0.96 }));
+  const deepFloor = buildDeepFloor(sandMat, low ? 32 : 48, low ? 8 : 6);
+  track(deepFloor);
+  group.add(deepFloor.mesh);
+
+  // ── spray: whale blows, breach splashes, dripping flukes, orca splashes ──
+  const spray = buildSpray(low ? 600 : 1100);
+  track(spray);
+  surface.add(spray.points);
+  let sSeed = 99;
+  const rnd = () => ((sSeed = (sSeed * 16807) % 2147483647) / 2147483647);
+  const emit = (x: number, z: number, n: number, up: number, spread: number) => spray.emit(DROP, x, WATER_Y + 0.2, z, n, up, spread, 0.7, 1.5);
+  const foam = (x: number, z: number, n: number, speed: number) => spray.emit(FOAM, x, WATER_Y + 0.12, z, n, 0, speed, 1.5, 2.6);
+  // where the kid is heading, and big jumps (the world wrap) that the roaming population follows
+  const ft = makeFocusTracker();
+  const shift = (s: { x: number; z: number }, dx: number, dz: number) => {
+    s.x += dx;
+    s.z += dz;
+  };
+
+  // ── the orca pod roams the open sea (surface group: seen from above and below) ──
   const nOrca = 3;
   const orcaGeo = track(orcaGeometry());
   orcaGeo.setAttribute("aInst", new THREE.InstancedBufferAttribute(new Float32Array(nOrca * 2), 2));
@@ -449,56 +506,52 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   orcaMesh.frustumCulled = false;
   surface.add(orcaMesh);
   const orcaInst = orcaGeo.attributes.aInst as THREE.InstancedBufferAttribute;
-  const orcas = Array.from({ length: nOrca }, (_, i) => ({ y: -2.5, vy: 0, pitch: 0, roll: 0, breachT: -1, surfPh: i * 2.3, lastY: -2.5, spout: 2 + i * 3 }));
+  const orcas = Array.from({ length: nOrca }, (_, i) => ({ breachT: -1, surfPh: i * 2.3, lastY: -2.5 }));
+  const ORCA: SwimStyle = { speed: [3.2, 5], turn: 0.2, wander: 0.04, depth: [2.65, 2.65], clear: 2.5, need: 10, look: 30, climb: 1.2, bank: 2 };
+  const orcaSw: Swimmer[] = Array.from({ length: nOrca }, (_, i) => makeSwimmer(0, -2.9, 0, 0, 900 + i, 4));
+  {
+    const r0 = rngOf(6262);
+    const l = orcaSw[0];
+    respawn(l, ORCA, { x: 0, z: 0 }, 0, 0, r0, 205, 235);
+    l.yaw = Math.atan2(l.x, l.z) + Math.PI / 2;
+    for (let i = 1; i < nOrca; i++) Object.assign(orcaSw[i], { x: l.x - Math.sin(l.yaw) * 6 * i, z: l.z - Math.cos(l.yaw) * 6 * i, yaw: l.yaw, y: l.y });
+  }
   let breachWait = 9;
   let breachWho = 0;
-  const lapSpeed = 0.021;
-  const op: V3 = { x: 0, y: 0, z: 0 };
-  const on: V3 = { x: 0, y: 0, z: 0 };
-  // splash particles
-  const splashN = 320;
-  const sp = new Float32Array(splashN * 3).fill(-80);
-  const sv = new Float32Array(splashN * 3);
-  const sl = new Float32Array(splashN);
-  const sf = new Uint8Array(splashN);
-  const splashGeo = track(new THREE.BufferGeometry());
-  splashGeo.setAttribute("position", new THREE.BufferAttribute(sp, 3));
-  const spark = track(makeSparkTexture());
-  const splashMat = track(new THREE.PointsMaterial({ map: spark, size: 1.9, color: "#f4fdff", transparent: true, depthWrite: false, opacity: 0.95 }));
-  const splash = new THREE.Points(splashGeo, splashMat);
-  splash.frustumCulled = false;
-  surface.add(splash);
-  let splashNext = 0;
-  let sSeed = 99;
-  const rnd = () => ((sSeed = (sSeed * 16807) % 2147483647) / 2147483647);
-  const emit = (x: number, z: number, n: number, up: number, spread: number) => {
-    for (let k = 0; k < n; k++) {
-      const i = splashNext++ % splashN;
-      sp[i * 3] = x + (rnd() - 0.5) * spread * 0.4;
-      sp[i * 3 + 1] = WATER_Y + 0.2;
-      sp[i * 3 + 2] = z + (rnd() - 0.5) * spread * 0.4;
-      sv[i * 3] = (rnd() - 0.5) * spread;
-      sv[i * 3 + 1] = up * (0.5 + rnd() * 0.7);
-      sv[i * 3 + 2] = (rnd() - 0.5) * spread;
-      sl[i] = 1 + rnd() * 0.8;
-      sf[i] = 0;
+
+  // ── giant whales: blue whales and humpbacks roaming the open ocean ──
+  const nHump = low ? 1 : 2;
+  const nBlue = low ? 1 : 2;
+  const whales: Whale[] = [];
+  for (let i = 0; i < nHump; i++) whales.push(makeWhale("humpback", 20 + i * 1.6, 11 + i * 2));
+  for (let i = 0; i < nBlue; i++) whales.push(makeWhale("blue", 25.5 + i * 1.5, 12 + i * 2));
+  {
+    const wr = rngOf(8080);
+    for (const w of whales) {
+      respawn(w, WHALE_STYLE[w.kind], { x: 0, z: 0 }, 0, 0, wr, 215, 300);
+      w.wait = 4 + wr() * 26;
+      w.lastY = w.lastTail = w.y;
     }
+  }
+  const director = makeWhaleDirector();
+  const whaleMats = {
+    blue: track(uwMaterial(U, { motion: "flap", inst: true, flapAxis: "z", flapSpeed: 1.2, flapWave: 3.6, pattern: "blue" }, { roughness: 0.5 })),
+    humpback: track(uwMaterial(U, { motion: "flap", inst: true, flapAxis: "z", flapSpeed: 1.35, flapWave: 3.4, pattern: "humpback" }, { roughness: 0.48 })),
   };
-  // lingering foam: spreads out on the surface and fades
-  const foam = (x: number, z: number, n: number, speed: number) => {
-    for (let k = 0; k < n; k++) {
-      const i = splashNext++ % splashN;
-      const a = rnd() * Math.PI * 2;
-      sp[i * 3] = x;
-      sp[i * 3 + 1] = WATER_Y + 0.15;
-      sp[i * 3 + 2] = z;
-      sv[i * 3] = Math.sin(a) * speed * (0.4 + rnd() * 0.6);
-      sv[i * 3 + 1] = 0;
-      sv[i * 3 + 2] = Math.cos(a) * speed * (0.4 + rnd() * 0.6);
-      sl[i] = 1.6 + rnd() * 1.2;
-      sf[i] = 1;
-    }
+  const whaleMesh = (kind: "blue" | "humpback", n: number) => {
+    const geo = track(whaleGeometry(kind));
+    geo.setAttribute("aInst", new THREE.InstancedBufferAttribute(new Float32Array(n * 2), 2));
+    const m = new THREE.InstancedMesh(geo, whaleMats[kind], n);
+    m.name = `uw-${kind}-whales`;
+    m.frustumCulled = false;
+    surface.add(m);
+    return m;
   };
+  const whaleMeshes = { blue: whaleMesh("blue", nBlue), humpback: whaleMesh("humpback", nHump) };
+  const blowholes = { blue: blowholeLocal("blue"), humpback: blowholeLocal("humpback") };
+  const wp: V3 = { x: 0, y: 0, z: 0 };
+  const foamT = new Float32Array(whales.length);
+  const counts = { blue: 0, humpback: 0 };
 
   scene.add(group, surface);
 
@@ -507,6 +560,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   return {
     group,
     surface,
+    whales,
     pearls: PEARLS.map((p) => ({ id: p.id, x: p.x, y: p.y + PEARL_Y * p.s, z: p.z })),
     setPearlsFound(ids) {
       for (let i = 0; i < PEARL_COUNT; i++) found[i] = localFound[i] || ids.includes(i) ? 1 : 0;
@@ -524,7 +578,100 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       result.pearl = null;
       const kid = o.kid;
 
-      // orcas: a pod lapping the island, porpoising, and now and then a breach with a big splash
+      // the roaming population follows the kid; across the world wrap the neighbourhood jumps too
+      if (trackFocus(ft, kid.x, kid.z, dt)) {
+        shiftSwimmers(whales, ft.jx, ft.jz);
+        shiftSwimmers(orcaSw, ft.jx, ft.jz);
+        for (const s of sState) if (s.follow) shift(s.sw, ft.jx, ft.jz);
+        for (let i = 0; i < jDefs.length; i++) if (jDefs[i].follow) shift(jState[i].sw, ft.jx, ft.jz);
+        for (const m of mDefs) if (!m.resident) shift(m.sw, ft.jx, ft.jz);
+        for (const d of tDefs) if (!d.resident) shift(d.sw, ft.jx, ft.jz);
+        for (let i = 0; i < nFish; i++)
+          if (sState[fSchool[i]].follow) {
+            fP[i * 3] += ft.jx;
+            fP[i * 3 + 2] += ft.jz;
+          }
+      }
+
+      // ── giant whales ──
+      directWhales(whales, director, ft, kid.y, o.under, dt, rnd);
+      counts.blue = counts.humpback = 0;
+      for (let wi = 0; wi < whales.length; wi++) {
+        const w = whales[wi];
+        const ev = stepWhale(w, dt, t, rnd, kid);
+        if (ev & EV_BLOW) {
+          const bh = blowholes[w.kind];
+          bodyToWorld(w, 0, bh.y * w.len, bh.z * w.len, wp);
+          if (w.kind === "blue") {
+            // a tall straight column
+            spray.emit(MIST, wp.x, wp.y + 0.2, wp.z, 80, 13, 0.8, 2.4, 3.8);
+            spray.emit(DROP, wp.x, wp.y + 0.2, wp.z, 24, 9, 1.1, 0.35, 1.6);
+          } else {
+            // a bushy balloon of a blow
+            spray.emit(MIST, wp.x, wp.y + 0.2, wp.z, 70, 8.5, 2.2, 2.8, 3.4);
+            spray.emit(DROP, wp.x, wp.y + 0.2, wp.z, 20, 6.5, 1.8, 0.35, 1.4);
+          }
+        }
+        if (ev & EV_EXIT) {
+          bodyToWorld(w, 0, 0, w.len * 0.2, wp);
+          spray.emit(DROP, wp.x, WATER_Y + 0.3, wp.z, 160, 10, 6, 0.5, 1.9);
+          spray.emit(MIST, wp.x, WATER_Y + 0.5, wp.z, 30, 5, 5, 3.6, 2.4);
+          spray.emit(FOAM, wp.x, WATER_Y + 0.12, wp.z, 26, 0, 5, 2.4, 4);
+        }
+        if (ev & EV_ENTER) {
+          if (w.mode === BREACH) {
+            // the crash: a wall of white water
+            spray.emit(DROP, w.x, WATER_Y + 0.3, w.z, 260, 14, 11, 0.6, 2.3);
+            spray.emit(MIST, w.x, WATER_Y + 0.6, w.z, 70, 6, 9, 5, 3);
+            spray.emit(FOAM, w.x, WATER_Y + 0.12, w.z, 80, 0, 7, 2.8, 5.5);
+          } else {
+            bodyToWorld(w, 0, 0, -w.len * 0.5, wp);
+            spray.emit(DROP, wp.x, WATER_Y + 0.2, wp.z, 36, 4, 3, 0.6, 1.2);
+            spray.emit(FOAM, wp.x, WATER_Y + 0.12, wp.z, 24, 0, 3, 2, 4);
+          }
+        }
+        if (ev & EV_DRIP) {
+          // water streaming off the trailing edge of the raised flukes
+          for (let k = 0; k < 2; k++) {
+            bodyToWorld(w, (rnd() - 0.5) * 0.28 * w.len, 0, -0.53 * w.len, wp);
+            spray.emit(DROP, wp.x, wp.y, wp.z, 1, 0.2, 0.5, 0.45, 2.2);
+          }
+        }
+        // a slick of foam along the back while it lingers at the surface
+        if (w.y + w.girth > WATER_Y - 0.1 && w.mode !== BREACH) {
+          foamT[wi] -= dt;
+          if (foamT[wi] <= 0) {
+            foamT[wi] = 0.2;
+            bodyToWorld(w, 0, 0, (rnd() - 0.6) * w.len * 0.8, wp);
+            spray.emit(FOAM, wp.x, WATER_Y + 0.12, wp.z, 1, 0, 0.6, 3, 3.5);
+          }
+        }
+        const mesh = whaleMeshes[w.kind];
+        const k = counts[w.kind]++;
+        e.set(w.pitch, w.yaw, w.roll, "YXZ");
+        m4.compose(v.set(w.x, w.y, w.z), q.setFromEuler(e), s3.setScalar(w.len));
+        mesh.setMatrixAt(k, m4);
+        (mesh.geometry.attributes.aInst as THREE.InstancedBufferAttribute).setXY(k, w.flap, wi * 2.1);
+      }
+      whaleMeshes.blue.instanceMatrix.needsUpdate = true;
+      whaleMeshes.blue.geometry.attributes.aInst.needsUpdate = true;
+      whaleMeshes.humpback.instanceMatrix.needsUpdate = true;
+      whaleMeshes.humpback.geometry.attributes.aInst.needsUpdate = true;
+
+      // ── orcas: a pod roaming the open sea, porpoising, and now and then a breach ──
+      const lead = orcaSw[0];
+      swim(lead, ORCA, dt, t, kid, 5);
+      for (let i = 1; i < nOrca; i++) {
+        follow(orcaSw[i], ORCA, lead, i === 1 ? -4.5 : 4.5, 4 + i * 1.5, dt, t);
+        orcaSw[i].y = lead.y;
+        orcaSw[i].roll += (lead.roll - orcaSw[i].roll) * Math.min(1, dt * 2);
+      }
+      {
+        let quiet = true;
+        for (const oc of orcas) if (oc.breachT >= 0 || oc.lastY > -2.2) quiet = false;
+        const d2 = dist2(lead, kid);
+        if ((d2 > 300 * 300 && quiet) || d2 > 460 * 460) respawn(lead, ORCA, kid, ft.vx, ft.vz, rnd, 190, 250, 1.2);
+      }
       breachWait -= dt;
       if (breachWait <= 0) {
         breachWait = 16 + rnd() * 20;
@@ -534,19 +681,12 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       }
       for (let i = 0; i < nOrca; i++) {
         const oc = orcas[i];
-        const lag = i * 0.022;
-        orcaLap(t - lag / lapSpeed, lapSpeed, op);
-        orcaLap(t - lag / lapSpeed + 0.5, lapSpeed, on);
-        const side = (i - 1) * 3.5;
-        const hx = on.x - op.x;
-        const hz = on.z - op.z;
-        const hl = Math.hypot(hx, hz) || 1;
-        const x = op.x + (hz / hl) * side;
-        const z = op.z - (hx / hl) * side;
-        const yaw = Math.atan2(hx, hz);
+        const sw = orcaSw[i];
+        const x = sw.x;
+        const z = sw.z;
         let y: number;
         let pitch: number;
-        let roll = 0;
+        let roll = sw.roll * 0.5;
         let flapK = 1;
         if (oc.breachT >= 0) {
           oc.breachT += dt;
@@ -562,34 +702,19 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           // porpoise: rise to breathe every ~8 s (back and fin break the surface), then dive
           const u = (t * 0.125 + oc.surfPh) % 1;
           const surf = u < 0.3 ? Math.sin((u / 0.3) * Math.PI) : 0;
-          y = -2.9 + surf * 2.3;
-          pitch = u < 0.3 ? -Math.cos((u / 0.3) * Math.PI) * 0.22 : 0;
-          if (oc.lastY < -1.2 && y >= -1.2) (emit(x, z, 10, 5, 1.2), foam(x, z, 6, 1.5)); // spout
+          y = sw.y + surf * 2.3;
+          pitch = u < 0.3 ? -Math.cos((u / 0.3) * Math.PI) * 0.22 : sw.pitch * 0.5;
+          if (oc.lastY < -1.2 && y >= -1.2) (spray.emit(MIST, x, WATER_Y + 0.8, z, 6, 4, 0.8, 1.2, 1.6), foam(x, z, 6, 1.5)); // blow
         }
         oc.lastY = y;
-        e.set(pitch, yaw, roll, "YXZ");
+        e.set(pitch, sw.yaw, roll, "YXZ");
         m4.compose(v.set(x, y, z), q.setFromEuler(e), s3.setScalar(1));
         orcaMesh.setMatrixAt(i, m4);
         orcaInst.setXY(i, flapK, i * 1.7);
       }
       orcaMesh.instanceMatrix.needsUpdate = true;
       orcaInst.needsUpdate = true;
-      for (let i = 0; i < splashN; i++) {
-        if (sl[i] <= 0) {
-          sp[i * 3 + 1] = -80;
-          continue;
-        }
-        sl[i] -= dt;
-        if (sf[i]) {
-          sv[i * 3] *= 1 - dt * 0.8;
-          sv[i * 3 + 2] *= 1 - dt * 0.8;
-        } else sv[i * 3 + 1] -= 13 * dt;
-        sp[i * 3] += sv[i * 3] * dt;
-        sp[i * 3 + 1] += sv[i * 3 + 1] * dt;
-        sp[i * 3 + 2] += sv[i * 3 + 2] * dt;
-        if (sp[i * 3 + 1] < WATER_Y - 0.3) sl[i] = 0;
-      }
-      splashGeo.attributes.position.needsUpdate = true;
+      spray.update(dt, gl);
 
       if (!group.visible) return result;
 
@@ -598,6 +723,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       rays.update(kid);
       const fog = scene.fog as THREE.Fog | null;
       caustics.update(kid, fog && (fog as THREE.Fog).isFog ? fog.far : 60);
+      deepFloor.update(kid);
       ceiling.position.set(kid.x, WATER_Y - 0.02, kid.z);
       kidC.value.set(kid.x, kid.y + 1.5, kid.z);
 
@@ -605,40 +731,39 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       let fi = 0;
       for (let si = 0; si < sState.length; si++) {
         const s = sState[si];
+        const sw = s.sw;
         if (s.follow) {
-          // the "near you" school: keep within sight of the kid (hop ahead unseen if left far behind)
-          const dx = kid.x - s.ax;
-          const dz = kid.z - s.az;
-          const d = Math.hypot(dx, dz);
-          if (o.under && d > 70) {
-            const a = rnd() * Math.PI * 2;
-            s.ax = kid.x + Math.sin(a) * 45;
-            s.az = kid.z + Math.cos(a) * 45;
-            s.ay = clampWater(s.ax, s.az, kid.y + 1.5, 1.5);
-            schoolCentre(s, t, cen);
+          // the "near you" school: roams round the kid (and hops ahead unseen if left far behind);
+          // out over the deep it's a shoal of silver sardines
+          if (o.under && dist2(sw, kid) > 70 * 70) {
+            respawn(sw, s.st, kid, ft.vx, ft.vz, rnd, 26, 36, 1.2);
+            sw.y = clampWater(sw.x, sw.z, kid.y + 1.5, 1.5);
+            const open = seaDepth(sw.x, sw.z) > 16;
+            s.species = open ? SPECIES.sardine : s.species0;
+            s.size = open ? 0.5 : s.size0;
             for (let k = 0; k < s.n; k++) {
               const j = (fi + k) * 3;
-              fP[j] = cen.x + fOff[j];
-              fP[j + 1] = cen.y + fOff[j + 1];
-              fP[j + 2] = cen.z + fOff[j + 2];
+              fP[j] = sw.x + fOff[j];
+              fP[j + 1] = sw.y + fOff[j + 1];
+              fP[j + 2] = sw.z + fOff[j + 2];
               fV[j] = fV[j + 1] = fV[j + 2] = 0;
             }
-          } else if (o.under && d > 9) {
-            const k = Math.min(1, dt * 0.12);
-            s.ax += dx * k;
-            s.az += dz * k;
-            s.ay += (clampWater(s.ax, s.az, kid.y + 1.5, 1.5) - s.ay) * k;
           }
+          if (o.under) {
+            s.kidHome.x = kid.x;
+            s.kidHome.z = kid.z;
+            s.st.home = s.kidHome;
+          } else s.st.home = undefined;
+          // keep up with a kid who's swimming along
+          s.st.speed[1] = Math.max(1.5, Math.hypot(ft.vx, ft.vz) * (dist2(sw, kid) > 15 * 15 ? 1.25 : 0.9));
         }
-        schoolCentre(s, t, cen);
-        const hx = cen.x - s.px;
-        const hz = cen.z - s.pz;
-        if (hx * hx + hz * hz > 1e-6) s.yaw = Math.atan2(hx, hz);
-        s.px = cen.x;
-        s.pz = cen.z;
-        const cy = Math.cos(s.yaw);
-        const sy = Math.sin(s.yaw);
-        const baseSpeed = s.n === 1 ? 1.1 : s.bait ? 2.2 : 2.6;
+        swim(sw, s.st, dt, t);
+        const cx = sw.x;
+        const cyy = sw.y;
+        const cz = sw.z;
+        const cy = Math.cos(sw.yaw);
+        const sy = Math.sin(sw.yaw);
+        const baseSpeed = s.n === 1 ? 1.1 : s.bait ? 2.2 : Math.max(2.6, s.follow ? s.st.speed[1] * 1.3 : 0);
         const size = s.size;
         const shape = FISH_SHAPE[s.species];
         for (let k = 0; k < s.n; k++, fi++) {
@@ -652,16 +777,16 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
             const a = Math.atan2(oz, ox) + t * (0.9 / (0.6 + rr * 0.35));
             ox = Math.cos(a) * rr;
             oz = Math.sin(a) * rr;
-            tgt.x = cen.x + ox;
-            tgt.z = cen.z + oz;
+            tgt.x = cx + ox;
+            tgt.z = cz + oz;
           } else {
             // formation turned to the school's heading (x across, z along)
-            tgt.x = cen.x + ox * cy + oz * sy;
-            tgt.z = cen.z - ox * sy + oz * cy;
+            tgt.x = cx + ox * cy + oz * sy;
+            tgt.z = cz - ox * sy + oz * cy;
           }
           const wob = fPhase[fi];
           tgt.x += Math.sin(t * 0.7 + wob) * 0.25;
-          tgt.y = cen.y + oy + Math.sin(t * 0.9 + wob * 1.3) * 0.15;
+          tgt.y = cyy + oy + Math.sin(t * 0.9 + wob * 1.3) * 0.15;
           tgt.z += Math.cos(t * 0.6 + wob) * 0.25;
           const scare = avoidKid(fP[j], fP[j + 1], fP[j + 2], kid, s.n === 1 ? 3.5 : 4.5, push);
           tgt.x += push.x * 1.6;
@@ -669,7 +794,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           tgt.z += push.z * 1.6;
           const speed = stepFish(fP, fV, fi, tgt.x, tgt.y, tgt.z, dt, s.n === 1 ? 0.6 : 2.2 + scare * 5, baseSpeed * (1 + scare * 2.2));
           // stay in the water
-          const floor = groundY(fP[j], fP[j + 2]) + 0.35 * size;
+          const floor = seaFloorY(fP[j], fP[j + 2]) + 0.35 * size;
           if (fP[j + 1] < floor) fP[j + 1] = floor;
           if (fP[j + 1] > WATER_Y - 0.5) fP[j + 1] = WATER_Y - 0.5;
           // face where it's going; bank into turns
@@ -695,23 +820,19 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       fishMesh.instanceMatrix.needsUpdate = true;
       fishInst.needsUpdate = true;
 
-      // ── jellies: pulse (in the shader), bob and drift; a few stay out in the blue near the kid ──
+      // ── jellies: pulse (in the shader), bob and drift ──
       for (let i = 0; i < jDefs.length; i++) {
         const j = jDefs[i];
-        if (j.follow && o.under) {
-          const dx = j.x - kid.x;
-          const dz = j.z - kid.z;
-          if (dx * dx + dz * dz > 58 * 58) {
-            const a = rnd() * Math.PI * 2;
-            j.x = kid.x + Math.sin(a) * (30 + rnd() * 20);
-            j.z = kid.z + Math.cos(a) * (30 + rnd() * 20);
-            j.y = midWater(j.x, j.z, 0.35 + rnd() * 0.4, 3);
-          }
+        const js = jState[i];
+        if (j.follow && o.under && dist2(js.sw, kid) > 58 * 58) {
+          respawn(js.sw, js.st, kid, 0, 0, rnd, 28, 50);
+          js.sw.y = midWater(js.sw.x, js.sw.z, 0.35 + rnd() * 0.4, 3);
         }
-        const x = j.x + Math.sin(t * 0.05 + j.ph) * 4;
-        const z = j.z + Math.cos(t * 0.04 + j.ph) * 4;
+        swim(js.sw, js.st, dt, t);
+        const x = js.sw.x;
+        const z = js.sw.z;
         const pulse = Math.sin(t * 1.9 + x * 0.37 + z * 0.23);
-        const y = clampWater(x, z, j.y + Math.sin(t * 0.3 + j.ph) * 0.8 + pulse * 0.12, 2.2 * j.s + 0.4);
+        const y = clampWater(x, z, js.sw.y + Math.sin(t * 0.3 + j.ph) * 0.8 + pulse * 0.12, 2.2 * j.s + 0.4);
         e.set(Math.sin(t * 0.4 + j.ph) * 0.15, j.ph, Math.cos(t * 0.35 + j.ph) * 0.15);
         m4.compose(v.set(x, y, z), q.setFromEuler(e), s3.setScalar(j.s));
         jellyMesh.setMatrixAt(i, m4);
@@ -724,21 +845,10 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       // ── mantas ──
       for (let i = 0; i < nManta; i++) {
         const m = mDefs[i];
-        mantaPath(m, t, mp);
-        mantaPath(m, t + 0.2, mn);
-        // glide over the reef, never through it
-        mp.y = clampWater(mp.x, mp.z, mp.y, 2.6);
-        mn.y = clampWater(mn.x, mn.z, mn.y, 2.6);
-        m.y += (mp.y - m.y) * Math.min(1, dt * 1.5);
-        mp.y = m.y;
-        const yaw = Math.atan2(mn.x - mp.x, mn.z - mp.z);
-        let dyaw = yaw - m.prevYaw;
-        dyaw -= Math.round(dyaw / (Math.PI * 2)) * Math.PI * 2;
-        m.prevYaw = yaw;
-        m.yaw += (Math.max(-0.75, Math.min(0.75, -(dyaw / Math.max(dt, 1e-3)) * 1.6)) - m.yaw) * Math.min(1, dt * 2);
-        const pitch = -Math.atan2(mn.y - mp.y, Math.hypot(mn.x - mp.x, mn.z - mp.z));
-        e.set(pitch, yaw, m.yaw, "YXZ");
-        m4.compose(v.set(mp.x, mp.y, mp.z), q.setFromEuler(e), s3.setScalar(m.s));
+        if (!m.resident && dist2(m.sw, kid) > 150 * 150) respawn(m.sw, m.st, kid, ft.vx, ft.vz, rnd, 70, 115, 1.3);
+        swim(m.sw, m.st, dt, t, kid, 5);
+        e.set(m.sw.pitch, m.sw.yaw, m.sw.roll, "YXZ");
+        m4.compose(v.set(m.sw.x, m.sw.y, m.sw.z), q.setFromEuler(e), s3.setScalar(m.s));
         mantaMesh.setMatrixAt(i, m4);
       }
       mantaMesh.instanceMatrix.needsUpdate = true;
@@ -746,12 +856,10 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       // ── turtles ──
       for (let i = 0; i < nTurtle; i++) {
         const d = tDefs[i];
-        schoolCentre(d, t, tp);
-        schoolCentre(d, t + 0.3, tn);
-        const yaw = Math.atan2(tn.x - tp.x, tn.z - tp.z);
-        const pitch = -Math.atan2(tn.y - tp.y, Math.hypot(tn.x - tp.x, tn.z - tp.z)) * 0.6;
-        e.set(pitch, yaw, Math.sin(t * 0.8 + i) * 0.08, "YXZ");
-        m4.compose(v.set(tp.x, tp.y, tp.z), q.setFromEuler(e), s3.setScalar(1.15));
+        if (!d.resident && dist2(d.sw, kid) > 120 * 120) respawn(d.sw, d.st, kid, ft.vx, ft.vz, rnd, 55, 90, 1.3);
+        swim(d.sw, d.st, dt, t, kid, 3);
+        e.set(d.sw.pitch * 0.6, d.sw.yaw, d.sw.roll * 0.5 + Math.sin(t * 0.8 + i) * 0.06, "YXZ");
+        m4.compose(v.set(d.sw.x, d.sw.y, d.sw.z), q.setFromEuler(e), s3.setScalar(1.15));
         turtleMesh.setMatrixAt(i, m4);
       }
       turtleMesh.instanceMatrix.needsUpdate = true;

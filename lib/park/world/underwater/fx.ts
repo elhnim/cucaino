@@ -7,7 +7,7 @@
 //   buildCeiling      the underside of the sea surface: Snell's window, ripples, sparkle
 //   buildFloorCaustics a patch draped on the sea floor round the kid with dancing caustics
 import * as THREE from "three";
-import { groundY } from "../../registry/terrain";
+import { seaFloorY } from "../sea/wander";
 import { CAUSTIC_GLSL, FOG_K_GLSL, WATER_Y_GLSL, fxUniforms, type UwUniforms } from "./shaders";
 import { rngOf } from "../fantasy/noise";
 
@@ -330,10 +330,18 @@ export function buildRays(U: UwUniforms, n: number, strength: { value: number })
     vertexShader: /* glsl */ `
       #include <common>
       #include <fog_pars_vertex>
-      varying float vEdge; varying float vY; varying float vSeed;
+      varying float vEdge; varying float vY; varying float vSeed; varying float vNear;
       void main() {
         vec4 wp = modelMatrix * instanceMatrix * vec4( position, 1.0 );
         vec4 mvPosition = viewMatrix * wp;
+        // (a ray right on top of the camera would wash the whole view: fade what's close, and the
+        // whole ray while the camera is in or beside its column)
+        vec3 axO = ( modelMatrix * vec4( instanceMatrix[3].xyz, 1.0 ) ).xyz;
+        vec3 axD = normalize( mat3( modelMatrix ) * instanceMatrix[1].xyz );
+        float rad = length( instanceMatrix[0].xyz );
+        vec3 toCam = cameraPosition - axO;
+        float axDist = length( toCam - axD * dot( toCam, axD ) );
+        vNear = smoothstep( 2.5, 12.0, -mvPosition.z ) * smoothstep( rad * 1.1, rad * 2.6 + 2.0, axDist );
         vec3 nv = normalize( mat3( viewMatrix ) * mat3( modelMatrix ) * mat3( instanceMatrix ) * normal );
         vEdge = abs( dot( nv, normalize( -mvPosition.xyz ) ) );
         vY = -position.y;
@@ -345,7 +353,7 @@ export function buildRays(U: UwUniforms, n: number, strength: { value: number })
       #include <common>
       #include <fog_pars_fragment>
       uniform float uTime; uniform float uGlow; uniform float uRayK;
-      varying float vEdge; varying float vY; varying float vSeed;
+      varying float vEdge; varying float vY; varying float vSeed; varying float vNear;
       ${FOG_K_GLSL}
       void main() {
         float soft = pow( vEdge, 3.0 );
@@ -353,7 +361,7 @@ export function buildRays(U: UwUniforms, n: number, strength: { value: number })
         float flick = 0.6 + 0.4 * sin( uTime * 0.7 + vSeed * 9.0 ) * sin( uTime * 0.31 + vSeed * 3.0 );
         vec3 day = vec3( 0.75, 1.0, 0.95 ) * 0.2;
         vec3 dusk = vec3( 0.4, 0.6, 1.0 ) * 0.08;
-        vec3 c = mix( day, dusk, uGlow ) * soft * ends * flick * uRayK * ( 1.0 - uwFog() * 0.85 );
+        vec3 c = mix( day, dusk, uGlow ) * soft * ends * flick * uRayK * ( 1.0 - uwFog() * 0.85 ) * vNear;
         gl_FragColor = vec4( c, 1.0 );
         ${OUT_GLSL}
       }`,
@@ -384,7 +392,7 @@ export function buildRays(U: UwUniforms, n: number, strength: { value: number })
           const d = ray.placed ? R * (0.6 + rnd() * 0.35) : Math.sqrt(rnd()) * R;
           ray.ox = kid.x + Math.sin(a) * d;
           ray.oz = kid.z + Math.cos(a) * d;
-          const floor = groundY(ray.ox, ray.oz);
+          const floor = seaFloorY(ray.ox, ray.oz);
           ray.len = Math.min(26, Math.max(3, -0.25 - floor + 3));
           ray.placed = true;
           m.compose(v.set(ray.ox, -0.3, ray.oz), q, s.set(ray.w, ray.len, ray.w));
@@ -547,7 +555,7 @@ export function buildFloorCaustics(U: UwUniforms, cells: number): FloorCaustics 
           const z = sz - half + j * cell;
           const k = (j * n + i) * 3;
           pos[k] = x;
-          pos[k + 1] = groundY(x, z) + 0.05;
+          pos[k + 1] = seaFloorY(x, z) + 0.05;
           pos[k + 2] = z;
         }
       geo.attributes.position.needsUpdate = true;
