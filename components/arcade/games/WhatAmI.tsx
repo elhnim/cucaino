@@ -11,7 +11,6 @@ const CONFIG: ClueGameConfig = {
   loadingLines: ["Turning into something mysterious…", "Writing sneaky riddles…", "No peeking!"],
   tone: "sky",
   gradient: "linear-gradient(160deg,#0ea5e9,#06b6d4 55%,#67e8f9)",
-  letterBlanks: false,
   categories: [
     { label: "Animals", emoji: "🐾", value: "animal" },
     { label: "Foods", emoji: "🍕", value: "food" },

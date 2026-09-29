@@ -24,11 +24,10 @@ const MoneyTownGame = dynamic(() => import("@/components/money-town/MoneyTownGam
 const InvestHub = dynamic(() => import("@/components/invest/InvestHub"), { ssr: false });
 const ARCADE_COMPONENTS = {
   "emoji-story": dynamic(() => import("@/components/arcade/games/EmojiStory"), { ssr: false }),
-  "would-you-rather": dynamic(() => import("@/components/arcade/games/WouldYouRather"), { ssr: false }),
   "what-am-i": dynamic(() => import("@/components/arcade/games/WhatAmI"), { ssr: false }),
-  "word-detective": dynamic(() => import("@/components/arcade/games/WordDetective"), { ssr: false }),
   "stump-the-ai": dynamic(() => import("@/components/arcade/games/StumpTheAI"), { ssr: false }),
-  "ai-lie-detector": dynamic(() => import("@/components/arcade/games/AILieDetector"), { ssr: false }),
+  "doodle-guess": dynamic(() => import("@/components/arcade/games/DoodleGuess"), { ssr: false }),
+  "mystery-detective": dynamic(() => import("@/components/arcade/games/MysteryDetective"), { ssr: false }),
 } as const;
 
 export type HallKind = "learn" | "library" | "theatre" | "arcade" | "money-town" | "bank";

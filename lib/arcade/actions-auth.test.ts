@@ -58,7 +58,39 @@ vi.mock("@anthropic-ai/sdk", () => {
   return { default: Anthropic };
 });
 
-import { askStumpQuestion, continueEmojiStory, convertStarsToSparks, generateWhatAmI } from "@/lib/actions/arcade";
+import {
+  accuseMystery,
+  askMystery,
+  askStumpQuestion,
+  continueEmojiStory,
+  convertStarsToSparks,
+  generateWhatAmI,
+  lookAtDoodle,
+  searchMystery,
+  startDoodleRound,
+  startMystery,
+} from "@/lib/actions/arcade";
+import { DOODLE_MAX_CALLS_PER_WORD } from "@/lib/arcade/doodle";
+
+const PNG = "iVBORw0KGgo" + "A".repeat(200);
+
+const CASE = JSON.stringify({
+  title: "The Case of the Golden Ticket", emoji: "🎟️", intro: "The golden ticket vanished! Who took it?",
+  item: "golden ticket", crime_scene: "prize-shop",
+  suspects: [
+    { id: "s1", name: "Otto Otter", emoji: "🦦", personality: "Nervous", alibi: "Counting tickets.", truth: "Counting tickets." },
+    { id: "s2", name: "Penny Peacock", emoji: "🦚", personality: "Show-off", alibi: "On stage at 2pm.", truth: "Took the ticket for a magic trick." },
+    { id: "s3", name: "Sid Sloth", emoji: "🦥", personality: "Sleepy", alibi: "Napping.", truth: "Napping." },
+    { id: "s4", name: "Fifi Flamingo", emoji: "🦩", personality: "Bossy", alibi: "Baking.", truth: "Baking." },
+  ],
+  culprit: "s2", motive: "Wanted the best magic trick.", lie: "Says she was on stage at 2pm.",
+  clues: [
+    { location: "pet-meadow", title: "Blue feather", text: "A shiny blue feather.", kind: "implicates", suspect: "s2" },
+    { location: "friends-cafe", title: "Empty stage", text: "No show until 4pm.", kind: "implicates", suspect: "s2" },
+    { location: "quiz-coaster", title: "Camera", text: "Someone asleep all morning.", kind: "clears", suspect: "s3" },
+  ],
+  solution: "The feather and the empty stage prove it.",
+});
 
 const CLUES = JSON.stringify({
   answer: "penguin", aliases: [], emoji: "🐧", fun_fact: "They slide.",
@@ -67,6 +99,7 @@ const CLUES = JSON.stringify({
 
 beforeEach(() => {
   process.env.ANTHROPIC_API_KEY = "test";
+  process.env.ARCADE_SECRET = "unit-test-arcade-secret-0123456789";
   db.familyId = "fam-1";
   db.kids = { mine: { family_id: "fam-1", sparks_balance: 5 }, friend: { family_id: "fam-2", sparks_balance: 50 } };
   db.updates = [];
@@ -126,5 +159,91 @@ describe("arcade server action gate", () => {
     expect((await convertStarsToSparks("mine", 1.5)).ok).toBe(false);
     expect((await convertStarsToSparks("mine", Number.NaN)).ok).toBe(false);
     expect((await convertStarsToSparks("friend", 1)).ok).toBe(false);
+  });
+
+  it("doodle: dealing is free, the first good look charges once, later looks are free", async () => {
+    const start = await startDoodleRound("mine", "easy");
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    expect(db.aiCalls).toBe(0);
+    expect(db.kids.mine.sparks_balance).toBe(5);
+    const word = start.data.words[0].word;
+    db.reply = JSON.stringify({ guesses: ["potato", word], line: "Is it… a " + word + "?" });
+    const a = await lookAtDoodle({ kidId: "mine", token: start.data.token, wordIndex: 0, imageBase64: PNG });
+    expect(a.ok && a.data.matchIndex).toBe(1);
+    expect(db.kids.mine.sparks_balance).toBe(3);
+    if (!a.ok) return;
+    const b = await lookAtDoodle({ kidId: "mine", token: a.data.token, wordIndex: 1, imageBase64: PNG });
+    expect(b.ok).toBe(true);
+    expect(db.kids.mine.sparks_balance).toBe(3);
+  });
+
+  it("doodle: a failed first look charges nothing", async () => {
+    const start = await startDoodleRound("mine", "easy");
+    if (!start.ok) throw new Error("no start");
+    db.reply = "no idea";
+    const a = await lookAtDoodle({ kidId: "mine", token: start.data.token, wordIndex: 0, imageBase64: PNG });
+    expect(a.ok).toBe(false);
+    expect(db.updates).toEqual([]);
+  });
+
+  it("doodle: caps AI looks per word, refuses replays, junk images and other kids", async () => {
+    const start = await startDoodleRound("mine", "easy");
+    if (!start.ok) throw new Error("no start");
+    db.reply = JSON.stringify({ guesses: ["zzz"], line: "hmm" });
+    let token = start.data.token;
+    for (let i = 0; i < DOODLE_MAX_CALLS_PER_WORD; i++) {
+      const r = await lookAtDoodle({ kidId: "mine", token, wordIndex: 0, imageBase64: PNG });
+      expect(r.ok).toBe(true);
+      if (r.ok) token = r.data.token;
+    }
+    const calls = db.aiCalls;
+    expect((await lookAtDoodle({ kidId: "mine", token, wordIndex: 0, imageBase64: PNG })).ok).toBe(false);
+    // replaying the very first token (0 looks used) is refused on this server
+    expect((await lookAtDoodle({ kidId: "mine", token: start.data.token, wordIndex: 0, imageBase64: PNG })).ok).toBe(false);
+    expect((await lookAtDoodle({ kidId: "mine", token, wordIndex: 1, imageBase64: "not a png" })).ok).toBe(false);
+    expect((await lookAtDoodle({ kidId: "friend", token, wordIndex: 1, imageBase64: PNG })).ok).toBe(false);
+    expect((await lookAtDoodle({ kidId: "mine", token: token + "x", wordIndex: 1, imageBase64: PNG })).ok).toBe(false);
+    expect(db.aiCalls).toBe(calls);
+  });
+
+  it("mystery: one charge per case, the solution never reaches the client, accusation checked server-side", async () => {
+    db.reply = CASE;
+    const start = await startMystery("mine", "easy");
+    expect(start.ok).toBe(true);
+    if (!start.ok) return;
+    expect(db.kids.mine.sparks_balance).toBe(2);
+    const wire = JSON.stringify(start.data);
+    expect(wire).not.toContain("magic trick");
+    expect(wire).not.toContain("Blue feather");
+    expect(wire).not.toContain("culprit");
+
+    const found = await searchMystery("mine", start.data.token, "pet-meadow");
+    expect(found.ok && found.data.clue.title).toBe("Blue feather");
+    expect(found.ok && found.data.searchesLeft).toBe(2);
+    if (!found.ok) return;
+
+    db.reply = JSON.stringify({ answer: "On stage, darling!", mood: "😎", note: "Says she was on stage." });
+    const asked = await askMystery("mine", found.data.token, "s2", "Where were you?");
+    expect(asked.ok && asked.data.questionsLeft).toBe(5);
+    if (!asked.ok) return;
+    // the same token can't be used for a second free question on this server
+    expect((await askMystery("mine", found.data.token, "s2", "Again?")).ok).toBe(false);
+    expect((await askMystery("friend", asked.data.token, "s2", "Where?")).ok).toBe(false);
+
+    db.reply = JSON.stringify({ headline: "Unmasked!", reveal: ["It was Penny."], about_reason: "Nice!" });
+    const wrong = await accuseMystery("mine", asked.data.token, "s1", "He looked shifty");
+    expect(wrong.ok && wrong.data.correct).toBe(false);
+    expect(wrong.ok && wrong.data.culprit.name).toBe("Penny Peacock");
+    // one accusation per case
+    expect((await accuseMystery("mine", asked.data.token, "s2", "")).ok).toBe(false);
+    expect(db.kids.mine.sparks_balance).toBe(2);
+  });
+
+  it("mystery: a bad case costs nothing", async () => {
+    db.reply = JSON.stringify({ title: "Half a case" });
+    const res = await startMystery("mine", "easy");
+    expect(res.ok).toBe(false);
+    expect(db.updates).toEqual([]);
   });
 });

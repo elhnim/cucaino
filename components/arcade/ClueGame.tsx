@@ -1,13 +1,13 @@
 "use client";
 
-// The shared engine for the two clue-guessing games (What Am I? and Word Detective).
+// The engine for the clue-guessing game (What Am I?).
 // Rules: clues arrive hardest-first. A wrong guess reveals the next clue. Once all 5
-// clues are out you get 3 last tries. The fewer clues (and letter hints) you need, the
+// clues are out you get 3 last tries. The fewer clues you need, the
 // more points you score. Near-misses and typos are forgiven (lib/arcade/match.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ArcadeResult } from "@/lib/actions/arcade";
 import { matchGuess } from "@/lib/arcade/match";
-import { CLUE_COUNT, FINAL_TRIES, clueRank, cluePoints, maxLetterHints, pickRevealIndex, revealPattern } from "@/lib/arcade/rules";
+import { CLUE_COUNT, FINAL_TRIES, clueRank, cluePoints } from "@/lib/arcade/rules";
 import type { ClueRound } from "@/lib/arcade/validate";
 import { recentAnswers, rememberAnswer } from "@/lib/arcade/variety";
 import { playSfx } from "@/lib/audio/sound-manager";
@@ -25,10 +25,8 @@ export interface ClueGameConfig {
   /** tailwind colour stem, e.g. "sky" or "amber" (used in a few fixed class names below) */
   tone: "sky" | "amber";
   gradient: string;
-  /** Word Detective: show letter blanks + allow letter hints */
-  letterBlanks: boolean;
   categories?: { label: string; emoji: string; value: string }[];
-  generate: (kidId: string, category: string, avoid: string[]) => Promise<ArcadeResult<ClueRound & { theme?: string }>>;
+  generate: (kidId: string, category: string, avoid: string[]) => Promise<ArcadeResult<ClueRound>>;
 }
 
 const TONE = {
@@ -44,10 +42,9 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
   const [busy, run] = useBusy();
   const [phase, setPhase] = useState<Phase>("idle");
   const [category, setCategory] = useState(config.categories?.[0]?.value ?? "");
-  const [round, setRound] = useState<(ClueRound & { theme?: string }) | null>(null);
+  const [round, setRound] = useState<ClueRound | null>(null);
   const [shown, setShown] = useState(1);
   const [triesLeft, setTriesLeft] = useState(FINAL_TRIES);
-  const [revealed, setRevealed] = useState<Set<number>>(() => new Set());
   const [wrong, setWrong] = useState<string[]>([]);
   const [guess, setGuess] = useState("");
   const [feedback, setFeedback] = useState<{ text: string; tone: "close" | "wrong" } | null>(null);
@@ -79,7 +76,6 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
     setRound(res.data);
     setShown(1);
     setTriesLeft(FINAL_TRIES);
-    setRevealed(new Set());
     setWrong([]);
     setGuess("");
     setFeedback(null);
@@ -100,7 +96,7 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
     if (!g) return;
     const verdict = matchGuess(g, round.answer, round.aliases);
     if (verdict === "correct") {
-      const pts = cluePoints(shown, revealed.size);
+      const pts = cluePoints(shown);
       const s = streak + 1;
       playSfx("win");
       setPoints(pts);
@@ -139,14 +135,6 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
     playSfx("tap");
     setShown(shown + 1);
     setFeedback(null);
-  };
-
-  const revealLetter = () => {
-    if (!round) return;
-    const i = pickRevealIndex(round.answer, revealed);
-    if (i < 0) return;
-    playSfx("sparkle");
-    setRevealed(new Set(revealed).add(i));
   };
 
   if (phase === "loading") return <Thinking emoji={config.emoji} lines={config.loadingLines} />;
@@ -199,27 +187,14 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
   }
 
   if (phase === "playing" && round) {
-    const potential = cluePoints(shown, revealed.size);
-    const hintsLeft = maxLetterHints(round.answer) - revealed.size;
-    const firstLetterHint = !config.letterBlanks && shown >= CLUE_COUNT;
+    const potential = cluePoints(shown);
+    const firstLetterHint = shown >= CLUE_COUNT;
     return (
       <div className="max-w-lg mx-auto">
         <div className="flex items-center justify-between mb-3 text-sm font-black">
           <span className="text-gray-600">Clue {shown} / {CLUE_COUNT}{shown >= CLUE_COUNT ? ` · ${triesLeft} ${triesLeft === 1 ? "try" : "tries"} left` : ""}</span>
           <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800">⭐ worth {potential} pt{potential === 1 ? "" : "s"}</span>
         </div>
-
-        {round.theme && <p className="text-center text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Case file: {round.theme}</p>}
-
-        {config.letterBlanks && (
-          <div className="flex flex-wrap justify-center gap-1.5 mb-4" aria-label={`${round.answer.length} letters`}>
-            {revealPattern(round.answer, revealed).map((ch, i) => (
-              <span key={i} className={`w-9 h-11 rounded-lg flex items-center justify-center text-xl font-black ${ch === "_" ? "bg-white border-2 border-amber-200 text-transparent" : "bg-amber-400 text-white"}`}>
-                {ch === "_" ? "·" : ch}
-              </span>
-            ))}
-          </div>
-        )}
 
         <ol className="flex flex-col gap-2 mb-4">
           {round.clues.slice(0, shown).map((c, i) => (
@@ -272,19 +247,8 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
 
         <div className="grid grid-cols-2 gap-2">
           <SecondaryButton onClick={nextClue} disabled={shown >= CLUE_COUNT}>Next clue ▶ (−1)</SecondaryButton>
-          {config.letterBlanks ? (
-            <SecondaryButton onClick={revealLetter} disabled={hintsLeft <= 0 || pickRevealIndex(round.answer, revealed) < 0}>
-              🔤 Letter ({hintsLeft}) −1
-            </SecondaryButton>
-          ) : (
-            <SecondaryButton onClick={lose}>🏳️ Give up</SecondaryButton>
-          )}
+          <SecondaryButton onClick={lose}>🏳️ Give up</SecondaryButton>
         </div>
-        {config.letterBlanks && (
-          <button type="button" onClick={lose} className="w-full mt-3 text-sm font-bold text-gray-500 underline min-h-[40px]">
-            Give up and see the word
-          </button>
-        )}
       </div>
     );
   }

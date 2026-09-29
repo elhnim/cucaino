@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import { extractJsonObject } from "./json";
 import {
   validateClueRound,
-  validateLieMove,
   validateStoryEnd,
   validateStoryStart,
   validateStumpMove,
-  validateWyrPack,
 } from "./validate";
 
 const clues = [
@@ -50,19 +48,6 @@ describe("validateStoryEnd", () => {
   });
 });
 
-describe("validateWyrPack", () => {
-  const round = (a: string, b: string) => ({ a, b, emoji_a: "🦖", emoji_b: "🚀", for_a: "A rocks", for_b: "B rocks" });
-  it("keeps valid distinct rounds", () => {
-    const r = validateWyrPack({ rounds: [round("x", "y"), round("p", "q"), round("x", "y"), round("m", "n")] });
-    expect(r).toHaveLength(3);
-    expect(r?.[0]).toMatchObject({ a: "x", b: "y", forA: "A rocks", forB: "B rocks", emojiA: "🦖" });
-  });
-  it("drops rounds with no arguments and needs a minimum", () => {
-    expect(validateWyrPack({ rounds: [round("x", "y"), { a: "p", b: "q" }] })).toBeNull();
-    expect(validateWyrPack({ rounds: "nope" })).toBeNull();
-  });
-});
-
 describe("validateClueRound", () => {
   it("accepts a good round", () => {
     const r = validateClueRound({ answer: "penguin", aliases: ["emperor penguin", "Penguin"], emoji: "🐧", clues, fun_fact: "They propose with pebbles!" });
@@ -75,12 +60,6 @@ describe("validateClueRound", () => {
   });
   it("rejects too few clues", () => {
     expect(validateClueRound({ answer: "penguin", clues: clues.slice(0, 3) })).toBeNull();
-  });
-  it("word mode needs a single word", () => {
-    const five = ["a", "b", "c", "d", "e"];
-    expect(validateClueRound({ word: "telescope", clues: five }, { singleWord: true })?.answer).toBe("telescope");
-    expect(validateClueRound({ word: "ice cream", clues: five }, { singleWord: true })).toBeNull();
-    expect(validateClueRound({ word: "x1", clues: five }, { singleWord: true })).toBeNull();
   });
 });
 
@@ -102,25 +81,5 @@ describe("validateStumpMove", () => {
   it("rejects bad types and prose", () => {
     expect(validateStumpMove({ type: "chat", text: "hi" }, false)).toBeNull();
     expect(validateStumpMove(extractJsonObject("I think it's a cat"), false)).toBeNull();
-  });
-});
-
-describe("validateLieMove", () => {
-  it("coerces the accused statement", () => {
-    expect(validateLieMove({ type: "guess", guess: "2", text: "J'accuse!", reason: "Too perfect" }, false)).toEqual({
-      type: "guess",
-      guess: 2,
-      text: "J'accuse!",
-      reason: "Too perfect",
-    });
-    expect(validateLieMove({ type: "guess", guessedStatement: 3, content: "Statement 3!" }, false)?.guess).toBe(3);
-  });
-  it("rejects guesses without a valid statement", () => {
-    expect(validateLieMove({ type: "guess", guess: 7, text: "x" }, false)).toBeNull();
-  });
-  it("enforces must-guess and must-ask", () => {
-    expect(validateLieMove({ type: "question", text: "What colour?" }, true)).toBeNull();
-    expect(validateLieMove({ type: "guess", guess: 1, text: "x" }, false, true)).toBeNull();
-    expect(validateLieMove({ type: "question", text: "What colour?" }, false, true)?.type).toBe("question");
   });
 });

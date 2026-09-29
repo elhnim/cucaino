@@ -1,143 +1,59 @@
 "use server";
 
+// AI Arcade server actions: every call is auth-gated (the caller's own-family kid) and paid
+// in sparks (checked BEFORE the AI call, charged only AFTER it succeeded). The AI steps
+// themselves live in lib/arcade/engine.ts, shared with the play-test endpoint.
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { ArcadeFail, MSG } from "@/lib/arcade/ai";
 import {
-  freshSeed,
-  pick,
-  sample,
-  STORY_GENRES,
-  STUMP_OPENERS,
-  WHATAMI_FLAVORS,
-  WORD_THEMES,
-  WYR_TOPICS,
-} from "@/lib/arcade/variety";
-import { extractJsonObject, sanitizeKidText } from "@/lib/arcade/json";
+  cleanStumpTurns,
+  runDoodleLook,
+  runMysteryAsk,
+  runMysteryNew,
+  runMysteryReveal,
+  runStoryEnd,
+  runStoryStart,
+  runStump,
+  runWhatAmI,
+} from "@/lib/arcade/engine";
+import { sanitizeKidText } from "@/lib/arcade/json";
+import { arcadeSecret, markUsedOnce, openToken, releaseUsed, sealToken } from "@/lib/arcade/token";
+import type { ClueRound, StoryEnd, StoryStart, StumpMove } from "@/lib/arcade/validate";
+import type { StumpTurn } from "@/lib/arcade/rules";
 import {
-  KID_SAFE_SYSTEM,
-  liePrompt,
-  storyEndPrompt,
-  storyStartPrompt,
-  stumpPrompt,
-  whatAmIPrompt,
-  wordDetectivePrompt,
-  wyrPackPrompt,
-} from "@/lib/arcade/prompts";
-import { LIE_MAX_QUESTIONS, stumpProgress, WYR_ROUNDS, type StumpAnswer, type StumpTurn } from "@/lib/arcade/rules";
+  coerceDifficulty,
+  DOODLE_MAX_CALLS_PER_WORD,
+  DOODLE_SPARK_COST,
+  DOODLE_WORDS_PER_ROUND,
+  findDoodleMatch,
+  findDoodleWord,
+  pickDoodleRound,
+  type DoodleDifficulty,
+} from "@/lib/arcade/doodle";
 import {
-  validateClueRound,
-  validateLieMove,
-  validateStoryEnd,
-  validateStoryStart,
-  validateStumpMove,
-  validateWyrPack,
-  type ClueRound,
-  type LieMove,
-  type StoryEnd,
-  type StoryStart,
-  type StumpMove,
-  type WyrRound,
-} from "@/lib/arcade/validate";
+  applyAsk,
+  applySearch,
+  canAsk,
+  checkAccusation,
+  coerceMysteryDifficulty,
+  foundClues,
+  MYSTERY_SPARK_COST,
+  newMysteryState,
+  publicCase,
+  type Clue,
+  type FoundClue,
+  type MysteryState,
+  type PublicCase,
+  type Reveal,
+  type Suspect,
+  type SuspectReply,
+} from "@/lib/arcade/mystery";
 
 export type ArcadeResult<T = undefined> =
   | { ok: true; data: T; /** the kid's sparks after this call, when it changed */ sparks?: number }
   | { ok: false; error: string };
-
-// ---------------------------------------------------------------------------
-// Models
-// Haiku 4.5 for the one-shot generators (fast, cheap, plenty for stories/clues).
-// Sonnet 5 for the two reasoning games — 20 Questions needs real deduction over a long
-// yes/no history (Haiku repeats questions and guesses wildly), and the Lie Detector has to
-// weigh a kid's answers. Their replies are tiny, so the extra latency is ~1-2s a turn.
-// If the Sonnet id is ever unavailable we fall back to Haiku instead of breaking the game.
-// ---------------------------------------------------------------------------
-const MODEL_FAST = "claude-haiku-4-5-20251001";
-const MODEL_SMART = "claude-sonnet-5";
-
-/** Netlify's server handler is killed at 26s (netlify.toml) — stay well inside it. */
-const TOTAL_BUDGET_MS = 21_000;
-
-const MSG = {
-  noKey: "The AI Arcade is having a nap 😴 A grown-up needs to switch it on (it needs an AI key). No sparks were used.",
-  busy: "The AI is super busy right now 🐝 Try again in a moment — no sparks were used.",
-  slow: "The AI took too long to think 🐢 Try again — no sparks were used.",
-  bad: "The AI got its words in a muddle 🤪 Try again — no sparks were used.",
-  generic: "Something went wobbly 🙈 Try again — no sparks were used.",
-  offline: "Can't reach the AI — check the internet and try again. No sparks were used.",
-} as const;
-
-class ArcadeFail extends Error {
-  constructor(public kidMessage: string, detail?: string) {
-    super(detail ?? kidMessage);
-  }
-}
-
-/**
- * One robust model call: strict-JSON prompt, defensive parse, validation, one retry on a
- * bad/transient reply, model fallback, hard time budget. Throws ArcadeFail with a
- * kid-friendly message.
- */
-async function callJSON<T>(opts: {
-  tag: string;
-  models: readonly string[];
-  prompt: string;
-  maxTokens: number;
-  validate: (json: Record<string, unknown> | null) => T | null;
-}): Promise<T> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new ArcadeFail(MSG.noKey, "ANTHROPIC_API_KEY is not set");
-
-  const client = new Anthropic({ apiKey, maxRetries: 0 });
-  const deadline = Date.now() + TOTAL_BUDGET_MS;
-  let modelIdx = 0;
-  let tries = 0;
-  let lastFail: string = MSG.generic;
-
-  while (tries < 2 && modelIdx < opts.models.length) {
-    const remaining = deadline - Date.now();
-    if (remaining < 2_500) break;
-    const model = opts.models[modelIdx];
-    try {
-      const msg = await client.messages.create(
-        {
-          model,
-          max_tokens: opts.maxTokens,
-          system: KID_SAFE_SYSTEM,
-          messages: [{ role: "user", content: opts.prompt }],
-        },
-        { timeout: remaining },
-      );
-      const text = msg.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-      const value = opts.validate(extractJsonObject(text));
-      if (value !== null) return value;
-      console.warn(`[arcade:${opts.tag}] unusable output from ${model} (stop=${msg.stop_reason})`);
-      lastFail = MSG.bad;
-      tries++;
-    } catch (err) {
-      const canFallBack = modelIdx < opts.models.length - 1;
-      if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
-        console.error(`[arcade:${opts.tag}] API key rejected (${err.status})`);
-        throw new ArcadeFail(MSG.noKey, "API key rejected");
-      }
-      if ((err instanceof Anthropic.NotFoundError || err instanceof Anthropic.BadRequestError) && canFallBack) {
-        console.warn(`[arcade:${opts.tag}] ${model} rejected (${err.status}); falling back`);
-        modelIdx++;
-        continue;
-      }
-      if (err instanceof Anthropic.APIConnectionTimeoutError) lastFail = MSG.slow;
-      else if (err instanceof Anthropic.APIConnectionError) lastFail = MSG.offline;
-      else if (err instanceof Anthropic.RateLimitError || err instanceof Anthropic.InternalServerError) lastFail = MSG.busy;
-      else {
-        console.error(`[arcade:${opts.tag}]`, err instanceof Error ? err.message : err);
-        throw new ArcadeFail(MSG.generic);
-      }
-      console.warn(`[arcade:${opts.tag}] transient error on ${model}:`, err instanceof Error ? err.message : err);
-      tries++;
-    }
-  }
-  throw new ArcadeFail(lastFail);
-}
 
 function fail(err: unknown): { ok: false; error: string } {
   if (err instanceof ArcadeFail) return { ok: false, error: err.kidMessage };
@@ -255,11 +171,10 @@ export async function convertStarsToSparks(
 // spendSparks / awardArcadeStars were removed: nothing called them, and as exported server
 // actions they let any client spend sparks or mint unlimited stars for any readable kid id.
 
+
 // ---------------------------------------------------------------------------
 // Emoji Story — choose-your-path. Part 1 costs 1 spark; the ending is free.
 // ---------------------------------------------------------------------------
-
-const EMOJI_MAX = 5;
 
 export async function generateEmojiStory(
   emojis: string[],
@@ -268,16 +183,7 @@ export async function generateEmojiStory(
 ): Promise<ArcadeResult<StoryStart>> {
   try {
     const id = await requireSparks(kidId, 1);
-    const list = (Array.isArray(emojis) ? emojis : []).map((e) => sanitizeKidText(e, 8)).filter(Boolean).slice(0, EMOJI_MAX);
-    if (list.length < 3) return { ok: false, error: "Pick at least 3 emojis first!" };
-    const style = sanitizeKidText(opts?.style, 40) || pick(STORY_GENRES);
-    const data = await callJSON({
-      tag: "story-start",
-      models: [MODEL_FAST],
-      prompt: storyStartPrompt({ emojis: list, style, hero: sanitizeKidText(opts?.hero, 24), seed: freshSeed() }),
-      maxTokens: 900,
-      validate: validateStoryStart,
-    });
+    const data = await runStoryStart({ emojis, style: opts?.style, hero: opts?.hero });
     const sparks = await chargeSparks(id, 1);
     return { ok: true, data, sparks };
   } catch (err) {
@@ -296,50 +202,8 @@ export async function continueEmojiStory(input: {
   try {
     // free, but only for a signed-in family's own kid (stops anonymous API-cost abuse)
     await requireSparks(input?.kidId, 0);
-    const data = await callJSON({
-      tag: "story-end",
-      models: [MODEL_FAST],
-      prompt: storyEndPrompt({
-        emojis: (input.emojis ?? []).map((e) => sanitizeKidText(e, 8)).slice(0, EMOJI_MAX),
-        title: sanitizeKidText(input.title, 80),
-        story: (input.paragraphs ?? []).map((p) => sanitizeKidText(p, 700)).slice(0, 4),
-        choice: sanitizeKidText(input.choice, 140),
-        hero: sanitizeKidText(input.hero, 24),
-      }),
-      maxTokens: 700,
-      validate: validateStoryEnd,
-    });
+    const data = await runStoryEnd(input);
     return { ok: true, data };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Would You Rather — one call makes a whole 5-round pack (2 sparks), including the AI's
-// counter-arguments, so rounds flow instantly with no waiting between them.
-// ---------------------------------------------------------------------------
-
-export async function generateWouldYouRather(
-  kidId: string | null,
-  avoid?: string[],
-): Promise<ArcadeResult<{ rounds: WyrRound[] }>> {
-  try {
-    const id = await requireSparks(kidId, 2);
-    const rounds = await callJSON({
-      tag: "wyr",
-      models: [MODEL_FAST],
-      prompt: wyrPackPrompt({
-        topics: sample(WYR_TOPICS, 4),
-        seed: freshSeed(),
-        avoid: (avoid ?? []).map((a) => sanitizeKidText(a, 80)).filter(Boolean),
-        rounds: WYR_ROUNDS,
-      }),
-      maxTokens: 1600,
-      validate: (j) => validateWyrPack(j, 3),
-    });
-    const sparks = await chargeSparks(id, 2);
-    return { ok: true, data: { rounds: rounds.slice(0, WYR_ROUNDS) }, sparks };
   } catch (err) {
     return fail(err);
   }
@@ -349,60 +213,16 @@ export async function generateWouldYouRather(
 // What Am I? — 1 spark
 // ---------------------------------------------------------------------------
 
-const WHATAMI_CATEGORIES = ["animal", "food", "place", "vehicle"] as const;
-
 export async function generateWhatAmI(
   category: string,
   kidId: string | null,
   avoid?: string[],
 ): Promise<ArcadeResult<ClueRound>> {
   try {
-    const cat = (WHATAMI_CATEGORIES as readonly string[]).includes(category) ? category : "animal";
     const id = await requireSparks(kidId, 1);
-    const flavors = WHATAMI_FLAVORS[cat] ?? [];
-    const data = await callJSON({
-      tag: "whatami",
-      models: [MODEL_FAST],
-      prompt: whatAmIPrompt({
-        category: cat,
-        flavor: flavors.length ? pick(flavors) : "",
-        seed: freshSeed(),
-        avoid: (avoid ?? []).map((a) => sanitizeKidText(a, 40)).filter(Boolean),
-      }),
-      maxTokens: 700,
-      validate: (j) => validateClueRound(j),
-    });
+    const data = await runWhatAmI(category, avoid);
     const sparks = await chargeSparks(id, 1);
     return { ok: true, data, sparks };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Word Detective — 1 spark
-// ---------------------------------------------------------------------------
-
-export async function generateWordDetective(
-  kidId: string | null,
-  avoid?: string[],
-): Promise<ArcadeResult<ClueRound & { theme: string }>> {
-  try {
-    const id = await requireSparks(kidId, 1);
-    const theme = pick(WORD_THEMES);
-    const data = await callJSON({
-      tag: "word",
-      models: [MODEL_FAST],
-      prompt: wordDetectivePrompt({
-        theme,
-        seed: freshSeed(),
-        avoid: (avoid ?? []).map((a) => sanitizeKidText(a, 40)).filter(Boolean),
-      }),
-      maxTokens: 700,
-      validate: (j) => validateClueRound(j, { singleWord: true }),
-    });
-    const sparks = await chargeSparks(id, 1);
-    return { ok: true, data: { ...data, answer: data.answer.toLowerCase(), theme }, sparks };
   } catch (err) {
     return fail(err);
   }
@@ -412,38 +232,16 @@ export async function generateWordDetective(
 // Stump The AI — 20 questions, up to 3 guesses. 3 sparks, charged on the first turn.
 // ---------------------------------------------------------------------------
 
-const STUMP_ANSWERS: readonly StumpAnswer[] = ["Yes", "No", "Sometimes", "Not sure"];
-const STUMP_CATEGORIES =["Animals", "Foods", "Household Items", "Sports & Hobbies", "Cartoon & Story Characters", "Anything!"] as const;
-
 export async function askStumpQuestion(
   category: string,
   turns: StumpTurn[],
   kidId?: string | null,
 ): Promise<ArcadeResult<StumpMove>> {
   try {
-    const cat = (STUMP_CATEGORIES as readonly string[]).includes(category) ? category : "Anything!";
-    const history: StumpTurn[] = (Array.isArray(turns) ? turns : []).slice(0, 25).map((t) => ({
-      kind: t?.kind === "guess" ? "guess" : "question",
-      text: sanitizeKidText(t?.text, 160),
-      answer: STUMP_ANSWERS.includes(t?.answer) ? t.answer : "Not sure",
-    }));
-    const isFirstTurn = history.length === 0;
-    const progress = stumpProgress(history);
-    if (progress.kidWon) return { ok: false, error: "This game is already over — start a new one!" };
+    const isFirstTurn = cleanStumpTurns(turns).length === 0;
     // follow-up turns are free but still need a signed-in family's own kid
     const id = await requireSparks(kidId, isFirstTurn ? 3 : 0);
-    const data = await callJSON({
-      tag: "stump",
-      models: [MODEL_SMART, MODEL_FAST],
-      prompt: stumpPrompt({
-        category: cat === "Anything!" ? "anything a kid would know (an animal, object, food, place or character)" : cat,
-        turns: history,
-        opener: isFirstTurn ? pick(STUMP_OPENERS) : "",
-        mustGuess: progress.mustGuess,
-      }),
-      maxTokens: 300,
-      validate: (j) => validateStumpMove(j, progress.mustGuess),
-    });
+    const data = await runStump(category, turns);
     const sparks = isFirstTurn ? await chargeSparks(id, 3) : undefined;
     return { ok: true, data, sparks };
   } catch (err) {
@@ -452,32 +250,242 @@ export async function askStumpQuestion(
 }
 
 // ---------------------------------------------------------------------------
-// AI Lie Detector — up to 3 questions, then an accusation. 2 sparks, charged on the first turn.
+// Sealed game state (Doodle Guess + Mystery Detective)
 // ---------------------------------------------------------------------------
 
-export async function askLieDetectorQuestion(
-  statements: [string, string, string],
-  qa: { q: string; a: string }[],
-  kidId?: string | null,
-): Promise<ArcadeResult<LieMove>> {
+const SETUP_MSG = "This game needs a grown-up to finish setting it up (a server secret is missing). No sparks were used.";
+
+function secretOrFail(): string {
+  const secret = arcadeSecret();
+  if (!secret) throw new ArcadeFail(SETUP_MSG, "no ARCADE_SECRET / fallback secret");
+  return secret;
+}
+
+function newId(): string {
+  return randomBytes(9).toString("base64url");
+}
+
+// ---------------------------------------------------------------------------
+// Doodle Guess — rounds of 5 words. 2 sparks per round, charged after the AI's first look.
+// The AI may look at most DOODLE_MAX_CALLS_PER_WORD times per word (counted in the token).
+// ---------------------------------------------------------------------------
+
+const DOODLE_TTL_MS = 30 * 60 * 1000;
+
+interface DoodleRoundState {
+  id: string;
+  kid: string;
+  words: string[];
+  calls: number[];
+  charged: boolean;
+}
+
+export interface DoodleRoundStart {
+  token: string;
+  difficulty: DoodleDifficulty;
+  words: { word: string; emoji: string }[];
+}
+
+export interface DoodleLookResult {
+  token: string;
+  guesses: string[];
+  line: string;
+  /** index into `guesses` of the one that named the word, or -1 */
+  matchIndex: number;
+  looksLeft: number;
+}
+
+/** Deal a new round (no AI call yet, so nothing is charged here). */
+export async function startDoodleRound(
+  kidId: string | null,
+  difficulty: string,
+  avoid?: string[],
+): Promise<ArcadeResult<DoodleRoundStart>> {
   try {
-    const stmts = (Array.isArray(statements) ? statements : []).map((s) => sanitizeKidText(s, 120));
-    if (stmts.length !== 3 || stmts.some((s) => s.length < 3)) {
-      return { ok: false, error: "Write all 3 statements first!" };
+    const secret = secretOrFail();
+    const id = await requireSparks(kidId, DOODLE_SPARK_COST);
+    const d = coerceDifficulty(difficulty);
+    const words = pickDoodleRound(d, (Array.isArray(avoid) ? avoid : []).map((a) => sanitizeKidText(a, 40)).slice(0, 40));
+    const state: DoodleRoundState = { id: newId(), kid: id, words: words.map((w) => w.word), calls: words.map(() => 0), charged: false };
+    return {
+      ok: true,
+      data: { token: sealToken(state, secret, "doodle", DOODLE_TTL_MS), difficulty: d, words: words.map((w) => ({ word: w.word, emoji: w.emoji })) },
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** One live AI look at the drawing for word `wordIndex`. */
+export async function lookAtDoodle(input: {
+  kidId: string | null;
+  token: string;
+  wordIndex: number;
+  imageBase64: string;
+  previous?: string[];
+  final?: boolean;
+}): Promise<ArcadeResult<DoodleLookResult>> {
+  let guard: string | null = null;
+  try {
+    const secret = secretOrFail();
+    const state = openToken<DoodleRoundState>(input?.token, secret, "doodle");
+    if (!state) throw new ArcadeFail("This round has expired — start a new one!");
+    const wi = Number(input.wordIndex);
+    if (!Number.isInteger(wi) || wi < 0 || wi >= Math.min(state.words.length, DOODLE_WORDS_PER_ROUND)) throw new ArcadeFail("That word isn't in this round.");
+    const used = state.calls[wi] ?? 0;
+    if (used >= DOODLE_MAX_CALLS_PER_WORD) throw new ArcadeFail("The AI has had all its looks at this one — on to the next word!");
+    const id = await requireSparks(input.kidId, state.charged ? 0 : DOODLE_SPARK_COST);
+    if (id !== state.kid) throw new ArcadeFail("This round belongs to another player.");
+    guard = `doodle:${state.id}:${wi}:${used}`;
+    if (!markUsedOnce(guard)) {
+      guard = null;
+      throw new ArcadeFail("The AI is already looking — hang on a sec!");
     }
-    const history = (Array.isArray(qa) ? qa : []).slice(0, LIE_MAX_QUESTIONS).map((x) => ({ q: sanitizeKidText(x?.q, 240), a: sanitizeKidText(x?.a, 200) }));
-    const isFirstTurn = history.length === 0;
-    const mustGuess = history.length >= LIE_MAX_QUESTIONS;
-    const id = await requireSparks(kidId, isFirstTurn ? 2 : 0);
-    const data = await callJSON({
-      tag: "lie",
-      models: [MODEL_SMART, MODEL_FAST],
-      prompt: liePrompt({ statements: stmts, qa: history, mustGuess }),
-      maxTokens: 350,
-      validate: (j) => validateLieMove(j, mustGuess, history.length < 2),
-    });
-    const sparks = isFirstTurn ? await chargeSparks(id, 2) : undefined;
-    return { ok: true, data, sparks };
+    const target = findDoodleWord(state.words[wi]);
+    if (!target) throw new ArcadeFail("That word isn't in this round.");
+    const look = await runDoodleLook({ imageBase64: input.imageBase64, previous: input.previous, final: input.final === true, look: used + 1 });
+    const sparks = state.charged ? undefined : await chargeSparks(id, DOODLE_SPARK_COST);
+    const next: DoodleRoundState = { ...state, charged: true, calls: state.calls.map((c, i) => (i === wi ? c + 1 : c)) };
+    return {
+      ok: true,
+      data: {
+        token: sealToken(next, secret, "doodle", DOODLE_TTL_MS),
+        guesses: look.guesses,
+        line: look.line,
+        matchIndex: findDoodleMatch(look.guesses, target),
+        looksLeft: DOODLE_MAX_CALLS_PER_WORD - (used + 1),
+      },
+      sparks,
+    };
+  } catch (err) {
+    if (guard) releaseUsed(guard);
+    return fail(err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mystery Detective — 3 sparks per case (charged once the case is written). Searching,
+// questioning and accusing are free but limited by detective energy (in the sealed token).
+// ---------------------------------------------------------------------------
+
+const MYSTERY_TTL_MS = 3 * 60 * 60 * 1000;
+
+export interface MysteryView {
+  token: string;
+  questionsLeft: number;
+  searchesLeft: number;
+}
+
+export interface MysteryStart extends MysteryView {
+  case: PublicCase;
+}
+
+export interface MysteryAccuseResult {
+  correct: boolean;
+  culprit: Suspect;
+  accused: Suspect;
+  motive: string;
+  reveal: Reveal;
+  /** every clue, now with which suspect it pointed at */
+  clues: (Clue & { found: boolean })[];
+}
+
+function sealMystery(state: MysteryState, secret: string): MysteryView {
+  return { token: sealToken(state, secret, "mystery", MYSTERY_TTL_MS), questionsLeft: state.questionsLeft, searchesLeft: state.searchesLeft };
+}
+
+/** Open the case token for this kid, or throw a kid-friendly error. */
+async function openMystery(kidId: string | null | undefined, token: string): Promise<{ state: MysteryState; secret: string }> {
+  const secret = secretOrFail();
+  const state = openToken<MysteryState>(token, secret, "mystery");
+  if (!state) throw new ArcadeFail("This case file has gone missing (it expired) — start a new case!");
+  const id = await requireSparks(kidId, 0);
+  if (id !== state.kid) throw new ArcadeFail("This case belongs to another detective.");
+  return { state, secret };
+}
+
+export async function startMystery(kidId: string | null, difficulty: string): Promise<ArcadeResult<MysteryStart>> {
+  try {
+    const secret = secretOrFail();
+    const id = await requireSparks(kidId, MYSTERY_SPARK_COST);
+    const caseFile = await runMysteryNew(coerceMysteryDifficulty(difficulty));
+    const state = newMysteryState(newId(), id, caseFile);
+    const sparks = await chargeSparks(id, MYSTERY_SPARK_COST);
+    return { ok: true, data: { ...sealMystery(state, secret), case: publicCase(caseFile) }, sparks };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function searchMystery(kidId: string | null, token: string, locationId: string): Promise<ArcadeResult<MysteryView & { clue: FoundClue }>> {
+  try {
+    const { state, secret } = await openMystery(kidId, token);
+    const res = applySearch(state, String(locationId ?? ""));
+    if (!res.ok) throw new ArcadeFail(res.error);
+    // a search that spends energy advances the step; share the ask guard's key so an old
+    // case token can't be replayed to search more places than the limit allows
+    if (res.state.step !== state.step && !markUsedOnce(`mystery:${state.id}:${state.step}`)) {
+      throw new ArcadeFail("That case file is out of date — use your latest one.");
+    }
+    return { ok: true, data: { ...sealMystery(res.state, secret), clue: res.value } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function askMystery(
+  kidId: string | null,
+  token: string,
+  suspectId: string,
+  question: string,
+): Promise<ArcadeResult<MysteryView & { reply: SuspectReply; suspectId: string; question: string }>> {
+  let guard: string | null = null;
+  try {
+    const { state, secret } = await openMystery(kidId, token);
+    const check = canAsk(state, String(suspectId ?? ""));
+    if (!check.ok) throw new ArcadeFail(check.error);
+    guard = `mystery:${state.id}:${state.step}`;
+    if (!markUsedOnce(guard)) {
+      guard = null;
+      throw new ArcadeFail("That question was already asked — use your latest case file.");
+    }
+    const q = sanitizeKidText(question, 160);
+    const reply = await runMysteryAsk({ caseFile: state.caseFile, suspectId, question: q, log: state.log });
+    const next = applyAsk(state, { suspectId, question: q, answer: reply.answer, note: reply.note });
+    return { ok: true, data: { ...sealMystery(next, secret), reply, suspectId, question: q } };
+  } catch (err) {
+    if (guard) releaseUsed(guard);
+    return fail(err);
+  }
+}
+
+export async function accuseMystery(
+  kidId: string | null,
+  token: string,
+  suspectId: string,
+  reason: string,
+): Promise<ArcadeResult<MysteryAccuseResult>> {
+  try {
+    const { state } = await openMystery(kidId, token);
+    if (state.done) throw new ArcadeFail("This case is closed — start a new one!");
+    const c = state.caseFile;
+    const accused = c.suspects.find((s) => s.id === suspectId);
+    if (!accused) throw new ArcadeFail("Pick who you think did it!");
+    if (!markUsedOnce(`mystery:${state.id}:accuse`)) throw new ArcadeFail("You've already made your accusation on this case!");
+    const correct = checkAccusation(c, accused.id);
+    const found = foundClues(state).map((f) => `${f.title}: ${f.text}`);
+    const reveal = await runMysteryReveal({ caseFile: c, accusedId: accused.id, correct, reason, found });
+    return {
+      ok: true,
+      data: {
+        correct,
+        accused,
+        culprit: c.suspects.find((s) => s.id === c.culpritId)!,
+        motive: c.motive,
+        reveal,
+        clues: c.clues.map((cl) => ({ ...cl, found: state.searched.includes(cl.location) })),
+      },
+    };
   } catch (err) {
     return fail(err);
   }

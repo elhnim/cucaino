@@ -36,16 +36,6 @@ export function avoidNote(avoid?: string[]): string {
 
 // ---- Topic / theme pools -------------------------------------------------
 
-export const WYR_TOPICS = [
-  "talking animals", "outer space", "candy and desserts", "superpowers", "dinosaurs",
-  "the deep ocean", "magic and wizards", "sports and games", "wild weather", "teeny tiny things",
-  "gigantic things", "time travel", "silly food mash-ups", "unusual jobs", "robots and gadgets",
-  "jungle adventures", "winter and snow", "pirates and treasure", "music and dancing", "bugs and insects",
-  "fairy tales", "school days", "pets", "vehicles and machines", "invisible powers",
-  "swapping bodies with an animal", "living in a treehouse", "having a pet dragon", "shrinking and growing",
-  "everything made of jelly", "talking food", "endless summer", "a world of slides",
-] as const;
-
 export const WHATAMI_FLAVORS: Record<string, readonly string[]> = {
   animal: ["a creature from the ocean", "something that flies", "a minibeast or insect", "a rainforest animal",
     "a desert dweller", "a polar animal", "a reptile or amphibian", "a nocturnal animal", "a farm animal",
@@ -59,13 +49,6 @@ export const WHATAMI_FLAVORS: Record<string, readonly string[]> = {
     "a vehicle from the past", "an emergency vehicle", "something with two wheels", "a space vehicle",
     "a vehicle that carries lots of people", "an unusual way to travel"],
 };
-
-export const WORD_THEMES = [
-  "nature and weather", "space and the stars", "animals and creatures", "the ocean and sea life",
-  "science and inventions", "music and art", "sports and movement", "food and cooking",
-  "buildings and places", "feelings and ideas", "fairy tales and magic", "the human body",
-  "tools and machines", "travel and adventure", "colours and shapes", "plants and gardens",
-] as const;
 
 export const STORY_GENRES = [
   "a silly adventure", "a gentle bedtime tale", "a mystery to solve", "a superhero story",
@@ -89,6 +72,34 @@ export const STUMP_OPENERS = [
   "whether it is a living thing", "its size", "where it is usually found", "whether people use it every day",
   "whether it can move on its own", "what colour it usually is", "whether it is found indoors or outdoors",
   "whether a child would have seen one in real life",
+] as const;
+
+export const MYSTERY_PREMISES = [
+  "Who took the golden ticket from the Prize Shop?",
+  "Who swapped every sticker on the Quest Board?",
+  "Who nibbled the Friends Café's prize-winning cake?",
+  "Who hid the flag from hole 9 at Mini Golf?",
+  "Who painted the Pet Meadow sheep in rainbow stripes?",
+  "Who borrowed the Quiz Coaster's big book of answers?",
+  "Who let the glow-bugs out of their jar in Glow Forest?",
+  "Who took the Book Nook's rarest comic?",
+  "Who changed every high score in Arcade Alley to silly names?",
+  "Who took the park mascot's giant bow tie before the parade?",
+  "Who swapped the café's sugar for salt on Muffin Day?",
+  "Who hid the key to the Ferris wheel?",
+  "Who ate the pet rabbits' birthday carrots?",
+  "Who took the trophy for the Best Sandcastle contest?",
+  "Who switched the ride music to duck quacks?",
+  "Who hid all the left-footed mini golf shoes?",
+] as const;
+
+export const MYSTERY_CAST = [
+  "a nervous otter who runs the ticket booth", "a show-off peacock magician", "a sleepy sloth ride operator",
+  "a bossy flamingo café owner", "a forgetful elephant librarian", "a hyper squirrel mini golf champ",
+  "a grumpy but kind tortoise gardener", "a giggly penguin ice-cream seller", "a dramatic cat stage actor",
+  "a clumsy panda balloon maker", "a know-it-all owl quiz host", "a sneaky-looking but sweet raccoon cleaner",
+  "a chatty parrot tour guide", "a shy hedgehog baker", "a sporty kangaroo coach", "a robot who fixes rides",
+  "a pirate-mad goat who runs the gift stall", "a fox who collects shiny things", "a frog DJ", "a bear pastry chef",
 ] as const;
 
 // ---- Client-side recent-answer memory (localStorage) ---------------------

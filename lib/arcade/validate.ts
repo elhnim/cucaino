@@ -5,7 +5,7 @@
  */
 import { cleanEmoji, cleanStr, cleanStrArray } from "./json";
 import { leaksAnswer } from "./match";
-import { CLUE_COUNT, coerceStatement } from "./rules";
+import { CLUE_COUNT } from "./rules";
 
 type Json = Record<string, unknown>;
 
@@ -57,40 +57,7 @@ export function validateStoryEnd(j: Json | null): StoryEnd | null {
   return { paragraphs, moral };
 }
 
-// ---- Would You Rather -----------------------------------------------------
-
-export interface WyrRound {
-  a: string;
-  b: string;
-  emojiA: string;
-  emojiB: string;
-  /** the AI's case FOR option A (shown when the kid picks B) */
-  forA: string;
-  /** the AI's case FOR option B (shown when the kid picks A) */
-  forB: string;
-}
-
-export function validateWyrPack(j: Json | null, min = 3): WyrRound[] | null {
-  if (!j || !Array.isArray(j.rounds)) return null;
-  const seen = new Set<string>();
-  const rounds: WyrRound[] = [];
-  for (const r of j.rounds) {
-    if (!r || typeof r !== "object") continue;
-    const o = r as Json;
-    const a = cleanStr(o.a, 160);
-    const b = cleanStr(o.b, 160);
-    const forA = cleanStr(o.for_a ?? o.forA, 400);
-    const forB = cleanStr(o.for_b ?? o.forB, 400);
-    if (!a || !b || !forA || !forB || a.toLowerCase() === b.toLowerCase()) continue;
-    const key = `${a}|${b}`.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rounds.push({ a, b, forA, forB, emojiA: cleanEmoji(o.emoji_a ?? o.emojiA, "🅰️"), emojiB: cleanEmoji(o.emoji_b ?? o.emojiB, "🅱️") });
-  }
-  return rounds.length >= min ? rounds : null;
-}
-
-// ---- What Am I? / Word Detective -------------------------------------------
+// ---- What Am I? -------------------------------------------
 
 export interface ClueRound {
   answer: string;
@@ -102,16 +69,11 @@ export interface ClueRound {
   funFact: string;
 }
 
-/**
- * @param singleWord Word Detective needs one real word (letters only) so the letter
- *   blanks + letter hints work.
- */
-export function validateClueRound(j: Json | null, opts: { singleWord?: boolean } = {}): ClueRound | null {
+export function validateClueRound(j: Json | null): ClueRound | null {
   if (!j) return null;
   const answer = cleanStr(j.answer ?? j.word, 40);
   if (!answer) return null;
-  if (opts.singleWord && !/^[A-Za-z]{3,12}$/.test(answer)) return null;
-  if (!opts.singleWord && !/^[A-Za-z][A-Za-z '-]{1,38}$/.test(answer)) return null;
+  if (!/^[A-Za-z][A-Za-z '-]{1,38}$/.test(answer)) return null;
   const aliases = cleanStrArray(j.aliases, 40)
     .filter((a) => a.toLowerCase() !== answer.toLowerCase())
     .slice(0, 6);
@@ -156,32 +118,4 @@ export function validateStumpMove(j: Json | null, mustGuess: boolean): StumpMove
     text = `${text}?`;
   }
   return { type, text, reaction: cleanStr(j.reaction, 80) ?? "" };
-}
-
-// ---- AI Lie Detector ------------------------------------------------------
-
-export interface LieMove {
-  type: "question" | "guess";
-  /** follow-up question, or the dramatic accusation line */
-  text: string;
-  guess: 1 | 2 | 3 | null;
-  /** why the AI picked that one (shown on the reveal) */
-  reason: string;
-}
-
-/** @param mustAsk reject an early accusation (the caller sets this until 2 questions are answered) */
-export function validateLieMove(j: Json | null, mustGuess: boolean, mustAsk = false): LieMove | null {
-  if (!j) return null;
-  const type = j.type === "guess" ? "guess" : j.type === "question" ? "question" : null;
-  if (!type) return null;
-  if (mustGuess && type !== "guess") return null;
-  if (mustAsk && !mustGuess && type !== "question") return null;
-  const text = cleanStr(j.text ?? j.content, 240);
-  if (!text) return null;
-  if (type === "guess") {
-    const guess = coerceStatement(j.guess ?? j.guessedStatement ?? j.statement);
-    if (!guess) return null;
-    return { type, text, guess, reason: cleanStr(j.reason, 240) ?? "" };
-  }
-  return { type, text, guess: null, reason: "" };
 }

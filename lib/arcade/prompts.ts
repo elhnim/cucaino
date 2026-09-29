@@ -1,13 +1,14 @@
 /**
  * Prompts for the AI Arcade. Pure string builders (tested in prompts.test.ts).
  *
- * Multi-turn games (Stump The AI, Lie Detector) send the whole game so far as ONE user
+ * Multi-turn games (Stump The AI, Mystery Detective) send the whole game so far as ONE user
  * message instead of alternating assistant/user turns. The old code sent histories that
  * started with an assistant turn, which the Messages API rejects — so every second turn
  * failed. One self-contained message is also cheaper to keep consistent.
  */
 import { sanitizeKidText } from "./json";
-import { LIE_MAX_QUESTIONS, STUMP_MAX_GUESSES, STUMP_MAX_QUESTIONS, type StumpTurn } from "./rules";
+import { STUMP_MAX_GUESSES, STUMP_MAX_QUESTIONS, type StumpTurn } from "./rules";
+import { MYSTERY_LOCATIONS, MYSTERY_LEVELS, type CaseFile, type MysteryDifficulty, type Statement } from "./mystery";
 
 export const KID_SAFE_SYSTEM = `You run games in a kids' app for children aged 8 to 12.
 Rules you always follow:
@@ -47,19 +48,6 @@ JSON shape:
 {"paragraphs":["...","..."],"moral":"..."}`;
 }
 
-export function wyrPackPrompt(input: { topics: string[]; seed: string; avoid: string[]; rounds: number }): string {
-  const avoid = input.avoid.length ? `\nDo NOT reuse any of these recent dilemmas or close copies: ${input.avoid.slice(0, 20).join("; ")}.` : "";
-  return `Make a pack of ${input.rounds} "Would you rather" dilemmas for kids aged 8–12. Themes to draw from: ${input.topics.join(", ")}. (variety seed: ${input.seed})
-
-Rules:
-- Each option is a short, vivid, specific scenario (max 14 words). Both options in a pair must be equally tempting or equally ridiculous — a genuinely hard choice.
-- Mix it up: some funny, some "superpower" style, some tricky trade-offs. No gross-out, scary or mean options.
-- For each dilemma also write the AI's cheeky, persuasive 2-sentence case FOR each option, with a clever reason a kid wouldn't have thought of.${avoid}
-
-JSON shape:
-{"rounds":[{"a":"...","emoji_a":"🦖","b":"...","emoji_b":"🚀","for_a":"why A is secretly better","for_b":"why B is secretly better"}]}`;
-}
-
 export function whatAmIPrompt(input: { category: string; flavor: string; seed: string; avoid: string[] }): string {
   const avoid = input.avoid.length ? `\nDo NOT pick any of these (used recently): ${input.avoid.slice(0, 25).join(", ")}.` : "";
   return `Game: "What Am I?" riddle. Secretly pick one ${input.category} that most 8–12 year olds would know${input.flavor ? ` — lean towards ${input.flavor}` : ""}. Avoid the most obvious pick. (variety seed: ${input.seed})
@@ -73,21 +61,6 @@ Also give 1–4 aliases (other names or spellings we should accept), a matching 
 
 JSON shape:
 {"answer":"penguin","aliases":["emperor penguin"],"emoji":"🐧","clues":["...","...","...","...","..."],"fun_fact":"..."}`;
-}
-
-export function wordDetectivePrompt(input: { theme: string; seed: string; avoid: string[] }): string {
-  const avoid = input.avoid.length ? `\nDo NOT pick any of these (used recently): ${input.avoid.slice(0, 25).join(", ")}.` : "";
-  return `Game: "Word Detective". Secretly pick ONE real English word (a single word, letters only, 5–10 letters) connected to "${input.theme}" that an 8–12 year old knows. Not too easy: think "telescope", "avalanche", "compass", "volcano", "orchestra". (variety seed: ${input.seed})
-
-Write exactly 5 clues, from cryptic to obvious, like a detective's case notes:
-- Clue 1: a clever riddle or wordplay.
-- Clues 2–4: each adds a new, specific fact.
-- Clue 5: very obvious, but still never says the word.
-- NEVER use the word itself, part of it, or its plural in any clue.
-Also give 0–3 aliases (accepted spellings/synonyms), a matching emoji and one amazing true fun fact about it.${avoid}
-
-JSON shape:
-{"word":"telescope","aliases":[],"emoji":"🔭","clues":["...","...","...","...","..."],"fun_fact":"..."}`;
 }
 
 export function stumpPrompt(input: { category: string; turns: StumpTurn[]; opener: string; mustGuess: boolean }): string {
@@ -120,27 +93,110 @@ or
 {"type":"guess","guess":"a penguin","reaction":"I've got it, I think!"}`;
 }
 
-export function liePrompt(input: { statements: string[]; qa: { q: string; a: string }[]; mustGuess: boolean }): string {
-  const used = input.qa.length;
-  const log = input.qa.length
-    ? input.qa.map((x, i) => `Q${i + 1}: ${sanitizeKidText(x.q, 240)}\nChild: ${sanitizeKidText(x.a, 200)}`).join("\n")
-    : "(no questions yet)";
-  return `Game: "Two Truths and a Lie". A child wrote 3 statements about themselves. Exactly ONE is a lie. You are the AI Lie Detector.
-1. ${sanitizeKidText(input.statements[0])}
-2. ${sanitizeKidText(input.statements[1])}
-3. ${sanitizeKidText(input.statements[2])}
+// ---- Doodle Guess --------------------------------------------------------
 
-You may ask up to ${LIE_MAX_QUESTIONS} follow-up questions, then you must accuse one statement. Questions used: ${used}.
-Interview so far:
+export function doodlePrompt(input: { previous: string[]; final: boolean; look: number }): string {
+  const prev = input.previous.length
+    ? `\nYour guesses on the last look were: ${input.previous.slice(0, 8).map((g) => sanitizeKidText(g, 40)).join(", ")}. They were NOT right, and the child has kept drawing — look again with fresh eyes and don't just repeat them unless the drawing really still looks like that.`
+    : "";
+  return `Game: "Doodle Guess" (like Quick, Draw!). A child aged 8–12 is drawing ONE thing on a tablet right now and you must guess what it is from the picture alone. It may be unfinished, wobbly and very simple — they draw fast with a finger. It is something a kid could draw in a minute: an animal, a food, an everyday object, something at a theme park, something in nature, or a person doing an action (running, sleeping…).
+This is look number ${input.look}.${prev}${input.final ? "\nThe child pressed DONE — this is your final look, so give your very best guesses." : ""}
+
+Rules:
+- Give your 5 best guesses, most likely first. Each guess is a plain, common name, 1–3 words, lowercase ("turtle", "ice cream", "roller coaster") — never a description like "a round shape".
+- Look at the overall shape first, then the details (ears, legs, handles, windows, stripes). Colours are hints too.
+- If the picture is blank or just a line or two, still give your wildest best guesses.
+- Also write "line": ONE short, funny, encouraging thing you say out loud while guessing, like an excited game-show contestant thinking aloud (max 16 words), e.g. "Is it… a potato with legs? No wait — a TURTLE!" Never be mean about the drawing.
+
+JSON shape:
+{"guesses":["turtle","potato","rock","hamburger","beetle"],"line":"..."}`;
+}
+
+// ---- Mystery Detective ---------------------------------------------------
+
+const LEVEL_GUIDE: Record<MysteryDifficulty, string> = {
+  easy: "EASY (age 8): clues are clear and direct, and the culprit's lie is obvious once you find the clue that contradicts it.",
+  medium: "MEDIUM: the detective must link two clues together to be sure; one innocent has an odd-looking but harmless secret.",
+  hard: "HARD: clues are subtle, two innocents have suspicious-looking harmless secrets, and the culprit's lie is a small detail (a time, a colour, an item).",
+};
+
+export function mysteryCasePrompt(input: { difficulty: MysteryDifficulty; premise: string; cast: string[]; seed: string }): string {
+  const n = MYSTERY_LEVELS[input.difficulty].clues;
+  const places = MYSTERY_LOCATIONS.map((l) => `${l.id} (${l.name})`).join(", ");
+  return `Invent a brand-new whodunit for a kids' detective game set in Cucaino Park, a candy-coloured theme park with rides, a Pet Meadow, Mini Golf, a Friends Café, a Prize Shop and a Quest Board. (variety seed: ${input.seed})
+Mystery idea to build on (you may twist it): ${input.premise}
+Suspect inspiration (use, mix or replace): ${input.cast.join("; ")}.
+
+Tone: cartoon mischief only — something went missing, got swapped, hidden or pranked. Nobody is hurt, nothing scary, no real-crime words (no murder, kidnap, weapons, jail). The culprit has an understandable, even slightly sweet motive (wanted to surprise a friend, felt left out, got carried away) and everything is put right in the end.
+
+Suspects: exactly 4 funny park characters (animals or people who work or play in the park). Each has a distinct name (all first names start with different letters), one emoji, a one-line personality, an "alibi" (what they SAY they were doing), their real "truth" (what they actually did) and, for innocents, a harmless embarrassing "secret" they'd rather hide (it explains anything odd about them). Exactly ONE is the culprit; the culprit's alibi contains a specific "lie" that a clue contradicts.
+
+Clues: exactly ${n} clues, each hidden in a DIFFERENT place, using only these place ids: ${places}.
+- kind "implicates": evidence pointing at the culprit (a trait, an item, a habit, a time) — NEVER their name (describing their species, look or habits is fine and fair). At least 2 of these, and one must contradict the culprit's lie. Set "suspect" to the culprit's id.
+- kind "clears": proves one innocent suspect could not have done it (set "suspect" to that innocent's id). At least 1.
+- Every clue is concrete and fair, something a child can reason with ("Orange fur snagged on the ticket stand", "A café receipt shows Pip bought 3 muffins at 2pm — she was in the café the whole time").
+- ${LEVEL_GUIDE[input.difficulty]}
+- The case must be solvable from the clues plus questioning the suspects.
+
+"solution": 2–3 sentences explaining exactly how the clues prove who did it.
+
+JSON shape:
+{"title":"The Case of the ...","emoji":"🎟️","intro":"2–3 lively sentences setting the scene for the detective (the child), ending with a question like: who did it?","item":"golden ticket","crime_scene":"prize-shop","suspects":[{"id":"s1","name":"...","emoji":"🦦","personality":"...","alibi":"...","truth":"...","secret":"..."}],"culprit":"s2","motive":"...","lie":"...","clues":[{"location":"pet-meadow","title":"Sticky paw prints","text":"...","kind":"implicates","suspect":"s2"}],"solution":"..."}`;
+}
+
+function caseBrief(c: CaseFile): string {
+  const name = (id: string) => c.suspects.find((s) => s.id === id)?.name ?? id;
+  const culprit = c.suspects.find((s) => s.id === c.culpritId);
+  return `Case: ${c.title} — the ${c.item} went missing at the ${MYSTERY_LOCATIONS.find((l) => l.id === c.crimeScene)?.name ?? c.crimeScene}.
+Suspects: ${c.suspects.map((s) => `${s.name} ${s.emoji} (${s.personality}) says: "${s.alibi}"`).join(" | ")}
+SECRET SOLUTION: the culprit is ${culprit?.name ?? "unknown"}. Motive: ${c.motive} Their lie: ${c.lie} What really happened: ${c.solution}
+Planted clues: ${c.clues.map((cl) => `[${cl.location}] ${cl.title}: ${cl.text} (${cl.kind} ${name(cl.suspectId)})`).join(" | ")}`;
+}
+
+export function mysteryAskPrompt(input: { caseFile: CaseFile; suspectId: string; question: string; log: Statement[] }): string {
+  const c = input.caseFile;
+  const me = c.suspects.find((s) => s.id === input.suspectId) ?? c.suspects[0];
+  const t = c.truths[me.id] ?? { truth: me.alibi, secret: "" };
+  const isCulprit = me.id === c.culpritId;
+  const name = (id: string) => c.suspects.find((s) => s.id === id)?.name ?? id;
+  const log = input.log.length
+    ? input.log.map((s) => `Detective to ${name(s.suspectId)}: ${sanitizeKidText(s.question, 160)}\n${name(s.suspectId)}: ${sanitizeKidText(s.answer, 420)}`).join("\n")
+    : "(nothing yet)";
+  const role = isCulprit
+    ? `You ARE the culprit. NEVER confess or say you did it. Stick to your alibi and lie subtly — but keep the lie catchable: never invent new facts that contradict the planted clues, get a little flustered or change the subject when asked about this: ${c.lie} If the detective mentions evidence against you, give a weak, funny excuse.`
+    : `You are innocent. Tell the truth about what you really did. You may dodge questions about your harmless secret (${t.secret || "none"}) at first, but admit it sheepishly if asked directly. You can share honest opinions about the others, but never claim to know who did it.`;
+  return `You are role-playing ONE suspect in a kids' detective game. Stay in character the whole time and stay consistent with the secret solution and everything already said.
+${caseBrief(c)}
+
+YOU are ${me.name} ${me.emoji} — ${me.personality}. Your alibi (what you tell people): ${me.alibi} What you really did: ${t.truth}
+${role}
+
+Everything said in the interviews so far:
 ${log}
 
-How to play well:
-- Ask specific, detective-style follow-ups about the details (when, what it looked like, how it felt) — liars struggle with details. Spread your questions over different statements.
-- Keep questions short and fun (max 20 words). Never ask for personal details like their school, address or full name.
-- When accusing, be dramatic and fun, and explain your reasoning in one kid-friendly sentence.
-${input.mustGuess ? "- You have used all your questions: you MUST accuse one statement now.\n" : used < 2 ? "- Ask a question now — you need at least 2 answers before you accuse anyone.\n" : "- Accuse now if you are fairly sure, otherwise ask your last question.\n"}
-JSON shape — either
-{"type":"question","text":"Ooh, what colour was the snake?"}
-or
-{"type":"guess","guess":2,"text":"J'accuse! Statement 2 is the LIE!","reason":"You answered super fast but gave no details about the trip."}`;
+The detective now asks you: "${sanitizeKidText(input.question, 160)}"
+Reply in character: 1–3 short sentences, funny and full of personality, easy for a 9-year-old to read. Never reveal the secret solution or other suspects' truths. If the question is off-topic, silly or unkind, answer briefly in character and steer back to the case.
+Also give "mood" (one emoji showing how you feel) and "note": a neutral one-line summary of what you claimed, for the detective's notebook (max 15 words, third person, e.g. "Says she was feeding the ducks at 2pm.").
+
+JSON shape:
+{"answer":"...","mood":"😅","note":"..."}`;
+}
+
+export function mysteryRevealPrompt(input: { caseFile: CaseFile; accusedId: string; correct: boolean; reason: string; found: string[] }): string {
+  const c = input.caseFile;
+  const accused = c.suspects.find((s) => s.id === input.accusedId)?.name ?? "someone";
+  return `Write the big reveal for a kids' detective game.
+${caseBrief(c)}
+
+The detective (a child) accused ${accused} — they were ${input.correct ? "RIGHT" : "WRONG"}.
+Their reasoning: "${sanitizeKidText(input.reason, 240) || "(no reason given)"}"
+Clues they found: ${input.found.length ? input.found.map((f) => sanitizeKidText(f, 80)).join("; ") : "none"}.
+
+Write:
+- "headline": dramatic and fun, max 10 words.
+- "reveal": 2–3 short paragraphs — the culprit is unmasked (funny, never scary), how each clue fits, the motive, and a kind ending where everything is put right and the culprit says sorry.
+- "about_reason": one warm sentence about the child's reasoning — praise what was right; if they were wrong, gently point to the clue that would have cracked it.
+
+JSON shape:
+{"headline":"...","reveal":["...","..."],"about_reason":"..."}`;
 }
