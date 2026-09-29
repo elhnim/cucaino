@@ -510,6 +510,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           kidAnimal: chosen.id,
           petAnimal: data.pet ? parkAnimalForPet(data.pet.species) : null,
           themeId: data.kid.themeId,
+          accent: theme.accent,
           onPlace: (p) => placeRef.current(p),
           onLeavePlace: (id) => setAsk((a) => (a?.id === id ? null : a)),
           onBuildTap: (x, z) => buildTapRef.current(x, z),

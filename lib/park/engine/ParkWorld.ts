@@ -26,6 +26,7 @@ export type Ride = Interior & {
 };
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
+import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
 
 export type QualityTier = "standard" | "low";
 
@@ -41,6 +42,8 @@ export interface ParkWorldOptions {
   kidAnimal: AnimalId;
   petAnimal?: AnimalId | null;
   themeId?: string;
+  /** the kid's favourite colour: their chibi's scarf and backpack */
+  accent?: string;
   quality?: QualityTier;
   /** kid walked into / tapped a place */
   onPlace?: (place: PlaceDef) => void;
@@ -67,6 +70,11 @@ const MAX_DT = 1 / 20;
 interface Actor {
   root: THREE.Group;
   mixer: THREE.AnimationMixer | null;
+  /** hand-made chibi character (procedural animation) — used instead of the mixer when set */
+  rig?: ChibiRig;
+  /** chibi: where it was last frame (speed drives walk/run), and how long a one-shot action holds */
+  last?: THREE.Vector3;
+  hold?: number;
   actions: Map<string, THREE.AnimationAction>;
   current: string;
   facing: number;
@@ -117,6 +125,10 @@ export class ParkWorld {
   private petGrowth = 1;
   /** time until the next magic footstep sparkle (twilight only) */
   private stepSparkle = 0;
+  /** a soft warm light that follows the kid at twilight, so faces stay cute and readable */
+  private heroLight = new THREE.PointLight("#ffe2f6", 0, 9, 1.6);
+  /** after standing still a moment the kid turns to the camera and waves (once per stop) */
+  private waved = false;
   private clock = new THREE.Clock();
   private time = 0;
   private move = { x: 0, y: 0 };
@@ -312,7 +324,7 @@ export class ParkWorld {
     if (on) {
       this.petMode = "sleep";
       if (bed) this.pet.root.position.set(bed.x, 0.45, bed.z);
-      this.play(this.pet, "idle");
+      this.play(this.pet, this.pet.rig ? "sleep" : "idle");
       if (!this.petZzz) {
         this.petZzz = emojiSprite("💤", 1.2);
         this.scene.add(this.petZzz);
@@ -450,11 +462,12 @@ export class ParkWorld {
 
   /** Bring a (newly adopted) pet into the park, or change how it looks. */
   async setPetAnimal(id: AnimalId) {
-    const next = await this.makeActor(id, 1.25);
+    const next = await this.makeActor(id, 1.25, "pet");
     if (this.disposed) return;
     if (this.pet) {
       next.root.position.copy(this.pet.root.position);
       this.scene.remove(this.pet.root);
+      this.pet.rig?.dispose();
     } else if (this.kid) {
       next.root.position.copy(this.kid.root.position).add(new THREE.Vector3(1.8, 0, 1));
     }
@@ -467,12 +480,13 @@ export class ParkWorld {
 
   /** Swap the kid's animal live (dress-up). */
   async setKidAnimal(id: AnimalId) {
-    const next = await this.makeActor(id, 2.1);
+    const next = await this.makeActor(id, 2.1, "kid");
     if (this.disposed) return;
     if (this.kid) {
       next.root.position.copy(this.kid.root.position);
       next.facing = this.kid.facing;
       this.scene.remove(this.kid.root);
+      this.kid.rig?.dispose();
     }
     this.kid = next;
     this.scene.add(next.root);
@@ -486,8 +500,8 @@ export class ParkWorld {
       const [park, dream, kid, pet] = await Promise.all([
         buildPark(this.scene, this.assets, { hour: this.opts.hour, lowQuality: this.quality === "low" }),
         createDreamPark(this.scene, this.assets),
-        this.makeActor(this.opts.kidAnimal, 2.1),
-        this.opts.petAnimal ? this.makeActor(this.opts.petAnimal, 1.25) : Promise.resolve(null),
+        this.makeActor(this.opts.kidAnimal, 2.1, "kid"),
+        this.opts.petAnimal ? this.makeActor(this.opts.petAnimal, 1.25, "pet") : Promise.resolve(null),
       ]);
       if (this.disposed) return;
       this.park = park;
@@ -544,22 +558,53 @@ export class ParkWorld {
     }
   }
 
-  private async makeActor(id: AnimalId, height: number): Promise<Actor> {
-    const { root: model, clips } = await this.assets.spawnAnimal(id);
-    const box = new THREE.Box3().setFromObject(model);
-    const h = box.max.y - box.min.y || 1;
-    model.scale.setScalar(height / h);
+  private async makeActor(id: AnimalId, height: number, role: "kid" | "pet" | "visitor" = "visitor"): Promise<Actor> {
+    const rig = buildChibi(id, {
+      height,
+      role,
+      accent: role === "kid" ? (this.opts.accent ?? "#ff5fa8") : role === "pet" ? "#ffb020" : undefined,
+      seed: Math.floor(Math.random() * 1e6),
+    });
     const root = new THREE.Group();
-    root.add(model, blobShadow(height * 1.3));
-    const mixer = clips.length ? new THREE.AnimationMixer(model) : null;
-    const actions = new Map<string, THREE.AnimationAction>();
-    for (const clip of clips) if (mixer) actions.set(clip.name, mixer.clipAction(clip));
-    const actor: Actor = { root, mixer, actions, current: "", facing: 0 };
-    this.play(actor, "idle");
-    return actor;
+    root.add(rig.root, blobShadow(height * 1.3));
+    return { root, mixer: null, actions: new Map(), current: "", facing: 0, rig, last: new THREE.Vector3(Number.NaN, 0, 0), hold: 0 };
+  }
+
+  /** Advance an actor's animation: chibi rigs are driven by how fast they're moving. */
+  private tickActor(a: Actor, dt: number) {
+    if (!a.rig) {
+      a.mixer?.update(dt);
+      return;
+    }
+    const p = a.root.position;
+    const speed = Number.isNaN(a.last!.x) || dt <= 0 ? 0 : Math.hypot(p.x - a.last!.x, p.z - a.last!.z) / dt;
+    a.last!.copy(p);
+    a.rig.update(dt, speed);
+    a.rig.setGlow(this.park?.atmosphere.glow ?? 0);
+    if (a.hold && a.hold > 0) {
+      a.hold -= dt;
+      if (a.hold <= 0) a.current = ""; // the one-shot is done: walk/idle take over again
+    }
   }
 
   private play(a: Actor, name: string, once = false) {
+    if (a.rig) {
+      const base = name === "idle" || name === "walk" || name === "run" || name === "";
+      if (base) {
+        if (a.current === name) return;
+        // walking/running is automatic from speed; idle clears any looping action (e.g. sleep)
+        if (name === "idle" && a.current && !["idle", "walk", "run"].includes(a.current)) a.rig.play("idle");
+        a.current = name;
+        return;
+      }
+      const map: Record<string, ChibiAction> = { "gesture-positive": "cheer", "gesture-negative": "sad", dance: "dance", eat: "eat", fetch: "fetch", sleep: "sleep", wave: "wave", cheer: "cheer" };
+      const act = map[name];
+      if (!act) return;
+      a.rig.play(act, once);
+      a.current = name;
+      a.hold = once ? 1.3 : 0;
+      return;
+    }
     const next = a.actions.get(name);
     if (!next || a.current === name) return;
     const prev = a.actions.get(a.current);
@@ -740,11 +785,11 @@ export class ParkWorld {
         kid.facing = anchor.facing;
       }
       turnTowards(kid, dt);
-      kid.mixer?.update(dt);
+      this.tickActor(kid, dt);
       if (this.pet) {
         const pt = ride.petAnchor?.() ?? pos.clone().add(new THREE.Vector3(1.3, 0, 1.1).multiplyScalar(ride.actorScale ?? 1));
         this.pet.root.position.lerp(pt, Math.min(1, dt * 3));
-        this.pet.mixer?.update(dt);
+        this.tickActor(this.pet, dt);
       }
       ride.update?.(dt, pos);
       if (ride.camera) ride.camera(this.camera, dt);
@@ -789,7 +834,18 @@ export class ParkWorld {
       pos.z += vz * WALK_SPEED * dt;
       kid.facing = Math.atan2(vx, vz);
       this.idleT = 0;
-    } else this.idleT += dt;
+      this.waved = false;
+    } else {
+      this.idleT += dt;
+      // stood still for a moment: turn round to face the camera and give a little wave
+      if (this.idleT > 2.2 && !this.building && !this.fetch) {
+        kid.facing = Math.atan2(this.camera.position.x - pos.x, this.camera.position.z - pos.z);
+        if (!this.waved) {
+          this.waved = true;
+          this.play(kid, "wave", true);
+        }
+      }
+    }
     // keep inside the park and out of buildings
     const r = Math.hypot(pos.x, pos.z);
     if (r > PARK_RADIUS) pos.multiplyScalar(PARK_RADIUS / r);
@@ -805,7 +861,7 @@ export class ParkWorld {
     }
     turnTowards(kid, dt);
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving ? "walk" : "idle");
-    kid.mixer?.update(dt);
+    this.tickActor(kid, dt);
 
     // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
     if (this.pet) {
@@ -860,7 +916,7 @@ export class ParkWorld {
       turnTowards(pet, dt);
       if (this.petMode !== "sleep" && (pet.current === "idle" || pet.current === "walk" || pet.current === "run" || pet.current === ""))
         this.play(pet, petMoving ? (this.petMode === "fetch" ? "run" : "walk") : "idle");
-      pet.mixer?.update(this.petMode === "sleep" ? dt * 0.3 : dt);
+      this.tickActor(pet, dt);
       const head = pet.root.position.y + 1.9;
       if (this.petStatus) this.petStatus.position.set(pet.root.position.x, head + 0.7, pet.root.position.z);
       if (this.petBubble) {
@@ -893,7 +949,7 @@ export class ParkWorld {
         }
       }
       turnTowards(a, dt);
-      a.mixer?.update(dt);
+      this.tickActor(a, dt);
     }
 
     // doors
@@ -916,6 +972,9 @@ export class ParkWorld {
     }
 
     this.park.update(dt, this.time, pos);
+    if (!this.heroLight.parent) this.scene.add(this.heroLight);
+    this.heroLight.position.set(pos.x, 4.5, pos.z + 1.5);
+    this.heroLight.intensity = this.park.atmosphere.glow * 7;
     // at twilight your footsteps leave a little trail of sparkles
     if (moving && this.park.atmosphere.glow > 0.45) {
       this.stepSparkle -= dt;

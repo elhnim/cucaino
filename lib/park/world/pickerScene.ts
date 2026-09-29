@@ -4,6 +4,7 @@
 // portrait (phones) and landscape (tablets); many kids wrap onto two rows on narrow screens.
 import * as THREE from "three";
 import { ParkAssets, type AnimalId } from "../assets/loader";
+import { buildChibi, type ChibiRig } from "../characters/chibi";
 import { DEFAULT_CANDY } from "../assets/candy";
 import { labelSprite } from "@/lib/game3d/buildingKit";
 import { makeSparkleTexture } from "@/lib/game3d/textures";
@@ -29,8 +30,7 @@ export interface PickerScene {
 interface Stand {
   id: string | null;
   root: THREE.Group;
-  mixer: THREE.AnimationMixer | null;
-  actions: Map<string, THREE.AnimationAction>;
+  rig: ChibiRig;
   label: THREE.Sprite | null;
   hop: number;
 }
@@ -116,11 +116,10 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
   }
 
   async function addStand(id: string | null, animal: AnimalId, accent: string, label: string | null) {
-    const gltf = await assets.spawnAnimal(animal);
     if (disposed) return;
-    const model = gltf.root;
-    const box = new THREE.Box3().setFromObject(model);
-    model.scale.setScalar(2 / (box.max.y - box.min.y || 1));
+    // each kid stands as their own hand-made chibi animal, in their colour
+    const rig = buildChibi(animal, { height: 2, role: "kid", accent, seed: stands.length * 97 + 7 });
+    const model = rig.root;
     const root = new THREE.Group();
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.35, 0.25, 28), new THREE.MeshToonMaterial({ color: accent }));
     pad.position.y = 0.12;
@@ -135,12 +134,8 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
       sprite.position.y = 3.2;
       root.add(sprite);
     }
-    const mixer = gltf.clips.length ? new THREE.AnimationMixer(model) : null;
-    const actions = new Map<string, THREE.AnimationAction>();
-    for (const c of gltf.clips) if (mixer) actions.set(c.name, mixer.clipAction(c));
-    actions.get("idle")?.play();
     scene.add(root);
-    stands.push({ id, root, mixer, actions, label: sprite, hop: 0 });
+    stands.push({ id, root, rig, label: sprite, hop: 0 });
   }
 
   // candy decor ring behind the kids
@@ -199,10 +194,7 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
     for (const s of stands) {
       if (ray.intersectObject(s.root, true).length === 0) continue;
       s.hop = 0.8;
-      const dance = s.actions.get("dance");
-      if (dance) {
-        dance.reset().setLoop(THREE.LoopOnce, 1).play();
-      }
+      s.rig.play("cheer", true);
       if (s.id && opts.onPick && !picked) {
         picked = true;
         const id = s.id;
@@ -228,12 +220,11 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
       nextWave -= dt;
       if (nextWave <= 0 && stands.length) {
         const s = stands[Math.floor(Math.random() * stands.length)];
-        const g = s.actions.get("gesture-positive");
-        if (g) g.reset().setLoop(THREE.LoopOnce, 1).play();
+        s.rig.play(Math.random() < 0.5 ? "wave" : "dance", true);
         nextWave = 1.8 + Math.random() * 2;
       }
       for (const s of stands) {
-        s.mixer?.update(dt);
+        s.rig.update(dt, 0);
         if (s.hop > 0) {
           s.hop = Math.max(0, s.hop - dt);
           s.root.position.y = Math.abs(Math.sin(s.hop * 12)) * 0.5;
@@ -249,7 +240,7 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
 
   return {
     snapshot() {
-      for (const st of stands) st.mixer?.update(1 / 30);
+      for (const st of stands) st.rig.update(1 / 30, 0);
       renderer.render(scene, camera);
       return renderer.domElement.toDataURL("image/jpeg", 0.8);
     },
