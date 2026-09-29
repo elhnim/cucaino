@@ -1,0 +1,302 @@
+import { describe, expect, it } from "vitest";
+import * as THREE from "three";
+import { WATER_Y, groundY } from "../../registry/terrain";
+import {
+  FOOTPRINTS,
+  GARDENS,
+  HERO_ANEMONES,
+  PEARLS,
+  PEARL_COUNT,
+  REEF_KINDS,
+  RULES,
+  SECTORS,
+  TEMPLE,
+  WRECK,
+  avoidKid,
+  causticField,
+  clampWater,
+  fillWindow,
+  mantaPath,
+  orcaLap,
+  planJellies,
+  planReef,
+  planSchools,
+  planVents,
+  schoolCentre,
+  seaD,
+  sectorOf,
+  stepFish,
+  windowCount,
+} from "./plan";
+import { anemoneGeometry, brainGeometry, clamBaseGeometry, clamLidGeometry, fanGeometry, fishGeometry, galleonGeometry, jellyGeometry, kelpGeometry, mantaGeometry, orcaGeometry, seagrassGeometry, staghornGeometry, starfishGeometry, tableGeometry, templeGeometry, tubeGeometry, turtleGeometry, urchinGeometry } from "./geometry";
+import { buildRockGeometry } from "../fantasy/stones";
+
+const tris = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position.count) / 3;
+const finite = (g: THREE.BufferGeometry) => Array.from(g.attributes.position.array as Float32Array).every(Number.isFinite);
+
+describe("pearls", () => {
+  it("there are 15, with ids 0..14", () => {
+    expect(PEARL_COUNT).toBe(15);
+    expect(PEARLS.map((p) => p.id)).toEqual([...Array(15).keys()]);
+  });
+  it("every pearl sits on the sea floor, under water, on the reef", () => {
+    for (const p of PEARLS) {
+      expect(p.y).toBeLessThan(WATER_Y - 1.5);
+      expect(Math.abs(p.y - groundY(p.x, p.z))).toBeLessThan(1e-6);
+      const d = seaD(p.x, p.z);
+      expect(d).toBeGreaterThan(14);
+      expect(d).toBeLessThan(44);
+    }
+  });
+  it("pearls are spread out (no two clams on top of each other)", () => {
+    for (let i = 0; i < PEARLS.length; i++)
+      for (let j = i + 1; j < PEARLS.length; j++) expect(Math.hypot(PEARLS[i].x - PEARLS[j].x, PEARLS[i].z - PEARLS[j].z)).toBeGreaterThan(3);
+  });
+});
+
+describe("reef gardens and landmarks", () => {
+  it("four gardens, one of each kind, out on the reef", () => {
+    expect(GARDENS.map((g) => g.kind).sort()).toEqual(["glow", "rainbow", "ruins", "wreck"]);
+    for (const g of GARDENS) {
+      expect(seaD(g.x, g.z)).toBeGreaterThan(20);
+      expect(seaD(g.x, g.z)).toBeLessThan(40);
+      expect(g.y).toBeLessThan(-3);
+    }
+  });
+  it("the galleon and temple sit deep enough to stand tall", () => {
+    expect(WRECK.y).toBeLessThan(-6);
+    expect(TEMPLE.y).toBeLessThan(-6);
+  });
+  it("hero anemones (clownfish homes) are under water", () => {
+    for (const a of HERO_ANEMONES) expect(a.y).toBeLessThan(WATER_Y - 2);
+  });
+});
+
+describe("planReef", () => {
+  const plan = planReef();
+  const low = planReef({ lowQuality: true });
+  it("every item is in its band, under water, clear of the landmarks", () => {
+    for (const kind of REEF_KINDS) {
+      const R = RULES[kind];
+      for (const it of plan.items[kind]) {
+        const d = seaD(it.x, it.z);
+        expect(d).toBeGreaterThanOrEqual(R.d0);
+        expect(d).toBeLessThanOrEqual(R.d1);
+        expect(it.y).toBeLessThan(WATER_Y - 1);
+        for (const f of FOOTPRINTS) expect(Math.hypot(it.x - f.x, it.z - f.z)).toBeGreaterThanOrEqual(f.r);
+      }
+    }
+  });
+  it("is deterministic", () => {
+    const again = planReef();
+    for (const kind of REEF_KINDS) {
+      expect(again.items[kind].length).toBe(plan.items[kind].length);
+      expect(again.items[kind][0]).toEqual(plan.items[kind][0]);
+    }
+  });
+  it("items are bucketed by sector and every sector's range is right", () => {
+    for (const kind of REEF_KINDS) {
+      const st = plan.starts[kind];
+      expect(st[0]).toBe(0);
+      expect(st[SECTORS]).toBe(plan.items[kind].length);
+      for (let s = 0; s < SECTORS; s++) {
+        expect(st[s + 1]).toBeGreaterThanOrEqual(st[s]);
+        for (let i = st[s]; i < st[s + 1]; i++) expect(plan.items[kind][i].sector).toBe(s);
+      }
+    }
+  });
+  it("capacities stay within the caps (half at low quality)", () => {
+    for (const kind of REEF_KINDS) {
+      expect(plan.capacity[kind]).toBeLessThanOrEqual(RULES[kind].cap);
+      expect(low.capacity[kind]).toBeLessThanOrEqual(Math.ceil(RULES[kind].cap / 2));
+    }
+  });
+  it("the reef runs all the way round the island", () => {
+    let empty = 0;
+    for (let s = 0; s < SECTORS; s++) if (windowCount(plan.starts.staghorn, s, 1) + windowCount(plan.starts.seagrass, s, 1) === 0) empty++;
+    expect(empty).toBe(0);
+  });
+  it("gardens are denser than the open reef", () => {
+    const near = (x: number, z: number, r: number) => GARDENS.some((g) => Math.hypot(x - g.x, z - g.z) < r);
+    let inG = 0;
+    let outG = 0;
+    for (const it of plan.items.staghorn) if (near(it.x, it.z, 18)) inG++;
+    else outG++;
+    const gardenArea = GARDENS.length * Math.PI * 18 * 18;
+    const ringArea = Math.PI * (195 * 195 - 170 * 170);
+    expect(inG / gardenArea).toBeGreaterThan((outG / ringArea) * 2);
+  });
+  it("fillWindow takes the kid's own sector first and never over-fills", () => {
+    const st = plan.starts.staghorn;
+    for (const centre of [0, 5, 64, 127]) {
+      const seen: number[] = [];
+      const n = fillWindow(st, centre, plan.half, 25, (i, slot) => {
+        expect(slot).toBe(seen.length);
+        seen.push(i);
+      });
+      expect(n).toBe(seen.length);
+      expect(n).toBeLessThanOrEqual(25);
+      const own = st[centre + 1] - st[centre];
+      for (let k = 0; k < Math.min(own, 25); k++) expect(plan.items.staghorn[seen[k]].sector).toBe(centre);
+    }
+  });
+  it("windows wrap round the island", () => {
+    const st = plan.starts.rock;
+    expect(windowCount(st, 0, 2)).toBe(windowCount(st, SECTORS, 2));
+    let total = 0;
+    for (let s = 0; s + 2 < SECTORS - 2; s += 5) total += windowCount(st, s, 2);
+    expect(total).toBeLessThanOrEqual(plan.items.rock.length);
+  });
+  it("sectorOf covers 0..SECTORS-1", () => {
+    for (let a = -Math.PI; a < Math.PI; a += 0.05) {
+      const s = sectorOf(Math.sin(a) * 180, Math.cos(a) * 180);
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThan(SECTORS);
+    }
+  });
+});
+
+describe("triangle budget", () => {
+  it("the streamed reef stays within budget (standard <= 115k, low <= 60k triangles)", () => {
+    const geos: Record<string, THREE.BufferGeometry> = {
+      staghorn: staghornGeometry(),
+      brain: brainGeometry(),
+      table: tableGeometry(),
+      fan: fanGeometry(),
+      tube: tubeGeometry(),
+      anemone: anemoneGeometry(),
+      seagrass: seagrassGeometry(),
+      kelp: kelpGeometry(),
+      rock: buildRockGeometry(),
+      starfish: starfishGeometry(),
+      urchin: urchinGeometry(),
+    };
+    const sum = (p: ReturnType<typeof planReef>) => REEF_KINDS.reduce((a, k) => a + p.capacity[k] * tris(geos[k]), 0) + HERO_ANEMONES.length * tris(geos.anemone);
+    expect(sum(planReef())).toBeLessThanOrEqual(115000);
+    expect(sum(planReef({ lowQuality: true }))).toBeLessThanOrEqual(60000);
+  });
+  it("creature and landmark geometry is finite and modest", () => {
+    const list: [string, THREE.BufferGeometry, number][] = [
+      ["fish", fishGeometry(), 130],
+      ["manta", mantaGeometry(), 800],
+      ["turtle", turtleGeometry(), 800],
+      ["orca", orcaGeometry(), 1400],
+      ["jelly", jellyGeometry(), 400],
+      ["clam", clamBaseGeometry(), 800],
+      ["lid", clamLidGeometry(), 700],
+      ["galleon", galleonGeometry(), 2500],
+      ["temple", templeGeometry({ headroom: 6 }).geometry, 3500],
+    ];
+    for (const [name, g, max] of list) {
+      expect(finite(g), name).toBe(true);
+      expect(tris(g), name).toBeLessThanOrEqual(max);
+    }
+  });
+  it("the orca carries its markings", () => {
+    const g = orcaGeometry();
+    expect(g.attributes.aMark).toBeDefined();
+    const m = g.attributes.aMark.array as Float32Array;
+    let white = 0;
+    let black = 0;
+    for (let i = 0; i < m.length; i += 2) (m[i] > 0 ? white++ : black++);
+    // mostly black, with a good amount of white (belly, eye patch)
+    expect(white).toBeGreaterThan(black * 0.15);
+    expect(black).toBeGreaterThan(white);
+  });
+});
+
+describe("fish", () => {
+  it("~250-350 fish at standard, about half at low", () => {
+    const n = planSchools().reduce((a, s) => a + s.n, 0);
+    const nl = planSchools({ lowQuality: true }).reduce((a, s) => a + s.n, 0);
+    expect(n).toBeGreaterThanOrEqual(250);
+    expect(n).toBeLessThanOrEqual(350);
+    expect(nl).toBeGreaterThan(n * 0.4);
+    expect(nl).toBeLessThan(n * 0.6);
+  });
+  it("school centres always stay in the water", () => {
+    const out = { x: 0, y: 0, z: 0 };
+    for (const s of planSchools())
+      for (let t = 0; t < 400; t += 3.7) {
+        schoolCentre(s, t, out);
+        expect(out.y).toBeLessThan(WATER_Y - 0.5);
+        expect(out.y).toBeGreaterThan(groundY(out.x, out.z));
+      }
+  });
+  it("clampWater keeps a point between floor and surface", () => {
+    const p = PEARLS[0];
+    expect(clampWater(p.x, p.z, 10, 0.5)).toBeLessThan(WATER_Y);
+    expect(clampWater(p.x, p.z, -100, 0.5)).toBeGreaterThanOrEqual(groundY(p.x, p.z));
+  });
+  it("fish scatter away from the kid, and ignore a far-off kid", () => {
+    const out = { x: 0, y: 0, z: 0 };
+    const kid = { x: 0, y: 0, z: 0 };
+    const k = avoidKid(1, 0, 0, kid, 4, out);
+    expect(k).toBeGreaterThan(0);
+    expect(out.x).toBeGreaterThan(0);
+    expect(1 + out.x).toBeGreaterThanOrEqual(3.9);
+    expect(avoidKid(10, 0, 0, kid, 4, out)).toBe(0);
+    expect(out.x).toBe(0);
+    // right on top of the kid: still a clean push, no NaN
+    avoidKid(0, 0, 0, kid, 4, out);
+    expect(Number.isFinite(out.x) && Number.isFinite(out.y) && Number.isFinite(out.z)).toBe(true);
+    expect(Math.hypot(out.x, out.z)).toBeGreaterThan(0);
+  });
+  it("stepFish settles on its target without overshooting the speed limit", () => {
+    const p = new Float32Array([0, 0, 0]);
+    const v = new Float32Array(3);
+    for (let i = 0; i < 400; i++) {
+      const sp = stepFish(p, v, 0, 5, 1, -3, 1 / 30, 2.2, 2.6);
+      expect(sp).toBeLessThanOrEqual(2.6 + 1e-6);
+    }
+    expect(Math.hypot(p[0] - 5, p[1] - 1, p[2] + 3)).toBeLessThan(0.05);
+  });
+});
+
+describe("big creatures", () => {
+  it("manta loops stay near their centre", () => {
+    const m = { cx: 10, cy: -8, cz: 20, r: 16, rot: 1, speed: 0.07, ph: 0 };
+    const o = { x: 0, y: 0, z: 0 };
+    for (let t = 0; t < 200; t += 1.3) {
+      mantaPath(m, t, o);
+      expect(Math.hypot(o.x - m.cx, o.z - m.cz)).toBeLessThanOrEqual(m.r * 1.6);
+      expect(Math.abs(o.y - m.cy)).toBeLessThanOrEqual(1.3);
+    }
+  });
+  it("the orca pod laps out past the reef wall, in deep water", () => {
+    const o = { x: 0, y: 0, z: 0 };
+    for (let t = 0; t < 400; t += 7) {
+      orcaLap(t, 0.021, o);
+      expect(seaD(o.x, o.z)).toBeGreaterThan(45);
+    }
+  });
+  it("jellies and bubble vents are in the water", () => {
+    const js = planJellies(30);
+    expect(js.length).toBe(30);
+    for (const j of js) {
+      expect(j.y).toBeLessThan(WATER_Y - 1);
+      expect(j.y).toBeGreaterThan(groundY(j.x, j.z));
+    }
+    for (const v of planVents(10)) expect(v.y).toBeLessThan(WATER_Y - 1);
+  });
+});
+
+describe("caustics texture", () => {
+  it("tiles seamlessly and has bright lines and dark cells", () => {
+    const n = 64;
+    const f = causticField(n, 5, 7);
+    let min = 255;
+    let max = 0;
+    for (const v of f) ((min = Math.min(min, v)), (max = Math.max(max, v)));
+    expect(max).toBeGreaterThan(200);
+    expect(min).toBeLessThan(40);
+    // wrap-around: the last column continues into the first as smoothly as neighbours do
+    let wrap = 0;
+    let inner = 0;
+    for (let j = 0; j < n; j++) {
+      wrap += Math.abs(f[j * n + n - 1] - f[j * n]);
+      inner += Math.abs(f[j * n + n - 2] - f[j * n + n - 1]);
+    }
+    expect(wrap).toBeLessThan(inner * 2 + n * 8);
+  });
+});

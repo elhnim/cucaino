@@ -77,6 +77,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const waterMat = track(
     new THREE.ShaderMaterial({
       transparent: true,
+      // one-sided: from under the sea the underwater kit draws the surface's rippling underside
       uniforms: {
         uTime: { value: 0 },
         uGlow: { value: 0 },
@@ -107,8 +108,9 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
           float ang = atan(vXZ.x, vXZ.y);
           float shore = uShore * (1.0 + (sin(ang * 4.0 + 0.5) * 5.0 + sin(ang * 9.0 + 2.0) * 2.5) / ${ISLAND_R.toFixed(1)});
           float depth = smoothstep(shore, shore + 90.0, vR);
-          vec3 shallow = mix(vec3(0.45, 0.93, 0.93), vec3(0.16, 0.52, 0.72), uGlow);
-          vec3 deep = mix(vec3(0.24, 0.55, 0.95), vec3(0.05, 0.08, 0.3), uGlow);
+          // (linear colours: the output pass brightens them into sRGB)
+          vec3 shallow = mix(vec3(0.05, 0.52, 0.55), vec3(0.04, 0.2, 0.4), uGlow);
+          vec3 deep = mix(vec3(0.07, 0.3, 0.78), vec3(0.03, 0.05, 0.24), uGlow);
           vec3 col = mix(shallow, deep, depth);
           // sparkles on the wave tops (sun glints by day, starlight by night)
           // round glints: a random dot in some cells, twinkling
@@ -126,8 +128,21 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
           float near = 1.0 - smoothstep(shore + 2.0, shore + 45.0, vR);
           col += uGlow * pk * (0.4 + near) * vec3(0.3, 1.0, 0.95) * 0.7;
           float fog = smoothstep(uFogNear, uFogFar, vDist);
+          if (!gl_FrontFacing) {
+            // the underside: a bright sheet of light broken by moving ripples (Snell's window-ish)
+            vec2 uq = vXZ * 0.55;
+            float rip = sin(uq.x * 3.1 + uTime * 1.3) * sin(uq.y * 2.7 - uTime * 1.1) + sin((uq.x + uq.y) * 4.3 + uTime * 0.8) * 0.5;
+            vec3 under = mix(vec3(0.05, 0.3, 0.42), vec3(0.01, 0.05, 0.14), uGlow);
+            under += smoothstep(0.6, 1.25, rip) * mix(vec3(0.3, 0.42, 0.4), vec3(0.06, 0.2, 0.26), uGlow);
+            // murky water swallows the surface quickly: only the patch overhead is bright
+            float murk = smoothstep(2.0, 26.0, vDist);
+            gl_FragColor = vec4(mix(under, uFogColor, max(fog, murk)), 1.0);
+            return;
+          }
           col = mix(col, uFogColor, fog);
-          gl_FragColor = vec4(col, 0.96);
+          // clear lagoon water near the beach (you can see the sand and the reef below), deeper blue further out
+          float clear = 1.0 - smoothstep(shore + 2.0, shore + 34.0, vR);
+          gl_FragColor = vec4(col, mix(0.95, 0.82, clear) + foam * 0.3);
         }`,
     }),
   );

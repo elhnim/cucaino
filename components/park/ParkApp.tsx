@@ -47,6 +47,7 @@ import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
 import { Ambience } from "@/lib/park/audio/ambience";
 import { MOUNTS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/characters/mounts";
 import { SHARD_COUNT, RING_COUNT } from "@/lib/park/world/quests3d";
+import { PEARL_COUNT } from "@/lib/park/world/underwater";
 import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wizards";
 import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
@@ -229,8 +230,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [skin, setSkin] = useState<MountSkin>("classic");
   const [ringRun, setRingRun] = useState<{ passed: number; t0: number } | null>(null);
   const shardRef = useRef<(id: number) => void>(() => {});
+  const pearlKey = `cucaino.pearls.${kidId}`;
+  const [pearls, setPearls] = useState<number[]>([]);
+  const pearlRef = useRef<(id: number) => void>(() => {});
   const ringRef = useRef<(passed: number, lap?: number) => void>(() => {});
   const [riding, setRiding] = useState<{ kind: MountKind; flying: boolean; landing: boolean } | null>(null);
+  // swimming in the sea (on foot, or on a manta under the waves): shows the swim up / dive buttons
+  const [swim, setSwim] = useState<{ under: boolean } | null>(null);
+  const swimHinted = useRef(false);
 
   // ── plays cost a ticket (earned from quests); every game's first play each day is free ──
   const [payAsk, setPayAsk] = useState<{ game: string; what: string; busy?: boolean; error?: string } | null>(null);
@@ -544,6 +551,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           treasures: { spots: treasures.current, found },
           onTreasure: (id) => treasureRef.current(id),
           onShard: (id) => shardRef.current(id),
+          onPearl: (id) => pearlRef.current(id),
+          onSwim: (inSea) => {
+            ambience.current?.splash();
+            if (inSea && !swimHinted.current) {
+              swimHinted.current = true;
+              toast("🌊 Splash! Hold ▼ to dive under the waves and explore the reef");
+            }
+          },
           onRing: (passed, lap) => ringRef.current(passed, lap),
           onError: () => !disposed && setBootError(true),
           onReady: () => {
@@ -553,6 +568,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               if (Array.isArray(saved)) {
                 setShards(saved);
                 world?.setShardsFound(saved);
+              }
+              const savedPearls = JSON.parse(window.localStorage.getItem(`cucaino.pearls.${kidId}`) ?? "[]") as number[];
+              if (Array.isArray(savedPearls)) {
+                setPearls(savedPearls);
+                world?.setPearlsFound(savedPearls);
               }
               const sk = window.localStorage.getItem(`cucaino.mountskin.${kidId}`) as MountSkin | null;
               if (sk) setSkin(sk);
@@ -749,6 +769,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     const id = window.setInterval(() => {
       const r = worldRef.current?.riding ?? null;
       setRiding((cur) => (cur?.kind === r?.kind && cur?.flying === r?.flying && cur?.landing === r?.landing ? cur : r));
+      const sw = worldRef.current?.swim ?? null;
+      setSwim((cur) => (!!cur === !!sw && cur?.under === sw?.under ? cur : sw ? { under: sw.under } : null));
     }, 200);
     return () => window.clearInterval(id);
   }, [ready]);
@@ -762,6 +784,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       playSfx("win");
       const unlocked = MOUNT_SKINS.find((s) => s.shards === next.length && s.shards > 0);
       toast(unlocked ? `✦ Star Shard ${next.length}/${SHARD_COUNT}! You unlocked the ${unlocked.name} mount colours!` : `✦ Star Shard ${next.length}/${SHARD_COUNT} found!`);
+      return next;
+    });
+  };
+  pearlRef.current = (id: number) => {
+    setPearls((cur) => {
+      if (cur.includes(id)) return cur;
+      const next = [...cur, id];
+      try {
+        window.localStorage.setItem(pearlKey, JSON.stringify(next));
+      } catch {}
+      playSfx(next.length >= PEARL_COUNT ? "win" : "sparkle");
+      toast(next.length >= PEARL_COUNT ? `🫧 All ${PEARL_COUNT} Sea Pearls! You're a true ocean explorer!` : `🫧 Sea Pearl ${next.length}/${PEARL_COUNT}!`);
+      if (next.length >= PEARL_COUNT) worldRef.current?.fireworks(4);
       return next;
     });
   };
@@ -1019,6 +1054,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               { e: "🔨", t: "Build my Dream Park", on: () => enterBuild() },
               { e: "📖", t: `Book of Wisdom · ${Object.keys(wisdom).length}`, on: () => setShowBook(true) },
               { e: "🗺️", t: `Sticker album · ${foundToday.length}/${TREASURES_PER_DAY} today`, on: () => setShowAlbum(true) },
+              { e: "🫧", t: `Sea Pearls · ${pearls.length}/${PEARL_COUNT}`, on: () => toast(pearls.length >= PEARL_COUNT ? "🫧 You found every Sea Pearl!" : "🫧 Sea Pearls glow inside giant clams on the reef, by the shipwreck and the sunken ruins. Swim out past the beach and dive!") },
               { e: "✦", t: `Star Shards · ${shards.length}/${SHARD_COUNT}`, on: () => toast(shards.length >= SHARD_COUNT ? "✦ You found every Star Shard — a true explorer!" : "✦ Star Shards hide on peaks, sky islands, ruins, ancient trees, crystals and coves. Fly to reach the high ones!") },
               { e: "🔄", t: "Switch player", on: () => router.push("/select-kid") },
             ].map((it) => (
@@ -1082,7 +1118,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {ready && !busy && !building && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={rideBar}>
-          {riding && MOUNTS.find((m) => m.kind === riding.kind)?.flies && !riding.landing && (
+          {((riding && MOUNTS.find((m) => m.kind === riding.kind)?.flies && !riding.landing) || (swim && !riding)) && (
             <>
               {(["up", "down"] as const).map((dir) => (
                 <RoundButton
@@ -1095,7 +1131,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   }}
                   onPointerUp={() => worldRef.current?.setFly(0)}
                   onPointerCancel={() => worldRef.current?.setFly(0)}
-                  aria-label={dir === "up" ? "Fly higher" : "Fly lower"}
+                  aria-label={swim && !riding ? (dir === "up" ? "Swim up" : "Dive") : dir === "up" ? "Fly higher" : "Fly lower"}
                 >
                   {dir === "up" ? "▲" : "▼"}
                 </RoundButton>

@@ -63,12 +63,29 @@ function rawHeight(x: number, z: number): number {
   // softer highlands in the far west
   const west = smooth(0.2, 1, (-x - 70) / 70) * smooth(coast, coast - 30, r);
   h += west * fbm(x / 30 - 5, z / 30 + 9) * 16;
-  // slope down to the beach (level with the sand), then shelve away under the sea
+  // slope down to the beach (level with the sand), then under the sea: a shallow sandy lagoon,
+  // a reef shelf with coral mounds, and a drop-off wall into the deep blue
   const edge = smooth(coast, coast - 26, r);
   h = h * edge;
-  h -= smooth(coast + 10, coast + 30, r) * 4;
+  const d = r - coast;
+  if (d > 10) h -= seabedDrop(x, z, d);
   return h;
 }
+
+/** how far the sea floor sits below the beach, `d` metres out from the grass line */
+function seabedDrop(x: number, z: number, d: number): number {
+  const lagoon = smooth(12, 24, d) * 3.2; // ~-3 m: bright sand, snorkelling depth
+  const shelf = smooth(24, 34, d) * 3.8; // ~-7 m: the reef shelf
+  const wall = smooth(37, 46, d) * 15; // ~-22 m: the deep blue beyond the reef
+  // coral mounds and sand ripples on the lagoon floor and the shelf
+  const mounds = smooth(16, 26, d) * (1 - smooth(36, 43, d)) * (fbm(x / 9 + 3, z / 9 - 8) - 0.45) * 5;
+  const ripples = smooth(12, 20, d) * Math.sin(x * 0.7 + Math.sin(z * 0.13) * 3) * 0.12;
+  return lagoon + shelf + wall - mounds - ripples;
+}
+/** the deepest sea floor (past the reef wall, and off the edge of the height grid) */
+export const DEEP_FLOOR = -22;
+/** the sea's surface height (the water mesh's resting level) */
+export const WATER_Y = -0.25;
 
 let grid: Float32Array | null = null;
 
@@ -152,7 +169,7 @@ export function groundY(x: number, z: number): number {
   const N = TERRAIN_N;
   const fx = (x + TERRAIN_EXTENT) / CELL;
   const fz = (z + TERRAIN_EXTENT) / CELL;
-  if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return -4;
+  if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return DEEP_FLOOR;
   const i = Math.floor(fx);
   const j = Math.floor(fz);
   const u = fx - i;

@@ -32,7 +32,7 @@ import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
 import { buildMount, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
-import { groundY } from "../registry/terrain";
+import { groundY, WATER_Y } from "../registry/terrain";
 
 export type QualityTier = "standard" | "low";
 
@@ -66,6 +66,10 @@ export interface ParkWorldOptions {
   onPieceTap?: (uid: string) => void;
   /** first frame is on screen */
   onReady?: () => void;
+  /** a Sea Pearl was collected from a giant clam on the reef */
+  onPearl?: (id: number) => void;
+  /** the kid waded into deep water (true) or climbed back onto the beach (false) */
+  onSwim?: (inSea: boolean) => void;
   /** a Star Shard was collected (id 0..29) */
   onShard?: (id: number) => void;
   /** flew through Sky Ring `passed` of 12; `lap` = seconds when the course is complete */
@@ -74,6 +78,12 @@ export interface ParkWorldOptions {
 }
 
 const WALK_SPEED = 7;
+/** how far out to sea you can swim (the reef, and the edge of the deep blue) */
+const SEA_LIMIT = 200;
+/** water deeper than this and you swim instead of wading */
+const SWIM_DEPTH = 0.9;
+/** how deep the sea is at (x, z) (<= 0 on land) */
+const seaDepth = (x: number, z: number) => WATER_Y - groundY(x, z);
 const CAM_OFFSET = new THREE.Vector3(0, 12, 14);
 const MAX_DT = 1 / 20;
 
@@ -151,6 +161,12 @@ export class ParkWorld {
   private alt = 0;
   private altTarget = 0;
   private flyInput = 0;
+  // ── swimming: depth below the surface (0 = paddling at the top), eased toward swimTarget ──
+  private swimDepth = 0;
+  private swimTarget = 0;
+  private swimPitch = 0;
+  private wasInSea = false;
+  private camUnder = false;
   private landing = false;
   private flySparkle = 0;
   private inputOn = true;
@@ -613,7 +629,11 @@ export class ParkWorld {
 
   /** Advance an actor's animation: chibi rigs are driven by how fast they're moving. */
   private tickActor(a: Actor, dt: number, forceSpeed?: number, snap = true) {
-    if (snap && !this.ride) a.root.position.y = groundY(a.root.position.x, a.root.position.z) + (a === this.pet && this.petMode === "sleep" ? 0.45 : 0);
+    if (snap && !this.ride) {
+      const gy = groundY(a.root.position.x, a.root.position.z);
+      // in deep water everyone paddles at the surface
+      a.root.position.y = WATER_Y - gy > SWIM_DEPTH ? WATER_Y - 0.95 + Math.sin(this.time * 2.4 + a.root.position.x) * 0.06 : gy + (a === this.pet && this.petMode === "sleep" ? 0.45 : 0);
+    }
     if (!a.rig) {
       a.mixer?.update(dt);
       return;
@@ -879,7 +899,8 @@ export class ParkWorld {
     const moving = Math.hypot(vx, vz) > 0.01;
     if (moving) {
       if (!this.walkTarget) this.routing = false;
-      const sp = WALK_SPEED * (this.mount ? (this.mount.flies ? 2.4 : 1.9) : this.routing && this.walkTarget ? 1.6 : 1);
+      const swimming = !this.mount && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
+      const sp = WALK_SPEED * (this.mount ? (this.mount.flies ? 2.4 : 1.9) : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
       pos.x += vx * sp * dt;
       pos.z += vz * sp * dt;
       kid.facing = Math.atan2(vx, vz);
@@ -899,14 +920,20 @@ export class ParkWorld {
     // riding: climb/dive/land, and the mount follows us
     if (this.mount) {
       const m = this.mount;
-      if (m.flies && !this.landing) this.altTarget = Math.max(4, Math.min(34, this.altTarget + this.flyInput * 9 * dt));
+      // over the sea a manta can dive under the waves, down to just above the reef
+      const sea = seaDepth(pos.x, pos.z);
+      const minAlt = m.kind === "manta" && sea > 2.4 ? -(sea - 1.6) : 0;
+      const lowAlt = minAlt < 0 ? minAlt : 4;
+      if (m.flies && !this.landing) this.altTarget = Math.max(lowAlt, Math.min(34, this.altTarget + this.flyInput * 9 * dt));
+      if (this.altTarget < minAlt) this.altTarget = minAlt;
       this.alt += (this.altTarget - this.alt) * Math.min(1, dt * (this.landing ? 1.6 : 2.2));
+      if (this.alt < minAlt) this.alt = minAlt;
       if (this.landing && this.alt < 0.25) this.dismount(true);
     }
     const aloft = this.alt > 3;
     // keep inside the park (fliers may roam out over the sea) and out of buildings
     const r = Math.hypot(pos.x, pos.z);
-    const limit = aloft ? PARK_RADIUS + 70 : PARK_RADIUS;
+    const limit = aloft ? PARK_RADIUS + 70 : SEA_LIMIT;
     if (r > limit) pos.multiplyScalar(limit / r);
     // walk round the grassy hills
     for (const o of aloft ? [] : this.park.obstacles) {
@@ -930,13 +957,18 @@ export class ParkWorld {
     }
     turnTowards(kid, dt);
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
+    const floorY = groundY(pos.x, pos.z);
+    const seaHere = WATER_Y - floorY;
     if (this.mount) {
       const m = this.mount;
-      pos.y = groundY(pos.x, pos.z) + this.alt;
+      // fliers measure height from the sea's surface out over the water; a pony swims with its head up
+      if (m.flies) pos.y = Math.max(floorY, WATER_Y) + this.alt;
+      else pos.y = seaHere > SWIM_DEPTH ? WATER_Y - 0.85 : floorY;
       m.root.position.set(pos.x, pos.y, pos.z);
       m.root.rotation.y = kid.root.rotation.y;
       m.root.rotation.z = moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
-      m.update(dt, moving ? WALK_SPEED * 2 : 0, m.flies && this.alt > 0.4, this.park.atmosphere.glow, this.alt);
+      // wings beat under water too; the shadow measures down to the real ground / sea floor
+      m.update(dt, moving ? WALK_SPEED * 2 : 0, m.flies && Math.abs(this.alt) > 0.4, this.park.atmosphere.glow, pos.y - floorY);
       if (kid.rig) kid.rig.root.position.copy(m.seat);
       this.tickActor(kid, dt, 0, false);
       // a sparkly trail behind fliers
@@ -948,8 +980,36 @@ export class ParkWorld {
         }
       }
     } else {
-      pos.y = groundY(pos.x, pos.z);
+      if (seaHere > SWIM_DEPTH) {
+        // swimming: the up/down buttons swim up and dive; the depth follows gently
+        const maxD = Math.max(0, seaHere - 1.1);
+        this.swimTarget = Math.max(0, Math.min(maxD, this.swimTarget - this.flyInput * 4.5 * dt));
+        this.swimDepth += (this.swimTarget - this.swimDepth) * Math.min(1, dt * 3);
+        this.swimDepth = Math.min(this.swimDepth, maxD);
+        const bob = this.swimDepth < 0.3 ? Math.sin(this.time * 2.2) * 0.07 : Math.sin(this.time * 1.4) * 0.12;
+        pos.y = WATER_Y - 0.95 - this.swimDepth + bob;
+        if (!this.wasInSea) {
+          this.wasInSea = true;
+          this.burst(pos.clone().setY(WATER_Y + 0.3), 26);
+          this.opts.onSwim?.(true);
+        }
+      } else {
+        pos.y = floorY;
+        this.swimDepth = this.swimTarget = 0;
+        if (this.wasInSea) {
+          this.wasInSea = false;
+          this.opts.onSwim?.(false);
+        }
+      }
       this.tickActor(kid, dt, undefined, false);
+    }
+    // lean into a swim: flat out and kicking under water, head up paddling at the top
+    const swimNow = !this.mount && this.wasInSea;
+    const pitchWant = swimNow ? (this.swimDepth > 0.6 ? (moving ? 1.3 : 0.35) : moving ? 0.75 : 0.15) : 0;
+    this.swimPitch += (pitchWant - this.swimPitch) * Math.min(1, dt * 5);
+    if (kid.rig && !this.mount) {
+      kid.rig.root.rotation.x = this.swimPitch;
+      kid.rig.root.position.y = this.swimPitch * 0.45;
     }
 
     // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
@@ -1073,6 +1133,15 @@ export class ParkWorld {
       this.play(kid, "cheer", true);
       this.opts.onShard?.(q3.shard);
     }
+    // the sea: the reef and its creatures show when you're in (or looking into) the water
+    const uw = this.park.underwater;
+    const nearSea = Math.hypot(pos.x, pos.z) > 118;
+    uw.group.visible = this.camUnder || this.wasInSea || nearSea || (this.mount?.kind === "manta" && pos.y < WATER_Y);
+    const uwr = uw.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow });
+    if (uwr.pearl !== null) {
+      this.burst(pos.clone().setY(pos.y + 1.2), 50);
+      this.opts.onPearl?.(uwr.pearl);
+    }
     if (q3.ring) {
       this.burst(pos.clone().setY(pos.y + 1), q3.ring.lap !== undefined ? 90 : 30);
       this.opts.onRing?.(q3.ring.passed, q3.ring.lap);
@@ -1146,7 +1215,8 @@ export class ParkWorld {
           const along = ox * dirX + oz * dirZ; // how far along the view line (horizontal)
           if (along <= 1.5 || along >= want) continue;
           const side = Math.abs(ox * dirZ - oz * dirX);
-          const reach = Math.max(1.6, o.r * 5.5); // canopies spread well past the trunk
+          // canopies spread well past a trunk; big solid things (a wreck, a temple) block only themselves
+          const reach = o.r < 2 ? Math.max(1.6, o.r * 5.5) : o.r + 2.5;
           if (side < reach) want = Math.min(want, Math.max(5, (along - 1) / Math.max(0.3, Math.cos(this.camPitch))));
         }
         this.camPull += (want - this.camPull) * Math.min(1, dt * (want < this.camPull ? 6 : 2));
@@ -1177,11 +1247,29 @@ export class ParkWorld {
       cp.y += this.camLift;
       const under = groundY(cp.x, cp.z) + 1.2;
       if (cp.y < under) cp.y = under;
+      // the camera never straddles the waterline: it dives with a diving kid (closer in, the sea
+      // is murky) and stays above the waves for one paddling at the top
+      const kidUnder = pos.y + 1.6 < WATER_Y; // head below the surface (paddling sits at WATER_Y - 0.95)
+      if (kidUnder) {
+        cp.lerp(this.lookAtPt, 0.35);
+        // over water too shallow to hide a camera (the lagoon's edge)? slide in toward the kid
+        for (let k = 0; k < 6 && groundY(cp.x, cp.z) + 0.8 > WATER_Y - 0.6; k++) cp.lerp(this.lookAtPt, 0.3);
+        // stay down near the kid's depth, looking a little down on them (hugging the surface
+        // filled the view with its bright underside)
+        // float a little above the kid, over the coral tops (down among the coral, sea fans and
+        // grass blocked the view), and never up through the surface
+        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.8, groundY(cp.x, cp.z) + 2.2));
+      } else if (seaDepth(cp.x, cp.z) > 0 && cp.y < WATER_Y + 1.2) cp.y = WATER_Y + 1.2;
       // aim a little above the kid: they sit in the lower third and the world fills the frame
       // (aiming straight at them left the bottom half of the screen as empty grass)
-      const aimUp = dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35);
+      // (under the sea, look a little DOWN at the reef instead — up is just the surface)
+      const aimUp = kidUnder ? -1.4 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35);
       this.camera.lookAt(this.lookAtPt.x, this.lookAtPt.y + aimUp, this.lookAtPt.z);
     }
+    // under the sea? deep-blue fog, no sky
+    const camUnder = !this.building && !this.ride && this.camera.position.y < WATER_Y - 0.05;
+    if (camUnder || this.camUnder) this.park.atmosphere.setUnderwater(camUnder, WATER_Y - this.camera.position.y);
+    this.camUnder = camUnder;
     // bloom a little stronger at twilight, when the magic comes out
     const glowNow = this.park.atmosphere.glow;
     if (this.bloom) this.bloom.strength = 0.28 + glowNow * 0.5;
@@ -1296,6 +1384,10 @@ export class ParkWorld {
     this.alt = 0;
     this.altTarget = m.flies ? 9 : 0;
     this.flyInput = 0;
+    // hopping on a manta while swimming under water: it carries on from this depth
+    if (kind === "manta" && this.wasInSea && this.swimDepth > 0.6) this.alt = this.altTarget = this.kid.root.position.y - WATER_Y;
+    if (this.kid.rig) this.kid.rig.root.rotation.x = 0;
+    this.swimPitch = 0;
     if (this.kid.rig) this.kid.rig.root.position.copy(m.seat);
     const shadow = this.kid.root.children[1];
     if (shadow) shadow.visible = false;
@@ -1313,19 +1405,29 @@ export class ParkWorld {
       this.altTarget = 0;
       return;
     }
+    const wasY = this.kid.root.position.y;
     m.dispose();
     this.mount = null;
     this.landing = false;
     this.alt = 0;
     this.altTarget = 0;
-    this.kid.root.position.y = groundY(this.kid.root.position.x, this.kid.root.position.z);
+    const kp = this.kid.root.position;
+    // off a manta in the sea: keep swimming at the same depth
+    const sea = seaDepth(kp.x, kp.z);
+    if (sea > SWIM_DEPTH) this.swimDepth = this.swimTarget = Math.max(0, Math.min(sea - 1.1, WATER_Y - 0.95 - wasY));
+    kp.y = sea > SWIM_DEPTH ? WATER_Y - 0.95 - this.swimDepth : groundY(kp.x, kp.z);
     if (this.kid.rig) this.kid.rig.root.position.set(0, 0, 0);
     const shadow = this.kid.root.children[1];
     if (shadow) shadow.visible = true;
-    // landed somewhere out over the sea? hop back onto the beach
-    const r = Math.hypot(this.kid.root.position.x, this.kid.root.position.z);
-    if (r > PARK_RADIUS) this.kid.root.position.multiplyScalar(PARK_RADIUS / r);
+    // landed out past the reef? swim back within reach
+    const r = Math.hypot(kp.x, kp.z);
+    if (r > SEA_LIMIT) kp.multiplyScalar(SEA_LIMIT / r);
     if (this.pet) this.pet.root.position.set(this.kid.root.position.x + 1.6, 0, this.kid.root.position.z + 1);
+  }
+
+  /** Which Sea Pearls this kid has already found. */
+  setPearlsFound(ids: number[]) {
+    this.park?.underwater.setPearlsFound(ids);
   }
 
   /** Which Star Shards this kid has already found (they vanish from the world). */
@@ -1338,17 +1440,27 @@ export class ParkWorld {
     this.flyInput = Math.max(-1, Math.min(1, dir));
   }
 
+  /** Swimming (on foot, or on a manta under the waves)? For the HUD's swim/dive buttons. */
+  get swim(): { under: boolean; depth: number } | null {
+    const p = this.kid?.root.position;
+    if (!p) return null;
+    const onManta = this.mount?.kind === "manta" && p.y < WATER_Y - 0.4;
+    if (!onManta && (this.mount || !this.wasInSea)) return null;
+    const depth = Math.max(0, WATER_Y - p.y - 0.95);
+    return { under: depth > 0.6, depth };
+  }
+
   /** What we're riding right now (for the HUD). */
   get riding(): { kind: MountKind; flying: boolean; landing: boolean } | null {
     return this.mount ? { kind: this.mount.kind, flying: this.mount.flies && this.alt > 0.4, landing: this.landing } : null;
   }
 
   /** What the world feels like right now, for the soundscape: twilight glow, forest depth, sea closeness. */
-  getAmbient(): { glow: number; forest: number; shore: number } {
+  getAmbient(): { glow: number; forest: number; shore: number; under: number } {
     const a = this.park?.atmosphere;
     const p = this.kid?.root.position;
     const r = p ? Math.hypot(p.x, p.z) : 0;
-    return { glow: a?.glow ?? 0, forest: a?.forest ?? 0, shore: Math.min(1, Math.max(0, (r - 78) / 36)) };
+    return { glow: a?.glow ?? 0, forest: a?.forest ?? 0, shore: Math.min(1, Math.max(0, (r - 78) / 36)), under: this.camUnder ? Math.min(1, 0.4 + (WATER_Y - this.camera.position.y) / 10) : 0 };
   }
 
   /** Grow (or shrink) the pet in the park, e.g. 0.7 for a baby up to ~1.35 fully grown. */

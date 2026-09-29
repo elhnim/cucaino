@@ -13,6 +13,8 @@ export interface AmbienceScene {
   forest: number;
   /** a ride or game is covering the park: duck everything */
   quiet?: boolean;
+  /** 0..1 how far under the sea the camera is: everything goes muffled and bubbly */
+  under?: number;
 }
 
 // dreamy chord loop (Cmaj9 - Am9 - Fmaj7#11 - Gsus), as frequencies
@@ -34,6 +36,7 @@ export class Ambience {
   private echoGain: GainNode | null = null;
   private seaGain: GainNode | null = null;
   private seaFilter: BiquadFilterNode | null = null;
+  private muffle: BiquadFilterNode | null = null;
   private noise: AudioBuffer | null = null;
   private scene: AmbienceScene = { glow: 0, shore: 0, forest: 0 };
   private chord = 0;
@@ -52,7 +55,11 @@ export class Ambience {
     const ac = (this.ac = new AC());
     this.master = ac.createGain();
     this.master.gain.value = 0;
-    this.master.connect(ac.destination);
+    // everything passes a low-pass that closes when you dive (the world goes muffled under water)
+    this.muffle = ac.createBiquadFilter();
+    this.muffle.type = "lowpass";
+    this.muffle.frequency.value = 18000;
+    this.master.connect(this.muffle).connect(ac.destination);
 
     // gentle echo for chimes (the "dreamy" part)
     this.echo = ac.createDelay(1.5);
@@ -132,7 +139,29 @@ export class Ambience {
     const t = ac.currentTime;
     // twilight is slower, darker and a touch louder; the sea swells near the shore
     this.padGain.gain.setTargetAtTime(s.quiet ? 0.012 : 0.045 + s.glow * 0.025, t, 1.2);
-    this.seaGain.gain.setTargetAtTime(s.quiet ? 0 : 0.02 + s.shore * 0.22, t, 1.5);
+    const u = s.under ?? 0;
+    this.seaGain.gain.setTargetAtTime(s.quiet ? 0 : 0.02 + s.shore * 0.22 + u * 0.12, t, u > 0 ? 0.3 : 1.5);
+    this.muffle?.frequency.setTargetAtTime(u > 0 ? 520 - u * 180 : 18000, t, 0.25);
+  }
+
+  /** a splash as you jump into (or climb out of) the sea */
+  splash() {
+    const ac = this.ac;
+    if (!ac || !this.master || !this.noise || getMuted()) return;
+    const t = ac.currentTime;
+    const src = ac.createBufferSource();
+    src.buffer = this.noise;
+    const bp = ac.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.Q.value = 0.8;
+    bp.frequency.setValueAtTime(2400, t);
+    bp.frequency.exponentialRampToValueAtTime(420, t + 0.45);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.9, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    src.connect(bp).connect(g).connect(this.master);
+    src.start(t, Math.random() * 2, 0.7);
   }
 
   /** a sparkly twinkle, e.g. when you brush past a glowing flower */
@@ -209,6 +238,26 @@ export class Ambience {
     const ac = this.ac;
     if (!ac || !this.master || this.scene.quiet || getMuted()) return;
     const t = ac.currentTime;
+    if ((this.scene.under ?? 0) > 0) {
+      // under the sea: little rising bubble blips (they bypass the muffle via the echo)
+      if (Math.random() > 0.45) return;
+      const n = 1 + Math.floor(Math.random() * 4);
+      for (let i = 0; i < n; i++) {
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        const st = t + i * (0.06 + Math.random() * 0.08);
+        const f = 380 + Math.random() * 500;
+        o.frequency.setValueAtTime(f, st);
+        o.frequency.exponentialRampToValueAtTime(f * 2.6, st + 0.07);
+        g.gain.setValueAtTime(0.0001, st);
+        g.gain.exponentialRampToValueAtTime(0.05, st + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, st + 0.08);
+        o.connect(g).connect(this.master);
+        o.start(st);
+        o.stop(st + 0.1);
+      }
+      return;
+    }
     if (this.scene.glow < 0.5) {
       // birdsong: quick sweeping chirps
       if (Math.random() > 0.18 * (1 - this.scene.glow * 1.6)) return;

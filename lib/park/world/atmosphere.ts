@@ -12,6 +12,8 @@ export interface Atmosphere {
   /** 0..1 how deep into the Glow Forest the kid is */
   readonly forest: number;
   update(dt: number, t: number, focus: THREE.Vector3): void;
+  /** the camera dipped below the sea: deep-blue fog, no sky, teal light (depth in metres) */
+  setUnderwater(under: boolean, depth: number): void;
   dispose(): void;
 }
 
@@ -218,8 +220,24 @@ export function buildAtmosphere(
   let forestAmt = 0;
   let clockT = 0;
   let clockGlowNow = glow;
+  let under = false;
+  let underDepth = 0;
+  const bgSaved = scene.background;
+  const waterDay = new THREE.Color("#1f8fb0");
+  const waterDeep = new THREE.Color("#0b3f6a");
+  const waterNight = new THREE.Color("#06203f");
+  const underCol = new THREE.Color();
 
   return {
+    setUnderwater(u, depth) {
+      under = u;
+      underDepth = depth;
+      sky.visible = sunDisc.visible = moon.visible = moonHalo.visible = !u;
+      if (!u) {
+        (scene.fog as THREE.Fog).far = 430;
+        scene.background = bgSaved;
+      }
+    },
     get glow() {
       return glow;
     },
@@ -269,6 +287,22 @@ export function buildAtmosphere(
 
       fMat.uniforms.uTime.value = t;
       fMat.uniforms.uGlow.value = glow;
+
+      if (under) {
+        // light fades and turns blue the deeper you go; at twilight the sea is inky and the
+        // glowing creatures carry the scene
+        underCol.copy(waterDay).lerp(waterDeep, Math.min(1, underDepth / 18)).lerp(waterNight, glow * 0.8);
+        const fog = scene.fog as THREE.Fog;
+        fog.color.copy(underCol);
+        fog.near = 1.5;
+        fog.far = 46 - Math.min(14, underDepth * 0.6) - glow * 8;
+        scene.background = underCol;
+        hemi.color.set("#9ff0ff");
+        hemi.groundColor.set("#1a4a6a");
+        hemi.intensity = cur.hemiI * 0.95;
+        sun.color.set("#bff4ff");
+        sun.intensity = cur.sunI * (0.95 - Math.min(0.5, underDepth / 30));
+      }
     },
     dispose() {
       scene.remove(sky, sunDisc, moon, moonHalo, hemi, sun, fireflies);

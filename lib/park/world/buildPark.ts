@@ -14,6 +14,9 @@ import { TRAILS, ISLAND_R, nearStream, coastR } from "../registry/island";
 import { groundY, slopeAt } from "../registry/terrain";
 import { buildFantasyWorld, buildTerrainMesh } from "./fantasy";
 import { buildQuests3D, type Quests3D } from "./quests3d";
+import { buildUnderwater, type Underwater } from "./underwater";
+import { FOOTPRINTS as SEA_FOOTPRINTS } from "./underwater/plan";
+import { buildBirds } from "./birds";
 import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
 
@@ -28,6 +31,8 @@ export interface BuiltPark {
   ground: THREE.Mesh;
   /** Star Shards + Sky Rings (the engine drives them with the kid's position) */
   quests3d: Quests3D;
+  /** the reef, fish, orcas, mantas, jellies, wreck and pearls under (and on) the sea */
+  underwater: Underwater;
   /** round things to walk around (hills) */
   obstacles: { x: number; z: number; r: number }[];
   /** the dreamy day <-> twilight sky; atmosphere.glow lights up the whole world */
@@ -434,6 +439,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   disposables.push(fantasy);
   const quests3d = buildQuests3D(scene, fantasy.plan);
   disposables.push(quests3d);
+  const underwater = buildUnderwater(scene, { lowQuality: opts.lowQuality });
+  disposables.push(underwater);
+  const birds = buildBirds(scene, { lowQuality: opts.lowQuality });
+  disposables.push(birds);
   const ground = buildTerrainMesh({ lowQuality: opts.lowQuality, mask: fantasy.mask, paths: true });
   ground.name = "terrain";
   ground.receiveShadow = true;
@@ -550,14 +559,17 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     lands: LANDS,
     pathPoints,
     ground,
-    obstacles: [...nature.obstacles, ...fantasy.obstacles],
+    // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
+    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS],
     quests3d,
+    underwater,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
       glowFlora.update(dt, t, atmosphere.glow);
       ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog);
       skyLife.update(dt, t, atmosphere.glow);
+      birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       nature.update(dt, t, atmosphere.glow);
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       for (const l of landmarks) l.update(dt, t, atmosphere.glow);
