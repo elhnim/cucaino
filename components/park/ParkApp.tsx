@@ -808,7 +808,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       const k = `cucaino.wizards.hello.${kidId}.${day}`;
       if (!window.localStorage.getItem(k)) {
         window.localStorage.setItem(k, "1");
-        window.setTimeout(() => toast("🧙 The wizards have moved! Find them in the park for today's lessons ✨"), 9000);
+        window.setTimeout(() => toast("🧙 The wizards have flown up to the floating mountains! Fly up on the dragon or manta to find today's lessons ✨"), 9000);
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1060,7 +1060,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     ...wizardSpots.map((s) => {
       const w = WIZARDS.find((x) => x.id === s.id)!;
       const fresh = !wisdom[todaysLesson(w.id, wizDay.current).id];
-      return { id: `wizard:${s.id}`, x: s.x, z: s.z, emoji: "🧙", label: w.name.split(" ")[0], pulse: fresh };
+      return { id: `wizard:${s.id}`, x: s.x, z: s.z, emoji: "🧙", label: w.name.split(" ")[0], pulse: fresh, sky: true };
     }),
   ];
   const wizardOpen = panel?.kind === "wizard" && panel.placeId ? WIZARDS.find((w) => `wizard:${w.id}` === panel.placeId) : undefined;
@@ -1152,7 +1152,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         ))}
       </div>
 
-      {ready && <MiniMap world={worldRef} hidden={busy || building} pins={mapPins} />}
+      {ready && (
+        <MiniMap
+          world={worldRef}
+          hidden={busy || building}
+          pins={mapPins}
+          onSkyPin={(p) => toast(`🧙 ${p.label} is up on a floating mountain! Hop on the dragon or manta and fly there — then tap "Land"`)}
+        />
+      )}
       {ready && !busy && !building && (
         <QuestBanner
           state={chestReady ? "chest" : questsLeft > 0 ? "todo" : data.tasksToday.total === 0 ? "none" : "done"}

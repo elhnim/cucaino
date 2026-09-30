@@ -38,7 +38,7 @@ import { buildMount, type MountKind, type MountRig, type MountSkin } from "../ch
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaFloorY } from "../world/sea/wander";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
-import { SKY_OBSTACLES, skyIslandById, skyTopY } from "../registry/skyIslands";
+import { SKY_ISLANDS, SKY_OBSTACLES, skyIslandById, skyStreamEnd, skyTopY } from "../registry/skyIslands";
 
 /** each floating island's obstacles (trees, rocks, its peak), for walking about up there */
 const SKY_OBSTACLES_BY = new Map<string, { x: number; z: number; r: number }[]>();
@@ -168,7 +168,8 @@ export class ParkWorld {
   private kid: Actor | null = null;
   private pet: Actor | null = null;
   // ── wizards: placed somewhere new each day; they act like little walk-up places ──
-  private wizards: { model: WizardModel; place: PlaceDef; sign: THREE.Sprite; star: THREE.Sprite | null }[] = [];
+  // (each wizard lives up on a floating mountain: `island` is its id, so it bobs along with it)
+  private wizards: { model: WizardModel; place: PlaceDef; sign: THREE.Sprite; star: THREE.Sprite | null; island: string | null }[] = [];
   /** how big the pet has grown (it grows with the kid's chores; see setPetGrowth) */
   private petGrowth = 1;
   /** time until the next magic footstep sparkle (twilight only) */
@@ -1146,6 +1147,16 @@ export class ParkWorld {
 
     if (this.sky) this.tickSky(dt, kid);
 
+    // wizards stand on their floating mountains (which bob gently)
+    for (const w of this.wizards) {
+      if (!w.island) continue;
+      const top = skyTopY(w.place.x, w.place.z, this.time);
+      if (!top) continue;
+      w.model.root.position.y = top.y;
+      w.sign.position.y = top.y + 4.9;
+      if (w.star) w.star.position.y = top.y + 6.1;
+    }
+
     // a floating mountain's treasure chest: walk up to it to open it
     if (this.onSky && !this.skyOpened.has(this.onSky)) {
       const isl = skyIslandById(this.onSky);
@@ -1263,9 +1274,12 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn && !aloft && !this.sky && !this.onSky && !this.gliding) {
+    if (this.inputOn && !aloft && !this.sky && !this.gliding) {
       let found: PlaceDef | null = null;
-      for (const p of this.allPlaces()) {
+      const here = this.onSky
+        ? this.wizards.filter((w) => w.island === this.onSky).map((w) => w.place)
+        : [...(this.park.places ?? []), ...this.wizards.filter((w) => !w.island).map((w) => w.place)];
+      for (const p of here) {
         if (p.doorRadius <= 0) continue;
         if (Math.hypot(pos.x - p.x, pos.z - p.z) < p.doorRadius) {
           found = p;
@@ -1494,30 +1508,43 @@ export class ParkWorld {
     if (!this.park) return [];
     let s = seed >>> 0 || 1;
     const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-    const pts = this.park.pathPoints.filter((p) => Math.hypot(p.x, p.z) > 16 && !this.park!.places.some((pl) => Math.hypot(pl.x - p.x, pl.z - p.z) < pl.doorRadius + 5));
-    const chosen: THREE.Vector3[] = [];
+    // the wizards live up on the floating mountains — a different set of mountains each day
+    const islands = [...SKY_ISLANDS];
+    for (let i = islands.length - 1; i > 0; i--) {
+      const j = Math.floor(rnd() * (i + 1));
+      [islands[i], islands[j]] = [islands[j], islands[i]];
+    }
     const out: { id: string; x: number; z: number }[] = [];
-    for (const w of list) {
-      let spot: THREE.Vector3 | null = null;
-      for (let tries = 0; tries < 60 && pts.length; tries++) {
-        const p = pts[Math.floor(rnd() * pts.length)];
-        if (chosen.some((c) => c.distanceTo(p) < 22)) continue;
-        spot = p;
+    const park = this.park;
+    list.forEach((w, wi) => {
+      const isl = islands[wi % islands.length];
+      // a clear patch of grass on its top: not on the chest, the landing spot, a tree or the peak
+      let x = isl.landing.x;
+      let z = isl.landing.z;
+      for (let tries = 0; tries < 80; tries++) {
+        const a = rnd() * Math.PI * 2;
+        const d = isl.r * (0.25 + rnd() * 0.45);
+        const tx = isl.x + Math.sin(a) * d;
+        const tz = isl.z + Math.cos(a) * d;
+        if (!skyTopY(tx, tz, 0)) continue;
+        if (Math.hypot(tx - isl.treasure.x, tz - isl.treasure.z) < 5 || Math.hypot(tx - isl.landing.x, tz - isl.landing.z) < 3.5) continue;
+        if (SKY_OBSTACLES.some((o) => o.id === isl.id && Math.hypot(tx - o.x, tz - o.z) < o.r + 1.8)) continue;
+        // not standing in the spring's stream as it runs off the edge
+        const end = skyStreamEnd(isl);
+        const sx = end.x - isl.spring.x;
+        const sz = end.z - isl.spring.z;
+        const k = Math.max(0, Math.min(1, ((tx - isl.spring.x) * sx + (tz - isl.spring.z) * sz) / (sx * sx + sz * sz || 1)));
+        if (Math.hypot(tx - isl.spring.x - sx * k, tz - isl.spring.z - sz * k) < 3.5) continue;
+        x = tx;
+        z = tz;
         break;
       }
-      if (!spot) continue;
-      chosen.push(spot);
-      // step off the path to the side (perpendicular to the way back to the plaza)
-      const side = rnd() < 0.5 ? -1 : 1;
-      const r = Math.hypot(spot.x, spot.z) || 1;
-      const x = spot.x + (-spot.z / r) * 3.4 * side;
-      const z = spot.z + (spot.x / r) * 3.4 * side;
       const model = buildWizardModel({ robe: w.robe, hat: w.hat, orb: w.orb });
-      const gy = groundY(x, z);
+      const gy = skyTopY(x, z, this.time)?.y ?? groundY(x, z);
       model.root.position.set(x, gy, z);
       model.root.traverse((o) => (o.userData.placeId = `wizard:${w.id}`));
       this.scene.add(model.root);
-      this.park.tappables.push(model.root);
+      park.tappables.push(model.root);
       const sign = nameTag(`🧙 ${w.name}`, w.robe);
       sign.position.set(x, gy + 4.9, z);
       this.scene.add(sign);
@@ -1528,9 +1555,9 @@ export class ParkWorld {
         this.scene.add(star);
       }
       const place: PlaceDef = { id: `wizard:${w.id}`, label: w.name, emoji: "🧙", land: "plaza", x, z, radius: 1.1, doorRadius: 3.4, action: "wizard", signY: 0, models: [] };
-      this.wizards.push({ model, place, sign, star });
+      this.wizards.push({ model, place, sign, star, island: isl.id });
       out.push({ id: w.id, x, z });
-    }
+    });
     return out;
   }
 

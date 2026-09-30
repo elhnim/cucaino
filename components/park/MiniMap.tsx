@@ -25,6 +25,8 @@ export interface MapPin {
   badge?: number;
   /** pulse to draw the eye */
   pulse?: boolean;
+  /** up on a floating mountain: tapping it can't walk you there (onSkyPin explains how to fly) */
+  sky?: boolean;
 }
 
 const NEAR_VIEW = 44;
@@ -140,7 +142,7 @@ const SEA_LIFE = [
   { e: "🐬", a: 5.4 },
 ].map((s) => ({ ...s, x: Math.sin(s.a) * (ISLAND_R + 24), z: Math.cos(s.a) * (ISLAND_R + 24) }));
 
-export function MiniMap({ world, hidden, pins = [] }: { world: React.RefObject<ParkWorld | null>; hidden?: boolean; pins?: MapPin[] }) {
+export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.RefObject<ParkWorld | null>; hidden?: boolean; pins?: MapPin[]; onSkyPin?: (p: MapPin) => void }) {
   const [pose, setPose] = useState<Pose | null>(null);
   const [big, setBig] = useState(false);
   const last = useRef("");
@@ -169,6 +171,11 @@ export function MiniMap({ world, hidden, pins = [] }: { world: React.RefObject<P
   };
   const goToPin = (pin: MapPin) => {
     playSfx("tap");
+    if (pin.sky) {
+      onSkyPin?.(pin);
+      setBig(false);
+      return;
+    }
     world.current?.walkKidPath(routeToSpot(pose, pin.x, pin.z + 4));
     setBig(false);
   };
