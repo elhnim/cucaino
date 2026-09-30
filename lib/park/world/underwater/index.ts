@@ -93,6 +93,8 @@ import { makeVisit, startVisit, stepVisit, visitHeight, type Visit } from "../se
 import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFloorY, shiftSwimmers, swim, trackFocus, type Swimmer, type SwimStyle } from "../sea/wander";
 import { blowholeLocal, whaleGeometry } from "../sea/whaleGeometry";
 import { BREACH, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, WHALE_STYLE, aimPast, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, stepWhale, type Whale } from "../sea/whales";
+import { cutAbyssFloor } from "../abyss";
+
 
 export { PEARL_COUNT } from "./plan";
 
@@ -566,6 +568,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   track(ceiling.material as THREE.Material);
   group.add(ceiling);
   const caustics = buildFloorCaustics(U, low ? 36 : 56);
+  cutAbyssFloor(caustics.mesh.material as THREE.Material); // (the rift's own rock draws the floor there)
   track(caustics);
   group.add(caustics.mesh);
 
@@ -586,6 +589,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
 
   // ── the deep sandy plain beyond the reef (follows the kid) ──
   const sandMat = track(uwMaterial(U, { motion: "none", pattern: "sand" }, { roughness: 0.96 }));
+  cutAbyssFloor(sandMat);
   const deepFloor = buildDeepFloor(sandMat, low ? 32 : 48, low ? 8 : 6);
   track(deepFloor);
   group.add(deepFloor.mesh);

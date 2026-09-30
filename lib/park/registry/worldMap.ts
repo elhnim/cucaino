@@ -4,6 +4,8 @@
 import { VILLAGE_ISLAND } from "./villageIsland";
 import { SKY_ISLANDS } from "./skyIslands";
 import { WRAP_R } from "./terrain";
+import { ABYSS } from "./abyss";
+import { FROST_ISLAND } from "./frostIsland";
 
 export interface WorldPlace {
   id: string;
@@ -33,6 +35,28 @@ export const WORLD_PLACES: WorldPlace[] = [
     kind: "island",
     land: "#7fd36b",
     how: `${VILLAGE_ISLAND.name} is far out at sea, home of ${VILLAGE_ISLAND.clan}. Swim, ride the manta or fly the dragon there!`,
+  },
+  {
+    id: FROST_ISLAND.id,
+    name: FROST_ISLAND.name,
+    emoji: "🐧",
+    x: FROST_ISLAND.x,
+    z: FROST_ISLAND.z,
+    r: FROST_ISLAND.r,
+    kind: "island",
+    land: "#f4f8ff",
+    how: `${FROST_ISLAND.name} is a snowy island far out at sea where penguins waddle up the hill and slide down into the water! Swim, ride a dolphin or fly the dragon there.`,
+  },
+  {
+    id: ABYSS.id,
+    name: ABYSS.name,
+    emoji: "🦈",
+    x: ABYSS.path[Math.floor(ABYSS.path.length / 2)].x,
+    z: ABYSS.path[Math.floor(ABYSS.path.length / 2)].z,
+    r: ABYSS.width / 2,
+    kind: "abyss",
+    how: `${ABYSS.name} is a deep, dark crack in the ocean floor where the rarest sea creatures live — even a megalodon! Swim or ride the manta there and dive down.`,
+    path: ABYSS.path,
   },
   ...SKY_ISLANDS.filter((s) => s.r >= 11).map((s) => ({
     id: s.id,

@@ -252,6 +252,11 @@ export function buildAtmosphere(
   const waterReef = new THREE.Color("#23a6d8");
   const waterDeep = new THREE.Color("#1a6fc6");
   const waterNight = new THREE.Color("#12357a");
+  // the Midnight Rift, far below the reef: deep navy, then near-black
+  const waterAbyss = new THREE.Color("#0b2352");
+  const waterMidnight = new THREE.Color("#030916");
+  const abyssSky = new THREE.Color("#b4c6ff");
+  const abyssGround = new THREE.Color("#5a6fa8");
   const underCol = new THREE.Color();
 
   return {
@@ -334,12 +339,25 @@ export function buildAtmosphere(
         };
         const open = s01(12, 20, seaDepth(focus.x, focus.z)); // 0 lagoon/reef .. 1 over the deep
         const down = s01(1.5, 16, underDepth); // how far below the surface the camera is
+        // below ~25 m (only possible down in the Midnight Rift) the light fades: deep navy by ~50 m,
+        // near-black by ~100 m, with shorter visibility, so the glowing creatures carry the scene
+        // (0 above 25 m: the reef and the lagoon look exactly as before)
+        const abyss = s01(25, 62, underDepth);
+        const midnight = s01(58, 112, underDepth);
         underCol.copy(waterTop).lerp(waterReef, Math.max(down * 0.8, open * 0.6)).lerp(waterDeep, open * (0.35 + down * 0.65));
         underCol.lerp(waterNight, glow * 0.82);
+        if (abyss > 0) underCol.lerp(waterAbyss, Math.min(1, abyss * 1.3)).lerp(waterMidnight, midnight * 0.92);
         const fog = scene.fog as THREE.Fog;
         fog.color.copy(underCol);
         fog.far = (86 - open * 30 - down * 6) * (1 - glow * 0.22);
         fog.near = fog.far * 0.24;
+        if (abyss > 0) {
+          // (kid-friendly, not realistic: down in the rift you can see *further*, ~65 m, so the
+          // walls 25-40 m away still frame the view; the dark comes from the colour, not the fog)
+          fog.far += (66 - fog.far) * abyss;
+          fog.far *= 1 - midnight * 0.12;
+          fog.near = fog.far * (0.24 + abyss * 0.08);
+        }
         scene.background = underCol;
         // strong ambient (sky light scattered all round + the bright sand bouncing it up) and the
         // sun from above, so creatures show their colours
@@ -348,6 +366,17 @@ export function buildAtmosphere(
         hemi.intensity = (0.95 - down * 0.15 - open * 0.08) * (1 - glow * 0.4);
         sun.color.set("#fff9e6");
         sun.intensity = (1.12 - down * 0.3) * (1 - glow * 0.62);
+        if (abyss > 0) {
+          // a cold, dim blue from all round (never pitch black: the kid stays readable) and hardly
+          // any sunlight from above
+          hemi.color.lerp(abyssSky, Math.min(1, abyss * 1.5));
+          hemi.groundColor.lerp(abyssGround, Math.min(1, abyss * 1.5));
+          // (kept fairly strong so the kid and the creatures always read; the rift's rock dims
+          // itself with depth in its own shader)
+          hemi.intensity *= 1 - abyss * 0.12;
+          sun.color.lerp(abyssSky, abyss);
+          sun.intensity *= 1 - Math.min(1, abyss * 1.25) * 0.94;
+        }
       }
     },
     dispose() {

@@ -39,6 +39,7 @@ import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { ISLAND_R } from "../registry/island";
 import { seaFloorY } from "../world/sea/wander";
 import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../registry/villageIsland";
+import { FROST_ISLAND, frostGroundY } from "../registry/frostIsland";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_SPOTS, skyIslandById, skyStreamEnd, skyTopY, type SkySpot } from "../registry/skyIslands";
 
@@ -100,6 +101,8 @@ export interface ParkWorldOptions {
   look?: "diorama" | "smooth";
   /** crossed the edge of the ocean and came back round from the other side */
   onWrap?: () => void;
+  /** close to a rare or extinct creature (or a place) down in the Midnight Rift, or on Frostpeak Isle */
+  onAbyssSpot?: (spot: { id: string; name: string; text: string }) => void;
   /** a Sea Pearl was collected from a giant clam on the reef */
   onPearl?: (id: number) => void;
   /** the kid waded into deep water (true) or climbed back onto the beach (false) */
@@ -124,6 +127,8 @@ const SWIM_DEPTH = 0.9;
 const worldFloor = (x: number, z: number) => {
   const v = villageGroundY(x, z);
   if (v !== null) return v;
+  const fr = frostGroundY(x, z);
+  if (fr !== null) return fr; // (Frostpeak's under-sea slopes come in through seaFloorY)
   const f = seaFloorY(x, z);
   const vf = villageSeaFloorY(x, z);
   return vf !== null ? Math.max(f, vf) : f;
@@ -231,6 +236,9 @@ export class ParkWorld {
   private hopNear: { id: string; kind: MountKind; label: string } | null = null;
   private spotsFound = new Set<string>();
   private lastTalk = "";
+  private abyssSpot: string | null = null;
+  private frostSpot: string | null = null;
+  private metFrost = false;
   private metVillage = false;
   /** flung by a sky cannon towards another island: from -> to over `dur` seconds */
   private launch: { fx: number; fy: number; fz: number; tx: number; tz: number; to: string; t: number; dur: number } | null = null;
@@ -1486,6 +1494,17 @@ export class ParkWorld {
     const nearSea = Math.hypot(pos.x, pos.z) > 118;
     uw.group.visible = this.camUnder || this.wasInSea || nearSea || (this.mount?.kind === "manta" && pos.y < WATER_Y);
     const uwr = uw.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow });
+    const ab = this.park.abyss.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow }).spot;
+    if (ab && ab.id !== this.abyssSpot) this.opts.onAbyssSpot?.(ab);
+    this.abyssSpot = ab?.id ?? null;
+    const fs = this.park.frost.update(dt, this.time, { kid: pos, glow: this.park.atmosphere.glow, hour: this.park.atmosphere.hour, under: this.camUnder }).spot;
+    if (fs && fs.id !== this.frostSpot) this.opts.onAbyssSpot?.(fs);
+    this.frostSpot = fs?.id ?? null;
+    this.park.dolphins.update(dt, this.time, { kid: pos, under: this.camUnder });
+    if (!this.metFrost && Math.hypot(pos.x - FROST_ISLAND.x, pos.z - FROST_ISLAND.z) < FROST_ISLAND.r + 10) {
+      this.metFrost = true;
+      this.opts.onVillage?.(FROST_ISLAND.name, "the penguins");
+    }
     if (uwr.pearl !== null) {
       this.burst(pos.clone().setY(pos.y + 1.2), 50);
       this.opts.onPearl?.(uwr.pearl);

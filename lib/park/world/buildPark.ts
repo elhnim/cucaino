@@ -22,6 +22,10 @@ import { buildSteamTrain, CAR_GAP } from "./steamTrain";
 import { buildSkyBuilding, type SkyBuilding } from "./skyBuildings";
 import { buildRideables, type Rideables } from "./rideables";
 import { buildFauna, type Fauna } from "./fauna";
+import { buildAbyss, type Abyss } from "./abyss";
+import { buildFrostIsland, type FrostWorld } from "./frost";
+import { buildDolphinPods } from "./frost/dolphins";
+import { FROST_OBSTACLES } from "../registry/frostIsland";
 import { buildHomeExterior } from "../home/exterior";
 import { rideableKeepOut } from "../registry/rideables";
 import { buildStorybook, type Storybook } from "./storybook";
@@ -56,6 +60,12 @@ export interface BuiltPark {
   skyTrain: { loop: THREE.CatmullRomCurve3; len: number; u: number; held: boolean; stationU: number };
   /** the reef, fish, orcas, mantas, jellies, wreck and pearls under (and on) the sea */
   underwater: Underwater;
+  /** the Midnight Rift, a deep crack in the ocean floor (the engine updates it: it needs to know if the camera's under) */
+  abyss: Abyss;
+  /** Frostpeak Isle (penguins, seals, narwhals, aurora) — updated by the engine */
+  frost: FrostWorld;
+  /** dolphin pods roaming the open sea (one comes to swim with a kid out at sea) */
+  dolphins: { update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean }): void };
   /** round things to walk around (hills) */
   obstacles: { x: number; z: number; r: number }[];
   /** the dreamy day <-> twilight sky; atmosphere.glow lights up the whole world */
@@ -542,6 +552,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   disposables.push(quests3d);
   const underwater = buildUnderwater(scene, { lowQuality: opts.lowQuality });
   disposables.push(underwater);
+  const abyss = buildAbyss(scene, { lowQuality: opts.lowQuality });
+  disposables.push(abyss);
+  const frost = buildFrostIsland(scene, { lowQuality: opts.lowQuality });
+  disposables.push(frost);
+  const dolphins = buildDolphinPods(scene, { lowQuality: opts.lowQuality });
+  disposables.push(dolphins);
   const birds = buildBirds(scene, { lowQuality: opts.lowQuality });
   disposables.push(birds);
   // ── the storybook valley: dense chunky forest, sheep, windmills, balloons, boats, clouds, misty hills ──
@@ -687,7 +703,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
-    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES],
+    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES],
     quests3d,
     underwater,
     skyTrain,
@@ -696,6 +712,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     villageTalk: null,
     rides: worldRides,
     fauna,
+    abyss,
+    frost,
+    dolphins,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());

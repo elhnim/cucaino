@@ -11,6 +11,8 @@
 import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, groundY } from "../../registry/terrain";
 import { noise2, smoothstep } from "../fantasy/noise";
 import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../../registry/villageIsland";
+import { abyssFloorY } from "../../registry/abyss";
+import { FROST_ISLAND, frostSeaFloorY } from "../../registry/frostIsland";
 
 const TAU = Math.PI * 2;
 const clamp = (x: number, a: number, b: number) => (x < a ? a : x > b ? b : x);
@@ -30,8 +32,14 @@ export function seaFloorY(x: number, z: number): number {
   // Coralcove Isle's slopes (and its land) count as sea floor too, so creatures steer round them
   const vg = villageGroundY(x, z);
   if (vg !== null) return vg;
+  // … and Frostpeak Isle's (its land and slopes; not the floating floes)
+  const fs = frostSeaFloorY(x, z);
+  if (fs !== null) return Math.max(mainSeaFloorY(x, z), fs);
   const vs = villageSeaFloorY(x, z);
-  const f = mainSeaFloorY(x, z);
+  let f = mainSeaFloorY(x, z);
+  // the Midnight Rift: a deep crack in the open ocean floor
+  const a = abyssFloorY(x, z);
+  if (a !== null) f = Math.min(f, a);
   return vs !== null ? Math.max(f, vs) : f;
 }
 function mainSeaFloorY(x: number, z: number): number {
@@ -117,6 +125,9 @@ export function deepestHeading(s: { x: number; z: number; yaw: number }): number
   const vx = s.x - VILLAGE_ISLAND.x;
   const vz = s.z - VILLAGE_ISLAND.z;
   if (vx * vx + vz * vz < (VILLAGE_ISLAND.r + 110) ** 2) return Math.atan2(vx, vz);
+  const fx = s.x - FROST_ISLAND.x;
+  const fz = s.z - FROST_ISLAND.z;
+  if (fx * fx + fz * fz < (FROST_ISLAND.r + 110) ** 2) return Math.atan2(fx, fz);
   return Math.atan2(s.x, s.z);
 }
 

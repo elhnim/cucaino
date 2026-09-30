@@ -160,6 +160,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [dream, setDream] = useState<DreamPark | null>(null);
   // inside My Home (the kid's cottage)
   const [home, setHome] = useState<{ ride: HomeRide; data: HomeData } | null>(null);
+  const seenAbyss = useRef(new Set<string>());
   const openHomeRef = useRef<(placeId: string) => void>(() => {});
   const [building, setBuilding] = useState(false);
   const [selection, setSelection] = useState<BuilderSelection | null>(null);
@@ -606,6 +607,12 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           onSkyIsland: (id, what) => {
             if (what === "glide") toast("🍃 Wheee — floating gently down!");
             else toast(`🏝️ You landed on ${skyIslandById(id ?? "")?.name ?? "a floating mountain"}! Can you find its treasure chest?`);
+          },
+          onAbyssSpot: (sp) => {
+            if (seenAbyss.current.has(sp.id)) return;
+            seenAbyss.current.add(sp.id);
+            playSfx("sparkle");
+            toast(`🔦 ${sp.name}! ${sp.text}`);
           },
           onSkySpot: (sp) => {
             setSpots((cur) => {
