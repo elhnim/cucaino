@@ -250,6 +250,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // swimming in the sea (on foot, or on a manta under the waves): shows the swim up / dive buttons
   const [swim, setSwim] = useState<{ under: boolean } | null>(null);
   const [onCoaster, setOnCoaster] = useState(false);
+  // a Coralcove villager talking to the kid
+  const [villageTalk, setVillageTalk] = useState<{ name: string; line: string } | null>(null);
   // floating mountains: the one you're flying over (to land on), and the treasures found
   const [landName, setLandName] = useState<string | null>(null);
   const skyKey = `cucaino.skychests.${kidId}`;
@@ -583,6 +585,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             if (on) toast("🎢 Hold on tight! Round the whole island we go!");
           },
           onWrap: () => toast("🌍 All the way round the world — and back to Cucaino Island!"),
+          onVillageTalk: (t) => setVillageTalk(t ? { name: t.name, line: t.line } : null),
+          onVillage: (name, clan) => {
+            playSfx("win");
+            toast(`🏝️ You found ${name}, home of ${clan}! Say hello to the villagers`);
+          },
           onSkyIsland: (id, what) => {
             if (what === "glide") toast("🍃 Wheee — floating gently down!");
             else toast(`🏝️ You landed on ${skyIslandById(id ?? "")?.name ?? "a floating mountain"}! Can you find its treasure chest?`);
@@ -1250,6 +1257,14 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           >
             {riding ? (riding.landing ? "…" : "Hop off") : "🦄"}
           </RoundButton>
+        </div>
+      )}
+      {villageTalk && !busy && (
+        <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(max(20px, env(safe-area-inset-bottom)) + 240px)", zIndex: 23, maxWidth: "min(92vw, 420px)", pointerEvents: "none" }}>
+          <div style={{ background: "rgba(255,250,240,0.96)", color: "#2a2340", borderRadius: 18, padding: "10px 14px", boxShadow: "0 6px 20px rgba(0,0,0,0.3)", border: `2px solid ${alpha(C.gold, 0.8)}`, fontWeight: 800, fontSize: 15, lineHeight: 1.35 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#8a5a10", letterSpacing: 0.5, marginBottom: 2 }}>🧚 {villageTalk.name}</div>
+            {villageTalk.line}
+          </div>
         </div>
       )}
       {landName && !busy && (

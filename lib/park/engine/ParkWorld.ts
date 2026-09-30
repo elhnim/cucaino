@@ -37,6 +37,7 @@ import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi
 import { buildMount, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaFloorY } from "../world/sea/wander";
+import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../registry/villageIsland";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_SPOTS, skyIslandById, skyStreamEnd, skyTopY, type SkySpot } from "../registry/skyIslands";
 
@@ -82,6 +83,10 @@ export interface ParkWorldOptions {
   onReady?: () => void;
   /** landed on a floating mountain (id, "land") or stepped off an edge ("glide", id null) */
   onSkyIsland?: (id: string | null, what: "land" | "glide") => void;
+  /** a Coralcove villager says something to the kid (null = nobody talking now) */
+  onVillageTalk?: (talk: { id: string; name: string; line: string } | null) => void;
+  /** arrived at Coralcove Isle for the first time this visit */
+  onVillage?: (name: string, clan: string) => void;
   /** discovered something on a floating mountain (a cave, a nest, a rune circle solved …) */
   onSkySpot?: (spot: SkySpot) => void;
   /** opened a floating mountain's treasure chest */
@@ -111,9 +116,18 @@ const SEA_LIMIT = 200; // (unused now the ocean wraps round — kept for the lan
 /** water deeper than this and you swim instead of wading */
 const SWIM_DEPTH = 0.9;
 /** how deep the sea is at (x, z) (<= 0 on land) */
-const seaDepth = (x: number, z: number) => WATER_Y - seaFloorY(x, z); // the same sea floor the art draws
+/** the ground under (x, z): the main island's terrain, Coralcove Isle's land and decks, or the sea
+ *  floor round them (the same surfaces the art draws) */
+const worldFloor = (x: number, z: number) => {
+  const v = villageGroundY(x, z);
+  if (v !== null) return v;
+  const f = seaFloorY(x, z);
+  const vf = villageSeaFloorY(x, z);
+  return vf !== null ? Math.max(f, vf) : f;
+};
+const seaDepth = (x: number, z: number) => WATER_Y - worldFloor(x, z);
 /** the ground (or sea floor) under (x, z) */
-const floorY0 = (x: number, z: number) => seaFloorY(x, z);
+const floorY0 = (x: number, z: number) => worldFloor(x, z);
 const CAM_OFFSET = new THREE.Vector3(0, 12, 14);
 const MAX_DT = 1 / 20;
 
@@ -209,6 +223,8 @@ export class ParkWorld {
   private flyBase = 0;
   private skyOpened = new Set<string>();
   private spotsFound = new Set<string>();
+  private lastTalk = "";
+  private metVillage = false;
   /** flung by a sky cannon towards another island: from -> to over `dur` seconds */
   private launch: { fx: number; fy: number; fz: number; tx: number; tz: number; to: string; t: number; dur: number } | null = null;
   /** a telescope's peek at another island (the camera looks there for a moment) */
@@ -707,7 +723,7 @@ export class ParkWorld {
         a.root.position.set(kp.x + 1.2, kp.y, kp.z + 0.8);
       } else a.root.position.y = s ? s.y : kp.y;
     } else if (snap && !this.ride) {
-      const gy = groundY(a.root.position.x, a.root.position.z);
+      const gy = worldFloor(a.root.position.x, a.root.position.z);
       // in deep water everyone paddles at the surface
       a.root.position.y = WATER_Y - gy > SWIM_DEPTH ? WATER_Y - 0.95 + Math.sin(this.time * 2.4 + a.root.position.x) * 0.06 : gy + (a === this.pet && this.petMode === "sleep" ? 0.45 : 0);
     }
@@ -719,7 +735,7 @@ export class ParkWorld {
     const speed = forceSpeed ?? (Number.isNaN(a.last!.x) || dt <= 0 ? 0 : Math.hypot(p.x - a.last!.x, p.z - a.last!.z) / dt);
     a.last!.copy(p);
     // the pet (and visitors) paddle when they're in the sea
-    if (a !== this.kid) a.rig.setSwim(!this.ride && WATER_Y - seaFloorY(p.x, p.z) > SWIM_DEPTH && p.y < WATER_Y, speed > 0.4);
+    if (a !== this.kid) a.rig.setSwim(!this.ride && WATER_Y - worldFloor(p.x, p.z) > SWIM_DEPTH && p.y < WATER_Y, speed > 0.4);
     a.rig.update(dt, speed);
     a.rig.setGlow(this.park?.atmosphere.glow ?? 0);
     if (a.hold && a.hold > 0) {
@@ -1082,7 +1098,7 @@ export class ParkWorld {
     }
     turnTowards(kid, dt);
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
-    const floorY = seaFloorY(pos.x, pos.z);
+    const floorY = worldFloor(pos.x, pos.z);
     const seaHere = WATER_Y - floorY;
     const skyHere = skyTopY(pos.x, pos.z, this.time);
     if (this.mount) {
@@ -1216,6 +1232,18 @@ export class ParkWorld {
       w.model.root.position.y = top.y;
       w.sign.position.y = top.y + 4.9;
       if (w.star) w.star.position.y = top.y + 6.1;
+    }
+
+    // Coralcove Isle: say hello the first time you arrive; villagers chat when you're close
+    const talk = this.park.villageTalk;
+    const talkKey = talk ? `${talk.id}:${talk.line}` : "";
+    if (talkKey !== this.lastTalk) {
+      this.lastTalk = talkKey;
+      this.opts.onVillageTalk?.(talk);
+    }
+    if (!this.metVillage && Math.hypot(pos.x - VILLAGE_ISLAND.x, pos.z - VILLAGE_ISLAND.z) < VILLAGE_ISLAND.r + 12) {
+      this.metVillage = true;
+      this.opts.onVillage?.(VILLAGE_ISLAND.name, VILLAGE_ISLAND.clan);
     }
 
     // discoveries on the floating mountains
@@ -1538,7 +1566,7 @@ export class ParkWorld {
       }
       this.camLift += (Math.min(lift, 30) - this.camLift) * Math.min(1, dt * 4);
       cp.y += this.camLift;
-      const under = groundY(cp.x, cp.z) + 1.2;
+      const under = worldFloor(cp.x, cp.z) + 1.2;
       if (cp.y < under) cp.y = under;
       // the camera never straddles the waterline: it dives with a diving kid (closer in, the sea
       // is murky) and stays above the waves for one paddling at the top
@@ -1551,7 +1579,7 @@ export class ParkWorld {
         // filled the view with its bright underside)
         // float a little above the kid, over the coral tops (down among the coral, sea fans and
         // grass blocked the view), and never up through the surface
-        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.6, seaFloorY(cp.x, cp.z) + 2.2));
+        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.6, worldFloor(cp.x, cp.z) + 2.2));
       } else if (seaDepth(cp.x, cp.z) > 0 && cp.y < WATER_Y + 1.2) cp.y = WATER_Y + 1.2;
       // aim a little above the kid: they sit in the lower third and the world fills the frame
       // (aiming straight at them left the bottom half of the screen as empty grass)
@@ -1797,7 +1825,7 @@ export class ParkWorld {
     // taking off from a floating mountain: heights count from its top
     const kp0 = this.kid.root.position;
     const top0 = this.onSky ? skyTopY(kp0.x, kp0.z, this.time) : null;
-    this.flyBase = top0 ? top0.y : Math.max(seaFloorY(kp0.x, kp0.z), WATER_Y);
+    this.flyBase = top0 ? top0.y : Math.max(worldFloor(kp0.x, kp0.z), WATER_Y);
     this.onSky = null;
     this.gliding = false;
     // hopping on a manta while swimming under water: it carries on from this depth
@@ -1847,7 +1875,7 @@ export class ParkWorld {
     // off a manta in the sea: keep swimming at the same depth
     const sea = seaDepth(kp.x, kp.z);
     if (sea > SWIM_DEPTH) this.swimDepth = this.swimTarget = Math.max(0, Math.min(sea - 1.1, WATER_Y - 0.95 - wasY));
-    kp.y = sea > SWIM_DEPTH ? WATER_Y - 0.95 - this.swimDepth : groundY(kp.x, kp.z);
+    kp.y = sea > SWIM_DEPTH ? WATER_Y - 0.95 - this.swimDepth : worldFloor(kp.x, kp.z);
     if (this.kid.rig) this.kid.rig.root.position.set(0, 0, 0);
     const shadow = this.kid.root.children[1];
     if (shadow) shadow.visible = true;

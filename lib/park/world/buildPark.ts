@@ -20,6 +20,8 @@ import { FOOTPRINTS as SEA_FOOTPRINTS } from "./underwater/plan";
 import { buildBirds } from "./birds";
 import { buildSteamTrain, CAR_GAP } from "./steamTrain";
 import { buildStorybook, type Storybook } from "./storybook";
+import { buildVillage } from "./village";
+import { VILLAGE_OBSTACLES } from "../registry/villageIsland";
 import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
 
@@ -37,6 +39,8 @@ export interface BuiltPark {
   /** the storybook dressing (dense forest, sheep, windmills, balloons, boats, clouds, misty
    *  horizon) — only in the diorama look */
   storybook: Storybook | null;
+  /** a Coralcove villager with something to say to the kid right now (null when nobody's near) */
+  villageTalk: { id: string; name: string; line: string } | null;
   /** the floating mountains' chests, discoveries and rune-stone puzzles */
   skyChests: FantasyWorld["sky"];
   /** the Sky Coaster: its track and where its train is (the engine drives it while you ride) */
@@ -491,6 +495,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       })
     : null;
   if (storybook) disposables.push(storybook);
+  // ── Coralcove Isle, far out at sea: the Tidewing Folk's villages ──
+  const village = buildVillage(scene, { lowQuality: opts.lowQuality });
+  disposables.push(village);
   const ground = buildTerrainMesh({ lowQuality: opts.lowQuality, mask: fantasy.mask, paths: true });
   ground.name = "terrain";
   ground.receiveShadow = true;
@@ -603,19 +610,20 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const look = new THREE.Matrix4();
   const cloudPos = new THREE.Vector3();
   const cloudScale = new THREE.Vector3();
-  return {
+  const built: BuiltPark = {
     tappables,
     places: PLACES,
     lands: LANDS,
     pathPoints,
     ground,
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
-    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? [])],
+    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES],
     quests3d,
     underwater,
     skyTrain,
     skyChests: fantasy.sky,
     storybook,
+    villageTalk: null,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
@@ -624,6 +632,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       storybook?.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
+      built.villageTalk = village.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour }).talk;
       for (const sp of skyPlaces) {
         const top = skyTopY(sp.x, sp.z, t);
         if (top) sp.group.position.y = top.y;
@@ -655,4 +664,5 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       for (const d of disposables) d.dispose();
     },
   };
+  return built;
 }

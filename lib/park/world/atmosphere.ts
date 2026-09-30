@@ -12,6 +12,8 @@ export interface Atmosphere {
   readonly glow: number;
   /** 0..1 how deep into the Glow Forest the kid is */
   readonly forest: number;
+  /** the park's time of day, 0..24 (a whole day every 15 minutes) */
+  readonly hour: number;
   update(dt: number, t: number, focus: THREE.Vector3): void;
   /** the camera dipped below the sea: deep-blue fog, no sky, teal light (depth in metres) */
   setUnderwater(under: boolean, depth: number): void;
@@ -267,6 +269,9 @@ export function buildAtmosphere(
     },
     get forest() {
       return forestAmt;
+    },
+    get hour() {
+      return hourCur;
     },
     update(dt, t, focus) {
       clockT -= dt;
