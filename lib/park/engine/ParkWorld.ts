@@ -93,6 +93,8 @@ export interface ParkWorldOptions {
   onSkyTreasure?: (id: string) => void;
   /** boarded (true) or stepped off (false) the Sky Coaster */
   onSkyCoaster?: (riding: boolean) => void;
+  /** step quality down on devices that keep dropping frames (default true; smoke harnesses turn it off) */
+  adaptiveQuality?: boolean;
   /** the finish: "diorama" (default — outlines, stepped colour, chunky pixels) or "smooth" */
   look?: "diorama" | "smooth";
   /** crossed the edge of the ocean and came back round from the other side */
@@ -264,6 +266,11 @@ export class ParkWorld {
   private composer: EffectComposer | null = null;
   private bloom: UnrealBloomPass | null = null;
   private diorama: ShaderPass | null = null;
+  // ── frame-rate safeguard: if a device keeps struggling, quietly step the quality down ──
+  private frameAvg = 1 / 60;
+  private slowFor = 0;
+  private sinceStep = 0;
+  private qualityStep = 0;
   /** the diorama look draws the scene here first (HDR colour + its own depth) so outlines can read depth */
   private sceneRT: THREE.WebGLRenderTarget | null = null;
   /** "diorama": ink outlines, stepped colour and chunky pixels; "smooth": the plain filmic render */
@@ -275,7 +282,7 @@ export class ParkWorld {
     this.look = opts.look ?? "smooth";
     const dio = this.look === "diorama" && !low;
     // look down on the island from higher up (~42°), the way you'd look at a model on a table
-    if (dio) this.camPitch = 0.62;
+    if (dio) this.camPitch = 0.56;
     // the diorama look draws chunky pixels on purpose: a low pixel ratio, no antialiasing, and the
     // canvas upscaled with crisp nearest-neighbour (which also makes each frame much cheaper)
     this.renderer = new THREE.WebGLRenderer({ antialias: !low && !dio, powerPreference: low ? "low-power" : "high-performance" });
@@ -899,7 +906,8 @@ export class ParkWorld {
     this.camera.aspect = w / Math.max(1, h);
     // portrait phones: widen the view so the plaza still fits
     // (the diorama look uses a longer lens from further up, like looking at a model railway)
-    this.camera.fov = this.look === "diorama" ? (this.camera.aspect < 0.8 ? 46 : 32) : this.camera.aspect < 0.8 ? 58 : 42;
+    // (wide enough that the top of the view reaches the misty painted hills on the horizon)
+    this.camera.fov = this.look === "diorama" ? (this.camera.aspect < 0.8 ? 56 : 38) : this.camera.aspect < 0.8 ? 58 : 42;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false); // CSS keeps it at 100% x 100%
     this.composer?.setSize(w, h);
@@ -943,7 +951,9 @@ export class ParkWorld {
 
   private tick = () => {
     if (!this.running || this.disposed || !this.park || !this.kid) return;
-    const dt = Math.min(this.clock.getDelta(), MAX_DT);
+    const rawDt = this.clock.getDelta();
+    const dt = Math.min(rawDt, MAX_DT);
+    this.governFrameRate(rawDt);
     this.time += dt;
     const kid = this.kid;
     const pos = kid.root.position;
@@ -1519,7 +1529,7 @@ export class ParkWorld {
       this.camera.position.lerp(new THREE.Vector3(cx, span * (portrait ? 1.25 : 0.72), cz + span * (portrait ? 0.95 : 0.9)), Math.min(1, dt * 3));
       this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
     } else {
-      let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.55 : 1) * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
+      let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.32 : 1) * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
       // under the sea the water swallows anything far away: bring the camera in close (the
       // storybook look's model-railway distance lost the kid and the manta in the haze)
       if (pos.y + 1.6 < WATER_Y) dist = Math.min(dist, this.mount ? 15 : 13);
@@ -1725,6 +1735,35 @@ export class ParkWorld {
       this.play(this.kid, "cheer", true);
     }
     this.opts.onSkySpot?.(sp);
+  }
+
+  /**
+   * Keep the park playable on slower tablets: if frames average slower than ~24 fps for 3 s,
+   * step down — fewer pixels first, then no shadows, then no glow. (Never steps back up in a
+   * session, so it can't flicker between settings.)
+   */
+  private governFrameRate(raw: number) {
+    if (this.opts.adaptiveQuality === false) return;
+    if (raw <= 0 || raw > 0.5) return; // a paused tab or a hitch while loading, not a slow device
+    this.frameAvg += (raw - this.frameAvg) * 0.05;
+    this.sinceStep += raw;
+    if (this.sinceStep < 4 || this.qualityStep >= 3) return;
+    this.slowFor = this.frameAvg > 1 / 24 ? this.slowFor + raw : 0;
+    if (this.slowFor < 3) return;
+    this.qualityStep++;
+    this.slowFor = 0;
+    this.sinceStep = 0;
+    if (this.qualityStep === 1) {
+      this.renderer.setPixelRatio(this.renderer.getPixelRatio() * 0.78);
+      this.resize();
+    } else if (this.qualityStep === 2) {
+      this.renderer.shadowMap.enabled = false;
+      this.scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        if (m) for (const mm of Array.isArray(m) ? m : [m]) mm.needsUpdate = true;
+      });
+    } else if (this.bloom) this.bloom.enabled = false;
+    console.info(`[park] slow frames (${Math.round(1 / this.frameAvg)} fps): quality step ${this.qualityStep}`);
   }
 
   /** Which floating-mountain discoveries this kid has already made. */

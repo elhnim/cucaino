@@ -510,8 +510,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const fantasy = buildFantasyWorld(scene, {
     free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearSky(x, z, pad),
     lowQuality: opts.lowQuality,
-    // the diorama look wants clean, flat meadows (blades turn into pixel noise when chunky)
+    // the diorama look wants clean, flat meadows (blades turn into pixel noise when chunky), and
+    // its own chunky storybook forest instead of the kit's candy trees
     blades: opts.look !== "diorama",
+    trees: opts.look !== "diorama",
   });
   disposables.push(fantasy);
   const quests3d = buildQuests3D(scene, fantasy.plan);

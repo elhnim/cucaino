@@ -55,6 +55,9 @@ export interface FantasyOptions {
   receiveShadow?: boolean;
   /** grass blades (default on); off keeps just the wildflowers, for the flat diorama look */
   blades?: boolean;
+  /** the kit's everyday trees (default on); off for the storybook look, whose own chunky forest
+   *  fills the island (their candy colours and sizes clashed with it). The Glow Forest's giants stay. */
+  trees?: boolean;
 }
 
 const MUSHROOM_HUES = [col("#46f0ff"), col("#b680ff"), col("#ffb347")];
@@ -106,7 +109,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
 
   // ── trees: one instanced mesh per species (bark + canopy + pods in one geometry) ──
   const foliageMat = track(fxMaterial(U, { roughness: 0.82, metalness: 0 }));
-  for (const sp of SPECIES) {
+  for (const sp of opts.trees === false ? [] : SPECIES) {
     const list = plan.trees.filter((t) => t.species === sp);
     if (!list.length) continue;
     const im = instanced(buildTreeGeometry(sp, low).geometry, foliageMat, list.length, `fantasy-trees-${sp}`);
@@ -237,7 +240,8 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
       setKid: (x, y, z) => sky.setKid(x, y, z),
       puzzleState: () => sky.puzzleState(),
     },
-    obstacles: plan.obstacles,
+    // (without the trees, their trunks mustn't stay behind as invisible walls)
+    obstacles: opts.trees === false ? plan.obstacles.filter((o) => !plan.trees.some((t) => Math.abs(t.x - o.x) < 0.01 && Math.abs(t.z - o.z) < 0.01)) : plan.obstacles,
     stats: { blades: grass.blades, trees: plan.trees.length + plan.giants.length, rocks: plan.rocks.length, crystals: plan.crystals.length, ruins: plan.ruins.length, islands: plan.islands.length, meshes },
     update(_dt, t, focus, glow) {
       U.uTime.value = t;

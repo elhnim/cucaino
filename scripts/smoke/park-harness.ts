@@ -11,6 +11,8 @@ const world = new ParkWorld(document.getElementById("app")!, {
   themeId: q.get("theme") ?? "garden",
   quality: q.get("q") === "low" ? "low" : "standard",
   look: q.get("look") === "smooth" ? "smooth" : "diorama",
+  // (the harness renders slowly on purpose: don't let the frame-rate safeguard degrade screenshots)
+  adaptiveQuality: false,
   // ?hour=21 to see the glowing twilight, ?hour=12 for day
   hour: q.get("hour") ? () => Number(q.get("hour")) : undefined,
   onPlace: (p) => console.log("[park] place", p.id),
