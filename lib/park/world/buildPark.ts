@@ -21,6 +21,7 @@ import { buildBirds } from "./birds";
 import { buildSteamTrain, CAR_GAP } from "./steamTrain";
 import { buildSkyBuilding, type SkyBuilding } from "./skyBuildings";
 import { buildRideables, type Rideables } from "./rideables";
+import { buildFauna, type Fauna } from "./fauna";
 import { rideableKeepOut } from "../registry/rideables";
 import { buildStorybook, type Storybook } from "./storybook";
 import { buildVillage } from "./village";
@@ -42,6 +43,8 @@ export interface BuiltPark {
   /** the storybook dressing (dense forest, sheep, windmills, balloons, boats, clouds, misty
    *  horizon) — only in the diorama look */
   storybook: Storybook | null;
+  /** the island's wildlife (hidden while the camera's under the sea) */
+  fauna: Fauna;
   /** bikes, cars, unicorns, dragons and mantas waiting round the world to be ridden (the engine drives it) */
   rides: Rideables;
   /** a Coralcove villager with something to say to the kid right now (null when nobody's near) */
@@ -541,24 +544,23 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const birds = buildBirds(scene, { lowQuality: opts.lowQuality });
   disposables.push(birds);
   // ── the storybook valley: dense chunky forest, sheep, windmills, balloons, boats, clouds, misty hills ──
-  const storybook = storyLook
-    ? buildStorybook(scene, {
-        lowQuality: opts.lowQuality,
-        free: (x, z, pad) =>
-          Math.hypot(x, z) < ISLAND_R - 2 &&
-          Math.hypot(x, z) > 12 + pad &&
-          !nearPath(x, z, pad + 1.6) &&
-          !nearPlace(x, z, pad + 1.2) &&
-          !inDreamZone(x, z, pad) &&
-          !nearStream(x, z, pad) &&
-          !nearSky(x, z, pad) &&
-          !rideableKeepOut(x, z, pad) &&
-          // (and clear of the fantasy kit's ruins, rocks and giant trees)
-          !fantasy.plan.ruins.some((s) => Math.hypot(x - s.x, z - s.z) < s.r + pad) &&
-          !fantasy.obstacles.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + pad + 1),
-      })
-    : null;
+  const storyFree = (x: number, z: number, pad: number) =>
+    Math.hypot(x, z) < ISLAND_R - 2 &&
+    Math.hypot(x, z) > 12 + pad &&
+    !nearPath(x, z, pad + 1.6) &&
+    !nearPlace(x, z, pad + 1.2) &&
+    !inDreamZone(x, z, pad) &&
+    !nearStream(x, z, pad) &&
+    !nearSky(x, z, pad) &&
+    !rideableKeepOut(x, z, pad) &&
+    // (and clear of the fantasy kit's ruins, rocks and giant trees)
+    !fantasy.plan.ruins.some((s) => Math.hypot(x - s.x, z - s.z) < s.r + pad) &&
+    !fantasy.obstacles.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + pad + 1);
+  const storybook = storyLook ? buildStorybook(scene, { lowQuality: opts.lowQuality, free: storyFree }) : null;
   if (storybook) disposables.push(storybook);
+  // ── wildlife: deer, rabbits, foxes, squirrels, ponies, cows, goats, ducks, frogs, owls, bears … ──
+  const fauna = buildFauna(scene, { free: storyFree, lowQuality: opts.lowQuality, obstacles: [...nature.obstacles, ...fantasy.obstacles, ...(storybook?.obstacles ?? [])] });
+  disposables.push(fauna);
   // ── Coralcove Isle, far out at sea: the Tidewing Folk's villages ──
   const village = buildVillage(scene, { lowQuality: opts.lowQuality });
   disposables.push(village);
@@ -692,6 +694,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     storybook,
     villageTalk: null,
     rides: worldRides,
+    fauna,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
@@ -700,6 +703,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       storybook?.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
+      fauna.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow });
       built.villageTalk = village.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour }).talk;
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {

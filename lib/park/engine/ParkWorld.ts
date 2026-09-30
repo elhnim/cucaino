@@ -1647,6 +1647,7 @@ export class ParkWorld {
     if (camUnder || this.camUnder) {
       this.park.atmosphere.setUnderwater(camUnder, WATER_Y - this.camera.position.y);
       this.park.storybook?.setUnderwater(camUnder);
+      this.park.fauna.setVisible(!camUnder);
     }
     this.camUnder = camUnder;
     // bloom a little stronger at twilight, when the magic comes out
