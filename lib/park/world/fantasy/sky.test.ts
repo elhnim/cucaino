@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { SKY_ISLANDS, SKY_RUNE_STONES, SKY_SPOTS, skyLocalHeight, skyTopY } from "../../registry/skyIslands";
+import { SKY_ISLANDS, SKY_RIM_N, SKY_RUNE_STONES, SKY_SPOTS, skyLocalHeight, skyRim, skyTopY } from "../../registry/skyIslands";
 import { buildSkyIslands, buildTop } from "./sky";
 import { makeUniforms } from "./shaders";
 import { ringCourse } from "../quests3d";
@@ -22,8 +22,11 @@ describe("sky island meshes", () => {
         expect(Math.abs(ay - skyLocalHeight(s, ax, az))).toBeLessThan(2e-3);
         area += Math.abs((bx - ax) * (cz - az) - (cx - ax) * (bz - az)) / 2;
       }
-      // ...and covers the whole walkable disc
-      expect(area).toBeGreaterThan(Math.PI * s.r * s.r);
+      // ...and covers the whole (lobed) walkable outline
+      const R = skyRim(s);
+      let walk = 0;
+      for (let k = 0; k < SKY_RIM_N; k++) walk += 0.5 * R[k] * R[(k + 1) % SKY_RIM_N] * Math.sin((Math.PI * 2) / SKY_RIM_N);
+      expect(area).toBeGreaterThan(walk);
       for (const p of rim) expect(Math.abs(p.y - skyLocalHeight(s, p.x, p.z))).toBeLessThan(1e-4);
       geo.dispose();
     }
@@ -64,8 +67,8 @@ describe("sky island meshes", () => {
     const std = buildSkyIslands(makeUniforms(), {});
     const low = buildSkyIslands(makeUniforms(), { lowQuality: true });
     // the old 4 small islands were ~17k triangles; the budget is +120k
-    expect(std.triangles).toBeLessThan(236000); // was ~117k before the discoveries; budget +120k
-    expect(low.triangles).toBeLessThan(std.triangles * 0.75);
+    expect(std.triangles).toBeLessThan(230000);
+    expect(low.triangles).toBeLessThan(110000);
     // sane vertex colours (a shared colour mutated in place once blew the tops out to white)
     for (const m of [std.mesh, low.mesh]) {
       const c = m.geometry.attributes.color.array as Float32Array;

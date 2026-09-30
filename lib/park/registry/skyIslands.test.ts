@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RUNE_STONE_RING, SKY_BRIDGES, SKY_GRID, SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyBob, skyBridgeY, skyIslandAt, skyIslandById, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, skyWalkable, stonesLit } from "./skyIslands";
+import { RUNE_STONE_RING, SKY_BRIDGES, SKY_GRID, SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyRim, skyRimMax, skyRimRadius, SKY_RIM_N, skyBob, skyBridgeY, skyIslandAt, skyIslandById, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, skyWalkable, stonesLit } from "./skyIslands";
 import { groundY } from "./terrain";
 import { skyLoopXZ, SKY_LOOP_N, PLACES } from "./places";
 
@@ -29,6 +29,26 @@ describe("sky islands registry", () => {
     expect(new Set(SKY_ISLANDS.map((s) => s.kind)).size).toBe(5);
   });
 
+  it("has lobed, bay-and-promontory outlines (not circles), pinned where bridges and waterfalls meet the edge", () => {
+    for (const s of SKY_ISLANDS) {
+      const R = skyRim(s);
+      expect(R.length).toBe(SKY_RIM_N);
+      const lo = Math.min(...R);
+      const hi = Math.max(...R);
+      expect(hi / lo, s.id).toBeGreaterThan(1.15);
+      expect(lo).toBeGreaterThan(s.r * 0.75);
+      expect(hi).toBeLessThan(s.r * 1.3);
+      // the waterfall pours off the old lip, and bridge decks meet the rim
+      expect(Math.abs(skyRimRadius(s, Math.sin(s.fall), Math.cos(s.fall)) - s.r), `${s.id} fall`).toBeLessThan(0.3);
+    }
+    for (const br of SKY_BRIDGES) {
+      const a = skyIslandById(br.a)!;
+      const b = skyIslandById(br.b)!;
+      expect(Math.abs(skyRimRadius(a, br.ax - a.x, br.az - a.z) - a.r), br.id).toBeLessThan(0.3);
+      expect(Math.abs(skyRimRadius(b, br.bx - b.x, br.bz - b.z) - b.r), br.id).toBeLessThan(0.3);
+    }
+  });
+
   it("floats 45–110 m up, well above the ground and the sea", () => {
     for (const s of SKY_ISLANDS) {
       expect(s.y).toBeGreaterThanOrEqual(45);
@@ -44,18 +64,19 @@ describe("sky islands registry", () => {
 
   it("don't overlap each other", () => {
     for (const a of SKY_ISLANDS)
-      for (const b of SKY_ISLANDS) if (a !== b) expect(hyp(a.x - b.x, a.z - b.z), `${a.id} / ${b.id}`).toBeGreaterThan(a.r + b.r + 8);
+      for (const b of SKY_ISLANDS)
+        if (a !== b) expect(hyp(a.x - b.x, a.z - b.z) - skyRimRadius(a, b.x - a.x, b.z - a.z) - skyRimRadius(b, a.x - b.x, a.z - b.z), `${a.id} / ${b.id}`).toBeGreaterThan(8);
   });
 
   it("keep clear of the Sky Coaster ring (r 90–115, below 35 m)", () => {
     for (const s of SKY_ISLANDS) {
       const d = hyp(s.x, s.z);
-      const overlapsRing = d + s.r > 88 && d - s.r < 117;
+      const overlapsRing = d + skyRimMax(s) > 88 && d - skyRimMax(s) < 117;
       if (overlapsRing) expect(s.y - s.depth, s.id).toBeGreaterThan(36);
       // and clear of the actual track's control points by height
       for (let i = 0; i < SKY_LOOP_N; i++) {
         const [x, z] = skyLoopXZ(i);
-        if (hyp(x - s.x, z - s.z) < s.r + 6) expect(s.y - s.depth, s.id).toBeGreaterThan(36);
+        if (hyp(x - s.x, z - s.z) < skyRimMax(s) + 6) expect(s.y - s.depth, s.id).toBeGreaterThan(36);
       }
     }
   });
@@ -68,8 +89,10 @@ describe("sky islands registry", () => {
       expect(Math.abs(at!.y - s.y)).toBeLessThan(4);
       expect(at!.y).toBeCloseTo(skyBaseY(s, s.landing.x, s.landing.z) + skyBob(s.id, 0), 6);
       // just outside the rim, and far away
-      expect(skyTopY(s.x + s.r + 0.5, s.z, 0)).toBeNull();
-      expect(skyIslandAt(s.x + s.r + 0.5, s.z)).toBeNull();
+      const out = skyRimRadius(s, 1, 0) + 0.5;
+      expect(skyTopY(s.x + out, s.z, 0)).toBeNull();
+      expect(skyIslandAt(s.x + out, s.z)).toBeNull();
+      expect(skyIslandAt(s.x + out - 1, s.z)?.id).toBe(s.id);
       expect(skyIslandAt(s.x, s.z)?.id).toBe(s.id);
     }
     expect(skyTopY(0, 0, 0)).toBeNull();

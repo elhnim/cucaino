@@ -17,7 +17,7 @@ import { buildCrystalGeometry, buildRockGeometry, CRYSTAL_HUES, RUNE_CYAN, RUNE_
 import { buildTreeGeometry, tintFor } from "./trees";
 import { SPRITE_HALO, SPRITE_MIST, type SpriteDef } from "./particles";
 import type { Species } from "./placement";
-import { SKY_BRIDGES, SKY_GRID, SKY_ISLANDS, SKY_LIP, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyBob, skyBridgeY, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, stonesLit, type SkyBridge, type SkyIsland, type SkyProp } from "../../registry/skyIslands";
+import { SKY_BRIDGES, SKY_GRID, SKY_ISLANDS, SKY_LIP, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyBob, skyBridgeY, skyLocalHeight, skyNodeHeight, skyRim, skyRimRadius, SKY_RIM_N, skyStreamEnd, skyTopY, stonesLit, type SkyBridge, type SkyIsland, type SkyProp } from "../../registry/skyIslands";
 import { ANIM_KINDS, animGeometry, buildSpot, disposeSpotCaches, type AnimKind, type AnimPlacement } from "../sky/spots";
 
 const scratch = new THREE.Color();
@@ -128,20 +128,26 @@ export interface TopResult {
 }
 
 /** the grassy top of an island (island-local), exported for tests */
-export function buildTop(s: SkyIsland, M: number): TopResult {
-  const rm = s.r + SKY_LIP;
-  // polygon (CCW in x/z) whose apothem covers the walkable disc
-  const R = rm / Math.cos(Math.PI / M);
+export function buildTop(s: SkyIsland, _M = SKY_RIM_N): TopResult {
+  // the grass runs SKY_LIP past the island's lobed walkable rim (registry skyRim), vertex by vertex
+  const RR = skyRim(s);
+  const M = SKY_RIM_N;
   const P: [number, number][] = Array.from({ length: M }, (_, k) => {
     const a = (k / M) * Math.PI * 2;
-    return [Math.cos(a) * R, Math.sin(a) * R];
+    return [Math.cos(a) * (RR[k] + SKY_LIP), Math.sin(a) * (RR[k] + SKY_LIP)];
   });
+  // the rim is star-shaped round the centre: clip against one convex sector (centre, P_k, P_k+1) at a time
+  const sectors: [number, number][][] = P.map((p, k) => [[0, 0], p, P[(k + 1) % M]]);
+  const inR = Math.min(...Array.from(RR)) + SKY_LIP - 0.8;
+  const R = Math.max(...Array.from(RR)) + SKY_LIP + 0.5;
   const H = (x: number, z: number) => skyLocalHeight(s, x, z);
   const pos: number[] = [];
   const n = Math.ceil(R / SKY_GRID) + 1;
   const tri = (pts: [number, number][], hs: number[]) => {
     // a grid triangle: its plane gives the height of any clipped vertex exactly
-    const inside = pts.every(([x, z]) => Math.hypot(x, z) < rm * 0.999);
+    // wholly inside the rim polygon (it's star-shaped and the triangle is small, so testing its
+    // corners, with a little margin, is enough) → keep it whole; otherwise clip sector by sector
+    const inside = pts.every(([x, z]) => Math.hypot(x, z) < inR || Math.hypot(x, z) < skyRimRadius(s, x, z, SKY_LIP) - 0.35);
     const [p0, p1, p2] = pts;
     const plane = (x: number, z: number) => {
       // barycentric on the triangle in x/z
@@ -150,10 +156,18 @@ export function buildTop(s: SkyIsland, M: number): TopResult {
       const w1 = ((p2[1] - p0[1]) * (x - p2[0]) + (p0[0] - p2[0]) * (z - p2[1])) / d;
       return w0 * hs[0] + w1 * hs[1] + (1 - w0 - w1) * hs[2];
     };
-    const poly = inside ? pts : clipConvex(pts, P);
-    if (poly.length < 3) return;
-    const vs = poly.map(([x, z]) => V(x, plane(x, z), z));
-    for (let k = 1; k + 1 < vs.length; k++) pushTri(pos, vs[0], vs[k], vs[k + 1], "up");
+    const polys = inside ? [pts] : sectors.map((sec) => clipConvex(pts, sec));
+    for (const poly of polys) {
+      if (poly.length < 3) continue;
+      const vs = poly.map(([x, z]) => V(x, plane(x, z), z));
+      for (let k = 1; k + 1 < vs.length; k++) {
+        const a = vs[0];
+        const b = vs[k];
+        const c = vs[k + 1];
+        if (Math.abs((b.x - a.x) * (c.z - a.z) - (c.x - a.x) * (b.z - a.z)) < 1e-6) continue;
+        pushTri(pos, a, b, c, "up");
+      }
+    }
   };
   for (let j = -n; j < n; j++)
     for (let i = -n; i < n; i++) {
@@ -205,7 +219,8 @@ export function buildTop(s: SkyIsland, M: number): TopResult {
       scratch.copy(GRASS[k]);
       if (n2 > 0.8) scratch.lerp(GRASS[3], 0.5);
       // a darker rim where the grass rolls over the edge
-      scratch.lerp(GRASS_RIM, smoothstep(s.r - 0.5, rm, d) * 0.7);
+      const rr = skyRimRadius(s, p.x, p.z);
+      scratch.lerp(GRASS_RIM, smoothstep(rr - 0.5, rr + SKY_LIP, d) * 0.7);
       // the peak's foot: stony, mossy ground
       if (s.peak) {
         const dp = Math.hypot(s.x + p.x - s.peak.x, s.z + p.z - s.peak.z);
@@ -242,13 +257,14 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
   out.push(part(triGeo(lip2), (p, n) => mix(GRASS_RIM, DIRT, 0.55 + (n.y < 0 ? 0.3 : 0), scratch), [0, 0, 0], { faceted: true, faceColor: true }));
 
   // the underside: coarse craggy rings (radius factor, depth fraction)
-  const M2 = low ? 14 : 22;
+  const M2 = low ? 13 : 28;
   const rm = s.r + SKY_LIP;
   const mountain = s.kind === "mountain";
   const prof: [number, number][] = mountain
     ? [[1.0, 3.2 / D], [0.93, 0.13], [0.82, 0.25], [0.7, 0.37], [0.58, 0.49], [0.46, 0.6], [0.34, 0.71], [0.22, 0.82], [0.11, 0.92]]
     : [[0.99, 2.6 / D], [0.88, 0.2], [0.72, 0.36], [0.55, 0.52], [0.38, 0.67], [0.22, 0.8], [0.1, 0.91]];
   const rings: P3[][] = [ring2];
+  const centres: [number, number][] = [[0, 0]];
   // the cone leans off to one side and bulges in lobes, so no two islands share a silhouette
   const leanA = seed * 2.17;
   const lean = [Math.cos(leanA), Math.sin(leanA)];
@@ -259,22 +275,26 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
     for (let i = 0; i < M2; i++) {
       const a = ((i + (k % 2) * 0.5) / M2) * Math.PI * 2 + (noise3(i, k, 1, seed) - 0.5) * 0.15;
       const lobes = 1 + 0.15 * Math.sin(2 * a + seed) + 0.1 * Math.sin(3 * a + seed * 2.3);
-      const w = k === 0 ? 1 + (noise3(Math.cos(a) * 2, 0, Math.sin(a) * 2, seed + 1) - 0.5) * 0.12 : lobes * (1 + (noise3(Math.cos(a) * 2.2 + k * 0.4, k * 0.7, Math.sin(a) * 2.2, seed + 2) - 0.5) * 0.55);
-      const rr = rm * f * Math.min(w, k === 0 ? 1.1 : 1.02 / f);
-      const yy = -dy * D + (k > 0 ? (noise3(Math.cos(a) * 3, k, Math.sin(a) * 3 + seed, 6) - 0.5) * D * 0.1 : 0);
+      const w = k === 0 ? 1 + (noise3(Math.cos(a) * 2, 0, Math.sin(a) * 2, seed + 1) - 0.5) * 0.12 : lobes * (1 + (noise3(Math.cos(a) * 2.2 + k * 0.4, k * 0.7, Math.sin(a) * 2.2, seed + 2) - 0.5) * (k > 1 ? 0.75 : 0.55));
+      const rimA = skyRimRadius(s, Math.cos(a), Math.sin(a), SKY_LIP);
+      const rr = rimA * f * Math.max(0.62, Math.min(w, k === 0 ? 1.1 : 1.02 / f));
+      const yy = -dy * D + (k > 0 ? (noise3(Math.cos(a) * 3, k, Math.sin(a) * 3 + seed, 6) - 0.5) * D * 0.13 : 0);
       ring.push(V(Math.cos(a) * rr + lean[0] * off, yy, Math.sin(a) * rr + lean[1] * off));
     }
-    rings.push(sortByAngle(ring, 0, 0));
+    rings.push(sortByAngle(ring, lean[0] * off, lean[1] * off));
+    centres.push([lean[0] * off, lean[1] * off]);
   });
   // one strip per ring pair, each its own stratum: clean, bold horizontal bands
   for (let k = 0; k + 1 < rings.length; k++) {
     const strip: number[] = [];
-    zipper(strip, rings[k], rings[k + 1], 0, 0);
+    const ccx = (centres[k][0] + centres[k + 1][0]) / 2;
+    const ccz = (centres[k][1] + centres[k + 1][1]) / 2;
+    zipper(strip, sortByAngle(rings[k], ccx, ccz), sortByAngle(rings[k + 1], ccx, ccz), ccx, ccz);
     if (k + 2 === rings.length) {
       const last = rings[k + 1];
-      const tipOff = offAt(0.1, 1);
-      const tip = V(lean[0] * tipOff + (noise3(seed, 0, 0, 1) - 0.5) * 2, -D, lean[1] * tipOff + (noise3(0, seed, 0, 1) - 0.5) * 2);
-      for (let i = 0; i < last.length; i++) pushTri(strip, last[i], last[(i + 1) % last.length], tip, { cx: 0, cz: 0 });
+      const [lcx, lcz] = centres[k + 1];
+      const tip = V(lcx + (noise3(seed, 0, 0, 1) - 0.5) * 2, -D, lcz + (noise3(0, seed, 0, 1) - 0.5) * 2);
+      for (let i = 0; i < last.length; i++) pushTri(strip, last[i], last[(i + 1) % last.length], tip, { cx: lcx, cz: lcz });
     }
     const band = k === 0 ? DIRT : STRATA[(k - 1 + seed) % STRATA.length];
     const deep = smoothstep(1, rings.length - 1, k) * 0.35;
@@ -283,7 +303,7 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
         triGeo(strip),
         (p) => {
           scratch.copy(band).lerp(DEEP, deep);
-          return scratch.multiplyScalar(0.94 + 0.12 * noise3(p.x * 0.3, p.y * 0.3, p.z * 0.3, 5));
+          return scratch.multiplyScalar(0.84 + 0.3 * noise3(p.x * 0.35, p.y * 0.35, p.z * 0.35, 5));
         },
         [0, 0, 0],
         { faceted: true, faceColor: true },
@@ -324,11 +344,11 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
     out.push(part(triGeo(pos), (p) => strataAt(p.y).multiplyScalar(0.94 + 0.12 * noise3(p.x * 0.3, p.y * 0.3, p.z * 0.3, 5)), [0, 0, 0], { faceted: true, faceColor: true }));
   }
   // chunks of rock floating free under the island (with a tuft of grass on top)
-  const nFloat = low ? 1 : mountain ? 4 : 2;
+  const nFloat = low ? 2 : mountain ? 6 : 3;
   for (let k = 0; k < nFloat; k++) {
     const a = r() * Math.PI * 2;
-    const d = rm * (0.75 + r() * 0.4);
-    const sz = (mountain ? 1.8 : 1.2) + r() * (mountain ? 2.2 : 1.2);
+    const d = rm * (0.6 + r() * 0.65);
+    const sz = (k % 3 === 2 ? 0.5 : 1) * ((mountain ? 1.8 : 1.2) + r() * (mountain ? 2.2 : 1.2));
     const y = -D * (0.35 + r() * 0.45);
     // a mini floating islet: a craggy little inverted cone with a grassy top
     const cone = new THREE.ConeGeometry(sz, sz * 2.2, 6, 2);
@@ -343,10 +363,10 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
     out.push(part(cone, (p, n) => (n.y > 0.6 ? GRASS[k % 3] : mix(c0, DEEP, smoothstep(y, y - sz * 2.2, p.y) * 0.5, scratch)), [0, 0, 0], { faceted: true, faceColor: true }));
   }
   // leafy vines trailing from the lip
-  const nVines = Math.round((low ? 0.2 : 0.45) * s.r);
+  const nVines = Math.round((low ? 0.1 : 0.45) * s.r);
   for (let k = 0; k < nVines; k++) {
     const a = r() * Math.PI * 2;
-    const rr = rm * (0.99 + r() * 0.04);
+    const rr = skyRimRadius(s, Math.cos(a), Math.sin(a), SKY_LIP) * (0.99 + r() * 0.04);
     const len = 3 + r() * (mountain ? 8 : 5);
     const x = Math.cos(a) * rr;
     const z = Math.sin(a) * rr;
@@ -359,23 +379,71 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
     }
   }
   // dangling roots under the lip, and craggy rock spikes hanging off the underside
-  const nSpikes = (low ? 0.5 : 1) * (mountain ? 9 : 5);
-  for (let k = 0; k < nSpikes; k++) {
+  // jagged stalactite clusters hanging off the underside (and a spray round the tip)
+  const spike = (x: number, y: number, z: number, len: number, rad: number, c0: THREE.Color) => {
+    const cone = new THREE.ConeGeometry(rad, len, 5, 2);
+    cone.rotateX(Math.PI);
+    const cp = cone.attributes.position as THREE.BufferAttribute;
+    for (let j = 0; j < cp.count; j++) {
+      const w = 1 + (noise3(cp.getX(j) * 1.3 + x, cp.getY(j) * 0.6, cp.getZ(j) * 1.3 + z, seed) - 0.5) * 0.7;
+      cp.setXYZ(j, cp.getX(j) * w, cp.getY(j), cp.getZ(j) * w);
+    }
+    transform(cone, x, y - len / 2, z, r() * 6, 1, (r() - 0.5) * 0.35, (r() - 0.5) * 0.35);
+    const c1 = c0.clone();
+    out.push(part(cone, (p) => mix(c1, DEEP, smoothstep(y, y - len, p.y) * 0.65, scratch), [0, 0, 0], { faceted: true, faceColor: true }));
+  };
+  const nClusters = Math.round((low ? 0.4 : 1) * (mountain ? 11 : 5));
+  for (let k = 0; k < nClusters; k++) {
     const ringK = 2 + Math.floor(r() * (rings.length - 4));
     const ring = rings[ringK];
     const v = ring[Math.floor(r() * ring.length)];
-    const len = (mountain ? 5 : 3) + r() * (mountain ? 9 : 5);
-    const rad = (mountain ? 1.6 : 1) + r() * 1.6;
-    const cone = new THREE.ConeGeometry(rad, len, 5, 1);
-    cone.rotateX(Math.PI);
-    transform(cone, v.x * 0.9, v.y + 0.6 - len / 2, v.z * 0.9, r() * 6, 1, (r() - 0.5) * 0.3, (r() - 0.5) * 0.3);
-    const c0 = STRATA[(ringK - 1 + seed) % STRATA.length].clone().lerp(DEEP, 0.35);
-    out.push(part(cone, (p) => mix(c0, DEEP, smoothstep(v.y, v.y - len, p.y) * 0.6, scratch), [0, 0, 0], { faceted: true, faceColor: true }));
+    const c0 = STRATA[(ringK - 1 + seed) % STRATA.length].clone().lerp(DEEP, 0.3);
+    const n = (low ? 2 : 3) + Math.floor(r() * 2);
+    const big = (mountain ? 7 : 4) + r() * (mountain ? 9 : 5);
+    for (let j = 0; j < n; j++) {
+      const a = r() * Math.PI * 2;
+      const d = j === 0 ? 0 : 1 + r() * 2.2;
+      spike(v.x * 0.88 + Math.cos(a) * d, v.y + 0.8, v.z * 0.88 + Math.sin(a) * d, big * (j === 0 ? 1 : 0.35 + r() * 0.45), (mountain ? 2.6 : 1.5) * (j === 0 ? 1 : 0.5 + r() * 0.3), c0);
+    }
   }
-  const nRoots = Math.round((low ? 0.3 : 0.55) * s.r);
+  {
+    const last = rings[rings.length - 1];
+    const [lcx, lcz] = centres[centres.length - 1];
+    for (let j = 0; j < (low ? 2 : 4); j++) {
+      const v = last[Math.floor(r() * last.length)];
+      spike((v.x + lcx) / 2, v.y + 0.5, (v.z + lcz) / 2, D * (0.12 + r() * 0.12), (mountain ? 1.4 : 0.8) + r(), DEEP.clone().lerp(STRATA[(j + seed) % STRATA.length], 0.4));
+    }
+  }
+  // overhanging rock ledges jutting out just under the lip, grassy on top, vines trailing off
+  const nLedges = low ? 1 : mountain ? 4 : 2;
+  for (let k = 0; k < nLedges; k++) {
+    const a = r() * Math.PI * 2;
+    const rimA = skyRimRadius(s, Math.cos(a), Math.sin(a), SKY_LIP);
+    const sz = (mountain ? 3 : 2) + r() * (mountain ? 2.5 : 1.2);
+    const y = -2.6 - r() * (mountain ? 4 : 2);
+    const ledge = new THREE.IcosahedronGeometry(sz, 1);
+    const lp = ledge.attributes.position as THREE.BufferAttribute;
+    for (let j = 0; j < lp.count; j++) {
+      const w = 0.8 + noise3(lp.getX(j) * 0.7 + k, lp.getY(j) * 0.7, lp.getZ(j) * 0.7, seed + 3) * 0.45;
+      const yy = lp.getY(j);
+      lp.setXYZ(j, lp.getX(j) * w, (yy > 0 ? yy * 0.3 : yy * 0.75) * w, lp.getZ(j) * w);
+    }
+    transform(ledge, Math.cos(a) * (rimA + sz * 0.15), y, Math.sin(a) * (rimA + sz * 0.15), r() * 6);
+    const c0 = STRATA[(k + seed + 2) % STRATA.length];
+    out.push(part(ledge, (p, n) => (n.y > 0.55 ? GRASS[k % 3] : mix(c0, DEEP, smoothstep(y, y - sz, p.y) * 0.4, scratch)), [0, 0, 0], { faceted: true, faceColor: true }));
+    for (let j = 0; j < 3; j++) {
+      const b = a + (r() - 0.5) * 0.5;
+      const x = Math.cos(b) * (rimA + sz * 0.8);
+      const z = Math.sin(b) * (rimA + sz * 0.8);
+      const len = 2 + r() * 4;
+      const vine = taperTube([V(x, y, z), V(x * 1.01, y - len * 0.5, z * 1.01), V(x + (r() - 0.5), y - len, z + (r() - 0.5))], { segs: 3, radial: 3, rx: (t) => 0.09 * (1 - t) + 0.04 });
+      out.push(part(vine, col("#3f8f34"), [0, 0.25, 0], { faceted: true }));
+    }
+  }
+  const nRoots = Math.round((low ? 0.15 : 0.55) * s.r);
   for (let k = 0; k < nRoots; k++) {
     const a = r() * Math.PI * 2;
-    const rr = rm * (0.96 + r() * 0.05);
+    const rr = skyRimRadius(s, Math.cos(a), Math.sin(a), SKY_LIP) * (0.96 + r() * 0.05);
     const len = 2 + r() * (mountain ? 7 : 4.5);
     const x = Math.cos(a) * rr;
     const z = Math.sin(a) * rr;
@@ -510,18 +578,32 @@ function propGeometry(p: SkyProp, isl: SkyIsland, low: boolean, cache: Map<strin
       break;
     }
     case "flowers": {
-      const n = low ? 5 : 9;
+      // a clump: a low leafy mound with a bunch of big flowers on stems poking out of it
+      const leafC = col(r() < 0.5 ? "#4fb043" : "#5cbf4a");
+      const mound = blob(0, 0.2, 0, 1.05, 0.45, 1.05, { detail: 0, lump: 0.5, seed: r() * 40 });
+      out.push(part(mound, (q, n) => mix(leafC, col("#9ad85a"), Math.max(0, n.y) * 0.5, scratch), [0, 0.2, 0], { faceted: true, faceColor: true }));
+      const n = low ? 3 : 6;
       const c0 = FLOWER_COLS[Math.floor(r() * FLOWER_COLS.length)];
       const c1 = FLOWER_COLS[Math.floor(r() * FLOWER_COLS.length)];
       for (let k = 0; k < n; k++) {
-        const a = r() * Math.PI * 2;
-        const d = Math.sqrt(r()) * 1.3;
+        const a = (k / n) * Math.PI * 2 + r() * 0.6;
+        const d = k === 0 ? 0 : 0.45 + r() * 0.45;
         const x = Math.cos(a) * d;
         const z = Math.sin(a) * d;
-        const hy = skyLocalHeight(isl, p.x - isl.x + x, p.z - isl.z + z) - skyLocalHeight(isl, p.x - isl.x, p.z - isl.z);
-        const head = new THREE.OctahedronGeometry(0.22 + r() * 0.08, 0);
-        transform(head, x, hy + 0.12, z, r() * 3, V(1, 0.55, 1));
-        out.push(part(head, r() < 0.6 ? c0 : c1, [0, 0.4, 0.05], { faceted: true }));
+        const h = 0.55 + r() * 0.45;
+        const stem = new THREE.CylinderGeometry(0.035, 0.05, h, 3);
+        transform(stem, x, h / 2, z);
+        out.push(part(stem, col("#3f9a3a"), [0, 0.3, 0], { faceted: true }));
+        const pc = r() < 0.6 ? c0 : c1;
+        for (let j = 0; j < 5; j++) {
+          const pa = (j / 5) * Math.PI * 2;
+          const petal = new THREE.OctahedronGeometry(0.2, 0);
+          transform(petal, x + Math.cos(pa) * 0.17, h + 0.04, z + Math.sin(pa) * 0.17, -pa, V(1.25, 0.4, 0.8));
+          out.push(part(petal, pc, [0, 0.4, 0.05], { faceted: true }));
+        }
+        const eye = new THREE.OctahedronGeometry(0.1, 0);
+        transform(eye, x, h + 0.08, z);
+        out.push(part(eye, col("#ffe066"), [0, 0.4, 0.2], { faceted: true }));
       }
       break;
     }
