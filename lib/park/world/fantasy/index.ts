@@ -43,6 +43,8 @@ export interface FantasyOptions {
   lowQuality?: boolean;
   /** grass/foliage receive shadows (default: on at standard quality, off at low) */
   receiveShadow?: boolean;
+  /** grass blades (default on); off keeps just the wildflowers, for the flat diorama look */
+  blades?: boolean;
 }
 
 const MUSHROOM_HUES = [col("#46f0ff"), col("#b680ff"), col("#ffb347")];
@@ -69,7 +71,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
   // ── grass + wildflowers ──
   const grass = buildGrassField(U, maskTex, heightTex, { lowQuality: low, receiveShadow: shadowsIn });
   disposables.push(grass);
-  for (const m of grass.meshes) group.add(m);
+  for (const m of grass.meshes) if (opts.blades !== false || m.name === "fantasy-flowers") group.add(m);
 
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();

@@ -10,6 +10,7 @@ const world = new ParkWorld(document.getElementById("app")!, {
   petAnimal: (q.get("pet") ?? "animal-cat") as never,
   themeId: q.get("theme") ?? "garden",
   quality: q.get("q") === "low" ? "low" : "standard",
+  look: q.get("look") === "smooth" ? "smooth" : "diorama",
   // ?hour=21 to see the glowing twilight, ?hour=12 for day
   hour: q.get("hour") ? () => Number(q.get("hour")) : undefined,
   onPlace: (p) => console.log("[park] place", p.id),

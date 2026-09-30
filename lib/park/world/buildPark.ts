@@ -196,7 +196,7 @@ const m4 = (x: number, y: number, z: number, s: number, rotY = 0, sy = s) =>
 /** like m4, but standing on the terrain (y is a lift above the ground) */
 const m4g = (x: number, lift: number, z: number, s: number, rotY = 0, sy = s) => m4(x, groundY(x, z) + lift, z, s, rotY, sy);
 
-export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { hour?: () => number; lowQuality?: boolean } = {}): Promise<BuiltPark> {
+export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { hour?: () => number; lowQuality?: boolean; look?: "diorama" | "smooth" } = {}): Promise<BuiltPark> {
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(d: T) => (disposables.push(d), d);
   const toon = (color: string) => track(new THREE.MeshToonMaterial({ color }));
@@ -451,6 +451,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const fantasy = buildFantasyWorld(scene, {
     free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearSky(x, z, pad),
     lowQuality: opts.lowQuality,
+    // the diorama look wants clean, flat meadows (blades turn into pixel noise when chunky)
+    blades: opts.look !== "diorama",
   });
   disposables.push(fantasy);
   const quests3d = buildQuests3D(scene, fantasy.plan);

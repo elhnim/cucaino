@@ -6,6 +6,9 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import type { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
+import { TexturePass } from "three/examples/jsm/postprocessing/TexturePass.js";
+import { makeDioramaPass } from "./dioramaPass";
 import { ParkAssets, type AnimalId } from "../assets/loader";
 import { DEFAULT_CANDY, THEME_CANDY_HUE } from "../assets/candy";
 import { buildPark, type BuiltPark } from "../world/buildPark";
@@ -69,6 +72,8 @@ export interface ParkWorldOptions {
   onReady?: () => void;
   /** boarded (true) or stepped off (false) the Sky Coaster */
   onSkyCoaster?: (riding: boolean) => void;
+  /** the finish: "diorama" (default — outlines, stepped colour, chunky pixels) or "smooth" */
+  look?: "diorama" | "smooth";
   /** crossed the edge of the ocean and came back round from the other side */
   onWrap?: () => void;
   /** a Sea Pearl was collected from a giant clam on the reef */
@@ -83,6 +88,8 @@ export interface ParkWorldOptions {
 }
 
 const WALK_SPEED = 7;
+/** device pixels per CSS pixel in the diorama look (~1.6 CSS px per drawn pixel: chunky but readable) */
+const DIORAMA_PIXEL_RATIO = 0.62;
 /** how far out to sea you can swim (the reef, and the edge of the deep blue) */
 const SEA_LIMIT = 200; // (unused now the ocean wraps round — kept for the landing clamp)
 /** water deeper than this and you swim instead of wading */
@@ -206,12 +213,23 @@ export class ParkWorld {
   private ro: ResizeObserver;
   private composer: EffectComposer | null = null;
   private bloom: UnrealBloomPass | null = null;
+  private diorama: ShaderPass | null = null;
+  /** the diorama look draws the scene here first (HDR colour + its own depth) so outlines can read depth */
+  private sceneRT: THREE.WebGLRenderTarget | null = null;
+  /** "diorama": ink outlines, stepped colour and chunky pixels; "smooth": the plain filmic render */
+  private look: "diorama" | "smooth";
 
   constructor(private container: HTMLElement, private opts: ParkWorldOptions) {
     this.quality = opts.quality ?? detectQuality();
     const low = this.quality === "low";
-    this.renderer = new THREE.WebGLRenderer({ antialias: !low, powerPreference: low ? "low-power" : "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, low ? 1.25 : 1.75));
+    this.look = opts.look ?? "smooth";
+    const dio = this.look === "diorama" && !low;
+    // look down on the island from higher up (~42°), the way you'd look at a model on a table
+    if (dio) this.camPitch = 0.74;
+    // the diorama look draws chunky pixels on purpose: a low pixel ratio, no antialiasing, and the
+    // canvas upscaled with crisp nearest-neighbour (which also makes each frame much cheaper)
+    this.renderer = new THREE.WebGLRenderer({ antialias: !low && !dio, powerPreference: low ? "low-power" : "high-performance" });
+    this.renderer.setPixelRatio(dio ? DIORAMA_PIXEL_RATIO : Math.min(window.devicePixelRatio || 1, low ? 1.25 : 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     // filmic colour + soft sun shadows + bloom: a rich, magical fantasy look
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -220,14 +238,25 @@ export class ParkWorld {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     if (!low) {
       this.composer = new EffectComposer(this.renderer);
-      this.composer.addPass(new RenderPass(this.scene, this.camera));
+      if (dio) {
+        // our own scene target: later passes can't clear its depth (the composer's own targets
+        // get their depth cleared along the way, which left the outlines with nothing to read)
+        const depth = new THREE.DepthTexture(1, 1);
+        depth.type = THREE.UnsignedIntType;
+        this.sceneRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthTexture: depth });
+        this.composer.addPass(new TexturePass(this.sceneRT.texture));
+      } else this.composer.addPass(new RenderPass(this.scene, this.camera));
       this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.55, 0.6, 1.02); // only HDR magic (>1) blooms, not white signs
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
+      if (dio && this.sceneRT) {
+        this.diorama = makeDioramaPass(this.sceneRT.depthTexture!, this.camera);
+        this.composer.addPass(this.diorama);
+      }
     }
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.touchAction = "none";
-    Object.assign(this.renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%", display: "block" });
+    Object.assign(this.renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%", display: "block", imageRendering: dio ? "pixelated" : "auto" });
     this.assets = new ParkAssets({ ...DEFAULT_CANDY, neutralHue: THEME_CANDY_HUE[opts.themeId ?? ""] ?? DEFAULT_CANDY.neutralHue });
     this.camera.position.set(SPAWN.x, 0, SPAWN.z).add(CAM_OFFSET);
     this.camera.lookAt(SPAWN.x, 1, SPAWN.z);
@@ -561,7 +590,7 @@ export class ParkWorld {
   private async boot() {
     try {
       const [park, dream, kid, pet] = await Promise.all([
-        buildPark(this.scene, this.assets, { hour: this.opts.hour, lowQuality: this.quality === "low" }),
+        buildPark(this.scene, this.assets, { hour: this.opts.hour, lowQuality: this.quality === "low", look: this.quality === "low" ? "smooth" : this.look }),
         createDreamPark(this.scene, this.assets),
         this.makeActor(this.opts.kidAnimal, 2.1, "kid"),
         this.opts.petAnimal ? this.makeActor(this.opts.petAnimal, 1.25, "pet") : Promise.resolve(null),
@@ -808,11 +837,17 @@ export class ParkWorld {
     const h = this.container.clientHeight || window.innerHeight;
     this.camera.aspect = w / Math.max(1, h);
     // portrait phones: widen the view so the plaza still fits
-    this.camera.fov = this.camera.aspect < 0.8 ? 58 : 42;
+    // (the diorama look uses a longer lens from further up, like looking at a model railway)
+    this.camera.fov = this.look === "diorama" ? (this.camera.aspect < 0.8 ? 46 : 32) : this.camera.aspect < 0.8 ? 58 : 42;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h, false); // CSS keeps it at 100% x 100%
     this.composer?.setSize(w, h);
     this.bloom?.resolution.set(w / 2, h / 2);
+    if (this.diorama) {
+      const pr = this.renderer.getPixelRatio();
+      this.sceneRT?.setSize(Math.round(w * pr), Math.round(h * pr));
+      (this.diorama.uniforms.uRes.value as THREE.Vector2).set(Math.round(w * pr), Math.round(h * pr));
+    }
   }
 
   private start() {
@@ -1248,10 +1283,11 @@ export class ParkWorld {
       this.camera.position.lerp(new THREE.Vector3(cx, span * (portrait ? 1.25 : 0.72), cz + span * (portrait ? 0.95 : 0.9)), Math.min(1, dt * 3));
       this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
     } else {
-      let dist = CAM_OFFSET.length() * this.camZoom * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
+      let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.55 : 1) * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
       // a tree (or big rock) between the camera and the kid? slide the camera in closer, like
       // a proper third-person camera, instead of staring at a trunk
-      if (!(this.mount?.flies && this.alt > 3)) {
+      // (not in the diorama look: from that height canopies rarely block, and pulling in ruins the view)
+      if (!(this.mount?.flies && this.alt > 3) && this.look !== "diorama") {
         const dirX = Math.sin(this.camYaw) * Math.cos(this.camPitch);
         const dirZ = Math.cos(this.camYaw) * Math.cos(this.camPitch);
         let want = dist;
@@ -1321,6 +1357,11 @@ export class ParkWorld {
     if (this.bloom) this.bloom.strength = 0.28 + glowNow * 0.5;
     // lift the exposure at twilight so the world stays readable around the glow
     this.renderer.toneMappingExposure = 1.12 + glowNow * 0.55;
+    if (this.sceneRT) {
+      this.renderer.setRenderTarget(this.sceneRT);
+      this.renderer.render(this.scene, this.camera);
+      this.renderer.setRenderTarget(null);
+    }
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
     this.frame = requestAnimationFrame(this.tick);
@@ -1609,6 +1650,9 @@ export class ParkWorld {
     });
     this.assets.dispose();
     this.sparkTex.dispose();
+    this.sceneRT?.depthTexture?.dispose();
+    this.sceneRT?.dispose();
+    this.composer?.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

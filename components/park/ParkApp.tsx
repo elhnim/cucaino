@@ -92,6 +92,18 @@ const STATION_FOR: Record<PetMode, string> = {
 };
 const TOAST_MS = 3000;
 
+/** The park's finish, per device: "smooth" (classic) or "diorama" (storybook: ink outlines,
+ *  stepped colour, chunky pixels, a higher model-railway camera). Trying it out before it
+ *  becomes the default. */
+const LOOK_KEY = "cucaino.look";
+function readLook(): "diorama" | "smooth" {
+  try {
+    return window.localStorage.getItem(LOOK_KEY) === "diorama" ? "diorama" : "smooth";
+  } catch {
+    return "smooth";
+  }
+}
+
 /** Old ?enter= deep links (nav tabs, bookmarks) -> park places. */
 const ENTER_MAP: Record<string, Panel> = {
   work: "quests",
@@ -539,6 +551,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       .then(({ ParkWorld }) => {
         if (disposed || !hostRef.current) return;
         world = new ParkWorld(hostRef.current, {
+          look: readLook(),
           kidAnimal: chosen.id,
           petAnimal: data.pet ? parkAnimalForPet(data.pet.species) : null,
           themeId: data.kid.themeId,
@@ -1065,6 +1078,16 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               { e: "🔨", t: "Build my Dream Park", on: () => enterBuild() },
               { e: "📖", t: `Book of Wisdom · ${Object.keys(wisdom).length}`, on: () => setShowBook(true) },
               { e: "🗺️", t: `Sticker album · ${foundToday.length}/${TREASURES_PER_DAY} today`, on: () => setShowAlbum(true) },
+              {
+                e: "🖼️",
+                t: readLook() === "diorama" ? "Look: Storybook ✓ (tap for Classic)" : "Look: Classic (tap for Storybook)",
+                on: () => {
+                  try {
+                    window.localStorage.setItem(LOOK_KEY, readLook() === "diorama" ? "smooth" : "diorama");
+                  } catch {}
+                  window.location.reload();
+                },
+              },
               { e: "🫧", t: `Sea Pearls · ${pearls.length}/${PEARL_COUNT}`, on: () => toast(pearls.length >= PEARL_COUNT ? "🫧 You found every Sea Pearl!" : "🫧 Sea Pearls glow inside giant clams on the reef, by the shipwreck and the sunken ruins. Swim out past the beach and dive!") },
               { e: "✦", t: `Star Shards · ${shards.length}/${SHARD_COUNT}`, on: () => toast(shards.length >= SHARD_COUNT ? "✦ You found every Star Shard — a true explorer!" : "✦ Star Shards hide on peaks, sky islands, ruins, ancient trees, crystals and coves. Fly to reach the high ones!") },
               { e: "🔄", t: "Switch player", on: () => router.push("/select-kid") },
