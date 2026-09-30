@@ -223,7 +223,11 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
   }), [rebake, schedule]);
 
   return (
-    <div ref={wrapRef} className="relative w-full aspect-square rounded-2xl overflow-hidden border-4 border-gray-200 bg-white shadow-inner">
+    <div
+      ref={wrapRef}
+      className="relative w-full aspect-square overflow-hidden"
+      style={{ borderRadius: 6, background: "#ffffff", boxShadow: "inset 0 0 0 1px rgba(60,40,20,0.18), inset 0 2px 10px rgba(60,40,20,0.12)" }}
+    >
       <canvas
         ref={canvasRef}
         className={`absolute inset-0 w-full h-full ${disabled ? "cursor-not-allowed" : "cursor-crosshair"}`}

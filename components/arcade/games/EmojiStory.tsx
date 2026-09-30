@@ -4,7 +4,28 @@ import { useCallback, useEffect, useState } from "react";
 import { continueEmojiStory, generateEmojiStory } from "@/lib/actions/arcade";
 import type { StoryChoice, StoryEnd, StoryStart } from "@/lib/arcade/validate";
 import { playSfx } from "@/lib/audio/sound-manager";
-import { ErrorBox, PrimaryButton, SecondaryButton, SparkNote, Thinking, useBusy, useSparks, safeAction } from "../ui";
+import {
+  ARC,
+  ARC_FONT,
+  ArcButton,
+  ArcadeStage,
+  ErrorBox,
+  GameTitle,
+  PAPER,
+  PrimaryButton,
+  SecondaryButton,
+  SectionLabel,
+  SparkNote,
+  Thinking,
+  Tile,
+  panelStyle,
+  safeAction,
+  useBusy,
+  useSparks,
+} from "../ui";
+
+// Look: a magical storybook — ingredient "stickers", then a parchment page with a ribbon
+// title, a bookmark for the kid's choice and a flourish for The End.
 
 const SAFE_EMOJIS = [
   "🐶", "🐱", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐷", "🐸", "🐵", "🐧", "🦉", "🦄", "🐙", "🦈",
@@ -44,7 +65,26 @@ interface EmojiStoryProps {
 
 const COST = 1;
 
-export default function EmojiStory({ kidId, sparksBalance }: EmojiStoryProps) {
+const BOOK_CSS = `
+.arc-page p.arc-story{margin:0;font-size:17.5px;line-height:1.7;font-weight:600;color:${PAPER.ink};}
+.arc-page p.arc-story.first::first-letter{float:left;font-family:${ARC_FONT.display};font-weight:400;font-size:52px;line-height:.9;margin:4px 8px 0 0;color:#6a2fc0;text-shadow:0 2px 0 rgba(106,47,192,.18);}
+.arc-sticker{aspect-ratio:1/1;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:clamp(28px,9vw,44px);cursor:pointer;border:0;
+  background:radial-gradient(circle at 50% 35%, #fffdf4, #ffeec8 70%);color:#000;
+  box-shadow:0 0 0 3px ${ARC.gold}, 0 0 0 5px rgba(138,82,0,.55), 0 6px 0 5px rgba(20,10,40,.55), 0 0 18px rgba(255,211,107,.45);
+  transition:transform 140ms cubic-bezier(.3,1.6,.5,1);}
+.arc-sticker:active{transform:scale(.88) rotate(-6deg);}
+`;
+
+export default function EmojiStory(props: EmojiStoryProps) {
+  return (
+    <ArcadeStage tone="violet">
+      <style>{BOOK_CSS}</style>
+      <EmojiStoryInner {...props} />
+    </ArcadeStage>
+  );
+}
+
+function EmojiStoryInner({ kidId, sparksBalance }: EmojiStoryProps) {
   const [sparks, setSparks] = useSparks(sparksBalance);
   const [busy, run] = useBusy();
   const [phase, setPhase] = useState<Phase>("pick");
@@ -132,47 +172,50 @@ export default function EmojiStory({ kidId, sparksBalance }: EmojiStoryProps) {
 
   if (start && (phase === "choose" || phase === "ending" || phase === "done")) {
     return (
-      <div className="max-w-lg mx-auto">
-        <div className="flex justify-center gap-2 text-3xl mb-2" aria-hidden>
-          {emojis.map((e, i) => <span key={i}>{e}</span>)}
-        </div>
-        <h1 className="text-2xl font-black text-center text-gray-900 mb-4 leading-tight">{start.title}</h1>
-
-        <div className="bg-white rounded-2xl shadow-sm p-5 mb-4 space-y-3">
-          {start.paragraphs.map((p, i) => (
-            <p key={i} className="leading-relaxed text-gray-800 text-[17px]">{p}</p>
-          ))}
-          {choice && (
-            <p className="font-black text-violet-700 bg-violet-50 rounded-xl px-3 py-2">
-              {choice.emoji} You chose: {choice.text}
-            </p>
-          )}
-          {ending?.paragraphs.map((p, i) => (
-            <p key={`e${i}`} className="leading-relaxed text-gray-800 text-[17px]">{p}</p>
-          ))}
+      <div>
+        {/* the storybook */}
+        <div className="arc-rise" style={{ position: "relative", padding: 8, borderRadius: 22, marginBottom: 18, background: "linear-gradient(135deg, #5a2fc8, #3a1a8f 55%, #26105f)", boxShadow: "inset 0 2px 0 rgba(255,255,255,0.2), 0 0 0 2px rgba(255,211,107,0.55), 0 12px 30px rgba(0,0,0,0.5), 0 0 30px rgba(176,107,255,0.35)" }}>
+          <div className="arc-page" style={{ position: "relative", borderRadius: 16, padding: "30px 18px 22px", background: `radial-gradient(120% 90% at 50% 0%, #fffdf6, ${PAPER.cream} 60%, #f6e7c6)`, boxShadow: "inset 0 0 30px rgba(140,90,30,0.18), inset 10px 0 18px -12px rgba(90,50,10,0.3)" }}>
+            <div aria-hidden style={{ display: "flex", justifyContent: "center", gap: 8, fontSize: 30, marginBottom: 10 }}>
+              {emojis.map((e, i) => (
+                <span key={i} className="arc-pop" style={{ display: "inline-block", animationDelay: `${i * 70}ms`, filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.2))" }}>{e}</span>
+              ))}
+            </div>
+            <Ribbon>{start.title}</Ribbon>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 18 }}>
+              {start.paragraphs.map((p, i) => (
+                <p key={i} className={`arc-story${i === 0 ? " first" : ""}`}>{p}</p>
+              ))}
+              {choice && (
+                <p className="arc-pop" style={{ margin: "4px -18px", padding: "10px 18px 10px 22px", fontWeight: 900, fontSize: 16.5, color: "#fff", background: "linear-gradient(90deg, #7c4dea, #a86bff)", clipPath: "polygon(0 0, 100% 0, calc(100% - 14px) 50%, 100% 100%, 0 100%)", boxShadow: "0 4px 10px rgba(60,20,140,0.3)" }}>
+                  🔖 {choice.emoji} You chose: {choice.text}
+                </p>
+              )}
+              {ending?.paragraphs.map((p, i) => (
+                <p key={`e${i}`} className="arc-story arc-rise">{p}</p>
+              ))}
+            </div>
+            {phase === "done" && ending && (
+              <p className="arc-display arc-pop" style={{ textAlign: "center", fontSize: 28, margin: "22px 0 0", color: "#6a2fc0" }}>
+                ✦ The End ✦
+              </p>
+            )}
+          </div>
         </div>
 
         {phase === "choose" && (
           <>
-            <p className="text-center font-black text-gray-900 text-lg mb-3">🤔 {start.question}</p>
+            <p className="arc-display" style={{ textAlign: "center", fontSize: 22, margin: "0 0 14px", color: "#fff", textShadow: "0 0 16px rgba(194,155,255,0.7)" }}>🤔 {start.question}</p>
             {error && <ErrorBox message={error} />}
-            <div className="flex flex-col gap-3">
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {start.choices.map((c, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => finish(c)}
-                  className={`w-full min-h-[64px] p-4 rounded-2xl border-2 text-left font-black text-lg active:scale-[0.98] transition-all disabled:opacity-50 ${
-                    i === 0 ? "bg-violet-100 border-violet-300 text-violet-900" : "bg-pink-100 border-pink-300 text-pink-900"
-                  }`}
-                >
-                  <span className="text-2xl mr-2">{c.emoji}</span>
-                  {c.text}
-                </button>
+                <ArcButton key={i} block wrap size="big" variant={i === 0 ? "magic" : "rose"} disabled={busy} onClick={() => finish(c)} style={{ justifyContent: "flex-start", textAlign: "left", padding: "12px 18px", minHeight: 72 }}>
+                  <span style={{ fontSize: 30, flexShrink: 0 }} aria-hidden>{c.emoji}</span>
+                  <span>{c.text}</span>
+                </ArcButton>
               ))}
             </div>
-            <p className="text-center text-xs font-bold text-gray-500 mt-2">Picking the ending is free!</p>
+            <p style={{ textAlign: "center", fontSize: 13.5, fontWeight: 800, color: ARC.dim, marginTop: 12 }}>Picking the ending is free!</p>
           </>
         )}
 
@@ -180,15 +223,15 @@ export default function EmojiStory({ kidId, sparksBalance }: EmojiStoryProps) {
 
         {phase === "done" && ending && (
           <>
-            <p className="text-center font-black text-gray-900 text-xl mb-2">✨ The End ✨</p>
             {ending.moral && (
-              <div className="bg-violet-50 rounded-2xl p-4 mb-4">
-                <p className="italic text-gray-700 leading-relaxed text-center">{ending.moral}</p>
+              <div className="arc-pop" style={{ ...panelStyle(ARC.gold, "rgba(40,24,70,0.9)"), padding: "14px 16px", marginBottom: 16, textAlign: "center" }}>
+                <p className="arc-display" style={{ margin: "0 0 4px", fontSize: 14, letterSpacing: 1.4, color: ARC.gold }}>✨ THE MORAL ✨</p>
+                <p style={{ margin: 0, fontStyle: "italic", fontWeight: 700, lineHeight: 1.55, color: ARC.text }}>{ending.moral}</p>
               </div>
             )}
-            <div className="flex flex-col gap-3">
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <SecondaryButton onClick={readAloud}>{speaking ? "⏹️ Stop reading" : "🔊 Read it to me"}</SecondaryButton>
-              <PrimaryButton color="bg-violet-500 hover:bg-violet-600" onClick={newStory}>📚 Make another story</PrimaryButton>
+              <PrimaryButton variant="magic" onClick={newStory}>📚 Make another story</PrimaryButton>
             </div>
           </>
         )}
@@ -198,49 +241,31 @@ export default function EmojiStory({ kidId, sparksBalance }: EmojiStoryProps) {
 
   // pick
   return (
-    <div className="max-w-lg mx-auto">
-      <h1 className="text-2xl font-black text-center text-gray-900 mb-1">🎭 Emoji Story</h1>
-      <p className="text-center text-gray-500 mb-4 text-sm font-bold">
-        Pick 5 story ingredients — the AI writes a story with ALL of them, and YOU choose what happens next!
-      </p>
+    <div>
+      <GameTitle emoji="📖" title="Emoji Story" sub="Pick 5 story ingredients — the AI writes a story with ALL of them, and YOU choose what happens next!" />
 
-      <p className="text-xs font-black uppercase tracking-wider text-gray-500 mb-2 text-center">Tap an emoji to swap it</p>
-      <div className="grid grid-cols-5 gap-2 mb-3">
-        {emojis.map((e, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => swapOne(i)}
-            aria-label={`Swap ingredient ${i + 1}`}
-            className="aspect-square rounded-2xl bg-white shadow-sm flex items-center justify-center text-4xl active:scale-90 transition-transform border-2 border-violet-100"
-          >
-            {e}
-          </button>
-        ))}
-      </div>
-      <div className="mb-5">
+      <div style={{ ...panelStyle(ARC.gold, "rgba(36,22,78,0.88)"), padding: "16px 12px", marginBottom: 18 }}>
+        <SectionLabel center>Tap a sticker to swap it</SectionLabel>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 16, padding: "0 4px" }}>
+          {emojis.map((e, i) => (
+            <button key={i} type="button" onClick={() => swapOne(i)} aria-label={`Swap ingredient ${i + 1}`} className="arc-sticker" style={{ rotate: `${[-4, 3, -2, 4, -3][i]}deg` }}>
+              <span key={e} className="arc-pop" style={{ display: "inline-block" }}>{e}</span>
+            </button>
+          ))}
+        </div>
         <SecondaryButton onClick={() => { playSfx("tap"); setEmojis(pickRandom(5)); }}>🎲 Shuffle all</SecondaryButton>
       </div>
 
-      <p className="text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Story style</p>
-      <div className="flex flex-wrap gap-2 mb-5">
+      <SectionLabel>Story style</SectionLabel>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 20 }}>
         {STYLES.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            onClick={() => setStyle(s.value)}
-            className={`min-h-[44px] px-3 rounded-full border-2 font-bold text-sm transition-all ${
-              style === s.value ? "border-violet-400 bg-violet-100 text-violet-800" : "border-gray-200 bg-white text-gray-700"
-            }`}
-          >
+          <Tile key={s.label} selected={style === s.value} onClick={() => setStyle(s.value)} style={{ minHeight: 46, padding: "0 14px", borderRadius: 999, fontWeight: 900, fontSize: 15 }}>
             {s.emoji} {s.label}
-          </button>
+          </Tile>
         ))}
       </div>
 
-      <label className="text-xs font-black uppercase tracking-wider text-gray-500 mb-2 block" htmlFor="emoji-hero">
-        Hero name (optional — make one up!)
-      </label>
+      <SectionLabel htmlFor="emoji-hero">Hero name (optional — make one up!)</SectionLabel>
       <input
         id="emoji-hero"
         type="text"
@@ -248,15 +273,41 @@ export default function EmojiStory({ kidId, sparksBalance }: EmojiStoryProps) {
         maxLength={24}
         onChange={(e) => setHero(e.target.value)}
         placeholder="e.g. Captain Waffles"
-        className="w-full px-4 py-3 mb-5 rounded-xl border-2 border-gray-200 text-gray-900 font-medium focus:outline-none focus:border-violet-400"
+        className="arc-input"
+        style={{ marginBottom: 20 }}
       />
 
       {error && <ErrorBox message={error} onRetry={sparks >= COST ? write : undefined} />}
 
-      <PrimaryButton color="bg-violet-500 hover:bg-violet-600" onClick={write} disabled={busy || !kidId || sparks < COST}>
+      <PrimaryButton variant="magic" onClick={write} disabled={busy || !kidId || sparks < COST}>
         ✍️ Write my story — {COST} ⚡
       </PrimaryButton>
       <SparkNote cost={COST} sparks={sparks} />
+    </div>
+  );
+}
+
+/** the storybook title on a notched violet ribbon */
+function Ribbon({ children }: { children: string }) {
+  return (
+    <div style={{ position: "relative", margin: "0 -6px" }}>
+      <h1
+        className="arc-display arc-pop"
+        style={{
+          margin: 0,
+          padding: "12px 30px",
+          textAlign: "center",
+          fontSize: 25,
+          lineHeight: 1.15,
+          color: "#fff",
+          background: "linear-gradient(180deg, #9a6bff, #6a3fe0 60%, #5230c0)",
+          clipPath: "polygon(0 0, 100% 0, calc(100% - 16px) 50%, 100% 100%, 0 100%, 16px 50%)",
+          textShadow: "0 2px 0 rgba(30,10,80,0.55)",
+          filter: "drop-shadow(0 4px 6px rgba(60,20,140,0.35))",
+        }}
+      >
+        {children}
+      </h1>
     </div>
   );
 }

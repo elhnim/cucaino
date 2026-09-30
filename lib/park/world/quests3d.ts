@@ -105,7 +105,7 @@ export function buildQuests3D(scene: THREE.Scene, plan: FantasyPlan): Quests3D {
   // ── shards: a faceted star gem, a soft beam of light above it ──
   const gemGeo = track(new THREE.OctahedronGeometry(0.7, 0));
   gemGeo.scale(0.75, 1.25, 0.75);
-  const gemMat = track(new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffe27a").multiplyScalar(2.2) }));
+  const gemMat = track(new THREE.MeshBasicMaterial({ color: new THREE.Color("#ffe27a").multiplyScalar(1.35) }));
   const gems = new THREE.InstancedMesh(gemGeo, gemMat, spots.length);
   gems.frustumCulled = false;
   const beamGeo = track(new THREE.CylinderGeometry(0.35, 0.9, 16, 10, 1, true));
@@ -121,6 +121,7 @@ export function buildQuests3D(scene: THREE.Scene, plan: FantasyPlan): Quests3D {
   const v = new THREE.Vector3();
   const one = new THREE.Vector3(1, 1, 1);
   const zero = new THREE.Vector3(0, 0, 0);
+  const beamScale = new THREE.Vector3(1, 1, 1);
 
   // ── sky rings ──
   const course = ringCourse();
@@ -157,7 +158,10 @@ export function buildQuests3D(scene: THREE.Scene, plan: FantasyPlan): Quests3D {
         const bob = Math.sin(t * 1.8 + i) * 0.3;
         m.compose(v.set(s.x, s.y + bob, s.z), q.setFromEuler(e.set(0, t * 1.4 + i, 0)), one);
         gems.setMatrixAt(i, m);
-        m.compose(v.set(s.x, s.y - 0.6, s.z), q.identity(), one);
+        // the beam guides you from afar; up close it only gets in the way (and blooms at dusk)
+        const near = Math.hypot(kid.x - s.x, kid.z - s.z);
+        const bk = Math.min(1, Math.max(0, (near - 12) / 22));
+        m.compose(v.set(s.x, s.y - 0.6, s.z), q.identity(), beamScale.set(bk, bk > 0 ? 1 : 0, bk));
         beams.setMatrixAt(i, m);
         if (got === null && Math.hypot(kid.x - s.x, kid.z - s.z) < 2.6 && Math.abs(kid.y + 1 - s.y) < 3.2) {
           got = s.id;
@@ -166,7 +170,7 @@ export function buildQuests3D(scene: THREE.Scene, plan: FantasyPlan): Quests3D {
       });
       gems.instanceMatrix.needsUpdate = true;
       beams.instanceMatrix.needsUpdate = true;
-      beamMat.opacity = 0.12 + glow * 0.14;
+      beamMat.opacity = 0.1 + glow * 0.06;
 
       // rings: only a flying kid can take them; the next one glows cyan and pulses
       let ring: { passed: number; lap?: number } | null = null;

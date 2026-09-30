@@ -4,6 +4,7 @@
 // Rules: clues arrive hardest-first. A wrong guess reveals the next clue. Once all 5
 // clues are out you get 3 last tries. The fewer clues you need, the
 // more points you score. Near-misses and typos are forgiven (lib/arcade/match.ts).
+// Look: a glowing mystery box that the clues pop out of, one by one.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ArcadeResult } from "@/lib/actions/arcade";
 import { matchGuess } from "@/lib/arcade/match";
@@ -11,7 +12,31 @@ import { CLUE_COUNT, FINAL_TRIES, clueRank, cluePoints } from "@/lib/arcade/rule
 import type { ClueRound } from "@/lib/arcade/validate";
 import { recentAnswers, rememberAnswer } from "@/lib/arcade/variety";
 import { playSfx } from "@/lib/audio/sound-manager";
-import { Celebrate, ErrorBox, PrimaryButton, SecondaryButton, SparkNote, Thinking, readStat, useBusy, useSparks, writeStat, safeAction } from "./ui";
+import {
+  ARC,
+  ArcButton,
+  ArcadeStage,
+  Celebrate,
+  ErrorBox,
+  GameTitle,
+  HowTo,
+  MissCard,
+  Panel,
+  PrimaryButton,
+  SecondaryButton,
+  SectionLabel,
+  SparkNote,
+  Thinking,
+  Tile,
+  panelStyle,
+  readStat,
+  safeAction,
+  useBusy,
+  useSparks,
+  writeStat,
+  type ArcTone,
+  type ArcVariant,
+} from "./ui";
 
 type Phase = "idle" | "loading" | "playing" | "won" | "lost";
 
@@ -22,21 +47,30 @@ export interface ClueGameConfig {
   emoji: string;
   intro: string;
   loadingLines: string[];
-  /** tailwind colour stem, e.g. "sky" or "amber" (used in a few fixed class names below) */
+  /** colour family for the game ("sky" = cyan mystery box, "amber" = gold) */
   tone: "sky" | "amber";
+  /** kept for config compatibility (the dark theme uses `tone` for its glow) */
   gradient: string;
   categories?: { label: string; emoji: string; value: string }[];
   generate: (kidId: string, category: string, avoid: string[]) => Promise<ArcadeResult<ClueRound>>;
 }
 
-const TONE = {
-  sky: { btn: "bg-sky-500 hover:bg-sky-600", ring: "focus:border-sky-400", chip: "border-sky-400 bg-sky-50 text-sky-800", clue: "border-sky-300 bg-sky-50" },
-  amber: { btn: "bg-amber-500 hover:bg-amber-600", ring: "focus:border-amber-400", chip: "border-amber-400 bg-amber-50 text-amber-800", clue: "border-amber-300 bg-amber-50" },
-} as const;
+const TONE: Record<ClueGameConfig["tone"], { stage: ArcTone; btn: ArcVariant; accent: string }> = {
+  sky: { stage: "cyan", btn: "cyan", accent: ARC.cyan },
+  amber: { stage: "amber", btn: "amber", accent: "#ffc15e" },
+};
 
 const COST = 1;
 
-export default function ClueGame({ kidId, sparksBalance, config }: { kidId: string | null; sparksBalance: number; config: ClueGameConfig }) {
+export default function ClueGame(props: { kidId: string | null; sparksBalance: number; config: ClueGameConfig }) {
+  return (
+    <ArcadeStage tone={TONE[props.config.tone].stage}>
+      <ClueGameInner {...props} />
+    </ArcadeStage>
+  );
+}
+
+function ClueGameInner({ kidId, sparksBalance, config }: { kidId: string | null; sparksBalance: number; config: ClueGameConfig }) {
   const t = TONE[config.tone];
   const [sparks, setSparks] = useSparks(sparksBalance);
   const [busy, run] = useBusy();
@@ -142,43 +176,39 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
   if ((phase === "won" || phase === "lost") && round) {
     const rank = clueRank(points);
     return (
-      <div className="max-w-lg mx-auto">
+      <div>
         {phase === "won" ? (
-          <Celebrate title="You got it! 🎉" gradient={config.gradient}>
-            <p className="text-5xl my-2">{round.emoji}</p>
-            <p className="text-2xl font-black capitalize">{round.answer}</p>
-            <p className="font-bold mt-2">
-              Solved on clue {shown} · {points} / {CLUE_COUNT} points · {rank.emoji} {rank.title}
+          <Celebrate title="You got it! 🎉" accent={t.accent}>
+            <p className="arc-pop" style={{ fontSize: 64, margin: "4px 0", lineHeight: 1 }}>{round.emoji}</p>
+            <p className="arc-display" style={{ fontSize: 30, margin: 0, textTransform: "capitalize", color: "#fff" }}>{round.answer}</p>
+            <p style={{ marginTop: 10, color: ARC.dim }}>
+              Solved on clue {shown} · <span style={{ color: ARC.gold }}>{points} / {CLUE_COUNT} points</span> · {rank.emoji} {rank.title}
             </p>
-            {streak > 1 && <p className="font-black mt-1">🔥 {streak} in a row!</p>}
+            {streak > 1 && <p className="arc-display" style={{ fontSize: 20, marginTop: 6, color: ARC.fire }}>🔥 {streak} in a row!</p>}
           </Celebrate>
         ) : (
-          <div className="bg-white rounded-3xl shadow-sm p-6 text-center mb-4">
-            <p className="text-5xl mb-2">{round.emoji}</p>
-            <h2 className="text-2xl font-black text-gray-900 mb-1">So close!</h2>
-            <p className="text-gray-700">
-              It was <strong className="text-gray-900 capitalize">{round.answer}</strong>
-            </p>
-          </div>
+          <MissCard emoji={round.emoji} title="So close!">
+            It was <strong className="arc-display" style={{ color: "#fff", fontSize: 22, textTransform: "capitalize" }}>{round.answer}</strong>
+          </MissCard>
         )}
         {round.funFact && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-            <p className="text-xs font-black uppercase tracking-wider text-gray-500 mb-1">🤓 Fun fact</p>
-            <p className="text-gray-800 leading-relaxed">{round.funFact}</p>
-          </div>
+          <Panel edge={ARC.gold} style={{ marginBottom: 14 }} className="arc-rise">
+            <p className="arc-display" style={{ margin: "0 0 6px", color: ARC.gold, fontSize: 16, letterSpacing: 1 }}>🤓 FUN FACT</p>
+            <p style={{ margin: 0, lineHeight: 1.55, fontWeight: 700 }}>{round.funFact}</p>
+          </Panel>
         )}
-        <details className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-          <summary className="font-black text-gray-700 cursor-pointer">See all 5 clues</summary>
-          <ol className="list-decimal pl-5 mt-2 space-y-1 text-gray-700">
+        <details className="arc-details" style={{ ...panelStyle(), padding: 14, marginBottom: 16 }}>
+          <summary className="arc-display" style={{ fontSize: 18 }}>📦 See all 5 clues</summary>
+          <ol style={{ margin: "10px 0 0", paddingLeft: 22, display: "flex", flexDirection: "column", gap: 6, lineHeight: 1.45, fontWeight: 700, color: ARC.dim }}>
             {round.clues.map((c, i) => <li key={i}>{c}</li>)}
           </ol>
         </details>
-        {best > 0 && <p className="text-center text-sm font-bold text-gray-500 mb-3">🏆 Best score: {best} / {CLUE_COUNT}</p>}
+        {best > 0 && <p style={{ textAlign: "center", fontWeight: 800, fontSize: 14, color: ARC.dim, margin: "0 0 12px" }}>🏆 Best score: <span style={{ color: ARC.gold }}>{best} / {CLUE_COUNT}</span></p>}
         {error && <ErrorBox message={error} />}
-        <PrimaryButton color={t.btn} onClick={play} disabled={busy || !kidId || sparks < COST}>
+        <PrimaryButton variant={t.btn} onClick={play} disabled={busy || !kidId || sparks < COST}>
           🎮 Play again — {COST} ⚡
         </PrimaryButton>
-        <div className="mt-3">
+        <div style={{ marginTop: 14 }}>
           <SecondaryButton onClick={() => { setRound(null); setPhase("idle"); }}>{config.categories ? "Change category" : "Back"}</SecondaryButton>
         </div>
         <SparkNote cost={COST} sparks={sparks} />
@@ -190,34 +220,89 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
     const potential = cluePoints(shown);
     const firstLetterHint = shown >= CLUE_COUNT;
     return (
-      <div className="max-w-lg mx-auto">
-        <div className="flex items-center justify-between mb-3 text-sm font-black">
-          <span className="text-gray-600">Clue {shown} / {CLUE_COUNT}{shown >= CLUE_COUNT ? ` · ${triesLeft} ${triesLeft === 1 ? "try" : "tries"} left` : ""}</span>
-          <span className="px-3 py-1 rounded-full bg-yellow-100 text-yellow-800">⭐ worth {potential} pt{potential === 1 ? "" : "s"}</span>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <MysteryBox size={64} open />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p className="arc-display" style={{ margin: 0, fontSize: 22, color: "#fff" }}>
+              Clue {shown} <span style={{ color: ARC.mute }}>/ {CLUE_COUNT}</span>
+            </p>
+            {shown >= CLUE_COUNT && (
+              <p style={{ margin: "2px 0 0", fontWeight: 800, fontSize: 14, color: ARC.fire }}>
+                {triesLeft} {triesLeft === 1 ? "try" : "tries"} left
+              </p>
+            )}
+          </div>
+          <span
+            className="arc-display"
+            key={potential}
+            style={{ flexShrink: 0, padding: "8px 12px", borderRadius: 14, fontSize: 17, color: ARC.ink, background: `linear-gradient(180deg, ${ARC.goldHi}, ${ARC.gold} 50%, ${ARC.goldDeep})`, boxShadow: `0 3px 0 #9a5c00, 0 0 14px rgba(255,211,107,0.55)` }}
+          >
+            ⭐ {potential} pt{potential === 1 ? "" : "s"}
+          </span>
         </div>
 
-        <ol className="flex flex-col gap-2 mb-4">
-          {round.clues.slice(0, shown).map((c, i) => (
-            <li key={i} className={`rounded-2xl p-4 border-2 ${i === shown - 1 ? t.clue : "border-gray-200 bg-white opacity-80"}`}>
-              <span className="text-xs font-black text-gray-500 block mb-0.5">Clue {i + 1}</span>
-              <span className={`text-gray-800 leading-relaxed ${i === shown - 1 ? "text-lg font-bold" : ""}`}>{c}</span>
+        <ol style={{ listStyle: "none", margin: "0 0 14px", padding: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+          {round.clues.slice(0, shown).map((c, i) => {
+            const latest = i === shown - 1;
+            return (
+              <li
+                key={i}
+                className={latest ? "arc-pop" : undefined}
+                style={{
+                  ...panelStyle(latest ? t.accent : undefined, latest ? "rgba(20,44,78,0.92)" : "rgba(24,21,62,0.7)"),
+                  padding: "12px 14px",
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-start",
+                  opacity: latest ? 1 : 0.85,
+                  boxShadow: latest ? `0 0 22px color-mix(in srgb, var(--arc-accent) 40%, transparent), 0 8px 20px rgba(0,0,0,0.35)` : undefined,
+                }}
+              >
+                <span
+                  className="arc-display"
+                  aria-hidden
+                  style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: latest ? "#032a33" : ARC.text, background: latest ? "var(--arc-accent)" : "rgba(255,255,255,0.1)" }}
+                >
+                  {i + 1}
+                </span>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 12, fontWeight: 900, letterSpacing: 1, textTransform: "uppercase", color: latest ? "var(--arc-accent)" : ARC.mute, marginBottom: 2 }}>Clue {i + 1}</span>
+                  <span style={{ lineHeight: 1.45, fontWeight: latest ? 800 : 700, fontSize: latest ? 18 : 15.5, color: latest ? "#fff" : ARC.dim }}>{c}</span>
+                </span>
+              </li>
+            );
+          })}
+          {Array.from({ length: CLUE_COUNT - shown }, (_, k) => (
+            <li
+              key={`locked${k}`}
+              aria-hidden
+              style={{ borderRadius: 18, border: "2px dashed rgba(160,190,255,0.22)", padding: "8px 14px", display: "flex", alignItems: "center", gap: 10, color: ARC.mute, fontWeight: 800, fontSize: 14 }}
+            >
+              <span>🔒</span> Clue {shown + k + 1} is still in the box…
             </li>
           ))}
         </ol>
 
         {firstLetterHint && (
-          <p className="text-center font-bold text-gray-700 mb-3">
-            💡 Free hint: it starts with <strong className="text-gray-900">&quot;{round.answer[0].toUpperCase()}&quot;</strong>
-          </p>
+          <div className="arc-pop" style={{ ...panelStyle(ARC.gold, "rgba(60,44,12,0.85)"), padding: 12, marginBottom: 12, textAlign: "center", fontWeight: 800, color: "#ffe9b8" }}>
+            💡 Free hint: it starts with{" "}
+            <strong className="arc-display" style={{ fontSize: 24, color: ARC.goldHi }}>&quot;{round.answer[0].toUpperCase()}&quot;</strong>
+          </div>
         )}
 
         {feedback && (
-          <div className={`rounded-xl p-3 mb-3 text-center font-bold ${feedback.tone === "close" ? "bg-yellow-50 border-2 border-yellow-300 text-yellow-800" : "bg-rose-50 border-2 border-rose-200 text-rose-700"}`} aria-live="polite">
+          <div
+            key={feedback.text}
+            className={feedback.tone === "wrong" ? "arc-shake" : "arc-pop"}
+            aria-live="polite"
+            style={{ ...panelStyle(feedback.tone === "close" ? ARC.gold : ARC.danger, feedback.tone === "close" ? "rgba(60,44,12,0.88)" : "rgba(70,12,34,0.88)"), padding: 12, marginBottom: 12, textAlign: "center", fontWeight: 800, color: feedback.tone === "close" ? "#ffe9b8" : "#ffe1e6" }}
+          >
             {feedback.text}
           </div>
         )}
 
-        <form className="flex gap-2 mb-3" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <form style={{ display: "flex", gap: 8, marginBottom: 12 }} onSubmit={(e) => { e.preventDefault(); submit(); }}>
           <input
             ref={inputRef}
             type="text"
@@ -230,22 +315,26 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
             autoCapitalize="none"
             spellCheck={false}
             enterKeyHint="go"
-            className={`flex-1 min-w-0 px-4 min-h-[52px] rounded-xl border-2 border-gray-200 text-gray-900 text-lg font-bold focus:outline-none ${t.ring}`}
+            aria-label="Your guess"
+            className="arc-input"
+            style={{ flex: 1, minWidth: 0 }}
           />
-          <button type="submit" disabled={!guess.trim()} className={`px-5 min-h-[52px] rounded-xl font-black text-white disabled:opacity-40 ${t.btn}`}>
+          <ArcButton type="submit" variant="gold" disabled={!guess.trim()}>
             Guess!
-          </button>
+          </ArcButton>
         </form>
 
         {wrong.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             {wrong.map((w) => (
-              <span key={w} className="px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 text-sm font-bold line-through">{w}</span>
+              <span key={w} className="arc-chip" style={{ textDecoration: "line-through", color: "#ffb3c0", borderColor: "rgba(255,93,115,0.4)", background: "rgba(255,93,115,0.1)" }}>
+                ✖ {w}
+              </span>
             ))}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <SecondaryButton onClick={nextClue} disabled={shown >= CLUE_COUNT}>Next clue ▶ (−1)</SecondaryButton>
           <SecondaryButton onClick={lose}>🏳️ Give up</SecondaryButton>
         </div>
@@ -255,43 +344,99 @@ export default function ClueGame({ kidId, sparksBalance, config }: { kidId: stri
 
   // idle
   return (
-    <div className="max-w-lg mx-auto">
-      <h1 className="text-2xl font-black text-center text-gray-900 mb-2">{config.emoji} {config.title}</h1>
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-5 text-gray-700 font-bold space-y-1">
-        <p>{config.intro}</p>
-        <p>🧩 Clues start tricky and get easier.</p>
-        <p>❌ A wrong guess shows the next clue.</p>
-        <p>⭐ Solve it early for more points (5 max)!</p>
-        {(streak > 0 || best > 0) && (
-          <p className="text-sm text-gray-500 pt-1">
-            {streak > 0 ? `🔥 Streak: ${streak}` : ""}{streak > 0 && best > 0 ? " · " : ""}{best > 0 ? `🏆 Best: ${best}/${CLUE_COUNT}` : ""}
-          </p>
-        )}
+    <div>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
+        <MysteryBox size={116} />
       </div>
+      <GameTitle title={config.title} />
+      <HowTo
+        rules={[
+          ["🤖", config.intro.replace(/^🤖\s*/, "")],
+          ["🧩", "Clues start tricky and get easier."],
+          ["❌", "A wrong guess shows the next clue."],
+          ["⭐", "Solve it early for more points (5 max)!"],
+        ]}
+        footer={
+          streak > 0 || best > 0 ? (
+            <>
+              {streak > 0 ? <span style={{ color: ARC.fire }}>🔥 Streak: {streak}</span> : ""}
+              {streak > 0 && best > 0 ? " · " : ""}
+              {best > 0 ? <span style={{ color: ARC.gold }}>🏆 Best: {best}/{CLUE_COUNT}</span> : ""}
+            </>
+          ) : undefined
+        }
+      />
 
       {config.categories && (
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          {config.categories.map((cat) => (
-            <button
-              key={cat.value}
-              type="button"
-              onClick={() => setCategory(cat.value)}
-              className={`min-h-[72px] rounded-2xl font-bold text-base flex flex-col items-center justify-center gap-1 border-2 transition-all ${
-                category === cat.value ? t.chip : "border-gray-200 bg-white text-gray-700"
-              }`}
-            >
-              <span className="text-2xl">{cat.emoji}</span>
-              {cat.label}
-            </button>
-          ))}
-        </div>
+        <>
+          <SectionLabel>What&apos;s in the box?</SectionLabel>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            {config.categories.map((cat) => (
+              <Tile key={cat.value} selected={category === cat.value} onClick={() => setCategory(cat.value)} style={{ minHeight: 84, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, fontWeight: 900, fontSize: 16 }}>
+                <span style={{ fontSize: 30 }} aria-hidden>{cat.emoji}</span>
+                {cat.label}
+              </Tile>
+            ))}
+          </div>
+        </>
       )}
 
       {error && <ErrorBox message={error} onRetry={sparks >= COST ? play : undefined} />}
-      <PrimaryButton color={t.btn} onClick={play} disabled={busy || !kidId || sparks < COST}>
-        Play — {COST} ⚡
+      <PrimaryButton variant={t.btn} onClick={play} disabled={busy || !kidId || sparks < COST}>
+        🎁 Open the box — {COST} ⚡
       </PrimaryButton>
       <SparkNote cost={COST} sparks={sparks} />
+    </div>
+  );
+}
+
+/** a glowing gift-wrapped mystery box (lid lifts + light spills out when `open`) */
+function MysteryBox({ size, open }: { size: number; open?: boolean }) {
+  const s = size;
+  return (
+    <div aria-hidden className={open ? undefined : "arc-wobble"} style={{ position: "relative", width: s, height: s, flexShrink: 0 }}>
+      {/* light spilling out */}
+      <div style={{ position: "absolute", left: "50%", top: open ? -s * 0.25 : s * 0.05, width: s * 1.4, height: s * 0.9, transform: "translateX(-50%)", background: "radial-gradient(50% 60% at 50% 70%, color-mix(in srgb, var(--arc-accent) 70%, transparent), transparent 70%)", opacity: open ? 0.9 : 0.55, filter: "blur(2px)" }} />
+      {/* box body */}
+      <div
+        style={{
+          position: "absolute",
+          left: s * 0.08,
+          right: s * 0.08,
+          bottom: 0,
+          height: s * 0.62,
+          borderRadius: s * 0.08,
+          background: "linear-gradient(135deg, #7c4dea, #4b2bb8 60%, #2e1a7a)",
+          boxShadow: `inset 0 ${s * 0.04}px 0 rgba(255,255,255,0.25), inset 0 -${s * 0.05}px 0 rgba(0,0,0,0.25), 0 ${s * 0.06}px ${s * 0.14}px rgba(0,0,0,0.45), 0 0 ${s * 0.2}px color-mix(in srgb, var(--arc-accent) 45%, transparent)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: s * 0.14, transform: "translateX(-50%)", background: `linear-gradient(90deg, ${ARC.goldDeep}, ${ARC.goldHi}, ${ARC.goldDeep})` }} />
+        <span className="arc-display" style={{ position: "relative", fontSize: s * 0.34, color: "#fff", textShadow: `0 0 ${s * 0.1}px var(--arc-accent), 0 2px 0 rgba(0,0,0,0.4)` }}>?</span>
+      </div>
+      {/* lid */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: open ? s * 0.02 : s * 0.26,
+          height: s * 0.2,
+          borderRadius: s * 0.06,
+          background: "linear-gradient(180deg, #9a72ff, #6a3fe0)",
+          boxShadow: `inset 0 ${s * 0.03}px 0 rgba(255,255,255,0.35), 0 ${s * 0.03}px ${s * 0.06}px rgba(0,0,0,0.35)`,
+          transform: open ? "rotate(-14deg) translateX(-6%)" : "none",
+          transformOrigin: "left bottom",
+          transition: "all 400ms cubic-bezier(.3,1.5,.5,1)",
+        }}
+      >
+        <div style={{ position: "absolute", top: 0, bottom: 0, left: "50%", width: s * 0.14, transform: "translateX(-50%)", background: `linear-gradient(90deg, ${ARC.goldDeep}, ${ARC.goldHi}, ${ARC.goldDeep})` }} />
+        {/* bow */}
+        <div style={{ position: "absolute", left: "50%", top: -s * 0.12, transform: "translateX(-50%)", fontSize: s * 0.2, lineHeight: 1 }}>🎀</div>
+      </div>
     </div>
   );
 }

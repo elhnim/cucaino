@@ -4,7 +4,8 @@
 // peeks at your doodle every few seconds (after you lift your finger) and shouts out its
 // guesses. Get it to say your word to score — faster = more points, streaks = bonus.
 // 5 words a round, 2 sparks a round (charged after the AI's first look).
-import { useCallback, useEffect, useRef, useState } from "react";
+// Look: an artist's easel + sketchbook, with the AI as a glowing crystal ball.
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { lookAtDoodle, startDoodleRound } from "@/lib/actions/arcade";
 import {
   DOODLE_LOOK_EVERY_MS,
@@ -19,7 +20,29 @@ import {
 import { recentAnswers, rememberAnswer } from "@/lib/arcade/variety";
 import { playSfx } from "@/lib/audio/sound-manager";
 import DoodleCanvas, { type DoodleCanvasHandle } from "../DoodleCanvas";
-import { Celebrate, ErrorBox, PrimaryButton, SecondaryButton, SparkNote, Thinking, readStat, safeAction, useBusy, useSparks, writeStat } from "../ui";
+import {
+  ARC,
+  ArcButton,
+  ArcadeStage,
+  Celebrate,
+  ErrorBox,
+  GameTitle,
+  HowTo,
+  MissCard,
+  PAPER,
+  PrimaryButton,
+  SecondaryButton,
+  SectionLabel,
+  SparkNote,
+  Thinking,
+  Tile,
+  panelStyle,
+  readStat,
+  safeAction,
+  useBusy,
+  useSparks,
+  writeStat,
+} from "../ui";
 
 type Phase = "idle" | "dealing" | "ready" | "drawing" | "word-done" | "summary";
 
@@ -60,12 +83,36 @@ const SIZES = [
 /** messages we can't draw our way out of — stop auto-looking and show them */
 const FATAL = /sparks|expired|another player|sign in|player first|switch it on|setting it up|find your player/i;
 
+const DOODLE_CSS = `
+.arc-paint{flex:1 1 0;max-width:44px;min-width:30px;aspect-ratio:1/1;border-radius:999px;border:0;cursor:pointer;touch-action:manipulation;position:relative;
+  box-shadow:inset 0 -4px 0 rgba(0,0,0,.25), inset 0 3px 0 rgba(255,255,255,.35), 0 3px 0 rgba(0,0,0,.35);transition:transform 130ms cubic-bezier(.3,1.6,.5,1), box-shadow 130ms;}
+.arc-paint:active{transform:scale(.88);}
+.arc-paint[aria-pressed="true"]{transform:scale(1.14) translateY(-2px);box-shadow:inset 0 -4px 0 rgba(0,0,0,.25), inset 0 3px 0 rgba(255,255,255,.35), 0 0 0 3px #fff, 0 0 0 5px rgba(0,0,0,.35), 0 0 16px var(--paint);}
+.arc-tool{min-height:48px;min-width:48px;padding:0 12px;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;touch-action:manipulation;
+  border:2px solid rgba(160,190,255,.25);background:linear-gradient(180deg, rgba(64,60,130,.85), rgba(32,28,80,.9));color:${ARC.text};font-weight:900;font-size:14.5px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 3px 0 rgba(6,5,20,.8);transition:transform 110ms, border-color 150ms;}
+.arc-tool:active:not(:disabled){transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 1px 0 rgba(6,5,20,.8);}
+.arc-tool[aria-pressed="true"]{border-color:var(--arc-accent);background:linear-gradient(180deg, rgba(160,50,110,.85), rgba(90,24,70,.9));box-shadow:0 0 14px color-mix(in srgb, var(--arc-accent) 55%, transparent), 0 3px 0 rgba(6,5,20,.8);}
+.arc-tool:disabled{opacity:.45;cursor:not-allowed;}
+@keyframes arc-orb-swirl{to{transform:rotate(360deg)}}
+@keyframes arc-orb-glow{0%,100%{box-shadow:0 0 16px rgba(176,107,255,.7), 0 0 36px rgba(94,242,255,.25), inset 0 -8px 14px rgba(0,0,0,.45), inset 0 4px 10px rgba(255,255,255,.25)}50%{box-shadow:0 0 28px rgba(210,150,255,1), 0 0 54px rgba(94,242,255,.5), inset 0 -8px 14px rgba(0,0,0,.45), inset 0 4px 10px rgba(255,255,255,.3)}}
+`;
+
 interface DoodleGuessProps {
   kidId: string | null;
   sparksBalance: number;
 }
 
-export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) {
+export default function DoodleGuess(props: DoodleGuessProps) {
+  return (
+    <ArcadeStage tone="rose" wide>
+      <style>{DOODLE_CSS}</style>
+      <DoodleGuessInner {...props} />
+    </ArcadeStage>
+  );
+}
+
+function DoodleGuessInner({ kidId, sparksBalance }: DoodleGuessProps) {
   const [sparks, setSparks] = useSparks(sparksBalance);
   const [busy, run] = useBusy();
   const [phase, setPhase] = useState<Phase>("idle");
@@ -337,17 +384,18 @@ export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) 
   };
 
   const progress = () => (
-    <div className="flex justify-center gap-2 mb-3" aria-label={`Word ${index + 1} of ${words.length}`}>
+    <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 14 }} aria-label={`Word ${index + 1} of ${words.length}`}>
       {words.map((w, i) => {
         const r = results[i];
+        const now = !r && i === index;
+        const edge = r ? (r.solved ? ARC.success : ARC.danger) : now ? "var(--arc-accent)" : "rgba(160,190,255,0.25)";
         return (
           <span
             key={i}
-            className={`w-9 h-9 rounded-full flex items-center justify-center text-lg font-black border-2 ${
-              r ? (r.solved ? "bg-green-100 border-green-400" : "bg-rose-50 border-rose-200") : i === index ? "bg-white border-rose-400" : "bg-white border-gray-200"
-            }`}
+            className={now ? "arc-pulse" : undefined}
+            style={{ width: 38, height: 38, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 900, color: ARC.dim, border: `2.5px solid ${edge}`, background: r ? (r.solved ? "rgba(79,227,160,0.18)" : "rgba(255,93,115,0.14)") : "rgba(255,255,255,0.06)", boxShadow: r || now ? `0 0 12px ${r ? (r.solved ? "rgba(79,227,160,0.5)" : "rgba(255,93,115,0.35)") : "rgba(255,134,189,0.55)"}` : "none" }}
           >
-            {r ? (r.solved ? "✅" : "❌") : i === index ? "✏️" : "·"}
+            {r ? (r.solved ? "✅" : "❌") : now ? "✏️" : "·"}
           </span>
         );
       })}
@@ -360,17 +408,22 @@ export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) 
 
   if (phase === "ready" && current) {
     return (
-      <div className="max-w-lg mx-auto">
+      <div style={{ maxWidth: 480, margin: "0 auto" }}>
         {progress()}
-        <div className="bg-white rounded-3xl shadow-sm p-6 text-center mb-4">
-          <p className="text-sm font-black uppercase tracking-wider text-gray-500">Word {index + 1} of {words.length}</p>
-          <p className="text-lg font-bold text-gray-700 mt-2">Draw…</p>
-          <p className="text-6xl my-3" aria-hidden>{current.emoji}</p>
-          <p className="text-4xl font-black text-gray-900 capitalize">{current.word}</p>
-          <p className="text-sm font-bold text-gray-500 mt-3">You have {DOODLE_SECONDS} seconds. The AI shouts guesses as you draw!</p>
-        </div>
-        {roundScore > 0 && <p className="text-center font-black text-gray-700 mb-3">Score so far: {roundScore}{g.current.streak > 1 ? ` · 🔥 ${g.current.streak} in a row` : ""}</p>}
-        <PrimaryButton color="bg-rose-500 hover:bg-rose-600" onClick={beginWord}>
+        <Sketchbook className="arc-pop" style={{ marginBottom: 16 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase", color: PAPER.inkSoft }}>Word {index + 1} of {words.length}</p>
+          <p className="arc-display" style={{ margin: "8px 0 0", fontSize: 22, color: "#b0306b" }}>Draw…</p>
+          <p className="arc-bob" style={{ fontSize: 72, margin: "8px 0", lineHeight: 1 }} aria-hidden>{current.emoji}</p>
+          <p className="arc-display" style={{ margin: 0, fontSize: 44, color: PAPER.ink, textTransform: "capitalize", wordBreak: "break-word" }}>{current.word}</p>
+          <p style={{ margin: "12px 0 0", fontSize: 14.5, fontWeight: 800, color: PAPER.inkSoft, lineHeight: 1.4 }}>You have {DOODLE_SECONDS} seconds. The AI shouts guesses as you draw!</p>
+        </Sketchbook>
+        {roundScore > 0 && (
+          <p className="arc-display" style={{ textAlign: "center", fontSize: 19, margin: "0 0 14px", color: "#fff" }}>
+            Score so far: <span style={{ color: ARC.gold }}>{roundScore}</span>
+            {g.current.streak > 1 ? <span style={{ color: ARC.fire }}> · 🔥 {g.current.streak} in a row</span> : ""}
+          </p>
+        )}
+        <PrimaryButton variant="rose" onClick={beginWord}>
           ✏️ Go!
         </PrimaryButton>
       </div>
@@ -379,46 +432,61 @@ export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) 
 
   if (phase === "drawing" && current) {
     const urgent = secondsLeft <= 10;
+    const pct = (secondsLeft / DOODLE_SECONDS) * 100;
+    const ringColor = urgent ? ARC.danger : "#ff86bd";
     return (
-      <div className="max-w-xl mx-auto">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-wider text-gray-500">Draw · {index + 1}/{words.length}</p>
-            <p className="text-2xl font-black text-gray-900 capitalize truncate">{current.emoji} {current.word}</p>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase", color: ARC.gold }}>Draw · {index + 1}/{words.length}</p>
+            <p className="arc-display" style={{ margin: 0, fontSize: 27, color: "#fff", textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textShadow: "0 0 14px rgba(255,134,189,0.55)" }}>
+              {current.emoji} {current.word}
+            </p>
           </div>
-          <div className={`shrink-0 w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black border-4 ${urgent ? "border-rose-400 text-rose-600 bg-rose-50 animate-pulse" : "border-gray-200 text-gray-800 bg-white"}`} aria-label={`${secondsLeft} seconds left`}>
-            {secondsLeft}
-          </div>
-        </div>
-        <div className="h-2 rounded-full bg-gray-200 overflow-hidden mb-3">
-          <div className={`h-full transition-all duration-300 ${urgent ? "bg-rose-500" : "bg-rose-400"}`} style={{ width: `${(secondsLeft / DOODLE_SECONDS) * 100}%` }} />
-        </div>
-
-        {/* the AI's live commentary */}
-        <div className="bg-white rounded-2xl shadow-sm p-3 mb-3 min-h-[76px]" aria-live="polite">
-          <div className="flex items-start gap-2">
-            <span className={`text-3xl ${looking ? "animate-bounce" : ""}`} aria-hidden>🤖</span>
-            <div className="flex-1 min-w-0">
-              <p className="font-black text-gray-800 leading-snug">
-                {lookError ?? (look?.line || (strokeCount === 0 ? "Start drawing — I'm watching! 👀" : looking ? "Ooh, let me look…" : "Hmm… keep going!"))}
-              </p>
-              {look && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {look.guesses.slice(0, 5).map((gs, i) => (
-                    <span key={gs} className={`px-2.5 py-1 rounded-full text-sm font-bold ${i === look.matchIndex ? "bg-green-500 text-white" : i === 0 ? "bg-rose-100 text-rose-800" : "bg-gray-100 text-gray-600"}`}>
-                      {gs}?
-                    </span>
-                  ))}
-                </div>
-              )}
+          <div
+            className={urgent ? "arc-pulse" : undefined}
+            aria-label={`${secondsLeft} seconds left`}
+            style={{ flexShrink: 0, width: 66, height: 66, borderRadius: 999, padding: 5, background: `conic-gradient(${ringColor} ${pct}%, rgba(255,255,255,0.1) 0)`, boxShadow: `0 0 16px ${urgent ? "rgba(255,93,115,0.7)" : "rgba(255,134,189,0.4)"}`, transition: "background 250ms linear" }}
+          >
+            <div className="arc-display" style={{ width: "100%", height: "100%", borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 25, color: urgent ? "#ffb3c0" : "#fff", background: "radial-gradient(circle at 40% 30%, #2d2670, #120f33)" }}>
+              {secondsLeft}
             </div>
           </div>
-          <p className="text-right text-xs font-bold text-gray-400 mt-1">{looking ? "👀 looking…" : `AI looks left: ${looksLeft}`}</p>
+        </div>
+
+        {/* the AI crystal ball + its shouted guesses */}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 14, minHeight: 88 }} aria-live="polite">
+          <CrystalBall looking={looking} />
+          <div style={{ ...panelStyle("#c29bff", "rgba(34,22,78,0.92)"), flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 18 }}>
+            <span aria-hidden style={{ position: "absolute", left: -8, top: 22, width: 14, height: 14, transform: "rotate(45deg)", background: "rgba(34,22,78,0.98)", borderLeft: "1.5px solid rgba(194,155,255,0.8)", borderBottom: "1.5px solid rgba(194,155,255,0.8)" }} />
+            <p className="arc-display" style={{ margin: 0, fontSize: 18, lineHeight: 1.25, color: "#fff" }}>
+              {lookError ?? (look?.line || (strokeCount === 0 ? "Start drawing — I'm watching! 👀" : looking ? "Ooh, let me look…" : "Hmm… keep going!"))}
+            </p>
+            {look && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                {look.guesses.slice(0, 5).map((gs, i) => {
+                  const hit = i === look.matchIndex;
+                  const top = i === 0 && !hit;
+                  return (
+                    <span
+                      key={gs}
+                      className={`arc-chip ${i === 0 || hit ? "arc-pop" : ""}`}
+                      style={hit ? { background: ARC.success, color: "#04261a", borderColor: "#9cf5c8", boxShadow: `0 0 12px ${ARC.success}` } : top ? { background: "rgba(255,134,189,0.22)", color: "#ffd6e8", borderColor: "rgba(255,134,189,0.7)" } : { color: ARC.dim }}
+                    >
+                      {gs}?
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <p style={{ margin: "6px 0 0", textAlign: "right", fontSize: 12, fontWeight: 800, color: ARC.mute }}>{looking ? "🔮 peeking…" : `AI looks left: ${looksLeft}`}</p>
+          </div>
         </div>
 
         {fatal && <ErrorBox message={fatal} onRetry={FATAL.test(fatal) ? undefined : () => { g.current.errors = 0; setFatal(null); void sendLook(false); }} />}
 
-        <div className="mx-auto" style={{ width: "min(100%, 58vh)" }}>
+        {/* the easel */}
+        <Easel>
           <DoodleCanvas
             ref={canvas}
             color={color}
@@ -428,51 +496,48 @@ export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) 
             onStrokeStart={strokeStart}
             onStrokeEnd={strokeEnd}
           />
-        </div>
+        </Easel>
 
-        {/* tools */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3" role="toolbar" aria-label="Colours">
-          {COLORS.map((c) => (
-            <button
-              key={c.value}
-              type="button"
-              aria-label={c.name}
-              aria-pressed={!eraser && color === c.value}
-              onClick={() => { setColor(c.value); setEraser(false); }}
-              className={`w-10 h-10 rounded-full border-4 transition-transform active:scale-90 ${!eraser && color === c.value ? "border-gray-900 scale-110" : "border-white shadow"}`}
-              style={{ background: c.value }}
-            />
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-2" role="toolbar" aria-label="Brush">
-          {SIZES.map((s, i) => (
-            <button
-              key={s.name}
-              type="button"
-              aria-label={`${s.name} brush`}
-              aria-pressed={size === i}
-              onClick={() => setSize(i)}
-              className={`w-12 h-12 rounded-xl border-2 flex items-center justify-center bg-white ${size === i ? "border-rose-400 bg-rose-50" : "border-gray-200"}`}
-            >
-              <span className="rounded-full" style={{ width: s.dot, height: s.dot, background: eraser ? "#d1d5db" : color }} />
+        {/* tools: a paint palette + brushes */}
+        <div style={{ ...panelStyle("#ff86bd", "rgba(26,22,64,0.9)"), padding: "12px 10px", marginTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "4px 2px" }} role="toolbar" aria-label="Colours">
+            {COLORS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                aria-label={c.name}
+                aria-pressed={!eraser && color === c.value}
+                onClick={() => { setColor(c.value); setEraser(false); }}
+                className="arc-paint"
+                style={{ background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.45), ${c.value} 45%)`, ["--paint" as string]: c.value } as CSSProperties}
+              />
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12 }} role="toolbar" aria-label="Brush">
+            {SIZES.map((s, i) => (
+              <button key={s.name} type="button" aria-label={`${s.name} brush`} aria-pressed={size === i} onClick={() => setSize(i)} className="arc-tool">
+                <span style={{ width: s.dot, height: s.dot, borderRadius: 999, background: eraser ? "#d1d5db" : color, boxShadow: "0 0 0 2px rgba(255,255,255,0.7)" }} />
+              </button>
+            ))}
+            <button type="button" aria-pressed={eraser} onClick={() => setEraser(!eraser)} className="arc-tool">
+              🧽 Rub
             </button>
-          ))}
-          <button type="button" aria-pressed={eraser} onClick={() => setEraser(!eraser)} className={`h-12 px-3 rounded-xl border-2 font-bold bg-white ${eraser ? "border-rose-400 bg-rose-50" : "border-gray-200"}`}>
-            🧽 Rub
-          </button>
-          <button type="button" onClick={() => canvas.current?.undo()} disabled={strokeCount === 0} className="h-12 px-3 rounded-xl border-2 border-gray-200 bg-white font-bold disabled:opacity-40">
-            ↩️ Undo
-          </button>
-          <button type="button" onClick={() => canvas.current?.clear()} disabled={strokeCount === 0} className="h-12 px-3 rounded-xl border-2 border-gray-200 bg-white font-bold disabled:opacity-40">
-            🗑️ Clear
-          </button>
+            <button type="button" onClick={() => canvas.current?.undo()} disabled={strokeCount === 0} className="arc-tool">
+              ↩️ Undo
+            </button>
+            <button type="button" onClick={() => canvas.current?.clear()} disabled={strokeCount === 0} className="arc-tool">
+              🗑️ Clear
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-[2fr_1fr] gap-2 mt-4">
-          <PrimaryButton color="bg-rose-500 hover:bg-rose-600" onClick={() => void done()} disabled={strokeCount === 0 && !timeUp}>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10, marginTop: 16 }}>
+          <ArcButton variant="rose" block wrap onClick={() => void done()} disabled={strokeCount === 0 && !timeUp} style={{ minHeight: 60 }}>
             {timeUp ? "⏰ Final look…" : "✋ Done — guess!"}
-          </PrimaryButton>
-          <SecondaryButton onClick={skip}>⏭ Skip</SecondaryButton>
+          </ArcButton>
+          <ArcButton variant="glass" block onClick={skip} style={{ minHeight: 60 }}>
+            ⏭ Skip
+          </ArcButton>
         </div>
       </div>
     );
@@ -482,28 +547,27 @@ export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) 
     const r = results[results.length - 1];
     const last = index + 1 >= words.length;
     return (
-      <div className="max-w-lg mx-auto">
+      <div style={{ maxWidth: 480, margin: "0 auto" }}>
         {progress()}
         {r?.solved ? (
-          <Celebrate title="The AI got it! 🎉" gradient="linear-gradient(160deg,#e11d48,#f43f5e 55%,#fda4af)">
-            <p className="text-xl font-black capitalize">{r.emoji} {r.word} in {r.seconds}s</p>
-            <p className="font-bold mt-1">+{r.points} points{g.current.streak > 1 ? ` · 🔥 ${g.current.streak} in a row!` : ""}</p>
+          <Celebrate title="The AI got it! 🎉" accent="#ff86bd">
+            <p className="arc-display" style={{ fontSize: 24, margin: 0, color: "#fff" }}>{r.emoji} <span style={{ textTransform: "capitalize" }}>{r.word}</span> in {r.seconds}s</p>
+            <p style={{ margin: "8px 0 0" }}>
+              <span className="arc-display" style={{ fontSize: 22, color: ARC.gold }}>+{r.points} points</span>
+              {g.current.streak > 1 ? <span style={{ color: ARC.fire }}> · 🔥 {g.current.streak} in a row!</span> : ""}
+            </p>
           </Celebrate>
         ) : (
-          <div className="bg-white rounded-3xl shadow-sm p-5 text-center mb-4">
-            <p className="text-4xl mb-1">🤔</p>
-            <h2 className="text-2xl font-black text-gray-900">So close!</h2>
-            <p className="text-gray-700 font-bold">It was <span className="capitalize">{r?.emoji} {r?.word}</span></p>
-          </div>
+          <MissCard emoji="🤔" title="So close!">
+            It was <span className="arc-display" style={{ fontSize: 22, color: "#fff", textTransform: "capitalize" }}>{r?.emoji} {r?.word}</span>
+          </MissCard>
         )}
         {r?.img && (
-          <figure className="bg-white rounded-2xl shadow-sm p-3 mb-4 text-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={r.img} alt={`Your drawing of ${r.word}`} className="w-40 h-40 mx-auto rounded-xl border-2 border-gray-100" />
-            <figcaption className="text-sm font-bold text-gray-600 mt-2">{r.caption}</figcaption>
-          </figure>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+            <Polaroid img={r.img} alt={`Your drawing of ${r.word}`} caption={r.caption} solved={r.solved} tilt={-2} big />
+          </div>
         )}
-        <PrimaryButton color="bg-rose-500 hover:bg-rose-600" onClick={nextWord}>
+        <PrimaryButton variant="rose" onClick={nextWord}>
           {last ? "🏁 See my score" : "Next word ▶"}
         </PrimaryButton>
       </div>
@@ -514,19 +578,19 @@ export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) 
     const solved = results.filter((r) => r.solved).length;
     const rank = doodleRank(roundScore, solved);
     return (
-      <div className="max-w-xl mx-auto">
-        <Celebrate title={`${rank.emoji} ${rank.title}`} gradient="linear-gradient(160deg,#e11d48,#f43f5e 55%,#fda4af)">
-          <p className="text-4xl font-black">{roundScore} pts</p>
-          <p className="font-bold mt-1">The AI guessed {solved} of {results.length} drawings</p>
-          {newBest && <p className="font-black mt-2">🏆 New best score!</p>}
+      <div>
+        <Celebrate title={`${rank.emoji} ${rank.title}`} accent="#ff86bd">
+          <p className="arc-display" style={{ fontSize: 44, margin: 0, color: ARC.goldHi }}>{roundScore} pts</p>
+          <p style={{ margin: "6px 0 0" }}>The AI guessed {solved} of {results.length} drawings</p>
+          {newBest && <p className="arc-display arc-pop" style={{ margin: "8px 0 0", fontSize: 20, color: ARC.gold }}>🏆 New best score!</p>}
         </Celebrate>
-        {!newBest && best > 0 && <p className="text-center text-sm font-bold text-gray-500 mb-3">🏆 Best ({difficulty}): {best}</p>}
-        <Gallery items={results} title="This round" />
+        {!newBest && best > 0 && <p style={{ textAlign: "center", fontSize: 14, fontWeight: 800, color: ARC.dim, margin: "0 0 12px" }}>🏆 Best ({difficulty}): <span style={{ color: ARC.gold }}>{best}</span></p>}
+        <Gallery items={results} title="🖼️ This round" />
         {error && <ErrorBox message={error} />}
-        <PrimaryButton color="bg-rose-500 hover:bg-rose-600" onClick={startRound} disabled={busy || !kidId || sparks < DOODLE_SPARK_COST}>
+        <PrimaryButton variant="rose" onClick={startRound} disabled={busy || !kidId || sparks < DOODLE_SPARK_COST}>
           🎨 Play again — {DOODLE_SPARK_COST} ⚡
         </PrimaryButton>
-        <div className="mt-3">
+        <div style={{ marginTop: 14 }}>
           <SecondaryButton onClick={() => setPhase("idle")}>Change level</SecondaryButton>
         </div>
         <SparkNote cost={DOODLE_SPARK_COST} sparks={sparks} />
@@ -536,65 +600,147 @@ export default function DoodleGuess({ kidId, sparksBalance }: DoodleGuessProps) 
 
   // idle
   return (
-    <div className="max-w-lg mx-auto">
-      <h1 className="text-2xl font-black text-center text-gray-900 mb-2">🎨 Doodle Guess</h1>
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-5 text-gray-700 font-bold space-y-1">
-        <p>✏️ You get a word and {DOODLE_SECONDS} seconds to draw it.</p>
-        <p>🤖 The AI peeks at your drawing and shouts out guesses.</p>
-        <p>⚡ Make it say your word — faster = more points!</p>
-        <p>🔥 {DOODLE_WORDS_PER_ROUND} words a round. Keep a streak for bonus points.</p>
-      </div>
+    <div style={{ maxWidth: 520, margin: "0 auto" }}>
+      <GameTitle emoji="🎨" title="Doodle Guess" sub="Draw it. The crystal ball guesses it!" />
+      <HowTo
+        rules={[
+          ["✏️", `You get a word and ${DOODLE_SECONDS} seconds to draw it.`],
+          ["🔮", "The AI crystal ball peeks at your drawing and shouts out guesses."],
+          ["⚡", "Make it say your word — faster = more points!"],
+          ["🔥", `${DOODLE_WORDS_PER_ROUND} words a round. Keep a streak for bonus points.`],
+        ]}
+      />
 
-      <p className="text-xs font-black uppercase tracking-wider text-gray-500 mb-2">Level</p>
-      <div className="grid grid-cols-3 gap-2 mb-5">
+      <SectionLabel>Level</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
         {LEVELS.map((l) => (
-          <button
-            key={l.value}
-            type="button"
-            onClick={() => setDifficulty(l.value)}
-            aria-pressed={difficulty === l.value}
-            className={`min-h-[76px] px-2 rounded-2xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all ${
-              difficulty === l.value ? "border-rose-400 bg-rose-50 text-rose-800" : "border-gray-200 bg-white text-gray-700"
-            }`}
-          >
-            <span className="text-2xl">{l.emoji}</span>
-            <span className="font-black text-sm">{l.label}</span>
-            <span className="text-[11px] font-bold opacity-70 leading-tight text-center">{l.blurb}</span>
-          </button>
+          <Tile key={l.value} selected={difficulty === l.value} onClick={() => setDifficulty(l.value)} style={{ minHeight: 96, padding: "8px 6px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, textAlign: "center" }}>
+            <span style={{ fontSize: 28 }} aria-hidden>{l.emoji}</span>
+            <span className="arc-display" style={{ fontSize: 18 }}>{l.label}</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: ARC.dim, lineHeight: 1.2 }}>{l.blurb}</span>
+          </Tile>
         ))}
       </div>
 
-      {best > 0 && <p className="text-center text-sm font-bold text-gray-500 mb-3">🏆 Best ({difficulty}): {best}</p>}
+      {best > 0 && <p style={{ textAlign: "center", fontSize: 14, fontWeight: 800, color: ARC.dim, margin: "0 0 12px" }}>🏆 Best ({difficulty}): <span style={{ color: ARC.gold }}>{best}</span></p>}
       {error && <ErrorBox message={error} onRetry={sparks >= DOODLE_SPARK_COST ? startRound : undefined} />}
-      <PrimaryButton color="bg-rose-500 hover:bg-rose-600" onClick={startRound} disabled={busy || !kidId || sparks < DOODLE_SPARK_COST}>
+      <PrimaryButton variant="rose" onClick={startRound} disabled={busy || !kidId || sparks < DOODLE_SPARK_COST}>
         Start a round — {DOODLE_SPARK_COST} ⚡
       </PrimaryButton>
       <SparkNote cost={DOODLE_SPARK_COST} sparks={sparks} />
-      {gallery.length > 0 && <div className="mt-5"><Gallery items={gallery} title="🖼️ Your gallery (this session)" /></div>}
+      {gallery.length > 0 && <div style={{ marginTop: 22 }}><Gallery items={gallery} title="🖼️ Your gallery (this session)" /></div>}
     </div>
+  );
+}
+
+/** the glowing AI crystal ball on its little gold stand */
+function CrystalBall({ looking }: { looking: boolean }) {
+  return (
+    <div aria-hidden style={{ flexShrink: 0, width: 70, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div
+        style={{
+          position: "relative",
+          width: 64,
+          height: 64,
+          borderRadius: 999,
+          overflow: "hidden",
+          background: "radial-gradient(circle at 50% 60%, #b06bff, #5a2fc8 58%, #1b0f4a)",
+          animation: `arc-orb-glow ${looking ? 0.7 : 2.4}s ease-in-out infinite`,
+        }}
+      >
+        <div style={{ position: "absolute", inset: -10, background: "conic-gradient(from 0deg, transparent, rgba(94,242,255,0.55), transparent 35%, rgba(255,134,189,0.5), transparent 70%)", filter: "blur(6px)", animation: `arc-orb-swirl ${looking ? 0.9 : 5}s linear infinite` }} />
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, filter: "drop-shadow(0 0 6px rgba(255,255,255,0.7))" }}>{looking ? "👀" : "🤖"}</div>
+        <div style={{ position: "absolute", left: 12, top: 9, width: 18, height: 11, borderRadius: 999, background: "rgba(255,255,255,0.7)", transform: "rotate(-30deg)", filter: "blur(1px)" }} />
+      </div>
+      <div style={{ marginTop: -4, width: 46, height: 14, borderRadius: "4px 4px 8px 8px", background: `linear-gradient(180deg, ${ARC.goldHi}, ${ARC.goldDeep})`, boxShadow: "0 3px 0 #8a5200, 0 4px 8px rgba(0,0,0,0.4)" }} />
+    </div>
+  );
+}
+
+/** a wooden easel frame around the drawing paper */
+function Easel({ children }: { children: ReactNode }) {
+  const wood = "linear-gradient(90deg, rgba(0,0,0,0.12) 0 2px, transparent 2px 9px), linear-gradient(180deg, #b27a45, #8a5528 55%, #6b3f1c)";
+  return (
+    <div style={{ position: "relative", margin: "0 auto", width: "min(100%, 58vh)", paddingBottom: 26 }}>
+      {/* legs */}
+      <span aria-hidden style={{ position: "absolute", bottom: 0, left: "14%", width: 12, height: "40%", borderRadius: 4, background: wood, transform: "rotate(9deg)", transformOrigin: "top", boxShadow: "0 4px 8px rgba(0,0,0,0.4)" }} />
+      <span aria-hidden style={{ position: "absolute", bottom: 0, right: "14%", width: 12, height: "40%", borderRadius: 4, background: wood, transform: "rotate(-9deg)", transformOrigin: "top", boxShadow: "0 4px 8px rgba(0,0,0,0.4)" }} />
+      <div style={{ position: "relative", padding: 10, borderRadius: 12, background: wood, boxShadow: "inset 0 2px 0 rgba(255,220,170,0.35), inset 0 -3px 0 rgba(0,0,0,0.25), 0 12px 28px rgba(0,0,0,0.5), 0 0 30px rgba(255,134,189,0.18)" }}>
+        {/* clip */}
+        <span aria-hidden style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)", width: 56, height: 18, borderRadius: 6, zIndex: 2, background: "linear-gradient(180deg, #e8ecf5, #9aa3b8)", boxShadow: "0 3px 6px rgba(0,0,0,0.4), inset 0 1px 0 #fff" }} />
+        {children}
+      </div>
+      {/* ledge */}
+      <span aria-hidden style={{ position: "absolute", left: -6, right: -6, bottom: 18, height: 12, borderRadius: 4, background: wood, boxShadow: "0 5px 10px rgba(0,0,0,0.4)" }} />
+    </div>
+  );
+}
+
+/** cream sketchbook page with spiral rings along the top */
+function Sketchbook({ children, className, style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
+  return (
+    <div className={className} style={{ position: "relative", paddingTop: 14, ...style }}>
+      <div aria-hidden style={{ position: "absolute", top: 0, left: 22, right: 22, height: 28, zIndex: 2, background: "radial-gradient(circle at 50% 60%, transparent 0 5px, #c8ccd8 5.5px 8px, transparent 8.5px) 0 0/26px 28px", filter: "drop-shadow(0 2px 1px rgba(0,0,0,0.45))" }} />
+      <div
+        style={{
+          borderRadius: 18,
+          padding: "30px 18px 22px",
+          textAlign: "center",
+          color: PAPER.ink,
+          background: `linear-gradient(rgba(120,150,210,0.14) 1px, transparent 1px) 0 12px/100% 28px, linear-gradient(180deg, #fffdf7, ${PAPER.cream})`,
+          boxShadow: "0 0 0 3px rgba(255,134,189,0.5), 0 14px 30px rgba(0,0,0,0.5), 0 0 30px rgba(255,134,189,0.25), inset 0 -8px 20px rgba(150,110,60,0.12)",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Polaroid({ img, alt, caption, solved, tilt = 0, big }: { img: string | null; alt: string; caption: ReactNode; solved: boolean; tilt?: number; big?: boolean }) {
+  return (
+    <figure className="arc-pop" style={{ margin: 0, position: "relative", width: big ? 200 : "100%", padding: "10px 10px 12px", background: "#fffdf8", borderRadius: 6, rotate: `${tilt}deg`, boxShadow: solved ? `0 0 0 3px ${ARC.gold}, 0 0 18px rgba(255,211,107,0.55), 0 10px 20px rgba(0,0,0,0.45)` : "0 10px 20px rgba(0,0,0,0.45)" }}>
+      <span aria-hidden style={{ position: "absolute", top: -9, left: "50%", width: 64, height: 18, transform: "translateX(-50%) rotate(-3deg)", background: "rgba(255,210,230,0.75)", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
+      {img ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={img} alt={alt} style={{ display: "block", width: "100%", aspectRatio: "1 / 1", borderRadius: 2, background: "#fff", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.08)" }} />
+      ) : null}
+      <figcaption style={{ marginTop: 8, textAlign: "center", fontSize: 13, fontWeight: 800, lineHeight: 1.3, color: PAPER.inkSoft }}>{caption}</figcaption>
+    </figure>
   );
 }
 
 function Gallery({ items, title }: { items: WordResult[]; title: string }) {
   if (!items.length) return null;
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
-      <p className="font-black text-gray-700 mb-3">{title}</p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {items.map((r, i) => (
-          <figure key={i} className={`rounded-xl border-2 p-2 text-center ${r.solved ? "border-green-300 bg-green-50" : "border-gray-200 bg-gray-50"}`}>
-            {r.img ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={r.img} alt={`Drawing of ${r.word}`} className="w-full aspect-square rounded-lg bg-white" />
-            ) : (
-              <div className="w-full aspect-square rounded-lg bg-white flex items-center justify-center text-4xl">{r.emoji}</div>
-            )}
-            <figcaption className="mt-1.5">
-              <span className="block font-black text-gray-900 capitalize text-sm">{r.solved ? "✅" : "❌"} {r.word}</span>
-              <span className="block text-xs font-bold text-gray-500 leading-tight">{r.caption}</span>
-            </figcaption>
-          </figure>
-        ))}
+    <div style={{ ...panelStyle("#ff86bd", "rgba(34,20,60,0.9)"), padding: "14px 12px 18px", marginBottom: 16 }}>
+      <p className="arc-display" style={{ margin: "0 0 16px", fontSize: 19, color: "#fff" }}>{title}</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 16 }}>
+        {items.map((r, i) =>
+          r.img ? (
+            <Polaroid
+              key={i}
+              img={r.img}
+              alt={`Drawing of ${r.word}`}
+              solved={r.solved}
+              tilt={[-2.5, 1.8, -1.2, 2.4][i % 4]}
+              caption={
+                <>
+                  <span className="arc-display" style={{ display: "block", fontSize: 15, color: PAPER.ink, textTransform: "capitalize" }}>{r.solved ? "✅" : "❌"} {r.word}</span>
+                  <span style={{ display: "block", fontSize: 12 }}>{r.caption}</span>
+                </>
+              }
+            />
+          ) : (
+            <figure key={i} style={{ margin: 0, padding: 10, borderRadius: 6, background: "#fffdf8", textAlign: "center", rotate: `${[-2.5, 1.8, -1.2, 2.4][i % 4]}deg`, boxShadow: "0 10px 20px rgba(0,0,0,0.45)" }}>
+              <div style={{ width: "100%", aspectRatio: "1 / 1", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, background: "#fff" }}>{r.emoji}</div>
+              <figcaption style={{ marginTop: 8, fontSize: 12, fontWeight: 800, color: PAPER.inkSoft }}>
+                <span className="arc-display" style={{ display: "block", fontSize: 15, color: PAPER.ink, textTransform: "capitalize" }}>{r.solved ? "✅" : "❌"} {r.word}</span>
+                {r.caption}
+              </figcaption>
+            </figure>
+          ),
+        )}
       </div>
     </div>
   );

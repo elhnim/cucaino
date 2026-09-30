@@ -19,6 +19,7 @@ import { buildUnderwater, type Underwater } from "./underwater";
 import { FOOTPRINTS as SEA_FOOTPRINTS } from "./underwater/plan";
 import { buildBirds } from "./birds";
 import { buildSteamTrain, CAR_GAP } from "./steamTrain";
+import { buildSkyBuilding, type SkyBuilding } from "./skyBuildings";
 import { buildStorybook, type Storybook } from "./storybook";
 import { buildVillage } from "./village";
 import { VILLAGE_OBSTACLES } from "../registry/villageIsland";
@@ -278,6 +279,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const landmarks: Landmark[] = [];
   // places standing on floating mountains bob along with them
   const skyPlaces: { group: THREE.Group; x: number; z: number }[] = [];
+  const skyBuildings: SkyBuilding[] = [];
   const skyStone = track(new THREE.MeshStandardMaterial({ color: "#d9d0c0", roughness: 0.9, flatShading: true }));
   const skyGold = track(new THREE.MeshStandardMaterial({ color: "#e8b64a", roughness: 0.35, metalness: 0.6, flatShading: true }));
   const skyRuneMat = track(new THREE.MeshBasicMaterial({ color: new THREE.Color("#7ff0ff").multiplyScalar(1.1), transparent: true, opacity: 0.55, depthWrite: false }));
@@ -326,6 +328,18 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
         group.add(pole, flag);
       }
     }
+    // a magical building of its own up on the floating mountains (instead of a plain town model)
+    const skyB = p.sky ? buildSkyBuilding(p.id, SKY_PADS.find((q) => q.placeId === p.id)?.r ?? 5, opts.lowQuality) : null;
+    if (skyB) {
+      skyB.group.traverse((o) => {
+        o.userData.placeId = p.id;
+        if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).receiveShadow = true;
+      });
+      group.add(skyB.group);
+      tappables.push(skyB.group);
+      skyBuildings.push(skyB);
+      disposables.push(skyB);
+    }
     // hand-built landmarks for the most important places
     const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : null;
     if (special) {
@@ -335,7 +349,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       group.add(special.group);
       tappables.push(special.group);
     }
-    for (const m of p.models) {
+    for (const m of skyB ? [] : p.models) {
       const obj = await assets.spawn(m.kit as KitName, m.id);
       obj.traverse((o) => ((o as THREE.Mesh).isMesh && ((o.castShadow = true), (o.receiveShadow = true))));
       obj.scale.setScalar(m.scale * (p.sky ? 1.3 : 1));
@@ -678,6 +692,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       storybook?.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       built.villageTalk = village.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour }).talk;
+      for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {
         const top = skyTopY(sp.x, sp.z, t);
         if (top) sp.group.position.y = top.y;
