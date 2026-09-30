@@ -20,6 +20,8 @@ import { FOOTPRINTS as SEA_FOOTPRINTS } from "./underwater/plan";
 import { buildBirds } from "./birds";
 import { buildSteamTrain, CAR_GAP } from "./steamTrain";
 import { buildSkyBuilding, type SkyBuilding } from "./skyBuildings";
+import { buildRideables, type Rideables } from "./rideables";
+import { rideableKeepOut } from "../registry/rideables";
 import { buildStorybook, type Storybook } from "./storybook";
 import { buildVillage } from "./village";
 import { VILLAGE_OBSTACLES } from "../registry/villageIsland";
@@ -40,6 +42,8 @@ export interface BuiltPark {
   /** the storybook dressing (dense forest, sheep, windmills, balloons, boats, clouds, misty
    *  horizon) — only in the diorama look */
   storybook: Storybook | null;
+  /** bikes, cars, unicorns, dragons and mantas waiting round the world to be ridden (the engine drives it) */
+  rides: Rideables;
   /** a Coralcove villager with something to say to the kid right now (null when nobody's near) */
   villageTalk: { id: string; name: string; line: string } | null;
   /** the floating mountains' chests, discoveries and rune-stone puzzles */
@@ -522,7 +526,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     return skyXZ.some((q) => (q.x - x) ** 2 + (q.z - z) ** 2 < rr);
   };
   const fantasy = buildFantasyWorld(scene, {
-    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearSky(x, z, pad),
+    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearSky(x, z, pad) && !rideableKeepOut(x, z, pad),
     lowQuality: opts.lowQuality,
     // the diorama look wants clean, flat meadows (blades turn into pixel noise when chunky), and
     // its own chunky storybook forest instead of the kit's candy trees
@@ -548,6 +552,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
           !inDreamZone(x, z, pad) &&
           !nearStream(x, z, pad) &&
           !nearSky(x, z, pad) &&
+          !rideableKeepOut(x, z, pad) &&
           // (and clear of the fantasy kit's ruins, rocks and giant trees)
           !fantasy.plan.ruins.some((s) => Math.hypot(x - s.x, z - s.z) < s.r + pad) &&
           !fantasy.obstacles.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + pad + 1),
@@ -557,6 +562,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── Coralcove Isle, far out at sea: the Tidewing Folk's villages ──
   const village = buildVillage(scene, { lowQuality: opts.lowQuality });
   disposables.push(village);
+  // ── rides waiting round the world: bikes, buggies, unicorns, dragons, mantas (and sea friends) ──
+  const worldRides = buildRideables(scene, { lowQuality: opts.lowQuality });
+  disposables.push(worldRides);
   const ground = buildTerrainMesh({ lowQuality: opts.lowQuality, mask: fantasy.mask, paths: true });
   ground.name = "terrain";
   ground.receiveShadow = true;
@@ -683,6 +691,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     skyChests: fantasy.sky,
     storybook,
     villageTalk: null,
+    rides: worldRides,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());

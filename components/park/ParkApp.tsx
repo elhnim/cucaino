@@ -45,7 +45,7 @@ import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
 import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
 import { Ambience } from "@/lib/park/audio/ambience";
-import { MOUNTS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/characters/mounts";
+import { MOUNTS, MOUNT_CAPS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/characters/mounts";
 import { SHARD_COUNT, RING_COUNT } from "@/lib/park/world/quests3d";
 import { PEARL_COUNT } from "@/lib/park/world/underwater";
 import { SKY_ISLANDS, SKY_SPOTS, skyIslandById } from "@/lib/park/registry/skyIslands";
@@ -255,6 +255,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [villageTalk, setVillageTalk] = useState<{ name: string; line: string } | null>(null);
   // floating mountains: the one you're flying over (to land on), and the treasures found
   const [landName, setLandName] = useState<string | null>(null);
+  // a ride waiting close by (you find rides round the world now — no summoning)
+  const [hopTarget, setHopTarget] = useState<{ kind: MountKind; label: string } | null>(null);
   const skyKey = `cucaino.skychests.${kidId}`;
   const [skyFound, setSkyFound] = useState<string[]>([]);
   // discoveries on the floating mountains (caves, nests, rune circles, telescopes …)
@@ -850,6 +852,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     const id = window.setInterval(() => {
       const r = worldRef.current?.riding ?? null;
       setRiding((cur) => (cur?.kind === r?.kind && cur?.flying === r?.flying && cur?.landing === r?.landing ? cur : r));
+      const ht = worldRef.current?.hopTarget ?? null;
+      setHopTarget((cur) => (cur?.label === ht?.label && cur?.kind === ht?.kind ? cur : ht));
       const ln = worldRef.current?.skyLandable ?? null;
       setLandName((cur) => (cur === ln ? cur : ln));
       const sw = worldRef.current?.swim ?? null;
@@ -1226,7 +1230,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {ready && !busy && !building && !onCoaster && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={rideBar}>
-          {((riding && MOUNTS.find((m) => m.kind === riding.kind)?.flies && !riding.landing) || (swim && !riding)) && (
+          {((riding && MOUNT_CAPS[riding.kind].medium !== "land" && !riding.landing) || (swim && !riding)) && (
             <>
               {(["up", "down"] as const).map((dir) => (
                 <RoundButton
@@ -1246,20 +1250,36 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               ))}
             </>
           )}
-          <RoundButton
-            size={62}
-            active={!!riding}
-            style={{ fontSize: riding ? 14 : 30, lineHeight: 1.05, textAlign: "center" }}
-            onClick={() => {
-              if (riding) {
-                worldRef.current?.dismount();
-                playSfx("tap");
-              } else setPickMount(true);
-            }}
-            aria-label={riding ? "Hop off" : "Ride an animal"}
-          >
-            {riding ? (riding.landing ? "…" : "Hop off") : "🦄"}
-          </RoundButton>
+          {(riding || hopTarget) && (
+            <RoundButton
+              size={62}
+              active
+              style={{ fontSize: riding ? 14 : 13, lineHeight: 1.05, textAlign: "center", width: riding ? 62 : 84, borderRadius: riding ? 999 : 20 }}
+              onClick={() => {
+                if (riding) {
+                  worldRef.current?.dismount();
+                  playSfx("tap");
+                  return;
+                }
+                const kind = worldRef.current?.hopOn(theme.accent, skin);
+                if (!kind) return;
+                playSfx("sparkle");
+                const c = MOUNT_CAPS[kind];
+                toast(
+                  c.medium === "air"
+                    ? `${c.emoji} Up we go! Hold ▲ to fly higher, ▼ to swoop down`
+                    : c.medium === "under"
+                      ? `${c.emoji} Hold on! ▲ and ▼ to swim up and down — mantas stay under the waves`
+                      : c.medium === "sea"
+                        ? `${c.emoji} All aboard! Hold ▼ to dive, ▲ to come back up`
+                        : `${c.emoji} ${c.verb}! Off we go`,
+                );
+              }}
+              aria-label={riding ? "Hop off" : hopTarget?.label ?? "Hop on"}
+            >
+              {riding ? (riding.landing ? "…" : "Hop off") : hopTarget?.label}
+            </RoundButton>
+          )}
         </div>
       )}
       {villageTalk && !busy && (

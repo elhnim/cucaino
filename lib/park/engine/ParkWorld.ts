@@ -34,8 +34,9 @@ export type Ride = Interior & {
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
-import { buildMount, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
+import { MOUNT_CAPS, MOUNT_SEA_DRAFT, buildMount, mountLean, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
+import { ISLAND_R } from "../registry/island";
 import { seaFloorY } from "../world/sea/wander";
 import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../registry/villageIsland";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
@@ -224,6 +225,10 @@ export class ParkWorld {
   private fallV = 0;
   private flyBase = 0;
   private skyOpened = new Set<string>();
+  /** the world ride we're on (bikes, unicorns … are found round the world, not summoned) */
+  private rideId: string | null = null;
+  private prevFacing = 0;
+  private hopNear: { id: string; kind: MountKind; label: string } | null = null;
   private spotsFound = new Set<string>();
   private lastTalk = "";
   private metVillage = false;
@@ -1032,9 +1037,22 @@ export class ParkWorld {
       this.swimVX = this.swimVZ = 0;
       if (!this.walkTarget) this.routing = false;
       const swimming = !this.mount && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
-      const sp = WALK_SPEED * (this.mount ? (this.mount.flies ? 2.4 : 1.9) : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
+      const caps = this.mount ? MOUNT_CAPS[this.mount.kind] : null;
+      const sp = WALK_SPEED * (caps ? caps.speed : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
+      const px = pos.x;
+      const pz = pos.z;
       pos.x += vx * sp * dt;
       pos.z += vz * sp * dt;
+      // every ride keeps to its element: bikes, buggies and unicorns stop at the shore, mantas stay
+      // under the sea, whales and dolphins in deep water (a flying dragon goes anywhere)
+      if (caps && !(caps.medium === "air" && this.alt > 1)) {
+        const depth = seaDepth(pos.x, pos.z);
+        const blocked = caps.medium === "land" ? depth > 0.45 : caps.medium === "under" || caps.medium === "sea" ? depth < 2.6 : false;
+        if (blocked) {
+          pos.x = px;
+          pos.z = pz;
+        }
+      }
       kid.facing = Math.atan2(vx, vz);
       this.idleT = 0;
       this.waved = false;
@@ -1059,10 +1077,17 @@ export class ParkWorld {
       const lowAlt = minAlt < 0 ? minAlt : 4;
       // fliers can climb high enough to reach the floating mountains (~115 m up)
       const maxAlt = 115 - Math.max(floorY0(pos.x, pos.z), WATER_Y);
-      if (m.flies && !this.landing) this.altTarget = Math.max(lowAlt, Math.min(maxAlt, this.altTarget + this.flyInput * 12 * dt));
-      if (this.altTarget < minAlt) this.altTarget = minAlt;
+      const medium = MOUNT_CAPS[m.kind].medium;
+      if (medium === "under") {
+        // a manta swims under the waves only: from just below the surface down to the reef
+        this.altTarget = Math.max(minAlt < 0 ? minAlt : -1.2, Math.min(-1.2, this.altTarget + this.flyInput * 9 * dt));
+      } else if (medium === "sea") {
+        // whales and dolphins swim at the surface and dive with ▼
+        this.altTarget = Math.max(-Math.max(0, sea - 3), Math.min(0, this.altTarget + this.flyInput * 6 * dt));
+      } else if (m.flies && !this.landing) this.altTarget = Math.max(lowAlt, Math.min(maxAlt, this.altTarget + this.flyInput * 12 * dt));
+      if (medium !== "sea" && this.altTarget < minAlt) this.altTarget = minAlt;
       this.alt += (this.altTarget - this.alt) * Math.min(1, dt * (this.landing ? 1.6 : 2.2));
-      if (this.alt < minAlt) this.alt = minAlt;
+      if (medium !== "sea" && this.alt < minAlt) this.alt = minAlt;
       if (this.landing && this.alt < 0.25) this.dismount(true);
     }
     const aloft = this.alt > 3;
@@ -1127,10 +1152,16 @@ export class ParkWorld {
           this.flyBase = base;
         }
         pos.y = base + this.alt;
+      } else if (MOUNT_CAPS[m.kind].medium === "sea") {
+        pos.y = WATER_Y - (MOUNT_SEA_DRAFT as Record<string, number>)[m.kind] + this.alt;
       } else pos.y = seaHere > SWIM_DEPTH ? WATER_Y - 0.85 : floorY;
       m.root.position.set(pos.x, pos.y, pos.z);
       m.root.rotation.y = kid.root.rotation.y;
-      m.root.rotation.z = moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
+      // bikes lean into turns; fliers sway
+      let dYaw = kid.facing - this.prevFacing;
+      dYaw = Math.atan2(Math.sin(dYaw), Math.cos(dYaw));
+      this.prevFacing = kid.facing;
+      m.root.rotation.z = MOUNT_CAPS[m.kind].medium === "land" ? mountLean(m.kind, dYaw / Math.max(dt, 1e-3), moving ? WALK_SPEED * MOUNT_CAPS[m.kind].speed : 0) : moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
       // wings beat under water too; the shadow measures down to the real ground / sea floor
       m.update(dt, moving ? WALK_SPEED * 2 : 0, m.flies && Math.abs(this.alt) > 0.4, this.park.atmosphere.glow, pos.y - floorY);
       if (kid.rig) kid.rig.root.position.copy(m.seat);
@@ -1242,6 +1273,17 @@ export class ParkWorld {
       w.model.root.position.y = top.y;
       w.sign.position.y = top.y + 4.9;
       if (w.star) w.star.position.y = top.y + 6.1;
+    }
+
+    // rides round the world: animate them, and find one close enough to hop on
+    {
+      const atSea = seaDepth(pos.x, pos.z) > 2.5 && Math.hypot(pos.x, pos.z) > ISLAND_R;
+      this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow });
+      const canHop = !this.mount && !this.sky && !this.launch && !this.gliding;
+      const n = canHop ? this.park.rides.nearest(pos, 4.6) : null;
+      const reach = n ? (n.kind === "whale" ? 4.6 : 3.2) : 0;
+      const d = n ? Math.hypot(n.x - pos.x, n.z - pos.z) : 99;
+      this.hopNear = n && d < reach && Math.abs(n.y - pos.y) < 3.5 ? { id: n.id, kind: n.kind, label: n.label } : null;
     }
 
     // Coralcove Isle: say hello the first time you arrive; villagers chat when you're close
@@ -1772,6 +1814,22 @@ export class ParkWorld {
     this.park?.skyChests.setSpotsFound(ids);
   }
 
+  /** A ride waiting close by (for the HUD's "Hop on" button), or null. */
+  get hopTarget(): { kind: MountKind; label: string } | null {
+    return this.hopNear ? { kind: this.hopNear.kind, label: this.hopNear.label } : null;
+  }
+
+  /** Hop onto the ride that's close by (bikes, cars, unicorns, dragons, mantas, whales, dolphins). */
+  hopOn(accent?: string, skin?: MountSkin): MountKind | null {
+    const n = this.hopNear;
+    if (!n || !this.park || !this.kid || this.mount || this.sky || this.ride) return null;
+    this.park.rides.take(n.id);
+    this.mountUp(n.kind, accent, skin);
+    this.rideId = n.id;
+    this.hopNear = null;
+    return n.kind;
+  }
+
   /** Which floating mountains' chests this kid has opened (they stay open). */
   setSkyTreasuresOpened(ids: string[]) {
     this.skyOpened = new Set(ids);
@@ -1859,8 +1917,10 @@ export class ParkWorld {
     m.root.position.copy(this.kid.root.position).setY(0);
     this.landing = false;
     this.alt = 0;
-    this.altTarget = m.flies ? 9 : 0;
+    const medium0 = MOUNT_CAPS[kind].medium;
+    this.altTarget = medium0 === "air" ? 9 : 0;
     this.flyInput = 0;
+    if (medium0 === "under") this.alt = this.altTarget = Math.min(-1.5, this.kid.root.position.y - WATER_Y);
     // taking off from a floating mountain: heights count from its top
     const kp0 = this.kid.root.position;
     const top0 = this.onSky ? skyTopY(kp0.x, kp0.z, this.time) : null;
@@ -1892,6 +1952,11 @@ export class ParkWorld {
       return;
     }
     const wasY = this.kid.root.position.y;
+    if (this.rideId && this.park) {
+      const p0 = this.kid.root.position;
+      this.park.rides.release(this.rideId, p0.x, MOUNT_CAPS[m.kind].medium === "land" || MOUNT_CAPS[m.kind].medium === "air" ? worldFloor(p0.x, p0.z) : p0.y, p0.z, this.kid.facing);
+      this.rideId = null;
+    }
     m.dispose();
     this.mount = null;
     this.landing = false;
