@@ -98,8 +98,14 @@ export function RoundButton({ children, size = 60, active, style, ...rest }: { c
         cursor: "pointer",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
+        // held down to fly up/down: no text selection, callout or double-tap zoom on iOS
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+        touchAction: "none",
         ...style,
       }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {children}
     </button>
