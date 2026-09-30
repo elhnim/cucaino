@@ -18,7 +18,9 @@ import {
   planCreatures,
   planProps,
   safeHalf,
+  hoverTarget,
   stepCreature,
+  stepEscort,
   stepMegalodon,
   toWorld,
   type KidInfo,
@@ -122,7 +124,8 @@ describe("the Midnight Rift: plan", () => {
         if (c.kind === "megalodon") {
           stepMegalodon(c, st, kid, dt, t);
           megPose(st, c.pose, dt);
-        } else stepCreature(c, t, dt);
+        } else if (c.kind === "escort") stepEscort(c, t, dt, kid);
+        else stepCreature(c, t, dt);
         const p = c.pose;
         expect(Number.isFinite(p.x + p.y + p.z + p.yaw + p.pitch + p.roll)).toBe(true);
         expect(p.y).toBeLessThan(WATER_Y - 1);
@@ -160,6 +163,38 @@ describe("the Midnight Rift: plan", () => {
     expect(circling * dt).toBeGreaterThan(10);
     expect(modes.has(0) && modes.has(1) && modes.has(2)).toBe(true);
     modes = new Set();
+  }, 30000);
+});
+
+describe("the Midnight Rift: escorts", () => {
+  it("a few rare animals come to drift round a kid diving in the rift, off the rock", () => {
+    const esc = planCreatures(false).filter((c) => c.kind === "escort");
+    expect(esc.length).toBeGreaterThanOrEqual(4);
+    const kid = kidAt(RIFT_L * 0.45, 0, -70);
+    const dt = 0.1;
+    let near = 0;
+    for (let k = 0; k < 600; k++) {
+      const t = k * dt;
+      let n = 0;
+      for (const c of esc) {
+        stepEscort(c, t, dt, kid);
+        const p = c.pose;
+        expect(p.y).toBeGreaterThan(floorY(p.x, p.z) + 0.3);
+        const d = Math.hypot(p.x - kid.x, p.y - kid.y, p.z - kid.z);
+        if (t > 20) expect(d).toBeGreaterThan(2);
+        if (d < 12) n++;
+      }
+      if (t > 20 && n >= 3) near++;
+    }
+    // (after they've arrived, at least three are round the kid nearly all the time)
+    expect(near).toBeGreaterThan(380);
+    // and they go home when the kid leaves
+    const gone = { x: 0, y: -5, z: 0, s: NaN, u: 0 };
+    for (let k = 0; k < 900; k++) for (const c of esc) stepEscort(c, 60 + k * dt, dt, gone);
+    for (const c of esc) {
+      const home = hoverTarget(c, 60 + 900 * dt, { x: 0, y: 0, z: 0 });
+      expect(Math.hypot(c.pose.x - home.x, c.pose.y - home.y, c.pose.z - home.z)).toBeLessThan(6);
+    }
   }, 30000);
 });
 

@@ -303,7 +303,7 @@ export interface Pose {
 }
 export interface Creature {
   sp: Species;
-  kind: "loop" | "hover" | "jet" | "crawl" | "fixed" | "megalodon";
+  kind: "loop" | "hover" | "jet" | "crawl" | "fixed" | "megalodon" | "escort";
   seed: number;
   scale: number;
   /** body radius for spotting and the kid bubble (m, at scale 1) */
@@ -430,6 +430,20 @@ export function planCreatures(lowQuality = false): Creature[] {
     add("yetiCrab", "crawl", { radius: 0.3, phRate: 4, hs: -1, hu: 0, hy: 0, s0: ch.x + Math.sin(a) * d, s1: ch.z + Math.cos(a) * d, r: 0.3 + r() * 0.4, speed: 0.08, scale: 0.9 + r() * 0.4, theta0: r() * 10 });
   }
   add("giantOctopus", "fixed", { radius: 4, phRate: 1.1, hs: GROTTO.s, hu: GROTTO.u, hy: GROTTO.y });
+  // escorts: a few rare animals that come to drift round a kid diving in the rift (so there's
+  // always something to look at), and wander home again when the kid leaves
+  const esc: [Species, number, number][] = [
+    ["combJelly", 0.4, 1],
+    ["dumbo", 0.5, 1],
+    ["vampireSquid", 0.5, 1],
+    ["combJelly", 0.4, 1.2],
+    ["ammonite", 0.7, 1],
+    ["coelacanth", 1, 1],
+  ];
+  esc.forEach(([sp, radius, scale], i) => {
+    const s = L * (0.2 + i * 0.12);
+    add(sp, "escort", { radius, scale, phRate: sp === "coelacanth" ? 3 : 2, hs: s, hu: (r() - 0.5) * 4, hy: -50 - r() * 30, amp: 2, r: 6 + (i % 3) * 1.4 });
+  });
   // sanity: every loop fits the rift at its height (shrink the lateral radius where it's narrow)
   for (const m of c) {
     if (m.kind !== "loop" && m.kind !== "jet" && m.kind !== "megalodon") continue;
@@ -746,6 +760,71 @@ export function stepCreature(m: Creature, t: number, dt: number): void {
   }
   if (m.pitch0) p.pitch = m.pitch0 + Math.sin(t * 0.2 + m.seed) * 0.08;
   m.started = true;
+}
+
+/**
+ * An escort: while the kid is down in the rift it drifts round them (6-9 m away, a slow orbit at
+ * about their height, kept in the water and off the rock); otherwise it hovers at home. It swims
+ * there at a sensible speed (a far one first slips in quietly ~55 m away along the rift).
+ */
+export function stepEscort(m: Creature, t: number, dt: number, kid: KidInfo): void {
+  const p = m.pose;
+  p.scale = m.scale;
+  const inRift = kid.s === kid.s && kid.y < RIM_Y - 3;
+  let tx: number;
+  let ty: number;
+  let tz: number;
+  if (inRift) {
+    const dir = m.seed % 2 ? 1 : -1;
+    const a = m.seed * 2.39 + t * (0.08 + (m.seed % 3) * 0.02) * dir;
+    tx = kid.x + Math.sin(a) * m.r;
+    tz = kid.z + Math.cos(a) * m.r;
+    ty = kid.y + 0.8 + Math.sin(t * 0.23 + m.seed) * 1.6;
+    // keep it in the water: pull it in towards the kid while that spot is inside the rock
+    for (let k = 0; k < 8 && floorY(tx, tz) + 0.8 + m.radius > ty; k++) {
+      tx = kid.x + (tx - kid.x) * 0.72;
+      tz = kid.z + (tz - kid.z) * 0.72;
+    }
+    ty = Math.max(ty, floorY(tx, tz) + 0.8 + m.radius);
+    if (!m.started || Math.hypot(p.x - kid.x, p.z - kid.z) > 90) {
+      // (slip in out of sight, along the rift)
+      const s = clamp(kid.s + (m.seed % 2 ? 42 : -42), 20, RIFT_L - 20);
+      toWorld(s, 0, lp);
+      p.x = lp.x;
+      p.z = lp.z;
+      p.y = Math.max(kid.y, floorAt(s, 0) + 2);
+    }
+  } else {
+    hoverTarget(m, t, lp);
+    tx = lp.x;
+    ty = lp.y;
+    tz = lp.z;
+    if (!m.started) {
+      p.x = tx;
+      p.y = ty;
+      p.z = tz;
+    }
+  }
+  m.started = true;
+  const dx = tx - p.x;
+  const dy = ty - p.y;
+  const dz = tz - p.z;
+  const d = Math.hypot(dx, dy, dz);
+  const step = Math.min(d, Math.min(8, 0.5 + d * 0.3) * dt);
+  if (d > 1e-4) {
+    p.x += (dx / d) * step;
+    p.y += (dy / d) * step;
+    p.z += (dz / d) * step;
+  }
+  // stay off the rock on the way
+  p.y = Math.max(p.y, floorY(p.x, p.z) + 0.5 + m.radius);
+  if (Math.hypot(dx, dz) > 0.05) {
+    const yaw = Math.atan2(dx, dz);
+    const dyaw = wrapA(yaw - p.yaw);
+    p.yaw = wrapA(p.yaw + dyaw * Math.min(1, dt * 1.2));
+    p.roll += (clamp(-dyaw * 0.8, -0.35, 0.35) - p.roll) * Math.min(1, dt);
+  }
+  p.pitch += (clamp(-Math.atan2(dy, Math.max(0.5, Math.hypot(dx, dz))), -0.4, 0.4) - p.pitch) * Math.min(1, dt);
 }
 
 /** the giant octopus's mood: how far it reaches towards the kid (0..1) given the distance */

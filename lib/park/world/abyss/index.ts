@@ -67,6 +67,7 @@ import {
   planCreatures,
   planProps,
   stepCreature,
+  stepEscort,
   stepMegalodon,
   RIFT_L,
   RIM_Y,
@@ -145,7 +146,7 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
   scene.add(group);
 
   const AU = makeAbyssUniforms();
-  const rockMat = track(abyssMaterial(AU, { flat: true, rim: 0.12, lift: 0.07 }, { roughness: 0.95 }));
+  const rockMat = track(abyssMaterial(AU, { flat: true, rim: 0.32, lift: 0.13 }, { roughness: 0.95 }));
   // (wins the depth tie where the rim strip overlaps the deep sandy floor round it)
   rockMat.polygonOffset = true;
   rockMat.polygonOffsetFactor = -1;
@@ -484,6 +485,14 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
   };
   group.add(voidBox);
 
+  // ── a warm light that follows a kid diving in the rift (so the kid, and whatever swims up,
+  //    always reads). It lives in the scene itself, not the group, so showing or hiding the rift
+  //    never changes the scene's light count (no shader recompiles); off (0) elsewhere. ──
+  const kidLight = new THREE.PointLight("#ffd2a0", 0, 18, 1);
+  kidLight.name = "abyss-kid-light";
+  kidLight.castShadow = false;
+  scene.add(kidLight);
+
   // ── marine snow (denser down here) ──
   const snowC = { value: new THREE.Vector3() };
   const snow = buildSnow(UW, low ? 500 : 1100, 30, snowC);
@@ -495,6 +504,7 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
   const kidI: KidInfo = { x: 0, y: 0, z: 0, s: NaN, u: 0 };
   const kc = { s: 0, u: 0, rim: 0 };
   const result: { spot: { id: string; name: string; text: string } | null } = { spot: null };
+  let lastFact: AbyssFact | null = null;
   const up = new THREE.Vector3(0, 1, 0);
   const bx = new THREE.Vector3();
   const by = new THREE.Vector3();
@@ -534,13 +544,18 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
       const near = abyssDistance(kid.x, kid.z);
       const show = o.under && near < SHOW_R;
       group.visible = show;
-      if (!show) return result;
+      if (!show) {
+        kidLight.intensity = 0;
+        return result;
+      }
       AU.uTime.value = t;
       UW.uTime.value = t;
       const depth = WATER_Y - kid.y;
       const deepK = Math.min(1, Math.max(0, (depth - 18) / 30));
       AU.uKid.value.set(kid.x, kid.y + 1.2, kid.z);
       AU.uLamp.value = deepK;
+      kidLight.position.set(kid.x, kid.y + 2.2, kid.z);
+      kidLight.intensity = deepK * 1.6;
       AU.uGlowK.value = 0.9 + deepK * 0.7 + o.glow * 0.3;
       UW.uGlow.value = Math.max(o.glow, deepK);
       UW.uGlowK.value = AU.uGlowK.value;
@@ -568,13 +583,15 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
       const d = Math.min(0.1, dt);
       let best = Infinity;
       let bestFact: AbyssFact | null = null;
+      let curLast = Infinity;
       for (let i = 0; i < creatures.length; i++) {
         const c = creatures[i];
         if (c.kind === "megalodon") {
           stepMegalodon(c, megSt, kidI, d, t);
           megPose(megSt, c.pose, d);
           c.pose.scale = c.scale;
-        } else stepCreature(c, t, d);
+        } else if (c.kind === "escort") stepEscort(c, t, d, kidI);
+        else stepCreature(c, t, d);
         c.ph = (c.ph + d * c.phRate) % PH_WRAP;
         const p = c.pose;
         const dx = p.x - kid.x;
@@ -598,6 +615,7 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
         }
         // discovery: the nearest creature the kid has swum right up to
         const reach = dist - R;
+        if (SPECIES_FACT[c.sp] === lastFact && reach < curLast) curLast = reach;
         if (reach < 5 + R * 0.5 && reach < best) {
           best = reach;
           bestFact = SPECIES_FACT[c.sp];
@@ -700,11 +718,16 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
         }
       }
       if (!bestFact && pr && Math.abs(pr.u) < pr.rim && depth > 14 && depth < 34) bestFact = RIFT_FACT;
+      // (sticky: keep the last card while it's still nearly as close, so it doesn't flicker
+      // between two animals drifting by)
+      if (lastFact && bestFact !== lastFact && curLast < 6.5) bestFact = lastFact;
+      lastFact = bestFact;
       result.spot = bestFact;
       return result;
     },
     dispose() {
-      scene.remove(group);
+      scene.remove(group, kidLight);
+      kidLight.dispose();
       for (const dd of disposables) dd.dispose();
     },
   };

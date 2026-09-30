@@ -217,7 +217,7 @@ export function abyssMaterial(AU: AbyssUniforms, o: AbyssMatOptions = {}, params
         `#include <lights_fragment_end>
         {
           // the sunlight hardly reaches down here
-          float dk = mix( 1.0, 0.42, smoothstep( -24.0, -105.0, vAbW.y ) );
+          float dk = mix( 1.0, 0.6, smoothstep( -24.0, -105.0, vAbW.y ) );
           reflectedLight.directDiffuse *= dk;
           reflectedLight.directSpecular *= dk * 0.5;
           reflectedLight.indirectDiffuse *= mix( 1.0, 0.7, 1.0 - dk );
@@ -230,7 +230,7 @@ export function abyssMaterial(AU: AbyssUniforms, o: AbyssMatOptions = {}, params
           float abD = length( abL );
           vec3 abLv = normalize( ( viewMatrix * vec4( abL, 0.0 ) ).xyz );
           float abWrap = 0.35 + 0.65 * saturate( dot( geometryNormal, abLv ) );
-          float abAtt = uLamp / ( 1.0 + abD * abD / 90.0 );
+          float abAtt = uLamp / ( 1.0 + abD * abD / 200.0 );
           reflectedLight.indirectDiffuse += diffuseColor.rgb * vec3( 0.8, 0.95, 1.0 ) * abWrap * abAtt * 0.85;
           // a cold rim picks silhouettes out of the dark
           float abFr = pow( 1.0 - saturate( dot( geometryNormal, geometryViewDir ) ), 3.0 );
