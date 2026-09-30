@@ -909,3 +909,21 @@ export const VILLAGERS_TALK: { id: string; name: string; role: string; lines: st
     lines: ["Ahoy! Mind the planks — they're a bit squeaky.", "Three canoes out, one canoe in. All is well!", "The gulls here steal buns. Keep an eye on yours!"],
   },
 ];
+
+
+// ── calm water round Coralcove: the open-ocean swell (±1.1 m) dies down over its reef so the
+// waterline stays put on the beaches. Used by the ocean surface, the island's own water and boats. ──
+const CALM_IN = VILLAGE_ISLAND.r + 6;
+const CALM_OUT = VILLAGE_ISLAND.r + 55;
+/** 0.12 right by the island .. 1 out at sea */
+export function villageCalm(x: number, z: number): number {
+  const d = Math.hypot(x - VILLAGE_ISLAND.x, z - VILLAGE_ISLAND.z);
+  const u = Math.min(1, Math.max(0, (d - CALM_IN) / (CALM_OUT - CALM_IN)));
+  return 0.12 + 0.88 * u * u * (3 - 2 * u);
+}
+/** the same in GLSL */
+export const VILLAGE_CALM_GLSL = `
+  float villageCalm( vec2 p ) {
+    float d = length( p - vec2( ${VILLAGE_ISLAND.x.toFixed(2)}, ${VILLAGE_ISLAND.z.toFixed(2)} ) );
+    return 0.12 + 0.88 * smoothstep( ${CALM_IN.toFixed(2)}, ${CALM_OUT.toFixed(2)}, d );
+  }`;

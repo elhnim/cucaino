@@ -10,6 +10,7 @@
 // neighbourhood jumps with it (`focusJump` + `shiftSwimmers`), so nothing pops.
 import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, groundY } from "../../registry/terrain";
 import { noise2, smoothstep } from "../fantasy/noise";
+import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../../registry/villageIsland";
 
 const TAU = Math.PI * 2;
 const clamp = (x: number, a: number, b: number) => (x < a ? a : x > b ? b : x);
@@ -26,6 +27,14 @@ export function dunes(x: number, z: number): number {
  * slope from the grid's edge down to the deep sandy plain at DEEP_FLOOR with low dunes.
  */
 export function seaFloorY(x: number, z: number): number {
+  // Coralcove Isle's slopes (and its land) count as sea floor too, so creatures steer round them
+  const vg = villageGroundY(x, z);
+  if (vg !== null) return vg;
+  const vs = villageSeaFloorY(x, z);
+  const f = mainSeaFloorY(x, z);
+  return vs !== null ? Math.max(f, vs) : f;
+}
+function mainSeaFloorY(x: number, z: number): number {
   const E = TERRAIN_EXTENT - 0.6;
   const ox = Math.abs(x) - E;
   const oz = Math.abs(z) - E;
@@ -102,14 +111,24 @@ export function shallowAhead(s: Swimmer, st: SwimStyle): number {
   return worst < margin ? clamp((margin - worst) / (st.need * 0.5), 0, 1) : 0;
 }
 
+/** the way out to deep water: away from Coralcove Isle when near it, else away from the park's
+ *  island (from between the two, "away from the park" pointed straight at Coralcove) */
+export function deepestHeading(s: { x: number; z: number; yaw: number }): number {
+  const vx = s.x - VILLAGE_ISLAND.x;
+  const vz = s.z - VILLAGE_ISLAND.z;
+  if (vx * vx + vz * vz < (VILLAGE_ISLAND.r + 110) ** 2) return Math.atan2(vx, vz);
+  return Math.atan2(s.x, s.z);
+}
+
 /** the heading a creature wants this frame (without inertia): wander + shallows + home leash */
 export function desiredTurn(s: Swimmer, st: SwimStyle, t: number): number {
   // wander: a slowly changing turn rate (two octaves so paths meander, not zig-zag)
   let want = (wiggle(t * st.wander, s.seed) * 0.75 + wiggle(t * st.wander * 2.7, s.seed, 1) * 0.25) * st.turn * 0.7;
-  // shallow water ahead: turn out to sea (the island is the only land)
+  // shallow water ahead: turn towards the deepest water round about (there's more than one
+  // island now — "away from the park" pointed straight at Coralcove Isle from between them)
   const urgency = shallowAhead(s, st);
   if (urgency > 0) {
-    const out = Math.atan2(s.x, s.z);
+    const out = deepestHeading(s);
     const dy = wrapAngle(out - s.yaw);
     want = want * (1 - urgency) + clamp(dy * 2, -1, 1) * st.turn * urgency;
   }

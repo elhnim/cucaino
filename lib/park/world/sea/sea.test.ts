@@ -6,6 +6,7 @@ import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFlo
 import { BREACH, CRUISE, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, FLUKE, SURFACE, WHALE_STYLE, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, noseY, startMode, stepWhale, tailY, type Whale } from "./whales";
 import { WHALE_GIRTH, blowholeLocal, whaleGeometry } from "./whaleGeometry";
 import { seaDisc } from "../ocean";
+import { villageSeaFloorY } from "../../registry/villageIsland";
 import { makeVisit, startVisit, stepVisit } from "./visits";
 
 const OPEN: SwimStyle = { speed: [3, 5], turn: 0.25, wander: 0.05, depth: [2, 4], clear: 2, need: 10, look: 30, climb: 1, bank: 2 };
@@ -20,6 +21,8 @@ describe("the boundless sea floor", () => {
     for (let i = 0; i < 400; i++) {
       const a = r() * Math.PI * 2;
       const d = 300 + r() * 900;
+      // (except Coralcove Isle's slopes, which rise out of the deep)
+      if (villageSeaFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
       const y = seaFloorY(Math.sin(a) * d, Math.cos(a) * d);
       expect(y).toBeGreaterThan(DEEP_FLOOR - 1);
       expect(y).toBeLessThan(DEEP_FLOOR + 1);

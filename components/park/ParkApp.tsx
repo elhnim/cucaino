@@ -49,6 +49,7 @@ import { MOUNTS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/
 import { SHARD_COUNT, RING_COUNT } from "@/lib/park/world/quests3d";
 import { PEARL_COUNT } from "@/lib/park/world/underwater";
 import { SKY_ISLANDS, SKY_SPOTS, skyIslandById } from "@/lib/park/registry/skyIslands";
+import { VILLAGE_ISLAND } from "@/lib/park/registry/villageIsland";
 import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wizards";
 import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
@@ -1087,6 +1088,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const questBoard = getPlace("quest-board");
   const mapPins: MapPin[] = [
     ...(questBoard ? [{ id: "quest-board", x: questBoard.x, z: questBoard.z, emoji: "📋", label: "Quest Board", badge: questsLeft, pulse: questsLeft > 0 }] : []),
+    { id: "coralcove", x: VILLAGE_ISLAND.x, z: VILLAGE_ISLAND.z, emoji: "🏝️", label: VILLAGE_ISLAND.name, far: true },
     ...wizardSpots.map((s) => {
       const w = WIZARDS.find((x) => x.id === s.id)!;
       const fresh = !wisdom[todaysLesson(w.id, wizDay.current).id];
@@ -1188,7 +1190,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           world={worldRef}
           hidden={busy || building}
           pins={mapPins}
-          onSkyPin={(p) => toast(`🧙 ${p.label} is up on a floating mountain! Hop on the dragon or manta and fly there — then tap "Land"`)}
+          onSkyPin={(p) =>
+            toast(
+              p.far
+                ? `🏝️ ${VILLAGE_ISLAND.name} is far out at sea, this way! Swim, ride the manta or fly the dragon to visit ${VILLAGE_ISLAND.clan}`
+                : `🧙 ${p.label} is up on a floating mountain! Hop on the dragon or manta and fly there — then tap "Land"`,
+            )
+          }
         />
       )}
       {ready && !busy && !building && (

@@ -26,6 +26,7 @@ import {
   villageRng,
 } from "../../registry/villageIsland";
 import { noise2 } from "../fantasy/noise";
+import { VILLAGE_CALM_GLSL, villageCalm } from "../../registry/villageIsland";
 
 const X0 = VILLAGE_ISLAND.x;
 const Z0 = VILLAGE_ISLAND.z;
@@ -176,6 +177,9 @@ export const SEA_WAVE_GLSL = /* glsl */ `
   }`;
 /** the same swell in JS (boats bob on it) */
 export function seaWave(x: number, z: number, t: number): number {
+  return villageCalm(x, z) * rawSeaWave(x, z, t);
+}
+function rawSeaWave(x: number, z: number, t: number): number {
   return Math.sin(x * 0.08 + t * 0.9) * 0.35 + Math.sin(z * 0.11 - t * 1.1) * 0.28 + Math.sin((x + z) * 0.05 + t * 0.6) * 0.4 + Math.sin(x * 0.13 - z * 0.21 + t * 1.45) * 0.12;
 }
 
@@ -271,9 +275,10 @@ export function buildWater(low: boolean, U: WaterUniforms): THREE.Mesh {
       uniform float uTime;
       varying float vKind; varying float vFloor; varying float vEdge; varying vec3 vW; varying float vDist; varying float vWave;
       ${SEA_WAVE_GLSL}
+      ${VILLAGE_CALM_GLSL}
       void main() {
         vec4 w = modelMatrix * vec4( position, 1.0 );
-        float wave = seaWave( w.xz, uTime );
+        float wave = seaWave( w.xz, uTime ) * villageCalm( w.xz );
         vWave = wave;
         if ( aKind > 0.5 ) w.y += wave + 0.1;
         else w.y += sin( w.x * 0.9 + uTime * 1.3 ) * 0.02 + sin( w.z * 1.1 - uTime ) * 0.02;

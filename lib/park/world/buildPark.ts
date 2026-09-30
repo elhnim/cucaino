@@ -13,7 +13,7 @@ import { buildNature } from "./nature";
 import { TRAILS, ISLAND_R, nearStream, coastR } from "../registry/island";
 import { groundY, slopeAt } from "../registry/terrain";
 import { buildFantasyWorld, buildTerrainMesh, type FantasyWorld } from "./fantasy";
-import { skyTopY } from "../registry/skyIslands";
+import { SKY_PADS, skyTopY } from "../registry/skyIslands";
 import { buildQuests3D, type Quests3D } from "./quests3d";
 import { buildUnderwater, type Underwater } from "./underwater";
 import { FOOTPRINTS as SEA_FOOTPRINTS } from "./underwater/plan";
@@ -278,11 +278,54 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const landmarks: Landmark[] = [];
   // places standing on floating mountains bob along with them
   const skyPlaces: { group: THREE.Group; x: number; z: number }[] = [];
+  const skyStone = track(new THREE.MeshStandardMaterial({ color: "#d9d0c0", roughness: 0.9, flatShading: true }));
+  const skyGold = track(new THREE.MeshStandardMaterial({ color: "#e8b64a", roughness: 0.35, metalness: 0.6, flatShading: true }));
+  const skyRuneMat = track(new THREE.MeshBasicMaterial({ color: new THREE.Color("#7ff0ff").multiplyScalar(1.1), transparent: true, opacity: 0.55, depthWrite: false }));
+  const skyFlagA = track(new THREE.MeshStandardMaterial({ color: "#c8352b", roughness: 0.8, side: THREE.DoubleSide, flatShading: true }));
+  const skyFlagB = track(new THREE.MeshStandardMaterial({ color: "#3a6ad8", roughness: 0.8, side: THREE.DoubleSide, flatShading: true }));
+  const skyPlinthGeo = track(new THREE.CylinderGeometry(1, 1.06, 0.18, 16).translate(0, 0.02, 0)); // (low: you walk on the pad height)
+  const skyRimGeo = track(new THREE.TorusGeometry(1, 0.06, 5, 32));
+  const skyRuneGeo = track(new THREE.RingGeometry(0.9, 0.95, 40));
+  const skyPoleGeo = track(new THREE.CylinderGeometry(0.07, 0.09, 6.8, 6));
+  const skyFlagGeo = (() => {
+    const g = new THREE.BufferGeometry();
+    // a swallow-tailed pennant
+    g.setAttribute("position", new THREE.Float32BufferAttribute([0, 0.55, 0, 1.4, 0.35, 0, 1.0, 0, 0, 0, 0.55, 0, 1.0, 0, 0, 1.4, -0.35, 0, 0, 0.55, 0, 1.4, -0.35, 0, 0, -0.55, 0], 3));
+    g.computeVertexNormals();
+    return track(g);
+  })();
   for (const p of PLACES) {
     const group = new THREE.Group();
     group.position.set(p.x, p.sky ? (skyTopY(p.x, p.z, 0)?.y ?? groundY(p.x, p.z)) : groundY(p.x, p.z), p.z);
     if (p.sky) skyPlaces.push({ group, x: p.x, z: p.z });
     group.rotation.y = p.face ?? Math.atan2(-p.x, -p.z);
+    // up on a floating mountain: a grand setting — a round stone plinth with a gold rim and a
+    // glowing rune ring, and tall pennant poles either side of the door
+    if (p.sky) {
+      const pad = SKY_PADS.find((q) => q.placeId === p.id);
+      const pr = Math.max(3.5, (pad?.r ?? 5) - 0.4);
+      const plinth = new THREE.Mesh(skyPlinthGeo, skyStone);
+      plinth.scale.set(pr, 1, pr);
+      plinth.receiveShadow = true;
+      const rim = new THREE.Mesh(skyRimGeo, skyGold);
+      rim.scale.set(pr, pr, 1);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.y = 0.12;
+      const runes = new THREE.Mesh(skyRuneGeo, skyRuneMat);
+      runes.scale.set(pr * 0.86, pr * 0.86, 1);
+      runes.rotation.x = -Math.PI / 2;
+      runes.position.y = 0.125;
+      group.add(plinth, rim, runes);
+      for (const sx of [-1, 1]) {
+        const pole = new THREE.Mesh(skyPoleGeo, skyGold);
+        pole.position.set(sx * (pr - 0.6), 3.4, pr - 0.9);
+        const flag = new THREE.Mesh(skyFlagGeo, sx < 0 ? skyFlagA : skyFlagB);
+        flag.position.set(sx * (pr - 0.6) + sx * 0.75, 5.6, pr - 0.9);
+        flag.rotation.y = sx < 0 ? Math.PI : 0;
+        pole.castShadow = flag.castShadow = true;
+        group.add(pole, flag);
+      }
+    }
     // hand-built landmarks for the most important places
     const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : null;
     if (special) {
@@ -295,7 +338,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     for (const m of p.models) {
       const obj = await assets.spawn(m.kit as KitName, m.id);
       obj.traverse((o) => ((o as THREE.Mesh).isMesh && ((o.castShadow = true), (o.receiveShadow = true))));
-      obj.scale.setScalar(m.scale);
+      obj.scale.setScalar(m.scale * (p.sky ? 1.3 : 1));
       if (m.offset) obj.position.set(m.offset[0], 0, m.offset[1]);
       if (m.rotY) obj.rotation.y = m.rotY;
       obj.traverse((o) => (o.userData.placeId = p.id));

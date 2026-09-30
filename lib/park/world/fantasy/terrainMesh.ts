@@ -46,10 +46,10 @@ const ROCK_DARK = col("#4d4450");
 const SNOW = col("#eef3fa");
 const SAND = col("#e2cf9a");
 const WET_SAND = col("#a8946a");
-const SEA_SAND = col("#e8d7a4");
-const SEA_TINT = col("#179a9e");
-const REEF_ROCK = col("#9a7f8a");
-const DEEP_ROCK = col("#3a4a6a");
+const SEA_SAND = col("#f4e3b2");
+const SEA_TINT = col("#5cc8bc");
+const REEF_ROCK = col("#c49a8e");
+const DEEP_ROCK = col("#8a9cb4");
 
 /** ground colour at (x, z) — shared by the mesh and anything else that wants to match it */
 export function groundColor(x: number, z: number, h: number, slope: number, out: THREE.Color, mask?: GrassMask, paths = false): THREE.Color {
@@ -82,9 +82,10 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
   if (h < -0.8) {
     // sand seen through water takes on the sea's colour: turquoise in the lagoon, blue deeper
     out.lerp(SEA_SAND, smoothstep(-0.8, -2.2, h));
-    out.lerp(SEA_TINT, smoothstep(-0.5, -3.2, h) * 0.8);
+    // (the water itself is clear turquoise now: the sand only needs a light sea tint, not grey-teal)
+    out.lerp(SEA_TINT, smoothstep(-0.5, -3.2, h) * 0.3);
     out.lerp(REEF_ROCK, smoothstep(0.45, 0.62, n1) * smoothstep(-2.5, -4, h) * (1 - smoothstep(-9, -13, h)) * 0.7);
-    out.lerp(DEEP_ROCK, smoothstep(-8, -18, h));
+    out.lerp(DEEP_ROCK, smoothstep(-8, -18, h) * 0.75);
   }
   return out;
 }

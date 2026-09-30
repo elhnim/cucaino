@@ -876,9 +876,41 @@ export function stepVillage(sim: VillageSim, dtIn: number, t: number, hour: numb
     sim.villagers[i].talking = false;
     sim.villagers[i].line++;
   }
+  separate(sim, dt);
   sim.started = true;
   sim.lastHour = hour;
   return talker;
+}
+
+/** Keep villagers from walking through each other: pairs closer than a body width ease apart
+ *  (people sitting or tucked away indoors stay put; a walker gives way to someone at work). */
+const PERSONAL = 0.85;
+function separate(sim: VillageSim, dt: number) {
+  const vs = sim.villagers;
+  const k = Math.min(1, dt * 6);
+  for (let i = 0; i < vs.length; i++) {
+    const a = vs[i];
+    if (a.phase === Phase.Hidden) continue;
+    for (let j = i + 1; j < vs.length; j++) {
+      const b = vs[j];
+      if (b.phase === Phase.Hidden) continue;
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= PERSONAL * PERSONAL || d2 < 1e-8) continue;
+      const d = Math.sqrt(d2);
+      const push = ((PERSONAL - d) / d) * 0.5 * k;
+      const aFixed = isSitting(a) || (a.phase === Phase.Act && b.phase !== Phase.Act);
+      const bFixed = isSitting(b) || (b.phase === Phase.Act && a.phase !== Phase.Act);
+      if (aFixed && bFixed) continue;
+      const wa = aFixed ? 0 : bFixed ? 2 : 1;
+      const wb = bFixed ? 0 : aFixed ? 2 : 1;
+      a.x -= dx * push * wa;
+      a.z -= dz * push * wa;
+      b.x += dx * push * wb;
+      b.z += dz * push * wb;
+    }
+  }
 }
 
 function isSitting(v: VillagerState) {

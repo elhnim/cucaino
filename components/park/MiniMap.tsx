@@ -27,6 +27,8 @@ export interface MapPin {
   pulse?: boolean;
   /** up on a floating mountain: tapping it can't walk you there (onSkyPin explains how to fly) */
   sky?: boolean;
+  /** far out at sea (shown on the map's edge, pointing the way; onSkyPin explains how to get there) */
+  far?: boolean;
 }
 
 const NEAR_VIEW = 44;
@@ -171,7 +173,7 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
   };
   const goToPin = (pin: MapPin) => {
     playSfx("tap");
-    if (pin.sky) {
+    if (pin.sky || pin.far) {
       onSkyPin?.(pin);
       setBig(false);
       return;
@@ -346,6 +348,11 @@ function MapSvg({
               const dd = Math.hypot(dx, dz);
               const max = NEAR_VIEW - 9;
               if (dd > max) p = { ...pin, x: pose.x + (dx / dd) * max, z: pose.z + (dz / dd) * max };
+            } else {
+              // the big map too: somewhere far out at sea (Coralcove Isle) sits on the edge, pointing the way
+              const dd = Math.hypot(pin.x, pin.z);
+              const max = WORLD_VIEW - 10;
+              if (dd > max) p = { ...pin, x: (pin.x / dd) * max, z: (pin.z / dd) * max };
             }
             return (
               <g key={p.id} transform={upright(p.x, p.z)} onClick={onPin ? () => onPin(pin) : undefined} style={{ cursor: onPin ? "pointer" : undefined }}>
