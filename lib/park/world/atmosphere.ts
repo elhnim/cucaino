@@ -48,6 +48,13 @@ const DAY_SB = pal("#7fb0dc", "#b9d7e0", "#dbe9da", "#c9ddcc", "#ffffff", "#b6cf
 const GOLDEN_SB = pal("#7c8fd8", "#f3b8a8", "#ffd9a0", "#e8c9b0", "#fff0dc", "#c8b890", "#ffcf8a", 0.9, 0.95);
 const TWILIGHT = pal("#0c0a34", "#2c1a66", "#a8469f", "#1d1650", "#7d82e8", "#2a2168", "#b3a4ff", 0.85, 0.34);
 
+/** One full park day (day and night) lasts this long. */
+export const PARK_DAY_SECONDS = 15 * 60;
+/** The park's time of day (0..24) at a given moment: a fast day on a shared clock. */
+export function parkHour(nowMs: number): number {
+  return ((nowMs / 1000 / PARK_DAY_SECONDS) * 24 + 8) % 24;
+}
+
 /** How glowy the real clock is: 0 by day, ramps through golden hour to 1 after dusk. */
 export function clockGlow(hour: number): number {
   const s = (a: number, b: number, x: number) => {
@@ -91,10 +98,9 @@ export function buildAtmosphere(
 ): Atmosphere {
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(d: T) => (disposables.push(d), d);
-  const hourNow = opts.hour ?? (() => {
-    const d = new Date();
-    return d.getHours() + d.getMinutes() / 60;
-  });
+  // a whole day (dawn -> day -> golden hour -> glowing night) every PARK_DAY_SECONDS, on a shared
+  // clock so everyone's park is at the same time of day
+  const hourNow = opts.hour ?? (() => parkHour(Date.now()));
 
   // ── sky dome: gradient + twinkling stars that come out as it glows ──
   const skyMat = track(
@@ -225,6 +231,16 @@ export function buildAtmosphere(
   let forestAmt = 0;
   let clockT = 0;
   let clockGlowNow = glow;
+  let hourCur = hourNow();
+  // the sun's direction across the day: rises in the east, high at noon, sets in the west
+  // (clamped so shadows never get absurdly long); at night the "sun" is the moon's light
+  const sunDir = new THREE.Vector3();
+  const sunDirFor = (h: number, out: THREE.Vector3) => {
+    const day = Math.min(1, Math.max(0, (h - 6) / 12)); // 0 at 6am .. 1 at 6pm
+    const az = -Math.PI / 2 + day * Math.PI; // east (-x) -> south -> west (+x)
+    const el = 0.35 + Math.sin(day * Math.PI) * 0.8; // ~20 deg at the ends, ~66 deg at noon
+    return out.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el) * 0.6 + 0.35).normalize();
+  };
   let under = false;
   let underDepth = 0;
   const bgSaved = scene.background;
@@ -252,8 +268,9 @@ export function buildAtmosphere(
     update(dt, t, focus) {
       clockT -= dt;
       if (clockT <= 0) {
-        clockT = 20; // re-read the clock now and then
-        clockGlowNow = clockGlow(hourNow());
+        clockT = 0.5; // re-read the clock often (a park day only lasts 15 minutes)
+        hourCur = hourNow();
+        clockGlowNow = clockGlow(hourCur);
       }
       const d = Math.hypot(focus.x - opts.forest.x, focus.z - opts.forest.z);
       const wantForest = 1 - Math.min(1, Math.max(0, (d - opts.forest.radius * 0.35) / (opts.forest.radius * 0.9)));
@@ -280,13 +297,14 @@ export function buildAtmosphere(
       const fx = Math.round(focus.x / snap) * snap;
       const fz = Math.round(focus.z / snap) * snap;
       sun.target.position.set(fx, focus.y, fz);
-      sun.position.set(fx - 45, focus.y + 80, fz + 38);
+      sunDirFor(hourCur, sunDir);
+      sun.position.set(fx + sunDir.x * 95, focus.y + sunDir.y * 95, fz + sunDir.z * 95);
 
       // sun sinks and the moon rises as it glows
       // the sky (and sun and moon) travel with you: out at sea, far from the island, you'd
       // otherwise sail out of the sky dome (camera far plane 600 m, dome 470 m)
       sky.position.set(focus.x, 0, focus.z);
-      sunDisc.position.set(focus.x - 160, 220 - glow * 260, focus.z - 300);
+      sunDisc.position.set(focus.x + sunDir.x * 380, sunDir.y * 380 - glow * 200, focus.z + sunDir.z * 380);
       (sunDisc.material as THREE.SpriteMaterial).opacity = 1 - glow;
       moon.position.set(focus.x + 170, 60 + glow * 110, focus.z - 320);
       moon.lookAt(focus.x, 0, focus.z);

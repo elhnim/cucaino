@@ -38,6 +38,8 @@ export interface ChibiRig {
   update(dt: number, speed: number): void;
   /** night glow 0..1 — eyes/cheeks/markings can softly glow at night in the Pandora-like twilight */
   setGlow(amount: number): void;
+  /** swimming (strokes + kicks when `moving`, treading water when not); false = back on land */
+  setSwim(on: boolean, moving: boolean): void;
   dispose(): void;
 }
 
@@ -84,6 +86,7 @@ export function buildChibi(id: AnimalId, opts: ChibiOptions): ChibiRig {
       if (!disposed) anim.update(dt, speed);
     },
     setGlow: (g) => anim.setGlow(g),
+    setSwim: (on, moving) => anim.setSwim(on, moving),
     dispose() {
       if (disposed) return;
       disposed = true;

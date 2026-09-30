@@ -76,6 +76,11 @@ export class ChibiAnimator {
   private twitchT = -1;
   private twitchSide = 1;
   private glowAmt = 0;
+  // swimming: blends over everything below the action layers (strokes + kicks, or treading water)
+  private swimTarget = 0;
+  private swimW = 0;
+  private swimMoving = 0;
+  private swimPh = 0;
   private ctx: AnimCtx = { t: 0, dt: 0, phase: 0, move: 0, run: 0, w: {}, glow: 0 };
 
   constructor(private k: Kit, private height: number, seed: number) {
@@ -88,6 +93,12 @@ export class ChibiAnimator {
     this.hopIn = 3 + r() * this.hopEvery;
     this.twitchIn = 1 + r() * 3;
     this.apply(this.base);
+  }
+
+  /** in the water? `moving` = swimming along (strokes) rather than treading water */
+  setSwim(on: boolean, moving: boolean) {
+    this.swimTarget = on ? 1 : 0;
+    this.swimMoving += ((moving ? 1 : 0) - this.swimMoving) * 0.12;
   }
 
   setGlow(a: number) {
@@ -185,6 +196,16 @@ export class ChibiAnimator {
       for (let i = 0; i < N; i++) B[i] += (L[i] - B[i]) * m;
     }
 
+    // swimming
+    this.swimW += (this.swimTarget - this.swimW) * (1 - Math.exp(-dt * 6));
+    if (this.swimW > 0.001) {
+      this.swimPh = (this.swimPh + dt * TAU * (0.55 + 0.5 * this.swimMoving)) % (TAU * 1000);
+      const S = this.tmp;
+      this.swimPose(S, this.swimPh, this.swimMoving, t);
+      const m = smooth(this.swimW);
+      for (let i = 0; i < N; i++) B[i] += (S[i] - B[i]) * m;
+    }
+
     // action layers
     const O = this.out;
     O.set(B);
@@ -257,6 +278,38 @@ export class ChibiAnimator {
       P[RIG_Y] += 0.035 * Math.sin(t * 2 + ph);
       P[LEAN] = 0.06 * Math.sin(t * 1.3 + ph);
     }
+  }
+
+  /** Swimming: alternating windmill strokes + a flutter kick when moving; arms sculling out to the
+   *  sides and legs treading water when still. (The engine lays the whole rig forward while swimming.) */
+  private swimPose(P: Float32Array, p: number, moving: number, t: number) {
+    this.idlePose(P, t);
+    const still = 1 - moving;
+    const s = Math.sin(p);
+    // strokes: each arm reaches up over the head (= forward, lying down) and pulls back to the hip
+    const strokeL = 1.35 + 1.45 * s;
+    const strokeR = 1.35 - 1.45 * s;
+    const tread = Math.sin(t * 2.4);
+    P[ARM_LX] = strokeL * moving + 0.25 * tread * still;
+    P[ARM_RX] = strokeR * moving - 0.25 * tread * still;
+    P[ARM_LZ] = 0.28 * moving + (0.95 + 0.35 * tread) * still;
+    P[ARM_RZ] = 0.28 * moving + (0.95 + 0.35 * tread) * still;
+    // flutter kick / eggbeater
+    const kick = Math.sin(p * 2.6);
+    P[LEG_LX] = 0.42 * kick * moving + 0.45 * tread * still;
+    P[LEG_RX] = -0.42 * kick * moving - 0.45 * tread * still;
+    P[LEG_LY] = P[LEG_RY] = 0;
+    // roll with the strokes, head lifted to look ahead, ears swept back, tail wiggling
+    P[TWIST] = 0.22 * s * moving;
+    P[SWAY] = 0.1 * Math.sin(p + 0.6) * moving + 0.04 * tread * still;
+    P[HEAD_X] = -0.42 * moving - 0.08 * still;
+    P[HEAD_Z] = 0.08 * s * moving;
+    P[EAR_L] = P[EAR_R] = -0.28 * moving;
+    P[TAIL_Y] = 0.6 * Math.sin(p * 2);
+    P[RIG_Y] = 0.03 * Math.sin(p * 2) * moving + 0.02 * tread * still;
+    P[SQUASH] = 0.02 * Math.sin(p * 2);
+    P[MOUTH_OPEN] = 0.2 + 0.2 * moving;
+    P[HAPPY] = 0.6;
   }
 
   private locoPose(P: Float32Array, phase: number, r: number, t: number) {

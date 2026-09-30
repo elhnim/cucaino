@@ -194,6 +194,8 @@ export class ParkWorld {
   private swimDepth = 0;
   private swimTarget = 0;
   private swimPitch = 0;
+  private swimVX = 0;
+  private swimVZ = 0;
   private wasInSea = false;
   private camUnder = false;
   // ── the Sky Coaster: riding the train round the island (speed follows the drops) ──
@@ -216,6 +218,8 @@ export class ParkWorld {
   private downAt: { x: number; y: number; t: number } | null = null;
   // ── free camera: drag to look around, pinch / wheel to zoom ──
   private camYaw = 0;
+  /** when a finger last turned the view (auto-follow waits a moment after that) */
+  private userTurnAt = -99;
   /** camera height angle: drag up/down to look from low (almost eye level) to high overhead */
   private camPitch = 0.46; // ~26°: the horizon, mountains and floating islands are in the view
   /** extra camera height to see over a hill between the camera and the kid (eased) */
@@ -707,6 +711,8 @@ export class ParkWorld {
     const p = a.root.position;
     const speed = forceSpeed ?? (Number.isNaN(a.last!.x) || dt <= 0 ? 0 : Math.hypot(p.x - a.last!.x, p.z - a.last!.z) / dt);
     a.last!.copy(p);
+    // the pet (and visitors) paddle when they're in the sea
+    if (a !== this.kid) a.rig.setSwim(!this.ride && WATER_Y - seaFloorY(p.x, p.z) > SWIM_DEPTH && p.y < WATER_Y, speed > 0.4);
     a.rig.update(dt, speed);
     a.rig.setGlow(this.park?.atmosphere.glow ?? 0);
     if (a.hold && a.hold > 0) {
@@ -792,6 +798,7 @@ export class ParkWorld {
     if (!this.dragging && Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > 10) this.dragging = true;
     if (this.dragging) {
       this.camYaw -= dx * 0.009; // drag sideways to turn the view
+      this.userTurnAt = this.time;
       this.camPitch = Math.max(0.16, Math.min(1.38, this.camPitch + dy * 0.006)); // drag up/down to tilt it
     }
     this.lastDrag = { x: e.clientX, y: e.clientY };
@@ -803,6 +810,7 @@ export class ParkWorld {
   /** Turn the view left/right (HUD buttons). */
   rotateView(delta: number) {
     this.camYaw += delta;
+    this.userTurnAt = this.time;
   }
   private onUp = (e: PointerEvent) => {
     const d = this.downAt;
@@ -973,7 +981,22 @@ export class ParkWorld {
       vz = 0;
     }
     const moving = Math.hypot(vx, vz) > 0.01;
-    if (moving) {
+    const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
+    if (swimmingNow) {
+      // water has momentum: strokes build up speed and you glide on for a moment when you stop
+      const sp = WALK_SPEED * (this.swimDepth > 0.6 ? 1.1 : 0.85);
+      const k = Math.min(1, dt * (moving ? 2.4 : 1.1));
+      this.swimVX += (vx * sp - this.swimVX) * k;
+      this.swimVZ += (vz * sp - this.swimVZ) * k;
+      pos.x += this.swimVX * dt;
+      pos.z += this.swimVZ * dt;
+      if (Math.hypot(this.swimVX, this.swimVZ) > 0.4) kid.facing = Math.atan2(this.swimVX, this.swimVZ);
+      if (moving) {
+        if (!this.walkTarget) this.routing = false;
+        this.idleT = 0;
+      } else this.idleT += dt;
+    } else if (moving) {
+      this.swimVX = this.swimVZ = 0;
       if (!this.walkTarget) this.routing = false;
       const swimming = !this.mount && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
       const sp = WALK_SPEED * (this.mount ? (this.mount.flies ? 2.4 : 1.9) : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
@@ -983,6 +1006,7 @@ export class ParkWorld {
       this.idleT = 0;
       this.waved = false;
     } else {
+      this.swimVX = this.swimVZ = 0;
       this.idleT += dt;
       // stood still for a moment: turn round to face the camera and give a little wave
       if (this.idleT > 2.2 && !this.building && !this.fetch && !this.mount) {
@@ -1138,11 +1162,18 @@ export class ParkWorld {
     }
     // lean into a swim: flat out and kicking under water, head up paddling at the top
     const swimNow = !this.mount && this.wasInSea;
-    const pitchWant = swimNow ? (this.swimDepth > 0.6 ? (moving ? 1.3 : 0.35) : moving ? 0.75 : 0.15) : 0;
-    this.swimPitch += (pitchWant - this.swimPitch) * Math.min(1, dt * 5);
+    const swimMove = swimNow && Math.hypot(this.swimVX, this.swimVZ) > 1.2;
+    // flat out and streamlined when swimming along (under water, or front crawl at the top);
+    // upright-ish and treading water when still
+    const pitchWant = swimNow ? (swimMove ? (this.swimDepth > 0.6 ? 1.35 : 1.15) : this.swimDepth > 0.6 ? 0.4 : 0.2) : 0;
+    this.swimPitch += (pitchWant - this.swimPitch) * Math.min(1, dt * 4);
+    // (no blob shadow on the ground while swimming — it floated under the kid like a pink ring)
+    const blob = kid.root.children[1];
+    if (blob && !this.mount) blob.visible = !swimNow;
     if (kid.rig && !this.mount) {
       kid.rig.root.rotation.x = this.swimPitch;
       kid.rig.root.position.y = this.swimPitch * 0.45;
+      kid.rig.setSwim(swimNow, swimMove);
     }
 
     if (this.sky) this.tickSky(dt, kid);
@@ -1360,6 +1391,16 @@ export class ParkWorld {
       }
     }
 
+    // the camera drifts round behind the kid as they move, so "forward" is ahead — unless a finger
+    // turned the view a moment ago, or they're heading back towards the camera (no sudden spins)
+    if (moving && !this.building && !this.sky && !this.ride && this.time - this.userTurnAt > 2.2) {
+      let d = kid.facing + Math.PI - this.camYaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      // strong when heading away from the camera, only a gentle drift when walking sideways
+      // (a full-strength follow chased a sideways walk round in circles)
+      const w = 0.22 + 0.78 * Math.max(0, Math.cos(d));
+      if (Math.abs(d) < 2.4) this.camYaw += d * Math.min(1, dt * 1.3 * w);
+    }
     if (this.sky) {
       // chase cam: behind and above the car, looking down the track
       const tan = this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
@@ -1383,6 +1424,9 @@ export class ParkWorld {
       this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
     } else {
       let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.55 : 1) * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
+      // under the sea the water swallows anything far away: bring the camera in close (the
+      // storybook look's model-railway distance lost the kid and the manta in the haze)
+      if (pos.y + 1.6 < WATER_Y) dist = Math.min(dist, this.mount ? 10 : 8.5);
       // a tree (or big rock) between the camera and the kid? slide the camera in closer, like
       // a proper third-person camera, instead of staring at a trunk
       // (not in the diorama look: from that height canopies rarely block, and pulling in ruins the view)
@@ -1432,14 +1476,14 @@ export class ParkWorld {
       // is murky) and stays above the waves for one paddling at the top
       const kidUnder = pos.y + 1.6 < WATER_Y; // head below the surface (paddling sits at WATER_Y - 0.95)
       if (kidUnder) {
-        cp.lerp(this.lookAtPt, 0.35);
+        cp.lerp(this.lookAtPt, 0.15);
         // over water too shallow to hide a camera (the lagoon's edge)? slide in toward the kid
         for (let k = 0; k < 6 && groundY(cp.x, cp.z) + 0.8 > WATER_Y - 0.6; k++) cp.lerp(this.lookAtPt, 0.3);
         // stay down near the kid's depth, looking a little down on them (hugging the surface
         // filled the view with its bright underside)
         // float a little above the kid, over the coral tops (down among the coral, sea fans and
         // grass blocked the view), and never up through the surface
-        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.8, seaFloorY(cp.x, cp.z) + 2.2));
+        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 3.4, seaFloorY(cp.x, cp.z) + 2.2));
       } else if (seaDepth(cp.x, cp.z) > 0 && cp.y < WATER_Y + 1.2) cp.y = WATER_Y + 1.2;
       // aim a little above the kid: they sit in the lower third and the world fills the frame
       // (aiming straight at them left the bottom half of the screen as empty grass)
@@ -1670,7 +1714,10 @@ export class ParkWorld {
     this.gliding = false;
     // hopping on a manta while swimming under water: it carries on from this depth
     if (kind === "manta" && this.wasInSea && this.swimDepth > 0.6) this.alt = this.altTarget = this.kid.root.position.y - WATER_Y;
-    if (this.kid.rig) this.kid.rig.root.rotation.x = 0;
+    if (this.kid.rig) {
+      this.kid.rig.root.rotation.x = 0;
+      this.kid.rig.setSwim(false, false);
+    }
     this.swimPitch = 0;
     if (this.kid.rig) this.kid.rig.root.position.copy(m.seat);
     const shadow = this.kid.root.children[1];
