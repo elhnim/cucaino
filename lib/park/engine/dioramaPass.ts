@@ -59,13 +59,13 @@ export function makeDioramaPass(depth: THREE.DepthTexture, camera: THREE.Perspec
         float dd = viewZ(vUv - vec2(0.0, px.y));
         // only the nearer side of a jump gets the line (so lines hug the object, one pixel wide)
         float jump = max(max(dl - d0, dr - d0), max(du - d0, dd - d0)) / max(d0, 0.001);
-        float edgeD = smoothstep(0.035, 0.09, jump);
+        float edgeD = smoothstep(0.018, 0.05, jump);
         vec3 cl = texture2D(tDiffuse, vUv - vec2(px.x, 0.0)).rgb;
         vec3 cu = texture2D(tDiffuse, vUv + vec2(0.0, px.y)).rgb;
         float edgeC = smoothstep(0.12, 0.26, max(abs(luma(c) - luma(cl)), abs(luma(c) - luma(cu))));
         // outlines fade out into the distance and the haze
-        float near = 1.0 - smoothstep(90.0, 320.0, d0);
-        float edge = max(edgeD, edgeC * 0.45) * near;
+        float near = 1.0 - smoothstep(150.0, 420.0, d0);
+        float edge = max(edgeD, edgeC * 0.6) * near;
         // stepped colour with a little ordered dither
         float b = bayer4(gl_FragCoord.xy) - 0.5;
         vec3 q = floor(c * uLevels + 0.5 + b * 0.35) / uLevels;

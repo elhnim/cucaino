@@ -7,6 +7,7 @@ import { ISLAND_R, TRAIL_WIDTH, coastR, nearStream, nearTrail } from "../../regi
 import { LANDS, PLACES } from "../../registry/places";
 import { groundY, slopeAt } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
+import { SKY_ISLANDS, skyBaseY } from "../../registry/skyIslands";
 import { fbm2, noise2, rngOf, type Rng } from "./noise";
 
 export type FreeFn = (x: number, z: number, pad: number) => boolean;
@@ -96,14 +97,18 @@ export interface ShaftSpot {
   r: number;
   rot: number;
 }
+/** a floating island, as the rest of the kit sees it (derived from registry/skyIslands.ts):
+ *  x/y/z is an open spot on its walkable top (the landing spot, where a Star Shard waits) */
 export interface IslandSpot {
+  /** the sky island's id (registry/skyIslands.ts) */
+  id: string;
   x: number;
   y: number;
   z: number;
   r: number;
   rot: number;
   seed: number;
-  /** which side the waterfall pours off (radians, island local) */
+  /** which side the waterfall pours off (radians, atan2(dx, dz)) */
   fall: number;
   /** what stands on top */
   top: "tree" | "ruin" | "crystals";
@@ -446,22 +451,19 @@ export function planFantasy(free: FreeFn, opts: PlanOptions = {}): FantasyPlan {
     made++;
   }
 
-  // ── floating islands framing the view (clear of the mountains' tops) ──
-  const islands: IslandSpot[] = [];
-  const islandDefs: [number, number, number, number, IslandSpot["top"]][] = [
-    // angle (from +z, like the rest of the park), distance, height, radius, what's on top
-    [0.55, 112, 46, 12, "tree"],
-    [2.35, 104, 58, 9, "ruin"],
-    [3.6, 122, 40, 10.5, "tree"],
-    [5.05, 98, 64, 8, "crystals"],
-  ];
-  for (const [a, d, y, rad, top] of low ? islandDefs.slice(0, 3) : islandDefs) {
-    const x = Math.sin(a) * d;
-    const z = Math.cos(a) * d;
-    let ground = -4;
-    for (let k = 0; k < 8; k++) ground = Math.max(ground, groundY(x + Math.sin(k) * rad, z + Math.cos(k) * rad));
-    islands.push({ x, z, y: Math.max(y, ground + 34), r: rad, rot: r() * Math.PI * 2, seed: Math.floor(r() * 1e6), fall: r() * Math.PI * 2, top });
-  }
+  // ── floating islands: the registry's sky islands (registry/skyIslands.ts); each spot is the
+  // island's open landing spot on its top (Star Shards go there, a few steps from the treasure) ──
+  const islands: IslandSpot[] = SKY_ISLANDS.map((s) => ({
+    id: s.id,
+    x: s.landing.x,
+    z: s.landing.z,
+    y: skyBaseY(s, s.landing.x, s.landing.z),
+    r: s.r,
+    rot: 0,
+    seed: s.seed,
+    fall: s.fall,
+    top: s.kind === "crystal" ? "crystals" : s.kind === "ruins" ? "ruin" : "tree",
+  }));
 
   return { trees, rocks, crystals, ruins, giants, mushrooms, shafts, islands, obstacles };
 }

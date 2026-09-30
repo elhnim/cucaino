@@ -17,6 +17,8 @@ import { buildQuests3D, type Quests3D } from "./quests3d";
 import { buildUnderwater, type Underwater } from "./underwater";
 import { FOOTPRINTS as SEA_FOOTPRINTS } from "./underwater/plan";
 import { buildBirds } from "./birds";
+import { buildSteamTrain, CAR_GAP } from "./steamTrain";
+import { buildStorybook, type Storybook } from "./storybook";
 import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
 
@@ -31,6 +33,11 @@ export interface BuiltPark {
   ground: THREE.Mesh;
   /** Star Shards + Sky Rings (the engine drives them with the kid's position) */
   quests3d: Quests3D;
+  /** the storybook dressing (dense forest, sheep, windmills, balloons, boats, clouds, misty
+   *  horizon) — only in the diorama look */
+  storybook: Storybook | null;
+  /** the floating mountains' treasure chests (open the ones this kid has found) */
+  skyChests: { setOpened(ids: string[]): void };
   /** the Sky Coaster: its track and where its train is (the engine drives it while you ride) */
   skyTrain: { loop: THREE.CatmullRomCurve3; len: number; u: number; held: boolean; stationU: number };
   /** the reef, fish, orcas, mantas, jellies, wreck and pearls under (and on) the sea */
@@ -204,7 +211,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
 
   // ── the dreamy sky: day -> golden hour -> glowing twilight, following the real clock ──
   const forestLand = LANDS.find((l) => l.id === "forest")!;
-  const atmosphere = buildAtmosphere(scene, { forest: { x: forestLand.x, z: forestLand.z, radius: forestLand.radius + 8 }, hour: opts.hour, lowQuality: opts.lowQuality });
+  const storyLook = opts.look === "diorama";
+  const atmosphere = buildAtmosphere(scene, { forest: { x: forestLand.x, z: forestLand.z, radius: forestLand.radius + 8 }, hour: opts.hour, lowQuality: opts.lowQuality, storybook: storyLook });
   disposables.push(atmosphere);
 
   // ── ground (the meadow island) + plaza; the beach and ocean ring it ──
@@ -461,6 +469,24 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   disposables.push(underwater);
   const birds = buildBirds(scene, { lowQuality: opts.lowQuality });
   disposables.push(birds);
+  // ── the storybook valley: dense chunky forest, sheep, windmills, balloons, boats, clouds, misty hills ──
+  const storybook = storyLook
+    ? buildStorybook(scene, {
+        lowQuality: opts.lowQuality,
+        free: (x, z, pad) =>
+          Math.hypot(x, z) < ISLAND_R - 2 &&
+          Math.hypot(x, z) > 12 + pad &&
+          !nearPath(x, z, pad + 1.6) &&
+          !nearPlace(x, z, pad + 1.2) &&
+          !inDreamZone(x, z, pad) &&
+          !nearStream(x, z, pad) &&
+          !nearSky(x, z, pad) &&
+          // (and clear of the fantasy kit's ruins, rocks and giant trees)
+          !fantasy.plan.ruins.some((s) => Math.hypot(x - s.x, z - s.z) < s.r + pad) &&
+          !fantasy.obstacles.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + pad + 1),
+      })
+    : null;
+  if (storybook) disposables.push(storybook);
   const ground = buildTerrainMesh({ lowQuality: opts.lowQuality, mask: fantasy.mask, paths: true });
   ground.name = "terrain";
   ground.receiveShadow = true;
@@ -524,22 +550,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     loopPts.push(new THREE.Vector3(lx, y, lz));
   }
   const loop = new THREE.CatmullRomCurve3(loopPts, true, "centripetal");
-  scene.add(new THREE.Mesh(track(new THREE.TubeGeometry(loop, 320, 0.35, 8, true)), toon("#b8864f")));
-  const stripeMat = track(new THREE.MeshToonMaterial({ map: track(stripeTexture()) }));
-  const pillars = new THREE.InstancedMesh(track(new THREE.CylinderGeometry(0.35, 0.45, 1, 10)), stripeMat, 40);
-  for (let i = 0; i < 40; i++) {
-    const p = loop.getPointAt(i / 40);
-    const gy = groundY(p.x, p.z);
-    pillars.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(p.x, (p.y + gy) / 2, p.z), new THREE.Quaternion(), new THREE.Vector3(1, Math.max(0.1, p.y - gy), 1)));
-  }
-  scene.add(pillars);
-  const cars: THREE.Object3D[] = [];
-  for (let i = 0; i < 4; i++) {
-    const car = await assets.spawn("coaster", i === 0 ? "coaster-train-front" : "coaster-train");
-    car.scale.setScalar(2.4);
-    scene.add(car);
-    cars.push(car);
-  }
+  // the Sky Railway: rails on sleepers, red trestles, a puffing steam engine and open carriages
+  const train = buildSteamTrain(scene, loop, opts.lowQuality);
+  disposables.push(train);
+  const cars = train.cars;
   const loopLen = loop.getLength();
   // where along the track (0..1) the station is
   const stationPt = loopPts[SKY_STATION_I];
@@ -577,7 +591,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       clouds.setColorAt(i, new THREE.Color(p % 2 ? "#ffffff" : "#eef2fb"));
     }
   }
-  scene.add(clouds);
+  // (the storybook look brings its own low puffy clouds)
+  if (!storyLook) scene.add(clouds);
 
   const tmp = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -591,10 +606,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
-    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS],
+    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? [])],
     quests3d,
     underwater,
     skyTrain,
+    skyChests: fantasy.sky,
+    storybook,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
@@ -602,6 +619,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog, focus);
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
+      storybook?.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       nature.update(dt, t, atmosphere.glow);
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       for (const l of landmarks) l.update(dt, t, atmosphere.glow);
@@ -615,8 +633,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       // sky train glides round the loop, each car a little behind the one in front
       if (!skyTrain.held) skyTrain.u = (skyTrain.u + (dt * 11) / loopLen) % 1;
       const head = skyTrain.u;
+      train.update(dt, t, skyTrain.held ? 18 : 11);
       cars.forEach((car, i) => {
-        const u = (head - (i * 3.4) / loopLen + 1) % 1;
+        const u = (head - (i * CAR_GAP) / loopLen + 1) % 1;
         const p = loop.getPointAt(u);
         const ahead = loop.getPointAt((u + 0.002) % 1);
         car.position.set(p.x, p.y + 0.35, p.z);

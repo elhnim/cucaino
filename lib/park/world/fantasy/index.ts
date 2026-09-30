@@ -1,7 +1,8 @@
 // Cucaino Park's fantasy nature & landmarks kit: a wind-swept grass field that follows the
 // player, groves of stylised trees, mossy boulders, glowing crystals, ancient rune ruins, the
 // Glow Forest's giant ancient trees (with glowing mushrooms, hanging vines, light shafts and
-// ground mist) and floating islands with waterfalls in the sky. Everything is procedural,
+// ground mist) and the floating sky islands you can land on (registry/skyIslands.ts, sky.ts:
+// mountains, meadows, ruins, crystals, gardens, waterfalls, treasure chests). Everything is procedural,
 // instanced and merged (~18 draw calls + shadow casters), placed by planFantasy() (pure,
 // tested) and animated by a handful of shared uniforms in update().
 import * as THREE from "three";
@@ -11,7 +12,7 @@ import { buildGrassField } from "./grass";
 import { buildGiantTreeGeometry, buildMushroomClusterGeometry, buildTreeGeometry, tintFor } from "./trees";
 import { buildCrystalGeometry, buildRockGeometry, buildRuinsGeometry, CRYSTAL_HUES } from "./stones";
 import { buildSkyIslands } from "./sky";
-import { buildLeaves, buildShafts, buildSprites, SPRITE_FOREST_MIST, SPRITE_HALO, SPRITE_MIST, type SpriteDef } from "./particles";
+import { buildLeaves, buildShafts, buildSprites, SPRITE_FOREST_MIST, SPRITE_HALO, type SpriteDef } from "./particles";
 import { fxMaterial, ISL_WORLD, makeUniforms } from "./shaders";
 import { makeHeightTexture } from "./terrainMesh";
 import { col } from "./geo";
@@ -36,6 +37,8 @@ export interface FantasyWorld {
   stats: { blades: number; trees: number; rocks: number; crystals: number; ruins: number; islands: number; meshes: number };
   /** the grass mask (CPU copy) — pass to buildTerrainMesh({ mask }) to paint bare earth under trails */
   mask: GrassMask;
+  /** the floating islands (registry/skyIslands.ts): tell it which treasure chests are opened */
+  sky: { setOpened(ids: string[]): void };
 }
 
 export interface FantasyOptions {
@@ -174,14 +177,13 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
   }
 
   // ── floating islands + waterfalls ──
-  const sky = buildSkyIslands(U, plan.islands, { lowQuality: low });
+  const sky = buildSkyIslands(U, { lowQuality: low });
   disposables.push(sky);
-  group.add(sky.mesh, sky.falls);
+  group.add(sky.mesh, sky.falls, ...sky.chests);
 
   // ── soft sprites: waterfall mist, forest ground mist, glow halos ──
   const sprites: SpriteDef[] = [];
-  const white = col("#eaf6ff");
-  for (const [x, y, z, isl, size] of sky.mist) sprites.push({ x, y, z, isl, size, color: white, kind: SPRITE_MIST });
+  sprites.push(...sky.sprites);
   const forest = LANDS.find((l) => l.id === "forest")!;
   const mistN = low ? 14 : 30;
   for (let i = 0; i < mistN; i++) {
@@ -198,9 +200,6 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
   });
   for (const site of plan.ruins)
     for (const p of site.parts) if (p.kind === "altar") sprites.push({ x: p.x, y: p.y + 2 * p.h, z: p.z, isl: ISL_WORLD, size: 4.5, color: site.kind === "shrine" ? col("#ffcf5a") : col("#5ff4ff"), kind: SPRITE_HALO });
-  plan.islands.forEach((s, i) => {
-    if (s.top === "crystals") sprites.push({ x: 0, y: 3, z: 0, isl: i, size: 14, color: CRYSTAL_HUES[i % 3], kind: SPRITE_HALO });
-  });
   const spriteMesh = buildSprites(U, sprites);
   track(spriteMesh.geometry);
   track(spriteMesh.material as THREE.Material);
@@ -225,6 +224,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
     group,
     plan,
     mask,
+    sky: { setOpened: (ids) => sky.setOpened(ids) },
     obstacles: plan.obstacles,
     stats: { blades: grass.blades, trees: plan.trees.length + plan.giants.length, rocks: plan.rocks.length, crystals: plan.crystals.length, ruins: plan.ruins.length, islands: plan.islands.length, meshes },
     update(_dt, t, focus, glow) {

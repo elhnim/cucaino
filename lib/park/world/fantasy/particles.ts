@@ -18,7 +18,7 @@ export interface SpriteDef {
   x: number;
   y: number;
   z: number;
-  /** island slot (0..3) or ISL_WORLD */
+  /** island slot (the sky island index) or ISL_WORLD */
   isl: number;
   size: number;
   color: THREE.Color;

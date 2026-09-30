@@ -43,6 +43,9 @@ const pal = (top: string, mid: string, horizon: string, fog: string, hemiSky: st
 // day -> golden hour -> twilight (the glow world); lerped by the glow amount
 const DAY = pal("#a9b8ff", "#ffc6e6", "#fff1d9", "#ffd6ea", "#ffffff", "#d6c8ff", "#ffffff", 0.95, 1.15);
 const GOLDEN = pal("#8f7cff", "#ff9fcf", "#ffd49a", "#ffb9c9", "#ffe2f0", "#b8a0ff", "#ffc98a", 0.85, 0.9);
+// the storybook look: a clear sunny sky over misty green-grey hills (the train-diorama reference)
+const DAY_SB = pal("#7fb0dc", "#b9d7e0", "#dbe9da", "#c9ddcc", "#ffffff", "#b6cf9f", "#fff4dc", 1.0, 1.3);
+const GOLDEN_SB = pal("#7c8fd8", "#f3b8a8", "#ffd9a0", "#e8c9b0", "#fff0dc", "#c8b890", "#ffcf8a", 0.9, 0.95);
 const TWILIGHT = pal("#0c0a34", "#2c1a66", "#a8469f", "#1d1650", "#7d82e8", "#2a2168", "#b3a4ff", 0.85, 0.34);
 
 /** How glowy the real clock is: 0 by day, ramps through golden hour to 1 after dusk. */
@@ -55,10 +58,12 @@ export function clockGlow(hour: number): number {
   return 1 - s(5.5, 7.5, hour); // morning: glow fades at sunrise
 }
 
-function mixPalette(out: Palette, g: number) {
+function mixPalette(out: Palette, g: number, storybook = false) {
   // 0..0.5 day -> golden, 0.5..1 golden -> twilight
-  const a = g < 0.5 ? DAY : GOLDEN;
-  const b = g < 0.5 ? GOLDEN : TWILIGHT;
+  const day = storybook ? DAY_SB : DAY;
+  const golden = storybook ? GOLDEN_SB : GOLDEN;
+  const a = g < 0.5 ? day : golden;
+  const b = g < 0.5 ? golden : TWILIGHT;
   const k = g < 0.5 ? g / 0.5 : (g - 0.5) / 0.5;
   for (const key of ["top", "mid", "horizon", "fog", "hemiSky", "hemiGround", "sun"] as const) out[key].copy(a[key]).lerp(b[key], k);
   out.hemiI = a.hemiI + (b.hemiI - a.hemiI) * k;
@@ -82,7 +87,7 @@ export function makeSparkTexture(): THREE.Texture {
 
 export function buildAtmosphere(
   scene: THREE.Scene,
-  opts: { forest: { x: number; z: number; radius: number }; hour?: () => number; lowQuality?: boolean },
+  opts: { forest: { x: number; z: number; radius: number }; hour?: () => number; lowQuality?: boolean; storybook?: boolean },
 ): Atmosphere {
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(d: T) => (disposables.push(d), d);
@@ -256,14 +261,15 @@ export function buildAtmosphere(
       const target = Math.max(clockGlowNow, forestAmt * 0.92);
       glow += (target - glow) * Math.min(1, dt * 1.2);
 
-      mixPalette(cur, glow);
+      mixPalette(cur, glow, opts.storybook);
       skyMat.uniforms.uTop.value.copy(cur.top);
       skyMat.uniforms.uMid.value.copy(cur.mid);
       skyMat.uniforms.uHorizon.value.copy(cur.horizon);
       skyMat.uniforms.uGlow.value = glow;
       skyMat.uniforms.uTime.value = t;
       (scene.fog as THREE.Fog).color.copy(cur.fog);
-      (scene.fog as THREE.Fog).near = 150 - glow * 70;
+      // (the storybook valley stays clear; the haze gathers on the far hills)
+      (scene.fog as THREE.Fog).near = (opts.storybook ? 210 : 150) - glow * 70;
       hemi.color.copy(cur.hemiSky);
       hemi.groundColor.copy(cur.hemiGround);
       hemi.intensity = cur.hemiI;

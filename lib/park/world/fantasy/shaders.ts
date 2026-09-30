@@ -22,12 +22,13 @@ export interface FantasyUniforms {
   uSway: { value: number };
   /** the player (grass follows it) */
   uFocus: { value: THREE.Vector2 };
-  /** floating island matrices (slot 4 = identity, the ground) */
+  /** floating island matrices (one slot per sky island; slot ISL_WORLD = identity, the ground) */
   uIslMat: { value: THREE.Matrix4[] };
 }
 
-export const ISL_SLOTS = 5;
-export const ISL_WORLD = 4;
+/** one slot per sky island (registry/skyIslands.ts, up to 11) + the ground */
+export const ISL_SLOTS = 12;
+export const ISL_WORLD = 11;
 
 export function makeUniforms(): FantasyUniforms {
   return {

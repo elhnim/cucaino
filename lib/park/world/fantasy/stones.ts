@@ -135,10 +135,10 @@ function runeStrokes(r: Rng, rows: number, y0: number, dy: number, zAt: (y: numb
   return out;
 }
 
-const RUNE_CYAN = col("#5ff4ff");
-const RUNE_GOLD = col("#ffcf5a");
+export const RUNE_CYAN = col("#5ff4ff");
+export const RUNE_GOLD = col("#ffcf5a");
 
-function ruinPartGeometry(p: RuinPart, runeCol: THREE.Color): THREE.BufferGeometry[] {
+export function ruinPartGeometry(p: RuinPart, runeCol: THREE.Color): THREE.BufferGeometry[] {
   const r = rngOf(p.seed + 1);
   const out: THREE.BufferGeometry[] = [];
   const shade = stoneShade(p.seed % 97, 1, 0);

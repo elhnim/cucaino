@@ -5,6 +5,7 @@ import { groundY } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
 import { defaultFantasyFree, planFantasy } from "./placement";
 import { bakeGrassMask, maskAt } from "./mask";
+import { SKY_ISLANDS, skyTopY } from "../../registry/skyIslands";
 
 const free = defaultFantasyFree();
 const zb = zoneBounds();
@@ -85,10 +86,13 @@ describe("fantasy placement", () => {
   });
 
   it("floats the islands high, away from the centre and clear of the mountains", () => {
+    expect(plan.islands.map((s) => s.id)).toEqual(SKY_ISLANDS.map((s) => s.id));
     for (const s of plan.islands) {
-      expect(s.y).toBeGreaterThanOrEqual(35);
-      expect(s.y).toBeLessThanOrEqual(75);
-      expect(Math.hypot(s.x, s.z)).toBeGreaterThan(70);
+      expect(s.y).toBeGreaterThanOrEqual(42);
+      expect(s.y).toBeLessThanOrEqual(115);
+      expect(Math.hypot(s.x, s.z)).toBeGreaterThan(50);
+      // the spot is on the island's walkable top
+      expect(skyTopY(s.x, s.z, 0)?.id).toBe(s.id);
       expect(s.y - groundY(s.x, s.z)).toBeGreaterThan(30);
     }
   });

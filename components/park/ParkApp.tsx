@@ -48,6 +48,7 @@ import { Ambience } from "@/lib/park/audio/ambience";
 import { MOUNTS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/characters/mounts";
 import { SHARD_COUNT, RING_COUNT } from "@/lib/park/world/quests3d";
 import { PEARL_COUNT } from "@/lib/park/world/underwater";
+import { SKY_ISLANDS, skyIslandById } from "@/lib/park/registry/skyIslands";
 import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wizards";
 import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
@@ -92,15 +93,14 @@ const STATION_FOR: Record<PetMode, string> = {
 };
 const TOAST_MS = 3000;
 
-/** The park's finish, per device: "smooth" (classic) or "diorama" (storybook: ink outlines,
- *  stepped colour, chunky pixels, a higher model-railway camera). Trying it out before it
- *  becomes the default. */
+/** The park's finish, per device: "diorama" (the storybook look — ink outlines, stepped colour,
+ *  chunky pixels, a higher model-railway camera; the default) or "smooth" (classic). */
 const LOOK_KEY = "cucaino.look";
 function readLook(): "diorama" | "smooth" {
   try {
-    return window.localStorage.getItem(LOOK_KEY) === "diorama" ? "diorama" : "smooth";
+    return window.localStorage.getItem(LOOK_KEY) === "smooth" ? "smooth" : "diorama";
   } catch {
-    return "smooth";
+    return "diorama";
   }
 }
 
@@ -250,6 +250,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // swimming in the sea (on foot, or on a manta under the waves): shows the swim up / dive buttons
   const [swim, setSwim] = useState<{ under: boolean } | null>(null);
   const [onCoaster, setOnCoaster] = useState(false);
+  // floating mountains: the one you're flying over (to land on), and the treasures found
+  const [landName, setLandName] = useState<string | null>(null);
+  const skyKey = `cucaino.skychests.${kidId}`;
+  const [skyFound, setSkyFound] = useState<string[]>([]);
   const swimHinted = useRef(false);
 
   // ── plays cost a ticket (earned from quests); every game's first play each day is free ──
@@ -576,6 +580,23 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             if (on) toast("🎢 Hold on tight! Round the whole island we go!");
           },
           onWrap: () => toast("🌍 All the way round the world — and back to Cucaino Island!"),
+          onSkyIsland: (id, what) => {
+            if (what === "glide") toast("🍃 Wheee — floating gently down!");
+            else toast(`🏝️ You landed on ${skyIslandById(id ?? "")?.name ?? "a floating mountain"}! Can you find its treasure chest?`);
+          },
+          onSkyTreasure: (id) => {
+            setSkyFound((cur) => {
+              if (cur.includes(id)) return cur;
+              const next = [...cur, id];
+              try {
+                window.localStorage.setItem(skyKey, JSON.stringify(next));
+              } catch {}
+              playSfx("win");
+              worldRef.current?.fireworks(next.length >= SKY_ISLANDS.length ? 6 : 3);
+              toast(next.length >= SKY_ISLANDS.length ? `🏆 Every sky treasure found! You've explored all ${SKY_ISLANDS.length} floating mountains!` : `🎁 The treasure of ${skyIslandById(id)?.name ?? "the island"}! (${next.length}/${SKY_ISLANDS.length})`);
+              return next;
+            });
+          },
           onSwim: (inSea) => {
             ambience.current?.splash();
             if (inSea && !swimHinted.current) {
@@ -597,6 +618,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               if (Array.isArray(savedPearls)) {
                 setPearls(savedPearls);
                 world?.setPearlsFound(savedPearls);
+              }
+              const savedSky = JSON.parse(window.localStorage.getItem(`cucaino.skychests.${kidId}`) ?? "[]") as string[];
+              if (Array.isArray(savedSky)) {
+                setSkyFound(savedSky);
+                world?.setSkyTreasuresOpened(savedSky);
               }
               const sk = window.localStorage.getItem(`cucaino.mountskin.${kidId}`) as MountSkin | null;
               if (sk) setSkin(sk);
@@ -793,6 +819,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     const id = window.setInterval(() => {
       const r = worldRef.current?.riding ?? null;
       setRiding((cur) => (cur?.kind === r?.kind && cur?.flying === r?.flying && cur?.landing === r?.landing ? cur : r));
+      const ln = worldRef.current?.skyLandable ?? null;
+      setLandName((cur) => (cur === ln ? cur : ln));
       const sw = worldRef.current?.swim ?? null;
       setSwim((cur) => (!!cur === !!sw && cur?.under === sw?.under ? cur : sw ? { under: sw.under } : null));
     }, 200);
@@ -841,6 +869,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   };
   const hopOn = (kind: MountKind) => {
     setPickMount(false);
+    if (worldRef.current?.onSkyIslandName && !MOUNTS.find((x) => x.kind === kind)?.flies) {
+      toast("🐴 Ponies can't fly! Pick the dragon or the manta to leave the floating mountain");
+      return;
+    }
     worldRef.current?.mountUp(kind, theme.accent, skin);
     playSfx("sparkle");
     const m = MOUNTS.find((x) => x.kind === kind)!;
@@ -1088,6 +1120,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   window.location.reload();
                 },
               },
+              { e: "🏝️", t: `Sky treasures · ${skyFound.length}/${SKY_ISLANDS.length}`, on: () => toast(skyFound.length >= SKY_ISLANDS.length ? "🏆 You've opened every sky treasure!" : "🏝️ Each floating mountain hides a treasure chest. Fly up on the dragon or manta, land on top and explore!") },
               { e: "🫧", t: `Sea Pearls · ${pearls.length}/${PEARL_COUNT}`, on: () => toast(pearls.length >= PEARL_COUNT ? "🫧 You found every Sea Pearl!" : "🫧 Sea Pearls glow inside giant clams on the reef, by the shipwreck and the sunken ruins. Swim out past the beach and dive!") },
               { e: "✦", t: `Star Shards · ${shards.length}/${SHARD_COUNT}`, on: () => toast(shards.length >= SHARD_COUNT ? "✦ You found every Star Shard — a true explorer!" : "✦ Star Shards hide on peaks, sky islands, ruins, ancient trees, crystals and coves. Fly to reach the high ones!") },
               { e: "🔄", t: "Switch player", on: () => router.push("/select-kid") },
@@ -1186,6 +1219,18 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           >
             {riding ? (riding.landing ? "…" : "Hop off") : "🦄"}
           </RoundButton>
+        </div>
+      )}
+      {landName && !busy && (
+        <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(max(20px, env(safe-area-inset-bottom)) + 230px)", zIndex: 23 }}>
+          <GameButton
+            onClick={() => {
+              worldRef.current?.dismount();
+              playSfx("tap");
+            }}
+          >
+            🏝️ Land on {landName}
+          </GameButton>
         </div>
       )}
       {ringRun && riding?.flying && (

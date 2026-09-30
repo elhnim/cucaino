@@ -37,6 +37,16 @@ import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi
 import { buildMount, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaFloorY } from "../world/sea/wander";
+import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
+import { SKY_OBSTACLES, skyIslandById, skyTopY } from "../registry/skyIslands";
+
+/** each floating island's obstacles (trees, rocks, its peak), for walking about up there */
+const SKY_OBSTACLES_BY = new Map<string, { x: number; z: number; r: number }[]>();
+for (const o of SKY_OBSTACLES) {
+  const list = SKY_OBSTACLES_BY.get(o.id) ?? [];
+  list.push(o);
+  SKY_OBSTACLES_BY.set(o.id, list);
+}
 
 export type QualityTier = "standard" | "low";
 
@@ -70,6 +80,10 @@ export interface ParkWorldOptions {
   onPieceTap?: (uid: string) => void;
   /** first frame is on screen */
   onReady?: () => void;
+  /** landed on a floating mountain (id, "land") or stepped off an edge ("glide", id null) */
+  onSkyIsland?: (id: string | null, what: "land" | "glide") => void;
+  /** opened a floating mountain's treasure chest */
+  onSkyTreasure?: (id: string) => void;
   /** boarded (true) or stepped off (false) the Sky Coaster */
   onSkyCoaster?: (riding: boolean) => void;
   /** the finish: "diorama" (default — outlines, stepped colour, chunky pixels) or "smooth" */
@@ -96,6 +110,8 @@ const SEA_LIMIT = 200; // (unused now the ocean wraps round — kept for the lan
 const SWIM_DEPTH = 0.9;
 /** how deep the sea is at (x, z) (<= 0 on land) */
 const seaDepth = (x: number, z: number) => WATER_Y - seaFloorY(x, z); // the same sea floor the art draws
+/** the ground (or sea floor) under (x, z) */
+const floorY0 = (x: number, z: number) => seaFloorY(x, z);
 const CAM_OFFSET = new THREE.Vector3(0, 12, 14);
 const MAX_DT = 1 / 20;
 
@@ -181,6 +197,12 @@ export class ParkWorld {
   private camUnder = false;
   // ── the Sky Coaster: riding the train round the island (speed follows the drops) ──
   private sky: { v: number; dist: number; cheered: boolean } | null = null;
+  // ── floating mountains: standing on one (its id), gliding down off an edge, flight's reference height ──
+  private onSky: string | null = null;
+  private gliding = false;
+  private fallV = 0;
+  private flyBase = 0;
+  private skyOpened = new Set<string>();
   private landing = false;
   private flySparkle = 0;
   private inputOn = true;
@@ -225,7 +247,7 @@ export class ParkWorld {
     this.look = opts.look ?? "smooth";
     const dio = this.look === "diorama" && !low;
     // look down on the island from higher up (~42°), the way you'd look at a model on a table
-    if (dio) this.camPitch = 0.74;
+    if (dio) this.camPitch = 0.62;
     // the diorama look draws chunky pixels on purpose: a low pixel ratio, no antialiasing, and the
     // canvas upscaled with crisp nearest-neighbour (which also makes each frame much cheaper)
     this.renderer = new THREE.WebGLRenderer({ antialias: !low && !dio, powerPreference: low ? "low-power" : "high-performance" });
@@ -665,7 +687,14 @@ export class ParkWorld {
 
   /** Advance an actor's animation: chibi rigs are driven by how fast they're moving. */
   private tickActor(a: Actor, dt: number, forceSpeed?: number, snap = true) {
-    if (snap && !this.ride) {
+    if (snap && !this.ride && a === this.pet && (this.onSky || this.gliding) && this.kid) {
+      const kp = this.kid.root.position;
+      const s = this.onSky ? skyTopY(a.root.position.x, a.root.position.z, this.time) : null;
+      if (this.onSky && (!s || s.id !== this.onSky)) {
+        // never let the pet wander off the edge: hop back beside the kid
+        a.root.position.set(kp.x + 1.2, kp.y, kp.z + 0.8);
+      } else a.root.position.y = s ? s.y : kp.y;
+    } else if (snap && !this.ride) {
       const gy = groundY(a.root.position.x, a.root.position.z);
       // in deep water everyone paddles at the surface
       a.root.position.y = WATER_Y - gy > SWIM_DEPTH ? WATER_Y - 0.95 + Math.sin(this.time * 2.4 + a.root.position.x) * 0.06 : gy + (a === this.pet && this.petMode === "sleep" ? 0.45 : 0);
@@ -970,7 +999,9 @@ export class ParkWorld {
       const sea = seaDepth(pos.x, pos.z);
       const minAlt = m.kind === "manta" && sea > 2.4 ? -(sea - 1.6) : 0;
       const lowAlt = minAlt < 0 ? minAlt : 4;
-      if (m.flies && !this.landing) this.altTarget = Math.max(lowAlt, Math.min(34, this.altTarget + this.flyInput * 9 * dt));
+      // fliers can climb high enough to reach the floating mountains (~115 m up)
+      const maxAlt = 115 - Math.max(floorY0(pos.x, pos.z), WATER_Y);
+      if (m.flies && !this.landing) this.altTarget = Math.max(lowAlt, Math.min(maxAlt, this.altTarget + this.flyInput * 12 * dt));
       if (this.altTarget < minAlt) this.altTarget = minAlt;
       this.alt += (this.altTarget - this.alt) * Math.min(1, dt * (this.landing ? 1.6 : 2.2));
       if (this.alt < minAlt) this.alt = minAlt;
@@ -998,7 +1029,7 @@ export class ParkWorld {
       this.opts.onWrap?.();
     }
     // walk round the grassy hills
-    for (const o of aloft ? [] : this.park.obstacles) {
+    for (const o of aloft ? [] : this.onSky ? (SKY_OBSTACLES_BY.get(this.onSky) ?? []) : this.gliding ? [] : this.park.obstacles) {
       const dx = pos.x - o.x;
       const dz = pos.z - o.z;
       const d = Math.hypot(dx, dz);
@@ -1007,7 +1038,7 @@ export class ParkWorld {
         pos.z = o.z + (dz / d) * o.r;
       }
     }
-    for (const p of aloft ? [] : this.allPlaces()) {
+    for (const p of aloft || this.onSky || this.gliding ? [] : this.allPlaces()) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;
       const dz = pos.z - p.z;
@@ -1021,11 +1052,24 @@ export class ParkWorld {
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
     const floorY = seaFloorY(pos.x, pos.z);
     const seaHere = WATER_Y - floorY;
+    const skyHere = skyTopY(pos.x, pos.z, this.time);
     if (this.mount) {
       const m = this.mount;
-      // fliers measure height from the sea's surface out over the water; a pony swims with its head up
-      if (m.flies) pos.y = Math.max(floorY, WATER_Y) + this.alt;
-      else pos.y = seaHere > SWIM_DEPTH ? WATER_Y - 0.85 : floorY;
+      if (m.flies) {
+        // fliers measure height from what's under them: the ground, the sea — or a floating
+        // island's top once they're up level with it (flying into its side lifts you on top)
+        let base = Math.max(floorY, WATER_Y);
+        if (skyHere) {
+          const isl = skyIslandById(skyHere.id);
+          if (pos.y >= skyHere.y - 0.3 - (isl?.depth ?? 12)) base = skyHere.y;
+        }
+        if (base !== this.flyBase) {
+          this.alt += this.flyBase - base;
+          this.altTarget += this.flyBase - base;
+          this.flyBase = base;
+        }
+        pos.y = base + this.alt;
+      } else pos.y = seaHere > SWIM_DEPTH ? WATER_Y - 0.85 : floorY;
       m.root.position.set(pos.x, pos.y, pos.z);
       m.root.rotation.y = kid.root.rotation.y;
       m.root.rotation.z = moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
@@ -1041,6 +1085,32 @@ export class ParkWorld {
           this.burst(pos.clone().setY(pos.y + 0.4), 4);
         }
       }
+    } else if (this.onSky || this.gliding) {
+      // up on a floating mountain; step off the edge and you float gently down (steering as you go)
+      if (this.onSky && skyHere && skyHere.id === this.onSky) pos.y = skyHere.y;
+      else {
+        if (this.onSky) {
+          this.onSky = null;
+          this.gliding = true;
+          this.fallV = 0;
+          this.burst(pos.clone().setY(pos.y + 1), 30);
+          this.opts.onSkyIsland?.(null, "glide");
+        }
+        this.fallV = Math.min(5.5, this.fallV + 6 * dt);
+        pos.y -= this.fallV * dt;
+        // (glide onto another island top on the way down)
+        const landY = skyHere && pos.y >= skyHere.y - 0.5 ? skyHere.y : seaHere > SWIM_DEPTH ? WATER_Y - 0.95 : floorY;
+        if (pos.y <= landY) {
+          pos.y = landY;
+          this.gliding = false;
+          if (skyHere && landY === skyHere.y) {
+            this.onSky = skyHere.id;
+            this.opts.onSkyIsland?.(skyHere.id, "land");
+          }
+          this.burst(pos.clone().setY(pos.y + 0.6), 24);
+        }
+      }
+      this.tickActor(kid, dt, undefined, false);
     } else {
       if (seaHere > SWIM_DEPTH) {
         // swimming: the up/down buttons swim up and dive; the depth follows gently
@@ -1075,6 +1145,18 @@ export class ParkWorld {
     }
 
     if (this.sky) this.tickSky(dt, kid);
+
+    // a floating mountain's treasure chest: walk up to it to open it
+    if (this.onSky && !this.skyOpened.has(this.onSky)) {
+      const isl = skyIslandById(this.onSky);
+      if (isl && Math.hypot(pos.x - isl.treasure.x, pos.z - isl.treasure.z) < 2.4) {
+        this.skyOpened.add(isl.id);
+        this.park.skyChests.setOpened([...this.skyOpened]);
+        this.burst(pos.clone().setY(pos.y + 1.6), 90);
+        this.play(kid, "cheer", true);
+        this.opts.onSkyTreasure?.(isl.id);
+      }
+    }
 
     // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
     if (this.pet && this.mount && this.petMode === "follow") {
@@ -1148,8 +1230,8 @@ export class ParkWorld {
     // on the coaster the pet rides in the car behind
     if (this.sky && this.pet) {
       const st = this.park.skyTrain;
-      const pp = st.loop.getPointAt((st.u - 3.4 / st.len + 1) % 1);
-      this.pet.root.position.set(pp.x, pp.y + 0.95, pp.z);
+      const pp = st.loop.getPointAt((st.u - ((RIDE_CAR + 1) * CAR_GAP) / st.len + 1) % 1);
+      this.pet.root.position.set(pp.x, pp.y + 0.75, pp.z);
       this.pet.facing = kid.facing;
       this.pet.root.rotation.y = kid.facing;
     }
@@ -1181,7 +1263,7 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn && !aloft && !this.sky) {
+    if (this.inputOn && !aloft && !this.sky && !this.onSky && !this.gliding) {
       let found: PlaceDef | null = null;
       for (const p of this.allPlaces()) {
         if (p.doorRadius <= 0) continue;
@@ -1267,7 +1349,10 @@ export class ParkWorld {
     if (this.sky) {
       // chase cam: behind and above the car, looking down the track
       const tan = this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
-      const want = new THREE.Vector3(pos.x - tan.x * 9, pos.y - tan.y * 9 + 4.2, pos.z - tan.z * 9);
+      // high and to one side of the train, so the smoke streams past rather than into the lens
+      const sideX = tan.z;
+      const sideZ = -tan.x;
+      const want = new THREE.Vector3(pos.x - tan.x * 10 + sideX * 3.5, pos.y - tan.y * 10 + 6.5, pos.z - tan.z * 10 + sideZ * 3.5);
       this.camera.position.lerp(want, Math.min(1, dt * 5));
       this.camera.lookAt(pos.x + tan.x * 12, pos.y + tan.y * 12 + 0.6, pos.z + tan.z * 12);
       this.camBase.copy(this.camera.position);
@@ -1350,7 +1435,10 @@ export class ParkWorld {
     }
     // under the sea? deep-blue fog, no sky
     const camUnder = !this.building && !this.ride && this.camera.position.y < WATER_Y - 0.05;
-    if (camUnder || this.camUnder) this.park.atmosphere.setUnderwater(camUnder, WATER_Y - this.camera.position.y);
+    if (camUnder || this.camUnder) {
+      this.park.atmosphere.setUnderwater(camUnder, WATER_Y - this.camera.position.y);
+      this.park.storybook?.setUnderwater(camUnder);
+    }
     this.camUnder = camUnder;
     // bloom a little stronger at twilight, when the magic comes out
     const glowNow = this.park.atmosphere.glow;
@@ -1458,6 +1546,25 @@ export class ParkWorld {
     }
   }
 
+  /** Which floating mountains' chests this kid has opened (they stay open). */
+  setSkyTreasuresOpened(ids: string[]) {
+    this.skyOpened = new Set(ids);
+    this.park?.skyChests.setOpened(ids);
+  }
+
+  /** Flying over a floating mountain's top? Its name (the HUD offers "Land on …"). */
+  get skyLandable(): string | null {
+    const p = this.kid?.root.position;
+    if (!p || !this.mount?.flies || this.landing) return null;
+    const s = skyTopY(p.x, p.z, this.time);
+    return s && p.y > s.y + 0.8 ? (skyIslandById(s.id)?.name ?? null) : null;
+  }
+
+  /** Standing on a floating mountain? Its name. */
+  get onSkyIslandName(): string | null {
+    return this.onSky ? (skyIslandById(this.onSky)?.name ?? null) : null;
+  }
+
   /** Board the Sky Coaster at its station for one full lap round the island. */
   rideSkyCoaster(): boolean {
     if (!this.park || !this.kid || this.ride || this.sky || this.building) return false;
@@ -1486,8 +1593,9 @@ export class ParkWorld {
     s.v = Math.max(7, Math.min(30, s.v - tan.y * 20 * dt));
     st.u = (st.u + (s.v * dt) / st.len) % 1;
     s.dist += s.v * dt;
-    const p = st.loop.getPointAt(st.u);
-    kid.root.position.set(p.x, p.y + 1.0, p.z);
+    // ride in the first open carriage, just behind the engine
+    const p = st.loop.getPointAt((st.u - (RIDE_CAR * CAR_GAP) / st.len + 1) % 1);
+    kid.root.position.set(p.x, p.y + 0.75, p.z);
     kid.facing = Math.atan2(tan.x, tan.z);
     kid.root.rotation.y = kid.facing;
     if (tan.y < -0.3 && !s.cheered) {
@@ -1527,6 +1635,12 @@ export class ParkWorld {
     this.alt = 0;
     this.altTarget = m.flies ? 9 : 0;
     this.flyInput = 0;
+    // taking off from a floating mountain: heights count from its top
+    const kp0 = this.kid.root.position;
+    const top0 = this.onSky ? skyTopY(kp0.x, kp0.z, this.time) : null;
+    this.flyBase = top0 ? top0.y : Math.max(seaFloorY(kp0.x, kp0.z), WATER_Y);
+    this.onSky = null;
+    this.gliding = false;
     // hopping on a manta while swimming under water: it carries on from this depth
     if (kind === "manta" && this.wasInSea && this.swimDepth > 0.6) this.alt = this.altTarget = this.kid.root.position.y - WATER_Y;
     if (this.kid.rig) this.kid.rig.root.rotation.x = 0;
@@ -1555,6 +1669,19 @@ export class ParkWorld {
     this.alt = 0;
     this.altTarget = 0;
     const kp = this.kid.root.position;
+    // hopping off above a floating mountain: you're standing on it
+    const top = skyTopY(kp.x, kp.z, this.time);
+    if (top && wasY >= top.y - 1.5) {
+      kp.y = top.y;
+      this.onSky = top.id;
+      this.gliding = false;
+      if (this.kid.rig) this.kid.rig.root.position.set(0, 0, 0);
+      const shadow0 = this.kid.root.children[1];
+      if (shadow0) shadow0.visible = true;
+      if (this.pet) this.pet.root.position.set(kp.x + 1.2, top.y, kp.z + 0.8);
+      this.opts.onSkyIsland?.(top.id, "land");
+      return;
+    }
     // off a manta in the sea: keep swimming at the same depth
     const sea = seaDepth(kp.x, kp.z);
     if (sea > SWIM_DEPTH) this.swimDepth = this.swimTarget = Math.max(0, Math.min(sea - 1.1, WATER_Y - 0.95 - wasY));
