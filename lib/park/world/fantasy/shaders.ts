@@ -6,7 +6,8 @@
 //   aFx.y  how much it sways in the wind (canopy tips most, trunk base not at all)
 //   aFx.z  how much it glows (emissive = vertex colour x glow x uGlowK — > 1 blooms)
 // With `island: true` vertices are also moved by one of the floating islands' matrices
-// (`aIsl` picks which), so every floating island shares one draw call while bobbing on its own.
+// (`aIsl` picks which), so every floating island shares one draw call while bobbing on its own;
+// `aIsl2` + `aIslMix` blend in a second island's matrix (rope bridges hang between two islands).
 import * as THREE from "three";
 
 export interface FantasyUniforms {
@@ -26,9 +27,9 @@ export interface FantasyUniforms {
   uIslMat: { value: THREE.Matrix4[] };
 }
 
-/** one slot per sky island (registry/skyIslands.ts, up to 11) + the ground */
-export const ISL_SLOTS = 12;
-export const ISL_WORLD = 11;
+/** one slot per sky island (registry/skyIslands.ts, up to 15) + the ground */
+export const ISL_SLOTS = 16;
+export const ISL_WORLD = 15;
 
 export function makeUniforms(): FantasyUniforms {
   return {
@@ -96,7 +97,7 @@ export function fxPatch(mat: THREE.MeshStandardMaterial, U: FantasyUniforms, opt
         attribute vec3 aFx;
         varying float vFxGlow;
         uniform float uTime; uniform vec2 uWindDir; uniform float uGust; uniform float uPulse; uniform float uSway;
-        ${opts.island ? `attribute float aIsl; uniform mat4 uIslMat[${ISL_SLOTS}];` : ""}
+        ${opts.island ? `attribute float aIsl; attribute float aIsl2; attribute float aIslMix; uniform mat4 uIslMat[${ISL_SLOTS}];` : ""}
         ${GUST_GLSL}`,
       )
       .replace(
@@ -114,7 +115,7 @@ export function fxPatch(mat: THREE.MeshStandardMaterial, U: FantasyUniforms, opt
       .replace(
         "#include <beginnormal_vertex>",
         `#include <beginnormal_vertex>
-        ${opts.island ? "mat4 islM = uIslMat[ int( aIsl + 0.5 ) ]; objectNormal = mat3( islM ) * objectNormal;" : ""}`,
+        ${opts.island ? "mat4 islM = uIslMat[ int( aIsl + 0.5 ) ] * ( 1.0 - aIslMix ) + uIslMat[ int( aIsl2 + 0.5 ) ] * aIslMix; objectNormal = mat3( islM ) * objectNormal;" : ""}`,
       )
       .replace(
         "#include <begin_vertex>",

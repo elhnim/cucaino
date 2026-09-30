@@ -1,16 +1,20 @@
 // Cucaino Park's floating islands in the sky: big floating mountains (a rocky peak rising off
-// one side of a wide walkable meadow, cliffs, pines, a waterfall) and smaller meadow / ruins /
-// crystal / garden islands. Kids fly up on a dragon or a manta, land on a top and explore on foot;
-// every island hides a treasure chest.
+// one side of a wide walkable meadow, cliffs, pines, a waterfall, a grotto, park buildings on flat
+// pads) and smaller meadow / ruins / crystal / garden islands, some joined by rope bridges. Kids fly
+// up on a dragon or a manta, land on a top and explore on foot: every island hides a treasure chest
+// and 2–4 things to discover (a dragon egg nest, rune-stone puzzles, telescopes, sky launchers ...).
 //
 // Pure + deterministic (no three.js) so the engine, the renderer (world/fantasy/sky.ts), the Star
 // Shards (quests3d via fantasy/placement.ts) and the tests all read the same numbers:
 //   - each top is a gentle heightfield sampled on a fixed triangle grid (SKY_GRID) — the mesh uses
-//     the very same triangles, so skyTopY() is exactly where the grass is (feet sit on it)
-//   - islands only bob up and down (skyBob, never rotate), so standing on one is easy
-//   - peaks are not walkable (skyTopY → null there) and are listed in SKY_OBSTACLES, with the
-//     trees, rocks, ruins and crystals on the tops
-// One entry in DEFS = one island; move it and the mesh, obstacles, treasure and shard follow.
+//     the very same triangles, so skyTopY() is exactly where the grass is (feet sit on it);
+//     building pads, hot springs and rune circles are flattened into it
+//   - islands only bob up and down (skyBob, never rotate), so standing on one is easy; a bridge
+//     deck blends the bob of its two ends
+//   - peaks are not walkable (skyTopY → null there); they, trees, rocks, ruins, crystals and the
+//     solid bits of the discoveries are in SKY_OBSTACLES
+// One entry in DEFS = one island; move it and the mesh, obstacles, treasure, pads, spots, bridges
+// and shard follow. NOTE: must not import places.ts (places.ts imports this file).
 
 export type SkyIslandKind = "mountain" | "meadow" | "ruins" | "crystal" | "garden";
 
@@ -46,6 +50,10 @@ export const SKY_GRID = 2.5;
 /** the top mesh runs this far past the walkable radius before the grassy lip rolls over */
 export const SKY_LIP = 1.2;
 
+export type SpotKind = "cave" | "nest" | "stones" | "telescope" | "launcher" | "hotspring" | "bell" | "swing" | "garden" | "lookout" | "shrine" | "treehouse" | "cloudling" | "mushroomring";
+
+type SpotDef = [SpotKind, string, string, string?];
+
 interface Def {
   id: string;
   name: string;
@@ -62,22 +70,143 @@ interface Def {
   fallA: number;
   amp: number;
   seed: number;
+  /** things to discover: [kind, name, text, target island?] */
+  spots: SpotDef[];
 }
 
 // angle convention: atan2(x, z) — 0 = +z (south on the map), π = north (the mountain range)
 const DEFS: Def[] = [
   // ── the floating mountains ──
-  { id: "thunder-peak", name: "Thunder Peak", kind: "mountain", x: 0, z: -132, y: 100, r: 32, peak: { r: 12.5, h: 25, off: 0.47 }, tr: [1.05, 0.62], fallA: -1.1, amp: 1.1, seed: 11 },
-  { id: "cloudtop", name: "Cloudtop Mountain", kind: "mountain", x: -102, z: 14, y: 78, r: 26, peak: { r: 10, h: 18, off: 0.48 }, tr: [-1.2, 0.6], fallA: 1.3, amp: 1.0, seed: 23 },
-  { id: "dragons-crown", name: "Dragon's Crown", kind: "mountain", x: 122, z: 124, y: 66, r: 22, peak: { r: 8.5, h: 20, off: 0.5 }, tr: [1.25, 0.6], fallA: -1.4, amp: 0.9, seed: 37 },
-  { id: "eagle-rock", name: "Eagle Rock", kind: "mountain", x: 152, z: -40, y: 86, r: 20, peak: { r: 7.5, h: 14, off: 0.5 }, tr: [-1.3, 0.58], fallA: 1.5, amp: 0.9, seed: 41 },
+  {
+    id: "thunder-peak", name: "Thunder Peak", kind: "mountain", x: 0, z: -132, y: 100, r: 34, peak: { r: 12.5, h: 25, off: 0.47 }, tr: [1.05, 0.62], fallA: -1.1, amp: 1.1, seed: 11,
+    spots: [
+      ["cave", "Thunder Grotto", "A secret grotto full of glowing crystals! It's cosy and warm in here."],
+      ["nest", "Dragon Egg Nest", "A dragon egg! It's warm... something's wiggling inside!"],
+      ["telescope", "Sky Telescope", "Peek through! You can see all the way to Dragon's Crown.", "dragons-crown"],
+      ["bell", "Wishing Bell", "Ding-dong! Make a wish — the bell sings it to the clouds."],
+    ],
+  },
+  {
+    id: "cloudtop", name: "Cloudtop Mountain", kind: "mountain", x: -102, z: 14, y: 82, r: 30, peak: { r: 10, h: 18, off: 0.5 }, tr: [-1.2, 0.6], fallA: 1.3, amp: 1.0, seed: 23,
+    spots: [
+      ["cave", "Echo Cave", "Hellooo... hellooo... The cave sings your name back!"],
+      ["stones", "Cloudtop Rune Circle", "Magic stepping stones! Stand on every one to wake the altar."],
+      ["lookout", "Cloudtop Lookout", "What a view! You can see the whole park from up here."],
+      ["launcher", "Bouncy Mushroom", "Boing! Jump on to bounce all the way to Crystal Spire!", "crystal-spire"],
+    ],
+  },
+  {
+    id: "dragons-crown", name: "Dragon's Crown", kind: "mountain", x: 122, z: 124, y: 66, r: 25, peak: { r: 8.5, h: 20, off: 0.5 }, tr: [1.25, 0.6], fallA: -1.4, amp: 0.9, seed: 37,
+    spots: [
+      ["cave", "Dragon's Den", "The dragons' old den — their shiny treasure still glitters inside!"],
+      ["nest", "Crown Nest", "A giant nest with a speckled egg. It's rocking... hatch time soon!"],
+      ["hotspring", "Steamy Spring", "A warm bubbly pool! Dragons love a soak after a long flight."],
+      ["telescope", "Crown Telescope", "Look! Thunder Peak's snowy top is way over there.", "thunder-peak"],
+    ],
+  },
+  {
+    id: "eagle-rock", name: "Eagle Rock", kind: "mountain", x: 152, z: -40, y: 86, r: 24, peak: { r: 7.5, h: 14, off: 0.5 }, tr: [-1.3, 0.58], fallA: 1.5, amp: 0.9, seed: 41,
+    spots: [
+      ["cave", "Glimmer Cave", "Crystals twinkle like stars in this little cave. Ooooh!"],
+      ["nest", "Eagle Rock Nest", "Who left this egg up here? It's speckled like a rainbow!"],
+      ["lookout", "Eagle Lookout", "Eagles watch the whole island from this rail. Can you spot the Glow Forest?"],
+      ["launcher", "Sky Cannon", "3... 2... 1... WHOOSH! It fires you to the Cloud Garden!", "cloud-garden"],
+    ],
+  },
   // ── the little sky islands ──
-  { id: "buttercup-meadow", name: "Buttercup Meadow", kind: "meadow", x: -12, z: 74, y: 50, r: 11, tr: [2.4, 0.45], fallA: 0.4, amp: 0.55, seed: 53 },
-  { id: "sky-temple", name: "Sky Temple", kind: "ruins", x: 46, z: -52, y: 62, r: 13, tr: [0.2, 0.05], fallA: 2.2, amp: 0.4, seed: 67 },
-  { id: "crystal-spire", name: "Crystal Spire", kind: "crystal", x: -50, z: -42, y: 72, r: 9, tr: [2.8, 0.4], fallA: -2.2, amp: 0.5, seed: 71 },
-  { id: "cloud-garden", name: "Cloud Garden", kind: "garden", x: 58, z: 32, y: 56, r: 12, tr: [-2.5, 0.5], fallA: 1.9, amp: 0.45, seed: 83 },
-  { id: "sunset-ruins", name: "Sunset Ruins", kind: "ruins", x: -132, z: 108, y: 60, r: 12, tr: [0.3, 0.05], fallA: -1.9, amp: 0.45, seed: 97 },
-  { id: "lantern-isle", name: "Lantern Isle", kind: "garden", x: -62, z: -150, y: 94, r: 10, tr: [2.6, 0.5], fallA: 1.2, amp: 0.45, seed: 101 },
+  {
+    id: "buttercup-meadow", name: "Buttercup Meadow", kind: "meadow", x: -12, z: 74, y: 50, r: 12, tr: [2.4, 0.45], fallA: 0.4, amp: 0.55, seed: 53,
+    spots: [
+      ["swing", "Sky Swing", "Whee! A swing that goes right out over the clouds!"],
+      ["garden", "Glowbloom Patch", "Giant flowers that glow! They hum when you walk past."],
+      ["launcher", "Bouncy Mushroom", "Boing! Bounce over to the Sky Temple!", "sky-temple"],
+    ],
+  },
+  {
+    id: "sky-temple", name: "Sky Temple", kind: "ruins", x: 46, z: -52, y: 62, r: 14, tr: [0.2, 0.05], fallA: 2.2, amp: 0.4, seed: 67,
+    spots: [
+      ["stones", "Temple Rune Stones", "Five rune stones round an old altar. Step on them all!"],
+      ["shrine", "Moonstone Shrine", "A floating moonstone spins in the little shrine. So shiny!"],
+    ],
+  },
+  {
+    id: "crystal-spire", name: "Crystal Spire", kind: "crystal", x: -50, z: -42, y: 72, r: 11, tr: [2.8, 0.4], fallA: -2.2, amp: 0.5, seed: 71,
+    spots: [
+      ["shrine", "Crystal Shrine", "A crystal floats all by itself! It tingles when you get close."],
+      ["cloudling", "Sleepy Cloudling", "Shhh! A little cloud creature is snoozing... Zzz."],
+    ],
+  },
+  {
+    id: "cloud-garden", name: "Cloud Garden", kind: "garden", x: 58, z: 32, y: 56, r: 13, tr: [-2.5, 0.5], fallA: 1.9, amp: 0.45, seed: 83,
+    spots: [
+      ["garden", "Giant Glowflowers", "These flowers are taller than you — and they glow at night!"],
+      ["hotspring", "Bubble Pool", "Bloop bloop! A warm pool full of tickly bubbles."],
+      ["bell", "Garden Bell", "Ring the bell and the flowers wave hello!"],
+    ],
+  },
+  {
+    id: "sunset-ruins", name: "Sunset Ruins", kind: "ruins", x: -132, z: 108, y: 72, r: 14, tr: [0.3, 0.05], fallA: -1.9, amp: 0.45, seed: 97,
+    spots: [
+      ["stones", "Sunset Rune Ring", "A ring of sleepy rune stones. Can you wake them all up?"],
+      ["telescope", "Old Brass Telescope", "Through the telescope you can see Cloudtop Mountain!", "cloudtop"],
+      ["cloudling", "Dozy Cloudling", "A fluffy cloud creature curled up in the sun. It's purring!"],
+    ],
+  },
+  {
+    id: "lantern-isle", name: "Lantern Isle", kind: "garden", x: -62, z: -150, y: 94, r: 13, tr: [2.6, 0.5], fallA: 1.2, amp: 0.45, seed: 101,
+    spots: [
+      ["treehouse", "Lantern Treehouse", "A secret treehouse with glowing lanterns! Who lives here?"],
+      ["mushroomring", "Fairy Ring", "A ring of giant mushrooms. Fairies dance here at night!"],
+    ],
+  },
+  // ── stepping-stone islets between the big ones (rope bridges join the close ones) ──
+  {
+    id: "puffball-isle", name: "Puffball Isle", kind: "meadow", x: 50, z: -156, y: 97, r: 11, tr: [2.2, 0.45], fallA: -0.6, amp: 0.5, seed: 113,
+    spots: [
+      ["cloudling", "Puffball the Cloudling", "Puffball is fast asleep. Tiptoe... don't wake it up!"],
+      ["launcher", "Sky Cannon", "Hop in! It launches you to Crystal Spire!", "crystal-spire"],
+    ],
+  },
+  {
+    id: "rainbow-rock", name: "Rainbow Rock", kind: "garden", x: -124, z: 66, y: 78, r: 11, tr: [-2.2, 0.45], fallA: 2.6, amp: 0.45, seed: 127,
+    spots: [
+      ["garden", "Rainbow Flowers", "Every flower is a different colour of the rainbow!"],
+      ["swing", "Rainbow Swing", "Swing high! Your toes can touch the clouds."],
+    ],
+  },
+  {
+    id: "cloud-hop", name: "Cloud Hop", kind: "meadow", x: 88, z: 162, y: 68, r: 11, tr: [2.5, 0.45], fallA: -2.4, amp: 0.5, seed: 131,
+    spots: [
+      ["treehouse", "Cloud Hop Treehouse", "Climb up! There's a comfy lookout nest in the branches."],
+      ["launcher", "Bouncy Mushroom", "Boing! Bounce all the way to the Cloud Garden!", "cloud-garden"],
+    ],
+  },
+  {
+    id: "windy-knoll", name: "Windy Knoll", kind: "meadow", x: 158, z: 12, y: 82, r: 11, tr: [-2.4, 0.45], fallA: 0.7, amp: 0.5, seed: 139,
+    spots: [
+      ["mushroomring", "Whistling Mushrooms", "The wind whistles tunes through these giant mushrooms!"],
+      ["lookout", "Windy Lookout", "Hold on to your hat! You can see the sea from here."],
+    ],
+  },
+];
+
+/** rope bridges between close islands (island ids) */
+const BRIDGE_PAIRS: [string, string][] = [
+  ["thunder-peak", "lantern-isle"],
+  ["thunder-peak", "puffball-isle"],
+  ["cloudtop", "rainbow-rock"],
+  ["rainbow-rock", "sunset-ruins"],
+  ["dragons-crown", "cloud-hop"],
+  ["eagle-rock", "windy-knoll"],
+];
+
+/** park places that move up onto the big mountains: [placeId, island, pad radius] */
+const PAD_DEFS: [string, string, number][] = [
+  ["arcade", "thunder-peak", 6],
+  ["retro-arcade", "eagle-rock", 5.5],
+  ["story-theatre", "dragons-crown", 6],
+  ["library", "cloudtop", 6],
+  ["learning-tree", "cloudtop", 4],
 ];
 
 // ── tiny deterministic noise (same family as terrain.ts) ──
@@ -111,6 +240,13 @@ function rng(seed: number) {
     s ^= s << 5;
     return (s >>> 0) / 4294967296;
   };
+}
+function distToSeg(px: number, pz: number, ax: number, az: number, bx: number, bz: number) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const L = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L));
+  return Math.hypot(px - ax - dx * t, pz - az - dz * t);
 }
 
 // ── build the islands ──
@@ -178,8 +314,262 @@ export function skyIslandById(id: string): SkyIsland | undefined {
   return ISL_OF.get(id);
 }
 
-/** the top's heightfield at a grid node (island-local grid indices), relative to island.y */
-function nodeH(isl: SkyIsland, i: number, j: number): number {
+/** where the waterfall's top stream runs: spring → the lip (world x/z) */
+export function skyStreamEnd(s: SkyIsland): { x: number; z: number } {
+  return { x: s.x + Math.sin(s.fall) * (s.r + SKY_LIP), z: s.z + Math.cos(s.fall) * (s.r + SKY_LIP) };
+}
+
+// ── rope bridges ──
+export interface SkyBridge {
+  id: string;
+  /** island ids at each end */
+  a: string;
+  b: string;
+  /** deck end points (world x/z), each 1 m inside its island's walkable rim */
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  /** walkable half-width of the deck (m) */
+  half: number;
+  /** how far the middle of the deck droops (m) */
+  sag: number;
+}
+
+export const SKY_BRIDGES: SkyBridge[] = BRIDGE_PAIRS.map(([ia, ib]) => {
+  const a = ISL_OF.get(ia)!;
+  const b = ISL_OF.get(ib)!;
+  const L = Math.hypot(b.x - a.x, b.z - a.z);
+  const ux = (b.x - a.x) / L;
+  const uz = (b.z - a.z) / L;
+  const len = L - a.r - b.r + 2;
+  return { id: `${ia}~${ib}`, a: ia, b: ib, ax: a.x + ux * (a.r - 1), az: a.z + uz * (a.r - 1), bx: b.x - ux * (b.r - 1), bz: b.z - uz * (b.r - 1), half: 1.0, sag: Math.min(1.2, len * 0.045) };
+});
+
+/** a bridge's deck height at t (0 = end a .. 1 = end b), time `time` (both ends' bob blended) */
+export function skyBridgeY(br: SkyBridge, u: number, time: number): number {
+  const a = ISL_OF.get(br.a)!;
+  const b = ISL_OF.get(br.b)!;
+  const ya = skyBaseY(a, br.ax, br.az) + skyBob(a.id, time);
+  const yb = skyBaseY(b, br.bx, br.bz) + skyBob(b.id, time);
+  return ya + (yb - ya) * u - br.sag * 4 * u * (1 - u);
+}
+
+/** is (x, z) on a bridge deck? → the bridge and where along it (u 0..1) */
+export function skyBridgeAt(x: number, z: number): { bridge: SkyBridge; u: number } | null {
+  for (const br of SKY_BRIDGES) {
+    const dx = br.bx - br.ax;
+    const dz = br.bz - br.az;
+    const L2 = dx * dx + dz * dz;
+    const u = ((x - br.ax) * dx + (z - br.az) * dz) / L2;
+    if (u < 0 || u > 1) continue;
+    const side = Math.abs((x - br.ax) * dz - (z - br.az) * dx) / Math.sqrt(L2);
+    if (side <= br.half) return { bridge: br, u };
+  }
+  return null;
+}
+
+// ── reserved room on each top (the renderer and tests read these too) ──
+interface Room {
+  x: number;
+  z: number;
+  r: number;
+}
+/** a bridge's head on an island: the patch of meadow just inside its end */
+function bridgeHeads(s: SkyIsland): Room[] {
+  const out: Room[] = [];
+  for (const br of SKY_BRIDGES) {
+    if (br.a !== s.id && br.b !== s.id) continue;
+    const [ex, ez] = br.a === s.id ? [br.ax, br.az] : [br.bx, br.bz];
+    const k = (s.r - 3.2) / (s.r - 1);
+    out.push({ x: s.x + (ex - s.x) * k, z: s.z + (ez - s.z) * k, r: 3 });
+    out.push({ x: ex, z: ez, r: 2 });
+  }
+  return out;
+}
+
+/** ruins: the great broken arch over the chest and the altar behind it (fixed by treasure + landing) */
+function ruinsCentre(s: SkyIsland): { arch: { x: number; z: number; rot: number }; altar: { x: number; z: number; rot: number } } | null {
+  if (s.kind !== "ruins") return null;
+  const a = Math.atan2(s.treasure.x - s.landing.x, s.treasure.z - s.landing.z);
+  return {
+    arch: { x: s.treasure.x + Math.sin(a) * 1.2, z: s.treasure.z + Math.cos(a) * 1.2, rot: a },
+    altar: { x: s.treasure.x + Math.sin(a) * 4.4, z: s.treasure.z + Math.cos(a) * 4.4, rot: a },
+  };
+}
+
+// ── things to discover ──
+export interface SkySpot {
+  id: string;
+  island: string;
+  kind: SpotKind;
+  name: string;
+  text: string;
+  /** world x/z of the feature's centre (always on walkable ground) */
+  x: number;
+  z: number;
+  /** discovery radius: stand within r of (x, z) */
+  r: number;
+  /** the island a telescope looks at / a launcher sends you to */
+  target?: string;
+  /** which way it faces (yaw; local +z points to (sin rot, cos rot)) */
+  rot: number;
+}
+
+const SPOT_R: Record<SpotKind, number> = { cave: 4.5, nest: 4.2, stones: 5.2, telescope: 2.6, launcher: 1.7, hotspring: 2.8, bell: 2.8, swing: 3.4, garden: 3.8, lookout: 3.2, shrine: 3, treehouse: 3.6, cloudling: 3.6, mushroomring: 3.6 };
+/** the footprint a spot needs clear round it (m) */
+const SPOT_ROOM: Record<SpotKind, number> = { cave: 4.6, nest: 3.1, stones: 4.4, telescope: 1.7, launcher: 2, hotspring: 2.9, bell: 2.1, swing: 2.6, garden: 3.3, lookout: 2.7, shrine: 1.9, treehouse: 3.1, cloudling: 2.2, mushroomring: 3.5 };
+/** spots that live out at the rim, facing out over the edge */
+const EDGE_IN: Partial<Record<SpotKind, number>> = { swing: 1.9, lookout: 2.4, telescope: 2.2, launcher: 2.6 };
+
+export interface SkyPad {
+  placeId: string;
+  island: string;
+  x: number;
+  z: number;
+  r: number;
+  /** yaw the building's door faces (towards the island's landing spot) */
+  face: number;
+}
+
+/** plan one island's pads + spots (deterministic) */
+function planIsland(s: SkyIsland): { pads: SkyPad[]; spots: SkySpot[] } {
+  const d = DEF_OF.get(s.id)!;
+  const r = rng(s.seed * 3301 + 17);
+  const end = skyStreamEnd(s);
+  const heads = bridgeHeads(s);
+  const ruins = ruinsCentre(s);
+  const pads: SkyPad[] = [];
+  const spots: SkySpot[] = [];
+  const dCentre = (x: number, z: number) => Math.hypot(x - s.x, z - s.z);
+  const clearOf = (x: number, z: number, need: number) => {
+    if (s.peak && Math.hypot(x - s.peak.x, z - s.peak.z) < s.peak.r + need + 0.6) return false;
+    if (Math.hypot(x - s.treasure.x, z - s.treasure.z) < need + 2.4) return false;
+    if (Math.hypot(x - s.landing.x, z - s.landing.z) < need + 3.4) return false;
+    if (distToSeg(x, z, s.spring.x, s.spring.z, end.x, end.z) < need + 1.3) return false;
+    if (distToSeg(x, z, s.landing.x, s.landing.z, s.treasure.x, s.treasure.z) < need * 0.8 + 0.9) return false;
+    for (const h of heads) if (Math.hypot(x - h.x, z - h.z) < h.r + need) return false;
+    if (ruins && (Math.hypot(x - ruins.arch.x, z - ruins.arch.z) < 4.2 + need || Math.hypot(x - ruins.altar.x, z - ruins.altar.z) < 2.6 + need)) return false;
+    for (const p of pads) if (Math.hypot(x - p.x, z - p.z) < p.r + need + 1.8) return false;
+    for (const o of spots) if (Math.hypot(x - o.x, z - o.z) < SPOT_ROOM[o.kind] + need + 0.8) return false;
+    return true;
+  };
+  const defs = d.spots.map((sd, k) => ({ sd, k }));
+  const placeSpot = ({ sd: [kind, name, text, target], k }: { sd: SpotDef; k: number }) => {
+    const need = SPOT_ROOM[kind];
+    const id = `${s.id}:${kind}${defs.filter((o) => o.sd[0] === kind && o.k < k).length || ""}`;
+    const push = (x: number, z: number, rot: number) => spots.push({ id, island: s.id, kind, name, text, x, z, r: SPOT_R[kind], target, rot });
+    if (kind === "cave" && s.peak) {
+      // a grotto set into the foot of the peak, its mouth facing the meadow
+      const toMid = Math.atan2(s.x - s.peak.x, s.z - s.peak.z);
+      for (const da of [-0.9, 0.9, -0.5, 0.5, -1.3, 1.3, 0, -1.7, 1.7]) {
+        const a = toMid + da;
+        const x = s.peak.x + Math.sin(a) * (s.peak.r + 3.4);
+        const z = s.peak.z + Math.cos(a) * (s.peak.r + 3.4);
+        if (dCentre(x, z) > s.r - 5) continue;
+        if (Math.hypot(x - s.treasure.x, z - s.treasure.z) < 6) continue;
+        if (Math.hypot(x - s.spring.x, z - s.spring.z) < 5.5) continue;
+        if (distToSeg(x, z, s.spring.x, s.spring.z, end.x, end.z) < 4) continue;
+        return push(x, z, a);
+      }
+      throw new Error(`sky islands: no room for a cave on ${s.id}`);
+    }
+    const edge = EDGE_IN[kind];
+    const aim = target ? Math.atan2(ISL_OF.get(target)!.x - s.x, ISL_OF.get(target)!.z - s.z) : r() * Math.PI * 2;
+    for (let tries = 0; tries < 900; tries++) {
+      let x: number;
+      let z: number;
+      let rot: number;
+      if (edge !== undefined) {
+        // out at the rim; aimed spots start from the direction of their target
+        const a = aim + (tries === 0 ? 0 : (tries % 2 ? 1 : -1) * Math.ceil(tries / 2) * 0.09);
+        const dd = s.r - edge;
+        x = s.x + Math.sin(a) * dd;
+        z = s.z + Math.cos(a) * dd;
+        rot = target ? Math.atan2(ISL_OF.get(target)!.x - x, ISL_OF.get(target)!.z - z) : a;
+        if (!clearOf(x, z, need * 0.8)) continue;
+      } else {
+        const a = r() * Math.PI * 2;
+        const dd = Math.sqrt(0.04 + r() * 0.96) * (s.r - need - 1);
+        x = s.x + Math.sin(a) * dd;
+        z = s.z + Math.cos(a) * dd;
+        rot = Math.atan2(s.landing.x - x, s.landing.z - z);
+        if (dCentre(x, z) + need > s.r - 0.6) continue;
+        if (!clearOf(x, z, need)) continue;
+      }
+      return push(x, z, rot);
+    }
+    throw new Error(`sky islands: no room for ${kind} on ${s.id}`);
+  };
+  // caves first (they're fixed to the peak), then the building pads, then everything else
+  for (const def of defs) if (def.sd[0] === "cave") placeSpot(def);
+  for (const [placeId, isl, pr] of PAD_DEFS) {
+    if (isl !== s.id) continue;
+    const pa = s.peak ? Math.atan2(s.peak.x - s.x, s.peak.z - s.z) : 0;
+    let done = false;
+    for (const f of [0.5, 0.42, 0.6, 0.34, 0.68, 0.26]) {
+      for (let k = 0; k < 36 && !done; k++) {
+        const a = pa + Math.PI + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.17;
+        const dd = s.r * f;
+        const x = s.x + Math.sin(a) * dd;
+        const z = s.z + Math.cos(a) * dd;
+        if (dd + pr > s.r - 2.5) continue;
+        if (!clearOf(x, z, pr + 0.6)) continue;
+        if (Math.hypot(x - s.landing.x, z - s.landing.z) < pr + 5.5) continue;
+        pads.push({ placeId, island: s.id, x, z, r: pr, face: Math.atan2(s.landing.x - x, s.landing.z - z) });
+        done = true;
+      }
+      if (done) break;
+    }
+    if (!done) throw new Error(`sky islands: no room for the ${placeId} pad on ${s.id}`);
+  }
+  for (const def of defs) if (def.sd[0] !== "cave") placeSpot(def);
+  return { pads, spots };
+}
+
+const PLANNED = SKY_ISLANDS.map(planIsland);
+
+/** flat, clear, walkable building pads on the big mountains (the engine puts park places here) */
+export const SKY_PADS: SkyPad[] = PLANNED.flatMap((p) => p.pads);
+/** the things to discover on the tops */
+export const SKY_SPOTS: SkySpot[] = PLANNED.flatMap((p) => p.spots);
+
+// ── rune stones: 5 round each "stones" altar; each lights when stood on ──
+export interface RuneStone {
+  spot: string;
+  i: number;
+  x: number;
+  z: number;
+  r: number;
+}
+export const RUNE_STONE_RING = 3.3;
+export const SKY_RUNE_STONES: RuneStone[] = SKY_SPOTS.filter((s) => s.kind === "stones").flatMap((s) =>
+  Array.from({ length: 5 }, (_, i) => {
+    const a = s.rot + (i / 5) * Math.PI * 2 + Math.PI / 5;
+    return { spot: s.id, i, x: s.x + Math.sin(a) * RUNE_STONE_RING, z: s.z + Math.cos(a) * RUNE_STONE_RING, r: 0.85 };
+  }),
+);
+/** the rune stone under (x, z), if any */
+export function runeStoneAt(x: number, z: number): RuneStone | null {
+  for (const st of SKY_RUNE_STONES) if ((x - st.x) ** 2 + (z - st.z) ** 2 <= st.r * st.r) return st;
+  return null;
+}
+/** how many of a rune circle's stones are lit, given the stones stood on (keys `${spot}#${i}`) */
+export function stonesLit(spotId: string, visited: Iterable<string>): { lit: number; total: number; done: boolean } {
+  const total = SKY_RUNE_STONES.filter((s) => s.spot === spotId).length;
+  let lit = 0;
+  for (const k of new Set(visited)) if (k.startsWith(`${spotId}#`)) lit++;
+  return { lit, total, done: total > 0 && lit >= total };
+}
+
+// ── the heightfield (flattened under pads, hot springs and rune circles) ──
+interface Flat {
+  x: number;
+  z: number;
+  r: number;
+  h: number;
+}
+function rawNodeH(isl: SkyIsland, i: number, j: number): number {
   const d = DEF_OF.get(isl.id)!;
   const lx = i * SKY_GRID;
   const lz = j * SKY_GRID;
@@ -195,6 +585,54 @@ function nodeH(isl: SkyIsland, i: number, j: number): number {
     const dp = Math.hypot(isl.x + lx - isl.peak.x, isl.z + lz - isl.peak.z);
     h += (1 - smooth(isl.peak.r * 0.8, isl.peak.r * 2.1, dp)) * 2.2;
   }
+  return h;
+}
+function triInterp(f: (i: number, j: number) => number, lx: number, lz: number): number {
+  const gx = lx / SKY_GRID;
+  const gz = lz / SKY_GRID;
+  const i = Math.floor(gx);
+  const j = Math.floor(gz);
+  const fx = gx - i;
+  const fz = gz - j;
+  if (fx + fz <= 1) {
+    const h00 = f(i, j);
+    return h00 + (f(i + 1, j) - h00) * fx + (f(i, j + 1) - h00) * fz;
+  }
+  const h11 = f(i + 1, j + 1);
+  return h11 + (f(i, j + 1) - h11) * (1 - fx) + (f(i + 1, j) - h11) * (1 - fz);
+}
+/** flat until r + FLAT_FULL (so every grid triangle over the disc is flat), blending out by r + FLAT_OUT */
+const FLAT_FULL = SKY_GRID * 1.5;
+const FLAT_OUT = SKY_GRID * 1.5 + 5.5;
+const FLATS = new Map<string, Flat[]>(
+  SKY_ISLANDS.map((s) => {
+    const list: { x: number; z: number; r: number }[] = [
+      ...SKY_PADS.filter((p) => p.island === s.id),
+      ...SKY_SPOTS.filter((p) => p.island === s.id && (p.kind === "hotspring" || p.kind === "stones")).map((p) => ({ x: p.x, z: p.z, r: p.kind === "stones" ? RUNE_STONE_RING + 1 : 2.4 })),
+    ];
+    const flats = list.map((f) => ({ ...f, h: triInterp((i, j) => rawNodeH(s, i, j), f.x - s.x, f.z - s.z) }));
+    // flats close enough to share grid nodes share one height (so each stays exactly flat)
+    for (let pass = 0; pass < 3; pass++)
+      for (const a of flats)
+        for (const b of flats) if (a !== b && Math.hypot(a.x - b.x, a.z - b.z) < a.r + b.r + FLAT_FULL * 2 + 0.5) b.h = a.h = Math.min(a.h, b.h);
+    return [s.id, flats];
+  }),
+);
+
+/** the top's heightfield at a grid node (island-local grid indices), relative to island.y */
+function nodeH(isl: SkyIsland, i: number, j: number): number {
+  let h = rawNodeH(isl, i, j);
+  let best = 0;
+  let target = h;
+  for (const f of FLATS.get(isl.id) ?? []) {
+    const d = Math.hypot(isl.x + i * SKY_GRID - f.x, isl.z + j * SKY_GRID - f.z);
+    const w = 1 - smooth(f.r + FLAT_FULL, f.r + FLAT_OUT, d);
+    if (w > best) {
+      best = w;
+      target = f.h;
+    }
+  }
+  h += (target - h) * best;
   return h;
 }
 
@@ -215,18 +653,7 @@ function nodeHC(isl: SkyIsland, i: number, j: number): number {
  * (i+1, j)–(i, j+1) diagonal. The renderer builds the grass on exactly these triangles.
  */
 export function skyLocalHeight(isl: SkyIsland, lx: number, lz: number): number {
-  const gx = lx / SKY_GRID;
-  const gz = lz / SKY_GRID;
-  const i = Math.floor(gx);
-  const j = Math.floor(gz);
-  const fx = gx - i;
-  const fz = gz - j;
-  if (fx + fz <= 1) {
-    const h00 = nodeHC(isl, i, j);
-    return h00 + (nodeHC(isl, i + 1, j) - h00) * fx + (nodeHC(isl, i, j + 1) - h00) * fz;
-  }
-  const h11 = nodeHC(isl, i + 1, j + 1);
-  return h11 + (nodeHC(isl, i, j + 1) - h11) * (1 - fx) + (nodeHC(isl, i + 1, j) - h11) * (1 - fz);
+  return triInterp((i, j) => nodeHC(isl, i, j), lx, lz);
 }
 
 /** height of a grid node (for the renderer) */
@@ -260,11 +687,17 @@ export function skyBaseY(s: SkyIsland, x: number, z: number): number {
 }
 
 /** walkable surface height at (x, z) at time t (includes the gentle bob), or null if (x, z) is
- *  not over a walkable top (off every island, or on a peak) */
-export function skyTopY(x: number, z: number, t: number): { y: number; id: string } | null {
+ *  not over a walkable top (off every island and bridge, or on a peak). On a rope bridge `id` is
+ *  the island at the nearer end and `bridge` the bridge's id. */
+export function skyTopY(x: number, z: number, t: number): { y: number; id: string; bridge?: string } | null {
   const s = skyIslandAt(x, z);
-  if (!s || !skyWalkable(s, x, z)) return null;
-  return { y: skyBaseY(s, x, z) + skyBob(s.id, t), id: s.id };
+  if (s) {
+    if (!skyWalkable(s, x, z)) return null;
+    return { y: skyBaseY(s, x, z) + skyBob(s.id, t), id: s.id };
+  }
+  const on = skyBridgeAt(x, z);
+  if (!on) return null;
+  return { y: skyBridgeY(on.bridge, on.u, t), id: on.u < 0.5 ? on.bridge.a : on.bridge.b, bridge: on.bridge.id };
 }
 
 // ── what stands on the tops ──
@@ -292,41 +725,85 @@ const TREE_S: Partial<Record<SkyPropKind, [number, number]>> = { pine: [0.5, 0.7
 type Recipe = [SkyPropKind, number][];
 const RECIPES: Record<SkyIslandKind, (s: SkyIsland) => Recipe> = {
   mountain: (s) => [
-    ["pine", Math.round(s.r * 0.62)],
+    ["pine", Math.round(s.r * 0.55)],
     ["round", 2],
     ["birch", s.r > 25 ? 2 : 1],
-    ["bush", Math.round(s.r * 0.18)],
-    ["rock", Math.round(s.r * 0.22)],
+    ["bush", Math.round(s.r * 0.16)],
+    ["rock", Math.round(s.r * 0.2)],
     ["flowers", Math.round(s.r * 0.2)],
     ["mushroom", 3],
     ["sign", 1],
   ],
-  meadow: () => [["round", 2], ["birch", 2], ["bush", 3], ["rock", 2], ["flowers", 7], ["mushroom", 3], ["sign", 1]],
+  meadow: () => [["round", 2], ["birch", 1], ["bush", 3], ["rock", 2], ["flowers", 6], ["mushroom", 2], ["sign", 1]],
   ruins: () => [["blossom", 1], ["round", 1], ["pillar", 2], ["broken", 3], ["rock", 3], ["bush", 2], ["flowers", 3]],
-  crystal: () => [["shrine", 1], ["crystal", 6], ["pine", 3], ["rock", 3], ["flowers", 2]],
-  garden: () => [["shrine", 1], ["blossom", 3], ["bush", 5], ["flowers", 9], ["mushroom", 2], ["lantern", 4]],
+  crystal: () => [["crystal", 5], ["pine", 2], ["rock", 3], ["flowers", 2]],
+  garden: () => [["blossom", 3], ["bush", 4], ["flowers", 8], ["mushroom", 2], ["lantern", 4]],
 };
 
-function distToSeg(px: number, pz: number, ax: number, az: number, bx: number, bz: number) {
-  const dx = bx - ax;
-  const dz = bz - az;
-  const L = dx * dx + dz * dz || 1;
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L));
-  return Math.hypot(px - ax - dx * t, pz - az - dz * t);
-}
-
-/** where the waterfall's top stream runs: spring → the lip (world x/z) */
-export function skyStreamEnd(s: SkyIsland): { x: number; z: number } {
-  return { x: s.x + Math.sin(s.fall) * (s.r + SKY_LIP), z: s.z + Math.cos(s.fall) * (s.r + SKY_LIP) };
+/** round obstacles of a discovery (world x/z) */
+function spotObstacles(sp: SkySpot): { x: number; z: number; r: number }[] {
+  const at = (lx: number, lz: number, r: number) => ({ x: sp.x + lx * Math.cos(sp.rot) + lz * Math.sin(sp.rot), z: sp.z - lx * Math.sin(sp.rot) + lz * Math.cos(sp.rot), r });
+  switch (sp.kind) {
+    case "cave": {
+      // the grotto's rocky shell round the back and sides (its mouth faces local +z)
+      const out = [];
+      for (let k = 0; k < 9; k++) {
+        const a = Math.PI * 0.34 + (k / 8) * Math.PI * 1.32;
+        out.push(at(Math.sin(a) * 3.9, Math.cos(a) * 3.9, 0.9));
+      }
+      return out;
+    }
+    case "nest":
+      return [at(0, 0, 2.0)];
+    case "stones":
+      return [at(0, 0, 1.1)];
+    case "launcher":
+      // the sky cannon behind its launch pad
+      return sp.name.includes("Cannon") ? [at(0, -2.4, 0.9)] : [];
+    case "telescope":
+      return [at(0, 0, 0.45)];
+    case "bell":
+      return [at(-1.35, 0, 0.3), at(1.35, 0, 0.3)];
+    case "swing":
+      return [at(0, -0.6, 0.9)];
+    case "lookout": {
+      const out = [];
+      for (let k = 0; k < 7; k++) {
+        const a = -1.1 + (k / 6) * 2.2;
+        out.push(at(Math.sin(a) * 2.3, Math.cos(a) * 2.3, 0.28));
+      }
+      return out;
+    }
+    case "shrine":
+      return [at(0, -0.4, 1.1)];
+    case "treehouse":
+      return [at(0, -0.8, 1.1)];
+    case "cloudling":
+      return [at(0, 0, 1.4)];
+    case "mushroomring": {
+      const out = [];
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2;
+        out.push(at(Math.sin(a) * 2.9, Math.cos(a) * 2.9, 0.45));
+      }
+      return out;
+    }
+    default:
+      return [];
+  }
 }
 
 function planProps(s: SkyIsland): SkyProp[] {
   const r = rng(s.seed * 7717 + 3);
   const out: SkyProp[] = [];
-  const room: { x: number; z: number; r: number }[] = [
+  const room: Room[] = [
     { x: s.treasure.x, z: s.treasure.z, r: 2.6 },
     { x: s.landing.x, z: s.landing.z, r: s.r > 15 ? 5 : 3.4 },
+    ...bridgeHeads(s),
+    ...SKY_PADS.filter((p) => p.island === s.id).map((p) => ({ x: p.x, z: p.z, r: p.r + 1.2 })),
+    ...SKY_SPOTS.filter((p) => p.island === s.id).map((p) => ({ x: p.x, z: p.z, r: SPOT_ROOM[p.kind] + 0.4 })),
   ];
+  const pads = SKY_PADS.filter((p) => p.island === s.id);
   const put = (kind: SkyPropKind, x: number, z: number, sz: number, rot: number) => {
     out.push({ island: s.id, kind, x, z, s: sz, rot });
     room.push({ x, z, r: PROP_ROOM[kind] * (IS_TREE.has(kind) ? sz * 1.3 : kind === "rock" || kind === "crystal" ? sz : 1) });
@@ -337,23 +814,22 @@ function planProps(s: SkyIsland): SkyProp[] {
     if (Math.hypot(x - s.x, z - s.z) > s.r - edgePad) return false;
     if (s.peak && Math.hypot(x - s.peak.x, z - s.peak.z) < s.peak.r + 0.8 + need * 0.5) return false;
     if (distToSeg(x, z, s.spring.x, s.spring.z, end.x, end.z) < 1.6 + need * 0.6) return false;
-    // keep the stepping-stone path from the landing spot to the treasure clear
+    // keep the stepping-stone paths (landing → treasure, pad doors → landing) clear
     if (!byLanding && distToSeg(x, z, s.landing.x, s.landing.z, s.treasure.x, s.treasure.z) < 1.3 + need * 0.6) return false;
+    for (const p of pads) if (distToSeg(x, z, p.x, p.z, s.landing.x, s.landing.z) < 1.6 + need * 0.6) return false;
     for (const o of room) if (!(byLanding && o === room[1]) && Math.hypot(o.x - x, o.z - z) < o.r + need) return false;
     return true;
   };
   // ruins: a great broken arch in the middle and an altar under it (the treasure is by the altar)
-  if (s.kind === "ruins") {
+  const ruins = ruinsCentre(s);
+  if (ruins) {
     // the chest waits under the arch, in front of the altar; you land facing them
-    const a = Math.atan2(s.treasure.x - s.landing.x, s.treasure.z - s.landing.z);
-    const ax = s.treasure.x + Math.sin(a) * 1.2;
-    const az = s.treasure.z + Math.cos(a) * 1.2;
-    out.push({ island: s.id, kind: "arch", x: ax, z: az, s: 0.9, rot: a });
-    room.push({ x: ax, z: az, r: 3.6 });
-    put("altar", s.treasure.x + Math.sin(a) * 4.4, s.treasure.z + Math.cos(a) * 4.4, 0.8, a);
+    out.push({ island: s.id, kind: "arch", x: ruins.arch.x, z: ruins.arch.z, s: 0.9, rot: ruins.arch.rot });
+    room.push({ x: ruins.arch.x, z: ruins.arch.z, r: 3.6 });
+    put("altar", ruins.altar.x, ruins.altar.z, 0.8, ruins.altar.rot);
   }
   // crystal: one great crystal in the middle
-  if (s.kind === "crystal") put("crystal", s.x, s.z, 2.3, r() * 6);
+  if (s.kind === "crystal" && ok(s.x, s.z, 1.2, 2)) put("crystal", s.x, s.z, 2.3, r() * 6);
   for (const [kind, n] of RECIPES[s.kind](s)) {
     for (let k = 0, tries = 0; k < n && tries < 600; tries++) {
       const a = r() * Math.PI * 2;
@@ -365,9 +841,9 @@ function planProps(s: SkyIsland): SkyProp[] {
         x = s.landing.x + Math.sin(b) * 3.2;
         z = s.landing.z + Math.cos(b) * 3.2;
       } else if (kind === "lantern") {
-        const b = (k / n) * Math.PI * 2 + 0.4;
-        x = s.x + Math.sin(b) * s.r * 0.55;
-        z = s.z + Math.cos(b) * s.r * 0.55;
+        const b = r() * Math.PI * 2;
+        x = s.x + Math.sin(b) * s.r * (0.4 + r() * 0.4);
+        z = s.z + Math.cos(b) * s.r * (0.4 + r() * 0.4);
       } else if (s.peak && (kind === "pine" || kind === "rock") && r() < 0.55) {
         const dd = s.peak.r + 1.5 + r() * 5;
         x = s.peak.x + Math.sin(a) * dd;
@@ -392,8 +868,8 @@ function planProps(s: SkyIsland): SkyProp[] {
 /** everything standing on the tops (world x/z), for the renderer */
 export const SKY_PROPS: SkyProp[] = SKY_ISLANDS.flatMap(planProps);
 
-/** round things to walk around on the tops (trees, rocks, ruins, crystals, peaks), world x/z;
- *  `id` = the island they stand on */
+/** round things to walk around on the tops (peaks, trees, rocks, ruins, crystals, the solid
+ *  parts of the discoveries, bridge posts), world x/z; `id` = the island they stand on */
 export const SKY_OBSTACLES: { x: number; z: number; r: number; id: string }[] = [
   ...SKY_ISLANDS.filter((s) => s.peak).map((s) => ({ x: s.peak!.x, z: s.peak!.z, r: s.peak!.r, id: s.id })),
   ...SKY_PROPS.flatMap((p) => {
@@ -405,5 +881,16 @@ export const SKY_OBSTACLES: { x: number; z: number; r: number; id: string }[] = 
     if (!base) return [];
     const k = IS_TREE.has(p.kind) || p.kind === "bush" ? p.s : p.kind === "rock" || p.kind === "crystal" ? p.s : 1;
     return [{ x: p.x, z: p.z, r: Math.max(0.3, base * k), id: p.island }];
+  }),
+  ...SKY_SPOTS.flatMap((sp) => spotObstacles(sp).map((o) => ({ ...o, id: sp.island }))),
+  // the rope bridges' end posts, either side of the deck
+  ...SKY_BRIDGES.flatMap((br) => {
+    const L = Math.hypot(br.bx - br.ax, br.bz - br.az);
+    const px = -(br.bz - br.az) / L;
+    const pz = (br.bx - br.ax) / L;
+    return [
+      [br.ax, br.az, br.a],
+      [br.bx, br.bz, br.b],
+    ].flatMap(([x, z, id]) => [1, -1].map((sd) => ({ x: (x as number) + px * sd * (br.half + 0.45), z: (z as number) + pz * sd * (br.half + 0.45), r: 0.3, id: id as string })));
   }),
 ];

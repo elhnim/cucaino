@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { SKY_ISLANDS, skyLocalHeight } from "../../registry/skyIslands";
+import { SKY_ISLANDS, SKY_RUNE_STONES, SKY_SPOTS, skyLocalHeight, skyTopY } from "../../registry/skyIslands";
 import { buildSkyIslands, buildTop } from "./sky";
 import { makeUniforms } from "./shaders";
 import { ringCourse } from "../quests3d";
@@ -29,6 +29,31 @@ describe("sky island meshes", () => {
     }
   });
 
+  it("lights rune stones as the kid stands on them, and solves the circle when all are lit", () => {
+    const sky = buildSkyIslands(makeUniforms(), { lowQuality: true });
+    const c = SKY_SPOTS.find((s) => s.kind === "stones")!;
+    const stones = SKY_RUNE_STONES.filter((s) => s.spot === c.id);
+    sky.update(1);
+    // flying over a stone doesn't count
+    sky.setKid(stones[0].x, skyTopY(stones[0].x, stones[0].z, 1)!.y + 8, stones[0].z);
+    expect(sky.puzzleState().find((p) => p.id === c.id)).toEqual({ id: c.id, lit: 0, total: 5, done: false });
+    for (const st of stones.slice(0, 3)) sky.setKid(st.x, skyTopY(st.x, st.z, 1)!.y, st.z);
+    expect(sky.puzzleState().find((p) => p.id === c.id)!.lit).toBe(3);
+    // wander away: an unfinished circle goes back to sleep
+    sky.setKid(c.x + 60, 0, c.z);
+    expect(sky.puzzleState().find((p) => p.id === c.id)!.lit).toBe(0);
+    for (const st of stones) sky.setKid(st.x, skyTopY(st.x, st.z, 1)!.y, st.z);
+    expect(sky.puzzleState().find((p) => p.id === c.id)!.done).toBe(true);
+    sky.setKid(c.x + 60, 0, c.z);
+    expect(sky.puzzleState().find((p) => p.id === c.id)!.done).toBe(true);
+    // a circle solved on another day comes back solved
+    const other = SKY_SPOTS.filter((s) => s.kind === "stones")[1];
+    sky.setSpotsFound([other.id]);
+    expect(sky.puzzleState().find((p) => p.id === other.id)!.done).toBe(true);
+    sky.update(2);
+    sky.dispose();
+  });
+
   it("keeps the Sky Rings course clear of the islands", () => {
     for (const ring of ringCourse())
       for (const s of SKY_ISLANDS)
@@ -39,9 +64,21 @@ describe("sky island meshes", () => {
     const std = buildSkyIslands(makeUniforms(), {});
     const low = buildSkyIslands(makeUniforms(), { lowQuality: true });
     // the old 4 small islands were ~17k triangles; the budget is +120k
-    expect(std.triangles).toBeLessThan(137000);
+    expect(std.triangles).toBeLessThan(236000); // was ~117k before the discoveries; budget +120k
     expect(low.triangles).toBeLessThan(std.triangles * 0.75);
-    expect(std.chests.length).toBe(3);
+    // sane vertex colours (a shared colour mutated in place once blew the tops out to white)
+    for (const m of [std.mesh, low.mesh]) {
+      const c = m.geometry.attributes.color.array as Float32Array;
+      let hi = 0;
+      for (let i = 0; i < c.length; i++) hi = Math.max(hi, c[i]);
+      expect(hi).toBeLessThan(1.5);
+      expect(Number.isFinite(hi)).toBe(true);
+    }
+    // chests (3) + the discoveries' moving parts: at most +8 draw calls
+    expect(std.chests.length).toBeGreaterThanOrEqual(3);
+    expect(std.chests.length).toBeLessThanOrEqual(11);
+    std.setKid(0, 0, 0);
+    expect(std.puzzleState().length).toBeGreaterThanOrEqual(2);
     std.setOpened([SKY_ISLANDS[0].id]);
     std.update(1);
     std.update(2);

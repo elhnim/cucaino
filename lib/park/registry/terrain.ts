@@ -143,7 +143,7 @@ function bake(): Float32Array {
     landH[l.id] = h;
     stamp(l.x, l.z, l.radius + 1, l.radius + 10, h);
   }
-  for (const p of PLACES) stamp(p.x, p.z, p.radius + 2, p.radius + 7, landH[p.land] ?? 0);
+  for (const p of PLACES) if (!p.sky) stamp(p.x, p.z, p.radius + 2, p.radius + 7, landH[p.land] ?? 0);
   stamp(0, 0, 13, 24, 0);
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);

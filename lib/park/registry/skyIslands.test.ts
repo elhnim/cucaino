@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { SKY_GRID, SKY_ISLANDS, SKY_OBSTACLES, SKY_PROPS, skyBaseY, skyBob, skyIslandAt, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, skyWalkable } from "./skyIslands";
+import { RUNE_STONE_RING, SKY_BRIDGES, SKY_GRID, SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyBob, skyBridgeY, skyIslandAt, skyIslandById, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, skyWalkable, stonesLit } from "./skyIslands";
 import { groundY } from "./terrain";
 import { skyLoopXZ, SKY_LOOP_N, PLACES } from "./places";
 
 const hyp = Math.hypot;
 
 describe("sky islands registry", () => {
-  it("has 8–10 islands with unique ids, including several big floating mountains", () => {
-    expect(SKY_ISLANDS.length).toBeGreaterThanOrEqual(8);
-    expect(SKY_ISLANDS.length).toBeLessThanOrEqual(10);
+  it("has ~14 islands with unique ids, including several big floating mountains", () => {
+    expect(SKY_ISLANDS.length).toBeGreaterThanOrEqual(12);
+    expect(SKY_ISLANDS.length).toBeLessThanOrEqual(15);
     expect(new Set(SKY_ISLANDS.map((s) => s.id)).size).toBe(SKY_ISLANDS.length);
     const mountains = SKY_ISLANDS.filter((s) => s.kind === "mountain");
     expect(mountains.length).toBeGreaterThanOrEqual(3);
@@ -155,10 +155,138 @@ describe("sky islands registry", () => {
     for (const s of SKY_ISLANDS) {
       expect(SKY_PROPS.filter((p) => p.island === s.id).length, s.id).toBeGreaterThanOrEqual(6);
       expect(SKY_OBSTACLES.filter((o) => o.id === s.id).length, s.id).toBeGreaterThanOrEqual(3);
-      expect(SKY_PROPS.some((p) => p.island === s.id && (p.kind === "sign" || p.kind === "shrine" || p.kind === "altar")), s.id).toBe(true);
+      expect(SKY_PROPS.some((p) => p.island === s.id && (p.kind === "sign" || p.kind === "altar")) || SKY_SPOTS.some((p) => p.island === s.id), s.id).toBe(true);
       const end = skyStreamEnd(s);
       expect(hyp(end.x - s.x, end.z - s.z)).toBeGreaterThan(s.r);
       expect(skyTopY(s.spring.x, s.spring.z, 0)?.id, `${s.id} spring`).toBe(s.id);
+    }
+  });
+
+  it("has exactly the five building pads: flat, clear, walkable, facing the landing spot", () => {
+    const want = [
+      ["arcade", "thunder-peak"],
+      ["retro-arcade", "eagle-rock"],
+      ["story-theatre", "dragons-crown"],
+      ["library", "cloudtop"],
+      ["learning-tree", "cloudtop"],
+    ];
+    expect(SKY_PADS.map((p) => [p.placeId, p.island]).sort()).toEqual([...want].sort());
+    for (const p of SKY_PADS) {
+      const s = skyIslandById(p.island)!;
+      expect(p.r).toBeGreaterThanOrEqual(p.placeId === "learning-tree" ? 3.5 : 5);
+      const h0 = skyBaseY(s, p.x, p.z);
+      for (let k = 0; k < 60; k++) {
+        const a = k * 2.399;
+        const d = Math.sqrt((k + 0.5) / 60) * p.r;
+        const x = p.x + Math.sin(a) * d;
+        const z = p.z + Math.cos(a) * d;
+        expect(skyTopY(x, z, 0)?.id, `${p.placeId} walkable`).toBe(s.id);
+        expect(Math.abs(skyBaseY(s, x, z) - h0), `${p.placeId} flat`).toBeLessThan(1e-6);
+      }
+      for (const o of SKY_OBSTACLES) expect(hyp(o.x - p.x, o.z - p.z) - o.r, `${p.placeId} vs obstacle`).toBeGreaterThan(p.r);
+      for (const pr of SKY_PROPS) expect(hyp(pr.x - p.x, pr.z - p.z), `${p.placeId} vs ${pr.kind}`).toBeGreaterThan(p.r + 0.5);
+      expect(hyp(p.x - s.treasure.x, p.z - s.treasure.z)).toBeGreaterThan(p.r + 2);
+      expect(hyp(p.x - s.landing.x, p.z - s.landing.z)).toBeGreaterThan(p.r + 4);
+      expect(hyp(p.x - s.spring.x, p.z - s.spring.z)).toBeGreaterThan(p.r + 1);
+      if (s.peak) expect(hyp(p.x - s.peak.x, p.z - s.peak.z)).toBeGreaterThan(p.r + s.peak.r + 1);
+      expect(hyp(p.x - s.x, p.z - s.z) + p.r).toBeLessThan(s.r - 2);
+      // the door faces the landing spot
+      expect(Math.cos(p.face - Math.atan2(s.landing.x - p.x, s.landing.z - p.z))).toBeGreaterThan(0.999);
+      for (const q of SKY_PADS) if (q !== p) expect(hyp(q.x - p.x, q.z - p.z)).toBeGreaterThan(q.r + p.r + 1.5);
+    }
+  });
+
+  it("has 2–4 things to discover on every island (30+), each on walkable ground with open ground round it", () => {
+    expect(SKY_SPOTS.length).toBeGreaterThanOrEqual(30);
+    expect(new Set(SKY_SPOTS.map((s) => s.id)).size).toBe(SKY_SPOTS.length);
+    for (const s of SKY_ISLANDS) {
+      const n = SKY_SPOTS.filter((p) => p.island === s.id).length;
+      expect(n, s.id).toBeGreaterThanOrEqual(2);
+      expect(n, s.id).toBeLessThanOrEqual(4);
+    }
+    const kinds = new Set<string>(SKY_SPOTS.map((s) => s.kind));
+    for (const k of ["cave", "nest", "stones", "telescope", "launcher", "hotspring", "bell", "swing", "garden", "lookout", "shrine"]) expect(kinds.has(k), k).toBe(true);
+    for (const sp of SKY_SPOTS) {
+      expect(sp.name.length).toBeGreaterThan(3);
+      expect(sp.text.length).toBeGreaterThan(10);
+      expect(skyTopY(sp.x, sp.z, 0)?.id, sp.id).toBe(sp.island);
+      if (sp.kind === "telescope" || sp.kind === "launcher") {
+        expect(skyIslandById(sp.target!), sp.id).toBeDefined();
+        expect(sp.target).not.toBe(sp.island);
+      }
+      // somewhere inside its discovery radius you can stand (walkable and clear of obstacles)
+      let open = 0;
+      for (let k = 0; k < 40; k++) {
+        const a = k * 2.399;
+        const d = Math.sqrt((k + 0.5) / 40) * sp.r;
+        const x = sp.x + Math.sin(a) * d;
+        const z = sp.z + Math.cos(a) * d;
+        if (skyTopY(x, z, 0) && !SKY_OBSTACLES.some((o) => hyp(o.x - x, o.z - z) < o.r + 0.4)) open++;
+      }
+      expect(open, `${sp.id} has room to stand`).toBeGreaterThan(4);
+      // clear of the pads, the chest and the landing spot
+      for (const p of SKY_PADS) expect(hyp(p.x - sp.x, p.z - sp.z), sp.id).toBeGreaterThan(p.r + 1.5);
+      const s = skyIslandById(sp.island)!;
+      expect(hyp(s.treasure.x - sp.x, s.treasure.z - sp.z), sp.id).toBeGreaterThan(2.5);
+      expect(hyp(s.landing.x - sp.x, s.landing.z - sp.z), sp.id).toBeGreaterThan(3);
+    }
+    // the caves sit at the foot of their peaks
+    for (const c of SKY_SPOTS.filter((s) => s.kind === "cave")) {
+      const s = skyIslandById(c.island)!;
+      expect(s.peak).toBeDefined();
+      expect(hyp(c.x - s.peak!.x, c.z - s.peak!.z)).toBeLessThan(s.peak!.r + 4.5);
+    }
+  });
+
+  it("rune circles: five walkable stones each, clear of obstacles, and the lit-count logic", () => {
+    const circles = SKY_SPOTS.filter((s) => s.kind === "stones");
+    expect(circles.length).toBeGreaterThanOrEqual(2);
+    for (const c of circles) {
+      const stones = SKY_RUNE_STONES.filter((s) => s.spot === c.id);
+      expect(stones.length).toBe(5);
+      for (const st of stones) {
+        expect(hyp(st.x - c.x, st.z - c.z)).toBeCloseTo(RUNE_STONE_RING, 6);
+        expect(skyTopY(st.x, st.z, 0)?.id).toBe(c.island);
+        expect(runeStoneAt(st.x + 0.3, st.z)).toEqual(st);
+        for (const o of SKY_OBSTACLES) expect(hyp(o.x - st.x, o.z - st.z), `${c.id} stone ${st.i}`).toBeGreaterThan(o.r + 0.3);
+      }
+      expect(stonesLit(c.id, [])).toEqual({ lit: 0, total: 5, done: false });
+      expect(stonesLit(c.id, [`${c.id}#0`, `${c.id}#0`, `${c.id}#3`])).toEqual({ lit: 2, total: 5, done: false });
+      expect(stonesLit(c.id, stones.map((s) => `${c.id}#${s.i}`)).done).toBe(true);
+    }
+    expect(runeStoneAt(0, 0)).toBeNull();
+  });
+
+  it("rope bridges: short, gentle, walkable decks that meet both tops and clear every obstacle", () => {
+    expect(SKY_BRIDGES.length).toBeGreaterThanOrEqual(4);
+    for (const br of SKY_BRIDGES) {
+      const len = hyp(br.bx - br.ax, br.bz - br.az);
+      expect(len - 2, br.id).toBeLessThan(25);
+      const ya = skyBridgeY(br, 0, 0);
+      const yb = skyBridgeY(br, 1, 0);
+      expect(Math.abs(yb - ya) / len, `${br.id} slope`).toBeLessThan(0.4);
+      // the ends meet the grass
+      expect(ya).toBeCloseTo(skyTopY(br.ax, br.az, 0)!.y, 6);
+      expect(yb).toBeCloseTo(skyTopY(br.bx, br.bz, 0)!.y, 6);
+      // mid-deck is walkable; the bob of both ends is blended
+      for (const t of [0, 7.3]) {
+        const on = skyTopY((br.ax + br.bx) / 2, (br.az + br.bz) / 2, t);
+        expect(on?.bridge).toBe(br.id);
+        expect(on!.y).toBeCloseTo(skyBridgeY(br, 0.5, t), 6);
+        expect([br.a, br.b]).toContain(on!.id);
+      }
+      // off the side of the deck: nothing to stand on
+      const px = -(br.bz - br.az) / len;
+      const pz = (br.bx - br.ax) / len;
+      expect(skyTopY((br.ax + br.bx) / 2 + px * (br.half + 0.4), (br.az + br.bz) / 2 + pz * (br.half + 0.4), 0)).toBeNull();
+      // nothing solid on the deck or the path onto it
+      const dx = br.bx - br.ax;
+      const dz = br.bz - br.az;
+      for (const o of SKY_OBSTACLES) {
+        const u = Math.max(-0.2, Math.min(1.2, ((o.x - br.ax) * dx + (o.z - br.az) * dz) / (len * len)));
+        const d = hyp(o.x - br.ax - dx * u, o.z - br.az - dz * u);
+        expect(d, `${br.id} vs obstacle`).toBeGreaterThan(o.r + br.half - 0.05);
+      }
     }
   });
 

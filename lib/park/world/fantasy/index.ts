@@ -37,8 +37,15 @@ export interface FantasyWorld {
   stats: { blades: number; trees: number; rocks: number; crystals: number; ruins: number; islands: number; meshes: number };
   /** the grass mask (CPU copy) — pass to buildTerrainMesh({ mask }) to paint bare earth under trails */
   mask: GrassMask;
-  /** the floating islands (registry/skyIslands.ts): tell it which treasure chests are opened */
-  sky: { setOpened(ids: string[]): void };
+  /** the floating islands (registry/skyIslands.ts): opened chests, found discoveries (a found
+   *  nest shows its hatchling, a found rune circle stays lit), the kid's feet (lights rune stones)
+   *  and the rune circles' progress */
+  sky: {
+    setOpened(ids: string[]): void;
+    setSpotsFound(ids: string[]): void;
+    setKid(x: number, y: number, z: number): void;
+    puzzleState(): { id: string; lit: number; total: number; done: boolean }[];
+  };
 }
 
 export interface FantasyOptions {
@@ -224,7 +231,12 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
     group,
     plan,
     mask,
-    sky: { setOpened: (ids) => sky.setOpened(ids) },
+    sky: {
+      setOpened: (ids) => sky.setOpened(ids),
+      setSpotsFound: (ids) => sky.setSpotsFound(ids),
+      setKid: (x, y, z) => sky.setKid(x, y, z),
+      puzzleState: () => sky.puzzleState(),
+    },
     obstacles: plan.obstacles,
     stats: { blades: grass.blades, trees: plan.trees.length + plan.giants.length, rocks: plan.rocks.length, crystals: plan.crystals.length, ruins: plan.ruins.length, islands: plan.islands.length, meshes },
     update(_dt, t, focus, glow) {

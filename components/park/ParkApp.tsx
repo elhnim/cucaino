@@ -48,7 +48,7 @@ import { Ambience } from "@/lib/park/audio/ambience";
 import { MOUNTS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/characters/mounts";
 import { SHARD_COUNT, RING_COUNT } from "@/lib/park/world/quests3d";
 import { PEARL_COUNT } from "@/lib/park/world/underwater";
-import { SKY_ISLANDS, skyIslandById } from "@/lib/park/registry/skyIslands";
+import { SKY_ISLANDS, SKY_SPOTS, skyIslandById } from "@/lib/park/registry/skyIslands";
 import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wizards";
 import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
@@ -254,6 +254,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [landName, setLandName] = useState<string | null>(null);
   const skyKey = `cucaino.skychests.${kidId}`;
   const [skyFound, setSkyFound] = useState<string[]>([]);
+  // discoveries on the floating mountains (caves, nests, rune circles, telescopes …)
+  const spotKey = `cucaino.skyspots.${kidId}`;
+  const [spots, setSpots] = useState<string[]>([]);
   const swimHinted = useRef(false);
 
   // ── plays cost a ticket (earned from quests); every game's first play each day is free ──
@@ -584,6 +587,21 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             if (what === "glide") toast("🍃 Wheee — floating gently down!");
             else toast(`🏝️ You landed on ${skyIslandById(id ?? "")?.name ?? "a floating mountain"}! Can you find its treasure chest?`);
           },
+          onSkySpot: (sp) => {
+            setSpots((cur) => {
+              if (cur.includes(sp.id)) return cur;
+              const next = [...cur, sp.id];
+              try {
+                window.localStorage.setItem(spotKey, JSON.stringify(next));
+              } catch {}
+              if (sp.kind === "launcher") toast(`💥 Whoosh! Off to ${skyIslandById(sp.target ?? "")?.name ?? "another island"}!`);
+              else {
+                playSfx("sparkle");
+                toast(`✨ ${sp.name}! ${sp.text} (${next.length}/${SKY_SPOTS.length})`);
+              }
+              return next;
+            });
+          },
           onSkyTreasure: (id) => {
             setSkyFound((cur) => {
               if (cur.includes(id)) return cur;
@@ -618,6 +636,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               if (Array.isArray(savedPearls)) {
                 setPearls(savedPearls);
                 world?.setPearlsFound(savedPearls);
+              }
+              const savedSpots = JSON.parse(window.localStorage.getItem(`cucaino.skyspots.${kidId}`) ?? "[]") as string[];
+              if (Array.isArray(savedSpots)) {
+                setSpots(savedSpots);
+                world?.setSkySpotsFound(savedSpots);
               }
               const savedSky = JSON.parse(window.localStorage.getItem(`cucaino.skychests.${kidId}`) ?? "[]") as string[];
               if (Array.isArray(savedSky)) {
@@ -1120,6 +1143,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   window.location.reload();
                 },
               },
+              { e: "🔭", t: `Sky discoveries · ${spots.length}/${SKY_SPOTS.length}`, on: () => toast(spots.length >= SKY_SPOTS.length ? "🏆 You've discovered everything on the floating mountains!" : "🔭 The floating mountains hide caves, a dragon egg, rune circles, telescopes, sky cannons, a treehouse and more. Land and explore!") },
               { e: "🏝️", t: `Sky treasures · ${skyFound.length}/${SKY_ISLANDS.length}`, on: () => toast(skyFound.length >= SKY_ISLANDS.length ? "🏆 You've opened every sky treasure!" : "🏝️ Each floating mountain hides a treasure chest. Fly up on the dragon or manta, land on top and explore!") },
               { e: "🫧", t: `Sea Pearls · ${pearls.length}/${PEARL_COUNT}`, on: () => toast(pearls.length >= PEARL_COUNT ? "🫧 You found every Sea Pearl!" : "🫧 Sea Pearls glow inside giant clams on the reef, by the shipwreck and the sunken ruins. Swim out past the beach and dive!") },
               { e: "✦", t: `Star Shards · ${shards.length}/${SHARD_COUNT}`, on: () => toast(shards.length >= SHARD_COUNT ? "✦ You found every Star Shard — a true explorer!" : "✦ Star Shards hide on peaks, sky islands, ruins, ancient trees, crystals and coves. Fly to reach the high ones!") },

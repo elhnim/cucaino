@@ -38,7 +38,7 @@ import { buildMount, type MountKind, type MountRig, type MountSkin } from "../ch
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaFloorY } from "../world/sea/wander";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
-import { SKY_ISLANDS, SKY_OBSTACLES, skyIslandById, skyStreamEnd, skyTopY } from "../registry/skyIslands";
+import { SKY_ISLANDS, SKY_OBSTACLES, SKY_SPOTS, skyIslandById, skyStreamEnd, skyTopY, type SkySpot } from "../registry/skyIslands";
 
 /** each floating island's obstacles (trees, rocks, its peak), for walking about up there */
 const SKY_OBSTACLES_BY = new Map<string, { x: number; z: number; r: number }[]>();
@@ -82,6 +82,8 @@ export interface ParkWorldOptions {
   onReady?: () => void;
   /** landed on a floating mountain (id, "land") or stepped off an edge ("glide", id null) */
   onSkyIsland?: (id: string | null, what: "land" | "glide") => void;
+  /** discovered something on a floating mountain (a cave, a nest, a rune circle solved …) */
+  onSkySpot?: (spot: SkySpot) => void;
   /** opened a floating mountain's treasure chest */
   onSkyTreasure?: (id: string) => void;
   /** boarded (true) or stepped off (false) the Sky Coaster */
@@ -206,6 +208,11 @@ export class ParkWorld {
   private fallV = 0;
   private flyBase = 0;
   private skyOpened = new Set<string>();
+  private spotsFound = new Set<string>();
+  /** flung by a sky cannon towards another island: from -> to over `dur` seconds */
+  private launch: { fx: number; fy: number; fz: number; tx: number; tz: number; to: string; t: number; dur: number } | null = null;
+  /** a telescope's peek at another island (the camera looks there for a moment) */
+  private peek: { x: number; y: number; z: number; until: number } | null = null;
   private landing = false;
   private flySparkle = 0;
   private inputOn = true;
@@ -692,10 +699,10 @@ export class ParkWorld {
 
   /** Advance an actor's animation: chibi rigs are driven by how fast they're moving. */
   private tickActor(a: Actor, dt: number, forceSpeed?: number, snap = true) {
-    if (snap && !this.ride && a === this.pet && (this.onSky || this.gliding) && this.kid) {
+    if (snap && !this.ride && a === this.pet && (this.onSky || this.gliding || this.launch) && this.kid) {
       const kp = this.kid.root.position;
       const s = this.onSky ? skyTopY(a.root.position.x, a.root.position.z, this.time) : null;
-      if (this.onSky && (!s || s.id !== this.onSky)) {
+      if (this.onSky && (!s || (s.id !== this.onSky && !s.bridge))) {
         // never let the pet wander off the edge: hop back beside the kid
         a.root.position.set(kp.x + 1.2, kp.y, kp.z + 0.8);
       } else a.root.position.y = s ? s.y : kp.y;
@@ -1063,7 +1070,7 @@ export class ParkWorld {
         pos.z = o.z + (dz / d) * o.r;
       }
     }
-    for (const p of aloft || this.onSky || this.gliding ? [] : this.allPlaces()) {
+    for (const p of aloft || this.gliding ? [] : this.onSky ? this.park.places.filter((q) => q.sky === this.onSky) : this.allPlaces().filter((q) => !q.sky)) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;
       const dz = pos.z - p.z;
@@ -1110,9 +1117,32 @@ export class ParkWorld {
           this.burst(pos.clone().setY(pos.y + 0.4), 4);
         }
       }
-    } else if (this.onSky || this.gliding) {
+    } else if (this.onSky || this.gliding || this.launch) {
       // up on a floating mountain; step off the edge and you float gently down (steering as you go)
-      if (this.onSky && skyHere && skyHere.id === this.onSky) pos.y = skyHere.y;
+      if (this.launch) {
+        // flying through the air from a sky cannon, in a big arc
+        const L = this.launch;
+        L.t += dt;
+        const u = Math.min(1, L.t / L.dur);
+        const toY = skyTopY(L.tx, L.tz, this.time)?.y ?? L.fy;
+        pos.x = L.fx + (L.tx - L.fx) * u;
+        pos.z = L.fz + (L.tz - L.fz) * u;
+        pos.y = L.fy + (toY - L.fy) * u + Math.sin(Math.PI * u) * (18 + Math.hypot(L.tx - L.fx, L.tz - L.fz) * 0.12);
+        kid.facing = Math.atan2(L.tx - L.fx, L.tz - L.fz);
+        if (Math.floor(L.t * 12) !== Math.floor((L.t - dt) * 12)) this.burst(pos.clone().setY(pos.y + 0.6), 3);
+        if (u >= 1) {
+          this.launch = null;
+          this.onSky = L.to;
+          this.gliding = false;
+          pos.y = toY;
+          this.burst(pos.clone().setY(pos.y + 0.8), 60);
+          this.opts.onSkyIsland?.(L.to, "land");
+        }
+      } else if (this.onSky && skyHere && (skyHere.id === this.onSky || skyHere.bridge)) {
+        // (walking a rope bridge hands you over to the far island quietly)
+        this.onSky = skyHere.id;
+        pos.y = skyHere.y;
+      }
       else {
         if (this.onSky) {
           this.onSky = null;
@@ -1186,6 +1216,44 @@ export class ParkWorld {
       w.model.root.position.y = top.y;
       w.sign.position.y = top.y + 4.9;
       if (w.star) w.star.position.y = top.y + 6.1;
+    }
+
+    // discoveries on the floating mountains
+    if (this.onSky && !this.launch) {
+      this.park.skyChests.setKid(pos.x, pos.y, pos.z);
+      for (const sp of SKY_SPOTS) {
+        if (sp.island !== this.onSky) continue;
+        const d = Math.hypot(pos.x - sp.x, pos.z - sp.z);
+        if (sp.kind === "launcher") {
+          // step onto a sky cannon: whoosh, off to another island
+          if (d < sp.r * 0.7 && sp.target) {
+            const to = skyIslandById(sp.target);
+            if (to) {
+              this.foundSpot(sp);
+              this.launch = { fx: pos.x, fy: pos.y, fz: pos.z, tx: to.landing.x, tz: to.landing.z, to: to.id, t: 0, dur: 2.6 + Math.hypot(to.landing.x - pos.x, to.landing.z - pos.z) / 60 };
+              this.onSky = null;
+              this.walkTarget = null;
+              this.walkQueue = [];
+              this.burst(pos.clone().setY(pos.y + 0.5), 80);
+              this.play(kid, "cheer", true);
+            }
+          }
+          continue;
+        }
+        if (sp.kind === "stones") continue; // found by solving it (below)
+        if (d < sp.r && !this.spotsFound.has(sp.id)) {
+          this.foundSpot(sp);
+          if (sp.kind === "telescope" && sp.target) {
+            const to = skyIslandById(sp.target);
+            if (to) this.peek = { x: to.x, y: to.y + 4, z: to.z, until: this.time + 3.5 };
+          }
+        }
+      }
+      for (const ps of this.park.skyChests.puzzleState()) {
+        if (!ps.done || this.spotsFound.has(ps.id)) continue;
+        const sp = SKY_SPOTS.find((q) => q.id === ps.id);
+        if (sp) this.foundSpot(sp);
+      }
     }
 
     // a floating mountain's treasure chest: walk up to it to open it
@@ -1305,11 +1373,11 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn && !aloft && !this.sky && !this.gliding) {
+    if (this.inputOn && !aloft && !this.sky && !this.gliding && !this.launch) {
       let found: PlaceDef | null = null;
       const here = this.onSky
-        ? this.wizards.filter((w) => w.island === this.onSky).map((w) => w.place)
-        : [...(this.park.places ?? []), ...this.wizards.filter((w) => !w.island).map((w) => w.place)];
+        ? [...this.park.places.filter((p) => p.sky === this.onSky), ...this.wizards.filter((w) => w.island === this.onSky).map((w) => w.place)]
+        : [...this.park.places.filter((p) => !p.sky), ...this.wizards.filter((w) => !w.island).map((w) => w.place)];
       for (const p of here) {
         if (p.doorRadius <= 0) continue;
         if (Math.hypot(pos.x - p.x, pos.z - p.z) < p.doorRadius) {
@@ -1490,6 +1558,8 @@ export class ParkWorld {
       // (under the sea, look a little DOWN at the reef instead — up is just the surface)
       const aimUp = kidUnder ? -1.4 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35);
       this.camera.lookAt(this.lookAtPt.x, this.lookAtPt.y + aimUp, this.lookAtPt.z);
+      // a telescope's peek: glance over at the island it's aimed at
+      if (this.peek && this.time < this.peek.until) this.camera.lookAt(this.peek.x, this.peek.y, this.peek.z);
     }
     // under the sea? deep-blue fog, no sky
     const camUnder = !this.building && !this.ride && this.camera.position.y < WATER_Y - 0.05;
@@ -1615,6 +1685,23 @@ export class ParkWorld {
       w.star.material.dispose();
       w.star = null;
     }
+  }
+
+  private foundSpot(sp: SkySpot) {
+    if (this.spotsFound.has(sp.id)) return;
+    this.spotsFound.add(sp.id);
+    this.park?.skyChests.setSpotsFound([...this.spotsFound]);
+    if (sp.kind !== "launcher" && this.kid) {
+      this.burst(this.kid.root.position.clone().setY(this.kid.root.position.y + 1.4), 45);
+      this.play(this.kid, "cheer", true);
+    }
+    this.opts.onSkySpot?.(sp);
+  }
+
+  /** Which floating-mountain discoveries this kid has already made. */
+  setSkySpotsFound(ids: string[]) {
+    this.spotsFound = new Set(ids);
+    this.park?.skyChests.setSpotsFound(ids);
   }
 
   /** Which floating mountains' chests this kid has opened (they stay open). */

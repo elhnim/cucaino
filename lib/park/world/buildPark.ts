@@ -12,7 +12,8 @@ import { buildOcean, BEACH_IN, wobbleToCoast } from "./ocean";
 import { buildNature } from "./nature";
 import { TRAILS, ISLAND_R, nearStream, coastR } from "../registry/island";
 import { groundY, slopeAt } from "../registry/terrain";
-import { buildFantasyWorld, buildTerrainMesh } from "./fantasy";
+import { buildFantasyWorld, buildTerrainMesh, type FantasyWorld } from "./fantasy";
+import { skyTopY } from "../registry/skyIslands";
 import { buildQuests3D, type Quests3D } from "./quests3d";
 import { buildUnderwater, type Underwater } from "./underwater";
 import { FOOTPRINTS as SEA_FOOTPRINTS } from "./underwater/plan";
@@ -36,8 +37,8 @@ export interface BuiltPark {
   /** the storybook dressing (dense forest, sheep, windmills, balloons, boats, clouds, misty
    *  horizon) — only in the diorama look */
   storybook: Storybook | null;
-  /** the floating mountains' treasure chests (open the ones this kid has found) */
-  skyChests: { setOpened(ids: string[]): void };
+  /** the floating mountains' chests, discoveries and rune-stone puzzles */
+  skyChests: FantasyWorld["sky"];
   /** the Sky Coaster: its track and where its train is (the engine drives it while you ride) */
   skyTrain: { loop: THREE.CatmullRomCurve3; len: number; u: number; held: boolean; stationU: number };
   /** the reef, fish, orcas, mantas, jellies, wreck and pearls under (and on) the sea */
@@ -271,9 +272,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const blobGeo = track(new THREE.PlaneGeometry(1, 1));
   const bobbers: { obj: THREE.Object3D; base: number; phase: number }[] = [];
   const landmarks: Landmark[] = [];
+  // places standing on floating mountains bob along with them
+  const skyPlaces: { group: THREE.Group; x: number; z: number }[] = [];
   for (const p of PLACES) {
     const group = new THREE.Group();
-    group.position.set(p.x, groundY(p.x, p.z), p.z);
+    group.position.set(p.x, p.sky ? (skyTopY(p.x, p.z, 0)?.y ?? groundY(p.x, p.z)) : groundY(p.x, p.z), p.z);
+    if (p.sky) skyPlaces.push({ group, x: p.x, z: p.z });
     group.rotation.y = p.face ?? Math.atan2(-p.x, -p.z);
     // hand-built landmarks for the most important places
     const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : null;
@@ -620,6 +624,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       storybook?.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
+      for (const sp of skyPlaces) {
+        const top = skyTopY(sp.x, sp.z, t);
+        if (top) sp.group.position.y = top.y;
+      }
       nature.update(dt, t, atmosphere.glow);
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       for (const l of landmarks) l.update(dt, t, atmosphere.glow);

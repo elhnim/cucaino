@@ -17,7 +17,8 @@ import { buildCrystalGeometry, buildRockGeometry, CRYSTAL_HUES, RUNE_CYAN, RUNE_
 import { buildTreeGeometry, tintFor } from "./trees";
 import { SPRITE_HALO, SPRITE_MIST, type SpriteDef } from "./particles";
 import type { Species } from "./placement";
-import { SKY_GRID, SKY_ISLANDS, SKY_LIP, SKY_PROPS, skyBob, skyLocalHeight, skyNodeHeight, skyStreamEnd, type SkyIsland, type SkyProp } from "../../registry/skyIslands";
+import { SKY_BRIDGES, SKY_GRID, SKY_ISLANDS, SKY_LIP, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyBob, skyBridgeY, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, stonesLit, type SkyBridge, type SkyIsland, type SkyProp } from "../../registry/skyIslands";
+import { ANIM_KINDS, animGeometry, buildSpot, disposeSpotCaches, type AnimKind, type AnimPlacement } from "../sky/spots";
 
 const scratch = new THREE.Color();
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -248,14 +249,20 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
     ? [[1.0, 3.2 / D], [0.93, 0.13], [0.82, 0.25], [0.7, 0.37], [0.58, 0.49], [0.46, 0.6], [0.34, 0.71], [0.22, 0.82], [0.11, 0.92]]
     : [[0.99, 2.6 / D], [0.88, 0.2], [0.72, 0.36], [0.55, 0.52], [0.38, 0.67], [0.22, 0.8], [0.1, 0.91]];
   const rings: P3[][] = [ring2];
+  // the cone leans off to one side and bulges in lobes, so no two islands share a silhouette
+  const leanA = seed * 2.17;
+  const lean = [Math.cos(leanA), Math.sin(leanA)];
+  const offAt = (f: number, dy: number) => Math.min(dy * rm * 0.3, 0.42 * f * rm);
   prof.forEach(([f, dy], k) => {
     const ring: P3[] = [];
+    const off = k === 0 ? 0 : offAt(f, dy);
     for (let i = 0; i < M2; i++) {
       const a = ((i + (k % 2) * 0.5) / M2) * Math.PI * 2 + (noise3(i, k, 1, seed) - 0.5) * 0.15;
-      const w = k === 0 ? 1 + (noise3(Math.cos(a) * 2, 0, Math.sin(a) * 2, seed + 1) - 0.5) * 0.12 : 1 + (noise3(Math.cos(a) * 2.2 + k * 0.4, k * 0.7, Math.sin(a) * 2.2, seed + 2) - 0.5) * 0.5;
-      const rr = rm * f * w;
-      const yy = -dy * D + (k > 0 ? (noise3(Math.cos(a) * 3, k, Math.sin(a) * 3 + seed, 6) - 0.5) * D * 0.14 : 0);
-      ring.push(V(Math.cos(a) * rr, yy, Math.sin(a) * rr));
+      const lobes = 1 + 0.15 * Math.sin(2 * a + seed) + 0.1 * Math.sin(3 * a + seed * 2.3);
+      const w = k === 0 ? 1 + (noise3(Math.cos(a) * 2, 0, Math.sin(a) * 2, seed + 1) - 0.5) * 0.12 : lobes * (1 + (noise3(Math.cos(a) * 2.2 + k * 0.4, k * 0.7, Math.sin(a) * 2.2, seed + 2) - 0.5) * 0.55);
+      const rr = rm * f * Math.min(w, k === 0 ? 1.1 : 1.02 / f);
+      const yy = -dy * D + (k > 0 ? (noise3(Math.cos(a) * 3, k, Math.sin(a) * 3 + seed, 6) - 0.5) * D * 0.1 : 0);
+      ring.push(V(Math.cos(a) * rr + lean[0] * off, yy, Math.sin(a) * rr + lean[1] * off));
     }
     rings.push(sortByAngle(ring, 0, 0));
   });
@@ -265,7 +272,8 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
     zipper(strip, rings[k], rings[k + 1], 0, 0);
     if (k + 2 === rings.length) {
       const last = rings[k + 1];
-      const tip = V((noise3(seed, 0, 0, 1) - 0.5) * 2, -D, (noise3(0, seed, 0, 1) - 0.5) * 2);
+      const tipOff = offAt(0.1, 1);
+      const tip = V(lean[0] * tipOff + (noise3(seed, 0, 0, 1) - 0.5) * 2, -D, lean[1] * tipOff + (noise3(0, seed, 0, 1) - 0.5) * 2);
       for (let i = 0; i < last.length; i++) pushTri(strip, last[i], last[(i + 1) % last.length], tip, { cx: 0, cz: 0 });
     }
     const band = k === 0 ? DIRT : STRATA[(k - 1 + seed) % STRATA.length];
@@ -283,8 +291,74 @@ function buildBody(s: SkyIsland, rim: P3[], low: boolean): THREE.BufferGeometry[
     );
   }
 
-  // dangling roots under the lip, and craggy rock spikes hanging off the underside
+  // secondary lobes: smaller craggy cones hanging beside the main one
   const r = rngOf(seed * 13 + 5);
+  const strataAt = (y: number) => {
+    const depth = -y;
+    if (depth < 3.4) return scratch.copy(DIRT);
+    const band = Math.floor(depth / (D / 8) + seed);
+    return scratch.copy(STRATA[((band % STRATA.length) + STRATA.length) % STRATA.length]).lerp(DEEP, smoothstep(D * 0.2, D, depth) * 0.35);
+  };
+  const nLobes = low ? 1 : mountain ? 3 : 2;
+  for (let l = 0; l < nLobes; l++) {
+    const b = leanA + Math.PI + (l - (nLobes - 1) / 2) * 1.5 + (r() - 0.5) * 0.6;
+    const lcx = Math.cos(b) * rm * 0.5;
+    const lcz = Math.sin(b) * rm * 0.5;
+    const Dl = D * (0.45 + r() * 0.25);
+    const lprof: [number, number][] = [[0.38, 2.6], [0.33, Dl * 0.3], [0.24, Dl * 0.55], [0.13, Dl * 0.8]];
+    const M3 = low ? 6 : 8;
+    const lrings = lprof.map(([f, dy], k) => {
+      const ring: P3[] = [];
+      for (let i = 0; i < M3; i++) {
+        const a = ((i + (k % 2) * 0.5) / M3) * Math.PI * 2;
+        const w = 1 + (noise3(Math.cos(a) * 2 + l, k, Math.sin(a) * 2, seed + 11) - 0.5) * 0.6;
+        ring.push(V(lcx + Math.cos(a) * rm * f * w, -dy + (k ? (noise3(i, k, l, seed) - 0.5) * Dl * 0.12 : 0), lcz + Math.sin(a) * rm * f * w));
+      }
+      return sortByAngle(ring, lcx, lcz);
+    });
+    const pos: number[] = [];
+    for (let k = 0; k + 1 < lrings.length; k++) zipper(pos, lrings[k], lrings[k + 1], lcx, lcz);
+    const lt = V(lcx + (r() - 0.5) * 2, -Dl, lcz + (r() - 0.5) * 2);
+    const last = lrings[lrings.length - 1];
+    for (let i = 0; i < last.length; i++) pushTri(pos, last[i], last[(i + 1) % last.length], lt, { cx: lcx, cz: lcz });
+    out.push(part(triGeo(pos), (p) => strataAt(p.y).multiplyScalar(0.94 + 0.12 * noise3(p.x * 0.3, p.y * 0.3, p.z * 0.3, 5)), [0, 0, 0], { faceted: true, faceColor: true }));
+  }
+  // chunks of rock floating free under the island (with a tuft of grass on top)
+  const nFloat = low ? 1 : mountain ? 4 : 2;
+  for (let k = 0; k < nFloat; k++) {
+    const a = r() * Math.PI * 2;
+    const d = rm * (0.75 + r() * 0.4);
+    const sz = (mountain ? 1.8 : 1.2) + r() * (mountain ? 2.2 : 1.2);
+    const y = -D * (0.35 + r() * 0.45);
+    // a mini floating islet: a craggy little inverted cone with a grassy top
+    const cone = new THREE.ConeGeometry(sz, sz * 2.2, 6, 2);
+    cone.rotateX(Math.PI);
+    const cp = cone.attributes.position as THREE.BufferAttribute;
+    for (let j = 0; j < cp.count; j++) {
+      const w = 1 + (noise3(cp.getX(j) * 0.8 + k, cp.getY(j) * 0.8, cp.getZ(j) * 0.8, seed) - 0.5) * 0.5;
+      cp.setXYZ(j, cp.getX(j) * w, cp.getY(j), cp.getZ(j) * w);
+    }
+    transform(cone, Math.cos(a) * d, y - sz * 1.1, Math.sin(a) * d, r() * 6);
+    const c0 = STRATA[(k + seed) % STRATA.length];
+    out.push(part(cone, (p, n) => (n.y > 0.6 ? GRASS[k % 3] : mix(c0, DEEP, smoothstep(y, y - sz * 2.2, p.y) * 0.5, scratch)), [0, 0, 0], { faceted: true, faceColor: true }));
+  }
+  // leafy vines trailing from the lip
+  const nVines = Math.round((low ? 0.2 : 0.45) * s.r);
+  for (let k = 0; k < nVines; k++) {
+    const a = r() * Math.PI * 2;
+    const rr = rm * (0.99 + r() * 0.04);
+    const len = 3 + r() * (mountain ? 8 : 5);
+    const x = Math.cos(a) * rr;
+    const z = Math.sin(a) * rr;
+    const vine = taperTube([V(x, -0.9, z), V(x * 1.02, -0.9 - len * 0.5, z * 1.02), V(x * 1.01 + (r() - 0.5), -0.9 - len, z * 1.01 + (r() - 0.5))], { segs: 4, radial: 3, rx: (t) => 0.1 * (1 - t) + 0.05 });
+    out.push(part(vine, col("#3f8f34"), [0, 0.25, 0], { faceted: true }));
+    for (let j = 1; j < len; j += 1.3) {
+      const leaf = new THREE.ConeGeometry(0.28, 0.6, 3);
+      transform(leaf, x * 1.03, -0.9 - j, z * 1.03, r() * 6, 1, 0.5, 0.5);
+      out.push(part(leaf, j % 2 < 1 ? col("#5fb83a") : col("#8fd14f"), [0, 0.3, 0], { faceted: true }));
+    }
+  }
+  // dangling roots under the lip, and craggy rock spikes hanging off the underside
   const nSpikes = (low ? 0.5 : 1) * (mountain ? 9 : 5);
   for (let k = 0; k < nSpikes; k++) {
     const ringK = 2 + Math.floor(r() * (rings.length - 4));
@@ -602,6 +676,13 @@ export interface SkyIslands {
   sprites: SpriteDef[];
   /** which islands' treasure chests are opened (lids up, beams off) */
   setOpened(ids: string[]): void;
+  /** discoveries already found (SKY_SPOTS ids): a found nest shows its hatchling; a found rune
+   *  circle stays lit */
+  setSpotsFound(ids: string[]): void;
+  /** the kid's feet each frame: lights rune stones when stood on */
+  setKid(x: number, y: number, z: number): void;
+  /** the rune circles: how many stones are lit and whether each is solved */
+  puzzleState(): { id: string; lit: number; total: number; done: boolean }[];
   update(t: number): void;
   /** triangles drawn (for perf reporting) */
   triangles: number;
@@ -616,8 +697,9 @@ export function buildSkyIslands(U: FantasyUniforms, opts: { lowQuality?: boolean
   const sprites: SpriteDef[] = [];
   const white = col("#eaf6ff");
   const treeCache = new Map<string, THREE.BufferGeometry>();
+  const animPlaced: (AnimPlacement & { isl: number })[] = [];
   SKY_ISLANDS.forEach((s, i) => {
-    const add = (g: THREE.BufferGeometry) => parts.push(withConst(g, "aIsl", i));
+    const add = (g: THREE.BufferGeometry) => parts.push(withConst(withConst(withConst(g, "aIsl", i), "aIsl2", i), "aIslMix", 0));
     const r = rngOf(s.seed * 31 + 7);
     const top = buildTop(s, low ? 40 : 56);
     add(top.geo);
@@ -671,6 +753,39 @@ export function buildSkyIslands(U: FantasyUniforms, opts: { lowQuality?: boolean
         const x = ax + (bx - ax) * u + (r() - 0.5) * 0.35;
         const z = az + (bz - az) * u + (r() - 0.5) * 0.35;
         const st = new THREE.CylinderGeometry(0.5 + r() * 0.15, 0.55 + r() * 0.15, 0.2, 6);
+        transform(st, x, skyLocalHeight(s, x, z) + 0.02, z, r() * 3);
+        add(part(st, col(r() < 0.5 ? "#d9d0c4" : "#c9c0d4"), [0, 0, 0], { faceted: true }));
+      }
+    }
+    // the things to discover
+    for (const sp of SKY_SPOTS) {
+      if (sp.island !== s.id) continue;
+      const b = buildSpot(sp, s, low);
+      for (const g of b.statics) add(g);
+      for (const w of b.water) fallParts.push(withConst(w, "aIsl", i));
+      for (const d of b.sprites) sprites.push({ ...d, isl: i });
+      for (const a of b.anim) animPlaced.push({ ...a, isl: i });
+    }
+    // building pads: a ring of paving round each, and stepping stones from its door to the landing
+    for (const pad of SKY_PADS) {
+      if (pad.island !== s.id) continue;
+      const px = pad.x - s.x;
+      const pz = pad.z - s.z;
+      const gy = skyLocalHeight(s, px, pz);
+      const nP = Math.round((pad.r * Math.PI * 2) / 1.25);
+      for (let k = 0; k < nP; k++) {
+        const a = (k / nP) * Math.PI * 2;
+        const st = new THREE.CylinderGeometry(0.45, 0.5, 0.16, 5);
+        transform(st, px + Math.sin(a) * (pad.r + 0.2), gy + 0.02, pz + Math.cos(a) * (pad.r + 0.2), a);
+        add(part(st, col(k % 2 ? "#d9d0c4" : "#e6dccb"), [0, 0, 0], { faceted: true }));
+      }
+      const lx = s.landing.x - s.x;
+      const lz = s.landing.z - s.z;
+      const L = Math.hypot(lx - px, lz - pz);
+      for (let d = pad.r + 1.2; d < L - 2.2; d += 1.35) {
+        const x = px + ((lx - px) * d) / L + (r() - 0.5) * 0.3;
+        const z = pz + ((lz - pz) * d) / L + (r() - 0.5) * 0.3;
+        const st = new THREE.CylinderGeometry(0.5, 0.55, 0.18, 6);
         transform(st, x, skyLocalHeight(s, x, z) + 0.02, z, r() * 3);
         add(part(st, col(r() < 0.5 ? "#d9d0c4" : "#c9c0d4"), [0, 0, 0], { faceted: true }));
       }
@@ -734,6 +849,9 @@ export function buildSkyIslands(U: FantasyUniforms, opts: { lowQuality?: boolean
     if (s.kind === "crystal") sprites.push({ x: 0, y: 3, z: 0, isl: i, size: 16, color: CRYSTAL_HUES[1], kind: SPRITE_HALO });
   });
   for (const g of treeCache.values()) g.dispose();
+  disposeSpotCaches();
+  // ── rope bridges: plank decks + rope rails, hanging between two bobbing islands ──
+  for (const br of SKY_BRIDGES) parts.push(...buildBridge(br, low));
 
   const geo = merge(parts);
   const mat = fxPatch(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0, emissive: new THREE.Color("#302c46") }), U, { island: true });
@@ -758,7 +876,8 @@ export function buildSkyIslands(U: FantasyUniforms, opts: { lowQuality?: boolean
   const beamGeo = new THREE.CylinderGeometry(0.45, 1.3, 20, 10, 1, true);
   beamGeo.translate(0, 10, 0);
   const beamMat = beamMaterial(U);
-  const beams = new THREE.InstancedMesh(beamGeo, beamMat, n);
+  const circles = SKY_SPOTS.filter((sp) => sp.kind === "stones");
+  const beams = new THREE.InstancedMesh(beamGeo, beamMat, n + circles.length);
   for (const m of [bodies, lids, beams]) {
     m.frustumCulled = false;
     m.name = "fantasy-sky-chests";
@@ -784,18 +903,64 @@ export function buildSkyIslands(U: FantasyUniforms, opts: { lowQuality?: boolean
   const zero = new THREE.Vector3(0, 0, 0);
   let lastT = 0;
 
+  // ── the moving parts of the discoveries: one small instanced mesh per kind ──
+  const animMeshes = new Map<AnimKind, { mesh: THREE.InstancedMesh; list: (AnimPlacement & { isl: number })[] }>();
+  const animGeos: THREE.BufferGeometry[] = [];
+  for (const kind of ANIM_KINDS) {
+    const list = animPlaced.filter((a) => a.kind === kind);
+    if (!list.length) continue;
+    const g = animGeometry(kind, low);
+    animGeos.push(g);
+    const im = new THREE.InstancedMesh(g, chestMat, list.length);
+    im.frustumCulled = false;
+    im.name = `fantasy-sky-${kind}`;
+    if (kind === "rune") for (let k = 0; k < list.length; k++) im.setColorAt(k, RUNE_OFF);
+    animMeshes.set(kind, { mesh: im, list });
+  }
+  const found = new Set<string>();
+  const stoodOn = new Set<string>();
+  const circleIsl = new Map(circles.map((c) => [c.id, SKY_ISLANDS.findIndex((s) => s.id === c.island)]));
+  const circleAt = circles.map((c) => ({ c, lx: c.x - SKY_ISLANDS[circleIsl.get(c.id)!].x, lz: c.z - SKY_ISLANDS[circleIsl.get(c.id)!].z, y: skyBaseY(SKY_ISLANDS[circleIsl.get(c.id)!], c.x, c.z) - SKY_ISLANDS[circleIsl.get(c.id)!].y }));
+  const circleDone = (id: string) => found.has(id) || stonesLit(id, stoodOn).done;
+  const kidAt = new THREE.Vector3(1e6, 0, 1e6);
+  let kidT = 0;
+
   let triangles = geo.attributes.position.count / 3 + fallGeo.attributes.position.count / 3;
+  for (const { mesh: im, list } of animMeshes.values()) triangles += (im.geometry.attributes.position.count / 3) * list.length;
   triangles += n * ((bodyGeo.index ? bodyGeo.index.count : bodyGeo.attributes.position.count) / 3 + (lidGeo.index ? lidGeo.index.count : lidGeo.attributes.position.count) / 3 + 20);
 
   return {
     mesh,
     falls,
-    chests: [bodies, lids, beams],
+    chests: [bodies, lids, beams, ...[...animMeshes.values()].map((a) => a.mesh)],
     sprites,
     triangles,
     setOpened(ids) {
       opened.clear();
       for (const id of ids) opened.add(id);
+    },
+    setSpotsFound(ids) {
+      found.clear();
+      for (const id of ids) found.add(id);
+    },
+    setKid(x, y, z) {
+      kidAt.set(x, y, z);
+      // stood on a rune stone? (feet on the island, not flying over it)
+      const st = runeStoneAt(x, z);
+      if (st) {
+        const top = skyTopY(x, z, kidT);
+        if (top && Math.abs(y - top.y) < 1.2) stoodOn.add(`${st.spot}#${st.i}`);
+      }
+      // wander off before finishing a circle and its stones go back to sleep
+      for (const c of circles)
+        if (!circleDone(c.id) && Math.hypot(x - c.x, z - c.z) > 30)
+          for (let i = 0; i < 5; i++) stoodOn.delete(`${c.id}#${i}`);
+    },
+    puzzleState() {
+      return circles.map((c) => {
+        const st = stonesLit(c.id, stoodOn);
+        return found.has(c.id) ? { id: c.id, lit: st.total, total: st.total, done: true } : { id: c.id, ...st };
+      });
     },
     update(t) {
       const dt = Math.min(0.1, Math.max(0, t - lastT));
@@ -818,9 +983,69 @@ export function buildSkyIslands(U: FantasyUniforms, opts: { lowQuality?: boolean
         else beams.setMatrixAt(i, m.compose(p, q.identity(), sc.set(1, 1 + Math.sin(t * 1.3 + i) * 0.06, 1)));
         sc.setScalar(1.25);
       });
+      // a finished rune circle sends a column of light up from its altar
+      circleAt.forEach(({ c, lx, lz, y: cy }, k) => {
+        const s = SKY_ISLANDS[circleIsl.get(c.id)!];
+        const y = s.y + skyBob(s.id, t);
+        const done = circleDone(c.id);
+        p.set(s.x + lx, y + cy + 1.2, s.z + lz);
+        beams.setMatrixAt(n + k, m.compose(p, q.identity(), done ? sc.set(1.6, 1.4 + Math.sin(t * 3 + k) * 0.1, 1.6) : zero));
+        sc.setScalar(1.25);
+      });
       bodies.instanceMatrix.needsUpdate = true;
       lids.instanceMatrix.needsUpdate = true;
       beams.instanceMatrix.needsUpdate = true;
+      kidT = t;
+      // the discoveries' moving parts
+      for (const [kind, { mesh: im, list }] of animMeshes) {
+        list.forEach((a, k) => {
+          const s = SKY_ISLANDS[a.isl];
+          const by = skyBob(s.id, t);
+          const spotId = a.key.split("#")[0];
+          const ph = k * 1.7 + a.x * 0.1;
+          let rx = 0;
+          let rz = 0;
+          let ry = a.rot;
+          let sy = a.s;
+          let sxz = a.s;
+          let dy = 0;
+          if (kind === "egg") {
+            // wobbles now and then (hidden once it has hatched)
+            const w = Math.max(0, Math.sin(t * 0.9 + ph)) ** 3;
+            rx = Math.sin(t * 9 + ph) * 0.12 * w;
+            rz = Math.cos(t * 7 + ph) * 0.1 * w;
+            if (found.has(spotId)) sy = sxz = 0;
+          } else if (kind === "baby") {
+            // the hatchling peeks out and looks about
+            if (!found.has(spotId)) sy = sxz = 0;
+            dy = Math.max(0, Math.sin(t * 1.3 + ph)) * 0.25 - 0.1;
+            ry += Math.sin(t * 0.8 + ph) * 0.6;
+          } else if (kind === "rune") {
+            const lit = circleDone(spotId) || stoodOn.has(a.key);
+            im.setColorAt(k, lit ? RUNE_ON : RUNE_OFF);
+            ry += t * (lit ? 0.6 : 0.1);
+          } else if (kind === "bell") {
+            rx = Math.sin(t * 1.9 + ph) * 0.12;
+          } else if (kind === "swing") {
+            rx = Math.sin(t * 1.15 + ph) * 0.38;
+          } else if (kind === "spinner") {
+            ry = t * 1.2 + ph;
+            dy = Math.sin(t * 1.6 + ph) * 0.18;
+          } else if (kind === "cloudling") {
+            // slow sleepy breathing
+            const br = Math.sin(t * 1.1 + ph);
+            sy = a.s * (1 + br * 0.05);
+            sxz = a.s * (1 - br * 0.025);
+          }
+          p.set(s.x + a.x, s.y + by + a.y + dy, s.z + a.z);
+          q.setFromEuler(e.set(rx, ry, rz, "YXZ"));
+          im.setMatrixAt(k, m.compose(p, q, sc.set(sxz, sy, sxz)));
+        });
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      }
+      sc.setScalar(1.25);
+      e.set(0, 0, 0, "XYZ");
     },
     dispose() {
       geo.dispose();
@@ -835,9 +1060,95 @@ export function buildSkyIslands(U: FantasyUniforms, opts: { lowQuality?: boolean
       bodies.dispose();
       lids.dispose();
       beams.dispose();
+      for (const g of animGeos) g.dispose();
+      for (const a of animMeshes.values()) a.mesh.dispose();
     },
   };
 }
+
+const RUNE_OFF = new THREE.Color("#2a3448");
+const RUNE_ON = new THREE.Color("#5ff4ff");
+
+/** a rope bridge: plank deck + rope rails + end posts, world-positioned, its vertices blending the
+ *  two islands' matrices by how far along the bridge they are (so it sags and bobs with both) */
+function buildBridge(br: SkyBridge, low: boolean): THREE.BufferGeometry[] {
+  const ia = SKY_ISLANDS.findIndex((s) => s.id === br.a);
+  const ib = SKY_ISLANDS.findIndex((s) => s.id === br.b);
+  const A = SKY_ISLANDS[ia];
+  const B = SKY_ISLANDS[ib];
+  const dx = br.bx - br.ax;
+  const dz = br.bz - br.az;
+  const len = Math.hypot(dx, dz);
+  const ux = dx / len;
+  const uz = dz / len;
+  const px = -uz;
+  const pz = ux;
+  const yaw = Math.atan2(ux, uz);
+  // base deck height (no bob): skyBridgeY minus the blended bob
+  const deckY = (u: number) => skyBridgeY(br, u, 0) - (skyBob(A.id, 0) * (1 - u) + skyBob(B.id, 0) * u);
+  const out: THREE.BufferGeometry[] = [];
+  /** world-space geometry → the blended island frames; `fixedU` keeps a plank rigid */
+  const hang = (g: THREE.BufferGeometry, fixedU?: number) => {
+    const pos = g.attributes.position as THREE.BufferAttribute;
+    const mixA = new Float32Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      const u = fixedU ?? Math.max(0, Math.min(1, ((pos.getX(i) - br.ax) * ux + (pos.getZ(i) - br.az) * uz) / len));
+      mixA[i] = u;
+      pos.setXYZ(i, pos.getX(i) - (A.x + (B.x - A.x) * u), pos.getY(i) - (A.y + (B.y - A.y) * u), pos.getZ(i) - (A.z + (B.z - A.z) * u));
+    }
+    withConst(withConst(g, "aIsl", ia), "aIsl2", ib);
+    g.setAttribute("aIslMix", new THREE.BufferAttribute(mixA, 1));
+    out.push(g);
+  };
+  // planks (a few missing gaps would be scary — keep them all, slightly uneven)
+  const step = 0.62;
+  const nPl = Math.floor(len / step);
+  for (let k = 0; k <= nPl; k++) {
+    const u = k / nPl;
+    const x = br.ax + dx * u;
+    const z = br.az + dz * u;
+    const y = deckY(u);
+    const slope = Math.atan2(deckY(Math.min(1, u + 0.02)) - deckY(Math.max(0, u - 0.02)), len * 0.04);
+    const g = new THREE.BoxGeometry(br.half * 2 + 0.3, 0.12, 0.5);
+    transform(g, x, y - 0.06, z, yaw + ((k * 7) % 3 - 1) * 0.03, 1, -slope, 0);
+    hang(part(g, k % 3 === 0 ? WOOD_DARK : WOOD, [0, 0, 0], { faceted: true }), u);
+  }
+  // rope rails (hand height) and the ropes the planks hang from
+  const railPts = (sd: number, h: number) => {
+    const pts: THREE.Vector3[] = [];
+    for (let k = 0; k <= 8; k++) {
+      const u = k / 8;
+      const sag = h > 0.5 ? 0.25 * 4 * u * (1 - u) : 0;
+      pts.push(V(br.ax + dx * u + px * sd * (br.half + 0.35), deckY(u) + h - sag, br.az + dz * u + pz * sd * (br.half + 0.35)));
+    }
+    return pts;
+  };
+  for (const sd of [-1, 1]) {
+    for (const h of low ? [1.0] : [1.0, 0.08]) hang(part(taperTube(railPts(sd, h), { segs: 16, radial: 3, rx: () => 0.05 }), ROPE_C, [0, 0, 0], { faceted: true }));
+    for (let k = 1; k < 8; k++) {
+      const u = k / 8;
+      const x = br.ax + dx * u + px * sd * (br.half + 0.35);
+      const z = br.az + dz * u + pz * sd * (br.half + 0.35);
+      const top = deckY(u) + 1.0 - 0.25 * 4 * u * (1 - u);
+      const g = new THREE.BoxGeometry(0.04, top - deckY(u), 0.04);
+      transform(g, x, (top + deckY(u)) / 2, z);
+      hang(part(g, ROPE_C, [0, 0, 0]), u);
+    }
+    // stout end posts on each island
+    for (const u of [0, 1]) {
+      const x = (u ? br.bx : br.ax) + px * sd * (br.half + 0.45);
+      const z = (u ? br.bz : br.az) + pz * sd * (br.half + 0.45);
+      const g = new THREE.CylinderGeometry(0.16, 0.2, 1.7, 6);
+      transform(g, x, deckY(u) + 0.6, z);
+      hang(part(g, WOOD_DARK, [0, 0, 0], { faceted: true }), u);
+      const knob = new THREE.IcosahedronGeometry(0.2, 0);
+      transform(knob, x, deckY(u) + 1.5, z);
+      hang(part(knob, col("#ffd23f"), [0, 0, 0.3], { faceted: true }), u);
+    }
+  }
+  return out;
+}
+const ROPE_C = col("#d8b27a");
 
 /** the treasure beams: a soft golden column, strongest at the chest, fading upwards and when
  *  the camera is close (so it guides you from afar without washing out the view) */
