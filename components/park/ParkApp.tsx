@@ -1088,7 +1088,6 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const questBoard = getPlace("quest-board");
   const mapPins: MapPin[] = [
     ...(questBoard ? [{ id: "quest-board", x: questBoard.x, z: questBoard.z, emoji: "📋", label: "Quest Board", badge: questsLeft, pulse: questsLeft > 0 }] : []),
-    { id: "coralcove", x: VILLAGE_ISLAND.x, z: VILLAGE_ISLAND.z, emoji: "🏝️", label: VILLAGE_ISLAND.name, far: true },
     ...wizardSpots.map((s) => {
       const w = WIZARDS.find((x) => x.id === s.id)!;
       const fresh = !wisdom[todaysLesson(w.id, wizDay.current).id];
@@ -1191,11 +1190,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           hidden={busy || building}
           pins={mapPins}
           onSkyPin={(p) =>
-            toast(
-              p.far
-                ? `🏝️ ${VILLAGE_ISLAND.name} is far out at sea, this way! Swim, ride the manta or fly the dragon to visit ${VILLAGE_ISLAND.clan}`
-                : `🧙 ${p.label} is up on a floating mountain! Hop on the dragon or manta and fly there — then tap "Land"`,
-            )
+            toast(p.how ? `${p.emoji} ${p.how}` : `🧙 ${p.label} is up on a floating mountain! Hop on the dragon or manta and fly there — then tap "Land"`)
           }
         />
       )}

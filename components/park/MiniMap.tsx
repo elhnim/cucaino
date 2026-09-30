@@ -11,6 +11,7 @@ import { LANDS, PLACES, type LandDef } from "@/lib/park/registry/places";
 import { HILLS, ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, coastR, nearStream, nearTrail, routeBetween, type P2 } from "@/lib/park/registry/island";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { TERRAIN_EXTENT, TERRAIN_N, terrainGrid } from "@/lib/park/registry/terrain";
+import { WORLD_EDGE, WORLD_PLACES, type WorldPlace } from "@/lib/park/registry/worldMap";
 
 type Pose = NonNullable<ReturnType<ParkWorld["getPose"]>>;
 
@@ -29,10 +30,16 @@ export interface MapPin {
   sky?: boolean;
   /** far out at sea (shown on the map's edge, pointing the way; onSkyPin explains how to get there) */
   far?: boolean;
+  /** what to tell a kid who taps it (how to get there) */
+  how?: string;
 }
 
 const NEAR_VIEW = 44;
+/** the little map zooms out when you're out at sea, so the islands round about show */
+const SEA_VIEW = 150;
 const WORLD_VIEW = ISLAND_R + 34;
+/** the big map's World view: the whole ocean, out to the edge of the world */
+const GLOBE_VIEW = WORLD_EDGE + 36;
 
 function landAt(x: number, z: number): LandDef | undefined {
   return LANDS.find((l) => Math.hypot(x - l.x, z - l.z) < l.radius + 3);
@@ -144,9 +151,25 @@ const SEA_LIFE = [
   { e: "🐬", a: 5.4 },
 ].map((s) => ({ ...s, x: Math.sin(s.a) * (ISLAND_R + 24), z: Math.cos(s.a) * (ISLAND_R + 24) }));
 
+/** far islands as rim pins on the island map (they're beyond its edge) */
+const FAR_PINS: MapPin[] = WORLD_PLACES.filter((w) => w.kind === "island").map((w) => ({ id: `far:${w.id}`, x: w.x, z: w.z, emoji: w.emoji, label: w.name, far: true, how: w.how }));
+const islandBlob = (w: WorldPlace, extra: number) => {
+  const seed = w.x * 0.011 + w.z * 0.017;
+  return d(
+    Array.from({ length: 40 }, (_, i) => {
+      const a = (i / 40) * Math.PI * 2;
+      const r = (w.r + extra) * (1 + Math.sin(a * 3 + seed) * 0.08 + Math.sin(a * 5 + seed * 2) * 0.05);
+      return [w.x + Math.sin(a) * r, w.z + Math.cos(a) * r] as P2;
+    }),
+    true,
+  );
+};
+const WORLD_SHAPES = WORLD_PLACES.map((w) => ({ w, beach: w.kind === "island" ? islandBlob(w, 8) : "", land: islandBlob(w, 0), crack: w.path ? d(w.path.map((p) => [p.x, p.z] as P2)) : "" }));
+
 export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.RefObject<ParkWorld | null>; hidden?: boolean; pins?: MapPin[]; onSkyPin?: (p: MapPin) => void }) {
   const [pose, setPose] = useState<Pose | null>(null);
   const [big, setBig] = useState(false);
+  const [globe, setGlobe] = useState(false);
   const last = useRef("");
 
   // poll the engine ~8x a second; only re-render when something visibly moved
@@ -173,7 +196,7 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
   };
   const goToPin = (pin: MapPin) => {
     playSfx("tap");
-    if (pin.sky || pin.far) {
+    if (pin.sky || pin.far || pin.how) {
       onSkyPin?.(pin);
       setBig(false);
       return;
@@ -201,14 +224,21 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
           <div style={bigCard} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <div>
-                <div style={mapTitle}>🗺️ Map of Cucaino Island</div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: "rgba(226,230,255,0.74)", marginTop: 2 }}>Tap a place and I&apos;ll walk you there!</div>
+                <div style={mapTitle}>{globe ? "🌍 Map of the World" : "🗺️ Map of Cucaino Island"}</div>
+                <div style={{ fontWeight: 800, fontSize: 13, color: "rgba(226,230,255,0.74)", marginTop: 2 }}>{globe ? "Tap an island to find out how to get there" : "Tap a place and I'll walk you there!"}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {(["island", "world"] as const).map((v) => (
+                  <button key={v} type="button" onClick={() => setGlobe(v === "world")} style={{ ...tabBtn, ...((v === "world") === globe ? tabOn : null) }}>
+                    {v === "island" ? "🏝️ Island" : "🌍 World"}
+                  </button>
+                ))}
               </div>
               <button type="button" style={closeBtn} onClick={() => setBig(false)} aria-label="Close map">
                 ✕
               </button>
             </div>
-            <MapSvg pose={pose} size={0} labels onLand={goTo} onPin={goToPin} hereId={here?.id} pins={pins} />
+            <MapSvg pose={pose} size={0} labels globe={globe} onLand={goTo} onPin={goToPin} hereId={here?.id} pins={pins} />
           </div>
         </div>
       )}
@@ -224,10 +254,13 @@ function MapSvg({
   onPin,
   hereId,
   pins = [],
+  globe = false,
 }: {
   pose: Pose;
   size: number;
   labels?: boolean;
+  /** the World view: the whole ocean and every island (big map only) */
+  globe?: boolean;
   onLand?: (l: LandDef) => void;
   onPin?: (p: MapPin) => void;
   hereId?: string;
@@ -235,7 +268,10 @@ function MapSvg({
 }) {
   // big map: north-up and centred on the island; small map: follows you and turns with the camera
   const deg = labels ? 0 : (pose.yaw * 180) / Math.PI;
-  const VIEW = labels ? WORLD_VIEW : NEAR_VIEW;
+  const atSea = Math.hypot(pose.x, pose.z) > ISLAND_R + 28;
+  const VIEW = labels ? (globe ? GLOBE_VIEW : WORLD_VIEW) : atSea ? SEA_VIEW : NEAR_VIEW;
+  /** icons and labels grow with the view so they stay the same size on screen */
+  const u = VIEW / (labels ? WORLD_VIEW : NEAR_VIEW);
   const follow = labels ? "" : ` translate(${-pose.x} ${-pose.z})`;
   const upright = (x: number, z: number) => (labels ? "" : `rotate(${-deg} ${x} ${z})`);
   const clipId = `mm-clip-${size}`;
@@ -263,7 +299,51 @@ function MapSvg({
       <g clipPath={`url(#${clipId})`}>
         <rect x={-VIEW * 3} y={-VIEW * 3} width={VIEW * 6} height={VIEW * 6} fill="#8fd8f5" />
         <g transform={`rotate(${deg})${follow}`}>
-          <rect x={-WORLD_VIEW * 2} y={-WORLD_VIEW * 2} width={WORLD_VIEW * 4} height={WORLD_VIEW * 4} fill={`url(#waves-${size})`} />
+          <rect x={-GLOBE_VIEW * 2} y={-GLOBE_VIEW * 2} width={GLOBE_VIEW * 4} height={GLOBE_VIEW * 4} fill={`url(#waves-${size})`} />
+          {/* the edge of the world (sail on past it and you come back round) */}
+          {globe && (
+            <g pointerEvents="none">
+              <circle r={WORLD_EDGE} fill="none" stroke="#ffffff" strokeOpacity={0.8} strokeWidth={3} strokeDasharray="14 10" />
+              <text x={0} y={-WORLD_EDGE - 12} textAnchor="middle" fontSize={30} fontWeight={900} fill="#1f5f8a" stroke="#ffffff" strokeWidth={6} paintOrder="stroke">
+                ✨ the edge of the world — sail on and you come back round ✨
+              </text>
+            </g>
+          )}
+          {/* the far islands, the floating mountains and the Abyss */}
+          {WORLD_SHAPES.map(({ w, beach, land, crack }) => (
+            <g key={`w-${w.id}`} pointerEvents="none">
+              {w.kind === "island" && (
+                <>
+                  <path d={beach} fill="#ffe7bf" stroke="#ffffff" strokeWidth={2 * k} />
+                  <path d={land} fill={w.land ?? "#a6e8bd"} />
+                </>
+              )}
+              {w.kind === "sky" && <path d={land} fill="#ffffff" fillOpacity={0.55} stroke="#b9a6ff" strokeWidth={1.4 * k} strokeDasharray="4 3" />}
+              {w.kind === "abyss" && crack && (
+                <>
+                  <path d={crack} fill="none" stroke="#12305a" strokeOpacity={0.75} strokeWidth={w.r * 2} strokeLinecap="round" strokeLinejoin="round" />
+                  <path d={crack} fill="none" stroke="#050a1a" strokeOpacity={0.8} strokeWidth={w.r * 0.8} strokeLinecap="round" strokeLinejoin="round" />
+                </>
+              )}
+            </g>
+          ))}
+          {(globe || (!labels && atSea)) &&
+            WORLD_SHAPES.map(({ w }) => {
+              const ax = w.path ? w.path[Math.floor(w.path.length / 2)].x : w.x;
+              const az = w.path ? w.path[Math.floor(w.path.length / 2)].z : w.z;
+              return (
+                <g key={`wl-${w.id}`} transform={upright(ax, az)} onClick={onPin ? () => onPin({ id: w.id, x: w.x, z: w.z, emoji: w.emoji, label: w.name, how: w.how }) : undefined} style={{ cursor: onPin ? "pointer" : undefined }}>
+                  <text x={ax} y={az + 4 * u} textAnchor="middle" fontSize={(w.kind === "sky" ? 7 : 15) * u}>
+                    {w.emoji}
+                  </text>
+                  {labels && w.kind !== "sky" && (
+                    <text x={ax} y={az + 16 * u} textAnchor="middle" fontSize={7.4 * u} fontWeight={900} fill="#5a2350" stroke="#ffffff" strokeWidth={2.4 * u} paintOrder="stroke">
+                      {w.name}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
           {/* beach + island */}
           <path d={BEACH} fill="#ffe7bf" stroke="#ffffff" strokeWidth={2 * k} />
           <path d={COAST} fill="#a6e8bd" />
@@ -339,14 +419,14 @@ function MapSvg({
             </g>
           ))}
           {/* important places, e.g. the Quest Board and how many quests are left */}
-          {pins.map((pin) => {
+          {(globe ? [] : labels ? [...pins, ...FAR_PINS] : [...pins, ...(atSea ? [] : FAR_PINS)]).map((pin) => {
             // on the small map, a far-away pin sticks to the rim, pointing the way
             let p = pin;
             if (!labels) {
               const dx = pin.x - pose.x;
               const dz = pin.z - pose.z;
               const dd = Math.hypot(dx, dz);
-              const max = NEAR_VIEW - 9;
+              const max = VIEW - 9 * u;
               if (dd > max) p = { ...pin, x: pose.x + (dx / dd) * max, z: pose.z + (dz / dd) * max };
             } else {
               // the big map too: somewhere far out at sea (Coralcove Isle) sits on the edge, pointing the way
@@ -384,7 +464,7 @@ function MapSvg({
           })}
           {pose.pet && <circle pointerEvents="none" cx={pose.pet.x} cy={pose.pet.z} r={labels ? 3 : 2} fill="#ffb020" stroke="#fff" strokeWidth={1.2} />}
           {/* you are here: an arrow pointing the way your animal faces */}
-          <g transform={`translate(${pose.x} ${pose.z}) rotate(${(-pose.facing * 180) / Math.PI})`} pointerEvents="none">
+          <g transform={`translate(${pose.x} ${pose.z}) rotate(${(-pose.facing * 180) / Math.PI}) scale(${globe ? u * 0.8 : !labels && atSea ? u * 0.7 : 1})`} pointerEvents="none">
             <circle r={labels ? 8 : 4.5} fill="#ff4f9e" opacity={0.25}>
               <animate attributeName="r" values={labels ? "7;12;7" : "4;7;4"} dur="1.6s" repeatCount="indefinite" />
             </circle>
@@ -467,6 +547,18 @@ const bigCard: React.CSSProperties = {
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.14), 0 20px 40px rgba(0,0,0,0.5)",
   color: "#f5f3ff",
 };
+const tabBtn: React.CSSProperties = {
+  minHeight: 40,
+  padding: "0 12px",
+  borderRadius: 999,
+  border: "1.5px solid rgba(160,200,255,0.35)",
+  background: "rgba(20,18,50,0.7)",
+  color: "#f5f3ff",
+  fontWeight: 900,
+  fontSize: 13,
+  cursor: "pointer",
+};
+const tabOn: React.CSSProperties = { border: "1.5px solid rgba(255,211,107,0.9)", background: "rgba(120,86,20,0.75)" };
 const closeBtn: React.CSSProperties = {
   width: 44,
   height: 44,
