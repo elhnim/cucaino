@@ -21,6 +21,8 @@ import type { UnlockedBadge } from "@/lib/domain/types";
 import { getQuizGameData, type QuizGameData } from "@/lib/actions/world-panels";
 import type { CoasterControls } from "@/lib/park/rides/quizCoaster";
 import type { GolfEvent, GolfControls } from "@/lib/game3d/interiors/minigolf";
+import type { HomeRide } from "@/lib/park/home/scene";
+import { getHome, type HomeData } from "@/lib/actions/home";
 import { getDreamPark, placePiece, movePiece, removePiece, payForPlay, type DreamPark } from "@/lib/actions/park";
 import { hasFreePlay, spendFreePlay } from "@/lib/park/freePlays";
 import { getHabits, type HabitState, type ChestPrize } from "@/lib/actions/park-habits";
@@ -54,6 +56,7 @@ import { WIZARDS, todaysLesson, dayNumber, type WizardId } from "@/lib/park/wiza
 import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
 // Every building panel loads on demand, never in the park's first download.
+const HomeScreen = dynamic(() => import("./home/HomeScreen").then((m) => m.HomeScreen), { ssr: false });
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const WizardSheet = dynamic(() => import("./wizards/WizardSheet").then((m) => m.WizardSheet), { ssr: false });
 const BookOfWisdom = dynamic(() => import("./wizards/BookOfWisdom").then((m) => m.BookOfWisdom), { ssr: false });
@@ -74,7 +77,7 @@ const DressUpPanel = dynamic(() => import("./DressUpPanel").then((m) => m.DressU
 // start fetching three.js + the engine as soon as this module evaluates (parallel to hydration)
 prefetchPark();
 
-type Panel = Exclude<PlaceAction, "gift" | "none" | "build" | "parent"> | "dressup" | "quiz-hub";
+type Panel = Exclude<PlaceAction, "gift" | "none" | "build" | "parent" | "home"> | "dressup" | "quiz-hub";
 
 const PET_MODE: Partial<Record<Panel, PetMode>> = {
   pet: "home",
@@ -155,6 +158,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [showMood, setShowMood] = useState(false);
   // ── Dream Park builder ──
   const [dream, setDream] = useState<DreamPark | null>(null);
+  // inside My Home (the kid's cottage)
+  const [home, setHome] = useState<{ ride: HomeRide; data: HomeData } | null>(null);
+  const openHomeRef = useRef<(placeId: string) => void>(() => {});
   const [building, setBuilding] = useState(false);
   const [selection, setSelection] = useState<BuilderSelection | null>(null);
   const [selectedPlaced, setSelectedPlaced] = useState<{ uid: string; piece: string } | null>(null);
@@ -322,6 +328,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       }
       if (place.action === "skycoaster") {
         worldRef.current?.rideSkyCoaster();
+        return;
+      }
+      if (place.action === "home") {
+        openHomeRef.current(place.id);
         return;
       }
       openPanel(place.action, place.id);
@@ -1033,6 +1043,40 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     worldRef.current?.setInputEnabled(true);
   };
 
+  const openHome = async (placeId: string) => {
+    const w = worldRef.current;
+    if (!w || w.inRide) return;
+    const [{ buildHomeInterior }, data] = await Promise.all([import("@/lib/park/home/scene"), getHome(kidId).catch(() => null)]);
+    if (!data) {
+      toast("Couldn't open your home — try again!");
+      return;
+    }
+    const box: { ride?: HomeRide } = {};
+    rideFrom.current = placeId;
+    setPanel(null);
+    const hr = new Date();
+    w.enterRide(
+      () =>
+        (box.ride = buildHomeInterior(theme.accent, data.layout, {
+          pet: pet ? { hunger: pet.hunger, happiness: pet.happiness, energy: pet.energy, cleanliness: pet.cleanliness, isSleeping: pet.isSleeping } : null,
+          petName: pet?.name,
+          petAnim: (n) => worldRef.current?.petAnim(n),
+          petSleep: (on) => worldRef.current?.setPetSleeping(on),
+          hour: hr.getHours() + hr.getMinutes() / 60,
+          low: w.quality === "low",
+          badges: [],
+        })),
+    );
+    if (box.ride) setHome({ ride: box.ride, data });
+  };
+  openHomeRef.current = (id) => void openHome(id);
+  const leaveHomeRef = useRef(() => {});
+  leaveHomeRef.current = () => {
+    setHome(null);
+    leaveRide();
+  };
+  const leaveHome = useCallback(() => leaveHomeRef.current(), []);
+
   const onGolf = useCallback(
     (e: GolfEvent) => {
       if (e.type === "hole-start") {
@@ -1080,7 +1124,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     playSfx("sparkle");
   };
 
-  const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf;
+  const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf || !!home;
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const questsLeft = Math.max(0, data.tasksToday.total - done);
@@ -1563,6 +1607,22 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           </div>
         </div>
       )}
+      {home && (
+        <HomeScreen
+          kidId={kidId}
+          ride={home.ride}
+          initial={home.data}
+          pet={pet}
+          points={points}
+          onPet={(p, pts) => {
+            if (!pet) void worldRef.current?.setPetAnimal(parkAnimalForPet(p.species));
+            setPet(p);
+            setPoints(pts);
+          }}
+          onTickets={(t) => setDream((d) => (d ? { ...d, tickets: t } : d))}
+          onExit={leaveHome}
+        />
+      )}
       {golf && (
         <div style={{ ...rideCard, top: "auto", bottom: "max(18px, env(safe-area-inset-bottom))", textAlign: "center" }}>
           {golf.done ? (
@@ -1750,6 +1810,7 @@ const toastStack: React.CSSProperties = {
 /** what the walk-up prompt says for each kind of place (a fountain isn't something you "go into") */
 const ASK_TEXT: Partial<Record<PlaceAction, { q: (label: string) => string; go: string }>> = {
   quests: { q: () => "Check the Quest Board?", go: "Let's see! 📋" },
+  home: { q: () => "Go home to your cottage?", go: "Home sweet home! 🏡" },
   skycoaster: { q: () => "Ride the Sky Coaster round the whole island?", go: "All aboard! 🎢" },
   shop: { q: (l) => `Visit the ${l}?`, go: "Let's shop! 🛍️" },
   pet: { q: () => "Visit your pet's home?", go: "Let's go! 🏠" },
@@ -1776,6 +1837,7 @@ const ASK_TEXT: Partial<Record<PlaceAction, { q: (label: string) => string; go: 
 
 const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   quests: "See today's quests and earn stars + tickets",
+  home: "Decorate your room and look after your pet",
   shop: "Spend your stars on prizes",
   pet: "Visit your pet's home",
   "pet-feed": "Give your pet a snack",

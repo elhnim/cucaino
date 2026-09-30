@@ -22,6 +22,7 @@ import { buildSteamTrain, CAR_GAP } from "./steamTrain";
 import { buildSkyBuilding, type SkyBuilding } from "./skyBuildings";
 import { buildRideables, type Rideables } from "./rideables";
 import { buildFauna, type Fauna } from "./fauna";
+import { buildHomeExterior } from "../home/exterior";
 import { rideableKeepOut } from "../registry/rideables";
 import { buildStorybook, type Storybook } from "./storybook";
 import { buildVillage } from "./village";
@@ -348,7 +349,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       disposables.push(skyB);
     }
     // hand-built landmarks for the most important places
-    const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : null;
+    const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : p.id === "my-home" ? buildHomeExterior() : null;
     if (special) {
       landmarks.push(special);
       disposables.push(special);

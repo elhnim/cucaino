@@ -18,6 +18,7 @@ export type PlaceAction =
   | "gift"
   | "build"
   | "parent"
+  | "home"
   | "market"
   | "learn"
   | "library"
@@ -460,6 +461,9 @@ export const PLACES: PlaceDef[] = [
       { kit: "food", id: "lollypop", scale: 8, offset: [3.4, 0.6] },
     ],
   },
+
+  // ── My Home (the kid's cottage: decorate the rooms, look after the pet) ──
+  { id: "my-home", label: "My Home", emoji: "🏡", land: "gate", x: -13, z: 50, radius: 3.4, doorRadius: 5, action: "home", signY: 6.8, models: [] }, // hand-built: lib/park/home/exterior.ts
 
   // ── Grown-ups' Control Room (parent area, PIN protected) ──
   {
