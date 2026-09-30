@@ -271,7 +271,7 @@ export interface WhaleDirector {
   /** until the next encounter */
   enc: number;
 }
-export const makeWhaleDirector = (): WhaleDirector => ({ enc: 14 });
+export const makeWhaleDirector = (): WhaleDirector => ({ enc: 10 });
 
 /** is the whale hidden (fully under water, not doing anything showy)? */
 export const whaleHidden = (w: Whale) => w.mode === CRUISE && w.y + w.girth * 1.3 < WATER_Y - 1;
@@ -306,10 +306,12 @@ export function directWhales(whales: Whale[], d: WhaleDirector, f: FocusTracker,
   }
   d.enc -= dt;
   if (d.enc > 0) return -1;
-  // only in (or over) deep water, and when no whale is already close
+  // only in (or over) deep water, and when no whale is already close. A diving kid out over the
+  // deep gets a fly-by every 20-35 s (the water is clear: they see it coming)
   const deep = seaDepth(f.x, f.z);
-  d.enc = 40 + rnd() * 35;
-  if (nearest < 110 * 110) return -1;
+  const flyby = under && deep > 12;
+  d.enc = flyby ? 20 + rnd() * 15 : 40 + rnd() * 35;
+  if (nearest < (flyby ? 55 : 110) ** 2) return -1;
   // the whale furthest away (hidden) comes to visit
   let pick = -1;
   let far = -1;
@@ -323,11 +325,12 @@ export function directWhales(whales: Whale[], d: WhaleDirector, f: FocusTracker,
   if (pick < 0) return -1;
   const w = whales[pick];
   const st = WHALE_STYLE[w.kind];
-  if (under && deep > 12) {
-    // a fly-by at the kid's depth, starting just beyond the underwater fog
+  if (flyby) {
+    // a fly-by at the kid's depth, passing 8-15 m away, starting out in the blue ahead
     respawn(w, st, focus, f.vx, f.vz, rnd, 62, 74, 0.7);
-    w.side = aimPast(w, focus, 13 + rnd() * 8, rnd);
-    w.hold = focusY - 1.5;
+    w.side = aimPast(w, focus, 8 + rnd() * 7, rnd);
+    // (a little below the kid: the underwater camera looks down on them)
+    w.hold = focusY - 4;
     w.holdT = 50;
     w.y = clamp(w.hold, seaFloorY(w.x, w.z) + st.clear, WATER_Y - w.girth - 2.5);
     w.cue = -1;

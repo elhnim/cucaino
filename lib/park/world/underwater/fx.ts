@@ -359,7 +359,7 @@ export function buildRays(U: UwUniforms, n: number, strength: { value: number })
         float soft = pow( vEdge, 3.0 );
         float ends = smoothstep( 0.0, 0.12, vY ) * pow( 1.0 - vY, 1.6 );
         float flick = 0.6 + 0.4 * sin( uTime * 0.7 + vSeed * 9.0 ) * sin( uTime * 0.31 + vSeed * 3.0 );
-        vec3 day = vec3( 0.75, 1.0, 0.95 ) * 0.2;
+        vec3 day = vec3( 0.8, 1.0, 0.95 ) * 0.26;
         vec3 dusk = vec3( 0.4, 0.6, 1.0 ) * 0.08;
         vec3 c = mix( day, dusk, uGlow ) * soft * ends * flick * uRayK * ( 1.0 - uwFog() * 0.85 ) * vNear;
         gl_FragColor = vec4( c, 1.0 );
@@ -375,7 +375,7 @@ export function buildRays(U: UwUniforms, n: number, strength: { value: number })
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.28, 0.9, 0.1, "YXZ"));
   const v = new THREE.Vector3();
   const s = new THREE.Vector3();
-  const R = 30;
+  const R = 42;
   let seedK = 1;
   const rnd = () => ((seedK = (seedK * 16807) % 2147483647) / 2147483647);
   return {
@@ -443,7 +443,7 @@ export function buildCeiling(U: UwUniforms, radius: number): THREE.Mesh {
         vec2 rp = vW.xz * 0.6 + vec2( uTime * 0.3, -uTime * 0.2 );
         float rip = uwCaustic( vW.xz * 2.2 ) ;
         vec3 sky = mix( vec3( 0.75, 0.97, 1.0 ), vec3( 0.2, 0.25, 0.55 ), uGlow );
-        vec3 deep = mix( vec3( 0.12, 0.45, 0.55 ), vec3( 0.03, 0.08, 0.2 ), uGlow );
+        vec3 deep = mix( vec3( 0.2, 0.62, 0.72 ), vec3( 0.05, 0.14, 0.32 ), uGlow );
         vec3 c = mix( deep, sky, window ) + rip * mix( vec3( 0.35, 0.5, 0.5 ), vec3( 0.12, 0.3, 0.45 ), uGlow ) * ( 0.35 + window );
         // sun glints dancing on the underside
         float glint = step( 0.992, fract( sin( dot( floor( rp * 3.0 ), vec2( 12.9, 78.2 ) ) + floor( uTime * 2.0 ) ) * 43758.5 ) );
@@ -518,10 +518,11 @@ export function buildFloorCaustics(U: UwUniforms, cells: number): FloorCaustics 
       void main() {
         float under = smoothstep( ${WATER_Y_GLSL} - 0.1, ${WATER_Y_GLSL} - 0.9, vW.y );
         float deep = smoothstep( -1.0, -20.0, vW.y );
-        float depthK = mix( 1.0, 0.3, smoothstep( -2.0, -20.0, vW.y ) );
+        float depthK = mix( 1.0, 0.45, smoothstep( -2.0, -22.0, vW.y ) );
         float edge = 1.0 - smoothstep( uHalf * 0.8, uHalf * 0.99, length( vW.xz - uCentre ) );
         float k = under * edge * ( 1.0 - uwFog() );
-        vec3 absorb = vec3( 0.58, 0.74, 0.8 ) * mix( vec3( 1.0 ), vec3( 0.62, 0.86, 1.0 ), deep );
+        // (clear tropical water: the sand stays sandy, turning a little aqua with depth)
+        vec3 absorb = vec3( 1.16, 1.07, 0.84 ) * mix( vec3( 1.0 ), vec3( 0.74, 0.9, 1.0 ), deep ) * mix( 1.0, 0.8, uGlow );
         float c = uwCaustic( vW.xz ) * uCausticK * depthK;
         vec3 m = absorb * ( 1.0 + c * vec3( 1.1, 1.35, 1.4 ) );
         gl_FragColor = vec4( mix( vec3( 1.0 ), m, k ), 1.0 );

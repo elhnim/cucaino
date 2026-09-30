@@ -5,10 +5,18 @@
 //   - colour absorption with depth (reds fade first, so the deep reef turns blue-violet)
 //   - a soft blue "scatter" fill so shadowed sides never go black
 //   - glow: emissive = vertex colour x aFx.z x instance glow x uGlowK (> 1 blooms at twilight)
+//   - optional "film light" for creatures: a soft self-light (`lift`) and a teal-white fresnel rim
+//     (`rim`) so whales, orcas, mantas and fish show their colours against the blue, never as
+//     silhouettes
+//   - optional per-instance culling (`cull`): under water, an instance wholly inside the fog (or,
+//     with `cullNear`, right at the camera) is dropped in the vertex shader — so nothing is drawn as
+//     a fog-coloured ghost with an ink outline, and a coral head never fills the screen
 // and one of several vertex motions:
 //   "sway"  the swell rocks coral / sea grass / kelp (amplitude per vertex in aFx.y)
 //   "flap"  wings/flippers/flukes: y += sin(phase) * aFx.y (mantas, turtles, orcas, birds)
 //   "fish"  a swimming tail wiggle + procedural species patterns (clownfish bands, tang colours...)
+//   "scuttle" crabs: the whole body slides sideways and back while the legs (aFx.y) patter
+// plus `peek` (octopus, eels): the whole thing slowly rises out of its hole, looks about, sinks back
 // Vertex layout is the fantasy kit's (position, normal, color, aFx = tint/motion/glow) plus an
 // optional per-instance `aInst` (x = glow or flap strength, y = phase).
 import * as THREE from "three";
@@ -53,7 +61,7 @@ float uwCaustic( vec2 p ) {
 }
 `;
 
-export type UwMotion = "none" | "sway" | "flap" | "fish";
+export type UwMotion = "none" | "sway" | "flap" | "fish" | "scuttle";
 export interface UwMatOptions {
   motion: UwMotion;
   /** has the per-instance aInst attribute */
@@ -67,12 +75,24 @@ export interface UwMatOptions {
   /** extra pattern: brain-coral grooves, sea-fan lace (discard), orca markings (aMark attr),
    *  whale skin (aWh attr: pleats, mouth line, blowholes, mottling), rippled deep-sea sand */
   pattern?: "brain" | "lace" | "orca" | "blue" | "humpback" | "sand";
+  /** fresnel rim strength (creatures: ~0.5-1) */
+  rim?: number;
+  /** self-light (fraction of the albedo added as light) so colours read in the blue */
+  lift?: number;
+  /** cull instances wholly in the fog, under water; value = instance radius / its x scale */
+  cull?: number;
+  /** also cull instances within 1.6 m + cullNear x scale of the camera (coral, sea grass) */
+  cullNear?: number;
+  /** the item's height in local units, for the near cull (default 1.4) */
+  cullHeight?: number;
+  /** rise out of a hole and sink back now and then (octopus, eels) */
+  peek?: boolean;
 }
 
 export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0, ...params });
   const sea = o.sea !== false;
-  const key = `uw-${o.motion}-${o.inst ? 1 : 0}-${sea ? 1 : 0}-${o.flapAxis ?? "x"}-${o.pattern ?? ""}`;
+  const key = `uw-${o.motion}-${o.inst ? 1 : 0}-${sea ? 1 : 0}-${o.flapAxis ?? "x"}-${o.pattern ?? ""}-${o.rim ?? ""}-${o.lift ?? ""}-${o.cull ?? ""}-${o.cullNear ?? ""}-${o.cullHeight ?? ""}-${o.peek ? 1 : 0}`;
   const flap = { uFlapSpeed: { value: o.flapSpeed ?? 2 }, uFlapWave: { value: o.flapWave ?? 0.8 } };
   mat.customProgramCacheKey = () => key;
   mat.onBeforeCompile = (shader) => {
@@ -90,6 +110,11 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
       o.flapAxis === "z" ? "#define UW_FLAP_Z" : "",
       o.pattern ? `#define UW_PAT_${o.pattern.toUpperCase()}` : "",
       o.pattern === "blue" || o.pattern === "humpback" ? "#define UW_PAT_WHALE" : "",
+      o.rim ? `#define UW_RIM ${o.rim.toFixed(3)}` : "",
+      o.lift ? `#define UW_LIFT ${o.lift.toFixed(3)}` : "",
+      o.cull && o.inst ? `#define UW_CULL ${o.cull.toFixed(3)}` : "",
+      o.cullNear && o.inst ? `#define UW_CULL_NEAR ${o.cullNear.toFixed(3)}\n#define UW_CULL_H ${(o.cullHeight ?? 1.4).toFixed(3)}` : "",
+      o.peek ? "#define UW_PEEK" : "",
     ].join("\n");
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -106,8 +131,11 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         #ifdef UW_PAT_WHALE
           attribute vec3 aWh; varying vec3 vWh;
         #endif
+        #if defined( UW_CULL ) && defined( USE_FOG ) && !defined( FOG_EXP2 )
+          uniform float fogNear; uniform float fogFar;
+        #endif
         uniform float uTime; uniform float uFlapSpeed; uniform float uFlapWave;
-        varying vec3 vUwWorld; varying float vUwUp; varying float vUwGlow; varying vec3 vUwLocal; varying float vUwFin; varying float vUwSp;`,
+        varying vec3 vUwWorld; varying float vUwUp; varying float vUwGlow; varying vec3 vUwLocal; varying float vUwFin; varying float vUwSp; varying float vUwPh;`,
       )
       .replace(
         "#include <color_vertex>",
@@ -128,6 +156,7 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
       .replace(
         "#include <begin_vertex>",
         `#include <begin_vertex>
+        float uwCull = 0.0;
         {
           #ifdef USE_INSTANCING
             vec3 uwOrg = instanceMatrix[3].xyz;
@@ -148,12 +177,34 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
           vUwLocal = position;
           vUwFin = aFx.x;
           vUwSp = 0.0;
+          vUwPh = uwPh;
           #ifdef UW_SWAY
             // the swell: a slow surge back and forth plus a quicker flutter; aFx.y = amplitude
             float sw = uTime * 0.85 + uwOrg.x * 0.045 + uwOrg.z * 0.06;
             vec3 surge = vec3( sin( sw ), 0.0, cos( sw * 0.8 + 1.3 ) * 0.7 ) * 0.8;
             vec3 flut = vec3( sin( uTime * 2.3 + position.y * 2.1 + uwPh ), 0.0, cos( uTime * 1.9 + position.y * 1.7 + uwPh * 1.3 ) ) * 0.3;
             transformed += ( surge + flut ) * aFx.y;
+          #endif
+          #ifdef UW_PEEK
+            // rise out of the hole, look about for a while, sink back (a slow cycle per instance);
+            // the hole's rim (untinted: aFx.x < 0.5) stays put
+            {
+              float cyc = fract( uTime * 0.045 + uwPh * 0.137 );
+              float outK = smoothstep( 0.05, 0.2, cyc ) * ( 1.0 - smoothstep( 0.7, 0.86, cyc ) );
+              float body = step( 0.5, aFx.x );
+              transformed.y -= body * ( 1.0 - outK ) * 0.9 * ( 0.35 + max( 0.0, position.y ) );
+              transformed.xz *= mix( 1.0, 0.5 + 0.5 * outK, body );
+            }
+          #endif
+          #ifdef UW_SCUTTLE
+            {
+              // slide sideways a little way and back, pausing at each end; legs patter while moving
+              float sc = sin( uTime * 0.5 + uwPh );
+              float go = cos( uTime * 0.5 + uwPh );
+              transformed.x += clamp( sc * 1.4, -1.0, 1.0 ) * 0.7;
+              float moving = smoothstep( 0.2, 0.6, abs( go ) );
+              transformed.y += abs( sin( uTime * 11.0 + position.x * 9.0 + position.z * 5.0 ) ) * aFx.y * moving;
+            }
           #endif
           #ifdef UW_FLAP
             #ifdef UW_FLAP_Z
@@ -200,7 +251,30 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
           #ifdef UW_PAT_WHALE
             vWh = aWh;
           #endif
+          #ifdef UW_CULL
+            if ( cameraPosition.y < ${WATER_Y_GLSL} - 0.05 ) {
+              vec3 uwO = ( modelMatrix * vec4( uwOrg, 1.0 ) ).xyz;
+              float uwSc = length( instanceMatrix[0].xyz );
+              float uwD = distance( cameraPosition, uwO );
+              #if defined( USE_FOG ) && !defined( FOG_EXP2 )
+                if ( uwD - UW_CULL * uwSc > fogNear + ( fogFar - fogNear ) * 0.96 ) uwCull = 1.0;
+              #endif
+              #ifdef UW_CULL_NEAR
+                // (to the nearest point of the item's upright extent: a tall thicket's top can be
+                // right at the camera while its foot is far below)
+                vec3 uwNp = vec3( uwO.x, clamp( cameraPosition.y, uwO.y, uwO.y + UW_CULL_H * length( instanceMatrix[1].xyz ) ), uwO.z );
+                if ( distance( cameraPosition, uwNp ) < 1.6 + UW_CULL_NEAR * uwSc ) uwCull = 1.0;
+              #endif
+            }
+          #endif
         }`,
+      )
+      .replace(
+        "#include <fog_vertex>",
+        `#include <fog_vertex>
+        #ifdef UW_CULL
+          if ( uwCull > 0.5 ) gl_Position = vec4( 0.0, 0.0, 2.0, 1.0 );
+        #endif`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -208,7 +282,7 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         `${defs}
         #include <common>
         uniform float uTime; uniform float uGlowK; uniform float uGlow; uniform float uCausticK; uniform sampler2D uCausticTex;
-        varying vec3 vUwWorld; varying float vUwUp; varying float vUwGlow; varying vec3 vUwLocal; varying float vUwFin; varying float vUwSp;
+        varying vec3 vUwWorld; varying float vUwUp; varying float vUwGlow; varying vec3 vUwLocal; varying float vUwFin; varying float vUwSp; varying float vUwPh;
         #ifdef UW_PAT_ORCA
           varying vec2 vMark;
         #endif
@@ -265,7 +339,7 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
             c = mix( c, vec3( 1.0, 0.55, 0.7 ), smoothstep( -0.03, -0.1, y ) * 0.7 );
             c = mix( c, vec3( 0.95, 0.9, 0.7 ), smoothstep( 0.44, 0.48, z ) );
             if ( fin > 0.5 ) c = mix( vec3( 0.2, 0.5, 1.0 ), vec3( 1.0, 0.5, 0.8 ), 0.5 + 0.5 * sin( z * 40.0 ) );
-          } else {
+          } else if ( sp < 6.5 ) {
             // grouper: warm brown with pale spots and darker saddles
             c = vec3( 0.52, 0.33, 0.22 );
             vec2 q = vec2( z * 16.0, y * 16.0 );
@@ -273,6 +347,29 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
             float h = fract( sin( dot( cellQ, vec2( 12.9, 78.2 ) ) ) * 43758.5 );
             c = mix( c, vec3( 0.9, 0.78, 0.55 ), smoothstep( 0.28, 0.18, length( f + ( h - 0.5 ) * 0.3 ) ) * 0.8 );
             c *= 0.8 + 0.2 * step( 0.0, sin( z * 14.0 ) );
+          } else if ( sp < 7.5 ) {
+            // butterflyfish: sunshine yellow, a white face crossed by a black eye bar, a black
+            // "false eye" spot by the tail, fins edged in white
+            c = vec3( 1.0, 0.82, 0.05 );
+            c = mix( c, vec3( 1.0 ), smoothstep( 0.22, 0.28, z ) * 0.85 );
+            c = mix( c, vec3( 0.02 ), smoothstep( 0.02, 0.0, abs( z - 0.34 + y * 0.35 ) - 0.03 ) );
+            c = mix( c, vec3( 0.02 ), smoothstep( 0.012, 0.0, length( vec2( z + 0.3, y - 0.05 ) ) - 0.035 ) );
+            if ( fin > 0.5 ) c = mix( vec3( 1.0, 0.8, 0.1 ), vec3( 1.0 ), smoothstep( 0.12, 0.2, abs( y ) ) );
+          } else if ( sp < 8.5 ) {
+            // emperor angelfish: electric blue with curving golden stripes, a golden tail and a
+            // black mask edged in blue
+            c = vec3( 0.06, 0.2, 0.85 );
+            float st = sin( y * 42.0 + z * 14.0 + z * z * 20.0 );
+            c = mix( c, vec3( 1.0, 0.86, 0.15 ), smoothstep( 0.35, 0.6, st ) * step( -0.42, z ) );
+            c = mix( c, vec3( 1.0, 0.8, 0.1 ), smoothstep( -0.42, -0.47, z ) );
+            float mask = smoothstep( 0.02, 0.0, abs( z - 0.34 ) - 0.04 ) * step( -0.02, y );
+            c = mix( c, vec3( 0.02, 0.03, 0.1 ), mask );
+            c = mix( c, vec3( 0.3, 0.7, 1.0 ), smoothstep( 0.012, 0.0, abs( abs( z - 0.34 ) - 0.045 ) ) * step( -0.02, y ) );
+            if ( fin > 0.5 && z > -0.45 ) c = mix( c, vec3( 0.2, 0.55, 1.0 ), 0.6 );
+          } else {
+            // silver jack: blue-green back, mirror-bright sides, a yellow tail
+            c = mix( vec3( 0.85, 0.92, 0.98 ), vec3( 0.12, 0.42, 0.62 ), smoothstep( 0.02, 0.1, y ) );
+            c = mix( c, vec3( 1.0, 0.85, 0.2 ), smoothstep( -0.44, -0.5, z ) );
           }
           // eyes: dark pupil, golden ring, a white glint
           float e = length( vec2( z - 0.37, y - 0.035 ) );
@@ -317,9 +414,10 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
             // crisp markings from signed fields: x = white (belly, eye patch, fluke undersides), y = grey saddle
             float w = smoothstep( -0.012, 0.012, vMark.x );
             float g = smoothstep( -0.02, 0.02, vMark.y ) * ( 1.0 - w );
-            vec3 black = vec3( 0.035, 0.04, 0.055 );
-            vec3 oc = mix( black, vec3( 0.46, 0.5, 0.58 ), g );
-            oc = mix( oc, vec3( 0.93, 0.95, 0.97 ), w );
+            // (a glossy blue-black, not a hole in the picture)
+            vec3 black = vec3( 0.05, 0.065, 0.1 );
+            vec3 oc = mix( black, vec3( 0.55, 0.6, 0.68 ), g );
+            oc = mix( oc, vec3( 1.0 ), w );
             diffuseColor.rgb = oc;
           }
         #endif
@@ -383,8 +481,8 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         #ifdef UW_SEA
           // colour absorption with depth: reds fade first
           {
-            float deep = smoothstep( -1.0, -20.0, vUwWorld.y );
-            diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 0.5, 0.78, 1.0 ), deep );
+            float deep = smoothstep( -2.0, -24.0, vUwWorld.y );
+            diffuseColor.rgb *= mix( vec3( 1.0 ), vec3( 0.7, 0.88, 1.0 ), deep );
           }
         #endif`,
       )
@@ -394,16 +492,25 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         #ifdef UW_SEA
           {
             float under = smoothstep( ${WATER_Y_GLSL} + 0.3, ${WATER_Y_GLSL} - 0.6, vUwWorld.y );
-            float depthK = mix( 1.0, 0.3, smoothstep( -2.0, -20.0, vUwWorld.y ) );
+            float depthK = mix( 1.0, 0.45, smoothstep( -2.0, -22.0, vUwWorld.y ) );
             float up = smoothstep( -0.15, 0.85, vUwUp );
             float cst = uwCaustic( vUwWorld.xz ) * uCausticK * depthK * under * ( 0.15 + 0.85 * up );
-            // sunlight is dimmer and bluer under the sea; caustics dance on top
-            reflectedLight.directDiffuse *= mix( vec3( 1.0 ), vec3( 0.5, 0.62, 0.66 ), under );
-            reflectedLight.directSpecular *= mix( 1.0, 0.5, under );
-            reflectedLight.indirectDiffuse *= mix( 1.0, 0.7, under );
-            reflectedLight.indirectDiffuse += diffuseColor.rgb * vec3( 0.85, 1.0, 1.0 ) * cst * 0.75;
-            // blue scatter fill from all around (never pitch black under water)
-            reflectedLight.indirectDiffuse += diffuseColor.rgb * vec3( 0.1, 0.22, 0.3 ) * under * ( 1.0 - uGlow * 0.5 );
+            // clear tropical water: sunlight only a little bluer under the sea; caustics dance on top
+            reflectedLight.directDiffuse *= mix( vec3( 1.0 ), vec3( 0.82, 0.95, 1.0 ), under );
+            reflectedLight.directSpecular *= mix( 1.0, 0.6, under );
+            reflectedLight.indirectDiffuse += diffuseColor.rgb * vec3( 0.85, 1.0, 1.0 ) * cst * 0.8;
+            // turquoise scatter fill from all around (shadowed sides stay colourful, never black)
+            reflectedLight.indirectDiffuse += diffuseColor.rgb * vec3( 0.16, 0.28, 0.32 ) * under * ( 1.0 - uGlow * 0.4 );
+            #ifdef UW_LIFT
+              // "film light": creatures keep their colours in the blue
+              reflectedLight.indirectDiffuse += diffuseColor.rgb * UW_LIFT * mix( 0.35, 1.0, under );
+            #endif
+            #ifdef UW_RIM
+              // a soft teal-white rim picks the silhouette out of the water behind it
+              float uwFr = pow( 1.0 - saturate( dot( geometryNormal, geometryViewDir ) ), 3.0 );
+              vec3 uwRimC = mix( vec3( 0.55, 0.92, 1.0 ), diffuseColor.rgb * 1.3 + 0.25, 0.35 ) * mix( vec3( 1.0 ), vec3( 0.55, 0.8, 1.25 ), uGlow );
+              reflectedLight.indirectDiffuse += uwRimC * uwFr * UW_RIM * mix( 0.3, 1.0, under );
+            #endif
           }
         #else
           // in the sky: soft skylight all round, so pale birds stay pale from below
@@ -428,6 +535,13 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         `#include <emissivemap_fragment>
         #if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )
           totalEmissiveRadiance += diffuseColor.rgb * vUwGlow * uGlowK;
+        #endif
+        #ifdef UW_FISH
+          // silver fish (sardines, jacks) flash as they turn: a bait ball glitters
+          if ( abs( vUwSp - 4.0 ) < 0.5 || vUwSp > 8.5 ) {
+            float uwFl = smoothstep( 0.82, 1.0, sin( vUwPh * 0.23 + vUwLocal.z * 3.0 ) );
+            totalEmissiveRadiance += vec3( 0.8, 0.95, 1.0 ) * uwFl * 0.9 * step( vUwFin, 0.5 );
+          }
         #endif`,
       );
   };

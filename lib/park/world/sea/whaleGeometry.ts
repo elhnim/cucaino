@@ -118,8 +118,10 @@ export function whaleGeometry(kind: WhaleKind): THREE.BufferGeometry {
   const P = hump ? HUMP : BLUE;
   const parts: THREE.BufferGeometry[] = [];
   // ── palette ──
-  const back = hump ? col("#23282f") : col("#5b7a93");
-  const flank = hump ? col("#30363f") : col("#7894aa");
+  // (a slate blue-black humpback, a pale blue-grey blue whale: dark enough to be themselves, light
+  // enough to show their shape and markings under water)
+  const back = hump ? col("#2e3846") : col("#6a8cab");
+  const flank = hump ? col("#3c4858") : col("#87a6c0");
   const belly = hump ? col("#d4d9dd") : col("#a9bac6");
   const throat = hump ? col("#e6e9eb") : col("#b9c7d1");
   const tv = new THREE.Vector3();

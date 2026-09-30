@@ -10,6 +10,7 @@ import {
   REEF_KINDS,
   RULES,
   SECTORS,
+  SPECIES,
   TEMPLE,
   WRECK,
   avoidKid,
@@ -25,7 +26,35 @@ import {
   stepFish,
   windowCount,
 } from "./plan";
-import { anemoneGeometry, brainGeometry, clamBaseGeometry, clamLidGeometry, fanGeometry, fishGeometry, galleonGeometry, jellyGeometry, kelpGeometry, mantaGeometry, orcaGeometry, seagrassGeometry, staghornGeometry, starfishGeometry, tableGeometry, templeGeometry, tubeGeometry, turtleGeometry, urchinGeometry } from "./geometry";
+import {
+  anemoneGeometry,
+  brainGeometry,
+  bushGeometry,
+  clamBaseGeometry,
+  clamLidGeometry,
+  crabGeometry,
+  eelGeometry,
+  fanGeometry,
+  fishGeometry,
+  galleonGeometry,
+  jellyGeometry,
+  kelpGeometry,
+  mantaGeometry,
+  octopusGeometry,
+  orcaGeometry,
+  rayGeometry,
+  seagrassGeometry,
+  seahorseGeometry,
+  smallFishGeometry,
+  staghornGeometry,
+  starfishGeometry,
+  tableGeometry,
+  templeGeometry,
+  tubeGeometry,
+  turtleGeometry,
+  urchinGeometry,
+} from "./geometry";
+import { buildUnderwater } from "./index";
 import { buildRockGeometry } from "../fantasy/stones";
 import { makeSwimmer, seaFloorY, swim, type SwimStyle } from "../sea/wander";
 
@@ -155,8 +184,13 @@ describe("planReef", () => {
 });
 
 describe("triangle budget", () => {
-  it("the streamed reef stays within budget (standard <= 115k, low <= 60k triangles)", () => {
+  it("the streamed reef stays within budget (standard <= 140k, low <= 72k triangles)", () => {
     const geos: Record<string, THREE.BufferGeometry> = {
+      bush: bushGeometry(),
+      seahorse: seahorseGeometry(),
+      octopus: octopusGeometry(),
+      eel: eelGeometry(),
+      crab: crabGeometry(),
       staghorn: staghornGeometry(),
       brain: brainGeometry(),
       table: tableGeometry(),
@@ -170,8 +204,49 @@ describe("triangle budget", () => {
       urchin: urchinGeometry(),
     };
     const sum = (p: ReturnType<typeof planReef>) => REEF_KINDS.reduce((a, k) => a + p.capacity[k] * tris(geos[k]), 0) + HERO_ANEMONES.length * tris(geos.anemone);
-    expect(sum(planReef())).toBeLessThanOrEqual(115000);
-    expect(sum(planReef({ lowQuality: true }))).toBeLessThanOrEqual(60000);
+    expect(sum(planReef())).toBeLessThanOrEqual(140000);
+    expect(sum(planReef({ lowQuality: true }))).toBeLessThanOrEqual(72000);
+  });
+  it("the whole underwater world, everything at full capacity: <= 45 draw calls, <= 260k triangles (low: <= 130k)", () => {
+    for (const lowQuality of [false, true]) {
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x3ccfd9, 20, 86);
+      const uw = buildUnderwater(scene, { lowQuality });
+      let calls = 0;
+      let triangles = 0;
+      for (const root of [uw.group, uw.surface])
+        root.traverse((o) => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh && !(o as THREE.Points).isPoints) return;
+          calls++;
+          if ((o as THREE.Points).isPoints) return;
+          const n = tris(m.geometry);
+          // (instanced: every slot filled)
+          triangles += n * ((o as THREE.InstancedMesh).isInstancedMesh ? (o as THREE.InstancedMesh).instanceMatrix.count : 1);
+        });
+      expect(calls).toBeLessThanOrEqual(45);
+      expect(triangles).toBeLessThanOrEqual(lowQuality ? 130000 : 260000);
+      // and it runs (under water, day and twilight) without blowing up
+      const kid = new THREE.Vector3(Math.sin(0.2) * 190, -4, Math.cos(0.2) * 190);
+      for (let i = 0; i < 60; i++) uw.update(1 / 30, i / 30, { kid, under: true, glow: i > 30 ? 1 : 0 });
+      uw.dispose();
+    }
+  });
+  it("the new reef life is finite and modest", () => {
+    for (const [name, g, max] of [
+      ["bush", bushGeometry(), 160],
+      ["seahorse", seahorseGeometry(), 160],
+      ["octopus", octopusGeometry(), 320],
+      ["eel", eelGeometry(), 160],
+      ["crab", crabGeometry(), 160],
+      ["ray", rayGeometry(), 260],
+      ["small fish", smallFishGeometry(), 40],
+    ] as const) {
+      expect(finite(g), name).toBe(true);
+      expect(tris(g), name).toBeLessThanOrEqual(max);
+      expect(g.attributes.aFx, name).toBeDefined();
+      expect(g.attributes.color, name).toBeDefined();
+    }
   });
   it("creature and landmark geometry is finite and modest", () => {
     const list: [string, THREE.BufferGeometry, number][] = [
@@ -204,17 +279,27 @@ describe("triangle budget", () => {
 });
 
 describe("fish", () => {
-  it("~250-350 fish at standard, about half at low", () => {
-    const n = planSchools().reduce((a, s) => a + s.n, 0);
+  it("a full ocean: ~700-900 fish at standard, about half at low; most of the little ones on the cheap mesh", () => {
+    const all = planSchools();
+    const n = all.reduce((a, s) => a + s.n, 0);
     const nl = planSchools({ lowQuality: true }).reduce((a, s) => a + s.n, 0);
-    expect(n).toBeGreaterThanOrEqual(250);
-    expect(n).toBeLessThanOrEqual(350);
+    expect(n).toBeGreaterThanOrEqual(700);
+    expect(n).toBeLessThanOrEqual(900);
     expect(nl).toBeGreaterThan(n * 0.4);
     expect(nl).toBeLessThan(n * 0.6);
+    const small = all.filter((s) => s.small).reduce((a, s) => a + s.n, 0);
+    expect(small).toBeGreaterThan(n * 0.4);
+    // schools that keep near the kid wherever they swim, a bait ball among them, and a buddy swarm
+    expect(all.filter((s) => s.follow).length).toBeGreaterThanOrEqual(6);
+    expect(all.some((s) => s.follow && s.bait)).toBe(true);
+    expect(all.some((s) => s.buddy)).toBe(true);
+    // every species shows up somewhere
+    const species = new Set(all.map((s) => s.species));
+    for (const sp of [SPECIES.clown, SPECIES.blueTang, SPECIES.yellowTang, SPECIES.anthias, SPECIES.sardine, SPECIES.parrot, SPECIES.grouper, SPECIES.butterfly, SPECIES.angel]) expect(species.has(sp)).toBe(true);
   });
   it("reef schools roam round their reef (not a fixed loop), always in the water", () => {
     for (const [si, s] of planSchools().entries()) {
-      if (s.follow || s.n === 1 || s.rad < 1) continue;
+      if (s.follow || s.buddy || s.n === 1 || s.rad < 1) continue;
       const st: SwimStyle = { speed: [0.7, 1.5], turn: 0.55, wander: 0.07, depth: [1.4, 30], clear: s.spread[1] + 0.7, need: (s.spread[1] + 0.6) * 1.5 + 1.4, look: 7, climb: 0.4, bank: 0.8, above: [1.6 + s.spread[1], 4.5 + s.spread[1]], home: { x: s.ax, z: s.az, r: s.rad * 2.4 + 8 } };
       const sw = makeSwimmer(s.ax, s.ay, s.az, si, 300 + si * 7, 1);
       let far = 0;

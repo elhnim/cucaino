@@ -1494,7 +1494,7 @@ export class ParkWorld {
       let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.55 : 1) * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
       // under the sea the water swallows anything far away: bring the camera in close (the
       // storybook look's model-railway distance lost the kid and the manta in the haze)
-      if (pos.y + 1.6 < WATER_Y) dist = Math.min(dist, this.mount ? 10 : 8.5);
+      if (pos.y + 1.6 < WATER_Y) dist = Math.min(dist, this.mount ? 15 : 13);
       // a tree (or big rock) between the camera and the kid? slide the camera in closer, like
       // a proper third-person camera, instead of staring at a trunk
       // (not in the diorama look: from that height canopies rarely block, and pulling in ruins the view)
@@ -1551,12 +1551,13 @@ export class ParkWorld {
         // filled the view with its bright underside)
         // float a little above the kid, over the coral tops (down among the coral, sea fans and
         // grass blocked the view), and never up through the surface
-        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 3.4, seaFloorY(cp.x, cp.z) + 2.2));
+        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.6, seaFloorY(cp.x, cp.z) + 2.2));
       } else if (seaDepth(cp.x, cp.z) > 0 && cp.y < WATER_Y + 1.2) cp.y = WATER_Y + 1.2;
       // aim a little above the kid: they sit in the lower third and the world fills the frame
       // (aiming straight at them left the bottom half of the screen as empty grass)
       // (under the sea, look a little DOWN at the reef instead — up is just the surface)
-      const aimUp = kidUnder ? -1.4 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35);
+      // (under water: look level, out across the reef and the blue — the water is clear now)
+      const aimUp = kidUnder ? 0.2 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35);
       this.camera.lookAt(this.lookAtPt.x, this.lookAtPt.y + aimUp, this.lookAtPt.z);
       // a telescope's peek: glance over at the island it's aimed at
       if (this.peek && this.time < this.peek.until) this.camera.lookAt(this.peek.x, this.peek.y, this.peek.z);

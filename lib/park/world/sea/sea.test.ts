@@ -6,6 +6,7 @@ import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFlo
 import { BREACH, CRUISE, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, FLUKE, SURFACE, WHALE_STYLE, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, noseY, startMode, stepWhale, tailY, type Whale } from "./whales";
 import { WHALE_GIRTH, blowholeLocal, whaleGeometry } from "./whaleGeometry";
 import { seaDisc } from "../ocean";
+import { makeVisit, startVisit, stepVisit } from "./visits";
 
 const OPEN: SwimStyle = { speed: [3, 5], turn: 0.25, wander: 0.05, depth: [2, 4], clear: 2, need: 10, look: 30, climb: 1, bank: 2 };
 const dt = 1 / 20;
@@ -182,7 +183,7 @@ describe("giant whales", () => {
         expect(Number.isFinite(w.x + w.y + w.z + w.yaw + w.pitch + w.roll)).toBe(true);
       }
     });
-  });
+  }, 30_000); // (a long simulation: give it room when the whole suite runs in parallel)
   it("surface to blow, lift their flukes and dive — and humpbacks breach", () => {
     const ws = pod();
     const modes = new Set<string>();
@@ -291,6 +292,24 @@ describe("giant whales", () => {
     });
     expect(passed).toBe(true);
   });
+  it("a diving kid out over the deep meets a whale close up (8-16 m) every half-minute or so", () => {
+    const ws = pod();
+    let passes = 0;
+    let wasClose = false;
+    let closest = Infinity;
+    simulate(ws, 300, (_t, o) => ((o.x = -380), (o.z = 20), (o.y = -8)), true, (t, _e, kid) => {
+      if (t < 5) return;
+      let best = Infinity;
+      for (const w of ws) if (Math.abs(w.y - kid.y) < 7) best = Math.min(best, Math.sqrt(dist2(w, kid)));
+      closest = Math.min(closest, best);
+      const close = best < 20;
+      if (close && !wasClose) passes++;
+      wasClose = close;
+    });
+    expect(passes).toBeGreaterThanOrEqual(6);
+    // close, but they swim round the kid rather than through them
+    expect(closest).toBeGreaterThan(3);
+  });
   it("the whale kit: finite, modest, unit length, with skin markings", () => {
     for (const kind of ["blue", "humpback"] as const) {
       const g = whaleGeometry(kind);
@@ -323,6 +342,49 @@ describe("giant whales", () => {
     expect(out.x).toBeCloseTo(v.x, 6);
     expect(out.y).toBeCloseTo(v.y, 6);
     expect(out.z).toBeCloseTo(v.z, 6);
+  });
+});
+
+describe("close encounters (visits)", () => {
+  const ORCA_V: SwimStyle = { speed: [3.2, 4.4], turn: 0.34, wander: 0.04, depth: [1.8, 30], clear: 2.1, need: 4.5, look: 18, climb: 1.4, bank: 1.6 };
+  const run = (focusAt: (t: number, o: { x: number; z: number }) => void, kidY: number, lateral: number, dirX = 0, dirZ = 1) => {
+    const s = makeSwimmer(0, -5, 0, 0, 901, 4);
+    const v = makeVisit(0);
+    const kid = { x: 0, z: 0 };
+    focusAt(0, kid);
+    startVisit(s, ORCA_V, v, kid, dirX, dirZ, rngOf(5), 58, 70, lateral, kidY);
+    const start = Math.sqrt(dist2(s, kid));
+    let closest = Infinity;
+    let yAtClosest = 0;
+    for (let t = 0; t < 40; t += dt) {
+      focusAt(t, kid);
+      const d = stepVisit(s, ORCA_V, v, kid, dt, t);
+      expect(s.y).toBeGreaterThan(seaFloorY(s.x, s.z) + 0.5);
+      expect(s.y).toBeLessThan(WATER_Y - 1);
+      if (d < closest) ((closest = d), (yAtClosest = s.y));
+    }
+    return { start, closest, yAtClosest, passed: v.passed };
+  };
+  it("a visitor turns up out in the blue and swims right past the kid, at their depth", () => {
+    // out over the deep
+    const r = run((_t, o) => ((o.x = 0), (o.z = 320)), -7, 10);
+    expect(r.start).toBeGreaterThan(55);
+    expect(r.passed).toBe(true);
+    expect(r.closest).toBeLessThan(13);
+    expect(r.closest).toBeGreaterThan(5);
+    expect(Math.abs(r.yAtClosest + 7)).toBeLessThan(2);
+  });
+  it("it tracks a kid who's swimming along", () => {
+    // (it turns up ahead of where they are going)
+    const r = run((t, o) => ((o.x = t * 2.5), (o.z = 320)), -6, 8, 1, 0);
+    expect(r.passed).toBe(true);
+    expect(r.closest).toBeLessThan(12);
+  });
+  it("over the reef shelf it keeps clear of the floor", () => {
+    // ~9 m of water off the galleon's garden
+    const p = { x: Math.sin(0.2) * 193, z: Math.cos(0.2) * 193 };
+    const r = run((_t, o) => ((o.x = p.x), (o.z = p.z)), seaFloorY(p.x, p.z) + 3, 8);
+    expect(r.closest).toBeLessThan(20);
   });
 });
 

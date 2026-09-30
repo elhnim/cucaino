@@ -5,6 +5,7 @@
 // light towards twilight too, so it always feels magical in there.
 import * as THREE from "three";
 import { groundY } from "../registry/terrain";
+import { seaDepth } from "./sea/wander";
 
 export interface Atmosphere {
   /** 0 = full day, 1 = full twilight glow (after the forest pull) */
@@ -244,9 +245,11 @@ export function buildAtmosphere(
   let under = false;
   let underDepth = 0;
   const bgSaved = scene.background;
-  const waterDay = new THREE.Color("#1f8fb0");
-  const waterDeep = new THREE.Color("#0b3f6a");
-  const waterNight = new THREE.Color("#06203f");
+  // under the sea: bright turquoise near the surface -> clear reef blue -> open-ocean blue; dusk
+  const waterTop = new THREE.Color("#3ccfd9");
+  const waterReef = new THREE.Color("#23a6d8");
+  const waterDeep = new THREE.Color("#1a6fc6");
+  const waterNight = new THREE.Color("#12357a");
   const underCol = new THREE.Color();
 
   return {
@@ -316,19 +319,30 @@ export function buildAtmosphere(
       fMat.uniforms.uGlow.value = glow;
 
       if (under) {
-        // light fades and turns blue the deeper you go; at twilight the sea is inky and the
-        // glowing creatures carry the scene
-        underCol.copy(waterDay).lerp(waterDeep, Math.min(1, underDepth / 18)).lerp(waterNight, glow * 0.8);
+        // clear, bright tropical water: ~85 m visibility over the lagoon and reef, ~55 m out over
+        // the deep; bright turquoise near the surface fading to a clear blue as you go down (never
+        // near-black). At twilight it's a deep dusky blue, still readable, and the glowing
+        // creatures carry the scene.
+        const s01 = (a: number, b: number, x: number) => {
+          const u = Math.min(1, Math.max(0, (x - a) / (b - a)));
+          return u * u * (3 - 2 * u);
+        };
+        const open = s01(12, 20, seaDepth(focus.x, focus.z)); // 0 lagoon/reef .. 1 over the deep
+        const down = s01(1.5, 16, underDepth); // how far below the surface the camera is
+        underCol.copy(waterTop).lerp(waterReef, Math.max(down * 0.8, open * 0.6)).lerp(waterDeep, open * (0.35 + down * 0.65));
+        underCol.lerp(waterNight, glow * 0.82);
         const fog = scene.fog as THREE.Fog;
         fog.color.copy(underCol);
-        fog.near = 1.5;
-        fog.far = 46 - Math.min(14, underDepth * 0.6) - glow * 8;
+        fog.far = (86 - open * 30 - down * 6) * (1 - glow * 0.22);
+        fog.near = fog.far * 0.24;
         scene.background = underCol;
-        hemi.color.set("#9ff0ff");
-        hemi.groundColor.set("#1a4a6a");
-        hemi.intensity = cur.hemiI * 0.95;
-        sun.color.set("#bff4ff");
-        sun.intensity = cur.sunI * (0.95 - Math.min(0.5, underDepth / 30));
+        // strong ambient (sky light scattered all round + the bright sand bouncing it up) and the
+        // sun from above, so creatures show their colours
+        hemi.color.set("#e4fdff");
+        hemi.groundColor.set("#86d4d2");
+        hemi.intensity = (0.95 - down * 0.15 - open * 0.08) * (1 - glow * 0.4);
+        sun.color.set("#fff9e6");
+        sun.intensity = (1.12 - down * 0.3) * (1 - glow * 0.62);
       }
     },
     dispose() {

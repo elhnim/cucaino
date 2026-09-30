@@ -204,7 +204,7 @@ function planPearls(): Pearl[] {
 export const PEARLS: Pearl[] = planPearls();
 
 // ── the reef items ──
-export const REEF_KINDS = ["staghorn", "brain", "table", "fan", "tube", "anemone", "seagrass", "kelp", "rock", "starfish", "urchin"] as const;
+export const REEF_KINDS = ["staghorn", "brain", "table", "fan", "tube", "anemone", "seagrass", "kelp", "rock", "starfish", "urchin", "bush", "seahorse", "octopus", "eel", "crab"] as const;
 export type ReefKind = (typeof REEF_KINDS)[number];
 
 interface KindRule {
@@ -228,18 +228,48 @@ interface KindRule {
   cap: number;
 }
 
+// The whole shelf ring is one packed coral garden (the four showpiece gardens are denser still):
+// towering staghorn thickets, big brain corals, huge sea fans, giant anemones, finger-coral bushes,
+// sponges, coralline rocks; sea grass meadows (with seahorses) in the lagoon; octopuses and moray
+// eels peeking from holes, crabs scuttling. Densities are high on purpose: `cap` is the budget,
+// and fillWindow takes the sectors nearest the kid first, so the far edge is what gives.
 export const RULES: Record<ReefKind, KindRule> = {
-  staghorn: { d0: 15, d1: 40, dens: 0.022, garden: 4, patch: 14, clump: 0.7, s0: 0.8, s1: 1.7, pad: 0.4, glow: 0.35, cap: 125 },
-  brain: { d0: 15, d1: 39, dens: 0.014, garden: 4, patch: 18, clump: 0.5, s0: 0.6, s1: 1.5, pad: 0.4, glow: 0, cap: 85 },
-  table: { d0: 22, d1: 40, dens: 0.009, garden: 4, patch: 16, clump: 0.6, s0: 0.65, s1: 1.35, pad: 0.8, glow: 0.2, cap: 45 },
-  fan: { d0: 23, d1: 43, dens: 0.02, garden: 4, patch: 12, clump: 0.6, s0: 1.0, s1: 2.0, pad: 0.4, glow: 0.3, cap: 70 },
-  tube: { d0: 19, d1: 42, dens: 0.014, garden: 4, patch: 12, clump: 0.7, s0: 0.7, s1: 1.4, pad: 0.4, glow: 0.4, cap: 55 },
-  anemone: { d0: 14, d1: 36, dens: 0.007, garden: 5, patch: 10, clump: 0.8, s0: 0.8, s1: 1.4, pad: 0.3, glow: 0.6, cap: 40 },
-  seagrass: { d0: 9, d1: 25, dens: 0.5, garden: 1.5, patch: 16, clump: 0.95, s0: 0.8, s1: 1.6, pad: 0.2, glow: 0, cap: 420 },
-  kelp: { d0: 31, d1: 45, dens: 0.01, garden: 6, patch: 20, clump: 0.8, s0: 0.65, s1: 0.95, pad: 1.2, glow: 0.25, cap: 85 },
-  rock: { d0: 11, d1: 46, dens: 0.012, garden: 2, patch: 20, clump: 0.6, s0: 0.5, s1: 2.2, pad: 0.8, glow: 0, cap: 110 },
-  starfish: { d0: 10, d1: 38, dens: 0.008, garden: 3, patch: 12, clump: 0.5, s0: 0.7, s1: 1.2, pad: 0.1, glow: 0, cap: 60 },
-  urchin: { d0: 14, d1: 40, dens: 0.008, garden: 3, patch: 10, clump: 0.7, s0: 0.6, s1: 1.1, pad: 0.3, glow: 0.5, cap: 70 },
+  staghorn: { d0: 15, d1: 42, dens: 0.05, garden: 3.2, patch: 14, clump: 0.55, s0: 1.1, s1: 2.9, pad: 0.5, glow: 0.5, cap: 130 },
+  brain: { d0: 15, d1: 40, dens: 0.03, garden: 2.5, patch: 16, clump: 0.45, s0: 0.9, s1: 2.5, pad: 0.5, glow: 0.1, cap: 100 },
+  table: { d0: 20, d1: 41, dens: 0.012, garden: 2.5, patch: 16, clump: 0.5, s0: 1.0, s1: 2.2, pad: 0.9, glow: 0.3, cap: 42 },
+  fan: { d0: 20, d1: 44, dens: 0.035, garden: 2.5, patch: 12, clump: 0.5, s0: 1.3, s1: 3.0, pad: 0.5, glow: 0.45, cap: 115 },
+  tube: { d0: 17, d1: 43, dens: 0.022, garden: 2.5, patch: 12, clump: 0.6, s0: 1.0, s1: 2.1, pad: 0.5, glow: 0.5, cap: 56 },
+  anemone: { d0: 13, d1: 38, dens: 0.014, garden: 3, patch: 10, clump: 0.7, s0: 1.1, s1: 2.2, pad: 0.4, glow: 0.7, cap: 46 },
+  seagrass: { d0: 8, d1: 26, dens: 0.7, garden: 1.2, patch: 16, clump: 0.85, s0: 1.0, s1: 2.0, pad: 0.2, glow: 0, cap: 360 },
+  kelp: { d0: 31, d1: 45, dens: 0.012, garden: 5, patch: 20, clump: 0.8, s0: 0.65, s1: 0.95, pad: 1.2, glow: 0.3, cap: 50 },
+  rock: { d0: 11, d1: 46, dens: 0.02, garden: 1.5, patch: 20, clump: 0.5, s0: 0.8, s1: 2.3, pad: 0.8, glow: 0, cap: 96 },
+  starfish: { d0: 10, d1: 40, dens: 0.02, garden: 2, patch: 12, clump: 0.5, s0: 0.9, s1: 1.6, pad: 0.1, glow: 0.2, cap: 64 },
+  urchin: { d0: 14, d1: 40, dens: 0.01, garden: 2, patch: 10, clump: 0.7, s0: 0.6, s1: 1.1, pad: 0.3, glow: 0.5, cap: 36 },
+  bush: { d0: 15, d1: 40, dens: 0.03, garden: 2.5, patch: 12, clump: 0.6, s0: 0.9, s1: 2.2, pad: 0.4, glow: 0.4, cap: 100 },
+  seahorse: { d0: 10, d1: 26, dens: 0.006, garden: 1, patch: 16, clump: 0.85, s0: 0.85, s1: 1.25, pad: 0.2, glow: 0.3, cap: 14 },
+  octopus: { d0: 18, d1: 40, dens: 0.0035, garden: 2, patch: 10, clump: 0.5, s0: 0.9, s1: 1.4, pad: 0.8, glow: 0.2, cap: 8 },
+  eel: { d0: 18, d1: 42, dens: 0.004, garden: 2, patch: 10, clump: 0.5, s0: 0.9, s1: 1.3, pad: 0.8, glow: 0, cap: 10 },
+  crab: { d0: 12, d1: 40, dens: 0.008, garden: 1.5, patch: 10, clump: 0.5, s0: 0.8, s1: 1.3, pad: 0.3, glow: 0, cap: 24 },
+};
+
+/** roughly how tall each kind stands at scale 1 (m); 0 = not limited (kelp reaches for the surface) */
+export const ITEM_HEIGHT: Record<ReefKind, number> = {
+  staghorn: 1.35,
+  brain: 0.75,
+  table: 0.75,
+  fan: 1.7,
+  tube: 1.15,
+  anemone: 1.15,
+  seagrass: 1.1,
+  kelp: 0,
+  rock: 1.0,
+  starfish: 0,
+  urchin: 0,
+  bush: 1.0,
+  seahorse: 0,
+  octopus: 0,
+  eel: 0,
+  crab: 0,
 };
 
 export interface ReefItem {
@@ -281,16 +311,17 @@ export function reefDensity(kind: ReefKind, x: number, z: number, d: number): nu
   const R = RULES[kind];
   const edge = smoothstep(R.d0, R.d0 + 3, d) * (1 - smoothstep(R.d1 - 3, R.d1, d));
   if (edge <= 0) return 0;
-  const ki = REEF_KINDS.indexOf(kind);
+  // (seahorses live in the sea grass meadows: they share its patches)
+  const ki = REEF_KINDS.indexOf(kind === "seahorse" ? "seagrass" : kind);
   const n = fbm2(x / R.patch + ki * 7.1, z / R.patch - ki * 3.3, 3, 40 + ki);
   const patch = Math.max(0, 1 - R.clump + R.clump * smoothstep(0.35, 0.68, n) * 2);
   let boost = 1 + (R.garden - 1) * gardenBoost(x, z);
   // the glow garden is a kelp forest; the rainbow reef is all coral
   if (kind === "kelp") boost *= 1 + 2.5 * gardenBoost(x, z, "glow") - 0.8 * gardenBoost(x, z, "rainbow");
-  if (kind === "seagrass") boost *= 1 - 0.7 * gardenBoost(x, z);
+  if (kind === "seagrass" || kind === "seahorse") boost *= 1 - 0.7 * gardenBoost(x, z);
   // coral loves the mounds; sea grass the flat sand
   const y = groundY(x, z);
-  const mound = kind === "seagrass" || kind === "kelp" || kind === "rock" ? 1 : 0.6 + 0.8 * smoothstep(-8, -4.5, y);
+  const mound = kind === "seagrass" || kind === "seahorse" || kind === "kelp" || kind === "rock" || kind === "crab" ? 1 : 0.6 + 0.8 * smoothstep(-8, -4.5, y);
   return R.dens * edge * patch * boost * mound;
 }
 
@@ -324,7 +355,10 @@ export function planReef(opts: { lowQuality?: boolean } = {}): ReefPlan {
           const y = groundY(x, z);
           if (y > WATER_Y - 1) continue;
           const g = gardenBoost(x, z);
-          const s = (R.s0 + (R.s1 - R.s0) * Math.pow(r(), 1.3)) * (1 + g * 0.25);
+          let s = (R.s0 + (R.s1 - R.s0) * Math.pow(r(), 1.3)) * (1 + g * 0.25);
+          // tall coral stays ~2.4 m under the surface: room to swim (and for the camera) over it
+          const H = ITEM_HEIGHT[kind];
+          if (H > 0) s = Math.min(s, Math.max(R.s0 * 0.7, (WATER_Y - 2.4 - y) / H));
           // the Glow Kelp forest is the bioluminescent showpiece: most things there glow at twilight
           const glowP = R.glow + g * 0.15 + (R.glow > 0 ? gardenBoost(x, z, "glow") * 0.6 : 0);
           items[kind].push({ x, y, z, s, rot: r() * Math.PI * 2, tilt: r() * 0.22, tiltDir: r() * Math.PI * 2, hue: r(), glow: r() < glowP ? 0.6 + r() * 0.4 : 0, sector: sectorOf(x, z) });
@@ -332,7 +366,9 @@ export function planReef(opts: { lowQuality?: boolean } = {}): ReefPlan {
       });
     }
   }
-  const half = low ? 5 : 6;
+  // sectors drawn either side of the kid's (~9 m of reef each at the shelf): the water is clear
+  // for ~85 m now, so the window reaches that far (capacity fills nearest-first)
+  const half = low ? 6 : 9;
   const starts = {} as Record<ReefKind, Int32Array>;
   const capacity = {} as Record<ReefKind, number>;
   for (const kind of REEF_KINDS) {
@@ -379,7 +415,9 @@ export function fillWindow(starts: Int32Array, centre: number, half: number, cap
 }
 
 // ── fish schools ──
-export const SPECIES = { clown: 0, blueTang: 1, yellowTang: 2, anthias: 3, sardine: 4, parrot: 5, grouper: 6 } as const;
+export const SPECIES = { clown: 0, blueTang: 1, yellowTang: 2, anthias: 3, sardine: 4, parrot: 5, grouper: 6, butterfly: 7, angel: 8, jack: 9 } as const;
+/** reef fish a roaming school may turn out to be (re-rolled each time it turns up near the kid) */
+export const REEF_POOL: readonly number[] = [SPECIES.yellowTang, SPECIES.blueTang, SPECIES.butterfly, SPECIES.yellowTang, SPECIES.anthias, SPECIES.blueTang];
 export interface SchoolDef {
   species: number;
   n: number;
@@ -397,8 +435,13 @@ export interface SchoolDef {
   size: number;
   /** a swirling bait ball instead of a streaming school */
   bait?: boolean;
-  /** the "near you" school: its home drifts after the kid so there are always fish about */
+  /** the "near you" school: its home drifts after the kid so there are always fish about
+   *  (it turns up again ahead when left behind: a reef species over the reef, silver fish over the deep) */
   follow?: boolean;
+  /** little fish that swarm round the kid wherever they swim */
+  buddy?: boolean;
+  /** drawn with the cheap small-fish mesh (bait balls, anthias clouds) */
+  small?: boolean;
   ph: number;
 }
 
@@ -424,27 +467,44 @@ export function planSchools(opts: { lowQuality?: boolean } = {}): SchoolDef[] {
   const Rb = gardenOf("rainbow");
   const Gl = gardenOf("glow");
   const Ru = gardenOf("ruins");
-  // the galleon: clownfish at the anemones, a yellow tang school over the deck, blue tangs
+  // the galleon: clownfish at the anemones, a big yellow tang school over the deck, blue tangs,
+  // butterflyfish picking at the hull
   for (const a of HERO_ANEMONES.slice(0, 2)) add(SPECIES.clown, 6, a.x, a.z, { rad: 0.5, spread: [0.6, 0.35, 0.6], speed: 0.4, size: 0.42, frac: 0, above: 1.7 });
-  add(SPECIES.yellowTang, 24, W.x, W.z, { rad: 7, spread: [2.4, 1, 1.8], speed: 0.09, size: 0.55 });
+  add(SPECIES.yellowTang, 34, W.x, W.z, { rad: 7, spread: [2.8, 1.1, 2.1], speed: 0.09, size: 0.55 });
   let p = around(W, 8, -8);
-  add(SPECIES.blueTang, 20, p.x, p.z, { rad: 8, spread: [2.6, 1, 2], speed: 0.1, size: 0.6 });
-  // the temple: a big cloud of purple anthias over the columns, blue tangs through the arch
-  add(SPECIES.anthias, 38, Ru.x, Ru.z, { rad: 6, spread: [4, 1.8, 3.4], speed: 0.07, size: 0.4, frac: 0.5 });
+  add(SPECIES.blueTang, 28, p.x, p.z, { rad: 8, spread: [3, 1.1, 2.3], speed: 0.1, size: 0.6 });
+  p = around(W, -6, 7);
+  add(SPECIES.butterfly, 12, p.x, p.z, { rad: 5, spread: [1.8, 0.7, 1.4], speed: 0.08, size: 0.5 });
+  // the temple: a big cloud of purple anthias over the columns, blue tangs through the arch,
+  // a few emperor angelfish
+  add(SPECIES.anthias, 70, Ru.x, Ru.z, { rad: 6, spread: [4.6, 2, 3.8], speed: 0.07, size: 0.4, frac: 0.5, small: true });
   p = around(Ru, -6, 9);
-  add(SPECIES.blueTang, 18, p.x, p.z, { rad: 7, spread: [2.4, 1, 1.8], speed: 0.11, size: 0.6 });
-  // the rainbow reef: a silver sardine bait ball, yellow tangs, clownfish
+  add(SPECIES.blueTang, 26, p.x, p.z, { rad: 7, spread: [2.8, 1.1, 2.1], speed: 0.11, size: 0.6 });
+  p = around(Ru, 6, 6);
+  add(SPECIES.angel, 6, p.x, p.z, { rad: 5, spread: [1.6, 0.6, 1.2], speed: 0.06, size: 0.7 });
+  // the rainbow reef: a huge glittering sardine bait ball, yellow tangs, butterflyfish, angels,
+  // clownfish
   p = around(Rb, 0, 12);
-  add(SPECIES.sardine, 80, p.x, p.z, { rad: 2.5, spread: [2.4, 1.8, 2.4], speed: 0.05, size: 0.5, bait: true, frac: 0.55, above: 3 });
-  p = around(Rb, -7, -5);
-  add(SPECIES.yellowTang, 20, p.x, p.z, { rad: 7, spread: [2.2, 0.9, 1.7], speed: 0.1, size: 0.55 });
+  add(SPECIES.sardine, 180, p.x, p.z, { rad: 2.5, spread: [3.2, 2.4, 3.2], speed: 0.05, size: 0.5, bait: true, frac: 0.55, above: 3.5, small: true });
+  p = around(Rb, -7, 4);
+  add(SPECIES.yellowTang, 30, p.x, p.z, { rad: 7, spread: [2.6, 1, 2], speed: 0.1, size: 0.55 });
+  p = around(Rb, 8, 7);
+  add(SPECIES.butterfly, 14, p.x, p.z, { rad: 6, spread: [2, 0.8, 1.6], speed: 0.08, size: 0.5 });
+  p = around(Rb, -3, 6);
+  add(SPECIES.angel, 6, p.x, p.z, { rad: 5, spread: [1.6, 0.6, 1.2], speed: 0.06, size: 0.7 });
   for (const a of HERO_ANEMONES.slice(2)) add(SPECIES.clown, 5, a.x, a.z, { rad: 0.5, spread: [0.6, 0.35, 0.6], speed: 0.4, size: 0.42, frac: 0, above: 1.7 });
   // the glow kelp forest: anthias weaving between the strands
-  add(SPECIES.anthias, 28, Gl.x, Gl.z, { rad: 9, spread: [3, 1.6, 2.6], speed: 0.06, size: 0.4, frac: 0.45 });
-  // a mixed school that keeps near the kid, wherever they swim
-  // (out over the deep they become shoals of silver sardines: see ../underwater/index.ts)
-  add(SPECIES.blueTang, 26, W.x, W.z, { rad: 6, spread: [2.8, 1.1, 2.1], speed: 0.12, size: 0.58, follow: true });
-  add(SPECIES.yellowTang, 22, W.x, W.z, { rad: 6, spread: [2.5, 1, 1.9], speed: 0.14, size: 0.52, follow: true, ph: 3 });
+  add(SPECIES.anthias, 56, Gl.x, Gl.z, { rad: 9, spread: [3.6, 1.8, 3], speed: 0.06, size: 0.4, frac: 0.45, small: true });
+  // schools that keep near the kid, wherever they swim: each turns up again ahead when left behind
+  // (a reef species over the reef, silver jacks and sardines out over the deep: ../underwater/index.ts)
+  add(SPECIES.blueTang, 28, W.x, W.z, { rad: 6, spread: [2.8, 1.1, 2.1], speed: 0.12, size: 0.58, follow: true });
+  add(SPECIES.yellowTang, 24, W.x, W.z, { rad: 6, spread: [2.5, 1, 1.9], speed: 0.14, size: 0.52, follow: true, ph: 3 });
+  for (let i = 0; i < 4; i++) add(REEF_POOL[(i * 2 + 2) % REEF_POOL.length], 22, W.x, W.z, { rad: 6, spread: [2.6, 1, 2], speed: 0.12, size: 0.55, follow: true, ph: 5 + i });
+  add(SPECIES.angel, 8, W.x, W.z, { rad: 6, spread: [2, 0.8, 1.6], speed: 0.1, size: 0.7, follow: true, ph: 9 });
+  // a travelling bait ball (sardines; it follows the kid too, and turns up over reef and deep alike)
+  add(SPECIES.sardine, 140, W.x, W.z, { rad: 2.5, spread: [3, 2.2, 3], speed: 0.05, size: 0.5, bait: true, follow: true, small: true, frac: 0.55, above: 3 });
+  // little fish that swarm round the kid
+  add(SPECIES.anthias, 28, W.x, W.z, { rad: 1, spread: [2.4, 1.1, 2.4], speed: 0.2, size: 0.36, buddy: true, small: true });
   // big fish: groupers lurk by the wreck and temple, parrotfish graze the gardens
   const big: [number, Garden, number, number][] = [
     [SPECIES.grouper, W, -5, 4],
@@ -455,8 +515,12 @@ export function planSchools(opts: { lowQuality?: boolean } = {}): SchoolDef[] {
     [SPECIES.grouper, Gl, 2, -5],
     [SPECIES.parrot, Ru, -8, -8],
     [SPECIES.parrot, Gl, -6, 4],
+    [SPECIES.parrot, W, -9, -6],
+    [SPECIES.parrot, Rb, 2, -9],
+    [SPECIES.grouper, Rb, -4, 10],
+    [SPECIES.parrot, Ru, 9, 7],
   ];
-  big.slice(0, low ? 4 : 8).forEach(([sp, g, rt, fw]) => {
+  big.slice(0, low ? 6 : 12).forEach(([sp, g, rt, fw]) => {
     const q = around(g, rt, fw);
     out.push({ species: sp, n: 1, ax: q.x, ay: midWater(q.x, q.z, 0.2), az: q.z, rad: 6, spread: [0, 0, 0], speed: 0.05 + r() * 0.03, size: sp === SPECIES.grouper ? 2.1 : 1.6, ph: r() * 10 });
   });

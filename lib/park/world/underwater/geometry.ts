@@ -44,7 +44,7 @@ export function staghornGeometry(seed = 31): THREE.BufferGeometry {
     parts.push(
       part(
         tube,
-        (p) => grey(0.55 + 0.45 * smoothstep(0, 1.6, p.y) + (depth === 0 ? 0.1 : 0)),
+        (p) => grey(0.74 + 0.36 * smoothstep(0, 1.6, p.y) + (depth === 0 ? 0.1 : 0)),
         (p) => [1, 0.02 + p.y * 0.05, depth === 0 ? smoothstep(0.2, 1, p.distanceTo(from) / len) * 0.9 : 0],
       ),
     );
@@ -500,7 +500,261 @@ export const FISH_SHAPE: [number, number, number][] = [
   [0.8, 0.6, 1.25], // sardine
   [1.1, 1.1, 1.0], // parrotfish
   [1.35, 1.05, 1.0], // grouper
+  [0.7, 1.8, 0.78], // butterflyfish (a tall yellow disc)
+  [0.75, 1.75, 0.95], // emperor angelfish
+  [0.9, 1.25, 1.15], // silver jack
 ];
+
+/** a cheap fish (~35 triangles, same frame and fins as fishGeometry) for bait balls and the big
+ *  anthias clouds: at a few pixels long the extra rings of the reef fish aren't seen */
+export function smallFishGeometry(): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const fx: number[] = [];
+  const tri = (a: number[], b: number[], c: number[], f: [number, number, number]) => {
+    pos.push(...a, ...b, ...c);
+    fx.push(...f, ...f, ...f);
+  };
+  const B: [number, number, number] = [0, 0, 0];
+  const F: [number, number, number] = [1, 0, 0];
+  const zs = [-0.5, -0.18, 0.14, 0.38];
+  const hs = [0.035, 0.15, 0.17, 0.11];
+  const ring = zs.map((z, i) => [0, 1, 2, 3].map((k) => {
+    const a = (k / 4) * Math.PI * 2;
+    return [Math.sin(a) * hs[i] * 0.42, Math.cos(a) * hs[i], z];
+  }));
+  for (let i = 0; i + 1 < ring.length; i++)
+    for (let k = 0; k < 4; k++) {
+      const a = ring[i][k];
+      const b = ring[i][(k + 1) % 4];
+      const c = ring[i + 1][k];
+      const d = ring[i + 1][(k + 1) % 4];
+      tri(a, c, b, B);
+      tri(b, c, d, B);
+    }
+  const last = ring[ring.length - 1];
+  for (let k = 0; k < 4; k++) tri(last[k], [0, 0.01, 0.5], last[(k + 1) % 4], B);
+  for (let k = 0; k < 4; k++) tri(ring[0][(k + 1) % 4], [0, 0, -0.52], ring[0][k], B);
+  // forked tail, dorsal sail (both sides so they never vanish edge-on... the fins are flat)
+  tri([0, 0.03, -0.5], [0, 0.21, -0.8], [0, 0, -0.64], F);
+  tri([0, -0.03, -0.5], [0, 0, -0.64], [0, -0.21, -0.8], F);
+  tri([0, 0.15, 0.1], [0, 0.24, -0.12], [0, 0.12, -0.28], F);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  const n = g.attributes.position.count;
+  g.setAttribute("color", new THREE.Float32BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+  g.setAttribute("aFx", new THREE.Float32BufferAttribute(fx, 3));
+  g.computeBoundingSphere();
+  return g;
+}
+
+// ── more reef life (streamed with the coral: all their motion is in the shader) ──
+
+/** a cauliflower / finger coral bush: a knobbly clump of fat fingers with pale glowing tips */
+export function bushGeometry(seed = 17): THREE.BufferGeometry {
+  const r = rngOf(seed);
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + r() * 0.5;
+    const rr = i === 0 ? 0.02 : 0.3 + r() * 0.14;
+    const h = (0.42 + r() * 0.32) * (i === 0 ? 1.35 : 1);
+    const base = V(Math.cos(a) * rr * 0.45, -0.06, Math.sin(a) * rr * 0.45);
+    const tip = V(Math.cos(a) * rr, h, Math.sin(a) * rr);
+    const t = taperTube([base, tip], { segs: 1, radial: 4, rx: (u) => 0.16 * (1 - u * 0.3) });
+    parts.push(part(t, (p) => grey(0.72 + 0.38 * smoothstep(0, h, p.y)), (p) => [1, 0.01 + p.y * 0.03, 0], { faceted: true }));
+    const cap = new THREE.OctahedronGeometry(0.15, 0);
+    cap.scale(1, 0.8, 1);
+    cap.translate(tip.x, tip.y, tip.z);
+    parts.push(part(cap, grey(1.3), [1, 0.01 + h * 0.03, 1], { faceted: true }));
+  }
+  return merge(parts);
+}
+
+/** a seahorse (~0.6 m tall, snout toward +z): a curled tail, a pot belly, a crown and a little
+ *  back fin; bobs gently in the sea grass */
+export function seahorseGeometry(): THREE.BufferGeometry {
+  const k = 1.1;
+  const pts = [
+    V(0, 0.05, -0.02),
+    V(0, 0.0, 0.05),
+    V(0, 0.06, 0.1),
+    V(0, 0.13, 0.05),
+    V(0, 0.2, -0.03),
+    V(0, 0.33, -0.02),
+    V(0, 0.45, 0.03),
+    V(0, 0.54, 0.01),
+  ].map((p) => p.multiplyScalar(k));
+  const parts: THREE.BufferGeometry[] = [];
+  const body = taperTube(pts, { segs: 8, radial: 4, rx: (t) => (0.012 + 0.062 * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0, (t - 0.25) / 0.72))), 0.8)) * k });
+  parts.push(part(body, (p) => grey(0.8 + 0.3 * smoothstep(0.1, 0.5, p.y)), (p) => [1, 0.03 + p.y * 0.04, 0], { faceted: true }));
+  const snout = taperTube([V(0, 0.585, 0.03).multiplyScalar(k), V(0, 0.57, 0.17).multiplyScalar(k)], { segs: 1, radial: 4, rx: (u) => (0.028 - u * 0.01) * k });
+  parts.push(part(snout, grey(0.95), [1, 0.06, 0], { faceted: true }));
+  const head = new THREE.OctahedronGeometry(0.06 * k, 0);
+  head.scale(1, 1.1, 1.2);
+  head.translate(0, 0.6 * k, 0.02 * k);
+  parts.push(part(head, grey(1.0), [1, 0.06, 0], { faceted: true }));
+  // crown and back fin (both windings: they're flat)
+  const fin = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute([...a.toArray(), ...b.toArray(), ...c.toArray(), ...a.toArray(), ...c.toArray(), ...b.toArray()], 3));
+    g.computeVertexNormals();
+    return part(g, grey(1.25), [1, 0.05, 0.5]);
+  };
+  parts.push(fin(V(0, 0.3, -0.06).multiplyScalar(k), V(0, 0.42, -0.12).multiplyScalar(k), V(0, 0.2, -0.1).multiplyScalar(k)));
+  parts.push(fin(V(0, 0.64, 0).multiplyScalar(k), V(0, 0.71, -0.03).multiplyScalar(k), V(0, 0.64, -0.05).multiplyScalar(k)));
+  for (const s of [-1, 1]) {
+    const eye = new THREE.OctahedronGeometry(0.018 * k, 0);
+    eye.translate(s * 0.045 * k, 0.615 * k, 0.05 * k);
+    parts.push(part(eye, col("#101018"), [0, 0.06, 0]));
+  }
+  return merge(parts);
+}
+
+/** a rocky hole's rim (untinted coralline rock) for the things that live in holes */
+function holeRim(r: number, tube: number): THREE.BufferGeometry {
+  const t = new THREE.TorusGeometry(r, tube, 3, 7);
+  t.rotateX(Math.PI / 2);
+  t.scale(1, 0.7, 1);
+  t.translate(0, tube * 0.3, 0);
+  return part(t, (p) => mix(col("#b98ac8"), col("#e7a0b8"), noise3(p.x * 4, p.y * 4, p.z * 4, 12)), [0, 0, 0], { faceted: true, faceColor: true });
+}
+
+/** an octopus peeking out of its hole: a big round head with goggle eyes, arms curling over the
+ *  rim (the whole body rises and sinks: the "peek" motion; the rim stays put) */
+export function octopusGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [holeRim(0.5, 0.15)];
+  const mantle = new THREE.IcosahedronGeometry(1, 1);
+  mantle.scale(0.36, 0.44, 0.4);
+  mantle.rotateX(-0.35);
+  mantle.translate(0, 0.62, -0.08);
+  parts.push(part(mantle, (p) => grey(0.82 + 0.35 * smoothstep(0.4, 1.0, p.y)), (p) => [1, 0.02 + Math.max(0, p.y - 0.4) * 0.05, 0], { faceted: true }));
+  for (const s of [-1, 1]) {
+    const eye = new THREE.OctahedronGeometry(0.1, 0);
+    eye.translate(s * 0.2, 0.46, 0.24);
+    parts.push(part(eye, col("#fff8e8"), [0.5, 0.02, 0.2], { faceted: true }));
+    const pupil = new THREE.OctahedronGeometry(0.05, 0);
+    pupil.scale(1.2, 0.6, 1);
+    pupil.translate(s * 0.22, 0.46, 0.32);
+    parts.push(part(pupil, col("#15101a"), [0.5, 0.02, 0]));
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.3;
+    const c = Math.cos(a);
+    const sn = Math.sin(a);
+    const arm = taperTube([V(c * 0.18, 0.34, sn * 0.18), V(c * 0.5, 0.22, sn * 0.5), V(c * 0.78, 0.1, sn * 0.78), V(c * 0.86, 0.26, sn * 0.86)], {
+      segs: 3,
+      radial: 3,
+      rx: (u) => 0.1 * (1 - u * 0.7),
+    });
+    parts.push(part(arm, (p) => grey(0.8 + 0.35 * smoothstep(0.3, 0.9, Math.hypot(p.x, p.z))), (p) => [1, 0.03 + Math.hypot(p.x, p.z) * 0.12, 0], { faceted: true }));
+  }
+  return merge(parts);
+}
+
+/** a moray eel reaching up out of its hole, mouth open (spotted; sways, peeks in and out) */
+export function eelGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [holeRim(0.3, 0.1)];
+  const pts = [V(0, -0.3, 0), V(0, 0.35, 0.02), V(0, 0.78, 0.12), V(0, 0.98, 0.32)];
+  const spots = (p: THREE.Vector3) => mix(col("#8ccf46"), col("#f2e24a"), 0.35).lerp(col("#2b4a1e"), noise3(p.x * 14, p.y * 14, p.z * 14, 21) > 0.62 ? 0.7 : 0);
+  const body = taperTube(pts, { segs: 5, radial: 5, rx: (t) => 0.1 + t * 0.03, ry: (t) => 0.12 + t * 0.04 });
+  parts.push(part(body, spots, (p) => [0.6, 0.012 + Math.pow(Math.max(0, p.y), 1.5) * 0.09, 0], { faceted: true }));
+  const jaw = (up: number) => {
+    const j = new THREE.OctahedronGeometry(1, 0);
+    j.scale(0.1, 0.05, 0.17);
+    j.rotateX(up * 0.25);
+    j.translate(0, 1.0 + up * 0.035, 0.44);
+    return part(j, up > 0 ? spots(V(0, 1, 0.4)) : col("#e8d870"), [0.6, 0.1, 0], { faceted: true });
+  };
+  parts.push(jaw(1), jaw(-1));
+  for (const s of [-1, 1]) {
+    const eye = new THREE.OctahedronGeometry(0.03, 0);
+    eye.translate(s * 0.085, 1.06, 0.38);
+    parts.push(part(eye, col("#101010"), [0.6, 0.1, 0]));
+  }
+  return merge(parts);
+}
+
+/** a bright red crab (claws up, six legs; the "scuttle" motion slides it sideways) */
+export function crabGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const shell = new THREE.IcosahedronGeometry(1, 0);
+  shell.scale(0.3, 0.13, 0.22);
+  shell.translate(0, 0.17, 0);
+  parts.push(part(shell, (p) => grey(0.85 + 0.35 * smoothstep(0.12, 0.28, p.y)), [1, 0, 0], { faceted: true }));
+  for (const s of [-1, 1]) {
+    const arm = taperTube([V(s * 0.22, 0.16, 0.1), V(s * 0.33, 0.24, 0.2)], { segs: 1, radial: 4, rx: () => 0.035 });
+    parts.push(part(arm, grey(0.9), [1, 0.02, 0], { faceted: true }));
+    const claw = new THREE.OctahedronGeometry(1, 0);
+    claw.scale(0.09, 0.07, 0.13);
+    claw.translate(s * 0.35, 0.27, 0.28);
+    parts.push(part(claw, grey(1.05), [1, 0.02, 0], { faceted: true }));
+    for (let l = 0; l < 3; l++) {
+      const z = 0.08 - l * 0.1;
+      const leg = taperTube([V(s * 0.24, 0.14, z), V(s * 0.42, 0.16, z - 0.03), V(s * 0.5, 0.0, z - 0.05)], { segs: 2, radial: 3, rx: (u) => 0.025 * (1 - u * 0.5) });
+      parts.push(part(leg, grey(0.85), (p) => [1, Math.max(0, Math.abs(p.x) - 0.3) * 0.35, 0], { faceted: true }));
+    }
+    const eye = new THREE.OctahedronGeometry(0.035, 0);
+    eye.translate(s * 0.08, 0.32, 0.17);
+    parts.push(part(eye, col("#101010"), [0, 0, 0]));
+  }
+  return merge(parts);
+}
+
+/** a blue-spotted stingray (wingspan ~1 on x, nose +z): golden-tan back with electric blue spots,
+ *  a pale belly and a striped tail; the wings ripple (aFx.y) */
+export function rayGeometry(): THREE.BufferGeometry {
+  const nu = 5;
+  const nv = 5;
+  const lead = (u: number) => 0.46 - 0.34 * u * u;
+  const trail = (u: number) => -0.42 + 0.3 * u * u;
+  const thick = (u: number, v: number) => 0.075 * (1 - u) * Math.pow(Math.sin(Math.PI * v), 0.7);
+  const tan = col("#dca45c");
+  const spot = col("#2f9dff");
+  const belly = col("#f6f1e6");
+  const pos: number[] = [];
+  const colr: number[] = [];
+  const fxa: number[] = [];
+  const pt = (s: number, u: number, v: number, top: boolean) => {
+    const x = s * u * 0.5;
+    const z = trail(u) + (lead(u) - trail(u)) * v;
+    const t = thick(u, v);
+    const y = top ? t : -t * 0.5;
+    let c: THREE.Color;
+    if (top) c = noise3(x * 9, 0, z * 9, 31) > 0.62 && u > 0.12 ? spot.clone() : tan.clone().multiplyScalar(0.9 + 0.2 * v);
+    else c = belly.clone();
+    return { p: [x, y, z], c, f: 0.2 * Math.pow(u, 1.5) };
+  };
+  for (const s of [-1, 1])
+    for (const top of [true, false])
+      for (let i = 0; i < nu; i++)
+        for (let j = 0; j < nv; j++) {
+          const a = pt(s, i / nu, j / nv, top);
+          const b = pt(s, (i + 1) / nu, j / nv, top);
+          const c = pt(s, i / nu, (j + 1) / nv, top);
+          const d = pt(s, (i + 1) / nu, (j + 1) / nv, top);
+          const tris = (s > 0) === top ? [a, c, b, b, c, d] : [a, b, c, b, d, c];
+          for (const q of tris) {
+            pos.push(...q.p);
+            colr.push(q.c.r, q.c.g, q.c.b);
+            fxa.push(0, q.f, 0);
+          }
+        }
+  const body = new THREE.BufferGeometry();
+  body.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  body.setAttribute("color", new THREE.Float32BufferAttribute(colr, 3));
+  body.setAttribute("aFx", new THREE.Float32BufferAttribute(fxa, 3));
+  body.computeVertexNormals();
+  const tail = new THREE.ConeGeometry(0.03, 0.7, 4, 1);
+  tail.rotateX(-Math.PI / 2);
+  tail.translate(0, 0.02, -0.75);
+  const parts = [body, part(tail, (p) => (Math.sin(p.z * 40) > 0 ? col("#2f9dff") : tan), (p) => [0, 0.04 + Math.max(0, -p.z - 0.4) * 0.1, 0])];
+  for (const s of [-1, 1]) {
+    const eye = new THREE.OctahedronGeometry(0.04, 0);
+    eye.translate(s * 0.08, 0.07, 0.22);
+    parts.push(part(eye, col("#ffd24a"), [0, 0, 0]));
+  }
+  return merge(parts);
+}
 
 // ── manta ray ──
 
@@ -512,9 +766,10 @@ export function mantaGeometry(): THREE.BufferGeometry {
   const lead = (u: number) => 0.55 - 0.95 * Math.pow(u, 1.3);
   const trail = (u: number) => -0.6 + 0.2 * u;
   const thick = (u: number, v: number) => 0.17 * Math.pow(1 - u, 1.15) * Math.pow(Math.sin(Math.PI * v), 0.8);
-  const back = col("#1d2640");
-  const chev = col("#c8d4e6");
-  const belly = col("#eef3f8");
+  // (a deep indigo back rather than true black: under water true black reads as a hole)
+  const back = col("#2c3a70");
+  const chev = col("#dfe8f6");
+  const belly = col("#f4f8fc");
   const pos: number[] = [];
   const colr: number[] = [];
   const fxa: number[] = [];
@@ -592,9 +847,9 @@ export function turtleGeometry(): THREE.BufferGeometry {
     [-0.58, 0],
     [-0.48, -0.4],
   ];
-  const dark = col("#5a4a26");
-  const amber = col("#b08a3e");
-  const olive = col("#6f7a33");
+  const dark = col("#6e5a2c");
+  const amber = col("#d6a24a");
+  const olive = col("#86963c");
   const dome = new THREE.SphereGeometry(1, 16, 7, 0, Math.PI * 2, 0, Math.PI / 2);
   dome.scale(0.82, 0.4, 1.02);
   parts.push(
@@ -624,7 +879,7 @@ export function turtleGeometry(): THREE.BufferGeometry {
   plastron.rotateX(Math.PI / 2);
   plastron.scale(0.8, 1, 1);
   parts.push(part(plastron, col("#e8d9a0"), [0, 0, 0]));
-  const skin = col("#9cb86c");
+  const skin = col("#a9d070");
   const head = new THREE.SphereGeometry(1, 9, 6);
   head.scale(0.25, 0.21, 0.33);
   head.translate(0, 0.06, 1.2);

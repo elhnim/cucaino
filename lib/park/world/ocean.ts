@@ -2,7 +2,9 @@
 // with plankton at twilight — the water follows you to the horizon wherever you sail, swim or fly
 // (and past WRAP_R the world wraps round like a little planet) — with sea life that roams it all:
 // glowing jellyfish (some even drift through the air over the Glow Forest), gliding and hopping
-// manta rays, leaping dolphin pods and turtles, each on its own wandering heading (./sea/wander)
+// manta rays, leaping dolphin pods (one comes to leap past a kid out at sea every half-minute or
+// so), shoals of flying fish bursting out of the waves, terns wheeling overhead and plunge-diving,
+// and turtles, each on its own wandering heading (./sea/wander)
 // and gathering round wherever you are. (The giant whales and orcas live with ./underwater.)
 // All procedural and cheap: one mesh per creature kind, animated by matrices.
 import * as THREE from "three";
@@ -10,8 +12,11 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { makeSparkTexture } from "./atmosphere";
 import { getToonRamp } from "../assets/loader";
 import { ISLAND_R, coastR } from "../registry/island";
-import { groundY } from "../registry/terrain";
-import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, swim, trackFocus, type Swimmer, type SwimStyle } from "./sea/wander";
+import { WATER_Y, groundY } from "../registry/terrain";
+import { col, merge, mix, part } from "./fantasy/geo";
+import { makeVisit, startVisit, stepVisit } from "./sea/visits";
+import { makeUwUniforms, uwMaterial } from "./underwater/shaders";
+import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, swim, trackFocus, type Swimmer, type SwimStyle } from "./sea/wander";
 
 export const BEACH_IN = ISLAND_R; // where grass meets the sand (plus the coast wobble)
 export const SHORE_R = ISLAND_R + 14; // where the sand meets the water
@@ -307,6 +312,32 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
     return { sw: makeSwimmer(Math.sin(a) * r, 0, Math.cos(a) * r, a + (rnd() < 0.5 ? -1 : 1) * Math.PI / 2, 100 + i, 0.7), ph: rnd() * 10 };
   });
 
+  // ── dolphins come to play: every 25-40 s a pod heads for a kid swimming or sailing out at sea
+  //    and leaps past close by ──
+  const DOLPHIN_V: SwimStyle = { ...DOLPHIN, need: 3.5, look: 14 };
+  const dolphinVisit = makeVisit(10);
+
+  // ── flying fish: little shoals burst out of the waves near you and glide over them ──
+  const nFly = low ? 6 : 12;
+  const flyers = add(new THREE.InstancedMesh(track(flyingFishGeometry()), toon("#ffffff", { vertexColors: true, side: THREE.DoubleSide }), nFly));
+  flyers.frustumCulled = false;
+  const fly = Array.from({ length: nFly }, () => ({ on: false, t: 0, T: 2, x: 0, z: 0, vx: 0, vz: 0, h: 1 }));
+  let flyWait = 3;
+
+  // ── seabirds: terns wheeling over the open sea round you, now and then plunge-diving for fish ──
+  const nBird = low ? 3 : 6;
+  const birdU = makeUwUniforms();
+  const birdGeo = track(seabirdGeometry());
+  birdGeo.setAttribute("aInst", new THREE.InstancedBufferAttribute(new Float32Array(nBird * 2), 2));
+  const birds = add(new THREE.InstancedMesh(birdGeo, track(uwMaterial(birdU, { motion: "flap", inst: true, sea: false, flapSpeed: 0, flapWave: 1.1 }, { side: THREE.DoubleSide, roughness: 0.75 })), nBird));
+  birds.frustumCulled = false;
+  const birdA = birdGeo.attributes.aInst as THREE.InstancedBufferAttribute;
+  const bird = Array.from({ length: nBird }, () => ({ a: rnd() * 6.28, rad: 11 + rnd() * 10, h: 5 + rnd() * 4, w: (rnd() < 0.5 ? -1 : 1) * (0.28 + rnd() * 0.15), phase: rnd() * 6, flapT: rnd() * 5, dive: -1, sx: 0, sy: 0, sz: 0, tx: 0, tz: 0 }));
+  let diveWait = 7;
+  const birdC = new THREE.Vector3();
+  let birdStarted = false;
+  let atSeaK = 0;
+
   const tmpM = new THREE.Matrix4();
   const tmpQ = new THREE.Quaternion();
   const tmpE = new THREE.Euler();
@@ -397,11 +428,28 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
       }
       mantas.instanceMatrix.needsUpdate = true;
 
-      // dolphin pods roam the sea: each dolphin arcs out of the water one after another
+      // dolphin pods roam the sea: each dolphin arcs out of the water one after another (and every
+      // so often the first pod comes to leap past a kid out at sea)
+      const deepHere = seaDepth(focus.x, focus.z);
+      atSeaK += ((deepHere > 3 ? 1 : 0) - atSeaK) * Math.min(1, dt * 0.6);
+      dolphinVisit.wait -= dt;
+      if (!dolphinVisit.on && dolphinVisit.wait <= 0) {
+        dolphinVisit.wait = 25 + rnd() * 15;
+        const lead = pods[0].lead;
+        if (deepHere > 3 && dist2(lead, focus) > 60 * 60) {
+          startVisit(lead, DOLPHIN_V, dolphinVisit, focus, ft.vx, ft.vz, rnd, 60, 75, 7 + rnd() * 8, -1.2);
+          pods[0].members.forEach((m, k) => k > 0 && Object.assign(m, { x: lead.x - Math.sin(lead.yaw) * 3 * k, z: lead.z - Math.cos(lead.yaw) * 3 * k, yaw: lead.yaw, speed: lead.speed }));
+        }
+      }
       let di = 0;
       for (const p of pods) {
-        if (dist2(p.lead, focus) > 260 * 260) respawn(p.lead, DOLPHIN, focus, ft.vx, ft.vz, rnd, 150, 230, 1.3);
-        swim(p.lead, DOLPHIN, dt, t, focus, 5);
+        if (p === pods[0] && dolphinVisit.on) {
+          const d = stepVisit(p.lead, DOLPHIN_V, dolphinVisit, focus, dt, t);
+          if ((dolphinVisit.passed && d > 90) || dolphinVisit.t > 60) dolphinVisit.on = false;
+        } else {
+          if (dist2(p.lead, focus) > 260 * 260) respawn(p.lead, DOLPHIN, focus, ft.vx, ft.vz, rnd, 150, 230, 1.3);
+          swim(p.lead, DOLPHIN, dt, t, focus, 5);
+        }
         for (let k = 0; k < p.members.length; k++, di++) {
           const d = p.members[k];
           if (k > 0) follow(d, DOLPHIN, p.lead, (k % 2 ? 1 : -1) * (1.5 + k * 0.8), k * 2.6, dt, t);
@@ -415,6 +463,132 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         }
       }
       dolphins.instanceMatrix.needsUpdate = true;
+
+      // flying fish: a little shoal bursts out ahead of you, glides a few seconds, splashes back
+      flyWait -= dt;
+      if (flyWait <= 0) {
+        flyWait = 6 + rnd() * 7;
+        if (deepHere > 4 && atSeaK > 0.5) {
+          const moving = ft.vx * ft.vx + ft.vz * ft.vz > 0.5;
+          const base = moving ? Math.atan2(ft.vx, ft.vz) + (rnd() - 0.5) * 1.4 : rnd() * 6.28;
+          const r0 = 16 + rnd() * 20;
+          const bx = focus.x + Math.sin(base) * r0;
+          const bz = focus.z + Math.cos(base) * r0;
+          const head = base + (rnd() < 0.5 ? -1 : 1) * (1.1 + rnd() * 0.6);
+          let n = 3 + Math.floor(rnd() * 4);
+          for (const f of fly) {
+            if (f.on || n <= 0 || seaDepth(bx, bz) < 3) continue;
+            n--;
+            const sp = 9 + rnd() * 4;
+            const hh = head + (rnd() - 0.5) * 0.3;
+            Object.assign(f, { on: true, t: 0, T: 1.8 + rnd() * 1.6, x: bx + (rnd() - 0.5) * 5, z: bz + (rnd() - 0.5) * 5, vx: Math.sin(hh) * sp, vz: Math.cos(hh) * sp, h: 0.8 + rnd() * 1 });
+            emit(f.x, 0.1, f.z, 3, 3, 1.5);
+          }
+        }
+      }
+      for (let i = 0; i < nFly; i++) {
+        const f = fly[i];
+        if (!f.on) {
+          tmpM.makeScale(0, 0, 0);
+          flyers.setMatrixAt(i, tmpM);
+          continue;
+        }
+        f.t += dt;
+        const u = f.t / f.T;
+        f.x += f.vx * dt;
+        f.z += f.vz * dt;
+        if (u >= 1) {
+          f.on = false;
+          emit(f.x, 0.1, f.z, 4, 3, 1.5);
+        }
+        const y = WATER_Y + 0.25 + Math.sin(Math.PI * Math.min(1, u)) * f.h;
+        tmpM.compose(tmpV.set(f.x, y, f.z), tmpQ.setFromEuler(tmpE.set(-Math.cos(Math.PI * Math.min(1, u)) * 0.22, Math.atan2(f.vx, f.vz), Math.sin(t * 3 + i) * 0.12, "YXZ")), tmpS.setScalar(0.9));
+        flyers.setMatrixAt(i, tmpM);
+      }
+      flyers.instanceMatrix.needsUpdate = true;
+
+      // seabirds wheel round (a little behind) the kid while they're out at sea; one plunge-dives now and then
+      birdU.uTime.value = t;
+      birdU.uGlow.value = glow;
+      if (!birdStarted) (birdC.copy(focus), (birdStarted = true));
+      birdC.lerp(focus, Math.min(1, dt * 0.5));
+      diveWait -= dt;
+      if (diveWait <= 0) {
+        diveWait = 9 + rnd() * 10;
+        const b = bird[Math.floor(rnd() * nBird)];
+        if (b.dive < 0 && atSeaK > 0.8) {
+          b.dive = 0;
+          b.sx = birdC.x + Math.sin(b.a) * b.rad;
+          b.sz = birdC.z + Math.cos(b.a) * b.rad;
+          b.sy = WATER_Y + b.h;
+          const a2 = rnd() * 6.28;
+          b.tx = focus.x + Math.sin(a2) * (6 + rnd() * 8);
+          b.tz = focus.z + Math.cos(a2) * (6 + rnd() * 8);
+        }
+      }
+      for (let i = 0; i < nBird; i++) {
+        const b = bird[i];
+        let x: number;
+        let y: number;
+        let z: number;
+        let yaw: number;
+        let pitch = 0;
+        let roll: number;
+        let flap: number;
+        const cx = birdC.x + Math.sin(b.a) * b.rad;
+        const cz = birdC.z + Math.cos(b.a) * b.rad;
+        b.a += b.w * dt;
+        if (b.dive >= 0) {
+          b.dive += dt;
+          const d = b.dive;
+          if (d < 1.1) {
+            // fold the wings and plunge
+            const k = (d / 1.1) ** 2;
+            x = b.sx + (b.tx - b.sx) * k;
+            y = b.sy + (WATER_Y - b.sy) * k;
+            z = b.sz + (b.tz - b.sz) * k;
+            yaw = Math.atan2(b.tx - b.sx, b.tz - b.sz);
+            pitch = 1.1;
+            roll = 0;
+            flap = 0;
+          } else if (d < 1.7) {
+            if (d - dt < 1.1) emit(b.tx, 0.1, b.tz, 10, 6, 2.5);
+            x = b.tx;
+            y = WATER_Y - 3; // under (hidden by the scale below)
+            z = b.tz;
+            yaw = 0;
+            roll = 0;
+            flap = 0;
+          } else {
+            // flap hard back up to the flock
+            const k = Math.min(1, (d - 1.7) / 2.6);
+            const e = 1 - (1 - k) * (1 - k);
+            x = b.tx + (cx - b.tx) * e;
+            y = WATER_Y + 0.2 + (b.h - 0.2) * e;
+            z = b.tz + (cz - b.tz) * e;
+            yaw = Math.atan2(cx - b.tx, cz - b.tz);
+            pitch = -0.4 * (1 - k);
+            roll = 0;
+            flap = 1;
+            if (k >= 1) b.dive = -1;
+          }
+        } else {
+          x = cx;
+          z = cz;
+          y = WATER_Y + b.h + Math.sin(t * 0.5 + b.phase) * 0.8;
+          yaw = b.a + (b.w > 0 ? Math.PI / 2 : -Math.PI / 2);
+          roll = -Math.sign(b.w) * 0.45;
+          b.flapT = (b.flapT + dt) % 5;
+          flap = b.flapT < 1.4 ? 1 : 0.1;
+        }
+        b.phase += dt * (flap > 0.5 ? 10 : 1.4);
+        const hidden = b.dive >= 1.1 && b.dive < 1.7;
+        tmpM.compose(tmpV.set(x, y, z), tmpQ.setFromEuler(tmpE.set(pitch, yaw, roll, "YXZ")), tmpS.setScalar(hidden ? 0 : 1.15 * atSeaK));
+        birds.setMatrixAt(i, tmpM);
+        birdA.setXY(i, flap, b.phase);
+      }
+      birds.instanceMatrix.needsUpdate = true;
+      birdA.needsUpdate = true;
 
       for (let i = 0; i < turtleState.length; i++) {
         const s = turtleState[i];
@@ -559,4 +733,52 @@ function starfishGeometry() {
   const g = new THREE.ExtrudeGeometry(s, { depth: 0.06, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 1 });
   g.rotateX(-Math.PI / 2);
   return g;
+}
+
+/** a flying fish (nose +z, ~0.5 m): a slim blue-silver body and big see-through-blue "wings" */
+function flyingFishGeometry() {
+  const body = new THREE.OctahedronGeometry(1, 0);
+  body.scale(0.07, 0.07, 0.3);
+  const tail = new THREE.BufferGeometry();
+  tail.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, -0.26, 0, 0.12, -0.42, 0, 0, -0.34, 0, 0, -0.26, 0, 0, -0.34, 0, -0.14, -0.44], 3));
+  const wings = new THREE.BufferGeometry();
+  // two long pectoral wings, and small pelvic ones behind
+  const W = [0.04, 0.02, 0.1, 0.44, 0.04, 0.0, 0.34, 0.02, -0.16, 0.04, 0.02, 0.1, 0.34, 0.02, -0.16, 0.04, 0.02, -0.08];
+  const pelvic = [0.03, -0.02, -0.12, 0.16, 0.0, -0.2, 0.03, -0.02, -0.22];
+  const all: number[] = [];
+  for (const s of [-1, 1]) for (const src of [W, pelvic]) for (let i = 0; i < src.length; i += 3) all.push(src[i] * s, src[i + 1], src[i + 2]);
+  wings.setAttribute("position", new THREE.Float32BufferAttribute(all, 3));
+  return merge([
+    part(body, (p) => mix(col("#2a6fd6"), col("#e8f4ff"), p.y < 0 ? 1 : 0.2), [0, 0, 0], { faceted: true }),
+    part(tail, col("#3a86e8"), [0, 0, 0]),
+    part(wings, (p) => mix(col("#7fd0ff"), col("#1f7ad8"), Math.abs(p.x) / 0.44), [0, 0, 0]),
+  ]);
+}
+
+/** a tern (nose +z): white with a black cap, grey wings with dark tips (aFx.y = flap weight) */
+function seabirdGeometry() {
+  const body = new THREE.OctahedronGeometry(1, 0);
+  body.scale(0.07, 0.07, 0.24);
+  const head = new THREE.OctahedronGeometry(0.06, 0);
+  head.translate(0, 0.03, 0.22);
+  const beak = new THREE.ConeGeometry(0.018, 0.1, 3);
+  beak.rotateX(Math.PI / 2);
+  beak.translate(0, 0.02, 0.31);
+  const tail = new THREE.BufferGeometry();
+  tail.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, -0.18, -0.08, 0, -0.36, 0, 0, -0.26, 0, 0, -0.18, 0, 0, -0.26, 0.08, 0, -0.36], 3));
+  const wing = (s: number) => {
+    const g = new THREE.BufferGeometry();
+    // inner and outer panels, swept back
+    const p = [0.05, 0.02, 0.06, 0.34, 0.02, 0.0, 0.05, 0.02, -0.08, 0.34, 0.02, 0.0, 0.34, 0.02, -0.1, 0.05, 0.02, -0.08, 0.34, 0.02, 0.0, 0.62, 0.01, -0.14, 0.34, 0.02, -0.1];
+    g.setAttribute("position", new THREE.Float32BufferAttribute(p.map((v, i) => (i % 3 === 0 ? v * s : v)), 3));
+    return part(g, (q) => (Math.abs(q.x) > 0.48 ? col("#22262e") : col("#c9d3de")), (q) => [0, Math.abs(q.x) * 0.5, 0]);
+  };
+  return merge([
+    part(body, col("#ffffff"), [0, 0, 0], { faceted: true }),
+    part(head, (q) => (q.y > 0.04 ? col("#15171c") : col("#ffffff")), [0, 0, 0], { faceted: true }),
+    part(beak, col("#ff8a2a"), [0, 0, 0]),
+    part(tail, col("#f2f4f6"), [0, 0, 0]),
+    wing(-1),
+    wing(1),
+  ]);
 }
