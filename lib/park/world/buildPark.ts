@@ -26,6 +26,8 @@ import { buildAbyss, type Abyss } from "./abyss";
 import { buildFrostIsland, type FrostWorld } from "./frost";
 import { buildDolphinPods } from "./frost/dolphins";
 import { FROST_OBSTACLES } from "../registry/frostIsland";
+import { buildDinoIsland, type DinoWorld } from "./dino";
+import { DINO_OBSTACLES } from "../registry/dinoIsland";
 import { buildHomeExterior } from "../home/exterior";
 import { rideableKeepOut } from "../registry/rideables";
 import { buildStorybook, type Storybook } from "./storybook";
@@ -64,6 +66,8 @@ export interface BuiltPark {
   abyss: Abyss;
   /** Frostpeak Isle (penguins, seals, narwhals, aurora) — updated by the engine */
   frost: FrostWorld;
+  /** Dino Isle: the Lost World (dinosaurs, a T-rex paddock, a volcano) and its Ice Age valley — updated by the engine */
+  dino: DinoWorld;
   /** dolphin pods roaming the open sea (one comes to swim with a kid out at sea) */
   dolphins: { update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean }): void };
   /** round things to walk around (hills) */
@@ -558,6 +562,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   disposables.push(frost);
   const dolphins = buildDolphinPods(scene, { lowQuality: opts.lowQuality });
   disposables.push(dolphins);
+  const dino = buildDinoIsland(scene, { lowQuality: opts.lowQuality });
+  disposables.push(dino);
   const birds = buildBirds(scene, { lowQuality: opts.lowQuality });
   disposables.push(birds);
   // ── the storybook valley: dense chunky forest, sheep, windmills, balloons, boats, clouds, misty hills ──
@@ -703,7 +709,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
-    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES],
+    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES, ...DINO_OBSTACLES],
     quests3d,
     underwater,
     skyTrain,
@@ -715,6 +721,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     abyss,
     frost,
     dolphins,
+    dino,
     atmosphere,
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());

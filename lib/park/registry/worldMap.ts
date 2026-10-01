@@ -6,6 +6,7 @@ import { SKY_ISLANDS } from "./skyIslands";
 import { WRAP_R } from "./terrain";
 import { ABYSS } from "./abyss";
 import { FROST_ISLAND } from "./frostIsland";
+import { DINO_ISLAND } from "./dinoIsland";
 
 export interface WorldPlace {
   id: string;
@@ -35,6 +36,17 @@ export const WORLD_PLACES: WorldPlace[] = [
     kind: "island",
     land: "#7fd36b",
     how: `${VILLAGE_ISLAND.name} is far out at sea, home of ${VILLAGE_ISLAND.clan}. Swim, ride the manta or fly the dragon there!`,
+  },
+  {
+    id: DINO_ISLAND.id,
+    name: DINO_ISLAND.name,
+    emoji: "🦖",
+    x: DINO_ISLAND.x,
+    z: DINO_ISLAND.z,
+    r: DINO_ISLAND.r,
+    kind: "island",
+    land: "#5fb04a",
+    how: `${DINO_ISLAND.name} is a lost world far out at sea, where dinosaurs roam (and mammoths in its icy valley)! Swim, ride a whale or fly the dragon there.`,
   },
   {
     id: FROST_ISLAND.id,

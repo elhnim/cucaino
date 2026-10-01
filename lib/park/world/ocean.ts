@@ -15,6 +15,7 @@ import { ISLAND_R, coastR } from "../registry/island";
 import { WATER_Y, groundY } from "../registry/terrain";
 import { VILLAGE_CALM_GLSL } from "../registry/villageIsland";
 import { FROST_CALM_GLSL } from "../registry/frostIsland";
+import { DINO_CALM_GLSL } from "../registry/dinoIsland";
 import { col, merge, mix, part } from "./fantasy/geo";
 import { makeVisit, startVisit, stepVisit } from "./sea/visits";
 import { makeUwUniforms, uwMaterial } from "./underwater/shaders";
@@ -114,11 +115,12 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         ${WAVES}
         ${VILLAGE_CALM_GLSL}
         ${FROST_CALM_GLSL}
+        ${DINO_CALM_GLSL}
         void main() {
           vec4 w = modelMatrix * vec4( position, 1.0 );
           float r = length( w.xz );
           // (calm over Coralcove's reef too, so its waterline stays put on the beach)
-          float shoreDamp = smoothstep( ${SHORE_R.toFixed(1)}, ${(SHORE_R + 25).toFixed(1)}, r ) * villageCalm( w.xz ) * frostCalm( w.xz );
+          float shoreDamp = smoothstep( ${SHORE_R.toFixed(1)}, ${(SHORE_R + 25).toFixed(1)}, r ) * villageCalm( w.xz ) * frostCalm( w.xz ) * dinoCalm( w.xz );
           float wave = seaWave( w.xz, uTime );
           // slope of the swell (for the sky reflection)
           float e = 1.5;

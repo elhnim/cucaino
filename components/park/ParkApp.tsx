@@ -161,6 +161,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // inside My Home (the kid's cottage)
   const [home, setHome] = useState<{ ride: HomeRide; data: HomeData } | null>(null);
   const seenAbyss = useRef(new Set<string>());
+  const roarAt = useRef(0);
   const openHomeRef = useRef<(placeId: string) => void>(() => {});
   const [building, setBuilding] = useState(false);
   const [selection, setSelection] = useState<BuilderSelection | null>(null);
@@ -607,6 +608,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           onSkyIsland: (id, what) => {
             if (what === "glide") toast("🍃 Wheee — floating gently down!");
             else toast(`🏝️ You landed on ${skyIslandById(id ?? "")?.name ?? "a floating mountain"}! Can you find its treasure chest?`);
+          },
+          onRoar: () => {
+            if (roarAt.current > Date.now() - 25000) return;
+            roarAt.current = Date.now();
+            toast("🦖 ROAAAR! The T-rex has spotted you!");
           },
           onAbyssSpot: (sp) => {
             if (seenAbyss.current.has(sp.id)) return;

@@ -13,6 +13,7 @@ import { noise2, smoothstep } from "../fantasy/noise";
 import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../../registry/villageIsland";
 import { abyssFloorY } from "../../registry/abyss";
 import { FROST_ISLAND, frostSeaFloorY } from "../../registry/frostIsland";
+import { DINO_ISLAND, dinoSeaFloorY } from "../../registry/dinoIsland";
 
 const TAU = Math.PI * 2;
 const clamp = (x: number, a: number, b: number) => (x < a ? a : x > b ? b : x);
@@ -35,6 +36,9 @@ export function seaFloorY(x: number, z: number): number {
   // … and Frostpeak Isle's (its land and slopes; not the floating floes)
   const fs = frostSeaFloorY(x, z);
   if (fs !== null) return Math.max(mainSeaFloorY(x, z), fs);
+  // … and Dino Isle's
+  const ds = dinoSeaFloorY(x, z);
+  if (ds !== null) return Math.max(mainSeaFloorY(x, z), ds);
   const vs = villageSeaFloorY(x, z);
   let f = mainSeaFloorY(x, z);
   // the Midnight Rift: a deep crack in the open ocean floor
@@ -128,6 +132,9 @@ export function deepestHeading(s: { x: number; z: number; yaw: number }): number
   const fx = s.x - FROST_ISLAND.x;
   const fz = s.z - FROST_ISLAND.z;
   if (fx * fx + fz * fz < (FROST_ISLAND.r + 110) ** 2) return Math.atan2(fx, fz);
+  const dx = s.x - DINO_ISLAND.x;
+  const dz = s.z - DINO_ISLAND.z;
+  if (dx * dx + dz * dz < (DINO_ISLAND.r + 110) ** 2) return Math.atan2(dx, dz);
   return Math.atan2(s.x, s.z);
 }
 

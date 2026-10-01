@@ -40,6 +40,7 @@ import { ISLAND_R } from "../registry/island";
 import { seaFloorY } from "../world/sea/wander";
 import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../registry/villageIsland";
 import { FROST_ISLAND, frostGroundY } from "../registry/frostIsland";
+import { DINO_ISLAND, dinoGroundY } from "../registry/dinoIsland";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_SPOTS, skyIslandById, skyStreamEnd, skyTopY, type SkySpot } from "../registry/skyIslands";
 
@@ -101,7 +102,9 @@ export interface ParkWorldOptions {
   look?: "diorama" | "smooth";
   /** crossed the edge of the ocean and came back round from the other side */
   onWrap?: () => void;
-  /** close to a rare or extinct creature (or a place) down in the Midnight Rift, or on Frostpeak Isle */
+  /** the T-rex on Dino Isle roared (the kid's close by) */
+  onRoar?: () => void;
+  /** close to a rare or extinct creature (or a place): the Midnight Rift, Frostpeak Isle, Dino Isle */
   onAbyssSpot?: (spot: { id: string; name: string; text: string }) => void;
   /** a Sea Pearl was collected from a giant clam on the reef */
   onPearl?: (id: number) => void;
@@ -129,6 +132,8 @@ const worldFloor = (x: number, z: number) => {
   if (v !== null) return v;
   const fr = frostGroundY(x, z);
   if (fr !== null) return fr; // (Frostpeak's under-sea slopes come in through seaFloorY)
+  const dn = dinoGroundY(x, z);
+  if (dn !== null) return dn; // (Dino Isle's land, decks and jetty; its slopes come in through seaFloorY)
   const f = seaFloorY(x, z);
   const vf = villageSeaFloorY(x, z);
   return vf !== null ? Math.max(f, vf) : f;
@@ -239,6 +244,8 @@ export class ParkWorld {
   private abyssSpot: string | null = null;
   private frostSpot: string | null = null;
   private metFrost = false;
+  private dinoSpot: string | null = null;
+  private metDino = false;
   private metVillage = false;
   /** flung by a sky cannon towards another island: from -> to over `dur` seconds */
   private launch: { fx: number; fy: number; fz: number; tx: number; tz: number; to: string; t: number; dur: number } | null = null;
@@ -1501,6 +1508,14 @@ export class ParkWorld {
     if (fs && fs.id !== this.frostSpot) this.opts.onAbyssSpot?.(fs);
     this.frostSpot = fs?.id ?? null;
     this.park.dolphins.update(dt, this.time, { kid: pos, under: this.camUnder });
+    const dn = this.park.dino.update(dt, this.time, { kid: pos, glow: this.park.atmosphere.glow, hour: this.park.atmosphere.hour });
+    if (dn.roar) this.opts.onRoar?.();
+    if (dn.spot && dn.spot.id !== this.dinoSpot) this.opts.onAbyssSpot?.(dn.spot);
+    this.dinoSpot = dn.spot?.id ?? null;
+    if (!this.metDino && Math.hypot(pos.x - DINO_ISLAND.x, pos.z - DINO_ISLAND.z) < DINO_ISLAND.r + 10) {
+      this.metDino = true;
+      this.opts.onVillage?.(DINO_ISLAND.name, "the dinosaurs");
+    }
     if (!this.metFrost && Math.hypot(pos.x - FROST_ISLAND.x, pos.z - FROST_ISLAND.z) < FROST_ISLAND.r + 10) {
       this.metFrost = true;
       this.opts.onVillage?.(FROST_ISLAND.name, "the penguins");

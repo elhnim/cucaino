@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { abyssFloorY } from "../../registry/abyss";
 import { frostGroundY, frostSeaFloorY } from "../../registry/frostIsland";
+import { dinoSeaFloorY } from "../../registry/dinoIsland";
 import * as THREE from "three";
 import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, WRAP_R, groundY, wrapWorld } from "../../registry/terrain";
 import { rngOf } from "../fantasy/noise";
@@ -27,6 +28,7 @@ describe("the boundless sea floor", () => {
       if (villageSeaFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
       if (abyssFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
       if (frostSeaFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null || frostGroundY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
+      if (dinoSeaFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
       const y = seaFloorY(Math.sin(a) * d, Math.cos(a) * d);
       expect(y).toBeGreaterThan(DEEP_FLOOR - 1);
       expect(y).toBeLessThan(DEEP_FLOOR + 1);
