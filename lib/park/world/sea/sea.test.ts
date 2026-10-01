@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, WRAP_R, groundY, wrapWorld } from "../../registry/terrain";
 import { rngOf } from "../fantasy/noise";
 import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFloorY, shiftSwimmers, swim, trackFocus, wrapAngle, type SwimStyle } from "./wander";
-import { BREACH, CRUISE, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, FLUKE, SURFACE, WHALE_STYLE, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, noseY, startMode, stepWhale, tailY, type Whale } from "./whales";
+import { BREACH, CRUISE, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, FLUKE, SURFACE, WHALE_STYLE, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, noseY, startMode, stepWhale, tailY, whaleLen, type Whale } from "./whales";
 import { WHALE_GIRTH, blowholeLocal, whaleGeometry } from "./whaleGeometry";
 import { seaDisc } from "../ocean";
 import { villageSeaFloorY } from "../../registry/villageIsland";
@@ -175,19 +175,29 @@ function simulate(whales: Whale[], seconds: number, path: (t: number, out: { x: 
   }
 }
 function pod(): Whale[] {
-  const ws = [makeWhale("humpback", 20, 11), makeWhale("humpback", 21.6, 13), makeWhale("blue", 25.5, 12), makeWhale("blue", 27, 14)];
+  // (true size: humpbacks ~14 m, blue whales ~25 m, x 1.6 units per metre)
+  const ws = [makeWhale("humpback", whaleLen("humpback", 0), 11), makeWhale("humpback", whaleLen("humpback", 1), 13), makeWhale("blue", whaleLen("blue", 0), 12), makeWhale("blue", whaleLen("blue", 1), 14)];
   const r = rngOf(8080);
   for (const w of ws) respawn(w, WHALE_STYLE[w.kind], { x: 0, z: 0 }, 0, 0, r, 215, 300);
   return ws;
 }
 
 describe("giant whales", () => {
+  it("are true size next to the Park kid (2.26 units = 1.4 m): humpbacks ~14 m, blue whales ~25 m", () => {
+    const KID = 2.26;
+    expect(whaleLen("humpback") / KID).toBeCloseTo(14 / 1.4, 0);
+    expect(whaleLen("blue") / KID).toBeCloseTo(25 / 1.4, 0);
+    // a blue whale is as long as ~18 kids lying head to toe
+    expect(whaleLen("blue")).toBeGreaterThan(38);
+  });
   it("keep to the open ocean (never the lagoon), and never touch the sea floor", () => {
     const ws = pod();
     simulate(ws, 1500, (t, o) => ((o.x = Math.sin(t * 0.01) * 300), (o.z = Math.cos(t * 0.01) * 300), (o.y = 0)), false, () => {
       for (const w of ws) {
         expect(seaDepth(w.x, w.z)).toBeGreaterThan(13);
         expect(w.y).toBeGreaterThan(seaFloorY(w.x, w.z) + 1);
+        // (its belly too: a true-size blue whale is ~5 units thick)
+        expect(w.y - w.girth).toBeGreaterThan(seaFloorY(w.x, w.z));
         expect(noseY(w)).toBeGreaterThan(DEEP_FLOOR - 0.5);
         expect(Number.isFinite(w.x + w.y + w.z + w.yaw + w.pitch + w.roll)).toBe(true);
       }
@@ -210,7 +220,7 @@ describe("giant whales", () => {
     expect(modes.has(`blue:${BREACH}`)).toBe(false);
   });
   it("a breach: two-thirds out of the sea, one splash out and one crash back in", () => {
-    const w = makeWhale("humpback", 21, 3);
+    const w = makeWhale("humpback", whaleLen("humpback"), 3);
     Object.assign(w, { x: 0, z: 400, y: -8 });
     const r = rngOf(4);
     startMode(w, BREACH, r);
@@ -233,7 +243,7 @@ describe("giant whales", () => {
     expect(w.mode).toBe(CRUISE);
   });
   it("a fluke-up dive raises the tail high, dripping, then slips under", () => {
-    const w = makeWhale("humpback", 21, 3);
+    const w = makeWhale("humpback", whaleLen("humpback"), 3);
     Object.assign(w, { x: 0, z: 400 });
     w.y = WATER_Y - w.girth * 0.62;
     const r = rngOf(5);
@@ -309,9 +319,10 @@ describe("giant whales", () => {
     simulate(ws, 300, (_t, o) => ((o.x = -380), (o.z = 20), (o.y = -8)), true, (t, _e, kid) => {
       if (t < 5) return;
       let best = Infinity;
-      for (const w of ws) if (Math.abs(w.y - kid.y) < 7) best = Math.min(best, Math.sqrt(dist2(w, kid)));
+      // (measured to the whale's flank: a true-size blue whale is ~5 units thick)
+      for (const w of ws) if (Math.abs(w.y - kid.y) < 7 + w.girth) best = Math.min(best, Math.sqrt(dist2(w, kid)) - w.girth);
       closest = Math.min(closest, best);
-      const close = best < 20;
+      const close = best < 18;
       if (close && !wasClose) passes++;
       wasClose = close;
     });

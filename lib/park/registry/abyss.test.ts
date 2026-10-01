@@ -29,21 +29,21 @@ const rnd = (() => {
 })();
 
 describe("the Midnight Rift (registry)", () => {
-  it("has the shape asked for: a long winding crack, 25-60 m wide, ~85-115 m deep", () => {
+  it("has the shape asked for: a long winding crack, 36-72 m wide (room for true-size giants), ~85-115 m deep", () => {
     expect(ABYSS.id).toBe("midnight-rift");
     expect(ABYSS.name.length).toBeGreaterThan(3);
     expect(ABYSS_LENGTH).toBeGreaterThan(300);
     expect(ABYSS_LENGTH).toBeLessThan(460);
     expect(ABYSS.path.length).toBeGreaterThan(20);
-    expect(ABYSS.width).toBeGreaterThan(40);
-    expect(ABYSS.width).toBeLessThanOrEqual(60);
+    expect(ABYSS.width).toBeGreaterThan(55);
+    expect(ABYSS.width).toBeLessThanOrEqual(72);
     expect(ABYSS.depth).toBeGreaterThan(85);
     let lo = 0;
     for (const y of G.y) lo = Math.min(lo, y);
     expect(lo).toBeLessThan(-105);
     expect(lo).toBeGreaterThan(-140);
-    // the rim is at least 25 m across along its body
-    for (let s = 70; s < ABYSS_LENGTH - 70; s += 5) expect(rimHalfAt(s) * 2).toBeGreaterThanOrEqual(25);
+    // the rim is at least 34 m across along its body (a 26-unit megalodon can turn round)
+    for (let s = 70; s < ABYSS_LENGTH - 70; s += 5) expect(rimHalfAt(s) * 2).toBeGreaterThanOrEqual(34);
   });
 
   it("repeats the plain's numbers exactly (DEEP_FLOOR, the dunes)", () => {
@@ -151,7 +151,7 @@ describe("the Midnight Rift (registry)", () => {
         prev = y;
       }
     }
-  });
+  }, 30_000); // (heavy: give it room when the whole suite runs in parallel)
 
   it("the rim is at plain height, the floor is deep, and ledges step the walls", () => {
     for (let s = 60; s < ABYSS_LENGTH - 60; s += 11) {

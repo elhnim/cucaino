@@ -70,7 +70,7 @@ export interface SpeciesDef {
   coats: [string, string][];
 }
 
-export const SPECIES: SpeciesDef[] = [
+const SPECIES_STORYBOOK: SpeciesDef[] = [
   { id: "brachio", mesh: "brachio", variant: 0, range: "brachio", count: [4, 2], size: 3.2, walk: 1.1, run: 2, stride: 5.5, turn: 0.35, personal: 9, curious: false, graze: -0.25, look: 0.9, eyeY: 12.5, scale: [0.9, 1.08], special: [14, 12], wade: true, coats: [["#8fbf6a", "#f0e2b0"], ["#6fb7a6", "#e8f0c8"], ["#a3b06a", "#f4e4b8"], ["#7fa7c9", "#eef0dc"]] },
   { id: "trike", mesh: "trike", variant: 0, range: "trike", count: [5, 3], babies: [4, 3], size: 1.9, walk: 1.2, run: 3, stride: 2.6, turn: 0.8, personal: 5.5, curious: false, graze: -0.55, look: 0.8, eyeY: 2.1, scale: [0.9, 1.1], special: [18, 2.2], coats: [["#c98b52", "#ff7a4a"], ["#8f9f5a", "#ffc14a"], ["#b0794a", "#ff5a7a"], ["#9a8a6a", "#4fc3a1"]] },
   { id: "stego", mesh: "stego", variant: 0, range: "stego", count: [3, 2], size: 1.9, walk: 1.0, run: 2.4, stride: 2.4, turn: 0.7, personal: 5, curious: false, graze: -0.5, look: 0.7, eyeY: 1.3, scale: [0.9, 1.08], special: [15, 3], coats: [["#8fae5a", "#ff8a3c"], ["#6f9a7a", "#ffb04a"], ["#9fa05a", "#e8584a"]] },
@@ -92,6 +92,47 @@ export const SPECIES: SpeciesDef[] = [
   { id: "terror", mesh: "small", variant: 3, range: "terror", count: [1, 1], size: 0.6, walk: 1.1, run: 3.5, stride: 1.0, turn: 1.8, personal: 0, curious: true, graze: -0.6, look: 1.2, eyeY: 2.1, scale: [1.1, 1.1], special: [7, 2], coats: [["#4a7ac8", "#ffd84a"]] },
   { id: "glypto", mesh: "smallbeast", variant: 4, range: "glypto", count: [2, 1], size: 1.1, walk: 0.5, run: 1, stride: 0.9, turn: 0.8, personal: 0, curious: true, graze: -0.3, look: 0.7, eyeY: 0.65, scale: [0.95, 1.05], special: [0, 0], coats: [["#a88a5a", "#6a5a44"], ["#98804e", "#5e503c"]] },
 ];
+
+// ── true size ──
+// The Park kid is 2.26 world units tall and stands for a real ~1.4 m ten-year-old, so one real
+// metre is DINO_M = 1.6 units. The models (./species.ts) are built roughly in metres; each species'
+// scale is set so the animal stands at its real size next to the kid: k = DINO_M x real / model,
+// measured along the dimension named (h: height to the top, l: nose to tail, w: wingspan / antler
+// span). Speeds scale by k too, so legs keep the same step rate at the bigger size.
+export const DINO_M = 1.6;
+export const TRUE_SIZE: Record<DinoSpeciesId, { real: number; dim: "h" | "l" | "w"; model: number }> = {
+  brachio: { real: 13, dim: "h", model: 14.0 }, // Brachiosaurus: ~13 m tall with its neck up, 22–26 m long
+  trike: { real: 8.5, dim: "l", model: 9.89 }, // Triceratops: 8–9 m long, ~3 m tall
+  stego: { real: 9, dim: "l", model: 9.84 }, // Stegosaurus: ~9 m long, ~4 m to the top of its plates
+  para: { real: 9.5, dim: "l", model: 9.33 }, // Parasaurolophus: ~9.5 m long
+  ankylo: { real: 7, dim: "l", model: 9.01 }, // Ankylosaurus: 6–8 m long, ~1.7 m tall
+  trex: { real: 12.3, dim: "l", model: 12.95 }, // T. rex: ~12 m long, ~4 m at the hip
+  compy: { real: 1.0, dim: "l", model: 1.37 }, // Compsognathus: ~1 m long (mostly tail), chicken-sized
+  ptero: { real: 6.25, dim: "w", model: 6.5 }, // Pteranodon: 6–7 m wingspan
+  plesio: { real: 3.5, dim: "l", model: 8.62 }, // Plesiosaurus: ~3.5 m long
+  mammoth: { real: 3.5, dim: "h", model: 4.66 }, // woolly mammoth: ~3.4 m at the shoulder hump
+  rhino: { real: 4.2, dim: "l", model: 5.05 }, // woolly rhino: ~3.6 m body + its 0.6 m front horn, 2 m tall
+  sloth: { real: 6, dim: "l", model: 5.8 }, // Megatherium: ~6 m long, elephant-sized
+  elk: { real: 3.6, dim: "w", model: 4.6 }, // Irish elk: antlers up to 3.6 m across, ~2.1 m at the shoulder
+  sabre: { real: 1.1, dim: "h", model: 1.26 }, // Smilodon: ~1.1 m at the shoulder (model: its back)
+  bear: { real: 3.0, dim: "l", model: 3.55 }, // cave bear: ~3 m long
+  dodo: { real: 0.7, dim: "h", model: 1.01 }, // dodo: ~0.7 m tall
+  moa: { real: 3.6, dim: "h", model: 2.73 }, // giant moa: up to 3.6 m with its head raised
+  thylacine: { real: 1.8, dim: "l", model: 2.21 }, // thylacine: ~1.8 m nose to tail tip, 0.6 m at the shoulder
+  terror: { real: 2.5, dim: "h", model: 2.63 }, // terror bird (Titanis): ~2.5 m tall
+  glypto: { real: 3.3, dim: "l", model: 4.4 }, // Glyptodon: ~3.3 m long with its tail, 1.5 m tall
+};
+/** world units per model unit for a species (its true-size factor) */
+export const trueK = (id: DinoSpeciesId) => (DINO_M * TRUE_SIZE[id].real) / TRUE_SIZE[id].model;
+
+/** at true size the island is a crowded place for the giants: fewer of them, [standard, low] */
+const TRUE_COUNTS: Partial<Record<DinoSpeciesId, [number, number]>> = { brachio: [3, 2], trike: [4, 2], para: [3, 2], mammoth: [3, 2], compy: [6, 3] };
+
+export const SPECIES: SpeciesDef[] = SPECIES_STORYBOOK.map((d) => {
+  // (the storybook scale ranges become a +-jitter round the true size)
+  const k = trueK(d.id) / ((d.scale[0] + d.scale[1]) / 2);
+  return { ...d, count: TRUE_COUNTS[d.id] ?? d.count, scale: [d.scale[0] * k, d.scale[1] * k] as [number, number], walk: d.walk * trueK(d.id), run: d.run * trueK(d.id) };
+});
 
 // states
 const IDLE = 0;
@@ -268,7 +309,7 @@ export function makeSim(low: boolean): DinoSim {
       const slot = perMesh.get(def.mesh) ?? 0;
       perMesh.set(def.mesh, slot + 1);
       const a0 = (k / Math.max(1, n + nb)) * TAU + rng() * 0.5;
-      const spread = Math.min(range.r * 0.7, def.size * 2.2 + 1.5);
+      const spread = Math.min(range.r * 0.7, def.size * trueK(def.id) * 2.2 + 1.5);
       const a: Animal = {
         def,
         slot,
@@ -326,7 +367,7 @@ export function makeSim(low: boolean): DinoSim {
           a.fcx = h.x;
           a.fcz = h.z;
           a.fh = h.y;
-          a.scale = 0.28;
+          a.scale = 0.28 * trueK("trike");
           a.yaw = rng() * TAU;
         } else if (def.id === "trike") {
           const N = DINO_RANGES.nests;
@@ -339,7 +380,7 @@ export function makeSim(low: boolean): DinoSim {
         } else {
           a.mother = mothers[(k - n) % mothers.length] ?? null;
           if (a.mother) {
-            a.x = a.mother.x + 2;
+            a.x = a.mother.x + a.mother.def.size * a.mother.scale + 1;
             a.z = a.mother.z;
           }
         }
@@ -426,7 +467,7 @@ function kidDist(a: Animal) {
 }
 
 function lookAtKid(a: Animal, dK: number, want: { yaw: number; pitch: number }, dt: number) {
-  const reach = 22 + a.def.size * 3;
+  const reach = 22 + a.def.size * a.scale * 3;
   let wy = want.yaw;
   let wp = want.pitch;
   if (dK < reach) {
@@ -435,13 +476,15 @@ function lookAtKid(a: Animal, dK: number, want: { yaw: number; pitch: number }, 
       const k = 1 - Math.max(0, (dK - 8) / (reach - 8));
       wy = wy + (clamp(rel, -a.def.look, a.def.look) - wy) * k;
       const eye = a.def.eyeY * a.scale;
-      wp = wp + (clamp(Math.atan2(1.2 - eye, Math.max(1, dK)) * 0.7, -0.8, 0.5) - wp) * k * 0.8;
+      wp = wp + (clamp(Math.atan2(KID_EYE - eye, Math.max(1, dK)) * 0.7, -0.8, 0.5) - wp) * k * 0.8;
     }
   }
   a.hy = approach(a.hy, wy, dt * 3);
   a.hp = approach(a.hp, wp, dt * 2.5);
 }
 const _want = { yaw: 0, pitch: 0 };
+/** the Park kid's eye height (2.26 units tall) */
+const KID_EYE = 1.9;
 
 function stepWalker(sim: DinoSim, a: Animal, dt: number, t: number, night: boolean) {
   const def = a.def;
@@ -461,8 +504,10 @@ function stepWalker(sim: DinoSim, a: Animal, dt: number, t: number, night: boole
   const curious = def.curious || a.baby > 0;
   // where it's heading: its place in the herd (a baby: beside mum)
   const m = a.mother;
-  const homeX = m ? m.x - Math.sin(m.yaw) * 1.2 + Math.cos(m.yaw) * 1.8 : a.herd.cx + a.ox;
-  const homeZ = m ? m.z - Math.cos(m.yaw) * 1.2 - Math.sin(m.yaw) * 1.8 : a.herd.cz + a.oz;
+  // (mum's side: her body radius plus a little, so even a calf beside a true-size mammoth walks clear)
+  const ms = m ? m.def.size * m.scale : 0;
+  const homeX = m ? m.x - Math.sin(m.yaw) * ms * 0.5 + Math.cos(m.yaw) * (ms + size + 0.4) : a.herd.cx + a.ox;
+  const homeZ = m ? m.z - Math.cos(m.yaw) * ms * 0.5 - Math.sin(m.yaw) * (ms + size + 0.4) : a.herd.cz + a.oz;
 
   // the kid: curious ones come to sniff, shy/big ones keep their distance
   if (curious && a.state !== REST && a.state !== SNIFF && a.cool <= 0 && dK < 11 && dK > 2 + size) {
@@ -558,7 +603,8 @@ function stepWalker(sim: DinoSim, a: Animal, dt: number, t: number, night: boole
         case "brachio": {
           // browsing a treetop: neck up high, head turned to the tree, munching
           const tr = a.tree >= 0 ? TREES[a.tree] : null;
-          _want.pitch = 0.32;
+          // (at true size its head is up above the monkey-puzzle's crown: it reaches down into it)
+          _want.pitch = tr ? clamp(Math.atan2(tr.h * 0.85 - def.eyeY * a.scale, BROWSE_OFF * a.scale), -0.55, 0.32) : 0.32;
           if (tr) _want.yaw = clamp(wrap(Math.atan2(tr.x - a.x, tr.z - a.z) - a.yaw), -0.6, 0.6);
           jawWant = 0.12 + Math.abs(Math.sin(t * 3)) * 0.12;
           break;
@@ -681,6 +727,9 @@ function stepWalker(sim: DinoSim, a: Animal, dt: number, t: number, night: boole
   a.shake = approach(a.shake, 0, dt * 3);
 }
 
+/** how far (model m) a brachiosaur stands from the tree it browses (its head reaches ~8 m ahead) */
+const BROWSE_OFF = 7.2;
+
 function startSpecial(a: Animal) {
   const def = a.def;
   if (def.id === "brachio" || def.id === "sloth") {
@@ -697,7 +746,7 @@ function startSpecial(a: Animal) {
     }
     if (best >= 0) {
       const tr = TREES[best];
-      const off = (def.id === "brachio" ? 6.2 : 2.3) * a.scale + tr.r;
+      const off = (def.id === "brachio" ? BROWSE_OFF : 2.3) * a.scale + tr.r;
       const d = Math.sqrt(bd) || 1;
       a.tree = best;
       a.state = WALK;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeSim, stepSim, trexMode, type DinoSim } from "./herd";
+import { DINO_M, SPECIES, TRUE_SIZE, makeSim, stepSim, trexMode, trueK, type DinoSim } from "./herd";
 import { DINO_ISLAND, DINO_OBSTACLES, DINO_PADDOCK, DINO_RANGES, DINO_SPECIES, dinoLandY } from "../../registry/dinoIsland";
 
 const run = (sim: DinoSim, secs: number, t0: number, hour: number, kx: number, kz: number, near: boolean) => {
@@ -53,7 +53,7 @@ describe("Dino Isle's animals", () => {
     let overlaps = 0;
     for (let i = 0; i < W.length; i++) for (let j = i + 1; j < W.length; j++) if (Math.hypot(W[i].x - W[j].x, W[i].z - W[j].z) < (W[i].def.size * W[i].scale + W[j].def.size * W[j].scale) * 0.5) overlaps++;
     expect(overlaps).toBeLessThanOrEqual(2);
-  });
+  }, 30_000); // (a long simulation: give it room when the whole suite runs in parallel)
 
   it("notices the kid: heads turn to look, big ones keep their distance, curious little ones come to sniff", () => {
     const sim = makeSim(false);
@@ -87,7 +87,8 @@ describe("Dino Isle's animals", () => {
       stepSim(sim, 1 / 20, (t += 1 / 20), 11, kx, kz, true);
       if (sim.roared) roared++;
       modes.add(trexMode(sim));
-      expect(Math.hypot(sim.trex.x - P.x, sim.trex.z - P.z)).toBeLessThan(P.r - 1.5);
+      // (true size: its hips stay far enough in that its 7.8 m tail never pokes through the fence)
+      expect(Math.hypot(sim.trex.x - P.x, sim.trex.z - P.z) + 7.8 * sim.trex.scale).toBeLessThan(P.r);
     }
     expect(roared).toBeGreaterThanOrEqual(1);
     expect(roared).toBeLessThanOrEqual(4);
@@ -107,6 +108,27 @@ describe("Dino Isle's animals", () => {
     expect(d).toBeGreaterThan(DINO_ISLAND.r * 1.1);
     expect(d).toBeLessThan(DINO_ISLAND.r * 1.5);
     void t;
+  });
+
+  it("are true size next to the Park kid (2.26 units = a 1.4 m ten-year-old: 1 m = 1.6 units)", () => {
+    expect(DINO_M).toBeCloseTo(2.26 / 1.4, 1);
+    const sim = makeSim(false);
+    for (const def of SPECIES) {
+      const t = TRUE_SIZE[def.id];
+      // the average grown-up's model size x scale = its real size x 1.6 (within the herd's jitter)
+      const mid = (def.scale[0] + def.scale[1]) / 2;
+      expect(t.model * mid, def.id).toBeCloseTo(t.real * DINO_M, 1);
+      for (const a of sim.animals.filter((q) => q.def === def && !q.baby)) {
+        expect(a.scale / trueK(def.id), def.id).toBeGreaterThan(0.85);
+        expect(a.scale / trueK(def.id), def.id).toBeLessThan(1.15);
+      }
+    }
+    const KID = 2.26;
+    const adult = (id: string) => sim.animals.find((a) => a.def.id === id && !a.baby)!;
+    // a brachiosaur's head is ~9 kids up; a T-rex is ~8.5 kids long; a dodo comes up to the kid's waist
+    expect((13.1 * adult("brachio").scale) / KID).toBeGreaterThan(8);
+    expect((12.95 * adult("trex").scale) / KID).toBeGreaterThan(8);
+    expect((1.01 * adult("dodo").scale) / KID).toBeLessThan(0.6);
   });
 
   it("is deterministic", () => {

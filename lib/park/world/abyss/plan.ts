@@ -333,12 +333,45 @@ export interface Creature {
   started: boolean;
 }
 
+// ── true size ──
+// The Park kid is 2.26 units tall (a real ~1.4 m ten-year-old), so 1 m = ABYSS_M = 1.6 units. Every
+// creature's scale is set so it swims at its real size: k = ABYSS_M x real / model (`model` = the
+// model's own length at scale 1 along the same measure — nose to tail unless noted).
+export const ABYSS_M = 1.6;
+export const ABYSS_TRUE: Record<Species, { real: number; model: number; note: string }> = {
+  megalodon: { real: 16, model: 17.92, note: "Otodus megalodon: ~15-18 m, the biggest shark ever" },
+  greenland: { real: 5, model: 6.72, note: "Greenland shark: 4-6 m, lives 400 years" },
+  liopleurodon: { real: 6.4, model: 7.0, note: "Liopleurodon: 5-7 m (modern estimates)" },
+  dunkleosteus: { real: 4.1, model: 6.78, note: "Dunkleosteus: ~3.5-4.1 m (modern estimates)" },
+  helicoprion: { real: 6, model: 5.6, note: "Helicoprion: 5-8 m" },
+  goblinShark: { real: 3.5, model: 4.82, note: "goblin shark: 3-4 m" },
+  frilledShark: { real: 1.7, model: 2.99, note: "frilled shark: ~1.7 m (up to 2 m)" },
+  coelacanth: { real: 1.8, model: 2.28, note: "coelacanth: up to 2 m" },
+  giantSquid: { real: 12, model: 11.5, note: "giant squid: ~12 m with its long tentacles" },
+  gulper: { real: 1, model: 2.89, note: "gulper eel: 0.75-1 m" },
+  oarfish: { real: 8, model: 9.0, note: "giant oarfish: up to 8 m (record 11 m)" },
+  anglerfish: { real: 0.6, model: 1.23, note: "deep-sea anglerfish: 0.2-1 m (a big female)" },
+  vampireSquid: { real: 0.3, model: 0.83, note: "vampire squid: ~0.3 m" },
+  dumbo: { real: 0.3, model: 0.76, note: "dumbo octopus: 0.2-0.3 m (across its ears)" },
+  barreleye: { real: 0.15, model: 0.68, note: "barreleye: ~0.15 m" },
+  combJelly: { real: 0.2, model: 0.5, note: "comb jelly: ~0.2 m (height)" },
+  siphonophore: { real: 12, model: 12.19, note: "siphonophore: a colony chain, 10-40 m" },
+  ammonite: { real: 0.5, model: 1.23, note: "ammonite: shells mostly 0.2-0.6 m (height)" },
+  trilobite: { real: 0.3, model: 0.75, note: "trilobite: most 3-30 cm (a big one)" },
+  eurypterid: { real: 2, model: 2.95, note: "sea scorpion (Jaekelopterus): up to 2.5 m" },
+  seaPig: { real: 0.15, model: 0.61, note: "sea pig: ~0.15 m" },
+  isopod: { real: 0.35, model: 1.15, note: "giant isopod: 0.2-0.5 m" },
+  yetiCrab: { real: 0.15, model: 0.53, note: "yeti crab: ~0.15 m with its hairy arms" },
+  giantOctopus: { real: 1, model: 1, note: "giant Pacific octopus: record ~9 m arm span (the model's ~16 units): drawn at record size" },
+};
+/** a species' true-size scale */
+export const trueScale = (sp: Species) => (ABYSS_M * ABYSS_TRUE[sp].real) / ABYSS_TRUE[sp].model;
+
 function make(sp: Species, kind: Creature["kind"], seed: number, o: Partial<Creature>): Creature {
   return {
     sp,
     kind,
     seed,
-    scale: 1,
     radius: 1,
     phRate: 3,
     s0: 60,
@@ -348,7 +381,6 @@ function make(sp: Species, kind: Creature["kind"], seed: number, o: Partial<Crea
     yAmp: 3,
     uAmp: 2,
     speed: 1,
-    clear: 2,
     theta0: 0,
     hs: 0,
     hu: 0,
@@ -359,6 +391,9 @@ function make(sp: Species, kind: Creature["kind"], seed: number, o: Partial<Crea
     pose: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, scale: 1 },
     ph: seed * 1.7,
     started: false,
+    // (true size: the given scale is a little jitter round 1; a big one keeps clear of the rock by more)
+    scale: (o.scale ?? 1) * trueScale(sp),
+    clear: (o.clear ?? 2) * Math.max(1, trueScale(sp)),
   };
 }
 
@@ -377,7 +412,9 @@ export function planCreatures(lowQuality = false): Creature[] {
   let seed = 1;
   const add = (sp: Species, kind: Creature["kind"], o: Partial<Creature>) => c.push(make(sp, kind, seed++, o));
   // the giants
-  add("megalodon", "megalodon", { radius: 8, phRate: 1.5, s0: 70, s1: L - 70, r: 9, y: -46, yAmp: 6, uAmp: 2, speed: 3, clear: 6, theta0: 40 });
+  // (true size, ~16 m = ~26 units: its loop turns round where the rift is 30+ units wide — s 110 and
+  //  L - 90 — the narrow ends of the crack are no place for it)
+  add("megalodon", "megalodon", { radius: 8, phRate: 1.3, s0: 110, s1: L - 90, r: 9, y: -46, yAmp: 6, uAmp: 2, speed: 3.6, clear: 6, theta0: 40 });
   add("liopleurodon", "loop", { radius: 3.5, phRate: 1.2, s0: 60, s1: L * 0.62, r: 6, y: -62, yAmp: 8, uAmp: 2, speed: 2.4, clear: 4, theta0: 120 });
   add("dunkleosteus", "loop", { radius: 3, phRate: 2.2, s0: L * 0.4, s1: L - 60, r: 5, y: -78, yAmp: 6, speed: 1.8, clear: 3.5, theta0: 30 });
   add("helicoprion", "loop", { radius: 2.5, phRate: 2.4, s0: 70, s1: L * 0.55, r: 4, y: -38, yAmp: 8, speed: 2.1, clear: 3, theta0: 260 });
@@ -452,7 +489,7 @@ export function planCreatures(lowQuality = false): Creature[] {
       const yy = Math.max(m.y - m.yAmp, floorMid(clamp(s, 0, L)) + m.clear);
       minHalf = Math.min(minHalf, safeHalf(clamp(s, 0, L), yy, 1, m.clear), safeHalf(clamp(s, 0, L), yy, -1, m.clear));
     }
-    m.r = clamp(Math.min(m.r, minHalf - m.uAmp - m.radius * 0.3), 0.6, m.r);
+    m.r = clamp(Math.min(m.r, minHalf - m.uAmp - m.radius * m.scale * 0.3), 0.6, m.r);
   }
   return c;
 }
@@ -503,7 +540,7 @@ export function loopTarget(m: Creature, t: number, out: V3, lead = 0): V3 {
   y = Math.max(y, fl + m.clear);
   y = Math.min(y, RIM_Y - 3 + (m.sp === "helicoprion" ? 12 : 0));
   const side = u >= 0 ? 1 : -1;
-  const lim = safeHalf(s, y, side, m.clear) - m.radius * 0.25;
+  const lim = safeHalf(s, y, side, m.clear) - m.radius * m.scale * 0.25;
   u = side * Math.min(Math.abs(u), Math.max(0, lim));
   s = clamp(s, 2, RIFT_L - 2);
   toWorld(s, u, out);
@@ -522,7 +559,7 @@ export function hoverTarget(m: Creature, t: number, out: V3): V3 {
   const lim = safeHalf(s, y, side, 1) - 0.4;
   u = side * Math.min(Math.abs(u), Math.max(0, lim));
   toWorld(s, u, out);
-  out.y = Math.max(y, floorY(out.x, out.z) + 0.8 + m.radius);
+  out.y = Math.max(y, floorY(out.x, out.z) + 0.8 + m.radius * m.scale);
   return out;
 }
 
@@ -571,6 +608,14 @@ export interface MegState {
 export const makeMegState = (m: Creature): MegState => ({ s: m.s0 + 20, u: 0, y: m.y, psi: 0, speed: m.speed, mode: 0, modeT: 0, cool: 12, orbitDir: 1 });
 
 const MEG_VISIT = 26;
+/** the megalodon's length (units) — the model is 17.92 long at scale 1 */
+export const megLen = (m: Creature) => 17.92 * m.scale;
+/** its half-width at the pectoral fins' roots (units, true size), and how close it may come to the kid */
+export const MEG_HALF_W = 3.5;
+export const MEG_CLEAR = 9;
+/** the stretch of the rift wide enough (30+ units at its depth) for a 26-unit shark to turn round in */
+export const MEG_S0 = 90;
+export const MEG_S1 = RIFT_L - 70;
 /** room across the rift (m either side of the middle, less a margin) for the megalodon at y */
 const roomAt = (s: number, y: number) => Math.min(safeHalf(s, y, 1, 4), safeHalf(s, y, -1, 4)) - 2.5;
 /**
@@ -606,11 +651,13 @@ export function stepMegalodon(m: Creature, st: MegState, kid: KidInfo, dt: numbe
     // catch up with the loop if it's far ahead or behind
     want = m.speed * (1 + clamp(Math.hypot(ts - st.s, tu - st.u) / 40, 0, 0.8));
   } else {
-    const A = 20;
+    // (a lazy ellipse, longer than the shark: ~24 units along the rift, up to 13 across — less its
+    //  own half-width where the rift is narrower)
+    const A = megLen(m) * 0.95;
     let kidY = clamp(kid.y + 2, -135, RIM_Y + 8);
     // (where the rift is too narrow at the kid's depth, it passes a little above them instead)
-    if (roomAt(kid.s, kidY) < 6) kidY = Math.min(RIM_Y + 8, kidY + 7);
-    const B = clamp(roomAt(kid.s, kidY), 3, 12);
+    if (roomAt(kid.s, kidY) < 9) kidY = Math.min(RIM_Y + 8, kidY + 8);
+    const B = clamp(roomAt(kid.s, kidY) - MEG_HALF_W, 4, 13);
     // where we are round the kid (angle on the ellipse), and a point a little further round
     const phi = Math.atan2((st.u - kid.u) / B, (st.s - kid.s) / A);
     const dist = Math.hypot(st.s - kid.s, st.u - kid.u);
@@ -628,22 +675,33 @@ export function stepMegalodon(m: Creature, st: MegState, kid: KidInfo, dt: numbe
   const dsx = ts - st.s;
   const dux = tu - st.u;
   const desired = Math.atan2(dux, dsx);
-  const turn = clamp(wrapA(desired - st.psi), -0.4 * dt, 0.4 * dt);
+  let dpsi = wrapA(desired - st.psi);
+  if (Math.abs(dpsi) > 1.2) {
+    // a big turn (round to swim back the other way): a 26-unit shark swings its nose across the
+    // open middle of the rift, never into the near wall — and slows to turn tighter
+    const sense = -Math.sign(st.u || 1) * (Math.cos(st.psi) >= 0 ? 1 : -1);
+    if (Math.abs(st.u) > 1.5 && Math.sign(dpsi) !== sense) dpsi = sense * (TAU - Math.abs(dpsi));
+    want *= 0.7;
+  }
+  const turn = clamp(dpsi, -0.4 * dt, 0.4 * dt);
   st.psi = wrapA(st.psi + turn);
   st.speed += (want - st.speed) * Math.min(1, dt * 0.5);
   let ns = st.s + Math.cos(st.psi) * st.speed * dt;
   let nu = st.u + Math.sin(st.psi) * st.speed * dt;
-  ns = clamp(ns, 40, RIFT_L - 40);
-  // keep its whole body (nose to tail, ~16 m) clear of the kid: sidestep and rise over them
+  // (at the rift's narrow ends: turn round, back up the rift)
+  if (ns < MEG_S0 || ns > MEG_S1) st.psi = wrapA(st.psi + clamp(wrapA((ns < RIFT_L / 2 ? 0 : Math.PI) - st.psi), -0.8 * dt, 0.8 * dt));
+  ns = clamp(ns, MEG_S0 - 10, MEG_S1 + 10);
+  // keep its whole body (nose to tail, ~26 units) clear of the kid: sidestep and rise over them
   if (kid.s === kid.s) {
     const as = ns - kid.s;
     const au = nu - kid.u;
     const c = Math.cos(st.psi);
     const sn = Math.sin(st.psi);
-    const along = clamp(as * c + au * sn, -7, 7);
+    const half = megLen(m) * 0.42;
+    const along = clamp(as * c + au * sn, -half, half);
     const dk = Math.hypot(as - along * c, au - along * sn, (st.y - kid.y) * 0.9);
-    if (dk < 8) {
-      const push = (8 - dk) * Math.min(1, dt * 2);
+    if (dk < MEG_CLEAR) {
+      const push = (MEG_CLEAR - dk) * Math.min(1, dt * 2);
       nu += (au >= 0 ? 1 : -1) * push;
       st.y += push * 0.8;
     }
@@ -652,12 +710,31 @@ export function stepMegalodon(m: Creature, st: MegState, kid: KidInfo, dt: numbe
   const fl = floorAt(ns, nu);
   st.y = Math.max(st.y, fl + m.clear);
   const side = nu >= 0 ? 1 : -1;
-  const lim = Math.max(0, safeHalf(ns, st.y, side, m.clear) - 1.5);
+  // (its centre stays its half-width plus a margin off the rock: the pectorals never touch the walls)
+  const lim = Math.max(0, safeHalf(ns, st.y, side, m.clear) - 1.5 - MEG_HALF_W);
   if (Math.abs(nu) > lim) {
     nu = side * lim;
     // steer back along the rift
     const along = Math.cos(st.psi) >= 0 ? 0 : Math.PI;
     st.psi = wrapA(st.psi + wrapA(along - st.psi) * Math.min(1, dt * 1.5));
+  }
+  // its long nose (a 26-unit shark's head is ~11 units ahead of its middle) stays in the water
+  // too: where the rock is coming up ahead of the nose, it turns back along the rift and slows
+  {
+    const noseD = megLen(m) * 0.45;
+    const fwd = tangentYaw(ns) + st.psi;
+    toWorld(ns, nu, lp2);
+    for (const k of [1, 0.6]) {
+      const nx = lp2.x + Math.sin(fwd) * noseD * k;
+      const nz = lp2.z + Math.cos(fwd) * noseD * k;
+      if (floorY(nx, nz) > st.y - 3) {
+        // (turn the nose away from the rock: back along the rift the way it's facing)
+        const along = Math.cos(st.psi) >= 0 ? 0 : Math.PI;
+        st.psi = wrapA(st.psi + clamp(wrapA(along - st.psi), -0.8 * dt, 0.8 * dt));
+        st.speed *= 1 - Math.min(1, dt * 1.5);
+        break;
+      }
+    }
   }
   st.s = ns;
   st.u = nu;
@@ -781,11 +858,11 @@ export function stepEscort(m: Creature, t: number, dt: number, kid: KidInfo): vo
     tz = kid.z + Math.cos(a) * m.r;
     ty = kid.y + 0.8 + Math.sin(t * 0.23 + m.seed) * 1.6;
     // keep it in the water: pull it in towards the kid while that spot is inside the rock
-    for (let k = 0; k < 8 && floorY(tx, tz) + 0.8 + m.radius > ty; k++) {
+    for (let k = 0; k < 8 && floorY(tx, tz) + 0.8 + m.radius * m.scale > ty; k++) {
       tx = kid.x + (tx - kid.x) * 0.72;
       tz = kid.z + (tz - kid.z) * 0.72;
     }
-    ty = Math.max(ty, floorY(tx, tz) + 0.8 + m.radius);
+    ty = Math.max(ty, floorY(tx, tz) + 0.8 + m.radius * m.scale);
     if (!m.started || Math.hypot(p.x - kid.x, p.z - kid.z) > 90) {
       // (slip in out of sight, along the rift)
       const s = clamp(kid.s + (m.seed % 2 ? 42 : -42), 20, RIFT_L - 20);
@@ -817,7 +894,7 @@ export function stepEscort(m: Creature, t: number, dt: number, kid: KidInfo): vo
     p.z += (dz / d) * step;
   }
   // stay off the rock on the way
-  p.y = Math.max(p.y, floorY(p.x, p.z) + 0.5 + m.radius);
+  p.y = Math.max(p.y, floorY(p.x, p.z) + 0.5 + m.radius * m.scale);
   if (Math.hypot(dx, dz) > 0.05) {
     const yaw = Math.atan2(dx, dz);
     const dyaw = wrapA(yaw - p.yaw);

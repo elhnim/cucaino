@@ -15,13 +15,16 @@ import {
   S_SWIM,
   S_WALKHOME,
   STATE_NAMES,
+  PENGUIN_K,
+  PENGUIN_TRUE_M,
   makeColony,
   penguinRoot,
   stepColony,
   type Colony,
 } from "./colony";
-import { makeWildlife, stepWildlife, SEAL_LOUNGE, SEAL_SWIM } from "./wildlife";
-import { FROST_ISLAND, FROST_SEA_R, FROST_SLIDES, FROST_WATER_Y, frostGroundY, frostLandY, frostSeaFloorY } from "../../registry/frostIsland";
+import { BEAST_K, makeWildlife, stepWildlife, SEAL_LOUNGE, SEAL_SWIM } from "./wildlife";
+import { PENGUIN_RIG } from "./critters";
+import { FROST_ISLAND, FROST_SEA_R, FROST_SLIDES, FROST_WATER_Y, SLIDE_HALF, frostGroundY, frostLandY, frostSeaFloorY } from "../../registry/frostIsland";
 
 const dt = 1 / 30;
 const WY = FROST_WATER_Y;
@@ -45,6 +48,26 @@ describe("the penguin colony", { timeout: 60_000 }, () => {
     expect(lo.penguins.length).toBeLessThan(hi.penguins.length * 0.6);
     for (const k of [EMPEROR, CHICK, LITTLE]) expect(hi.penguins.filter((p) => p.kind === k).length).toBeGreaterThanOrEqual(8);
     for (const p of hi.penguins.filter((q) => q.role === ROLE_CHICK)) expect(hi.penguins[p.parent].kind).toBe(EMPEROR);
+  });
+
+  it("are true size next to the Park kid (2.26 units = 1.4 m): emperors 1.15 m, chicks 0.6 m, little penguins 0.33 m", () => {
+    const col = makeColony(false);
+    for (const k of [EMPEROR, CHICK, LITTLE]) {
+      const ps = col.penguins.filter((p) => p.kind === k);
+      const mean = ps.reduce((a, p) => a + p.size * PENGUIN_RIG[k].height, 0) / ps.length;
+      expect(mean / 1.6).toBeGreaterThan(PENGUIN_TRUE_M[k] * 0.9);
+      expect(mean / 1.6).toBeLessThan(PENGUIN_TRUE_M[k] * 1.1);
+    }
+    // an emperor comes up to the kid's chest; a little penguin to its knee
+    expect((PENGUIN_RIG[EMPEROR].height * PENGUIN_K[EMPEROR]) / 2.26).toBeCloseTo(1.15 / 1.4, 1);
+    expect((PENGUIN_RIG[LITTLE].height * PENGUIN_K[LITTLE]) / 2.26).toBeLessThan(0.3);
+    // the biggest emperor, sliding on its belly with its flippers out, fits its chute (0.6-unit-wide
+    // body, flippers out 0.45 each side at the model's 1 m) with room to spare
+    const big = Math.max(...col.penguins.filter((p) => p.kind === EMPEROR).map((p) => p.size));
+    expect((0.6 / 2 + 0.42 * Math.sin(0.3)) * big).toBeLessThan(SLIDE_HALF - 0.3);
+    // seals ~2.2 m, narwhals ~4.5 m + tusk
+    expect((2.66 * BEAST_K.seal) / 1.6).toBeCloseTo(2.2, 1);
+    expect((4.45 * BEAST_K.narwhal) / 1.6).toBeCloseTo(4.5, 1);
   });
 
   it("waddle up, queue, toboggan down the chutes into the sea, swim and hop back out — over and over", () => {

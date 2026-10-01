@@ -4,6 +4,12 @@ import { WATER_Y } from "../../registry/terrain";
 import { abyssFloorY, abyssPlainY, abyssProject, rimHalfAt } from "../../registry/abyss";
 import { FACTS, RIFT_FACT } from "./facts";
 import {
+  ABYSS_M,
+  ABYSS_TRUE,
+  MEG_CLEAR,
+  MEG_HALF_W,
+  megLen,
+  trueScale,
   BRIDGE,
   CHIMNEYS,
   GROTTO,
@@ -27,6 +33,7 @@ import {
   type Species,
 } from "./plan";
 import { buildAbyss, cutAbyssFloor } from "./index";
+import { anglerfishGeometry, giantSquidGeometry, megalodonGeometry } from "./creatures";
 
 const ALL: Species[] = [
   "megalodon",
@@ -159,10 +166,52 @@ describe("the Midnight Rift: plan", () => {
     }
     expect(cameAt).toBeGreaterThanOrEqual(0);
     expect(cameAt).toBeLessThan(75);
-    expect(closest).toBeGreaterThan(6);
+    // (a true-size megalodon is ~26 units long: its centre stays well away from the kid)
+    expect(closest).toBeGreaterThan(MEG_CLEAR - 1);
     expect(circling * dt).toBeGreaterThan(10);
     expect(modes.has(0) && modes.has(1) && modes.has(2)).toBe(true);
     modes = new Set();
+  }, 30000);
+});
+
+describe("the Midnight Rift: true size (the Park kid: 2.26 units = a 1.4 m ten-year-old)", () => {
+  it("every creature swims at its real size", () => {
+    const len = (g: { geo: THREE.BufferGeometry }) => (g.geo.computeBoundingBox(), g.geo.boundingBox!.max.z - g.geo.boundingBox!.min.z);
+    expect(len(megalodonGeometry())).toBeCloseTo(ABYSS_TRUE.megalodon.model, 1);
+    expect(len(giantSquidGeometry())).toBeCloseTo(ABYSS_TRUE.giantSquid.model, 1);
+    expect(len(anglerfishGeometry())).toBeCloseTo(ABYSS_TRUE.anglerfish.model, 1);
+    const cs = planCreatures(false);
+    const meg = cs.find((c) => c.sp === "megalodon")!;
+    expect(megLen(meg) / ABYSS_M).toBeCloseTo(16, 5);
+    // the megalodon is longer than 11 kids lying head to toe; an anglerfish is smaller than the kid's head
+    expect(megLen(meg) / 2.26).toBeGreaterThan(11);
+    for (const c of cs) {
+      if (c.sp === "giantOctopus") continue;
+      const k = c.scale / trueScale(c.sp);
+      expect(k, c.sp).toBeGreaterThan(0.8);
+      expect(k, c.sp).toBeLessThan(1.45);
+    }
+  });
+
+  it("the megalodon's fins stay clear of the rift's walls, cruising and circling (3 simulated minutes)", () => {
+    const cs = planCreatures(false);
+    const meg = cs.find((c) => c.kind === "megalodon")!;
+    const st = makeMegState(meg);
+    const kid = kidAt(194, -5, -45);
+    const dt = 0.1;
+    let worst = Infinity;
+    for (let k = 0; k < 1800; k++) {
+      stepMegalodon(meg, st, kid, dt, k * dt);
+      megPose(st, meg.pose, dt);
+      const p = meg.pose;
+      // its pectoral fin tips and its nose and tail: in the water, not in the rock
+      for (const [ax, az] of [[MEG_HALF_W, 0], [-MEG_HALF_W, 0], [0, megLen(meg) * 0.45], [0, -megLen(meg) * 0.45]]) {
+        const x = p.x + Math.cos(p.yaw) * ax + Math.sin(p.yaw) * az;
+        const z = p.z - Math.sin(p.yaw) * ax + Math.cos(p.yaw) * az;
+        worst = Math.min(worst, p.y - floorY(x, z));
+      }
+    }
+    expect(worst).toBeGreaterThan(0.5);
   }, 30000);
 });
 

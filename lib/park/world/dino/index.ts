@@ -270,9 +270,9 @@ export function buildDinoIsland(scene: THREE.Scene, opts: { lowQuality?: boolean
       const tr = sim.trex;
       let napAt: typeof nap | null = null;
       if (sim.napping) {
-        nap.x = tr.x + Math.sin(tr.yaw) * 3.4;
-        nap.y = tr.y + 3.0;
-        nap.z = tr.z + Math.cos(tr.yaw) * 3.4;
+        nap.x = tr.x + Math.sin(tr.yaw) * 3.4 * tr.scale;
+        nap.y = tr.y + 3.0 * tr.scale;
+        nap.z = tr.z + Math.cos(tr.yaw) * 3.4 * tr.scale;
         napAt = nap;
       }
       kidXZ.x = o.kid.x;

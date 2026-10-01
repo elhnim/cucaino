@@ -20,7 +20,7 @@ import { buildGroundGeometry, buildWater } from "./terrain";
 import { buildFx } from "./fx";
 import { B_NARWHAL, B_SEAL, B_TERN, PENGUIN_RIG, W_TERN_L, W_TERN_R, buildBeasts, buildPenguinBody, buildPenguinHead, buildWings } from "./critters";
 import { makeColony, penguinRoot, stepColony } from "./colony";
-import { makeWildlife, stepWildlife } from "./wildlife";
+import { BEAST_K, NARWHAL_CALF, makeWildlife, stepWildlife } from "./wildlife";
 
 export interface FrostSpotOut {
   id: string;
@@ -229,17 +229,17 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
       let nb = 0;
       for (let i = 0; i < NS; i++) {
         const s = wild.seals[i];
-        local(s.x - X0, s.y, s.z - Z0, s.pitch, s.yaw, s.roll, 1, mOut);
+        local(s.x - X0, s.y, s.z - Z0, s.pitch, s.yaw, s.roll, BEAST_K.seal, mOut);
         setInst(beasts, nb++, mOut, sealTint[i], B_SEAL);
       }
       for (let i = 0; i < NN; i++) {
         const n = wild.narwhals[i];
-        local(n.x - X0, n.y, n.z - Z0, n.pitch, n.yaw, n.roll, i === NN - 1 ? 0.7 : 1, mOut);
+        local(n.x - X0, n.y, n.z - Z0, n.pitch, n.yaw, n.roll, BEAST_K.narwhal * (i === NN - 1 ? NARWHAL_CALF : 1), mOut);
         setInst(beasts, nb++, mOut, white, B_NARWHAL);
       }
       for (let i = 0; i < NT; i++) {
         const b = wild.terns[i];
-        local(b.x - X0, b.y, b.z - Z0, b.pitch, b.yaw, b.roll, 1.5, mRoot);
+        local(b.x - X0, b.y, b.z - Z0, b.pitch, b.yaw, b.roll, BEAST_K.tern, mRoot);
         setInst(beasts, nb++, mRoot, white, B_TERN);
         for (let sd = 1; sd >= -1; sd -= 2) {
           if (b.flap < -0.5) mOut.multiplyMatrices(mRoot, local(sd * 0.05, 0.04, 0, 0, sd * 1.1, sd * 0.15, 0.8, mLocal));

@@ -73,6 +73,7 @@ import {
   RIM_Y,
   floorAt,
   toWorld,
+  type Creature,
   wallU,
   type KidInfo,
   type Species,
@@ -98,6 +99,10 @@ export { ABYSS, abyssDistance, abyssFloorY } from "../../registry/abyss";
 
 export interface Abyss {
   update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean; glow: number }): { spot: { id: string; name: string; text: string } | null };
+  /** (smoke harness) the rift's creatures, read-only (each has its live `pose`) */
+  readonly creatures: readonly Creature[];
+  /** (smoke harness) send the megalodon to the diving kid right away */
+  summonMegalodon(): void;
   dispose(): void;
 }
 
@@ -538,6 +543,10 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
   };
 
   return {
+    creatures,
+    summonMegalodon() {
+      megSt.cool = 0;
+    },
     update(dt, t, o) {
       result.spot = null;
       const kid = o.kid;

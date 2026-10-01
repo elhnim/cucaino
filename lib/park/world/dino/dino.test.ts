@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { buildDinoIsland, dinoMeshStats } from "./index";
-import { DINO_ISLAND, DINO_PADDOCK, DINO_RANGES, DINO_SPECIES, DINO_SPOTS, DINO_SPOT_FACTS, dinoGroundY } from "../../registry/dinoIsland";
+import { brachiosaurus, irishElk, mammoth, sabreCat, stegosaurus, trex, triceratops } from "./species";
+import { DINO_M, TRUE_SIZE, trueK } from "./herd";
+import { DINO_ISLAND, DINO_PADDOCK, DINO_RANGES, DINO_SPECIES, DINO_SPOTS, DINO_SPOT_FACTS, dinoGroundY, type DinoSpeciesId } from "../../registry/dinoIsland";
 
 function worstCase(low: boolean) {
   const scene = new THREE.Scene();
@@ -31,6 +33,28 @@ describe("Dino Isle rendering", () => {
     expect(lo.tris).toBeLessThanOrEqual(120_000);
     expect(hi.left).toBe(0);
     expect(lo.left).toBe(0);
+  });
+
+  it("the models match the true-size table (measured from the geometry)", () => {
+    const geos: Partial<Record<DinoSpeciesId, THREE.BufferGeometry>> = {
+      brachio: brachiosaurus().geo,
+      trike: triceratops().geo,
+      stego: stegosaurus().geo,
+      trex: trex().geo,
+      mammoth: mammoth().geo,
+      sabre: sabreCat().geo,
+      elk: irishElk().geo,
+    };
+    for (const [id, g] of Object.entries(geos) as [DinoSpeciesId, THREE.BufferGeometry][]) {
+      g.computeBoundingBox();
+      const b = g.boundingBox!;
+      const t = TRUE_SIZE[id];
+      const m = t.dim === "h" ? b.max.y : t.dim === "l" ? b.max.z - b.min.z : b.max.x - b.min.x;
+      // (the sabre-cat is measured at its back, not its head)
+      if (id !== "sabre") expect(m, id).toBeCloseTo(t.model, 0);
+      expect(m * trueK(id), id).toBeGreaterThan(t.real * DINO_M * (id === "sabre" ? 1 : 0.9));
+      g.dispose();
+    }
   });
 
   it("hides itself far away, shows from the main island", () => {

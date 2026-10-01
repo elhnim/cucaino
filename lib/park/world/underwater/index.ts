@@ -72,14 +72,18 @@ import {
   WRECK,
   atSea,
   avoidKid,
+  FISH_TRUE_M,
+  UW_M,
   clampWater,
   fillWindow,
+  fishSize,
   localToWorld,
   midWater,
   planJellies,
   planReef,
   planSchools,
   planVents,
+  seaK,
   sectorOf,
   stepFish,
   type ReefKind,
@@ -92,7 +96,7 @@ import { DROP, FOAM, MIST, buildSpray } from "../sea/spray";
 import { makeVisit, startVisit, stepVisit, visitHeight, type Visit } from "../sea/visits";
 import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFloorY, shiftSwimmers, swim, trackFocus, type Swimmer, type SwimStyle } from "../sea/wander";
 import { blowholeLocal, whaleGeometry } from "../sea/whaleGeometry";
-import { BREACH, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, WHALE_STYLE, aimPast, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, stepWhale, type Whale } from "../sea/whales";
+import { BREACH, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, WHALE_STYLE, aimPast, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, stepWhale, whaleLen, type Whale } from "../sea/whales";
 import { cutAbyssFloor } from "../abyss";
 
 
@@ -140,7 +144,7 @@ const PALETTES: Record<ReefKind, string[]> = {
 };
 const JELLY_COLS = ["#7af7ff", "#ff8ae6", "#b99bff", "#9dffc9", "#ffd07a"].map((c) => col(c));
 /** fish size (m) by species, for travelling schools that change species */
-const SIZE_OF = [0.42, 0.6, 0.55, 0.42, 0.5, 1.6, 2.1, 0.5, 0.7, 0.8];
+const SIZE_OF = FISH_TRUE_M.map((_, i) => fishSize(i));
 
 export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean }): Underwater {
   const low = !!opts.lowQuality;
@@ -505,7 +509,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
     const floor = groundY(p.x, p.z);
     const cy = Math.min(WATER_Y - 3.2, Math.max(floor + 4.5, -10));
     const resident = i % 2 === 0;
-    return { sw: makeSwimmer(p.x, cy, p.z, g.a + Math.PI / 2 + i, 700 + i, 2), st: resident ? { ...MANTA, home: { x: p.x, z: p.z, r: 40 } } : MANTA, resident, s: 2.1 + (i % 3) * 0.35, visit: makeVisit(0) };
+    return { sw: makeSwimmer(p.x, cy, p.z, g.a + Math.PI / 2 + i, 700 + i, 2), st: resident ? { ...MANTA, home: { x: p.x, z: p.z, r: 40 } } : MANTA, resident, s: seaK("manta") * (0.9 + (i % 3) * 0.15), visit: makeVisit(0) };
   });
   mDefs.forEach((_, i) => (mantaMesh.geometry.attributes.aInst as THREE.InstancedBufferAttribute).setXY(i, 1, i * 2.1));
   let mantaWait = 6;
@@ -533,7 +537,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
     const home = { x: 0, z: 0, r: 24 };
     const st: SwimStyle = { speed: [0.6, 1.3], turn: 0.4, wander: 0.06, depth: [1, 40], clear: 0.45, need: 1.8, look: 5, climb: 0.5, bank: 0.7, above: [0.5, 1.3], home };
     const p = atSea(i * 1.1, 24 + (i % 3) * 5);
-    return { sw: makeSwimmer(p.x, groundY(p.x, p.z) + 0.8, p.z, i * 1.7, 850 + i, 1), st, home, s: 1.5 + (i % 3) * 0.45 };
+    return { sw: makeSwimmer(p.x, groundY(p.x, p.z) + 0.8, p.z, i * 1.7, 850 + i, 1), st, home, s: seaK("ray") * (0.85 + (i % 3) * 0.15) };
   });
   rDefs.forEach((_, i) => (rayMesh.geometry.attributes.aInst as THREE.InstancedBufferAttribute).setXY(i, 1, i * 1.9));
 
@@ -619,14 +623,17 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   orcaMesh.frustumCulled = false;
   surface.add(orcaMesh);
   const orcaInst = orcaGeo.attributes.aInst as THREE.InstancedBufferAttribute;
-  const orcas = Array.from({ length: nOrca }, (_, i) => ({ breachT: -1, surfPh: i * 2.3, lastY: -2.5, s: i === 3 ? 0.68 : 1 }));
-  const ORCA: SwimStyle = { speed: [3.2, 5], turn: 0.2, wander: 0.04, depth: [2.65, 2.65], clear: 2.5, need: 10, look: 30, climb: 1.2, bank: 2 };
-  const ORCA_V: SwimStyle = { speed: [3.2, 4.4], turn: 0.34, wander: 0.04, depth: [1.8, 30], clear: 2.1, need: 4.5, look: 18, climb: 1.4, bank: 1.6 };
+  // (true size: a bull 8 m, cows 6.5–6.8 m, a calf 2.7 m — orcaGeometry is 6.48 long)
+  const ORCA_M = [8, 6.5, 6.8, 2.7];
+  const orcas = Array.from({ length: nOrca }, (_, i) => ({ breachT: -1, surfPh: i * 2.3, lastY: -2.5, s: (UW_M * ORCA_M[i]) / 6.48 }));
+  const ORCA: SwimStyle = { speed: [3.6, 5.6], turn: 0.18, wander: 0.04, depth: [3.8, 3.8], clear: 4, need: 12, look: 36, climb: 1.2, bank: 2 };
+  const ORCA_V: SwimStyle = { speed: [3.4, 4.8], turn: 0.3, wander: 0.04, depth: [2.6, 30], clear: 3.4, need: 7, look: 24, climb: 1.4, bank: 1.6 };
+  // (side, back: spaced for true-size orcas)
   const POD: [number, number][] = [
     [0, 0],
-    [-4.5, 5.5],
-    [4.5, 7],
-    [1.5, 10.5],
+    [-7.5, 10],
+    [7.5, 12.5],
+    [2.5, 6],
   ];
   const orcaSw: Swimmer[] = Array.from({ length: nOrca }, (_, i) => makeSwimmer(0, -2.9, 0, 0, 900 + i, 4));
   const orcaVisit: Visit = makeVisit(10);
@@ -645,14 +652,16 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
     placePod();
   }
   let breachWait = 9;
+  const TURTLE_S = seaK("turtle");
   let breachWho = 0;
 
   // ── giant whales: blue whales and humpbacks roaming the open ocean ──
   const nHump = low ? 1 : 2;
   const nBlue = low ? 1 : 2;
   const whales: Whale[] = [];
-  for (let i = 0; i < nHump; i++) whales.push(makeWhale("humpback", 20 + i * 1.6, 11 + i * 2));
-  for (let i = 0; i < nBlue; i++) whales.push(makeWhale("blue", 25.5 + i * 1.5, 12 + i * 2));
+  // (true size: humpbacks ~14 m = 22 units, blue whales ~25 m = 40 units — sea/whales.ts)
+  for (let i = 0; i < nHump; i++) whales.push(makeWhale("humpback", whaleLen("humpback", i), 11 + i * 2));
+  for (let i = 0; i < nBlue; i++) whales.push(makeWhale("blue", whaleLen("blue", i), 12 + i * 2));
   {
     const wr = rngOf(8080);
     for (const w of whales) {
@@ -712,7 +721,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           const w = whales[0];
           const st = WHALE_STYLE[w.kind];
           respawn(w, st, lastKid, ft.vx, ft.vz, rnd, from, from + 6, 0.5);
-          w.side = aimPast(w, lastKid, 8 + rnd() * 5, rnd);
+          w.side = aimPast(w, lastKid, 8 + w.girth * 1.5 + rnd() * 5, rnd);
           w.hold = lastKid.y - 4;
           w.holdT = 50;
           w.y = Math.min(WATER_Y - w.girth - 2.5, Math.max(seaFloorY(w.x, w.z) + st.clear, w.hold));
@@ -774,8 +783,8 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           const bh = blowholes[w.kind];
           bodyToWorld(w, 0, bh.y * w.len, bh.z * w.len, wp);
           if (w.kind === "blue") {
-            // a tall straight column
-            spray.emit(MIST, wp.x, wp.y + 0.2, wp.z, 80, 13, 0.8, 2.4, 3.8);
+            // a tall straight column (~9 m: true size)
+            spray.emit(MIST, wp.x, wp.y + 0.2, wp.z, 80, 15, 0.9, 2.6, 4.2);
             spray.emit(DROP, wp.x, wp.y + 0.2, wp.z, 24, 9, 1.1, 0.35, 1.6);
           } else {
             // a bushy balloon of a blow
@@ -837,8 +846,8 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
         orcaVisit.wait = 24 + rnd() * 12;
         let busy = false;
         for (const oc of orcas) if (oc.breachT >= 0) busy = true;
-        if (!busy && depthHere >= 5.5 && dist2(lead, kid) > 50 * 50) {
-          startVisit(lead, ORCA_V, orcaVisit, kid, ft.vx, ft.vz, rnd, fromMin("orcas", 58), fromMax("orcas", 70), 7 + rnd() * 6, kid.y - 2.5 - rnd() * 2);
+        if (!busy && depthHere >= 7 && dist2(lead, kid) > 50 * 50) {
+          startVisit(lead, ORCA_V, orcaVisit, kid, ft.vx, ft.vz, rnd, fromMin("orcas", 58), fromMax("orcas", 70), 10 + rnd() * 6, kid.y - 3 - rnd() * 2);
           placePod();
         }
       }
@@ -846,7 +855,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       if (orcaVisit.on) {
         const d = stepVisit(lead, ORCA_V, orcaVisit, kid, dt, t);
         if ((orcaVisit.passed && d > 80) || orcaVisit.t > 70 || !o.under) orcaVisit.on = false;
-      } else swim(lead, ORCA, dt, t, kid, 5);
+      } else swim(lead, ORCA, dt, t, kid, 9);
       for (let i = 1; i < nOrca; i++) {
         const [side, back] = POD[i];
         follow(orcaSw[i], pod, lead, side, back, dt, t);
@@ -886,8 +895,9 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           oc.breachT = -1;
         } else if (oc.breachT >= 0) {
           oc.breachT += dt;
-          const u = oc.breachT / 3.3;
-          y = -3.4 + Math.sin(Math.min(1, u) * Math.PI) * 9.2;
+          const u = oc.breachT / (3.3 * Math.sqrt(Math.max(1, oc.s)));
+          // (a true-size orca: deeper start, a higher (but not sky-high) leap, a slower arc)
+          y = -3.4 * Math.max(1, oc.s) + Math.sin(Math.min(1, u) * Math.PI) * 9.2 * Math.sqrt(Math.max(1, oc.s));
           pitch = -1.05 + Math.min(1, u) * 2.1;
           roll = Math.sin(Math.min(1, u) * Math.PI) * 0.55;
           flapK = 0.25;
@@ -898,9 +908,11 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           // porpoise: rise to breathe every ~8 s (back and fin break the surface), then dive
           const u = (t * 0.125 + oc.surfPh) % 1;
           const surf = u < 0.3 ? Math.sin((u / 0.3) * Math.PI) : 0;
-          y = sw.y + surf * 2.3;
+          // (each one rises until its own back breaks the surface: the bull's tall fin, the calf too)
+          const peakY = WATER_Y - 0.92 * oc.s * 0.35;
+          y = sw.y + surf * Math.max(0, peakY - sw.y);
           pitch = u < 0.3 ? -Math.cos((u / 0.3) * Math.PI) * 0.22 : sw.pitch * 0.5;
-          if (oc.lastY < -1.2 && y >= -1.2) (spray.emit(MIST, x, WATER_Y + 0.8, z, 6, 4, 0.8, 1.2, 1.6), foam(x, z, 6, 1.5)); // blow
+          if (oc.lastY < peakY - 0.4 && y >= peakY - 0.4) (spray.emit(MIST, x, WATER_Y + 0.8, z, 6, 4, 0.8, 1.2, 1.6), foam(x, z, 6, 1.5)); // blow
         }
         oc.lastY = y;
         e.set(pitch, sw.yaw, roll, "YXZ");
@@ -1096,10 +1108,10 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       if (o.under) mantaWait -= dt;
       if (o.under && mantaWait <= 0) {
         mantaWait = 14 + rnd() * 8;
-        if (depthHere >= 3.5) {
+        if (depthHere >= 4.5) {
           let pick = -1;
           for (let i = 0; i < nManta; i++) if (!mDefs[i].resident && !mDefs[i].visit.on && dist2(mDefs[i].sw, kid) > 45 * 45) pick = i;
-          if (pick >= 0) startVisit(mDefs[pick].sw, MANTA_V, mDefs[pick].visit, kid, ft.vx, ft.vz, rnd, fromMin("manta", 44), fromMax("manta", 56), 3.5 + rnd() * 5, kid.y - 1.2 - rnd() * 2);
+          if (pick >= 0) startVisit(mDefs[pick].sw, MANTA_V, mDefs[pick].visit, kid, ft.vx, ft.vz, rnd, fromMin("manta", 44), fromMax("manta", 56), 6 + rnd() * 5, kid.y - 2.2 - rnd() * 2);
         }
       }
       for (let i = 0; i < nManta; i++) {
@@ -1109,7 +1121,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           if ((m.visit.passed && d > 60) || m.visit.t > 60) m.visit.on = false;
         } else {
           if (!m.resident && dist2(m.sw, kid) > 150 * 150) respawn(m.sw, m.st, kid, ft.vx, ft.vz, rnd, 70, 115, 1.3);
-          swim(m.sw, m.st, dt, t, kid, 5);
+          swim(m.sw, m.st, dt, t, kid, 7);
         }
         e.set(m.sw.pitch, m.sw.yaw, m.sw.roll, "YXZ");
         m4.compose(v.set(m.sw.x, m.sw.y, m.sw.z), q.setFromEuler(e), s3.setScalar(m.s));
@@ -1137,7 +1149,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           swim(d.sw, d.st, dt, t, kid, 3);
         }
         e.set(d.sw.pitch * 0.6, d.sw.yaw, d.sw.roll * 0.5 + Math.sin(t * 0.8 + i) * 0.06, "YXZ");
-        m4.compose(v.set(d.sw.x, d.sw.y, d.sw.z), q.setFromEuler(e), s3.setScalar(1.15));
+        m4.compose(v.set(d.sw.x, d.sw.y, d.sw.z), q.setFromEuler(e), s3.setScalar(TURTLE_S));
         turtleMesh.setMatrixAt(i, m4);
       }
       turtleMesh.instanceMatrix.needsUpdate = true;

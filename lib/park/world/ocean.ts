@@ -48,6 +48,14 @@ export interface Ocean {
   dispose(): void;
 }
 
+// ── true size ── (the Park kid is 2.26 units = a real ~1.4 m ten-year-old: 1 m = 1.6 units)
+//   bottlenose dolphin ~2.5 m (model 3.42 long)   sea turtle ~1.4 m nose to tail (model 2.58)
+//   jellyfish bell 0.4–1.6 m (model bell 2 across)  starfish ~0.25 m (model 1.1 across)
+//   crested tern ~0.45 m (model 0.67 long)         giant manta ~6 m wingspan (model 3.2: x3, already true)
+//   flying fish ~0.4 m (model 0.74 at 0.9: already true)
+//   (the jellies drifting through the air over the Glow Forest are fairy-tale: storybook size)
+export const OCEAN_K = { dolphin: (1.6 * 2.5) / 3.42, turtle: (1.6 * 1.4) / 2.58, starfish: (1.6 * 0.25) / 1.1, tern: (1.6 * 0.45) / 0.67, manta: 3 } as const;
+
 export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; z: number; radius: number }; lowQuality?: boolean }): Ocean {
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(d: T) => (disposables.push(d), d);
@@ -81,7 +89,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   for (let i = 0; i < 40; i++) {
     const a = rnd() * Math.PI * 2;
     const rad = (BEACH_IN + 3 + rnd() * (SHORE_R - BEACH_IN - 2)) * (coastR(a) / ISLAND_R);
-    mm.compose(new THREE.Vector3(Math.sin(a) * rad, groundY(Math.sin(a) * rad, Math.cos(a) * rad) + 0.05, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 1, 1).multiplyScalar(0.7 + rnd() * 0.6));
+    mm.compose(new THREE.Vector3(Math.sin(a) * rad, groundY(Math.sin(a) * rad, Math.cos(a) * rad) + 0.05, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 1, 1).multiplyScalar(OCEAN_K.starfish * (0.7 + rnd() * 0.6)));
     stars.setMatrixAt(i, mm);
     stars.setColorAt(i, new THREE.Color(starCols[i % starCols.length]));
   }
@@ -242,7 +250,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
     const rad = sky ? Math.sqrt(rnd()) * opts.skyJellies.radius : SHORE_R + 8 + rnd() * 70;
     const x = (sky ? opts.skyJellies.x : 0) + Math.sin(a) * rad;
     const z = (sky ? opts.skyJellies.z : 0) + Math.cos(a) * rad;
-    jellies.push({ x, y: sky ? 6 + rnd() * 7 : -0.55 - rnd() * 0.5, z, s: sky ? 0.8 + rnd() * 0.7 : 1.6 + rnd() * 1.8, ph: rnd() * 10, sky, drift: 0.2 + rnd() * 0.3, sw: makeSwimmer(x, 0, z, rnd() * 6.28, 40 + i, 0.2) });
+    jellies.push({ x, y: sky ? 6 + rnd() * 7 : -0.55 - rnd() * 0.5, z, s: sky ? 0.8 + rnd() * 0.7 : 0.3 + rnd() * 0.7, ph: rnd() * 10, sky, drift: 0.2 + rnd() * 0.3, sw: makeSwimmer(x, 0, z, rnd() * 6.28, 40 + i, 0.2) });
     const c = new THREE.Color(jellyCols[i % jellyCols.length]);
     bells.setColorAt(i, c);
     tents.setColorAt(i, c);
@@ -306,7 +314,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
     const a = p === 0 ? 1 : 4;
     const r = SHORE_R + 32 + p * 16;
     const lead = makeSwimmer(Math.sin(a) * r, -1.2, Math.cos(a) * r, a + (p ? -1 : 1) * Math.PI / 2, 80 + p * 10, 6);
-    const members = Array.from({ length: perPod }, (_, k) => (k === 0 ? lead : makeSwimmer(lead.x - Math.sin(lead.yaw) * 3 * k, -1.2, lead.z - Math.cos(lead.yaw) * 3 * k, lead.yaw, 81 + p * 10 + k, 6)));
+    const members = Array.from({ length: perPod }, (_, k) => (k === 0 ? lead : makeSwimmer(lead.x - Math.sin(lead.yaw) * 3.6 * k, -1.2, lead.z - Math.cos(lead.yaw) * 3.6 * k, lead.yaw, 81 + p * 10 + k, 6)));
     return { lead, members };
   });
   const turtleGeo = track(turtleGeometry());
@@ -430,7 +438,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         swim(m.sw, MANTA, dt, t, focus, 4);
         const hop = Math.max(0, Math.sin(t * 0.35 + m.ph) - 0.93) * 60;
         const flap = Math.sin(t * 3 + m.ph) * 0.15;
-        tmpM.compose(tmpV.set(m.sw.x, 0.2 + hop, m.sw.z), tmpQ.setFromEuler(tmpE.set(-hop * 0.08, m.sw.yaw, m.sw.roll * 0.6 + flap, "YXZ")), tmpS.set(3, 3 * (1 + flap), 3));
+        tmpM.compose(tmpV.set(m.sw.x, 0.2 + hop, m.sw.z), tmpQ.setFromEuler(tmpE.set(-hop * 0.08, m.sw.yaw, m.sw.roll * 0.6 + flap, "YXZ")), tmpS.set(OCEAN_K.manta, OCEAN_K.manta * (1 + flap), OCEAN_K.manta));
         mantas.setMatrixAt(i, tmpM);
       }
       mantas.instanceMatrix.needsUpdate = true;
@@ -445,7 +453,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         const lead = pods[0].lead;
         if (deepHere > 3 && dist2(lead, focus) > 60 * 60) {
           startVisit(lead, DOLPHIN_V, dolphinVisit, focus, ft.vx, ft.vz, rnd, 60, 75, 7 + rnd() * 8, -1.2);
-          pods[0].members.forEach((m, k) => k > 0 && Object.assign(m, { x: lead.x - Math.sin(lead.yaw) * 3 * k, z: lead.z - Math.cos(lead.yaw) * 3 * k, yaw: lead.yaw, speed: lead.speed }));
+          pods[0].members.forEach((m, k) => k > 0 && Object.assign(m, { x: lead.x - Math.sin(lead.yaw) * 3.6 * k, z: lead.z - Math.cos(lead.yaw) * 3.6 * k, yaw: lead.yaw, speed: lead.speed }));
         }
       }
       let di = 0;
@@ -459,13 +467,13 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         }
         for (let k = 0; k < p.members.length; k++, di++) {
           const d = p.members[k];
-          if (k > 0) follow(d, DOLPHIN, p.lead, (k % 2 ? 1 : -1) * (1.5 + k * 0.8), k * 2.6, dt, t);
+          if (k > 0) follow(d, DOLPHIN, p.lead, (k % 2 ? 1 : -1) * (1.8 + k * 0.9), k * 3.6, dt, t);
           const phase = (t * 0.55 + k * 0.23) % 1;
           const jumpK = phase < 0.35 ? Math.sin((phase / 0.35) * Math.PI) : 0;
           const y = -1.2 + jumpK * 4.5;
           const pitch = phase < 0.35 ? Math.cos((phase / 0.35) * Math.PI) * 0.9 : 0;
           if (phase < 0.35 && ((t * 0.55 + k * 0.23 - dt * 0.55) % 1) > phase + 0.5) emit(d.x, 0.3, d.z, 6, 5, 2);
-          tmpM.compose(tmpV.set(d.x, y, d.z), tmpQ.setFromEuler(tmpE.set(-pitch, d.yaw, d.roll * 0.5, "YXZ")), tmpS.set(1.6, 1.6, 1.6));
+          tmpM.compose(tmpV.set(d.x, y, d.z), tmpQ.setFromEuler(tmpE.set(-pitch, d.yaw, d.roll * 0.5, "YXZ")), tmpS.setScalar(OCEAN_K.dolphin));
           dolphins.setMatrixAt(di, tmpM);
         }
       }
@@ -590,7 +598,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         }
         b.phase += dt * (flap > 0.5 ? 10 : 1.4);
         const hidden = b.dive >= 1.1 && b.dive < 1.7;
-        tmpM.compose(tmpV.set(x, y, z), tmpQ.setFromEuler(tmpE.set(pitch, yaw, roll, "YXZ")), tmpS.setScalar(hidden ? 0 : 1.15 * atSeaK));
+        tmpM.compose(tmpV.set(x, y, z), tmpQ.setFromEuler(tmpE.set(pitch, yaw, roll, "YXZ")), tmpS.setScalar(hidden ? 0 : OCEAN_K.tern * atSeaK));
         birds.setMatrixAt(i, tmpM);
         birdA.setXY(i, flap, b.phase);
       }
@@ -601,7 +609,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         const s = turtleState[i];
         if (dist2(s.sw, focus) > 220 * 220) respawn(s.sw, TURTLE, focus, ft.vx, ft.vz, rnd, 90, 170, 1.3);
         swim(s.sw, TURTLE, dt, t, focus, 2.5);
-        tmpM.compose(tmpV.set(s.sw.x, -0.15 + Math.sin(t + s.ph) * 0.08, s.sw.z), tmpQ.setFromEuler(tmpE.set(0, s.sw.yaw, s.sw.roll * 0.5 + Math.sin(t * 1.5 + s.ph) * 0.06)), tmpS.set(1.4, 1.4, 1.4));
+        tmpM.compose(tmpV.set(s.sw.x, -0.15 + Math.sin(t + s.ph) * 0.08, s.sw.z), tmpQ.setFromEuler(tmpE.set(0, s.sw.yaw, s.sw.roll * 0.5 + Math.sin(t * 1.5 + s.ph) * 0.06)), tmpS.setScalar(OCEAN_K.turtle));
         turtles.setMatrixAt(i, tmpM);
       }
       turtles.instanceMatrix.needsUpdate = true;

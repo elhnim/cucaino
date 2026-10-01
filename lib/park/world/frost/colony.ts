@@ -140,8 +140,20 @@ export const S_FOLLOW = 11;
 export const S_CRECHE = 12;
 export const STATE_NAMES = ["home", "walkout", "ascend", "queue", "slide", "swim", "fish", "hop", "walkhome", "slip", "huddle", "follow", "creche"];
 
-/** storybook penguins are a little bigger than real ones (so they read from the park's camera) */
-export const PENGUIN_SCALE = 1.3;
+// ── true size ──
+// The Park kid is 2.26 units tall (a real ~1.4 m ten-year-old), so 1 m = FROST_M = 1.6 units. Each
+// kind's model (./critters.ts PENGUIN_RIG height) is scaled to its real standing height:
+//   emperor penguin   1.15 m  (adult, the tallest penguin)
+//   emperor chick     0.6 m   (crèche age: a big grey down-ball)
+//   little penguin    0.33 m  (the smallest penguin: "little blue" / fairy penguin)
+export const FROST_M = 1.6;
+export const PENGUIN_TRUE_M = [1.15, 0.6, 0.33];
+const MODEL_H = [1.08, 0.68, 0.5];
+/** world units per model unit, per kind (emperor, chick, little) */
+export const PENGUIN_K = PENGUIN_TRUE_M.map((m, k) => (FROST_M * m) / MODEL_H[k]);
+/** how much bigger than the old storybook penguins (1.3x model) the true-size emperors are: the
+ *  colony's spacings (slots, queues, the ascent line) grow by this */
+const SP = PENGUIN_K[0] / 1.3;
 /** body centre height (standing) and belly half-thickness, per kind */
 const CY = [0.47, 0.3, 0.24];
 const BR = [0.27, 0.25, 0.16];
@@ -257,7 +269,7 @@ export function makeColony(low: boolean, seed = 777): Colony {
   // colony spots: a hex grid over the terrace (kept off the huddle, the crèche and the path to the beach)
   const sx: number[] = [];
   const sz: number[] = [];
-  const sp = 1.2;
+  const sp = 1.2 * SP;
   for (let j = -10; j <= 10; j++)
     for (let i = -10; i <= 10; i++) {
       const x = FROST_COLONY.x + (i + (j % 2 ? 0.5 : 0)) * sp;
@@ -280,8 +292,8 @@ export function makeColony(low: boolean, seed = 777): Colony {
     }
     return { X, Z };
   };
-  const hud = ring(FROST_HUDDLE.x, FROST_HUDDLE.z, C.huddle, 0.72);
-  const cre = ring(FROST_CRECHE.x, FROST_CRECHE.z, C.creche, 0.5);
+  const hud = ring(FROST_HUDDLE.x, FROST_HUDDLE.z, C.huddle, 0.72 * SP);
+  const cre = ring(FROST_CRECHE.x, FROST_CRECHE.z, C.creche, 0.5 * SP);
   const slides = FROST_SLIDES.map((s) => makePath(s.path));
   const col: Colony = {
     penguins: [],
@@ -315,7 +327,7 @@ export function makeColony(low: boolean, seed = 777): Colony {
       kind,
       role,
       seed: Math.floor(rnd() * 100000),
-      size: PENGUIN_SCALE * (kind === EMPEROR ? 0.92 + rnd() * 0.16 : kind === CHICK ? 0.85 + rnd() * 0.3 : 0.9 + rnd() * 0.2),
+      size: PENGUIN_K[kind] * (kind === EMPEROR ? 0.92 + rnd() * 0.16 : kind === CHICK ? 0.85 + rnd() * 0.3 : 0.9 + rnd() * 0.2),
       state: S_HOME,
       t: 0,
       dur: 0,
@@ -389,8 +401,8 @@ export function makeColony(low: boolean, seed = 777): Colony {
   for (const p of col.penguins) {
     if (p.role !== ROLE_CHICK) continue;
     const par = col.penguins[p.parent];
-    p.x = par.x + Math.sin(par.yaw + 2.6) * 0.8;
-    p.z = par.z + Math.cos(par.yaw + 2.6) * 0.8;
+    p.x = par.x + Math.sin(par.yaw + 2.6) * 0.8 * SP;
+    p.z = par.z + Math.cos(par.yaw + 2.6) * 0.8 * SP;
     p.y = ground(p.x, p.z);
   }
   // the active ones: some on the ramp, some queueing, some already swimming home
@@ -507,8 +519,8 @@ function chuteDir(col: Colony, c: number) {
 const qOut = { x: 0, z: 0 };
 function queuePos(col: Colony, c: number, j: number) {
   const d = chuteDir(col, c);
-  const back = 1.25 + j * 0.8;
-  const side = j % 2 ? 0.18 : -0.18;
+  const back = (1.25 + j * 0.8) * SP;
+  const side = (j % 2 ? 0.18 : -0.18) * SP;
   qOut.x = d.x - d.dx * back + d.dz * side;
   qOut.z = d.z - d.dz * back - d.dx * side;
   return qOut;
@@ -562,8 +574,10 @@ function turnTo(yaw: number, want: number, rate: number, dt: number) {
   return yaw + clamp(d, -rate * dt, rate * dt);
 }
 
+/** a kind's size against the old storybook penguins (1.3x model): bigger legs walk faster */
+const kindK = (p: Penguin) => PENGUIN_K[p.kind] / 1.3;
 function waddleSpeed(p: Penguin) {
-  return (p.kind === EMPEROR ? 0.75 : p.kind === CHICK ? 0.8 : 0.95) * (0.9 + (p.seed % 7) * 0.03);
+  return (p.kind === EMPEROR ? 0.75 : p.kind === CHICK ? 0.8 : 0.95) * (0.9 + (p.seed % 7) * 0.03) * kindK(p);
 }
 
 /** step towards (tx, tz) on foot; true when arrived */
@@ -576,7 +590,7 @@ function walkTo(p: Penguin, tx: number, tz: number, v: number, dt: number): bool
   p.x += (dx / d) * st;
   p.z += (dz / d) * st;
   p.yaw = turnTo(p.yaw, Math.atan2(dx, dz), 5, dt);
-  p.cycle += st * (p.kind === EMPEROR ? 8 : 12);
+  p.cycle += (st * (p.kind === EMPEROR ? 8 : 12)) / kindK(p);
   p.y = ground(p.x, p.z);
   return d - st < 0.08;
 }
@@ -719,7 +733,7 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
         let v = waddleSpeed(p);
         if (p.ahead >= 0) {
           const a = P[p.ahead];
-          if (a.state === S_ASCEND || a.state === S_SLIP) v = Math.min(v, Math.max(0, (a.ps - p.ps - 1.05) * 1.6));
+          if (a.state === S_ASCEND || a.state === S_SLIP) v = Math.min(v, Math.max(0, (a.ps - p.ps - 1.05 * SP) * 1.6));
           else p.ahead = -1;
         }
         // (at the top: wait if every queue is full)
@@ -749,7 +763,7 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
         p.y = ground(p.x, p.z);
         if (st > 0) {
           p.yaw = turnTo(p.yaw, Math.atan2(pt.dx, pt.dz), 4, dt);
-          p.cycle += st * (p.kind === EMPEROR ? 8 : 12);
+          p.cycle += (st * (p.kind === EMPEROR ? 8 : 12)) / kindK(p);
         } else standPose(p, dt);
         if (p.slipAt >= 0 && p.ps >= p.slipAt) {
           p.slipAt = -1;
@@ -920,8 +934,8 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
         // a chick toddling after its parent (standing right by it when it stops)
         const par = P[p.parent];
         const moving = par.state === S_WALKHOME;
-        const back = moving ? 0.9 : 0.55;
-        const side = moving ? 0 : 0.35;
+        const back = (moving ? 0.9 : 0.55) * SP;
+        const side = (moving ? 0 : 0.35) * SP;
         const tx = par.x - Math.sin(par.yaw) * back + Math.cos(par.yaw) * side;
         const tz = par.z - Math.cos(par.yaw) * back - Math.sin(par.yaw) * side;
         const d = Math.hypot(tx - p.x, tz - p.z);

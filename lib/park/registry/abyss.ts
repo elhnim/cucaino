@@ -125,10 +125,38 @@ export const ABYSS_LENGTH = CL.L;
 function taper(s: number) {
   return smooth(-2, 62, s) * smooth(CL.L + 2, CL.L - 62, s);
 }
-/** half-width at the rim (m): 4 at the tips, 13-30 along the body (25-60 m across) */
+/** the widest the strip may be at s (m, half-width incl. its margin) without its rows crossing on a
+ *  bend: the centreline's radius of curvature there (the tightest within +-8 m), less 25% */
+const BEND_CAP: Float32Array = (() => {
+  const n = Math.ceil(CL.L) + 41;
+  const R = new Float32Array(n);
+  const dir = (s: number) => {
+    const a = CL.at(s - 0.5);
+    const b = CL.at(s + 0.5);
+    return Math.atan2(b.x - a.x, b.z - a.z);
+  };
+  for (let i = 0; i < n; i++) {
+    const s = i - 20;
+    let d = Math.abs(dir(s + 1) - dir(s - 1));
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    R[i] = 2 / Math.max(1e-9, d);
+  }
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let r = Infinity;
+    for (let k = Math.max(0, i - 8); k <= Math.min(n - 1, i + 8); k++) r = Math.min(r, R[k]);
+    out[i] = r / 1.25;
+  }
+  return out;
+})();
+/** half-width at the rim (m): 4 at the tips, 18-36 along the body (36-72 m across) — wide enough
+ *  for the true-size giants (a 26-unit megalodon, a 19-unit giant squid) to turn round in — but
+ *  never so wide on a bend that the strip would fold over itself */
 export function rimHalfAt(s: number): number {
   const e = taper(s);
-  return 4 + Math.pow(e, 0.6) * (9 + 17 * noise2(s / 64 + 0.3, 1.7, 301));
+  const w = 4 + Math.pow(e, 0.6) * (14 + 18 * noise2(s / 64 + 0.3, 1.7, 301));
+  const i = Math.min(BEND_CAP.length - 1, Math.max(0, Math.round(s) + 20));
+  return Math.min(w, BEND_CAP[i] - RIM_MARGIN);
 }
 /** how far the floor sits below the plain (m): shallow at the tips, 86-112 along the body */
 export function depthAt(s: number): number {

@@ -58,9 +58,18 @@ export interface Whale extends Swimmer {
   lastY: number;
 }
 
+// ── true size ── (the Park kid is 2.26 units = a real ~1.4 m ten-year-old: 1 m = 1.6 units)
+//   blue whale  ~25 m long (the biggest animal ever), up to ~30 m
+//   humpback    ~14 m long
+export const WHALE_TRUE_M: Record<WhaleKind, number> = { blue: 25, humpback: 14 };
+/** a whale's length in world units (the i-th of its kind is a little bigger) */
+export const whaleLen = (kind: WhaleKind, i = 0) => 1.6 * WHALE_TRUE_M[kind] * (1 + i * 0.06);
+
 export const WHALE_STYLE: Record<WhaleKind, SwimStyle> = {
-  blue: { speed: [1.8, 3.4], turn: 0.055, wander: 0.02, depth: [5, 12], clear: 4.5, need: 17, look: 60, climb: 0.8, bank: 4 },
-  humpback: { speed: [1.5, 3.0], turn: 0.075, wander: 0.026, depth: [4.5, 11], clear: 4.5, need: 16, look: 48, climb: 1, bank: 4 },
+  // (a true-size blue whale is 40 units long and ~5 thick: it keeps to the open ocean's full 21 m of
+  //  water, cruising 6-10 down, its belly well clear of the dunes even nose-down)
+  blue: { speed: [2.2, 4.0], turn: 0.07, wander: 0.02, depth: [6, 10], clear: 6.5, need: 18, look: 100, climb: 0.8, bank: 4 },
+  humpback: { speed: [1.7, 3.2], turn: 0.09, wander: 0.026, depth: [5, 10.5], clear: 5, need: 17, look: 80, climb: 1, bank: 4 },
 };
 /** body radius / length (matches whaleGeometry) */
 export const GIRTH_K: Record<WhaleKind, number> = { blue: 0.06, humpback: 0.098 };
@@ -139,7 +148,10 @@ function cruise(w: Whale, st: SwimStyle, dt: number, t: number, yWant: number, s
   w.x += Math.sin(w.yaw) * w.speed * cp * dt;
   w.z += Math.cos(w.yaw) * w.speed * cp * dt;
   climbTo(w, st, Number.isNaN(yWant) ? targetY(w, st, t) : yWant, dt);
-  const pWant = clamp(-Math.atan2(w.vy, Math.max(0.6, w.speed)), -0.35, 0.35);
+  let pWant = clamp(-Math.atan2(w.vy, Math.max(0.6, w.speed)), -0.35, 0.35);
+  // (a true-size whale is long: never dip its nose further than the water under it allows)
+  const room = w.y - (seaFloorY(w.x, w.z) + w.girth * 0.7);
+  pWant = Math.min(pWant, room <= 0 ? 0 : Math.asin(Math.min(1, room / (w.len / 2))) * 0.9);
   w.pitch += (pWant - w.pitch) * Math.min(1, dt * 0.6);
   w.roll += (clamp(-w.yawRate * st.bank, -0.4, 0.4) - w.roll) * Math.min(1, dt * 0.6);
   w.flap += (1 - w.flap) * Math.min(1, dt * 0.5);
@@ -161,6 +173,13 @@ export function stepWhale(w: Whale, dt: number, t: number, rnd: () => number, av
   if (w.mode === CRUISE) {
     let yWant = NaN;
     if (!Number.isNaN(w.hold)) {
+      // (once it has glided past the kid it swims on: a 40-unit whale turning back round to circle
+      //  them would hog the encounter and block the next one)
+      if (avoid) {
+        const bx = avoid.x - w.x;
+        const bz = avoid.z - w.z;
+        if (bx * Math.sin(w.yaw) + bz * Math.cos(w.yaw) < -w.len * 0.6) w.holdT = Math.min(w.holdT, 3);
+      }
       w.holdT -= dt;
       if (w.holdT <= 0) w.hold = NaN;
       else yWant = clamp(w.hold, seaFloorY(w.x, w.z) + st.clear, WATER_Y - w.girth - 2.5);
@@ -188,8 +207,11 @@ export function stepWhale(w: Whale, dt: number, t: number, rnd: () => number, av
     // arch over and lift the flukes high, then slide down into the deep
     const T = 8;
     const u = Math.min(1, w.mt / T);
-    const th = lerp(w.p0, 0.74, smoothstep(0, 0.8, u));
     const yS = surfaceY(w);
+    // (a true-size blue whale is 40 units long — longer than the sea is deep — so it arches over
+    //  less steeply: its nose never reaches the sea floor)
+    const thMax = Math.min(0.74, Math.asin(clamp((yS - 2 - seaFloorY(w.x, w.z) - w.girth * 1.2) / w.len, 0, 1)));
+    const th = lerp(w.p0, thMax, smoothstep(0, 0.8, u));
     const lift = (w.kind === "humpback" ? 0.17 : 0.11) * w.len;
     const tY = yS + (lift + w.girth * 0.62) * Math.pow(Math.sin(Math.PI * Math.min(1, u / 0.86)), 0.8) - smoothstep(0.75, 1, u) * 2;
     const cy = tY - (w.len / 2) * Math.sin(th);
@@ -310,8 +332,12 @@ export function directWhales(whales: Whale[], d: WhaleDirector, f: FocusTracker,
   // deep gets a fly-by every 20-35 s (the water is clear: they see it coming)
   const deep = seaDepth(f.x, f.z);
   const flyby = under && deep > 12;
+  // (a whale's still close by — a big one takes a while to swim clear: try again in a few seconds)
+  if (nearest < (flyby ? 55 : 110) ** 2) {
+    d.enc = 4;
+    return -1;
+  }
   d.enc = flyby ? 20 + rnd() * 15 : 40 + rnd() * 35;
-  if (nearest < (flyby ? 55 : 110) ** 2) return -1;
   // the whale furthest away (hidden) comes to visit
   let pick = -1;
   let far = -1;
@@ -328,9 +354,10 @@ export function directWhales(whales: Whale[], d: WhaleDirector, f: FocusTracker,
   if (flyby) {
     // a fly-by at the kid's depth, passing 8-15 m away, starting out in the blue ahead
     respawn(w, st, focus, f.vx, f.vz, rnd, 62, 74, 0.7);
-    w.side = aimPast(w, focus, 8 + rnd() * 7, rnd);
+    // (passing 8-15 m clear of its own flank: a true-size blue whale is ~5 m thick)
+    w.side = aimPast(w, focus, 8 + w.girth * 1.5 + rnd() * 7, rnd);
     // (a little below the kid: the underwater camera looks down on them)
-    w.hold = focusY - 4;
+    w.hold = focusY - 4 - w.girth * 0.5;
     w.holdT = 50;
     w.y = clamp(w.hold, seaFloorY(w.x, w.z) + st.clear, WATER_Y - w.girth - 2.5);
     w.cue = -1;

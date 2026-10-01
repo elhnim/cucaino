@@ -284,7 +284,11 @@ export function respawn(s: Swimmer, st: SwimStyle, focus: { x: number; z: number
     const r = rMin + rnd() * (rMax - rMin);
     x = focus.x + Math.sin(a) * r;
     z = focus.z + Math.cos(a) * r;
-    if (seaDepth(x, z) >= want) break;
+    // (deep here, and deep enough on the way in towards the focus: a big whale turning up on the
+    //  rim of an island's slopes, heading in, can't turn away in time)
+    const ux = (focus.x - x) / r;
+    const uz = (focus.z - z) / r;
+    if (seaDepth(x, z) >= want && seaDepth(x + ux * st.look * 0.5, z + uz * st.look * 0.5) >= st.need && seaDepth(x + ux * st.look, z + uz * st.look) >= st.need) break;
     if (k === 9) {
       // everywhere nearby is shallow (we're by the island): go out to sea along this bearing
       const out = Math.atan2(x, z);

@@ -259,6 +259,13 @@ function phoenixGeometry() {
   return merge(parts);
 }
 
+// ── true size ── (the Park kid is 2.26 units = a real ~1.4 m ten-year-old: 1 m = 1.6 units)
+//   gull           ~0.55 m long, ~1 m wingspan (a silver / herring gull)  model 0.85 long, 1.56 span
+//   meadow birds   ~0.3 m long (lorikeet-sized: the same model, smaller)   model 0.85 long
+//   eagle          ~2.3 m wingspan (a wedge-tailed eagle)                 model 2.6 span
+//   (the phoenix is a fairy-tale bird: it keeps its storybook size)
+export const BIRD_K = { gull: (1.6 * 0.55) / 0.85, song: (1.6 * 0.3) / 0.85, eagle: (1.6 * 2.3) / 2.6 } as const;
+
 const SONG_COLS = ["#ff5a7a", "#4fb8ff", "#ffd23f", "#7ae05a", "#ff9a3c", "#b77aff"].map((h) => col(h));
 
 export function buildBirds(scene: THREE.Scene, opts: { lowQuality?: boolean }): Birds {
@@ -370,7 +377,7 @@ export function buildBirds(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
         const flapping = g.flapT < 1.6 ? 1 : 0.12;
         g.phase += dt * (flapping > 0.5 ? 9 : 1.5);
         e.set(0, yaw, -Math.sign(g.w) * 0.35, "YXZ");
-        m.compose(v.set(cx, y, cz), q.setFromEuler(e), s.setScalar(1.3 * day + 1e-3));
+        m.compose(v.set(cx, y, cz), q.setFromEuler(e), s.setScalar(BIRD_K.gull * day + 1e-3));
         small.im.setMatrixAt(i, m);
         small.a.setXY(i, flapping, g.phase);
       }
@@ -397,7 +404,7 @@ export function buildBirds(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
           const burst = Math.sin(t * 2.3 + k * 1.7 + f) > -0.3 ? 1 : 0.2;
           fl.phase[k] += dt * (burst > 0.5 ? 24 : 3);
           e.set(pitch, fl.yaw[k], fl.roll[k], "YXZ");
-          m.compose(v.set(fl.pos[j], fl.pos[j + 1], fl.pos[j + 2]), q.setFromEuler(e), s.setScalar(0.72 * day + 1e-3));
+          m.compose(v.set(fl.pos[j], fl.pos[j + 1], fl.pos[j + 2]), q.setFromEuler(e), s.setScalar(BIRD_K.song * day + 1e-3));
           const idx = nGull + f * perFlock + k;
           small.im.setMatrixAt(idx, m);
           small.a.setXY(idx, burst * 0.8, fl.phase[k]);
@@ -418,7 +425,7 @@ export function buildBirds(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
         const flap = eg.flapT < 1.8 ? 0.6 : 0.04;
         eg.phase += dt * (flap > 0.3 ? 4.5 : 0.8);
         e.set(0, yaw, -Math.sign(eg.w) * 0.3, "YXZ");
-        m.compose(v.set(x, y, z), q.setFromEuler(e), s.setScalar(2.1 * day + 1e-3));
+        m.compose(v.set(x, y, z), q.setFromEuler(e), s.setScalar(BIRD_K.eagle * day + 1e-3));
         eagleM.im.setMatrixAt(i, m);
         eagleM.a.setXY(i, flap, eg.phase);
       }

@@ -368,6 +368,11 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
   const bodies = inst("village-bodies", buildBody(low), N, true);
   const heads = inst("village-heads", buildHead(low), N, true);
   const limbs = inst("village-limbs", buildLimb(), N * 4, true);
+  // (true size, against the 2.26-unit Park kid = a 1.4 m ten-year-old: 1 m = 1.6 units)
+  //   beach crab ~0.3 m across its claws (model 1.02)   gull ~0.55 m long (model 0.84)
+  //   the bubblepups are seal pups, ~0.8 m (model 1.42 at 0.9: already true)
+  const CRAB_K = (1.6 * 0.3) / 1.02;
+  const GULL_K = (1.6 * 0.55) / 0.84;
   const nGull = low ? 5 : 8;
   const wings = inst("village-wings", buildWing(), N * 2 + nGull * 2, false);
   const tools = inst("village-tools", buildTools(), N + 1, true);
@@ -637,7 +642,7 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
         z = Math.cos(a) * r0;
         const y = villageGroundY(x + X0, z + Z0) ?? 1;
         const moving = Math.abs(Math.cos(t * c.sp + c.ph)) > 0.3;
-        local(x, y + (moving ? Math.abs(Math.sin(t * 22 + i)) * 0.03 : 0), z, 0, a, moving ? Math.sin(t * 20 + i) * 0.08 : 0, 0.75, 0.75, 0.75, mOut);
+        local(x, y + (moving ? Math.abs(Math.sin(t * 22 + i)) * 0.03 : 0), z, 0, a, moving ? Math.sin(t * 20 + i) * 0.08 : 0, CRAB_K, CRAB_K, CRAB_K, mOut);
         setInst(crabs, i, mOut, c.col, null, -1);
       }
 
@@ -703,7 +708,7 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
           const glide = Math.sin(t * 0.5 + i) > 0.2;
           flap = glide ? 0.12 : Math.sin(t * 11 + i * 3) * 0.6;
         }
-        local(x, y, z, 0, yaw, roll, 1.4, 1.4, 1.4, mRoot);
+        local(x, y, z, 0, yaw, roll, GULL_K, GULL_K, GULL_K, mRoot);
         setInst(gulls, i, mRoot, gullC, null, -1);
         for (let sd = 1; sd >= -1; sd -= 2) {
           if (flap < -0.5) mOut.multiplyMatrices(mRoot, local(sd * 0.08, 0.08, -0.05, 0, sd * 1.35, sd * 0.2, sd * 0.45, 1, 0.8, mLocal));

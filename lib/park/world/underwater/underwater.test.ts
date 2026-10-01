@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import {
+  FISH_MODEL_L,
+  FISH_TRUE_M,
+  SEA_TRUE,
+  UW_M,
+  fishSize,
+  seaK,
   FOOTPRINTS,
   GARDENS,
   HERO_ANEMONES,
@@ -53,6 +59,7 @@ import {
   tubeGeometry,
   turtleGeometry,
   urchinGeometry,
+  FISH_SHAPE,
 } from "./geometry";
 import { buildUnderwater } from "./index";
 import { buildRockGeometry } from "../fantasy/stones";
@@ -179,6 +186,41 @@ describe("planReef", () => {
       const s = sectorOf(Math.sin(a) * 180, Math.cos(a) * 180);
       expect(s).toBeGreaterThanOrEqual(0);
       expect(s).toBeLessThan(SECTORS);
+    }
+  });
+});
+
+describe("true size (the Park kid: 2.26 units = a 1.4 m ten-year-old)", () => {
+  it("fish are drawn at their real length: little reef fish 0.1-0.35 m, a grouper bigger than the kid", () => {
+    // (FISH_MODEL_L mirrors the fish model: 1.3 long x the species' FISH_SHAPE length)
+    for (let sp = 0; sp < FISH_SHAPE.length; sp++) expect(FISH_MODEL_L[sp]).toBeCloseTo(1.3 * FISH_SHAPE[sp][2], 5);
+    const g = fishGeometry();
+    g.computeBoundingBox();
+    expect(g.boundingBox!.max.z - g.boundingBox!.min.z).toBeCloseTo(1.3, 1);
+    for (let sp = 0; sp < FISH_TRUE_M.length; sp++) expect((fishSize(sp) * FISH_MODEL_L[sp]) / UW_M).toBeCloseTo(FISH_TRUE_M[sp], 5);
+    // every school in the plan uses its species' true size
+    for (const s of planSchools()) expect(s.size, `species ${s.species}`).toBeCloseTo(fishSize(s.species), 5);
+    expect(fishSize(SPECIES.clown) * FISH_MODEL_L[SPECIES.clown]).toBeLessThan(0.2);
+    expect(fishSize(SPECIES.grouper) * FISH_MODEL_L[SPECIES.grouper]).toBeGreaterThan(2.26);
+  });
+  it("mantas, turtles, rays, jellies and the reef critters follow their real sizes", () => {
+    const span = (g: THREE.BufferGeometry) => (g.computeBoundingBox(), g.boundingBox!.max.x - g.boundingBox!.min.x);
+    expect(span(mantaGeometry())).toBeCloseTo(SEA_TRUE.manta.model, 1);
+    expect(span(turtleGeometry())).toBeGreaterThan(SEA_TRUE.turtle.model); // (flippers out wider than it is long)
+    expect(span(jellyGeometry())).toBeCloseTo(SEA_TRUE.jelly.model, 1);
+    expect(span(crabGeometry())).toBeCloseTo(SEA_TRUE.crab.model, 1);
+    expect((seaK("manta") * SEA_TRUE.manta.model) / UW_M).toBeCloseTo(5.5, 5);
+    // a giant manta's wings span nearly four kids; a sea turtle is about one kid long
+    expect((seaK("manta") * 3.2) / 2.26).toBeGreaterThan(3.5);
+    expect((seaK("turtle") * 2.64) / 2.26).toBeCloseTo(1, 0);
+    for (const j of planJellies(30)) {
+      const bell = (j.s * 1.92) / UW_M;
+      expect(bell).toBeGreaterThan(0.25);
+      expect(bell).toBeLessThan(1.0);
+    }
+    for (const k of ["starfish", "urchin", "seahorse", "crab"] as const) {
+      const mid = (RULES[k].s0 + RULES[k].s1) / 2;
+      expect((mid * SEA_TRUE[k].model) / UW_M, k).toBeCloseTo(SEA_TRUE[k].real, 1);
     }
   });
 });

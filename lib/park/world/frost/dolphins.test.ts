@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { M_CIRCLE, M_ESCORT, M_LEAVE, M_PLAY, M_ROAM, DEV_RING, buildDolphinPods, dolphinDepth, dolphinFloor, kidInOpenSea, makePods, stepPods, type PodSim } from "./dolphins";
+import { DOLPHIN_K, DOLPHIN_TRUE_M, M_CIRCLE, M_ESCORT, M_LEAVE, M_PLAY, M_ROAM, DEV_RING, buildDolphinPods, dolphinDepth, dolphinFloor, kidInOpenSea, makePods, stepPods, type PodSim } from "./dolphins";
 import { WATER_Y } from "../../registry/terrain";
 import { FROST_BERGS, FROST_ISLAND } from "../../registry/frostIsland";
 
@@ -44,6 +44,24 @@ describe("dolphin pods", { timeout: 60_000 }, () => {
         expect(p.members.length).toBeLessThanOrEqual(7);
         expect(p.members.filter((d) => d.calf).length).toBe(1);
       }
+    }
+  });
+
+  it("are true size: ~2.5 m grown-ups (4 units, nearly twice the kid), ~1.2 m calves", () => {
+    const sim = makePods(false);
+    for (const p of sim.pods)
+      for (const d of p.members) {
+        const len = 2.6 * d.size;
+        if (d.calf) expect(len / 1.6).toBeCloseTo(DOLPHIN_TRUE_M.calf, 1);
+        else {
+          expect(len / 1.6).toBeGreaterThan(DOLPHIN_TRUE_M.adult * 0.9);
+          expect(len / 1.6).toBeLessThan(DOLPHIN_TRUE_M.adult * 1.1);
+        }
+      }
+    // (formation slots: no two grown-ups' slots closer than a body width)
+    for (const p of sim.pods) {
+      const A = p.members.filter((d) => !d.calf);
+      for (let i = 0; i < A.length; i++) for (let j = i + 1; j < A.length; j++) expect(Math.hypot(A[i].side - A[j].side, A[i].back - A[j].back)).toBeGreaterThan(DOLPHIN_K * 1.1);
     }
   });
 

@@ -45,6 +45,15 @@ const BERG_PAD = 3;
 const KID_PAD = 2.4;
 export const dolphinDepth = (x: number, z: number) => WY - dolphinFloor(x, z);
 
+// ── true size ──
+// The Park kid is 2.26 units tall (a real ~1.4 m ten-year-old): 1 m = 1.6 units. The model is 2.6
+// units nose to fluke; a grown bottlenose dolphin is ~2.5 m, a young calf ~1.2 m.
+export const DOLPHIN_TRUE_M = { adult: 2.5, calf: 1.2 } as const;
+const MODEL_L = 2.6;
+export const DOLPHIN_K = (1.6 * DOLPHIN_TRUE_M.adult) / MODEL_L;
+const CALF_K = (1.6 * DOLPHIN_TRUE_M.calf) / MODEL_L;
+const LEAP_K = Math.sqrt(DOLPHIN_K);
+
 export const DOLPHIN_STYLE: SwimStyle = { speed: [4.5, 6.5], turn: 0.6, wander: 0.06, depth: [0.8, 3.2], clear: 1.8, need: 6, look: 22, climb: 1.8, bank: 1.3 };
 /** the kid counts as "out in the open sea" over water at least this deep */
 export const OPEN_SEA_DEPTH = 6;
@@ -137,15 +146,16 @@ export function makePods(low: boolean, seed = 2024): PodSim {
       members.push({
         ...s,
         calf,
-        size: calf ? 0.58 : 0.92 + rnd() * 0.16,
+        size: calf ? CALF_K : DOLPHIN_K * (0.92 + rnd() * 0.16),
         leaping: false,
         leapVy: 0,
         leapIn: -1,
         phase: rnd() * TAU,
         beat: 1,
-        side: calf ? 1.1 : k === 0 ? 0 : (k % 2 ? 1 : -1) * (1.8 + Math.floor((k - 1) / 2) * 1.2),
-        back: calf ? 0.5 : k === 0 ? 0 : 1.6 + Math.floor((k - 1) / 2) * 1.9,
-        lift: calf ? 0.35 : (rnd() - 0.5) * 0.8,
+        // (formation slots: spaced for true-size bodies)
+        side: (calf ? 1.1 : k === 0 ? 0 : (k % 2 ? 1 : -1) * (1.8 + Math.floor((k - 1) / 2) * 1.2)) * DOLPHIN_K,
+        back: (calf ? 0.5 : k === 0 ? 0 : 1.6 + Math.floor((k - 1) / 2) * 1.9) * DOLPHIN_K,
+        lift: (calf ? 0.35 : (rnd() - 0.5) * 0.8) * DOLPHIN_K,
         above: false,
       });
     }
@@ -242,7 +252,8 @@ function drive(sim: PodSim, d: Dolphin, wantYaw: number, vWant: number, ty: numb
       if (d.leapIn < 0) d.leapIn = 0;
       if (d.leapIn === 0 && d.y > WY - 1.8 && dolphinDepth(d.x, d.z) > 3.5) {
         d.leaping = true;
-        d.leapVy = (d.calf ? 4.6 : 5.4) + sim.rnd() * 1.6;
+        // (a true-size dolphin clears 1.5–3 m of air)
+        d.leapVy = ((d.calf ? 4.6 : 5.4) + sim.rnd() * 1.6) * LEAP_K;
         d.leapIn = -1;
       }
     }
@@ -408,8 +419,8 @@ export function stepPods(sim: PodSim, dtIn: number, t: number, kid: { x: number;
         const hk = kidSpeed > 0.6 ? Math.atan2(ft.vx, ft.vz) : L.yaw;
         const fx = Math.sin(hk);
         const fz = Math.cos(hk);
-        const tx = kid.x + fz * 4.5 * p.dir + fx * 2.5;
-        const tz = kid.z - fx * 4.5 * p.dir + fz * 2.5;
+        const tx = kid.x + fz * 6 * p.dir + fx * 3;
+        const tz = kid.z - fx * 6 * p.dir + fz * 3;
         const dx = tx - L.x;
         const dz = tz - L.z;
         const dd = Math.hypot(dx, dz);
@@ -422,7 +433,7 @@ export function stepPods(sim: PodSim, dtIn: number, t: number, kid: { x: number;
       }
       case M_CIRCLE: {
         // round and round the kid, blowing bubble rings
-        const r = 7.5;
+        const r = 10;
         const a = Math.atan2(L.x - kid.x, L.z - kid.z) + p.dir * 0.55;
         const tx = kid.x + Math.sin(a) * r;
         const tz = kid.z + Math.cos(a) * r;
@@ -435,7 +446,7 @@ export function stepPods(sim: PodSim, dtIn: number, t: number, kid: { x: number;
           p.ring = 1.8 + sim.rnd() * 1.6;
           const d = p.members[Math.floor(sim.rnd() * p.members.length)];
           // (not right in the kid's face)
-          const near = (d.x - kid.x) ** 2 + (d.z - kid.z) ** 2 < 36;
+          const near = (d.x - kid.x) ** 2 + (d.z - kid.z) ** 2 < 64;
           if (!d.leaping && !near && d.y < WY - 1.4) emit(sim, d.x + Math.sin(d.yaw) * 1.3 * d.size, d.y + 0.15, d.z + Math.cos(d.yaw) * 1.3 * d.size, d.size, DEV_RING);
         }
         if (p.t > p.dur) setMode(sim, p, M_PLAY, 10 + sim.rnd() * 5);
@@ -443,7 +454,7 @@ export function stepPods(sim: PodSim, dtIn: number, t: number, kid: { x: number;
       }
       case M_PLAY: {
         // leaping all round the kid at the surface
-        const r = 10;
+        const r = 13;
         const a = Math.atan2(L.x - kid.x, L.z - kid.z) + p.dir * 0.45;
         wantYaw = Math.atan2(kid.x + Math.sin(a) * r - L.x, kid.z + Math.cos(a) * r - L.z);
         vWant = 6.5;

@@ -62,6 +62,15 @@ export interface Wildlife {
   seed: number;
 }
 
+// ── true size ── (the Park kid is 2.26 units = a real ~1.4 m ten-year-old: 1 m = 1.6 units)
+//   seal         ~2.2 m nose to tail flippers (a Weddell / harbour-type seal)  model 2.66
+//   narwhal      ~4.5 m body (4–5.5 m), plus a ~2.2 m spiral tusk           model body 4.45
+//   arctic tern  ~0.36 m long, ~0.8 m wingspan                              model 0.71 long, 1.34 span
+/** world units per model unit for each beast (index.ts draws them at these scales) */
+export const BEAST_K = { seal: (1.6 * 2.2) / 2.66, narwhal: (1.6 * 4.5) / 4.45, tern: (1.6 * 0.75) / 1.34 } as const;
+/** the narwhal pod's youngster (a 2.5 m juvenile) */
+export const NARWHAL_CALF = 0.6;
+
 const SEAL_FLOES = [0, 2, 2, 4, 6, 8];
 const TERN_N = 10;
 const NARWHAL_N = 5;
@@ -171,8 +180,8 @@ export function stepWildlife(w: Wildlife, dtIn: number, t: number): void {
       case SEAL_DIVE: {
         // slide in nose first — splash
         const u = clamp(s.t / 0.9, 0, 1);
-        s.x = s.fromX + Math.sin(s.yaw) * u * 2.4;
-        s.z = s.fromZ + Math.cos(s.yaw) * u * 2.4;
+        s.x = s.fromX + Math.sin(s.yaw) * u * 2.4 * BEAST_K.seal;
+        s.z = s.fromZ + Math.cos(s.yaw) * u * 2.4 * BEAST_K.seal;
         s.y = f.top + (WY - 1.3 - f.top) * u * u;
         s.pitch = 0.7 * u;
         if (s.t - dt < 0.45 && s.t >= 0.45) emit(w, s.x, WY, s.z, 1.0, 0);
@@ -188,7 +197,7 @@ export function stepWildlife(w: Wildlife, dtIn: number, t: number): void {
       case SEAL_SWIM: {
         // loops round under the floe
         const dir = s.seed % 2 ? 1 : -1;
-        const R = f.r + 3 + Math.sin(t * 0.4 + ph) * 1.5;
+        const R = f.r + 4 + Math.sin(t * 0.4 + ph) * 1.5;
         s.a += (dir * 2.3 * dt) / R;
         s.x = f.x + Math.sin(s.a) * R;
         s.z = f.z + Math.cos(s.a) * R;
@@ -238,8 +247,9 @@ export function stepWildlife(w: Wildlife, dtIn: number, t: number): void {
     const cyc = (t % 26) / 26;
     for (let k = 0; k < w.narwhals.length; k++) {
       const n = w.narwhals[k];
-      const back = k * 3.2;
-      const side = (k % 2 ? 1 : -1) * (k ? 2.2 + (k % 3) * 0.6 : 0);
+      // (spaced for true-size, 7-unit narwhals)
+      const back = k * 3.2 * BEAST_K.narwhal;
+      const side = (k % 2 ? 1 : -1) * (k ? 2.2 + (k % 3) * 0.6 : 0) * BEAST_K.narwhal;
       const a = a0 - back / NARWHAL_R;
       const R = NARWHAL_R + side;
       n.x = FROST_ISLAND.x + Math.sin(a) * R;

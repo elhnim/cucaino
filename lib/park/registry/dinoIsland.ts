@@ -106,8 +106,9 @@ const PLATEAU = { lx: -62, lz: 5, r: 14, h: 10.5 };
 const LAG = { lx: -38, lz: 9, rx: 9.5, rz: 7, rot: 0.25, waterY: 2.05 };
 /** the swamp (south-east): a hollow of shallow, murky water with little hummocks */
 const SWAMP = { lx: 44, lz: 44, rx: 13, rz: 8.5, rot: -0.35, waterY: 2.1 };
-/** the T-rex's paddock (east) */
-const PADDOCK = { lx: 52, lz: 4, r: 14 };
+/** the T-rex's paddock (east): big enough for a true-size T-rex (~12 m long = ~20 units nose to
+ *  tail, see world/dino/herd.ts TRUE_SIZE) to turn round in without its tail poking through the fence */
+const PADDOCK = { lx: 54, lz: 3, r: 20 };
 /** the Ice Age valley: centre + radius of the snowy land */
 const ICE = { lx: -28, lz: -42, r: 41 };
 /** the snowy mountains along the north-west coast */
@@ -165,7 +166,7 @@ const FLATS: [number, number, number, number, number][] = [
   }),
   [43, -39, 5.5, 9, 2.75], // the park gate
   [31, -26, 7, 10.5, 2.75], // the plaza (research hut, jeep)
-  [PADDOCK.lx, PADDOCK.lz, PADDOCK.r + 2, PADDOCK.r + 5, 2.7], // the paddock
+  [PADDOCK.lx, PADDOCK.lz, PADDOCK.r + 1, PADDOCK.r + 4, 2.7], // the paddock
   [22, 60, 5.5, 8.5, 2.6], // the nests
   [-50, -22, 5.5, 8.5, 2.95], // the Ice Age camp
   [16, 20, 3, 5.5, 2.7], // the lookout tower
@@ -510,7 +511,7 @@ const NE = { x: Math.sin(DINO_NE_A), z: Math.cos(DINO_NE_A) };
 const NE_P = { x: -NE.z, z: NE.x };
 const alongNE = (r: number, side = 0) => ({ lx: NE.x * r + NE_P.x * side, lz: NE.z * r + NE_P.z * side });
 /** the viewing platform by the paddock, and the lookout tower on the plains */
-const PLATFORM = { lx: 35, lz: -10, r: 3.4, up: 2.3 };
+const PLATFORM = { lx: 33, lz: -12, r: 3.4, up: 2.3, rampSide: -1 };
 const LOOKOUT = { lx: 16, lz: 20, r: 3.2, up: 4.4 };
 
 /** the land's height on the mesh (local), for where decks meet the ground */
@@ -537,8 +538,8 @@ function buildDecks(): DinoDeck[] {
     const dz = PLATFORM.lz - PADDOCK.lz;
     const L = Math.hypot(dx, dz);
     // (the ramp leaves the deck sideways, running along the fence)
-    const rx = -dz / L;
-    const rz = dx / L;
+    const rx = (-dz / L) * PLATFORM.rampSide;
+    const rz = (dx / L) * PLATFORM.rampSide;
     const a = W(PLATFORM.lx + rx * (PLATFORM.r - 0.4), PLATFORM.lz + rz * (PLATFORM.r - 0.4));
     const bL = { lx: PLATFORM.lx + rx * (PLATFORM.r + 7.5), lz: PLATFORM.lz + rz * (PLATFORM.r + 7.5) };
     seg("platform-ramp", "ramp", a, W(bL.lx, bL.lz), 1.05, py, landL(bL.lx, bL.lz) + 0.02);
@@ -680,7 +681,7 @@ const EDGES_N: [string, string][] = [
   ["gate-out", "gate-in"],
   ["gate-in", "plaza"],
   ["plaza", "plaza-s"],
-  ["plaza-s", "platform-foot"],
+  ["plains-n", "platform-foot"],
   ["platform-foot", "platform"],
   ["plaza-s", "plains-n"],
   ["plains-n", "lookout-foot"],
@@ -781,7 +782,8 @@ export const DINO_RANGES: Record<DinoRangeId, { x: number; z: number; r: number 
     ankylo: [-20, 66, 4.5],
     compy: [22, -17, 6],
     nests: [22, 60, 4.5],
-    trex: [PADDOCK.lx, PADDOCK.lz, PADDOCK.r - 3.2],
+    // (the T-rex's hips stay this far in: its 7.8 m tail stays inside the fence)
+    trex: [PADDOCK.lx, PADDOCK.lz, PADDOCK.r - 12.5],
     mammoth: [-10, -25, 8],
     rhino: [-34, -35, 5],
     elk: [-8, -50, 4.5],
