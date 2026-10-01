@@ -9,23 +9,32 @@ import { groundY } from "../../registry/terrain";
 import type { FaunaPlan } from "./plan";
 import { paddockPoint } from "./types";
 
-type V3 = [number, number, number];
-type Paint = THREE.Color | ((p: THREE.Vector3, n: THREE.Vector3) => THREE.Color);
+export type V3 = [number, number, number];
+export type Paint = THREE.Color | ((p: THREE.Vector3, n: THREE.Vector3) => THREE.Color);
 
 /** rig parts */
-const BODY = 0;
-const HEAD = 1;
-const LEG_FL = 2;
-const LEG_FR = 3;
-const LEG_BL = 4;
-const LEG_BR = 5;
-const TAIL = 6;
-const EAR_L = 7;
-const EAR_R = 8;
-const WING_L = 9;
-const WING_R = 10;
+export const BODY = 0;
+export const HEAD = 1;
+export const LEG_FL = 2;
+export const LEG_FR = 3;
+export const LEG_BL = 4;
+export const LEG_BR = 5;
+export const TAIL = 6;
+export const EAR_L = 7;
+export const EAR_R = 8;
+export const WING_L = 9;
+export const WING_R = 10;
+/** a jaw / trunk: a child of the head, curled by the wing channel */
+export const JAW = 11;
+/** a prop carried with the animal that never moves (and isn't measured): the owls' branch */
+export const PROP = 12;
 
-interface PO {
+/** a variant bit mask: the part shows on these variants only */
+export const only = (...vs: number[]) => vs.reduce((m, v) => m | (1 << v), 0);
+/** ...on every variant but these */
+export const allBut = (...vs: number[]) => 0x3fff & ~only(...vs);
+
+export interface PO {
   p?: number;
   piv?: V3;
   /** the head pivot (ears) */
@@ -33,8 +42,9 @@ interface PO {
   /** how much the instance colour tints it (fur 1, eyes / noses 0) */
   tint?: number;
   glow?: number;
-  /** variant mask (see rig.ts) */
+  /** variant: k > 0 only on variant k, -k on all but k (or an explicit bit mask in `vm`) */
   v?: number;
+  vm?: number;
   tuck?: boolean;
   /** faces whose normal.y is below this are belly (untinted) — use with furBelly() */
   belly?: number;
@@ -48,9 +58,11 @@ const _v = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 
+const maskOf = (o: PO) => (o.vm !== undefined ? o.vm : !o.v ? 0 : o.v > 0 ? only(o.v) : allBut(-o.v));
+
 /** a rigged, faceted part */
-function rp(g: THREE.BufferGeometry, paint: Paint, o: PO = {}): THREE.BufferGeometry {
-  const out = part(g, paint, [o.tint ?? 0, o.glow ?? 0, o.v ?? 0], { faceted: true, faceColor: true });
+export function rp(g: THREE.BufferGeometry, paint: Paint, o: PO = {}): THREE.BufferGeometry {
+  const out = part(g, paint, [o.tint ?? 0, o.glow ?? 0, maskOf(o)], { faceted: true, faceColor: true });
   const n = out.attributes.position.count;
   if (o.belly !== undefined) {
     // faces facing down (the belly / chest) keep their own pale colour: no instance tint
@@ -81,32 +93,32 @@ function rp(g: THREE.BufferGeometry, paint: Paint, o: PO = {}): THREE.BufferGeom
 }
 
 /** a colour, shaded a little darker underneath (facets read) */
-function sh(hex: string | number, k = 0.26): Paint {
+export function sh(hex: string | number, k = 0.26): Paint {
   const c = col(hex);
   return (_p, n) => _c.copy(c).multiplyScalar(1 - k + k * (n.y * 0.5 + 0.5));
 }
 /** fur with a lighter belly / chest */
-function furBelly(hex: string | number, belly: string | number, below = -0.35): Paint {
+export function furBelly(hex: string | number, belly: string | number, below = -0.35): Paint {
   const c = col(hex);
   const b = col(belly);
   return (_p, n) => (n.y < below ? _c.copy(b) : _c.copy(c).multiplyScalar(0.8 + 0.2 * (n.y * 0.5 + 0.5)));
 }
 
-function place(g: THREE.BufferGeometry, x: number, y: number, z: number, rot?: V3, s?: V3) {
+export function place(g: THREE.BufferGeometry, x: number, y: number, z: number, rot?: V3, s?: V3) {
   _e.set(rot?.[0] ?? 0, rot?.[1] ?? 0, rot?.[2] ?? 0, "XYZ");
   _m.compose(_v.set(x, y, z), _q.setFromEuler(_e), _s.set(s?.[0] ?? 1, s?.[1] ?? 1, s?.[2] ?? 1));
   g.applyMatrix4(_m);
   return g;
 }
 /** faceted ellipsoid (detail 0: 20 faces, 1: 80) */
-function ell(x: number, y: number, z: number, rx: number, ry: number, rz: number, detail = 0, rot?: V3): THREE.BufferGeometry {
+export function ell(x: number, y: number, z: number, rx: number, ry: number, rz: number, detail = 0, rot?: V3): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(1, detail);
   g.deleteAttribute("uv");
   g.scale(rx, ry, rz);
   return place(g, x, y, z, rot);
 }
 /** rounded box: an icosphere pushed toward a box (cows, bears) */
-function rbox(x: number, y: number, z: number, rx: number, ry: number, rz: number, k = 0.55, detail = 1): THREE.BufferGeometry {
+export function rbox(x: number, y: number, z: number, rx: number, ry: number, rz: number, k = 0.55, detail = 1): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(1, detail);
   g.deleteAttribute("uv");
   const pos = g.attributes.position as THREE.BufferAttribute;
@@ -119,16 +131,17 @@ function rbox(x: number, y: number, z: number, rx: number, ry: number, rz: numbe
   }
   return g;
 }
-function box(x: number, y: number, z: number, w: number, h: number, d: number, rot?: V3): THREE.BufferGeometry {
+export function box(x: number, y: number, z: number, w: number, h: number, d: number, rot?: V3): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(w, h, d);
   g.deleteAttribute("uv");
   return place(g, x, y, z, rot);
 }
-/** a tapered tube from a (radius r0) to b (radius r1) */
-function tube(a: V3, b: V3, r0: number, r1: number, sides = 5): THREE.BufferGeometry {
+/** a tapered tube from a (radius r0) to b (radius r1); open-ended (its ends hide in bodies, feet and
+ *  heads — and the triangle budget is better spent on more animals) unless `caps` */
+export function tube(a: V3, b: V3, r0: number, r1: number, sides = 5, caps = false): THREE.BufferGeometry {
   const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   const len = d.length() || 1e-3;
-  const g = new THREE.CylinderGeometry(r1, r0, len, sides, 1, false);
+  const g = new THREE.CylinderGeometry(r1, r0, len, sides, 1, !caps);
   g.deleteAttribute("uv");
   g.translate(0, len / 2, 0);
   g.applyQuaternion(_q.setFromUnitVectors(UP, d.normalize()));
@@ -136,7 +149,7 @@ function tube(a: V3, b: V3, r0: number, r1: number, sides = 5): THREE.BufferGeom
   return g;
 }
 /** a cone with its base round a, tip at b */
-function cone(a: V3, b: V3, r: number, sides = 5): THREE.BufferGeometry {
+export function cone(a: V3, b: V3, r: number, sides = 5): THREE.BufferGeometry {
   const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
   const len = d.length() || 1e-3;
   const g = new THREE.ConeGeometry(r, len, sides, 1, false);
@@ -147,12 +160,12 @@ function cone(a: V3, b: V3, r: number, sides = 5): THREE.BufferGeometry {
   return g;
 }
 
-const BLACK = col("#1c1512");
-const WHITE = col("#fbf6ec");
-const GLINT = col("#ffffff");
+export const BLACK = col("#1c1512");
+export const WHITE = col("#fbf6ec");
+export const GLINT = col("#ffffff");
 
 /** two eyes (black, with a tiny white glint) */
-function eyes(x: number, y: number, z: number, r: number, o: PO, glint = true): THREE.BufferGeometry[] {
+export function eyes(x: number, y: number, z: number, r: number, o: PO, glint = true): THREE.BufferGeometry[] {
   const out: THREE.BufferGeometry[] = [];
   for (const s of [-1, 1]) {
     out.push(rp(ell(s * x, y, z, r, r * 1.1, r * 0.8), BLACK, { ...o, tint: 0 }));
@@ -162,7 +175,7 @@ function eyes(x: number, y: number, z: number, r: number, o: PO, glint = true): 
 }
 
 /** four legs: hips at (±x, hipY, zf / zb), feet on the ground; hooves / paws in `foot` */
-function legs(x: number, hipY: number, zf: number, zb: number, r0: number, r1: number, fur: Paint, foot: Paint | null, footH: number, sides = 5, o: PO = {}): THREE.BufferGeometry[] {
+export function legs(x: number, hipY: number, zf: number, zb: number, r0: number, r1: number, fur: Paint, foot: Paint | null, footH: number, sides = 5, o: PO = {}): THREE.BufferGeometry[] {
   const out: THREE.BufferGeometry[] = [];
   const defs: [number, number, number][] = [
     [LEG_FL, -x, zf],
@@ -269,7 +282,59 @@ export function buildHorse(): THREE.BufferGeometry {
     parts.push(rp(ell(0, 1.06, -0.98, 0.1, 0.42, 0.11, 0, [0.28, 0, 0]), paint, { p: TAIL, piv: [0, 1.46, -0.82], v }));
   }
   for (const s of [-1, 1]) parts.push(rp(cone([s * 0.09, 2.14, 1.0], [s * 0.12, 2.36, 0.96], 0.05, 4), fur, { p: s < 0 ? EAR_L : EAR_R, piv: [s * 0.09, 2.14, 1.0], piv2: N, tint: 1 }));
+  parts.push(...zebraStripes(N));
   return merge(parts);
+}
+
+/** a zebra is a striped horse (variant 2): dark bands round the body, neck, head and legs */
+function zebraStripes(N: V3): THREE.BufferGeometry[] {
+  const ink = sh("#26211e", 0.12);
+  const Z = { vm: only(2) };
+  const out: THREE.BufferGeometry[] = [];
+  // the body's cross-section at z: the three ellipsoids it's made of (cy, rx, ry, cz, rz)
+  const blobs: [number, number, number, number, number][] = [
+    [1.2, 0.4, 0.42, 0, 0.82],
+    [1.26, 0.34, 0.39, 0.58, 0.3],
+    [1.3, 0.38, 0.38, -0.56, 0.34],
+  ];
+  const zs = [-0.8, -0.62, -0.44, -0.26, -0.08, 0.1, 0.28, 0.46, 0.64];
+  zs.forEach((z, i) => {
+    let top = -1e9;
+    let bot = 1e9;
+    let rx = 0;
+    for (const [cy, bx, by, cz, rz] of blobs) {
+      const u = (z - cz) / rz;
+      if (Math.abs(u) >= 1) continue;
+      const k = Math.sqrt(1 - u * u);
+      top = Math.max(top, cy + by * k);
+      bot = Math.min(bot, cy - by * k);
+      rx = Math.max(rx, bx * k);
+    }
+    if (rx <= 0) return;
+    out.push(rp(ell(0, (top + bot) / 2, z, rx * 1.05, ((top - bot) / 2) * 1.04, i % 2 ? 0.05 : 0.065), ink, Z));
+  });
+  // neck and head rings (the neck leans forward ~1.1 rad off the vertical)
+  for (const u of [0.18, 0.45, 0.72]) {
+    const y = 1.34 + (1.96 - 1.34) * u;
+    const z = 0.66 + (0.98 - 0.66) * u;
+    const r = (0.24 + (0.17 - 0.24) * u) * 1.08;
+    out.push(rp(ell(0, y, z, r, r, 0.05, 0, [-1.09, 0, 0]), ink, { ...Z, p: HEAD, piv: N }));
+  }
+  for (const z of [0.98, 1.16]) out.push(rp(ell(0, 2.02 + (z - 1.1) * 0.1, z, 0.17, 0.175, 0.04), ink, { ...Z, p: HEAD, piv: N }));
+  // legs
+  const defs: [number, number, number][] = [
+    [LEG_FL, -0.2, 0.56],
+    [LEG_FR, 0.2, 0.56],
+    [LEG_BL, -0.2, -0.56],
+    [LEG_BR, 0.2, -0.56],
+  ];
+  for (const [p, lx, lz] of defs)
+    for (const [y, r] of [
+      [0.78, 0.106],
+      [0.46, 0.094],
+    ])
+      out.push(rp(ell(lx, y, lz + 0.01, r, 0.035, r), ink, { ...Z, p, piv: [lx, 1.02, lz], tuck: true }));
+  return out;
 }
 
 // ── cows ──
@@ -328,12 +393,14 @@ export function buildGoat(): THREE.BufferGeometry {
     rp(ell(0, 1.12, 0.56, 0.1, 0.11, 0.17), fur, H),
     rp(ell(0, 1.06, 0.7, 0.07, 0.07, 0.07), sh("#d8cbbb"), { ...H, tint: 0.5 }),
     ...eyes(0.085, 1.16, 0.62, 0.025, H),
-    // horns sweeping back
+    // horns sweeping back (goats only: not on the sheep, variant 2)
     ...[-1, 1].flatMap((s) => [
-      rp(tube([s * 0.05, 1.2, 0.54], [s * 0.08, 1.34, 0.46], 0.035, 0.03, 4), horn, { ...H, tint: 0 }),
-      rp(tube([s * 0.08, 1.34, 0.46], [s * 0.11, 1.38, 0.32], 0.03, 0.022, 4), horn, { ...H, tint: 0 }),
-      rp(tube([s * 0.11, 1.38, 0.32], [s * 0.12, 1.3, 0.24], 0.022, 0.012, 4), horn, { ...H, tint: 0 }),
+      rp(tube([s * 0.05, 1.2, 0.54], [s * 0.08, 1.34, 0.46], 0.035, 0.03, 4), horn, { ...H, tint: 0, v: -2 }),
+      rp(tube([s * 0.08, 1.34, 0.46], [s * 0.11, 1.38, 0.32], 0.03, 0.022, 4), horn, { ...H, tint: 0, v: -2 }),
+      rp(tube([s * 0.11, 1.38, 0.32], [s * 0.12, 1.3, 0.24], 0.022, 0.012, 4), horn, { ...H, tint: 0, v: -2 }),
     ]),
+    // a sheep (variant 2) is a goat in a big woolly coat (its face and legs take the coat colour)
+    ...sheepWool(N),
     // a beard (the billy)
     rp(cone([0, 1.02, 0.66], [0, 0.86, 0.64], 0.045, 4), sh("#efe6d6"), { ...H, v: 1 }),
     ...[-1, 1].map((s) => rp(ell(s * 0.15, 1.16, 0.52, 0.09, 0.03, 0.045, 0, [0, 0, s * -0.35]), fur, { p: s < 0 ? EAR_L : EAR_R, piv: [s * 0.08, 1.16, 0.52], piv2: N, tint: 1 })),
@@ -341,6 +408,26 @@ export function buildGoat(): THREE.BufferGeometry {
     rp(ell(0, 0.96, -0.44, 0.04, 0.08, 0.04, 0, [-0.5, 0, 0]), fur, { p: TAIL, piv: [0, 0.88, -0.4], tint: 1 }),
   ];
   return merge(parts);
+}
+
+function sheepWool(N: V3): THREE.BufferGeometry[] {
+  const wool: Paint = (_p, n) => _c.set("#f6f1e6").multiplyScalar(0.8 + 0.2 * (n.y * 0.5 + 0.5));
+  const W = { vm: only(2) };
+  const out = [rp(ell(0, 0.8, -0.03, 0.33, 0.31, 0.5, 1), wool, W)];
+  // a cloud of puffs over the back and the rump
+  const puffs: [number, number, number, number][] = [
+    [0, 1.0, 0.22, 0.17],
+    [0.15, 0.95, -0.05, 0.16],
+    [-0.15, 0.95, -0.05, 0.16],
+    [0, 1.0, -0.28, 0.17],
+    [0.17, 0.82, 0.25, 0.14],
+    [-0.17, 0.82, 0.25, 0.14],
+    [0, 0.86, -0.46, 0.16],
+  ];
+  for (const [x, y, z, r] of puffs) out.push(rp(ell(x, y, z, r, r * 0.85, r), wool, W));
+  // a woolly topknot
+  out.push(rp(ell(0, 1.24, 0.5, 0.085, 0.06, 0.085), wool, { ...W, p: HEAD, piv: N }));
+  return out;
 }
 
 // ── foxes ──
@@ -449,51 +536,86 @@ export function buildSquirrel(): THREE.BufferGeometry {
   return merge(parts);
 }
 
-// ── ducks ──
+// ── ducks (variants 0 hen, 1 drake, 2 duckling) and chickens (3 hen / chick, 4 rooster) ──
 
 export function buildDuck(): THREE.BufferGeometry {
   const fur = sh("#ffffff", 0.3);
   const orange = sh("#f39a2a");
   const N: V3 = [0, 0.28, 0.17];
-  const H = { p: HEAD, piv: N };
+  const D = only(0, 1, 2);
+  const H = { p: HEAD, piv: N, vm: D };
   const parts: THREE.BufferGeometry[] = [
-    rp(ell(0, 0.2, 0, 0.16, 0.13, 0.25, 1), fur, { tint: 1 }),
-    rp(ell(0, 0.23, 0.15, 0.13, 0.13, 0.12), fur, { tint: 1 }),
-    rp(ell(0, 0.27, -0.25, 0.07, 0.05, 0.1, 0, [-0.5, 0, 0]), fur, { p: TAIL, piv: [0, 0.24, -0.2], tint: 1 }),
+    rp(ell(0, 0.2, 0, 0.16, 0.13, 0.25, 1), fur, { tint: 1, vm: D }),
+    rp(ell(0, 0.23, 0.15, 0.13, 0.13, 0.12), fur, { tint: 1, vm: D }),
+    rp(ell(0, 0.27, -0.25, 0.07, 0.05, 0.1, 0, [-0.5, 0, 0]), fur, { p: TAIL, piv: [0, 0.24, -0.2], tint: 1, vm: D }),
     // neck + head: the drake's glossy green head and white collar, everyone else's takes the tint
-    rp(tube([0, 0.26, 0.17], [0, 0.4, 0.23], 0.065, 0.055, 5), fur, { ...H, tint: 1, v: -1 }),
-    rp(ell(0, 0.45, 0.26, 0.09, 0.085, 0.1), fur, { ...H, tint: 1, v: -1 }),
-    rp(tube([0, 0.26, 0.17], [0, 0.4, 0.23], 0.065, 0.055, 5), sh("#2f8a4a"), { ...H, v: 1 }),
-    rp(ell(0, 0.45, 0.26, 0.09, 0.085, 0.1), sh("#2f8a4a"), { ...H, v: 1 }),
-    rp(tube([0, 0.3, 0.19], [0, 0.32, 0.2], 0.07, 0.068, 6), WHITE, { ...H, v: 1 }),
+    rp(tube([0, 0.26, 0.17], [0, 0.4, 0.23], 0.065, 0.055, 5), fur, { ...H, tint: 1, vm: only(0, 2) }),
+    rp(ell(0, 0.45, 0.26, 0.09, 0.085, 0.1), fur, { ...H, tint: 1, vm: only(0, 2) }),
+    rp(tube([0, 0.26, 0.17], [0, 0.4, 0.23], 0.065, 0.055, 5), sh("#2f8a4a"), { ...H, vm: only(1) }),
+    rp(ell(0, 0.45, 0.26, 0.09, 0.085, 0.1), sh("#2f8a4a"), { ...H, vm: only(1) }),
+    rp(tube([0, 0.3, 0.19], [0, 0.32, 0.2], 0.07, 0.068, 6), WHITE, { ...H, vm: only(1) }),
     rp(box(0, 0.43, 0.37, 0.09, 0.035, 0.12), orange, H),
     ...eyes(0.07, 0.48, 0.3, 0.018, H, false),
   ];
   for (const s of [-1, 1]) {
-    const W = { p: s < 0 ? WING_L : WING_R, piv: [s * 0.13, 0.27, 0.06] as V3, tint: 1 };
+    const W = { p: s < 0 ? WING_L : WING_R, piv: [s * 0.13, 0.27, 0.06] as V3, tint: 1, vm: D };
     parts.push(rp(ell(s * 0.145, 0.23, -0.04, 0.05, 0.085, 0.18), sh("#e2ddd4"), W));
-    parts.push(rp(box(s * 0.19, 0.22, -0.08, 0.02, 0.04, 0.09), col("#3a5fd0"), { ...W, tint: 0, v: 1 }));
-    const L = { p: s < 0 ? LEG_BL : LEG_BR, piv: [s * 0.06, 0.12, 0.02] as V3, tuck: true };
+    parts.push(rp(box(s * 0.19, 0.22, -0.08, 0.02, 0.04, 0.09), col("#3a5fd0"), { ...W, tint: 0, vm: only(1) }));
+    const L = { p: s < 0 ? LEG_BL : LEG_BR, piv: [s * 0.06, 0.12, 0.02] as V3, tuck: true, vm: D };
     parts.push(rp(tube([s * 0.06, 0.12, 0.02], [s * 0.06, 0.015, 0.04], 0.018, 0.015, 4), orange, L));
     parts.push(rp(box(s * 0.06, 0.012, 0.08, 0.07, 0.02, 0.09), orange, L));
   }
+  parts.push(...chickenParts());
   return merge(parts);
 }
 
-// ── owls ──
+function chickenParts(): THREE.BufferGeometry[] {
+  const C = only(3, 4);
+  const fur = sh("#ffffff", 0.3);
+  const red = sh("#e2382e", 0.2);
+  const yellow = sh("#f2b632");
+  const N: V3 = [0, 0.4, 0.12];
+  const H = { p: HEAD, piv: N, vm: C };
+  const out: THREE.BufferGeometry[] = [
+    rp(ell(0, 0.3, -0.02, 0.15, 0.15, 0.2, 1), fur, { tint: 1, vm: C }),
+    rp(ell(0, 0.34, 0.1, 0.12, 0.13, 0.11), fur, { tint: 1, vm: C }),
+    // the hen's perky tail; the rooster's big dark-green sickle feathers
+    rp(ell(0, 0.45, -0.2, 0.05, 0.12, 0.08, 0, [-0.45, 0, 0]), fur, { p: TAIL, piv: [0, 0.36, -0.16], tint: 1, vm: only(3) }),
+    ...[-0.06, 0, 0.06].map((x, i) => rp(ell(x, 0.5 + i * 0.02, -0.27, 0.035, 0.17, 0.09, 0, [-0.7 - i * 0.12, 0, x * 2]), sh("#1f4a3a", 0.2), { p: TAIL, piv: [0, 0.36, -0.16], vm: only(4) })),
+    // neck and head
+    rp(tube([0, 0.38, 0.12], [0, 0.5, 0.17], 0.07, 0.06, 5), fur, { ...H, tint: 1 }),
+    rp(ell(0, 0.54, 0.19, 0.07, 0.075, 0.075), fur, { ...H, tint: 1 }),
+    rp(cone([0, 0.535, 0.25], [0, 0.515, 0.32], 0.028, 4), yellow, H),
+    rp(ell(0, 0.48, 0.25, 0.022, 0.035, 0.018), red, H),
+    // comb: a little one on the hen, a big floppy one on the rooster
+    ...[0.15, 0.2, 0.25].map((z, i) => rp(ell(0, 0.615 - i * 0.008, z, 0.018, 0.032, 0.026), red, { ...H, vm: only(3) })),
+    ...[0.13, 0.19, 0.25].map((z, i) => rp(ell(0, 0.64 - i * 0.01, z, 0.022, 0.055, 0.035), red, { ...H, vm: only(4) })),
+    ...eyes(0.055, 0.56, 0.23, 0.014, H, false),
+  ];
+  for (const s of [-1, 1]) {
+    out.push(rp(ell(s * 0.15, 0.31, -0.02, 0.04, 0.1, 0.15), fur, { p: s < 0 ? WING_L : WING_R, piv: [s * 0.13, 0.38, 0.04], tint: 1, vm: C }));
+    const L = { p: s < 0 ? LEG_BL : LEG_BR, piv: [s * 0.055, 0.2, 0.0] as V3, tuck: true, vm: C };
+    out.push(rp(tube([s * 0.055, 0.2, 0.0], [s * 0.055, 0.02, 0.02], 0.02, 0.016, 4), yellow, L));
+    out.push(rp(box(s * 0.055, 0.012, 0.05, 0.06, 0.018, 0.08), yellow, L));
+  }
+  return out;
+}
+
+// ── owls (variant 0) and kookaburras (variant 1), each on its own bit of branch ──
 
 export function buildOwl(): THREE.BufferGeometry {
   const fur = sh("#ffffff", 0.3);
   const face = sh("#efe1c4");
   const N: V3 = [0, 0.5, 0];
-  const H = { p: HEAD, piv: N };
+  const O = allBut(1);
+  const H = { p: HEAD, piv: N, vm: O };
   const speckle: Paint = (p, n) => (noise3(p.x * 30, p.y * 30, p.z * 30, 3) > 0.62 ? _c.set("#b89a6a") : _c.set("#e8d6b0")).multiplyScalar(0.85 + 0.15 * (n.y * 0.5 + 0.5));
   const parts: THREE.BufferGeometry[] = [
-    // the branch it sits on (runs back into the tree) and its feet
-    rp(tube([0, 0.02, 0.3], [0.05, -0.02, -0.7], 0.06, 0.08, 5), sh("#6a4a30")),
-    ...[-1, 1].map((s) => rp(box(s * 0.06, 0.07, 0.08, 0.06, 0.04, 0.08), col("#d8a13a"))),
-    rp(ell(0, 0.3, 0, 0.18, 0.25, 0.17, 1), fur, { tint: 1 }),
-    rp(ell(0, 0.28, 0.09, 0.12, 0.17, 0.09), speckle),
+    // the branch it sits on (runs back into the tree)
+    rp(tube([0, 0.02, 0.3], [0.05, -0.02, -0.7], 0.06, 0.08, 5), sh("#6a4a30"), { p: PROP }),
+    ...[-1, 1].map((s) => rp(box(s * 0.06, 0.07, 0.08, 0.06, 0.04, 0.08), col("#d8a13a"), { vm: O })),
+    rp(ell(0, 0.3, 0, 0.18, 0.25, 0.17, 1), fur, { tint: 1, vm: O }),
+    rp(ell(0, 0.28, 0.09, 0.12, 0.17, 0.09), speckle, { vm: O }),
     rp(ell(0, 0.62, 0, 0.19, 0.16, 0.17, 1), fur, { ...H, tint: 1 }),
     rp(ell(0, 0.61, 0.1, 0.155, 0.13, 0.07), face, H),
     // big glowing eyes (they glow at night)
@@ -505,10 +627,39 @@ export function buildOwl(): THREE.BufferGeometry {
     rp(cone([0, 0.58, 0.17], [0, 0.53, 0.2], 0.022, 4), col("#d8a13a"), H),
     // ear tufts
     ...[-1, 1].map((s) => rp(cone([s * 0.1, 0.72, 0.02], [s * 0.16, 0.85, 0.0], 0.04, 4), fur, { ...H, tint: 1 })),
-    rp(ell(0, 0.1, -0.16, 0.08, 0.1, 0.04, 0, [0.4, 0, 0]), fur, { p: TAIL, piv: [0, 0.14, -0.12], tint: 1 }),
+    rp(ell(0, 0.1, -0.16, 0.08, 0.1, 0.04, 0, [0.4, 0, 0]), fur, { p: TAIL, piv: [0, 0.14, -0.12], tint: 1, vm: O }),
   ];
-  for (const s of [-1, 1]) parts.push(rp(ell(s * 0.17, 0.3, -0.02, 0.055, 0.2, 0.13), sh("#cfc6b8"), { p: s < 0 ? WING_L : WING_R, piv: [s * 0.15, 0.44, 0], tint: 1 }));
+  for (const s of [-1, 1]) parts.push(rp(ell(s * 0.17, 0.3, -0.02, 0.055, 0.2, 0.13), sh("#cfc6b8"), { p: s < 0 ? WING_L : WING_R, piv: [s * 0.15, 0.44, 0], tint: 1, vm: O }));
+  parts.push(...kookaburraParts());
   return merge(parts);
+}
+
+/** the laughing kookaburra: cream head and chest, a dark eye stripe, brown wings with a blue
+ *  flash, a big beak (its lower half laughs: the jaw part) and a long barred tail */
+function kookaburraParts(): THREE.BufferGeometry[] {
+  const K = only(1);
+  const cream = sh("#f1e8d4", 0.2);
+  const brown = sh("#6b4a30", 0.25);
+  const N: V3 = [0, 0.33, 0.02];
+  const H = { p: HEAD, piv: N, vm: K };
+  const out: THREE.BufferGeometry[] = [
+    ...[-1, 1].map((s) => rp(box(s * 0.045, 0.06, 0.06, 0.04, 0.03, 0.06), sh("#6a6460"), { vm: K })),
+    rp(ell(0, 0.22, 0, 0.11, 0.14, 0.13, 1), cream, { vm: K }),
+    rp(ell(0, 0.26, -0.06, 0.1, 0.11, 0.1), brown, { vm: K, tint: 0.6 }),
+    rp(ell(0, 0.42, 0.03, 0.11, 0.1, 0.115, 1), cream, H),
+    rp(ell(0, 0.49, -0.01, 0.085, 0.04, 0.09), brown, { ...H, tint: 0.6 }),
+    ...[-1, 1].map((s) => rp(ell(s * 0.085, 0.43, 0.04, 0.03, 0.022, 0.06), sh("#4a3020"), H)),
+    ...eyes(0.088, 0.445, 0.07, 0.016, H, true),
+    rp(cone([0, 0.425, 0.11], [0, 0.395, 0.27], 0.036, 4), sh("#3a3330"), H),
+    rp(cone([0, 0.405, 0.11], [0, 0.39, 0.25], 0.026, 4), sh("#e9dcc0"), { p: JAW, piv: [0, 0.41, 0.11], piv2: N, vm: K }),
+    rp(ell(0, 0.13, -0.22, 0.045, 0.025, 0.14, 0, [0.55, 0, 0]), (p, n) => (Math.floor(p.z * 30) % 2 ? _c.set("#b8693a") : _c.set("#7a4a2a")).multiplyScalar(0.85 + 0.15 * n.y), { p: TAIL, piv: [0, 0.18, -0.1], vm: K }),
+  ];
+  for (const s of [-1, 1]) {
+    const W = { p: s < 0 ? WING_L : WING_R, piv: [s * 0.1, 0.32, 0] as V3, vm: K };
+    out.push(rp(ell(s * 0.105, 0.24, -0.05, 0.04, 0.1, 0.16), brown, { ...W, tint: 0.6 }));
+    out.push(rp(ell(s * 0.13, 0.28, 0.03, 0.02, 0.035, 0.05), col("#58a8e0"), W));
+  }
+  return out;
 }
 
 // ── critters: frogs (variant 1), turtles (2) and hedgehogs (3) in one mesh ──
@@ -597,20 +748,56 @@ function hedgehogParts(): THREE.BufferGeometry[] {
   const sg = new THREE.BufferGeometry();
   sg.setAttribute("position", new THREE.Float32BufferAttribute(spikes, 3));
   const spine: Paint = (p, n) => (p.y > 0.29 || Math.abs(p.x) > 0.27 ? _c.set("#f0dcb4") : _c.set("#9a7650")).multiplyScalar(0.82 + 0.18 * (n.y * 0.5 + 0.5));
+  // (the echidna, variant 4, shares the spiky back, the body and the legs)
+  const both = only(v, 4);
   const parts: THREE.BufferGeometry[] = [
-    rp(sg, spine, { v, tint: 0.4 }),
-    rp(ell(0, 0.1, -0.02, 0.18, 0.09, 0.22), cream, { v }),
+    rp(sg, spine, { vm: both, tint: 0.4 }),
+    rp(ell(0, 0.1, -0.02, 0.18, 0.09, 0.22), cream, { vm: both, tint: 0.35 }),
     rp(cone([0, 0.1, 0.14], [0, 0.07, 0.34], 0.075, 5), cream, { p: HEAD, piv: N, v, tuck: true }),
     rp(ell(0, 0.07, 0.34, 0.022, 0.02, 0.018), BLACK, { p: HEAD, piv: N, v, tuck: true }),
     ...eyes(0.045, 0.13, 0.22, 0.014, { p: HEAD, piv: N, v, tuck: true }, false),
     ...[-1, 1].map((s) => rp(ell(s * 0.07, 0.17, 0.15, 0.025, 0.025, 0.012), sh("#b89878"), { p: HEAD, piv: N, v, tuck: true })),
-    ...legs(0.1, 0.07, 0.1, -0.1, 0.025, 0.02, sh("#6a5040"), null, 0.02, 4, { v, tint: 0 }),
+    ...legs(0.1, 0.07, 0.1, -0.1, 0.025, 0.02, sh("#6a5040"), null, 0.02, 4, { vm: both, tint: 0 }),
+    // the echidna's long thin snout, little eyes
+    rp(ell(0, 0.1, 0.17, 0.08, 0.07, 0.07), sh("#4a3a30"), { p: HEAD, piv: N, v: 4, tuck: true }),
+    rp(tube([0, 0.09, 0.2], [0, 0.04, 0.4], 0.032, 0.012, 5), sh("#3a302a"), { p: HEAD, piv: N, v: 4, tuck: true }),
+    ...eyes(0.05, 0.12, 0.215, 0.012, { p: HEAD, piv: N, v: 4, tuck: true }, false),
   ];
   return parts;
 }
 
+/** the platypus (variant 5): a furry flat body, a duck's bill, a beaver's tail, webbed feet */
+function platypusParts(): THREE.BufferGeometry[] {
+  const v = 5;
+  const fur = sh("#ffffff", 0.3);
+  const bill = sh("#3c3a3a", 0.2);
+  const N: V3 = [0, 0.07, 0.13];
+  const H = { p: HEAD, piv: N, v };
+  const out: THREE.BufferGeometry[] = [
+    rp(ell(0, 0.07, 0, 0.11, 0.06, 0.17, 1), fur, { tint: 1, v }),
+    rp(ell(0, 0.075, 0.16, 0.07, 0.052, 0.07), fur, { ...H, tint: 1 }),
+    rp(ell(0, 0.068, 0.27, 0.07, 0.022, 0.085), bill, H),
+    ...eyes(0.045, 0.095, 0.2, 0.011, H, false),
+    rp(ell(0, 0.055, -0.24, 0.09, 0.025, 0.11), fur, { p: TAIL, piv: [0, 0.06, -0.15], tint: 0.8, v }),
+  ];
+  const defs: [number, number, number][] = [
+    [LEG_FL, -1, 0.1],
+    [LEG_FR, 1, 0.1],
+    [LEG_BL, -1, -0.1],
+    [LEG_BR, 1, -0.1],
+  ];
+  for (const [p, sx, z] of defs) out.push(rp(box(sx * 0.12, 0.02, z + 0.03, 0.07, 0.02, 0.07, [0, sx * 0.4, 0]), bill, { p, piv: [sx * 0.09, 0.05, z], v, tuck: true }));
+  return out;
+}
+
+/** frogs (variant 1), turtles (2) and the platypus (5) */
 export function buildCritters(): THREE.BufferGeometry {
-  return merge([...frogParts(), ...turtleParts(), ...hedgehogParts()]);
+  return merge([...frogParts(), ...turtleParts(), ...platypusParts()]);
+}
+
+/** the spiky ones: hedgehogs (variant 3) and echidnas (4) */
+export function buildSpiky(): THREE.BufferGeometry {
+  return merge(hedgehogParts());
 }
 
 // ── props: the paddock fence, trough and hay, the fox den, rabbit burrows, the bears' rocks ──
@@ -680,16 +867,55 @@ export function buildProps(plan: FaunaPlan): THREE.BufferGeometry | null {
     parts.push(rp(ell(b.x, y - 0.02, b.z, 0.5, 0.13, 0.46), sh("#9a7650")));
     parts.push(rp(ell(b.x, y + 0.06, b.z, 0.22, 0.07, 0.2), dark));
   }
+  for (const h of plan.holes) {
+    // a wombat burrow: a low earthy mound with a big round entrance
+    const y = groundY(h.x, h.z);
+    const mound = ell(0, 0, 0, 1.0, 0.45, 0.9, 0);
+    const hole = ell(0, 0.18, 0.72, 0.42, 0.3, 0.2);
+    for (const g of [mound, hole]) place(g, h.x, y - 0.08, h.z, [0, h.yaw, 0]);
+    parts.push(rp(mound, (_p, n) => (n.y > 0.75 ? _c.set("#8aae58") : _c.set("#94704a").multiplyScalar(0.8 + 0.2 * n.y))));
+    parts.push(rp(hole, dark));
+  }
+  const fm = plan.farm;
+  if (fm) {
+    // the farm corner: a red chicken coop on legs with a ramp, hay bales and a feed trough
+    const y = groundY(fm.x, fm.z);
+    const yaw = fm.yaw;
+    const at = (lx: number, lz: number) => ({ x: fm.x + Math.cos(yaw) * lx + Math.sin(yaw) * lz, z: fm.z - Math.sin(yaw) * lx + Math.cos(yaw) * lz });
+    const red = sh("#c9483a", 0.3);
+    const roof = sh("#6a4a3a", 0.3);
+    const cream = sh("#f3e6c8", 0.25);
+    parts.push(rp(box(fm.x, y + 1.05, fm.z, 1.9, 1.1, 1.5, [0, yaw, 0]), red));
+    for (const sx of [-1, 1]) {
+      const p = at(sx * 0.48, 0);
+      parts.push(rp(box(p.x, y + 1.85, p.z, 1.05, 0.1, 1.75, [0, yaw, sx * -0.62]), roof));
+    }
+    for (const [lx, lz] of [[-0.8, -0.6], [0.8, -0.6], [-0.8, 0.6], [0.8, 0.6]]) {
+      const p = at(lx, lz);
+      parts.push(rp(box(p.x, y + 0.25, p.z, 0.14, 0.5, 0.14, [0, yaw, 0]), wood));
+    }
+    const door = at(0, 0.76);
+    parts.push(rp(box(door.x, y + 0.95, door.z, 0.5, 0.6, 0.04, [0, yaw, 0]), dark));
+    parts.push(rp(box(door.x, y + 1.45, door.z, 1.2, 0.08, 0.05, [0, yaw, 0]), cream));
+    const ramp = at(0, 1.3);
+    parts.push(rp(box(ramp.x, y + 0.36, ramp.z, 0.45, 0.05, 1.25, [0.55, yaw, 0]), wood));
+    for (const [lx, lz, rot] of [[-2.4, 0.4, 0.3], [-2.2, -1.0, 1.4], [-3.2, -0.3, 0.9]] as [number, number, number][]) {
+      const p = at(lx, lz);
+      const hay = new THREE.CylinderGeometry(0.5, 0.5, 1.05, 7);
+      hay.deleteAttribute("uv");
+      place(hay, p.x, groundY(p.x, p.z) + 0.46, p.z, [0, yaw + rot, Math.PI / 2]);
+      parts.push(rp(hay, sh("#e2bb52")));
+    }
+    const tr = at(2.2, 0.6);
+    const ty = groundY(tr.x, tr.z);
+    parts.push(rp(box(tr.x, ty + 0.22, tr.z, 1.3, 0.44, 0.5, [0, yaw + 0.3, 0]), wood));
+    parts.push(rp(box(tr.x, ty + 0.41, tr.z, 1.1, 0.06, 0.36, [0, yaw + 0.3, 0]), sh("#e8c860")));
+  }
   for (const r of plan.rocks) {
     const y = groundY(r.x, r.z) + 0.06;
     parts.push(rp(ell(r.x, y + r.r * 0.1, r.z, r.r, r.r * 0.6, r.r * 0.9, 0, [0, r.x, 0]), sh("#a3a39c", 0.35)));
   }
   return parts.length ? merge(parts) : null;
-}
-
-/** the geometry for each instanced mesh (in MESH order: types.ts) */
-export function buildMeshGeometries(): THREE.BufferGeometry[] {
-  return [buildDeer(), buildRabbit(), buildFox(), buildSquirrel(), buildHorse(), buildGoat(), buildCow(), buildDuck(), buildOwl(), buildBear(), buildCritters()];
 }
 
 export const trisOf = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position.count) / 3;

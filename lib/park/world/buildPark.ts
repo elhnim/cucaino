@@ -582,7 +582,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const storybook = storyLook ? buildStorybook(scene, { lowQuality: opts.lowQuality, free: storyFree }) : null;
   if (storybook) disposables.push(storybook);
   // ── wildlife: deer, rabbits, foxes, squirrels, ponies, cows, goats, ducks, frogs, owls, bears … ──
-  const fauna = buildFauna(scene, { free: storyFree, lowQuality: opts.lowQuality, obstacles: [...nature.obstacles, ...fantasy.obstacles, ...(storybook?.obstacles ?? [])] });
+  const fauna = buildFauna(scene, { free: storyFree, lowQuality: opts.lowQuality, obstacles: [...nature.obstacles, ...fantasy.obstacles, ...(storybook?.obstacles ?? [])], sheep: !!storybook });
   disposables.push(fauna);
   // ── Coralcove Isle, far out at sea: the Tidewing Folk's villages ──
   const village = buildVillage(scene, { lowQuality: opts.lowQuality });
@@ -730,7 +730,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       storybook?.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
-      fauna.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow });
+      fauna.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour });
       built.villageTalk = village.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour }).talk;
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {

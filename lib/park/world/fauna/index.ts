@@ -1,25 +1,29 @@
-// The land animals of Cucaino Park: deer herds at the forest edges, rabbits in the meadows, foxes
-// (and a den of kits), squirrels up and down the trees, hedgehogs at dusk, horses and ponies in a
-// paddock by the Pet Meadow, goats on the hillside, cows on a grassy slope, a duck family on the
-// pond, frogs by the stream at twilight, owls with glowing eyes at night, a bear family fishing
-// in the stream and turtles plodding across a trail.
+// The land animals of Cucaino Park, all at their TRUE size, roaming the whole island: deer herds,
+// kangaroo mobs (a joey in the pouch), an emu dad and his chicks, cows, goats, the farm's sheep and
+// lambs, a little safari (giraffes, zebras, an elephant family), foxes, wombats, echidnas and
+// hedgehogs on their rounds — and the homebodies: horses and ponies in the paddock by the farm
+// corner (chickens round the coop), rabbits, a fox den with kits, squirrels, koalas, kookaburras and
+// owls in the trees by the trails, ducks and a platypus on the pond, frogs, bears fishing in the
+// stream and turtles plodding across a trail.
 //
-// Placement is pure and seeded (./plan.ts), behaviour is pure, deterministic and allocation-free
-// (./brain.ts), both tested. Each species is ONE instanced mesh whose legs, heads, ears, tails and
-// wings are posed in the vertex shader (./rig.ts), so the whole menagerie is a dozen draw calls.
+// Placement is pure and seeded (./plan.ts), the roaming map is ./roam.ts, behaviour is pure,
+// deterministic and allocation-free (./brain.ts), all tested. Each body plan is ONE instanced mesh
+// whose legs, heads, ears, tails, wings and trunks are posed in the vertex shader (./rig.ts), so the
+// whole menagerie is 15 draw calls (+ shadows for the big ones).
 import * as THREE from "three";
 import { groundY } from "../../registry/terrain";
-import { planForest, planMeadows, type FreeFn, type Meadow } from "../storybook/plan";
+import { planFlocks, planForest, planMeadows, planPasture, planWindmills, stepFlock, type Flock, type FreeFn, type Meadow, type Pasture } from "../storybook/plan";
 import { buildForestTree } from "../storybook/geometry";
-import { stepFauna, type FaunaEnv } from "./brain";
-import { buildMeshGeometries, buildProps, trisOf } from "./geometry";
+import { makeEnv, stepFauna, type FaunaEnv } from "./brain";
+import { buildProps, trisOf } from "./geometry";
 import { buildWalkGrid } from "./ground";
 import { canopyOf, planFauna } from "./plan";
 import { rigDepthMaterial, rigMaterial } from "./rig";
-import { KIND_NAMES, K_OWL, MESHES, MESH_NAMES, M_BEAR, M_COW, M_DEER, M_HORSE, M_GOAT, type Agent, type KidSense, type TreeLite } from "./types";
+import { buildMeshGeometries } from "./species";
+import { KIND_NAMES, K_KOOKABURRA, K_OWL, MESHES, MESH_NAMES, M_BEAR, M_COW, M_DEER, M_GOAT, M_HORSE, M_ROO, M_SAFARI, type Agent, type KidSense, type TreeLite } from "./types";
 
 export interface Fauna {
-  update(dt: number, t: number, o: { kid: THREE.Vector3; glow: number }): void;
+  update(dt: number, t: number, o: { kid: THREE.Vector3; glow: number; hour?: number }): void;
   /** hide while the camera's under the sea / far away */
   setVisible(v: boolean): void;
   dispose(): void;
@@ -29,9 +33,14 @@ export interface FaunaStats {
   animals: number;
   byKind: Record<string, number>;
   calls: number;
+  /** triangles submitted (every instance draws its whole shared mesh) */
   tris: number;
   trisByMesh: Record<string, number>;
   buildMs: number;
+  /** the roaming map */
+  nodes: number;
+  /** average update cost (ms), measured over the last 120 frames */
+  updateMs: number;
 }
 
 export interface FaunaOptions {
@@ -47,26 +56,33 @@ export interface FaunaOptions {
    * `obstacles` list). Animals walk round them and don't make their homes by the big ones.
    */
   obstacles?: readonly { x: number; z: number; r: number }[];
+  /**
+   * Is the storybook (and its sheep) in the scene? The animals walk round its grazing flocks:
+   * the flocks are re-planned and re-stepped here (deterministically, in step with the storybook's
+   * own), so everyone knows where each sheep is without the two modules talking. Default true.
+   */
+  sheep?: boolean;
 }
 
 /**
- * Sit each owl right on top of its tree's crown (the plan only knows the canopy's rough ellipsoid):
- * drop a ray onto the actual storybook tree model, a little way out toward the trail it faces.
+ * Sit each owl / kookaburra right on top of its tree's crown (the plan only knows the canopy's
+ * rough ellipsoid): drop a ray onto the actual storybook tree model, a little way out toward the
+ * trail it faces.
  */
-function perchOwls(agents: Agent[], trees: TreeLite[], low: boolean) {
+function perchBirds(agents: Agent[], trees: TreeLite[], low: boolean) {
   const models = new Map<number, THREE.Mesh>();
   const rc = new THREE.Raycaster();
   const from = new THREE.Vector3();
   const down = new THREE.Vector3(0, -1, 0);
   for (const a of agents) {
-    if (a.kind !== K_OWL || a.tree < 0) continue;
+    if ((a.kind !== K_OWL && a.kind !== K_KOOKABURRA) || a.tree < 0) continue;
     const t = trees[a.tree];
     let m = models.get(t.kind);
     if (!m) {
       m = new THREE.Mesh(buildForestTree(t.kind, low));
       models.set(t.kind, m);
     }
-    const d = canopyOf(t.kind).rx * 0.42;
+    const d = canopyOf(t.kind).rx * (a.kind === K_OWL ? 0.42 : 0.62);
     const ly = a.yaw - t.rot;
     rc.set(from.set(Math.sin(ly) * d, 30, Math.cos(ly) * d), down);
     const hit = rc.intersectObject(m, false)[0];
@@ -81,7 +97,7 @@ function perchOwls(agents: Agent[], trees: TreeLite[], low: boolean) {
 }
 
 /** big animals cast shadows (the small ones' would be a few pixels) */
-const SHADOW_MESHES = new Set([M_DEER, M_HORSE, M_COW, M_BEAR, M_GOAT]);
+const SHADOW_MESHES = new Set([M_DEER, M_HORSE, M_COW, M_BEAR, M_GOAT, M_ROO, M_SAFARI]);
 
 export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
   const t0 = typeof performance !== "undefined" ? performance.now() : 0;
@@ -93,10 +109,21 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
     const f = planForest(free, { lowQuality: low, meadows });
     forest = { trees: f.trees, covered: f.covered, meadows };
   }
-  const grid = buildWalkGrid(forest.covered, opts.obstacles);
-  const plan = planFauna(free, grid, { trees: forest.trees, meadows: forest.meadows }, { lowQuality: low, obstacles: opts.obstacles });
-  perchOwls(plan.agents, forest.trees, low);
-  const env: FaunaEnv = { g: grid, trees: forest.trees, paddock: plan.paddock, agents: plan.agents, shores: plan.shores };
+  // the storybook's sheep, re-planned exactly as it plans them (see storybook/index.ts)
+  let pasture: Pasture | null = null;
+  let flocks: Flock[] = [];
+  if (opts.sheep !== false) {
+    pasture = planPasture(free, forest.covered);
+    const startView = { x: 0, z: 30, r: 20 };
+    const mills = planWindmills(pasture, { count: low ? 3 : 4, avoid: [startView] });
+    const millObstacles = mills.map((m) => ({ x: m.x, z: m.z, r: 1.7 * 1.55 }));
+    flocks = planFlocks(pasture, { count: low ? 5 : 7, avoid: [...millObstacles.map((o) => ({ ...o, r: o.r + 2 })), startView], sites: forest.meadows });
+  }
+  const nSheep = flocks.reduce((n, f) => n + f.sheep.length, 0);
+  const grid = buildWalkGrid(forest.covered, opts.obstacles, free);
+  const plan = planFauna(free, grid, { trees: forest.trees, meadows: forest.meadows }, { lowQuality: low, obstacles: opts.obstacles, flocks: flocks.map((f) => ({ x: f.x, z: f.z, r: f.r + 2 })) });
+  perchBirds(plan.agents, forest.trees, low);
+  const env: FaunaEnv = makeEnv({ g: grid, trees: forest.trees, paddock: plan.paddock, agents: plan.agents, shores: plan.shores, graph: plan.graph, routes: plan.routes, farm: plan.farm, maxSheep: nSheep });
 
   const group = new THREE.Group();
   group.name = "fauna";
@@ -156,7 +183,7 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
   }
   for (const im of meshes) if (im?.instanceColor) im.instanceColor.needsUpdate = true;
 
-  // the paddock fence, the den, burrows, stepping stones: one static draw
+  // the paddock fence, the farm, the den, burrows, stepping stones: one static draw
   const propGeo = buildProps(plan);
   if (propGeo) {
     addRigAttrs(propGeo, 1);
@@ -176,15 +203,18 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
 
   const byKind: Record<string, number> = {};
   for (const a of plan.agents) byKind[KIND_NAMES[a.kind]] = (byKind[KIND_NAMES[a.kind]] ?? 0) + 1;
-  const stats: FaunaStats = { animals: plan.agents.length, byKind, calls, tris, trisByMesh, buildMs: 0 };
+  const stats: FaunaStats = { animals: plan.agents.length, byKind, calls, tris, trisByMesh, buildMs: 0, nodes: plan.graph.n, updateMs: 0 };
   group.userData.stats = stats;
   group.userData.sites = plan.sites;
   group.userData.agents = plan.agents;
+  group.userData.env = env;
 
   // the kid, as the animals sense it
-  const kid: KidSense = { x: 0, y: 0, z: 0, speed: 0, still: 0, ground: true };
+  const kid: KidSense = { x: 0, y: 0, z: 0, speed: 0, dx: 0, dz: 1, still: 0, ground: true };
   let kidInit = false;
   let visible = true;
+  let sumMs = 0;
+  let frames = 0;
 
   const m4 = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -195,12 +225,36 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
   const agents = plan.agents;
   stats.buildMs = typeof performance !== "undefined" ? Math.round(performance.now() - t0) : 0;
 
+  /** keep the sheep in step with the storybook's (and tell the animals where they are) */
+  const stepSheep = (dt: number, t: number) => {
+    if (!pasture) return;
+    let k = 0;
+    for (let i = 0; i < flocks.length; i++) {
+      const f = flocks[i];
+      stepFlock(f, pasture, dt, t);
+      if (i < 16) {
+        env.flocks[i * 3] = f.x;
+        env.flocks[i * 3 + 1] = f.z;
+        env.flocks[i * 3 + 2] = f.r + 2;
+      }
+      for (const s of f.sheep) {
+        env.sheep[k * 2] = s.x;
+        env.sheep[k * 2 + 1] = s.z;
+        k++;
+      }
+    }
+    env.nSheep = k;
+    env.nFlocks = Math.min(16, flocks.length);
+  };
+
   const fauna: Fauna = {
     update(dtIn, t, o) {
-      if (!visible) return;
       const dt = Math.min(Math.max(dtIn, 0), 0.1);
+      stepSheep(dt, t);
+      if (!visible) return;
       if (dt <= 0) return;
-      // kid speed (smoothed), how long it has stood still, on the ground or flying overhead
+      const tu = typeof performance !== "undefined" ? performance.now() : 0;
+      // kid speed (smoothed), heading, how long it has stood still, on the ground or flying overhead
       const p = o.kid;
       if (!kidInit) {
         kid.x = p.x;
@@ -212,6 +266,14 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
       const moved = Math.sqrt(dx * dx + dz * dz);
       const inst = moved > 15 ? 0 : moved / dt; // (a teleport isn't running)
       kid.speed += (inst - kid.speed) * Math.min(1, dt * 8);
+      if (moved > 1e-4 && moved < 15) {
+        const k = Math.min(1, dt * 5);
+        kid.dx += (dx / moved - kid.dx) * k;
+        kid.dz += (dz / moved - kid.dz) * k;
+        const l = Math.hypot(kid.dx, kid.dz) || 1;
+        kid.dx /= l;
+        kid.dz /= l;
+      }
       kid.still = kid.speed < 0.35 ? kid.still + dt : 0;
       kid.x = p.x;
       kid.y = p.y;
@@ -220,7 +282,7 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
       const g = o.glow;
       U.uEye.value = Math.min(1, Math.max(0, (g - 0.3) / 0.5)) * 2.6;
 
-      stepFauna(env, kid, dt, t, g);
+      stepFauna(env, kid, dt, t, g, o.hour ?? 12);
 
       for (let i = 0; i < agents.length; i++) {
         const a = agents[i];
@@ -253,6 +315,7 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
         B[j] = a.ear;
         B[j + 1] = a.tail;
         B[j + 2] = a.paw;
+        B[j + 3] = a.variant + Math.min(0.9, a.hint * 0.9);
         C[j] = a.wing;
         C[j + 1] = a.tailLift;
         C[j + 2] = a.tuck;
@@ -266,6 +329,14 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
         at.a.needsUpdate = true;
         at.b.needsUpdate = true;
         at.c.needsUpdate = true;
+      }
+      if (tu) {
+        sumMs += performance.now() - tu;
+        if (++frames >= 120) {
+          stats.updateMs = Math.round((sumMs / frames) * 1000) / 1000;
+          sumMs = 0;
+          frames = 0;
+        }
       }
     },
     setVisible(vis) {

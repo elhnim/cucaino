@@ -4,16 +4,19 @@
 //
 // Per vertex:
 //   aRig   (part, pivot.xyz)   part: 0 body, 1 head (+ neck, antlers ...), 2..5 legs FL FR BL BR,
-//                              6 tail, 7 / 8 ears L / R (children of the head), 9 / 10 wings L / R;
+//                              6 tail, 7 / 8 ears L / R (children of the head), 9 / 10 wings L / R,
+//                              11 jaw / trunk (a child of the head, curled by the wing channel),
+//                              12 a prop that never moves (the owls' branch);
 //                              part + 16 = "tuckable" (shrinks toward its pivot as `tuck` rises:
 //                              legs folding under a lying cow, a turtle pulling its head in)
 //   aPiv2  the head's pivot (for ears, which turn with the head)
-//   aFx    (tint, glow, variant)  tint: how much the instance colour tints this vertex (fur yes,
-//                              eyes no); glow: emissive at night (owls' eyes); variant: 0 always
-//                              drawn, k > 0 only on instances of variant k, -k on all but k
+//   aFx    (tint, glow, mask)   tint: how much the instance colour tints this vertex (fur yes,
+//                              eyes no); glow: emissive at night (owls' eyes); mask: 0 always
+//                              drawn, else a bit mask of the variants that show it (bit k =
+//                              variant k), so species sharing a mesh share some parts
 // Per instance:
 //   iA  (gait phase, stride, head yaw, head pitch)
-//   iB  (ear flick, tail wag, front-right paw raise, variant)
+//   iB  (ear flick, tail wag, front-right paw raise, variant + 0.9 × hint glow)
 //   iC  (wing spread, tail lift, tuck, bound: 0 walk (diagonal legs) .. 1 bound / hop (pairs))
 import * as THREE from "three";
 
@@ -39,11 +42,12 @@ void faunaRig( inout vec3 p, inout vec3 n ) {
   float tk = step( 15.5, pid );
   pid -= 16.0 * tk;
   vec3 piv = aRig.yzw;
-  float vv = aFx.z;
-  float iv = iB.w;
   float show = 1.0;
-  if ( vv > 0.5 ) show = abs( iv - vv ) < 0.5 ? 1.0 : 0.0;
-  else if ( vv < -0.5 ) show = abs( iv + vv ) < 0.5 ? 0.0 : 1.0;
+  if ( aFx.z > 0.5 ) {
+    int vm = int( aFx.z + 0.5 );
+    int iv = int( floor( iB.w + 0.001 ) );
+    show = float( ( vm >> iv ) & 1 );
+  }
   float side = piv.x >= 0.0 ? 1.0 : -1.0;
   mat3 R = mat3( 1.0 );
   mat3 H = mat3( 1.0 );
@@ -65,8 +69,12 @@ void faunaRig( inout vec3 p, inout vec3 n ) {
     R = faRZ( side * iB.x );
     H = faRY( iA.z ) * faRX( iA.w );
     child = 1.0;
-  } else {
+  } else if ( pid < 10.5 ) {
     R = faRZ( side * iC.x );
+  } else if ( pid < 11.5 ) {
+    R = faRX( -iC.x );
+    H = faRY( iA.z ) * faRX( iA.w );
+    child = 1.0;
   }
   if ( tk > 0.5 ) p = piv + ( p - piv ) * ( 1.0 - 0.92 * iC.z );
   p = piv + R * ( p - piv );
@@ -102,7 +110,7 @@ export function rigMaterial(U: RigUniforms): THREE.MeshStandardMaterial {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uEye = U.uEye;
     shader.vertexShader = patchVertex(shader.vertexShader, true)
-      .replace("#include <common>", "#include <common>\nvarying float vFaGlow;")
+      .replace("#include <common>", "#include <common>\nvarying float vFaGlow;\nvarying float vFaHint;")
       .replace(
         "#include <color_vertex>",
         `#if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )
@@ -114,13 +122,16 @@ export function rigMaterial(U: RigUniforms): THREE.MeshStandardMaterial {
             vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, aFx.x );
           #endif
         #endif
-        vFaGlow = aFx.y;`,
+        vFaGlow = aFx.y;
+        vFaHint = fract( iB.w + 0.0001 ) * 1.1;`,
       );
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vFaGlow;\nuniform float uEye;").replace(
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vFaGlow;\nvarying float vFaHint;\nuniform float uEye;").replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
         #if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )
           totalEmissiveRadiance += vColor.rgb * vFaGlow * uEye;
+          // (a small animal right by the kid glows softly so it reads from the follow camera)
+          totalEmissiveRadiance += ( vColor.rgb * 0.55 + vec3( 0.12, 0.1, 0.05 ) ) * vFaHint * 0.6;
         #endif`,
     );
   };
