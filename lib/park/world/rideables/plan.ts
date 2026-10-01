@@ -9,7 +9,7 @@ export const SEA_ROOT_Y = { dolphin: WATER_Y - MOUNT_SEA_DRAFT.dolphin!, whale: 
 /** how deep the water must be for each swimmer to come up (m) */
 export const SEA_MIN_DEPTH = { dolphin: 3, whale: 12 } as const;
 /** how far from the kid they stop to wait (m) */
-export const SEA_WAIT_R = { dolphin: [9, 12], whale: [11.5, 14] } as const;
+export const SEA_WAIT_R = { dolphin: [9, 12], whale: [13, 16] } as const;
 /** how far out they start swimming in from (m, beyond the wait spot) */
 export const SEA_START_R = 32;
 

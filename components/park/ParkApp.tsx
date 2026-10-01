@@ -1287,7 +1287,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {ready && !busy && !building && !onCoaster && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={rideBar}>
-          {((riding && MOUNT_CAPS[riding.kind].medium !== "land" && !riding.landing) || (swim && !riding)) && (
+          {((riding && MOUNT_CAPS[riding.kind].medium !== "land" && MOUNT_CAPS[riding.kind].medium !== "boat" && !riding.landing) || (swim && !riding)) && (
             <>
               {(["up", "down"] as const).map((dir) => (
                 <RoundButton
@@ -1300,7 +1300,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   }}
                   onPointerUp={() => worldRef.current?.setFly(0)}
                   onPointerCancel={() => worldRef.current?.setFly(0)}
-                  aria-label={swim && !riding ? (dir === "up" ? "Swim up" : "Dive") : dir === "up" ? "Fly higher" : "Fly lower"}
+                  aria-label={
+                    swim && !riding
+                      ? dir === "up" ? "Swim up" : "Dive"
+                      : riding && MOUNT_CAPS[riding.kind].medium !== "air"
+                        ? dir === "up" ? "Go up" : "Dive deeper"
+                        : dir === "up" ? "Fly higher" : "Fly lower"
+                  }
                 >
                   {dir === "up" ? "▲" : "▼"}
                 </RoundButton>
@@ -1325,11 +1331,23 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                 toast(
                   c.medium === "air"
                     ? `${c.emoji} Up we go! Hold ▲ to fly higher, ▼ to swoop down`
-                    : c.medium === "under"
-                      ? `${c.emoji} Hold on! ▲ and ▼ to swim up and down — mantas stay under the waves`
-                      : c.medium === "sea"
-                        ? `${c.emoji} All aboard! Hold ▼ to dive, ▲ to come back up`
-                        : `${c.emoji} ${c.verb}! Off we go`,
+                    : kind === "deepsub"
+                      ? `${c.emoji} Hatch closed! Hold ▼ to dive — the Deep Explorer can go all the way down the Midnight Rift`
+                      : kind === "sub"
+                        ? `${c.emoji} Bubble Sub ready! Hold ▼ to dive, ▲ to come back up`
+                        : c.medium === "under"
+                          ? `${c.emoji} Hold on! ▲ and ▼ to swim up and down — mantas stay under the waves`
+                          : c.medium === "sea"
+                            ? `${c.emoji} All aboard! Hold ▼ to dive, ▲ to come back up`
+                            : kind === "ship"
+                              ? `${c.emoji} Ahoy, Captain! Steer the ship with the joystick`
+                              : kind === "pedalo"
+                                ? `${c.emoji} Pedal away! Duck pedalos stay near the shore`
+                                : kind === "speedboat"
+                                  ? `${c.emoji} Vroom! The Rocket Boat can zoom right across the ocean`
+                                  : c.medium === "boat"
+                                    ? `${c.emoji} Anchors up! Sail with the joystick — boats can't go on the sand`
+                                    : `${c.emoji} ${c.verb}! Off we go`,
                 );
               }}
               aria-label={riding ? "Hop off" : hopTarget?.label ?? "Hop on"}

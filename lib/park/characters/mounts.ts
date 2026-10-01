@@ -1,48 +1,126 @@
 // Rideable friends and vehicles for getting round Cucaino Park: bikes and buggies on the trails,
-// rainbow unicorns in the meadows, Cloud Dragons on the hilltops, manta rays on the reef, and the
-// dolphins and whales that come up to swim with you out at sea. Built in code in the same chibi
-// style as the characters (big sparkly eyes, soft toon colours), each with a `seat` the kid sits on.
+// rainbow unicorns in the meadows, Cloud Dragons on the hilltops, manta rays on the reef, the
+// dolphins and whales that come up to swim with you out at sea - and the boats and submarines
+// moored at the harbours (built in ./boats). Built in code in the same chibi style as the
+// characters (big sparkly eyes, soft toon colours), each with a `seat` the kid sits on.
+//
+// TRUE SIZE: the kid is 2.26 world units tall and stands for a ~1.4 m 10-year-old, so 1 real metre
+// is 1.6 world units (M below). Animals are modelled in a small "chibi" unit and scaled up by
+// MOUNT_SCALE (unicorn 1.6 m at the shoulder, dolphin ~2.7 m, manta ~6 m wingspan, humpback whale
+// ~14 m, dragon ~10 m); boats and subs are modelled at true size directly (MOUNT_SCALE 1).
 //
 // Every rig is ONE skinned mesh (one draw call + a blob shadow): the parts are rigid "bones"
 // (legs, wheels, wings, tail...) and all colours are vertex colours on one shared toon material,
-// with glowing bits (horn, headlights, spots) marked by a per-vertex `glow` attribute.
+// with glowing bits (horn, headlights, spots) marked by a per-vertex `glow` attribute. (Subs add
+// one see-through glass bubble so the kid shows inside.)
 // The same geometry, frozen in its idle pose, is what the world instances for parked/idle
-// rideables (lib/park/world/rideables) — so a parked bike looks exactly like the one you ride.
+// rideables (lib/park/world/rideables) - so a parked bike looks exactly like the one you ride.
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { getToonRamp } from "../assets/loader";
+import { buildCraftParts } from "./boats";
 
+/** world units per real metre (the kid: 2.26 units = 1.4 m) */
+export const M = 1.6;
+
+/** boats: on the sea's surface only (never below it), stopped by beaches and shallows */
+export type BoatKind = "pedalo" | "sailboat" | "speedboat" | "ship";
+/** submarines: under the sea (or bobbing at the surface), with headlights */
+export type SubKind = "sub" | "deepsub";
 /** "pony" is the old name of the unicorn (kept so saved picks keep working) */
-export type MountKind = "pony" | "unicorn" | "bike" | "car" | "manta" | "dragon" | "whale" | "dolphin";
+export type MountKind = "pony" | "unicorn" | "bike" | "car" | "manta" | "dragon" | "whale" | "dolphin" | BoatKind | SubKind;
+export const BOAT_KINDS: BoatKind[] = ["pedalo", "sailboat", "speedboat", "ship"];
+export const SUB_KINDS: SubKind[] = ["sub", "deepsub"];
+export const isBoat = (k: MountKind): k is BoatKind => (BOAT_KINDS as string[]).includes(k);
+export const isSub = (k: MountKind): k is SubKind => (SUB_KINDS as string[]).includes(k);
+/** boats and subs (moored at docks, drawn by the fleet: lib/park/world/rideables/fleet) */
+export const isCraft = (k: MountKind): k is BoatKind | SubKind => isBoat(k) || isSub(k);
 
 /** every kind a kid can find in the world (pony is only an alias of unicorn) */
-export const RIDEABLE_KINDS: Exclude<MountKind, "pony">[] = ["bike", "car", "unicorn", "dragon", "manta", "dolphin", "whale"];
+export const RIDEABLE_KINDS: Exclude<MountKind, "pony">[] = ["bike", "car", "unicorn", "dragon", "manta", "dolphin", "whale", "pedalo", "sailboat", "speedboat", "ship", "sub", "deepsub"];
 
-export type MountMedium = "land" | "air" | "under" | "sea";
+export type MountMedium = "land" | "air" | "under" | "sea" | "boat";
 
 /**
- * What each ride can do. `speed` is a multiplier of the kid's walking speed.
+ * What each ride can do. `speed` is a multiplier of the kid's walking speed (7 units/s).
  * - land: ground only, stops at the shore (bike, car, unicorn)
  * - air: flies (dragon)
- * - under: only under the water, never above the surface (manta)
+ * - under: under the water (manta; subs may also bob up at the surface)
  * - sea: swims at the surface and can dive (whale, dolphin)
+ * - boat: floats on the surface only, stopped by beaches, shallows and jetties
+ * (the ocean wraps at 640 units: the Rocket Boat crosses it in well under a minute)
  */
 export const MOUNT_CAPS: Record<MountKind, { medium: MountMedium; speed: number; label: string; emoji: string; verb: string }> = {
-  pony: { medium: "land", speed: 2.3, label: "Rainbow Unicorn", emoji: "🦄", verb: "Ride" },
-  unicorn: { medium: "land", speed: 2.3, label: "Rainbow Unicorn", emoji: "🦄", verb: "Ride" },
-  bike: { medium: "land", speed: 2.0, label: "Bike", emoji: "🚲", verb: "Ride" },
-  car: { medium: "land", speed: 2.6, label: "Buggy", emoji: "🚙", verb: "Drive" },
-  dragon: { medium: "air", speed: 2.6, label: "Cloud Dragon", emoji: "🐉", verb: "Fly" },
-  manta: { medium: "under", speed: 1.8, label: "Reef Manta", emoji: "🪽", verb: "Glide on" },
-  dolphin: { medium: "sea", speed: 2.8, label: "Dolphin", emoji: "🐬", verb: "Swim with" },
-  whale: { medium: "sea", speed: 1.4, label: "Gentle Whale", emoji: "🐋", verb: "Ride" },
+  pony: { medium: "land", speed: 2.3, label: "Rainbow Unicorn", emoji: "\u{1F984}", verb: "Ride" },
+  unicorn: { medium: "land", speed: 2.3, label: "Rainbow Unicorn", emoji: "\u{1F984}", verb: "Ride" },
+  bike: { medium: "land", speed: 2.0, label: "Bike", emoji: "\u{1F6B2}", verb: "Ride" },
+  car: { medium: "land", speed: 2.6, label: "Buggy", emoji: "\u{1F699}", verb: "Drive" },
+  dragon: { medium: "air", speed: 2.6, label: "Cloud Dragon", emoji: "\u{1F409}", verb: "Fly" },
+  manta: { medium: "under", speed: 1.8, label: "Reef Manta", emoji: "\u{1FABD}", verb: "Glide on" },
+  dolphin: { medium: "sea", speed: 2.8, label: "Dolphin", emoji: "\u{1F42C}", verb: "Swim with" },
+  whale: { medium: "sea", speed: 1.4, label: "Gentle Whale", emoji: "\u{1F40B}", verb: "Ride" },
+  pedalo: { medium: "boat", speed: 1.15, label: "Duck Pedalo", emoji: "\u{1F986}", verb: "Pedal" },
+  sailboat: { medium: "boat", speed: 2.6, label: "Candy Sailboat", emoji: "\u26F5", verb: "Sail" },
+  speedboat: { medium: "boat", speed: 5, label: "Rocket Boat", emoji: "\u{1F6A4}", verb: "Drive" },
+  ship: { medium: "boat", speed: 2.1, label: "Pirate Ship", emoji: "\u{1F3F4}\u200D\u2620\uFE0F", verb: "Captain" },
+  sub: { medium: "under", speed: 1.7, label: "Bubble Sub", emoji: "\u{1FAE7}", verb: "Dive in" },
+  deepsub: { medium: "under", speed: 1.4, label: "Deep Explorer", emoji: "\u{1F526}", verb: "Dive in" },
 };
 
 /**
- * How far below the sea surface (WATER_Y) a swimmer's root rides so its back — and the kid's
- * seat — sits just out of the water. (The engine's generic "at sea" height is WATER_Y - 0.85.)
+ * Model scale per kind (rigs are built in chibi units, then scaled to true size). Boats and subs
+ * are modelled at true size already.
  */
-export const MOUNT_SEA_DRAFT: Partial<Record<MountKind, number>> = { dolphin: 0.42, whale: 0.55 };
+export const MOUNT_SCALE: Record<MountKind, number> = {
+  pony: 1.28, unicorn: 1.28, bike: 1, car: 1, manta: 1.6, dragon: 3.2, whale: 2, dolphin: 1,
+  pedalo: 1, sailboat: 1, speedboat: 1, ship: 1, sub: 1, deepsub: 1,
+};
+
+/**
+ * Each ride's footprint in world units (after scaling), as a capsule along its heading:
+ * [half length, half width, centre offset forward]. Used to hop on from anywhere alongside (a
+ * whale or a pirate ship is easy to reach) and to keep boats off the sand.
+ */
+export const MOUNT_BODY: Record<MountKind, [number, number, number]> = {
+  bike: [1.0, 0.35, 0], car: [1.6, 0.9, 0], pony: [1.8, 0.8, 0.2], unicorn: [1.8, 0.8, 0.2],
+  dragon: [6.5, 3.2, 0], manta: [1.6, 4.2, 0], dolphin: [1.9, 0.6, -0.3], whale: [8.6, 3.3, -2.2],
+  pedalo: [2.6, 1.3, 0], sailboat: [4.6, 1.8, 0], speedboat: [4.3, 1.7, 0], ship: [11, 3.5, 0.4], sub: [3.2, 1.25, 0], deepsub: [2.8, 2.7, 0.3],
+};
+
+/** how far from a ride's side (m) the kid can be to hop on */
+export const HOP_REACH = 3.2;
+
+/** how much further back the camera sits while riding (1 = a kid-sized ride) */
+export const MOUNT_VIEW: Record<MountKind, number> = {
+  bike: 1, car: 1, pony: 1.05, unicorn: 1.05, dragon: 1.5, manta: 1.2, dolphin: 1, whale: 1.55,
+  pedalo: 1.0, sailboat: 1.3, speedboat: 1.1, ship: 1.75, sub: 1.0, deepsub: 1.05,
+};
+
+/**
+ * How far below the sea surface (WATER_Y) a swimmer's root rides so its back - and the kid's
+ * seat - sits just out of the water. (The engine's generic "at sea" height is WATER_Y - 0.85.)
+ * Boats ride with their root ON the surface (their hulls are modelled below it).
+ */
+export const MOUNT_SEA_DRAFT: Partial<Record<MountKind, number>> = { dolphin: 0.42, whale: 1.6 };
+
+/** boats: how deep the water must be under the hull (m), the deepest sea they'll go out on, and how they handle */
+export const BOAT_CAPS: Record<BoatKind, { draft: number; maxSea: number; accel: number; turn: number }> = {
+  // the pedalo is a shore boat: it stays on the shallow shelves round the islands
+  pedalo: { draft: 0.55, maxSea: 15, accel: 1.6, turn: 2.6 },
+  sailboat: { draft: 1.0, maxSea: Infinity, accel: 0.8, turn: 1.5 },
+  speedboat: { draft: 0.7, maxSea: Infinity, accel: 1.3, turn: 2.2 },
+  ship: { draft: 1.9, maxSea: Infinity, accel: 0.45, turn: 0.8 },
+};
+
+/**
+ * subs: where the root rides when surfaced (WATER_Y + surf), how far the hull reaches below the
+ * root (kept off the floor), the deepest they may go below the surface, and how fast they dive
+ */
+export const SUB_CAPS: Record<SubKind, { surf: number; clear: number; maxDepth: number; rate: number; accel: number; turn: number }> = {
+  sub: { surf: -0.6, clear: 1.45, maxDepth: 40, rate: 7, accel: 1.3, turn: 1.9 },
+  // the Deep Explorer goes all the way down to the floor of the Midnight Rift (~123 m)
+  deepsub: { surf: -0.35, clear: 2.15, maxDepth: 400, rate: 12, accel: 1.1, turn: 1.6 },
+};
 
 /** the old picker's list (kept for ParkApp until it moves to finding rides in the world) */
 export const MOUNTS: { kind: MountKind; name: string; emoji: string; flies: boolean; blurb: string }[] = [
@@ -68,6 +146,12 @@ const SKIN_COLORS: Record<MountKind, Record<MountSkin, string>> = {
   dragon: { classic: "#8fe0c8", aurora: "#8fb8ff", golden: "#f0c040", starlight: "#9a7ae8" },
   whale: { classic: "#6f8fcf", aurora: "#5fb8c8", golden: "#c9a24e", starlight: "#4a4a9a" },
   dolphin: { classic: "#7fb4e6", aurora: "#8fe0e0", golden: "#e8c070", starlight: "#8a7ad8" },
+  pedalo: { classic: "#ffd84a", aurora: "#9fe8ff", golden: "#ffc23a", starlight: "#c6b0ff" },
+  sailboat: { classic: "#6cc4ff", aurora: "#8fe8c8", golden: "#f0c040", starlight: "#8a6ae8" },
+  speedboat: { classic: "#ff4f7a", aurora: "#4fc8e8", golden: "#f0b030", starlight: "#6a5ab8" },
+  ship: { classic: "#7a4cc8", aurora: "#3a8ab8", golden: "#c9862e", starlight: "#3a2a7a" },
+  sub: { classic: "#ffd23c", aurora: "#7fe0c8", golden: "#f0b030", starlight: "#a88cff" },
+  deepsub: { classic: "#ff8a3c", aurora: "#4fc8e8", golden: "#f0c040", starlight: "#8a6ae8" },
 };
 
 export interface MountRig {
@@ -136,7 +220,14 @@ export function mountShadowTexture(): THREE.DataTexture {
 /** blob shadow footprint (w, l) per kind */
 export const MOUNT_SHADOW: Record<MountKind, [number, number]> = {
   pony: [2.2, 3.4], unicorn: [2.2, 3.4], bike: [1.2, 2.4], car: [2.6, 3.8], manta: [4.2, 3.6], dragon: [3.2, 3.6], whale: [5, 10], dolphin: [1.6, 3.4],
+  pedalo: [2.6, 5], sailboat: [3.4, 9], speedboat: [3.2, 8.4], ship: [6.6, 21], sub: [2.4, 6.4], deepsub: [4.6, 5.8],
 };
+/** the blob shadow's footprint in world units (scaled with the ride) */
+export function mountShadowSize(kind: MountKind): [number, number] {
+  const [w, l] = MOUNT_SHADOW[kind];
+  const s = MOUNT_SCALE[kind];
+  return [w * s, l * s];
+}
 
 /**
  * How far a ride leans in a turn (radians, for root.rotation.z): bikes lean into the turn,
@@ -144,11 +235,17 @@ export const MOUNT_SHADOW: Record<MountKind, [number, number]> = {
  * (positive = turning towards +X from +Z), `speed` in m/s.
  */
 export function mountLean(kind: MountKind, yawRate: number, speed: number): number {
-  const k = kind === "bike" ? 0.045 : kind === "car" ? -0.008 : kind === "unicorn" || kind === "pony" ? 0.012 : kind === "dolphin" ? 0.03 : 0;
-  const max = kind === "bike" ? 0.42 : kind === "dolphin" ? 0.35 : 0.08;
+  // (boats: the Rocket Boat banks hard into a turn, the sailboat heels, the big ship rolls a touch
+  // outwards; the subs bank like little planes)
+  const [k, max] = LEAN[kind] ?? [0, 0];
   if (!k) return 0;
   return Math.max(-max, Math.min(max, -yawRate * speed * k));
 }
+
+const LEAN: Partial<Record<MountKind, [number, number]>> = {
+  bike: [0.045, 0.42], car: [-0.008, 0.08], unicorn: [0.012, 0.08], pony: [0.012, 0.08], dolphin: [0.03, 0.35],
+  pedalo: [0.01, 0.06], sailboat: [0.012, 0.2], speedboat: [0.012, 0.32], ship: [-0.0035, 0.06], sub: [0.02, 0.3], deepsub: [0.012, 0.18],
+};
 
 // placeholder material for the build step (parts are baked into vertex colours)
 const BUILD_MAT = new THREE.MeshBasicMaterial();
@@ -158,11 +255,16 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin = "classic"): MountRig {
   const main = SKIN_COLORS[kind][skin] ?? SKIN_COLORS[kind].classic;
+  const S = MOUNT_SCALE[kind] ?? 1;
   const root = new THREE.Group();
   root.name = `mount:${kind}`;
+  // everything visual hangs off `sc`, which scales the chibi-unit model up to true size
+  const sc = new THREE.Group();
+  sc.name = "mount-scale";
+  root.add(sc);
   const body = new THREE.Bone(); // bobs/tilts
   body.name = "body";
-  root.add(body);
+  sc.add(body);
 
   /** a part: `col` becomes its vertex colour; `glow` parts light up at night */
   const mesh = (g: THREE.BufferGeometry, col: string, glow = false) => {
@@ -237,6 +339,8 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
   let anim: (t: number, dt: number, speed: number, airborne: boolean) => void = () => {};
   let restAmt = 0;
   let caps = MOUNT_CAPS[kind];
+  /** craft: adds non-baked parts (a sub's glass bubble) once the body is skinned */
+  let after: ((body: THREE.Bone) => void) | null = null;
 
   if (kind === "pony" || kind === "unicorn") {
     // a proper unicorn: long legs, arched neck, spiral glowing horn, flowing rainbow mane + tail
@@ -580,7 +684,7 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
     const Rw = 0.46;
     const wheels: THREE.Bone[] = [];
     for (const [x, z] of [[-0.86, 0.95], [0.86, 0.95], [-0.86, -0.92], [0.86, -0.92]] as const) {
-      const w = bone(root, x, Rw, z);
+      const w = bone(sc, x, Rw, z);
       const tyre = mesh(new THREE.CylinderGeometry(Rw, Rw, 0.36, 14), "#3a3040");
       tyre.rotation.z = Math.PI / 2;
       w.add(tyre);
@@ -828,6 +932,14 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
       flippers[1].rotation.z = -0.26 - Math.sin(t * 0.6) * 0.14;
       flippers[0].rotation.x = flippers[1].rotation.x = Math.sin(t * 0.6 + 1) * 0.1;
     };
+  } else if (isCraft(kind)) {
+    // boats and subs (./boats), built at true size from the same parts kit
+    const c = buildCraftParts(kind, { body, sc, mesh, bone, tube, flat, eyes, main, accent });
+    baseSeat.set(...c.seat);
+    basePet.set(...c.pet);
+    anim = c.anim;
+    after = c.after ?? null;
+    eyeList = c.eyes ?? [];
   } else {
     // a sleek, speedy dolphin: sit just in front of the dorsal fin; it porpoises out of the
     // water in big happy leaps when going fast
@@ -909,7 +1021,8 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
     };
   }
 
-  const flies = caps.medium === "air" || caps.medium === "under";
+  // (subs move with their own depth logic in the engine, not the fliers' altitude)
+  const flies = (caps.medium === "air" || caps.medium === "under") && !isSub(kind);
 
   // ── bake: every part into one skinned mesh (rigid bones, vertex colours, glow mask) ──
   root.updateMatrixWorld(true);
@@ -960,13 +1073,15 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
   const skinned = new THREE.SkinnedMesh(geo, mountMaterial());
   skinned.name = "mount-body";
   skinned.frustumCulled = false;
-  root.add(skinned);
+  sc.add(skinned);
   skinned.add(body);
   skinned.updateMatrixWorld(true);
   skinned.bind(new THREE.Skeleton(bones));
+  sc.scale.setScalar(S);
+  after?.(body);
 
   // a soft blob shadow on the ground (the engine keeps it at ground level while flying)
-  const [sw0, sl0] = MOUNT_SHADOW[kind];
+  const [sw0, sl0] = mountShadowSize(kind);
   const shadowMat = new THREE.MeshBasicMaterial({ map: mountShadowTexture(), transparent: true, depthWrite: false });
   const shadowGeo = new THREE.PlaneGeometry(sw0, sl0);
   const shadow = new THREE.Mesh(shadowGeo, shadowMat);
@@ -988,8 +1103,8 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
       t += dt;
       anim(t, dt, speed, airborne);
       // the rider moves with the body's bob (and the dolphin's leaps)
-      seat.set(baseSeat.x, baseSeat.y + body.position.y, baseSeat.z - body.rotation.x * baseSeat.y * 0.3);
-      petSeat.set(basePet.x, basePet.y + body.position.y + body.rotation.x * basePet.z, basePet.z);
+      seat.set(baseSeat.x, baseSeat.y + body.position.y - body.rotation.x * baseSeat.z, baseSeat.z - body.rotation.x * baseSeat.y * 0.3).multiplyScalar(S);
+      petSeat.set(basePet.x, basePet.y + body.position.y - body.rotation.x * basePet.z, basePet.z).multiplyScalar(S);
       blink -= dt;
       const closed = blink < 0.12;
       for (const e of eyeList) e.scale.y = closed ? 0.15 : 1;
@@ -1009,6 +1124,9 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
       shadowGeo.dispose();
       shadowMat.dispose();
       skinned.skeleton.dispose();
+      root.traverse((o) => {
+        if (o.name === "craft-glass") (o as THREE.Mesh).geometry.dispose();
+      });
     },
   };
 }
@@ -1049,6 +1167,8 @@ export function mountStatueGeometry(kind: MountKind, accent = "#ff5fa8", skin: M
   out.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
   out.setAttribute("color", (src.attributes.color as THREE.BufferAttribute).clone());
   out.setAttribute("glow", (src.attributes.glow as THREE.BufferAttribute).clone());
+  const S = MOUNT_SCALE[kind] ?? 1;
+  if (S !== 1) out.scale(S, S, S);
   out.computeBoundingSphere();
   rig.dispose();
   return out;

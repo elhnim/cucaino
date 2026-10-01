@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { buildRideables } from "./index";
 import { pickSeaCall, angleTo, turnTowards, SEA_MIN_DEPTH, type SeaCall } from "./plan";
 import { RIDEABLE_SPOTS } from "../../registry/rideables";
-import { RIDEABLE_KINDS, buildMount, mountStatueGeometry } from "../../characters/mounts";
+import { M, MOUNT_BODY, RIDEABLE_KINDS, buildMount, isBoat, isCraft, isSub, mountStatueGeometry, type MountKind } from "../../characters/mounts";
 import { atSea } from "../underwater/plan";
 import { seaDepth } from "../sea/wander";
 import { WATER_Y, groundY } from "../../registry/terrain";
@@ -25,15 +25,16 @@ function drawCalls(root: THREE.Object3D) {
 }
 
 describe("mount rigs", () => {
-  it("every kind builds as one skinned mesh + a shadow, with a seat above its feet", () => {
+  it("every kind builds as one skinned mesh + a shadow (+ a glass bubble for subs), with a seat above its feet", () => {
     for (const k of [...RIDEABLE_KINDS, "pony" as const]) {
       const rig = buildMount(k);
       let meshes = 0;
       rig.root.traverse((o) => (o as THREE.Mesh).isMesh && meshes++);
-      expect(meshes, k).toBe(2);
+      expect(meshes, k).toBe(isSub(k) ? 3 : 2);
       expect(rig.root.getObjectByName("mount-body")).toBeTruthy();
       for (let i = 0; i < 20; i++) rig.update(0.05, 6, k === "manta" || k === "dragon", 0.5, 0);
-      expect(rig.seat.y, k).toBeGreaterThan(0.3);
+      // (boats: the kid stands on the floor just above the waterline; subs: inside the bubble, round the hull's axis)
+      expect(rig.seat.y, k).toBeGreaterThan(isSub(k) ? -1.2 : isBoat(k) ? 0.1 : 0.3);
       expect(Number.isFinite(rig.seat.x + rig.seat.y + rig.seat.z + rig.petSeat.y)).toBe(true);
       rig.dispose();
       const g = mountStatueGeometry(k);
@@ -42,10 +43,58 @@ describe("mount rigs", () => {
       g.dispose();
     }
   });
-  it("flies = the engine's 3D-altitude movement (dragon in the air, manta under water)", () => {
+  it("flies = the engine's 3D-altitude movement (dragon in the air, manta under water; subs have their own depth rules)", () => {
     expect(buildMount("dragon").flies).toBe(true);
     expect(buildMount("manta").flies).toBe(true);
-    for (const k of ["bike", "car", "unicorn", "pony", "whale", "dolphin"] as const) expect(buildMount(k).flies, k).toBe(false);
+    for (const k of ["bike", "car", "unicorn", "pony", "whale", "dolphin", "pedalo", "sailboat", "speedboat", "ship", "sub", "deepsub"] as const) expect(buildMount(k).flies, k).toBe(false);
+  });
+
+  it("everything is TRUE SIZE next to the kid (1 m = 1.6 units)", () => {
+    const box = (k: MountKind) => {
+      const g = mountStatueGeometry(k);
+      g.computeBoundingBox();
+      const b = g.boundingBox!.clone();
+      g.dispose();
+      return b;
+    };
+    const m = (v: number) => v / M;
+    // a horse's shoulder ~1.6 m: the unicorn's back
+    const u = box("unicorn");
+    expect(m(u.max.y)).toBeGreaterThan(1.5);
+    expect(m(u.max.z - u.min.z)).toBeGreaterThan(1.9);
+    // dolphin 2.5-3 m, manta 5-7 m wingspan, humpback ~14 m, the dragon ~10 m
+    const d = box("dolphin");
+    expect(m(d.max.z - d.min.z)).toBeGreaterThan(2.4);
+    expect(m(d.max.z - d.min.z)).toBeLessThan(3.1);
+    const mt = box("manta");
+    expect(m(mt.max.x - mt.min.x)).toBeGreaterThan(5);
+    expect(m(mt.max.x - mt.min.x)).toBeLessThan(7);
+    const w = box("whale");
+    expect(m(w.max.z - w.min.z)).toBeGreaterThan(12.5);
+    expect(m(w.max.z - w.min.z)).toBeLessThan(15.5);
+    const dr = box("dragon");
+    expect(m(dr.max.z - dr.min.z)).toBeGreaterThan(8.5);
+    expect(m(dr.max.z - dr.min.z)).toBeLessThan(12);
+    // boats: pedalo ~3.4 m, sailboat ~6 m, Rocket Boat ~5.5 m, the Pirate Ship ~14 m; subs ~4 m
+    const len = (k: MountKind) => {
+      const b = box(k);
+      return m(b.max.z - b.min.z);
+    };
+    expect(len("pedalo")).toBeGreaterThan(3);
+    expect(len("pedalo")).toBeLessThan(4.5);
+    expect(len("sailboat")).toBeGreaterThan(5.5);
+    expect(len("sailboat")).toBeLessThan(7);
+    expect(len("speedboat")).toBeGreaterThan(5);
+    expect(len("speedboat")).toBeLessThan(6.5);
+    expect(len("ship")).toBeGreaterThan(12.5);
+    expect(len("ship")).toBeLessThan(17);
+    expect(len("sub")).toBeGreaterThan(3.6);
+    expect(len("sub")).toBeLessThan(4.8);
+    // the footprint the engine uses matches the model (within a metre or so)
+    for (const k of ["pedalo", "sailboat", "speedboat", "ship", "sub", "deepsub", "whale", "dolphin"] as MountKind[]) {
+      const b = box(k);
+      expect(Math.abs((b.max.z - b.min.z) / 2 - MOUNT_BODY[k][0]), k).toBeLessThan(k === "ship" ? 2.4 : isCraft(k) ? 1.6 : 2.2);
+    }
   });
 });
 
@@ -153,7 +202,8 @@ describe("buildRideables", () => {
       if (n && (n.kind === "dolphin" || n.kind === "whale")) {
         const d = Math.hypot(n.x - kid.x, n.z - kid.z);
         expect(d).toBeGreaterThan(7);
-        expect(d).toBeLessThan(15.5);
+        // (the true-size whale waits a bit further off; you climb onto its flank)
+        expect(d).toBeLessThan(n.kind === "whale" ? 21 : 15.5);
         seen.add(n.kind);
       }
     }
@@ -183,6 +233,69 @@ describe("buildRideables", () => {
         expect(drawCalls(group)).toBeLessThanOrEqual(25);
       }
     }
+    w.dispose();
+  });
+});
+
+describe("the fleet (boats + subs) budget", () => {
+  it("adds at most 6 draw calls wherever the kid is, even driving a sub with its lights on", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const fleet = scene.getObjectByName("fleet")!;
+    expect(fleet).toBeTruthy();
+    const harbour = spot("ship-harbour");
+    const deep = spot("deepsub-rift");
+    let t = 0;
+    for (const p of [V(harbour.x, 1.2, harbour.z), V(deep.x, -60, deep.z)]) {
+      for (let i = 0; i < 40; i++) {
+        const driven = { kind: "deepsub" as const, x: p.x, y: p.y, z: p.z, yaw: 0.3, pitch: 0, roll: 0, speed: 8 };
+        w.update(0.05, (t += 0.05), { kid: p, under: p.y < 0, atSea: true, glow: 0.8, driven });
+        expect(drawCalls(fleet)).toBeLessThanOrEqual(6);
+      }
+      // a speedboat at full tilt: wake + spray instead of beams
+      for (let i = 0; i < 40; i++) {
+        const driven = { kind: "speedboat" as const, x: p.x + i * 1.7, y: WATER_Y, z: p.z, yaw: Math.PI / 2, pitch: 0, roll: 0, speed: 34 };
+        w.update(0.05, (t += 0.05), { kid: V(driven.x, 0, driven.z), under: false, atSea: true, glow: 0.2, driven });
+        expect(drawCalls(fleet)).toBeLessThanOrEqual(6);
+      }
+    }
+    w.dispose();
+  });
+
+  it("keeps the triangle count modest", () => {
+    let total = 0;
+    const per: Record<string, number> = {};
+    const count: Record<string, number> = {};
+    for (const s of RIDEABLE_SPOTS) if (isCraft(s.kind)) count[s.kind] = (count[s.kind] ?? 0) + 1;
+    for (const k of Object.keys(count) as MountKind[]) {
+      const g = mountStatueGeometry(k);
+      per[k] = g.attributes.position.count / 3;
+      total += per[k] * count[k];
+      g.dispose();
+    }
+    console.log("craft triangles", JSON.stringify(per), "all moored:", total);
+    expect(per.ship).toBeLessThan(16000);
+    for (const k of ["pedalo", "sailboat", "speedboat", "sub", "deepsub"]) expect(per[k], k).toBeLessThan(9000);
+  });
+
+  it("updates fast, without allocating, with every craft bobbing", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const h = spot("ship-harbour");
+    const kid = V(h.x, 1.2, h.z);
+    const driven = { kind: "speedboat" as const, x: h.x + 20, y: WATER_Y, z: h.z + 10, yaw: 1, pitch: 0, roll: 0, speed: 30 };
+    let t = 0;
+    for (let i = 0; i < 100; i++) w.update(0.016, (t += 0.016), { kid, under: false, atSea: true, glow: 0.5, driven });
+    const t0 = performance.now();
+    const N = 600;
+    for (let i = 0; i < N; i++) {
+      driven.x += 0.5;
+      w.update(0.016, (t += 0.016), { kid, under: false, atSea: true, glow: 0.5, driven });
+    }
+    const per = (performance.now() - t0) / N;
+    console.log("rideables.update ms/frame (all rides + fleet):", per.toFixed(3));
+    // (the whole rideables update - land rides, sea friends and the fleet - in node, no GPU)
+    expect(per).toBeLessThan(1.5);
     w.dispose();
   });
 });

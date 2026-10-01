@@ -2,15 +2,19 @@
 // parked bikes and buggies, unicorns grazing (they trot over when you come near their meadow),
 // Cloud Dragons shuffling their wings on the hilltops, manta rays gliding slow loops over the reef,
 // and — out at sea — a dolphin (with its pod) or, in the deep blue, a whale that swims up beside
-// you, sparkles and waits a while to be ridden.
+// you, sparkles and waits a while to be ridden. Boats and submarines bob at their moorings round
+// the harbours (drawn by ./fleet, which also draws the wake, spray, bubbles and headlights of the
+// one you're driving); one left out at sea drifts home once you're well away.
 //
 // Drawn with the very same rigs as riding (lib/park/characters/mounts), but cheaply: the few
 // nearest are live animated rigs (one skinned draw call each); the rest are frozen idle-pose
 // statues, one InstancedMesh per kind; all blob shadows are one InstancedMesh. Budget with
 // everything showing: kinds (6) + live (<= 4) + sea friends (<= 2) + shadows (1) + sparkles (1)
-// = <= 14 draw calls. update() allocates nothing.
+// = <= 14 draw calls, plus the fleet's <= 6. update() allocates nothing.
 import * as THREE from "three";
-import { MOUNT_CAPS, MOUNT_SHADOW, buildMount, mountMaterial, mountShadowTexture, mountStatueGeometry, setMountGlow, type MountKind, type MountRig } from "../../characters/mounts";
+import { HOP_REACH, MOUNT_BODY, MOUNT_CAPS, SUB_CAPS, buildMount, isBoat, isCraft, isSub, mountMaterial, mountShadowSize, mountShadowTexture, mountStatueGeometry, setMountGlow, type MountKind, type MountRig } from "../../characters/mounts";
+import { buildFleet, type CraftKind, type CraftView, type DrivenCraft } from "./fleet";
+import { hullTilt, swellDamp, seaWave, type Tilt } from "./craft";
 import { RIDEABLE_SPOTS } from "../../registry/rideables";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { skyBob, skyTopY } from "../../registry/skyIslands";
@@ -22,10 +26,11 @@ type RideKind = Exclude<MountKind, "pony">;
 
 export interface Rideables {
   /** idle animation (unicorns graze/wander, dragons shuffle wings, mantas glide in slow loops, dolphins/whales swim) */
-  update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean; atSea: boolean; glow: number }): void;
-  /** the nearest free rideable within `reach` m of the kid (with a hop-on prompt label). The
-   *  returned object is reused between calls — copy what you keep. */
-  nearest(kid: THREE.Vector3, reach: number): { id: string; kind: MountKind; label: string; x: number; y: number; z: number } | null;
+  update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean; atSea: boolean; glow: number; driven?: DrivenCraft | null }): void;
+  /** the nearest free rideable whose side is within `reach` m of the kid (default HOP_REACH; big
+   *  rides measure to their flank, not their middle), with a hop-on prompt label. The returned
+   *  object is reused between calls — copy what you keep. */
+  nearest(kid: THREE.Vector3, reach?: number): { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number } | null;
   /** the kid hops on: hide it from the world (the engine builds a MountRig) */
   take(id: string): void;
   /** the kid hops off: leave it where they got off, facing yaw (bikes/cars/unicorns stay; dragons stay; mantas/whales/dolphins swim off and later respawn) */
@@ -69,9 +74,13 @@ interface Ride {
   phase: number;
   live: MountRig | null;
   want: boolean;
+  /** boats / subs: the fleet's view of it (where it's drawn, bobbing on the swell) */
+  view: CraftView | null;
 }
 
-const LIVE_R = 42;
+const LIVE_R = 48;
+/** moored boats / subs further off than this (m, each axis) are lost in the sea haze: not drawn */
+const CRAFT_SHOW_R = 330;
 const UNICORN_CALL_R = 18;
 const UNICORN_GIVEUP_R = 26;
 
@@ -94,7 +103,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
   const mk = (id: string, kind: RideKind, x: number, y: number, z: number, yaw: number, sky: string | null, wander: number, state: number): Ride => ({
     id, kind, label: labelOf(kind), hx: x, hy: y, hz: z, hyaw: yaw, sky, wander,
     x, y, z, yaw, pitch: 0, speed: 0, tx: x, tz: z, ty: yaw, moving: false, rest: kind === "unicorn" || kind === "dragon" ? 1 : 0,
-    state, timer: rnd() * 5, phase: rnd() * Math.PI * 2, live: null, want: false,
+    state, timer: rnd() * 5, phase: rnd() * Math.PI * 2, live: null, want: false, view: null,
   });
   const rides: Ride[] = RIDEABLE_SPOTS.map((s) => mk(s.id, (s.kind === "pony" ? "unicorn" : s.kind) as RideKind, s.x, s.y ?? groundY(s.x, s.z), s.z, s.yaw, s.sky ?? null, s.wander ?? 0, IDLE));
   const dolphin = mk("dolphin-sea", "dolphin", 0, SEA_ROOT_Y.dolphin, 0, 0, null, 0, AWAY);
@@ -104,9 +113,21 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
   rides.push(dolphin, whale);
   const byId = new Map(rides.map((r) => [r.id, r]));
 
+  // ── boats and subs: drawn by the fleet ──
+  const crafts = rides.filter((r) => isCraft(r.kind));
+  const craftCount: Partial<Record<CraftKind, number>> = {};
+  for (const r of crafts) {
+    craftCount[r.kind as CraftKind] = (craftCount[r.kind as CraftKind] ?? 0) + 1;
+    r.view = { kind: r.kind as CraftKind, x: r.x, y: r.y, z: r.z, yaw: r.yaw, pitch: 0, roll: 0, shown: true };
+  }
+  const craftViews: CraftView[] = crafts.map((r) => r.view!);
+  const fleet = buildFleet(group, { lowQuality: low, count: craftCount });
+  const tilt: Tilt = { pitch: 0, roll: 0, y: 0 };
+  const fleetOpts: { crafts: CraftView[]; driven: DrivenCraft | null; glow: number; under: boolean } = { crafts: craftViews, driven: null, glow: 0, under: false };
+
   // ── per kind: the statue InstancedMesh + a pool of live rigs ──
   const kinds: RideKind[] = [];
-  for (const r of rides) if (!kinds.includes(r.kind)) kinds.push(r.kind);
+  for (const r of rides) if (!kinds.includes(r.kind) && !isCraft(r.kind)) kinds.push(r.kind);
   const COMPANIONS = low ? 0 : 2;
   const statue = new Map<RideKind, THREE.InstancedMesh>();
   const statueList: THREE.InstancedMesh[] = [];
@@ -148,7 +169,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
   const shadowGeo = new THREE.PlaneGeometry(1, 1);
   shadowGeo.rotateX(-Math.PI / 2);
   const shadowMat = new THREE.MeshBasicMaterial({ map: mountShadowTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const grounded = rides.filter((r) => r.kind !== "manta" && r.kind !== "dolphin" && r.kind !== "whale").length;
+  const grounded = rides.filter((r) => r.kind !== "manta" && r.kind !== "dolphin" && r.kind !== "whale" && !isCraft(r.kind)).length;
   const shadows = new THREE.InstancedMesh(shadowGeo, shadowMat, Math.max(1, grounded));
   shadows.name = "rideables:shadows";
   shadows.frustumCulled = false;
@@ -175,7 +196,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
   const S = new THREE.Vector3(1, 1, 1);
   const call: SeaCall = { x: 0, z: 0, sx: 0, sz: 0 };
   let lastT = 0;
-  const near = { id: "", kind: "bike" as MountKind, label: "", x: 0, y: 0, z: 0 };
+  const near = { id: "", kind: "bike" as MountKind, label: "", x: 0, y: 0, z: 0, yaw: 0 };
 
   const landY = (x: number, z: number) => villageGroundY(x, z) ?? groundY(x, z);
   const visible = (r: Ride) => r.state === IDLE || r.state === COMING || r.state === WAITING || r.state === LEAVING;
@@ -202,9 +223,9 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
     let max = 1.1;
     if (onLand && kdh < UNICORN_CALL_R) {
       // trot over and stop a couple of metres in front of the kid
-      if (kd > 3.2) {
-        r.tx = kid.x + ((r.x - kid.x) / (kd || 1)) * 2.6;
-        r.tz = kid.z + ((r.z - kid.z) / (kd || 1)) * 2.6;
+      if (kd > 4.4) {
+        r.tx = kid.x + ((r.x - kid.x) / (kd || 1)) * 3.6;
+        r.tz = kid.z + ((r.z - kid.z) / (kd || 1)) * 3.6;
         max = kd > 7 ? 3.8 : 2;
       } else {
         r.tx = r.x;
@@ -242,7 +263,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
 
   const updateDragon = (r: Ride, dt: number, t: number, kid: THREE.Vector3) => {
     const kd = Math.hypot(kid.x - r.x, kid.z - r.z);
-    if (kd < 9) {
+    if (kd < 16) {
       r.yaw = turnTowards(r.yaw, Math.atan2(kid.x - r.x, kid.z - r.z), 1.2, dt);
       r.rest += (0.2 - r.rest) * Math.min(1, dt * 2);
     } else {
@@ -333,9 +354,9 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       r.timer -= dt;
       const kd = Math.hypot(kid.x - r.x, kid.z - r.z);
       // keep close by if the kid swims about
-      if (kd > 15) {
-        r.tx = kid.x + ((r.x - kid.x) / kd) * 10;
-        r.tz = kid.z + ((r.z - kid.z) / kd) * 10;
+      if (kd > (isW ? 19 : 15)) {
+        r.tx = kid.x + ((r.x - kid.x) / kd) * (isW ? 14 : 10);
+        r.tz = kid.z + ((r.z - kid.z) / kd) * (isW ? 14 : 10);
         steer(r, dt, swim * 0.6, 1.2);
       } else {
         // idle about broadside-on (easy to see, easy to climb on), keeping 8.5-14 m away
@@ -344,7 +365,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         r.x += Math.sin(r.yaw) * r.speed * dt;
         r.z += Math.cos(r.yaw) * r.speed * dt;
         const k2 = Math.hypot(r.x - kid.x, r.z - kid.z) || 1;
-        const cl = Math.min(14, Math.max(8.5, k2));
+        const cl = isW ? Math.min(17, Math.max(12, k2)) : Math.min(14, Math.max(8.5, k2));
         r.x = kid.x + ((r.x - kid.x) / k2) * cl;
         r.z = kid.z + ((r.z - kid.z) / k2) * cl;
       }
@@ -363,6 +384,47 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       if (r.timer < 0) {
         r.state = AWAY;
         r.timer = isW ? 50 + rnd() * 30 : 25 + rnd() * 20;
+      }
+    }
+  };
+
+  /** boats and subs: bob on the swell where they're moored (or left); a sub left under water floats
+   *  up; one left away from its dock drifts home once the kid's well away */
+  const updateCraft = (r: Ride, dt: number, t: number, kid: THREE.Vector3) => {
+    const v = r.view!;
+    const [hl, hw] = MOUNT_BODY[r.kind];
+    // (far from the kid: no need to ride the swell exactly)
+    const far = Math.abs(kid.x - r.x) + Math.abs(kid.z - r.z) > 260;
+    if (isSub(r.kind)) {
+      const surf = WATER_Y + SUB_CAPS[r.kind].surf;
+      if (r.y < surf - 0.05) r.y = Math.min(surf, r.y + dt * 1.4);
+      else r.y = surf;
+      const k = Math.max(0, 1 - (surf - r.y) / 1.5);
+      v.y = r.y + (far ? 0 : seaWave(r.x, r.z, t) * swellDamp(r.x, r.z) * k * 0.8);
+      v.pitch = Math.sin(t * 0.8 + r.phase) * 0.025;
+      v.roll = Math.sin(t * 0.6 + r.phase * 1.7) * 0.04;
+    } else if (far) {
+      v.y = WATER_Y;
+      v.pitch = v.roll = 0;
+    } else {
+      hullTilt(r.x, r.z, r.yaw, hl * 2, hw * 2, t, tilt);
+      // a little rocking even on a calm day (bigger boats rock slower and less)
+      const big = Math.min(1, 4 / hl);
+      v.y = tilt.y + Math.sin(t * (0.8 + big) + r.phase) * 0.05 * big;
+      v.pitch = tilt.pitch + Math.sin(t * (0.6 + big * 0.7) + r.phase) * 0.02 * big;
+      v.roll = tilt.roll + Math.sin(t * (0.7 + big * 0.6) + r.phase * 1.3) * 0.045 * big;
+    }
+    v.x = r.x;
+    v.z = r.z;
+    v.yaw = r.yaw;
+    // left away from its dock: drift home once the kid's well away
+    if (Math.hypot(r.x - r.hx, r.z - r.hz) > 2) {
+      r.timer -= dt;
+      if (r.timer < 0 && Math.hypot(kid.x - r.x, kid.z - r.z) > 90 && Math.hypot(kid.x - r.hx, kid.z - r.hz) > 70) {
+        r.x = r.hx;
+        r.z = r.hz;
+        r.y = r.hy;
+        r.yaw = r.hyaw;
       }
     }
   };
@@ -402,7 +464,17 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
           if (r.state === IDLE) updateDragon(r, dt, t, kid);
         } else if (r.kind === "manta") updateManta(r, dt, t, kid, o.under);
         else if (r.kind === "dolphin" || r.kind === "whale") updateSea(r, dt, t, kid, o.atSea);
+        else if (r.view) updateCraft(r, dt, t, kid);
       }
+      // (moored craft past the fog aren't drawn)
+      for (let i = 0; i < crafts.length; i++) {
+        const c = crafts[i];
+        c.view!.shown = c.state === IDLE && Math.abs(c.x - kid.x) < CRAFT_SHOW_R && Math.abs(c.z - kid.z) < CRAFT_SHOW_R;
+      }
+      fleetOpts.driven = o.driven ?? null;
+      fleetOpts.glow = o.glow;
+      fleetOpts.under = o.under;
+      fleet.update(dt, t, fleetOpts);
       // ── which get a live rig: the sea friends always, then the K nearest others in range ──
       for (let i = 0; i < rides.length; i++) {
         const r = rides[i];
@@ -413,7 +485,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         let bd = LIVE_R * LIVE_R;
         for (let i = 0; i < rides.length; i++) {
           const r = rides[i];
-          if (r.want || !visible(r) || r.kind === "dolphin" || r.kind === "whale") continue;
+          if (r.want || !visible(r) || r.kind === "dolphin" || r.kind === "whale" || r.view) continue;
           const d = (r.x - kid.x) ** 2 + ((r.y - kid.y) * 0.7) ** 2 + (r.z - kid.z) ** 2;
           if (d < bd) ((bd = d), (best = r));
         }
@@ -443,15 +515,15 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       for (let i = 0; i < rides.length; i++) {
         const r = rides[i];
         if (!visible(r)) continue;
-        if (!r.live) {
+        if (!r.live && !r.view) {
           const im = statue.get(r.kind);
           if (im && im.count < im.instanceMatrix.count) {
             writeInstance(im, im.count, r.x, r.y, r.z, r.yaw, r.pitch);
             im.count++;
           }
         }
-        if (r.kind !== "manta" && r.kind !== "dolphin" && r.kind !== "whale" && shadows.count < shadows.instanceMatrix.count) {
-          const [w, l] = MOUNT_SHADOW[r.kind];
+        if (r.kind !== "manta" && r.kind !== "dolphin" && r.kind !== "whale" && !r.view && shadows.count < shadows.instanceMatrix.count) {
+          const [w, l] = mountShadowSize(r.kind);
           E.set(0, r.yaw, 0, "YXZ");
           Q.setFromEuler(E);
           P.set(r.x, r.y + 0.05, r.z);
@@ -461,14 +533,14 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         }
         // a waiting sea friend sparkles and bobs so kids notice
         if (r.state === WAITING || (r.state === COMING && Math.hypot(r.tx - r.x, r.tz - r.z) < 6)) {
-          const big = r.kind === "whale" ? 3.2 : 1.6;
+          const big = r.kind === "whale" ? 6 : 1.6;
           const n = Math.min(SPARK_N - sparks.count, SPARK_N / 2);
           for (let s = 0; s < n; s++) {
             const a = t * 0.9 + (s / n) * Math.PI * 2;
             const h = ((t * 0.6 + s * 0.37) % 1);
             E.set(t * 2 + s, t * 3 + s, 0, "YXZ");
             Q.setFromEuler(E);
-            P.set(r.x + Math.sin(a) * big, WATER_Y + 0.4 + h * 2.2 + (r.kind === "whale" ? 0.8 : 0), r.z + Math.cos(a) * big);
+            P.set(r.x + Math.sin(a) * big, WATER_Y + 0.4 + h * 2.2 + (r.kind === "whale" ? 1.6 : 0), r.z + Math.cos(a) * big);
             const sc = Math.sin(h * Math.PI) * (0.9 + 0.5 * Math.sin(t * 6 + s));
             S.set(sc, sc * 1.4, sc);
             M.compose(P, Q, S);
@@ -514,16 +586,23 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       if (sparks.count) sparks.instanceMatrix.needsUpdate = true;
     },
 
-    nearest(kid, reach) {
+    nearest(kid, reach = HOP_REACH) {
       let best: Ride | null = null;
       let bd = reach * reach;
       for (let i = 0; i < rides.length; i++) {
         const r = rides[i];
         if (r.state !== IDLE && r.state !== WAITING) continue;
-        const dy = (r.y + (r.kind === "whale" ? 1.2 : 0.6) - kid.y) * 0.6;
-        // big whales are easier to reach: measure to their side, not their middle
-        const extra = r.kind === "whale" ? 2.5 : r.kind === "car" ? 0.8 : 0;
-        const dh = Math.max(0, Math.hypot(r.x - kid.x, r.z - kid.z) - extra);
+        if (Math.abs(r.x - kid.x) > 40 || Math.abs(r.z - kid.z) > 40) continue;
+        const dy = (r.y + (r.kind === "whale" ? 2.4 : 0.6) - kid.y) * 0.6;
+        // measure to the ride's side (a capsule along its heading), not its middle: a whale or a
+        // pirate ship is as easy to climb onto as a bike
+        const [hl, hw, off] = MOUNT_BODY[r.kind];
+        const fx = Math.sin(r.yaw);
+        const fz = Math.cos(r.yaw);
+        const ax = kid.x - (r.x + fx * off);
+        const az = kid.z - (r.z + fz * off);
+        const along = Math.max(-hl, Math.min(hl, ax * fx + az * fz));
+        const dh = Math.max(0, Math.hypot(ax - fx * along, az - fz * along) - hw);
         const d = dh * dh + dy * dy;
         if (d < bd) ((bd = d), (best = r));
       }
@@ -534,6 +613,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       near.x = best.x;
       near.y = best.y;
       near.z = best.z;
+      near.yaw = best.yaw;
       return near;
     },
 
@@ -559,6 +639,13 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       r.speed = 0;
       r.tx = x;
       r.tz = z;
+      if (r.view) {
+        // a boat stays bobbing where it's left (a sub floats up); it drifts home later
+        r.state = IDLE;
+        r.y = isBoat(r.kind) ? WATER_Y : Math.min(y, WATER_Y + SUB_CAPS[r.kind as "sub"].surf);
+        r.timer = 45;
+        return;
+      }
       if (r.kind === "manta" || r.kind === "dolphin" || r.kind === "whale") {
         // swims off, comes back later (mantas to their reef spot, sea friends when you're at sea)
         r.state = LEAVING;
@@ -584,6 +671,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
     },
 
     dispose() {
+      fleet.dispose();
       group.removeFromParent();
       for (const rig of allRigs) rig.dispose();
       for (const g of statueGeos) g.dispose();

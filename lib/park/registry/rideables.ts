@@ -1,8 +1,9 @@
 // Where kids FIND things to ride in Cucaino Park (no more summoning from a button): bikes at little
 // racks by the plaza and the lands, buggies in small car parks beside the trails, unicorns
 // grazing in the meadows, Cloud Dragons perched on hilltops (and one on a floating mountain), and
-// manta rays waiting over the reef gardens. Dolphins and whales aren't placed — they come up to
-// swim with you when you're out at sea (lib/park/world/rideables).
+// manta rays waiting over the reef gardens, and boats and submarines moored at the harbours
+// (lib/park/registry/harbours). Dolphins and whales aren't placed — they come up to swim with you
+// when you're out at sea (lib/park/world/rideables).
 //
 // Pure data + maths, deterministic. Every spot is searched for once at load: open, level ground
 // next to (never on) a trail, clear of every building and its door, off the stream, the Dream Park
@@ -15,6 +16,7 @@ import { zoneBounds } from "../builder/rules";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_SPOTS, skyBaseY, skyWalkable } from "./skyIslands";
 import { GARDENS, FOOTPRINTS, atSea, midWater, type GardenKind } from "../world/underwater/plan";
 import { seaFloorY } from "../world/sea/wander";
+import { MOORINGS, harbourKeepOut, mooredY } from "./harbours";
 
 export interface RideableSpot {
   id: string;
@@ -29,6 +31,8 @@ export interface RideableSpot {
   sky?: string;
   /** unicorns: how far they wander from home while grazing (m) */
   wander?: number;
+  /** boats / subs: the dock they're moored at */
+  dock?: string;
 }
 
 type P2 = [number, number];
@@ -276,10 +280,14 @@ for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream
   });
 }
 
+// ── boats and subs: moored at the docks ──
+for (const m of MOORINGS) add({ id: m.id, kind: m.kind, x: m.x, z: m.z, yaw: m.yaw, y: mooredY(m.kind), dock: m.dock }, 0);
+
 export const RIDEABLE_SPOTS: RideableSpot[] = spots;
 
-/** clearing radius kept round each parked ride (m) */
-export const RIDEABLE_CLEAR: Partial<Record<MountKind, number>> = { bike: 2.2, car: 3.6, unicorn: 8, dragon: 4.5 };
+/** clearing radius kept round each parked ride (m) (the true-size dragon wants a big bald summit) */
+export const RIDEABLE_CLEAR: Partial<Record<MountKind, number>> = { bike: 2.2, car: 3.6, unicorn: 8, dragon: 9 };
+const AT_SEA = new Set<MountKind>(["manta", "pedalo", "sailboat", "speedboat", "ship", "sub", "deepsub"]);
 
 /**
  * For other placers (the storybook forest, props, sheep): true = keep clear, so every parked ride
@@ -287,8 +295,9 @@ export const RIDEABLE_CLEAR: Partial<Record<MountKind, number>> = { bike: 2.2, c
  * `free()` predicates. Unicorns get a glade to graze in, hilltop dragons a bald summit.
  */
 export function rideableKeepOut(x: number, z: number, pad: number): boolean {
+  if (harbourKeepOut(x, z, pad)) return true;
   for (const s of RIDEABLE_SPOTS) {
-    if (s.sky || s.kind === "manta") continue;
+    if (s.sky || AT_SEA.has(s.kind)) continue;
     const r = RIDEABLE_CLEAR[s.kind] ?? 3;
     if ((s.x - x) ** 2 + (s.z - z) ** 2 < (r + pad) ** 2) return true;
   }

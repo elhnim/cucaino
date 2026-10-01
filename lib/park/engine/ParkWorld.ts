@@ -34,13 +34,15 @@ export type Ride = Interior & {
 import { makeSparkleTexture } from "@/lib/game3d/textures";
 import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardModel";
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
-import { MOUNT_CAPS, MOUNT_SEA_DRAFT, buildMount, mountLean, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
+import { BOAT_CAPS, MOUNT_BODY, MOUNT_CAPS, MOUNT_SEA_DRAFT, MOUNT_VIEW, SUB_CAPS, buildMount, isBoat, isCraft, isSub, mountLean, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
+import { HARBOUR_OBSTACLES, worldFloorY } from "../registry/harbours";
+import { boatCanMove, boatClearance, hullTilt, landingSpot, seaWave, steer, subAltRange, subCanMove, swellDamp, type Helm, type Tilt } from "../world/rideables/craft";
+import type { DrivenCraft } from "../world/rideables/fleet";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { ISLAND_R } from "../registry/island";
-import { seaFloorY } from "../world/sea/wander";
-import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../registry/villageIsland";
-import { FROST_ISLAND, frostGroundY } from "../registry/frostIsland";
-import { DINO_ISLAND, dinoGroundY } from "../registry/dinoIsland";
+import { VILLAGE_ISLAND } from "../registry/villageIsland";
+import { FROST_ISLAND } from "../registry/frostIsland";
+import { DINO_ISLAND } from "../registry/dinoIsland";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_SPOTS, skyIslandById, skyStreamEnd, skyTopY, type SkySpot } from "../registry/skyIslands";
 
@@ -127,17 +129,10 @@ const SWIM_DEPTH = 0.9;
 /** how deep the sea is at (x, z) (<= 0 on land) */
 /** the ground under (x, z): the main island's terrain, Coralcove Isle's land and decks, or the sea
  *  floor round them (the same surfaces the art draws) */
-const worldFloor = (x: number, z: number) => {
-  const v = villageGroundY(x, z);
-  if (v !== null) return v;
-  const fr = frostGroundY(x, z);
-  if (fr !== null) return fr; // (Frostpeak's under-sea slopes come in through seaFloorY)
-  const dn = dinoGroundY(x, z);
-  if (dn !== null) return dn; // (Dino Isle's land, decks and jetty; its slopes come in through seaFloorY)
-  const f = seaFloorY(x, z);
-  const vf = villageSeaFloorY(x, z);
-  return vf !== null ? Math.max(f, vf) : f;
-};
+// (Coralcove's land and decks, Frostpeak's and Dino Isle's land, decks and jetties - their
+// under-sea slopes come in through seaFloorY - and the harbours' jetties and the Rift Dock:
+// lib/park/registry/harbours.worldFloorY)
+const worldFloor = (x: number, z: number) => worldFloorY(x, z);
 const seaDepth = (x: number, z: number) => WATER_Y - worldFloor(x, z);
 /** the ground (or sea floor) under (x, z) */
 const floorY0 = (x: number, z: number) => worldFloor(x, z);
@@ -238,7 +233,17 @@ export class ParkWorld {
   /** the world ride we're on (bikes, unicorns … are found round the world, not summoned) */
   private rideId: string | null = null;
   private prevFacing = 0;
-  private hopNear: { id: string; kind: MountKind; label: string } | null = null;
+  private hopNear: { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number } | null = null;
+  // ── boats and subs: momentum, how they sit on the swell, and what the fleet draws behind them ──
+  private helm: Helm = { yaw: 0, speed: 0, reverse: false, revT: 0 };
+  private craftPitch = 0;
+  private craftRoll = 0;
+  private craftSpeed = 0;
+  private prevAlt = 0;
+  private craftTilt: Tilt = { pitch: 0, roll: 0, y: 0 };
+  private subRange = { lo: 0, hi: 0 };
+  private landAt = { x: 0, z: 0, y: 0 };
+  private driven: DrivenCraft = { kind: "pedalo", x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, speed: 0 };
   private spotsFound = new Set<string>();
   private lastTalk = "";
   private abyssSpot: string | null = null;
@@ -674,6 +679,8 @@ export class ParkWorld {
       ]);
       if (this.disposed) return;
       this.park = park;
+      // (walk round the harbours' beacons too)
+      park.obstacles.push(...HARBOUR_OBSTACLES);
       this.dream = dream;
       this.kid = kid;
       kid.root.position.set(SPAWN.x, 0, SPAWN.z);
@@ -1035,7 +1042,47 @@ export class ParkWorld {
     }
     const moving = Math.hypot(vx, vz) > 0.01;
     const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
-    if (swimmingNow) {
+    const craft = this.mount && isCraft(this.mount.kind) ? this.mount.kind : null;
+    if (craft) {
+      // boats and subs have momentum: they take a moment to get going, coast when you let go,
+      // and turn in arcs. Boats keep to water deep enough for their hull (no beaches, no
+      // jetties, no ice floes); subs keep off the walls and the floor.
+      // (the bow turns at its own pace and the speed builds up along it; pull back from standing
+      // to go astern, e.g. to back out of a mooring)
+      const caps = isBoat(craft) ? BOAT_CAPS[craft] : SUB_CAPS[craft as "sub"];
+      const h = this.helm;
+      const yaw0 = kid.root.rotation.y;
+      h.yaw = yaw0;
+      steer(h, vx, vz, WALK_SPEED * MOUNT_CAPS[craft].speed, caps.accel, caps.turn, dt);
+      // a boat's bow can't swing through a jetty or onto the sand
+      if (isBoat(craft) && h.yaw !== yaw0) {
+        const c1 = boatClearance(craft, pos.x, pos.z, h.yaw, seaDepth);
+        if (c1 < 0 && c1 < boatClearance(craft, pos.x, pos.z, yaw0, seaDepth)) h.yaw = yaw0;
+      }
+      kid.facing = h.yaw;
+      kid.root.rotation.y = h.yaw;
+      const nx = pos.x + Math.sin(h.yaw) * h.speed * dt;
+      const nz = pos.z + Math.cos(h.yaw) * h.speed * dt;
+      if (this.craftOk(craft, pos, nx, nz)) {
+        pos.x = nx;
+        pos.z = nz;
+      } else if (this.craftOk(craft, pos, nx, pos.z)) {
+        pos.x = nx;
+        h.speed *= 0.6;
+      } else if (this.craftOk(craft, pos, pos.x, nz)) {
+        pos.z = nz;
+        h.speed *= 0.6;
+      } else {
+        // a gentle bump: stop, and bounce back a touch
+        h.speed *= -0.2;
+      }
+      this.craftSpeed = Math.abs(h.speed);
+      if (moving) {
+        this.idleT = 0;
+        this.waved = false;
+        if (!this.walkTarget) this.routing = false;
+      }
+    } else if (swimmingNow) {
       // water has momentum: strokes build up speed and you glide on for a moment when you stop
       const sp = WALK_SPEED * (this.swimDepth > 0.6 ? 1.1 : 0.85);
       const k = Math.min(1, dt * (moving ? 2.4 : 1.1));
@@ -1093,16 +1140,28 @@ export class ParkWorld {
       // fliers can climb high enough to reach the floating mountains (~115 m up)
       const maxAlt = 115 - Math.max(floorY0(pos.x, pos.z), WATER_Y);
       const medium = MOUNT_CAPS[m.kind].medium;
-      if (medium === "under") {
+      if (isBoat(m.kind)) {
+        this.alt = this.altTarget = 0;
+      } else if (isSub(m.kind)) {
+        // ▼ dives, ▲ comes up: from bobbing at the surface down to just above the floor (the
+        // Deep Explorer all the way down the Midnight Rift)
+        const r = subAltRange(m.kind, floorY0(pos.x, pos.z), this.subRange);
+        const rate = SUB_CAPS[m.kind].rate;
+        this.altTarget = Math.max(r.lo, Math.min(r.hi, this.altTarget + this.flyInput * rate * dt));
+        this.alt += (this.altTarget - this.alt) * Math.min(1, dt * 1.8);
+        this.alt = Math.max(r.lo, Math.min(r.hi, this.alt));
+      } else if (medium === "under") {
         // a manta swims under the waves only: from just below the surface down to the reef
         this.altTarget = Math.max(minAlt < 0 ? minAlt : -1.2, Math.min(-1.2, this.altTarget + this.flyInput * 9 * dt));
       } else if (medium === "sea") {
         // whales and dolphins swim at the surface and dive with ▼
         this.altTarget = Math.max(-Math.max(0, sea - 3), Math.min(0, this.altTarget + this.flyInput * 6 * dt));
       } else if (m.flies && !this.landing) this.altTarget = Math.max(lowAlt, Math.min(maxAlt, this.altTarget + this.flyInput * 12 * dt));
-      if (medium !== "sea" && this.altTarget < minAlt) this.altTarget = minAlt;
-      this.alt += (this.altTarget - this.alt) * Math.min(1, dt * (this.landing ? 1.6 : 2.2));
-      if (medium !== "sea" && this.alt < minAlt) this.alt = minAlt;
+      if (!isCraft(m.kind)) {
+        if (medium !== "sea" && this.altTarget < minAlt) this.altTarget = minAlt;
+        this.alt += (this.altTarget - this.alt) * Math.min(1, dt * (this.landing ? 1.6 : 2.2));
+        if (medium !== "sea" && this.alt < minAlt) this.alt = minAlt;
+      }
       if (this.landing && this.alt < 0.25) this.dismount(true);
     }
     const aloft = this.alt > 3;
@@ -1167,18 +1226,47 @@ export class ParkWorld {
           this.flyBase = base;
         }
         pos.y = base + this.alt;
+      } else if (isBoat(m.kind)) {
+        // a boat rides the swell: up and down with it, pitching over the crests and rolling
+        const [hl, hw] = MOUNT_BODY[m.kind];
+        const tl = hullTilt(pos.x, pos.z, kid.root.rotation.y, hl * 2, hw * 2, this.time, this.craftTilt);
+        pos.y = tl.y;
+        this.craftPitch += (tl.pitch - this.craftPitch) * Math.min(1, dt * 4);
+        this.craftRoll += (tl.roll - this.craftRoll) * Math.min(1, dt * 4);
+      } else if (isSub(m.kind)) {
+        // a sub bobs on the swell at the surface; it noses down as it dives, up as it climbs
+        const surf = SUB_CAPS[m.kind].surf;
+        const k = Math.max(0, 1 - (surf - this.alt) / 1.5);
+        pos.y = WATER_Y + this.alt + seaWave(pos.x, pos.z, this.time) * swellDamp(pos.x, pos.z) * k * 0.8;
+        const climb = (this.alt - this.prevAlt) / Math.max(dt, 1e-3);
+        this.craftPitch += (Math.max(-0.35, Math.min(0.35, -climb * 0.06)) - this.craftPitch) * Math.min(1, dt * 3);
+        this.craftRoll = 0;
       } else if (MOUNT_CAPS[m.kind].medium === "sea") {
         pos.y = WATER_Y - (MOUNT_SEA_DRAFT as Record<string, number>)[m.kind] + this.alt;
       } else pos.y = seaHere > SWIM_DEPTH ? WATER_Y - 0.85 : floorY;
+      this.prevAlt = this.alt;
       m.root.position.set(pos.x, pos.y, pos.z);
       m.root.rotation.y = kid.root.rotation.y;
-      // bikes lean into turns; fliers sway
+      // bikes lean into turns; fliers sway; boats bank (the Rocket Boat hard) and subs bank like planes
       let dYaw = kid.facing - this.prevFacing;
       dYaw = Math.atan2(Math.sin(dYaw), Math.cos(dYaw));
       this.prevFacing = kid.facing;
-      m.root.rotation.z = MOUNT_CAPS[m.kind].medium === "land" ? mountLean(m.kind, dYaw / Math.max(dt, 1e-3), moving ? WALK_SPEED * MOUNT_CAPS[m.kind].speed : 0) : moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
+      const isC = isCraft(m.kind);
+      const rideSpeed = isC ? this.craftSpeed : moving ? WALK_SPEED * MOUNT_CAPS[m.kind].speed : 0;
+      if (isC) {
+        // (smoothed: kid.facing jumps, the boat eases round)
+        const yawRate = dYaw / Math.max(dt, 1e-3);
+        const lean = mountLean(m.kind, Math.max(-2.5, Math.min(2.5, yawRate)), rideSpeed);
+        m.root.rotation.order = "YXZ";
+        m.root.rotation.x = this.craftPitch;
+        m.root.rotation.z += (this.craftRoll + lean - m.root.rotation.z) * Math.min(1, dt * 3);
+        // the kid sways with the deck
+        kid.root.rotation.order = "YXZ";
+        kid.root.rotation.x = m.root.rotation.x;
+        kid.root.rotation.z = m.root.rotation.z;
+      } else m.root.rotation.z = MOUNT_CAPS[m.kind].medium === "land" ? mountLean(m.kind, dYaw / Math.max(dt, 1e-3), rideSpeed) : moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
       // wings beat under water too; the shadow measures down to the real ground / sea floor
-      m.update(dt, moving ? WALK_SPEED * 2 : 0, m.flies && Math.abs(this.alt) > 0.4, this.park.atmosphere.glow, pos.y - floorY);
+      m.update(dt, isC ? rideSpeed : moving ? WALK_SPEED * 2 : 0, m.flies && Math.abs(this.alt) > 0.4, this.park.atmosphere.glow, pos.y - floorY);
       if (kid.rig) kid.rig.root.position.copy(m.seat);
       this.tickActor(kid, dt, 0, false);
       // a sparkly trail behind fliers
@@ -1293,12 +1381,33 @@ export class ParkWorld {
     // rides round the world: animate them, and find one close enough to hop on
     {
       const atSea = seaDepth(pos.x, pos.z) > 2.5 && Math.hypot(pos.x, pos.z) > ISLAND_R;
-      this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow });
+      let driven: DrivenCraft | null = null;
+      if (this.mount && isCraft(this.mount.kind)) {
+        driven = this.driven;
+        driven.kind = this.mount.kind;
+        driven.x = pos.x;
+        driven.y = pos.y;
+        driven.z = pos.z;
+        driven.yaw = this.mount.root.rotation.y;
+        driven.pitch = this.mount.root.rotation.x;
+        driven.roll = this.mount.root.rotation.z;
+        driven.speed = this.craftSpeed;
+      }
+      this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow, driven });
       const canHop = !this.mount && !this.sky && !this.launch && !this.gliding;
-      const n = canHop ? this.park.rides.nearest(pos, 4.6) : null;
-      const reach = n ? (n.kind === "whale" ? 4.6 : 3.2) : 0;
-      const d = n ? Math.hypot(n.x - pos.x, n.z - pos.z) : 99;
-      this.hopNear = n && d < reach && Math.abs(n.y - pos.y) < 3.5 ? { id: n.id, kind: n.kind, label: n.label } : null;
+      // (measured to the ride's side: a whale or a pirate ship is as easy to reach as a bike)
+      const n = canHop ? this.park.rides.nearest(pos) : null;
+      if (n && Math.abs(n.y - pos.y) < 4.5) {
+        const h = this.hopNear ?? { id: "", kind: n.kind, label: "", x: 0, y: 0, z: 0, yaw: 0 };
+        h.id = n.id;
+        h.kind = n.kind;
+        h.label = n.label;
+        h.x = n.x;
+        h.y = n.y;
+        h.z = n.z;
+        h.yaw = n.yaw;
+        this.hopNear = h;
+      } else this.hopNear = null;
     }
 
     // Coralcove Isle: say hello the first time you arrive; villagers chat when you're close
@@ -1499,7 +1608,7 @@ export class ParkWorld {
     // the sea: the reef and its creatures show when you're in (or looking into) the water
     const uw = this.park.underwater;
     const nearSea = Math.hypot(pos.x, pos.z) > 118;
-    uw.group.visible = this.camUnder || this.wasInSea || nearSea || (this.mount?.kind === "manta" && pos.y < WATER_Y);
+    uw.group.visible = this.camUnder || this.wasInSea || nearSea || (!!this.mount && MOUNT_CAPS[this.mount.kind].medium === "under" && pos.y < WATER_Y);
     const uwr = uw.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow });
     const ab = this.park.abyss.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow }).spot;
     if (ab && ab.id !== this.abyssSpot) this.opts.onAbyssSpot?.(ab);
@@ -1529,8 +1638,23 @@ export class ParkWorld {
       this.opts.onRing?.(q3.ring.passed, q3.ring.lap);
     }
     if (!this.heroLight.parent) this.scene.add(this.heroLight);
-    this.heroLight.position.set(pos.x, pos.y + 4.5, pos.z + 1.5);
-    this.heroLight.intensity = this.park.atmosphere.glow * 7;
+    if (this.mount && isSub(this.mount.kind) && pos.y < WATER_Y - 1.5) {
+      // driving a sub under water: the warm light becomes its headlights' glow, out ahead on the
+      // rocks and whatever swims up (the fleet draws the beams themselves)
+      const yaw = this.mount.root.rotation.y;
+      const ahead = this.mount.kind === "deepsub" ? 9 : 7.5;
+      this.heroLight.position.set(pos.x + Math.sin(yaw) * ahead, pos.y + 0.4, pos.z + Math.cos(yaw) * ahead);
+      this.heroLight.distance = 34;
+      this.heroLight.decay = 1;
+      this.heroLight.color.set("#fff0c8");
+      this.heroLight.intensity = 9 + Math.min(14, (WATER_Y - pos.y) * 0.25);
+    } else {
+      this.heroLight.distance = 9;
+      this.heroLight.decay = 1.6;
+      this.heroLight.color.set("#ffe2f6");
+      this.heroLight.position.set(pos.x, pos.y + 4.5, pos.z + 1.5);
+      this.heroLight.intensity = this.park.atmosphere.glow * 7;
+    }
     // at twilight your footsteps leave a little trail of sparkles
     if (moving && this.park.atmosphere.glow > 0.45) {
       this.stepSparkle -= dt;
@@ -1605,10 +1729,15 @@ export class ParkWorld {
       this.camera.position.lerp(new THREE.Vector3(cx, span * (portrait ? 1.25 : 0.72), cz + span * (portrait ? 0.95 : 0.9)), Math.min(1, dt * 3));
       this.camera.lookAt(cx, 0, cz + (portrait ? 1.5 : 2.5));
     } else {
-      let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.32 : 1) * (this.mount?.flies && this.alt > 1 ? 1.45 : this.mount ? 1.15 : 1);
+      // (big rides - a whale, the dragon, the Pirate Ship - pull the camera further back)
+      const view = this.mount ? MOUNT_VIEW[this.mount.kind] : 1;
+      const seatY = this.mount ? this.mount.seat.y : 0;
+      let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.32 : 1) * (this.mount?.flies && this.alt > 1 ? 1.3 : this.mount ? 1.15 : 1) * view;
       // under the sea the water swallows anything far away: bring the camera in close (the
       // storybook look's model-railway distance lost the kid and the manta in the haze)
-      if (pos.y + 1.6 < WATER_Y) dist = Math.min(dist, this.mount ? 15 : 13);
+      // (riding: is the KID's head under? a sub's cabin can sit below its root)
+      const headUp = this.mount ? 2.0 : 1.6;
+      if (pos.y + seatY + headUp < WATER_Y) dist = Math.min(dist, this.mount ? 15 * view : 13);
       // a tree (or big rock) between the camera and the kid? slide the camera in closer, like
       // a proper third-person camera, instead of staring at a trunk
       // (not in the diorama look: from that height canopies rarely block, and pulling in ruins the view)
@@ -1634,9 +1763,9 @@ export class ParkWorld {
       const ahead = moving ? 3 : 1.2;
       const lx = pos.x + Math.sin(kid.facing) * ahead;
       const lz = pos.z + Math.cos(kid.facing) * ahead;
-      this.lookAtPt.lerp(new THREE.Vector3(lx, pos.y + 1.2, lz), Math.min(1, dt * 3));
+      this.lookAtPt.lerp(new THREE.Vector3(lx, pos.y + seatY + 1.2, lz), Math.min(1, dt * 3));
       // ease an un-lifted camera position, then add the hill lift on top (so the lift can't feed back)
-      this.camBase.lerp(new THREE.Vector3(this.lookAtPt.x, this.lookAtPt.y - 1.2, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
+      this.camBase.lerp(new THREE.Vector3(this.lookAtPt.x, this.lookAtPt.y - 1.2 - seatY * 0.5, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
       this.camera.position.copy(this.camBase);
       // keep the view clear over hills: march from the kid to the camera and lift the camera
       // until the line of sight clears the ground (and never let it dip into a hill)
@@ -1656,7 +1785,7 @@ export class ParkWorld {
       if (cp.y < under) cp.y = under;
       // the camera never straddles the waterline: it dives with a diving kid (closer in, the sea
       // is murky) and stays above the waves for one paddling at the top
-      const kidUnder = pos.y + 1.6 < WATER_Y; // head below the surface (paddling sits at WATER_Y - 0.95)
+      const kidUnder = pos.y + seatY + headUp < WATER_Y; // head below the surface (paddling sits at WATER_Y - 0.95)
       if (kidUnder) {
         cp.lerp(this.lookAtPt, 0.15);
         // over water too shallow to hide a camera (the lagoon's edge)? slide in toward the kid
@@ -1665,7 +1794,7 @@ export class ParkWorld {
         // filled the view with its bright underside)
         // float a little above the kid, over the coral tops (down among the coral, sea fans and
         // grass blocked the view), and never up through the surface
-        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + 1.6, worldFloor(cp.x, cp.z) + 2.2));
+        cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + seatY + 1.6, worldFloor(cp.x, cp.z) + 2.2));
       } else if (seaDepth(cp.x, cp.z) > 0 && cp.y < WATER_Y + 1.2) cp.y = WATER_Y + 1.2;
       // aim a little above the kid: they sit in the lower third and the world fills the frame
       // (aiming straight at them left the bottom half of the screen as empty grass)
@@ -1849,6 +1978,12 @@ export class ParkWorld {
     this.park?.skyChests.setSpotsFound(ids);
   }
 
+  /** can the boat / sub we're driving move from `pos` to (x, z)? */
+  private craftOk(kind: MountKind, pos: THREE.Vector3, x: number, z: number): boolean {
+    const yaw = this.kid?.root.rotation.y ?? 0;
+    return isBoat(kind) ? boatCanMove(kind, pos.x, pos.z, x, z, yaw, seaDepth) : isSub(kind) ? subCanMove(kind, pos.y, x, z, worldFloor) : true;
+  }
+
   /** A ride waiting close by (for the HUD's "Hop on" button), or null. */
   get hopTarget(): { kind: MountKind; label: string } | null {
     return this.hopNear ? { kind: this.hopNear.kind, label: this.hopNear.label } : null;
@@ -1859,7 +1994,18 @@ export class ParkWorld {
     const n = this.hopNear;
     if (!n || !this.park || !this.kid || this.mount || this.sky || this.ride) return null;
     this.park.rides.take(n.id);
+    // climb aboard where it is, facing the way it faces (a boat stays at its mooring; the kid
+    // steps off the jetty onto it)
+    const kp = this.kid.root.position;
+    kp.set(n.x, isCraft(n.kind) ? n.y : kp.y, n.z);
+    this.kid.facing = n.yaw;
+    this.kid.root.rotation.y = n.yaw;
+    this.prevFacing = n.yaw;
     this.mountUp(n.kind, accent, skin);
+    if (isSub(n.kind)) this.alt = this.altTarget = this.prevAlt = Math.min(SUB_CAPS[n.kind].surf, n.y - WATER_Y);
+    this.helm.speed = this.craftSpeed = 0;
+    this.helm.reverse = false;
+    this.craftPitch = this.craftRoll = 0;
     this.rideId = n.id;
     this.hopNear = null;
     return n.kind;
@@ -1997,7 +2143,26 @@ export class ParkWorld {
     this.landing = false;
     this.alt = 0;
     this.altTarget = 0;
+    this.kid.root.rotation.x = 0;
+    this.kid.root.rotation.z = 0;
+    this.helm.speed = this.craftSpeed = 0;
     const kp = this.kid.root.position;
+    // off a boat (or a surfaced sub) beside a jetty or a beach: step ashore
+    if (isCraft(m.kind) && (isBoat(m.kind) || wasY > WATER_Y - 2.2)) {
+      const [hl, hw, off] = MOUNT_BODY[m.kind];
+      const yaw = m.root.rotation.y;
+      const at = landingSpot(kp.x + Math.sin(yaw) * off, kp.z + Math.cos(yaw) * off, yaw, hl, hw + 3.2, worldFloor, this.landAt);
+      if (at) {
+        kp.set(at.x, at.y, at.z);
+        this.swimDepth = this.swimTarget = 0;
+        if (this.kid.rig) this.kid.rig.root.position.set(0, 0, 0);
+        const sh = this.kid.root.children[1];
+        if (sh) sh.visible = true;
+        if (this.pet) this.pet.root.position.set(at.x + 0.9, at.y, at.z + 0.6);
+        this.burst(kp.clone().setY(at.y + 1), 24);
+        return;
+      }
+    }
     // hopping off above a floating mountain: you're standing on it
     const top = skyTopY(kp.x, kp.z, this.time);
     if (top && wasY >= top.y - 1.5) {
