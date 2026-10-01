@@ -21,6 +21,7 @@ import {
   FROST_COLONY,
   FROST_CRECHE,
   FROST_FISHING,
+  FROST_FLOES,
   FROST_HUDDLE,
   FROST_SHORE,
   FROST_SLIDES,
@@ -154,9 +155,14 @@ export const PENGUIN_K = PENGUIN_TRUE_M.map((m, k) => (FROST_M * m) / MODEL_H[k]
 /** how much bigger than the old storybook penguins (1.3x model) the true-size emperors are: the
  *  colony's spacings (slots, queues, the ascent line) grow by this */
 const SP = PENGUIN_K[0] / 1.3;
-/** body centre height (standing) and belly half-thickness, per kind */
-const CY = [0.47, 0.3, 0.24];
-const BR = [0.27, 0.25, 0.16];
+/** each kind's body, in model units (see ./critters.ts): an egg of radii rx, ry, rz centred `cy` above
+ *  the feet (the root), and how far the feet sit out to the side. penguinRoot() rests the lowest of
+ *  these on the support, whatever the pose. (The chick's down is lumpy: a touch bigger.) */
+export const PENGUIN_BODY = [
+  { cy: 0.47, rx: 0.3, ry: 0.43, rz: 0.27, foot: 0.1 },
+  { cy: 0.3, rx: 0.27, ry: 0.32, rz: 0.26, foot: 0.07 },
+  { cy: 0.24, rx: 0.16, ry: 0.23, rz: 0.15, foot: 0.05 },
+];
 
 export interface Penguin {
   i: number;
@@ -190,6 +196,12 @@ export interface Penguin {
   cycle: number;
   /** under the water */
   under: boolean;
+  /** the support's slope under it (dy/dx, dy/dz): the ground, its chute, or 0 (swimming, leaping) */
+  gx: number;
+  gz: number;
+  /** where the slope was last sampled */
+  gsX: number;
+  gsZ: number;
   // routes
   path: Path | null;
   ps: number;
@@ -239,6 +251,8 @@ export interface Colony {
   lastStart: number[];
   lastSlider: number[];
   lastAscender: number;
+  /** the chute the Park kid is waiting at or sliding down (-1 = none): its queue stands aside and waits */
+  kidChute: number;
   /** colony spots and who's on them */
   slotX: Float32Array;
   slotZ: Float32Array;
@@ -307,6 +321,7 @@ export function makeColony(low: boolean, seed = 777): Colony {
     lastStart: FROST_SLIDES.map(() => -99),
     lastSlider: FROST_SLIDES.map(() => -1),
     lastAscender: -1,
+    kidChute: -1,
     slotX: Float32Array.from(sx),
     slotZ: Float32Array.from(sz),
     slotBy: new Int16Array(sx.length).fill(-1),
@@ -344,6 +359,10 @@ export function makeColony(low: boolean, seed = 777): Colony {
       flipBack: 0,
       cycle: rnd() * TAU,
       under: false,
+      gx: 0,
+      gz: 0,
+      gsX: 1e9,
+      gsZ: 1e9,
       path: null,
       ps: 0,
       v: 0,
@@ -436,6 +455,13 @@ export function makeColony(low: boolean, seed = 777): Colony {
 function ground(x: number, z: number): number {
   return frostGroundY(x, z) ?? frostLandY(x, z) ?? WY;
 }
+/** the snow (or ice) to rest a drawn penguin on: land only - under the sea the sim's own floors rule */
+export function penguinGround(x: number, z: number): number {
+  // (not the ice floes: penguins only ever swim under those)
+  if (nearFloe(x, z, 0)) return -1e9;
+  const g = frostGroundY(x, z);
+  return g === null || g < WY + 0.05 ? -1e9 : g;
+}
 
 function emit(col: Colony, x: number, y: number, z: number, size: number, kind: number) {
   const e = col.ev;
@@ -519,8 +545,10 @@ function chuteDir(col: Colony, c: number) {
 const qOut = { x: 0, z: 0 };
 function queuePos(col: Colony, c: number, j: number) {
   const d = chuteDir(col, c);
-  const back = (1.25 + j * 0.8) * SP;
-  const side = (j % 2 ? 0.18 : -0.18) * SP;
+  // (the Park kid's turn: the line steps aside, off to the left of the start arch)
+  const aside = col.kidChute === c;
+  const back = aside ? (0.2 + j * 0.85) * SP : (1.25 + j * 0.8) * SP;
+  const side = aside ? 2.9 + (j % 2 ? 0.25 : 0) : (j % 2 ? 0.18 : -0.18) * SP;
   qOut.x = d.x - d.dx * back + d.dz * side;
   qOut.z = d.z - d.dz * back - d.dx * side;
   return qOut;
@@ -776,9 +804,11 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
       case S_SLIP: {
         // whoops! flop forward, slide back down a little, lie there a moment, get up
         const u = p.t;
+        // (lying along the ramp, whichever way it slopes)
+        const lie = 1.45 + Math.atan(-(p.gx * Math.sin(p.yaw) + p.gz * Math.cos(p.yaw)));
         if (u < 0.35) {
           p.belly = smooth(0, 0.35, u);
-          p.pitch = p.belly * 1.45;
+          p.pitch = p.belly * lie;
         } else if (u < 1.3) {
           p.ps = Math.max(0, p.ps - 1.8 * dt);
           p.flipOut = 1.1 + Math.sin(t * 20 + p.seed) * 0.5;
@@ -787,7 +817,7 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
           p.headPitch = -0.6;
         } else {
           p.belly = 1 - smooth(2.1, 2.7, u);
-          p.pitch = p.belly * 1.45;
+          p.pitch = p.belly * lie;
           p.flipOut = 0.6;
         }
         samplePath(col.ascent, p.ps, pt);
@@ -795,6 +825,7 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
         p.z = pt.z;
         p.y = ground(p.x, p.z);
         p.roll = Math.sin(t * 9 + p.seed) * 0.12 * p.belly;
+        if (u >= 0.35 && u < 2.1) p.pitch = lie;
         if (u > 2.75) {
           p.belly = 0;
           p.pitch = 0;
@@ -815,7 +846,7 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
         } else walkPose(p, t, dt);
         const last = col.lastSlider[p.chute];
         const clear = last < 0 || P[last].state !== S_SLIDE || P[last].ps > 9;
-        if (j === 0 && there && t - col.lastStart[p.chute] > 1.8 && clear && p.t > 1.2) {
+        if (j === 0 && there && t - col.lastStart[p.chute] > 1.8 && clear && p.t > 1.2 && col.kidChute !== p.chute) {
           leaveQueue(col, p);
           col.lastStart[p.chute] = t;
           col.lastSlider[p.chute] = p.i;
@@ -832,6 +863,8 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
       case S_SLIDE: {
         const S = col.slides[p.chute];
         samplePath(S, p.ps, pt);
+        // (behind the start line it's the flat terrace)
+        if (p.ps < 0) pt.slope = 0;
         const vmax = p.kind === LITTLE ? 8.5 : 10;
         const a = 9.8 * pt.slope * 0.82 - 0.35 - 0.01 * p.v * p.v;
         p.v = clamp(p.v + a * dt, 1.4, vmax);
@@ -842,12 +875,16 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
         samplePath(S, p.ps, pt);
         // (before the start line, on the terrace: along the line the chute starts on)
         const pre = Math.min(0, p.ps);
+        if (pre < 0) pt.slope = 0;
         p.x = pt.x + pt.dx * pre;
         p.z = pt.z + pt.dz * pre;
         p.y = pt.y;
+        p.gx = -pt.slope * pt.dx;
+        p.gz = -pt.slope * pt.dz;
         p.yaw = turnTo(p.yaw, Math.atan2(pt.dx, pt.dz), 8, dt);
+        // the flop: tipping forward onto its belly as it runs up (not pivoting nose-first into the snow)
         p.belly = Math.min(1, p.belly + dt * 4);
-        p.pitch = Math.PI / 2 + Math.atan(pt.slope) * 0.9;
+        p.pitch = p.belly * (Math.PI / 2 + Math.atan(pt.slope) * 0.9);
         p.roll = Math.sin(t * 6 + p.seed) * 0.12;
         p.flipOut = 0.22;
         p.flipBack = 0.1;
@@ -964,7 +1001,49 @@ export function stepColony(col: Colony, dtIn: number, t: number, kid: { x: numbe
         break;
       }
     }
+    // the slope of what it stands on (for resting the body on it: penguinRoot)
+    const st = p.state;
+    if (st === S_SWIM || st === S_FISH || st === S_HOP) p.gx = p.gz = 0;
+    else if (st !== S_SLIDE) groundSlope(p);
   }
+}
+
+const GE = 0.5;
+function groundSlope(p: Penguin) {
+  // (only when it's moved: most of the colony stands still)
+  if (Math.abs(p.x - p.gsX) < 0.04 && Math.abs(p.z - p.gsZ) < 0.04) return;
+  p.gsX = p.x;
+  p.gsZ = p.z;
+  p.gx = (ground(p.x + GE, p.z) - ground(p.x - GE, p.z)) / (2 * GE);
+  p.gz = (ground(p.x, p.z + GE) - ground(p.x, p.z - GE)) / (2 * GE);
+}
+
+/** is (x, z) under (or right by) an ice floe */
+function nearFloe(x: number, z: number, pad: number): boolean {
+  for (let i = 0; i < FROST_FLOES.length; i++) {
+    const f = FROST_FLOES[i];
+    const r = f.r * 1.25 + pad;
+    if ((x - f.x) ** 2 + (z - f.z) ** 2 < r * r) return true;
+  }
+  return false;
+}
+
+// ── the Park kid's turn on the slides ──
+
+/** the kid is waiting at (or sliding down) chute c (-1: none): that chute's queue steps aside and waits */
+export function colonyKidChute(col: Colony, c: number) {
+  col.kidChute = c;
+}
+/** is chute c clear for the kid to go: nobody sliding on its first stretch */
+export function colonyChuteClear(col: Colony, c: number): boolean {
+  for (const p of col.penguins) if (p.state === S_SLIDE && p.chute === c && p.ps < 12) return false;
+  return true;
+}
+/** how far down chute c the nearest penguin ahead of distance s is (Infinity: none) */
+export function colonyAheadOn(col: Colony, c: number, s: number): number {
+  let best = Infinity;
+  for (const p of col.penguins) if (p.state === S_SLIDE && p.chute === c && p.ps > s && p.ps < best) best = p.ps;
+  return best;
 }
 
 function swimStep(col: Colony, p: Penguin, t: number, dt: number) {
@@ -1056,9 +1135,17 @@ function swimStep(col: Colony, p: Penguin, t: number, dt: number) {
       p.leapEvery = 1.2 + ((p.seed * 13 + Math.floor(t)) % 9) * 0.2;
     }
   } else {
-    y = p.y + (wantY - p.y) * Math.min(1, dt * 2.5);
+    // (coming up to an ice floe: dive down under it in good time)
+    const under = WY - 0.95 - 2 * PENGUIN_BODY[p.kind].ry * p.size;
+    y = p.y + ((nearFloe(p.x, p.z, 4) ? Math.min(wantY, under) : wantY) - p.y) * Math.min(1, dt * 2.5);
   }
   y = Math.max(y, floor);
+  // (never through an ice floe: dive under it, its underside is 0.75 under the water)
+  if (nearFloe(p.x, p.z, 1.2)) {
+    // (its whole body, even nosing up or down, stays under the ice)
+    y = Math.min(y, WY - 0.95 - 2 * PENGUIN_BODY[p.kind].ry * p.size);
+    p.leapU = -1;
+  }
   // splashes crossing the surface, bubbles underwater
   const topNow = y + 0.2;
   const topWas = oldY + 0.2;
@@ -1078,17 +1165,75 @@ function swimStep(col: Colony, p: Penguin, t: number, dt: number) {
   p.headYaw = 0;
 }
 
-/** the pose's body-root (feet) position for drawing: lifts / shifts the body when lying on its belly */
-export function penguinRoot(p: Penguin, out: { x: number; y: number; z: number }): { x: number; y: number; z: number } {
-  const cy = CY[p.kind] * p.size;
-  const br = BR[p.kind] * p.size;
+/** what penguinRoot needs: where it is, its support's slope, and its pose */
+export interface PenguinPose {
+  kind: number;
+  size: number;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  roll: number;
+  belly: number;
+  gx: number;
+  gz: number;
+}
+/**
+ * The body-root (feet) position to draw a pose at: lying down, the body's middle sits over (x, z);
+ * then the root is lifted (or lowered) so the lowest point of the body - its egg-shaped belly, or its
+ * feet - rests exactly on the support plane through (x, y, z) with slope (gx, gz). Exact for any
+ * pitch / roll / yaw, so no pose (the flop, a slip, the hop ashore) ever sinks into the snow.
+ */
+export function penguinRoot(p: PenguinPose, out: { x: number; y: number; z: number }, ground?: (x: number, z: number) => number): { x: number; y: number; z: number } {
+  const B = PENGUIN_BODY[p.kind];
+  const k = p.size;
+  const sp = Math.sin(p.pitch);
+  const cp = Math.cos(p.pitch);
+  const sy = Math.sin(p.yaw);
+  const cyw = Math.cos(p.yaw);
+  const sr = Math.sin(p.roll);
+  const cr = Math.cos(p.roll);
   const b = p.belly;
-  const s = Math.sin(p.pitch);
-  const c = Math.cos(p.pitch);
-  // lying: the belly touches the support height; the body's middle sits over (x, z)
-  out.x = p.x - Math.sin(p.yaw) * cy * s * b;
-  out.z = p.z - Math.cos(p.yaw) * cy * s * b;
-  out.y = p.y + b * (br - cy * c);
+  out.x = p.x - sy * B.cy * k * sp * b;
+  out.z = p.z - cyw * B.cy * k * sp * b;
+  // the support's "up" (-gx, 1, -gz) in the body's frame (Euler YXZ: undo yaw, then pitch, then roll)
+  const dx = -p.gx;
+  const dz = -p.gz;
+  const ax = dx * cyw - dz * sy;
+  const az = dx * sy + dz * cyw;
+  const by = cp + az * sp;
+  const bz = -sp + az * cp;
+  const ex = ax * cr + by * sr;
+  const ey = -ax * sr + by * cr;
+  const ez = bz;
+  // the lowest point along it: the egg's (centre minus its reach that way), or a foot
+  const egg = B.cy * ey - Math.sqrt((B.rx * ex) ** 2 + (B.ry * ey) ** 2 + (B.rz * ez) ** 2);
+  const feet = -B.foot * Math.abs(ex);
+  const low = Math.min(egg, feet) * k;
+  out.y = p.y + p.gx * (out.x - p.x) + p.gz * (out.z - p.z) - low;
+  if (!ground) return out;
+  // the snow isn't a perfect plane (the ramp's edges, the grid's creases): check the real ground right
+  // under the lowest point of the egg and under each foot, and lift out of any dip into it
+  const len = Math.sqrt((B.rx * ex) ** 2 + (B.ry * ey) ** 2 + (B.rz * ez) ** 2) || 1;
+  let need = 0;
+  for (let q = 0; q < 3; q++) {
+    // body-frame point: the egg's lowest, or a foot
+    const bx = q === 0 ? (-B.rx * B.rx * ex) / len : q === 1 ? B.foot : -B.foot;
+    const byy = q === 0 ? B.cy - (B.ry * B.ry * ey) / len : 0;
+    const bzz = q === 0 ? (-B.rz * B.rz * ez) / len : 0;
+    // to the world: roll (z), pitch (x), yaw (y)
+    const x1 = bx * cr - byy * sr;
+    const y1 = bx * sr + byy * cr;
+    const y2 = y1 * cp - bzz * sp;
+    const z2 = y1 * sp + bzz * cp;
+    const wx = out.x + (x1 * cyw + z2 * sy) * k;
+    const wz = out.z + (-x1 * sy + z2 * cyw) * k;
+    const wy = out.y + y2 * k;
+    const g = ground(wx, wz);
+    if (g > wy + need) need = g - wy;
+  }
+  out.y += need;
   return out;
 }
 

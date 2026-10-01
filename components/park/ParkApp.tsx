@@ -263,6 +263,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [villageTalk, setVillageTalk] = useState<{ name: string; line: string } | null>(null);
   // floating mountains: the one you're flying over (to land on), and the treasures found
   const [landName, setLandName] = useState<string | null>(null);
+  // Frostpeak's penguin slides: the chute whose start arch the kid is standing at
+  const [slideOffer, setSlideOffer] = useState<string | null>(null);
+  const slideHinted = useRef({ start: false, splash: false });
   // a ride waiting close by (you find rides round the world now — no summoning)
   const [hopTarget, setHopTarget] = useState<{ kind: MountKind; label: string } | null>(null);
   const skyKey = `cucaino.skychests.${kidId}`;
@@ -648,6 +651,16 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               return next;
             });
           },
+          onRideHint: (text) => toast(text),
+          onDragonBond: (id) => {
+            // dragon friends are remembered per kid
+            try {
+              const key = `cucaino.dragons.${kidId}`;
+              const cur = JSON.parse(window.localStorage.getItem(key) ?? "[]") as string[];
+              if (Array.isArray(cur) && !cur.includes(id)) window.localStorage.setItem(key, JSON.stringify([...cur, id]));
+            } catch {}
+            playSfx("win");
+          },
           onSwim: (inSea) => {
             ambience.current?.splash();
             if (inSea && !swimHinted.current) {
@@ -655,10 +668,29 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               toast("🌊 Splash! Hold ▼ to dive under the waves and explore the reef");
             }
           },
+          onSlide: (what, name) => {
+            if (what === "start") {
+              playSfx("sparkle");
+              toast(slideHinted.current.start ? `🐧 Wheee! Down the ${name}!` : "🐧 Wheee! Lean left and right with the joystick — SPLASH into the sea at the bottom!");
+              slideHinted.current.start = true;
+            } else if (what === "wait") toast("🐧 A penguin's just gone — your turn in a moment!");
+            else {
+              playSfx("win");
+              ambience.current?.splash();
+              // (this beats the swimming hint)
+              swimHinted.current = true;
+              toast(slideHinted.current.splash ? "💦 SPLASH! Again? Swim to the beach and follow the blue arrows up!" : "💦 SPLASH! Swim back to Penguin Point's beach and follow the blue arrows ⬆ up the snowy ramp to slide again!");
+              slideHinted.current.splash = true;
+            }
+          },
           onRing: (passed, lap) => ringRef.current(passed, lap),
           onError: () => !disposed && setBootError(true),
           onReady: () => {
             setReady(true);
+            try {
+              const friends = JSON.parse(window.localStorage.getItem(`cucaino.dragons.${kidId}`) ?? "[]") as string[];
+              if (Array.isArray(friends)) world?.setBondedDragons(friends.filter((x) => typeof x === "string"));
+            } catch {}
             try {
               const saved = JSON.parse(window.localStorage.getItem(`cucaino.shards.${kidId}`) ?? "[]") as number[];
               if (Array.isArray(saved)) {
@@ -877,6 +909,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setRiding((cur) => (cur?.kind === r?.kind && cur?.flying === r?.flying && cur?.landing === r?.landing ? cur : r));
       const ht = worldRef.current?.hopTarget ?? null;
       setHopTarget((cur) => (cur?.label === ht?.label && cur?.kind === ht?.kind ? cur : ht));
+      const so = worldRef.current?.slideOffer ?? null;
+      setSlideOffer((cur) => (cur === so ? cur : so));
       const ln = worldRef.current?.skyLandable ?? null;
       setLandName((cur) => (cur === ln ? cur : ln));
       const sw = worldRef.current?.swim ?? null;
@@ -1313,6 +1347,16 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               ))}
             </>
           )}
+          {riding?.kind === "dragon" && riding.flying && !riding.landing && (
+            <>
+              <RoundButton size={54} onClick={() => worldRef.current?.dragonTrick("roll") && playSfx("sparkle")} aria-label="Barrel roll" style={{ fontSize: 12, lineHeight: 1.05, textAlign: "center" }}>
+                🌀 Roll
+              </RoundButton>
+              <RoundButton size={54} onClick={() => worldRef.current?.dragonTrick("fire") && playSfx("sparkle")} aria-label="Fire puff" style={{ fontSize: 12, lineHeight: 1.05, textAlign: "center" }}>
+                🔥 Puff
+              </RoundButton>
+            </>
+          )}
           {(riding || hopTarget) && (
             <RoundButton
               size={62}
@@ -1363,6 +1407,17 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             <div style={{ fontSize: 12, fontWeight: 900, color: "#8a5a10", letterSpacing: 0.5, marginBottom: 2 }}>🧚 {villageTalk.name}</div>
             {villageTalk.line}
           </div>
+        </div>
+      )}
+      {slideOffer && !busy && !riding && (
+        <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(max(20px, env(safe-area-inset-bottom)) + 230px)", zIndex: 23 }}>
+          <GameButton
+            onClick={() => {
+              if (worldRef.current?.startSlide()) setSlideOffer(null);
+            }}
+          >
+            🐧 Slide! <span style={{ fontSize: "0.72em", opacity: 0.85 }}>{slideOffer}</span>
+          </GameButton>
         </div>
       )}
       {landName && !busy && (

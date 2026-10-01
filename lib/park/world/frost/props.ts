@@ -11,7 +11,10 @@ import {
   FROST_FLOES,
   FROST_ISLAND,
   FROST_PROPS,
+  FROST_SKI,
   FROST_SLIDES,
+  LIFT_GAP,
+  frostCableY,
   FROST_WATER_Y,
   SLIDE_FLOOR,
   SLIDE_HALF,
@@ -20,7 +23,7 @@ import {
   frostSlideSplash,
   type FrostProp,
 } from "../../registry/frostIsland";
-import { ball, box, col, cone, cyl, gem, lump, mergeAll, place, pp, stick, v3, type Fx } from "../village/kit";
+import { ball, box, col, cone, cyl, flat, gem, lump, mergeAll, place, pp, stick, v3, type Fx } from "../village/kit";
 
 const X0 = FROST_ISLAND.x;
 const Z0 = FROST_ISLAND.z;
@@ -269,6 +272,170 @@ function slidegate(v: number): THREE.BufferGeometry[] {
   return parts;
 }
 
+// ── the Penguin Ski Run ──
+
+/** the start hut: a little red A-frame with a sign board over the door (+z), skis by the door */
+function skihut(low: boolean): THREE.BufferGeometry[] {
+  const parts: THREE.BufferGeometry[] = [];
+  parts.push(pp(box(3.4, 0.25, 2.8, 0, 0.12, 0), WOOD_D));
+  parts.push(pp(box(3.0, 1.9, 2.4, 0, 1.2, 0), (p, n) => (Math.abs(n.y) > 0.5 ? WOOD : Math.abs(p.y - 1.2) < 0.08 ? "#fff4ea" : "#e0503c")));
+  for (const sd of [-1, 1]) {
+    const slab = box(1.95, 0.18, 3.0, 0, 0, 0);
+    slab.rotateZ(sd * -0.72);
+    parts.push(pp(place(slab, sd * 0.78, 2.75, 0), snowy("#8c3a32", 0.3)));
+  }
+  parts.push(pp(box(0.3, 0.3, 3.1, 0, 3.42, 0), SNOW));
+  // door, a round window, the sign board (its words are painted on by the sign mesh)
+  parts.push(pp(box(0.9, 1.5, 0.1, -0.6, 1.0, 1.22), "#3a4a66"));
+  parts.push(pp(place(new THREE.CircleGeometry(0.32, low ? 6 : 8), 0.75, 1.45, 1.23), "#ffd98a", [0, 0, 1]));
+  parts.push(pp(box(2.9, 0.62, 0.12, 0, 2.38, 1.36), "#20406e"));
+  parts.push(pp(box(3.05, 0.1, 0.16, 0, 2.72, 1.36), SNOW));
+  // a pennant on a pole
+  parts.push(pp(cyl(0.05, 0.06, 2.4, 5, 1.7, 0, 1.35), "#cfd6e2"));
+  parts.push(pp(place(new THREE.PlaneGeometry(0.8, 0.45), 2.1, 2.1, 1.35), "#ffcf4a", [0, 1, 0]));
+  return parts;
+}
+
+/** the warm-up lodge: a log cabin with a big snowy roof, a chimney, glowing windows and a porch */
+function lodge(low: boolean): THREE.BufferGeometry[] {
+  const parts: THREE.BufferGeometry[] = [];
+  const LOG = "#a8703f";
+  parts.push(pp(box(6.4, 0.3, 5.2, 0, 0.15, 0), WOOD_D));
+  // log walls: stacked bands
+  for (let k = 0; k < 5; k++) parts.push(pp(box(6.0, 0.5, 4.2, 0, 0.55 + k * 0.48, -0.3), k % 2 ? LOG : "#b98250"));
+  for (const sd of [-1, 1]) {
+    const slab = box(3.7, 0.28, 5.2, 0, 0, 0);
+    slab.rotateZ(sd * -0.62);
+    parts.push(pp(place(slab, sd * 1.55, 3.95, -0.1), snowy("#7a4a2c", 0.3)));
+  }
+  parts.push(pp(box(0.4, 0.4, 5.3, 0, 4.98, -0.1), SNOW));
+  const gable = new THREE.BufferGeometry();
+  gable.setAttribute("position", new THREE.Float32BufferAttribute([-3, 0, 0, 3, 0, 0, 0, 2.0, 0, 3, 0, 0, -3, 0, 0, 0, 2.0, 0], 3));
+  for (const z of [-2.4, 1.8]) parts.push(pp(place(gable.clone(), 0, 2.85, z), LOG));
+  gable.dispose();
+  // chimney
+  parts.push(pp(box(0.7, 2.2, 0.7, 1.8, 4.6, -1.2), "#7d8697"));
+  parts.push(pp(box(0.85, 0.2, 0.85, 1.8, 5.7, -1.2), SNOW));
+  // door + windows (warm glow at night), a porch with a bench
+  parts.push(pp(box(1.1, 1.9, 0.12, 0, 1.25, 1.82), "#5a3a22"));
+  for (const x of [-1.9, 1.9]) parts.push(pp(box(1.1, 0.9, 0.1, x, 1.8, 1.83), "#ffd98a", [0, 0, 1.1]));
+  for (const sd of [-1, 1]) parts.push(pp(box(0.1, 0.9, 1.3, sd * 3.02, 1.8, -0.3), "#ffd98a", [0, 0, 1.1]));
+  parts.push(pp(box(6.2, 0.14, 1.4, 0, 0.33, 2.55), WOOD));
+  for (const x of [-2.9, 2.9]) parts.push(pp(box(0.2, 2.6, 0.2, x, 1.6, 3.15), WOOD_D));
+  parts.push(pp(box(6.4, 0.18, 1.6, 0, 2.95, 2.6), snowy(WOOD_D, 0.4)));
+  parts.push(pp(box(1.8, 0.12, 0.45, -1.9, 0.75, 2.85), WOOD));
+  for (const x of [-2.6, -1.2]) parts.push(pp(box(0.12, 0.42, 0.4, x, 0.5, 2.85), WOOD_D));
+  // the sign board over the porch
+  parts.push(pp(box(3.6, 0.7, 0.12, 0, 3.55, 3.42), "#2f5d3a"));
+  void low;
+  return parts;
+}
+
+const SKI_COLS = ["#ff5a7a", "#4f7bff", "#ffcf4a", "#4fc3a1", "#b07ce8", "#ff9a3d"];
+/** a wooden rack with skis and poles leaning on it */
+function skirack(v: number): THREE.BufferGeometry[] {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const x of [-1.1, 1.1]) parts.push(pp(box(0.12, 1.1, 0.12, x, 0.55, 0), WOOD_D));
+  parts.push(pp(box(2.4, 0.1, 0.14, 0, 1.0, 0), WOOD));
+  for (let k = 0; k < 6; k++) {
+    const x = -0.9 + k * 0.36;
+    const c = SKI_COLS[(k + v * 2) % SKI_COLS.length];
+    const ski = box(0.1, 1.6, 0.03, 0, 0.8, 0);
+    ski.rotateX(-0.22);
+    parts.push(pp(place(ski, x, 0, 0.32), c));
+    if (k % 2) parts.push(pp(stick(v3(x + 0.12, 0, 0.25), v3(x + 0.1, 1.15, 0.05), 0.035), "#cfd6e2"));
+  }
+  return parts;
+}
+
+/** a chairlift pylon: a yellow steel tower, the cable head (crossbar + wheels) at h */
+function pylon(hc: number): THREE.BufferGeometry[] {
+  const parts: THREE.BufferGeometry[] = [];
+  // (the cable runs over the wheels' tops at hc)
+  const h = hc - 0.42;
+  parts.push(pp(box(1.0, 0.3, 1.0, 0, 0.15, 0), "#9aa4b4"));
+  const tower = new THREE.CylinderGeometry(0.17, 0.3, h - 0.3, 6, 1);
+  tower.translate(0, (h - 0.3) / 2 + 0.2, 0);
+  parts.push(pp(tower, (p) => (Math.floor(p.y / 1.2) % 2 ? "#ffcf4a" : "#f4b030")));
+  parts.push(pp(box(2.9, 0.22, 0.3, 0, h + 0.05, 0), "#e0503c"));
+  for (const sd of [-1, 1]) {
+    parts.push(pp(box(0.12, 0.35, 0.95, sd * LIFT_GAP, h + 0.12, 0), "#4a5568"));
+    for (const z of [-0.3, 0.3]) parts.push(pp(place(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 6), sd * LIFT_GAP + 0.08 * sd, h + 0.29, z, 0, 1, 0, Math.PI / 2), "#2a2f3a"));
+  }
+  // a snowy cap
+  parts.push(pp(box(2.9, 0.08, 0.34, 0, h + 0.2, 0), SNOW));
+  return parts;
+}
+
+/** a lift station: a roofed deck round the big wheel the cable turns on (axis along +z = up the lift) */
+function liftstation(h: number, top: boolean, low: boolean): THREE.BufferGeometry[] {
+  const parts: THREE.BufferGeometry[] = [];
+  const R = LIFT_GAP;
+  const dz = top ? FROST_SKI.lift.wheel : -FROST_SKI.lift.wheel; // (the wheel sits at the far end: past the top, before the bottom)
+  parts.push(pp(box(3.8, 0.25, 4.2, 0, 0.12, 0), "#9aa4b4"));
+  // the boarding / unloading line
+  parts.push(pp(box(2.8, 0.03, 0.22, 0, 0.26, top ? -0.9 : 0.9), "#4f7bff"));
+  for (const sx of [-1.7, 1.7]) for (const sz of [-1.8, 1.8]) parts.push(pp(box(0.22, h + 1.2, 0.22, sx, (h + 1.2) / 2, sz), "#4a5568"));
+  // the bullwheel (horizontal) with its spokes, on a post
+  const wheel = new THREE.TorusGeometry(R, 0.1, 4, low ? 10 : 14);
+  wheel.rotateX(Math.PI / 2);
+  parts.push(pp(place(wheel, 0, h, dz), "#e0503c"));
+  for (let k = 0; k < 4; k++) parts.push(pp(place(box(R * 2, 0.06, 0.08), 0, h, dz, (k * Math.PI) / 4), "#4a5568"));
+  parts.push(pp(box(0.3, 0.6, 0.3, 0, h + 0.3, dz), "#4a5568"));
+  // the roof
+  parts.push(pp(box(4.2, 0.25, 4.6, 0, h + 1.35, 0), snowy("#e0503c", 0.4)));
+  parts.push(pp(box(4.3, 0.12, 4.7, 0, h + 1.52, 0), SNOW));
+  // a little operator's booth
+  parts.push(pp(box(1.0, 1.7, 1.0, 2.5, 0.95, top ? 1.2 : -1.2), "#4fc3f7"));
+  parts.push(pp(box(0.8, 0.5, 0.06, 2.5, 1.3, top ? 0.68 : -0.68), "#ffd98a", [0, 0, 0.8]));
+  parts.push(pp(box(1.2, 0.12, 1.2, 2.5, 1.86, top ? 1.2 : -1.2), SNOW));
+  return parts;
+}
+
+/** v 0 red / 1 blue: a slalom gate (two poles with flag panels `h` either side); v 2 the start arch */
+function skigate(v: number, h: number): THREE.BufferGeometry[] {
+  const parts: THREE.BufferGeometry[] = [];
+  if (v === 2) {
+    for (const sd of [-1, 1]) {
+      parts.push(pp(cyl(0.16, 0.2, 3.4, 6, sd * h, 0, 0), (p) => (Math.floor(p.y / 0.6) % 2 ? "#ffffff" : "#e0503c")));
+      parts.push(pp(ball(0.26, sd * h, 3.55, 0), "#ffcf4a", [0, 0, 0.5]));
+    }
+    parts.push(pp(box(h * 2 + 0.3, 0.8, 0.2, 0, 3.0, 0), "#20406e"));
+    return parts;
+  }
+  const c = v === 0 ? "#ff3b4e" : "#2f6bff";
+  for (const sd of [-1, 1]) {
+    parts.push(pp(cyl(0.035, 0.04, 1.75, 4, sd * h, 0, 0), c));
+    // the panel flies between the pole and its partner
+    const panel = new THREE.PlaneGeometry(0.62, 0.5, 2, 1);
+    parts.push(pp(place(panel, sd * (h - 0.34), 1.42, 0), (p) => (Math.abs(p.y - 1.42) < 0.06 ? "#ffffff" : c), (p) => [0, Math.max(0, h - Math.abs(p.x)) * 0.25, 0]));
+  }
+  return parts;
+}
+
+function marker(v: number): THREE.BufferGeometry[] {
+  // (orange, with a black band near the top, and a little flag)
+  return [
+    pp(cyl(0.05, 0.06, 1.5, 4), (p) => (p.y > 1.05 && p.y < 1.3 ? "#1f2433" : v ? "#ff6a1a" : "#ff9a1a")),
+    pp(place(new THREE.PlaneGeometry(0.34, 0.22), 0.18, 1.36, 0), v ? "#ff6a1a" : "#ffcf4a", [0, 1, 0]),
+  ];
+}
+
+/** a blue arrow post pointing +z (the way up to Slide Top) */
+function arrow(): THREE.BufferGeometry[] {
+  const board = flat([
+    [-0.55, 0.12],
+    [0.15, 0.12],
+    [0.15, 0.3],
+    [0.6, 0],
+    [0.15, -0.3],
+    [0.15, -0.12],
+    [-0.55, -0.12],
+  ]);
+  board.rotateY(-Math.PI / 2);
+  return [pp(box(0.1, 1.2, 0.1, 0, 0.6, 0), WOOD_D), pp(place(board, 0, 1.25, 0.05, 0, 1.15), "#2f8cff", [0, 0, 0.5]), pp(box(0.16, 0.08, 1.3, 0, 1.62, 0.05), SNOW)];
+}
+
 /** a snowy pine: stacked cones, snow on every tier */
 function pine(v: number, low: boolean): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
@@ -396,6 +563,22 @@ function buildProp(p: FrostProp, low: boolean): THREE.BufferGeometry[] {
       return slidegate(p.v);
     case "fire":
       return fire();
+    case "skihut":
+      return skihut(low);
+    case "lodge":
+      return lodge(low);
+    case "skirack":
+      return skirack(p.v);
+    case "pylon":
+      return pylon(p.h ?? 5);
+    case "liftstation":
+      return liftstation(p.h ?? 3, p.v === 1, low);
+    case "skigate":
+      return skigate(p.v, p.h ?? 1);
+    case "marker":
+      return marker(p.v);
+    case "arrow":
+      return arrow();
   }
 }
 
@@ -502,7 +685,25 @@ function chuteGeometry(low: boolean): THREE.BufferGeometry[] {
     const s0 = P[0];
     const s1 = P[3];
     const rot = Math.atan2(s1.x - s0.x, s1.z - s0.z);
-    parts.push(pp(place(box(2.9, 0.3, 2.2), s0.x - X0 - Math.sin(rot) * 0.9, s0.y - 0.1, s0.z - Z0 - Math.cos(rot) * 0.9, rot), ICE_L));
+    // (flush with the snow: the queue and the Park kid stand on it)
+    parts.push(pp(place(box(2.9, 0.3, 2.2), s0.x - X0 - Math.sin(rot) * 0.9, s0.y - SLIDE_FLOOR - 0.13, s0.z - Z0 - Math.cos(rot) * 0.9, rot), ICE_L));
+  }
+  return parts;
+}
+
+/** the chairlift's two cables: straight spans from wheel to wheel over the pylons */
+function cableGeometry(): THREE.BufferGeometry[] {
+  const L = FROST_SKI.lift;
+  const parts: THREE.BufferGeometry[] = [];
+  const ds = [-L.wheel, ...L.heads.map((h) => h[0]).slice(1, -1), L.len + L.wheel];
+  for (const side of [-1, 1]) {
+    const lx = L.dz * LIFT_GAP * side;
+    const lz = -L.dx * LIFT_GAP * side;
+    for (let i = 0; i + 1 < ds.length; i++) {
+      const a = v3(L.b.x - X0 + L.dx * ds[i] + lx, frostCableY(ds[i]), L.b.z - Z0 + L.dz * ds[i] + lz);
+      const b = v3(L.b.x - X0 + L.dx * ds[i + 1] + lx, frostCableY(ds[i + 1]), L.b.z - Z0 + L.dz * ds[i + 1] + lz);
+      parts.push(pp(stick(a, b, 0.07), "#2a2f3a"));
+    }
   }
   return parts;
 }
@@ -560,6 +761,7 @@ export function buildPropsGeometry(low: boolean): THREE.BufferGeometry {
     for (const g of buildProp(p, low)) parts.push(place(g, p.x - X0, p.y, p.z - Z0, p.rot, p.s));
   }
   parts.push(...chuteGeometry(low));
+  parts.push(...cableGeometry());
   parts.push(...floeGeometry(low));
   return mergeAll(parts);
 }

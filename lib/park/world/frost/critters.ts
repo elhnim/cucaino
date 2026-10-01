@@ -8,7 +8,7 @@
 //     and the terns' wings (right / left, mirrored)
 //   - beasts: a seal (lying on its belly, nose +z), a narwhal (tusk +z) and a tern's body
 import * as THREE from "three";
-import { ball, box, fp, gem, lump, mergeAll, place } from "../village/kit";
+import { ball, box, fp, gem, lump, mergeAll, place, stick, v3 } from "../village/kit";
 
 export const P_EMPEROR = 0;
 export const P_CHICK = 1;
@@ -213,6 +213,41 @@ export function buildBeasts(low: boolean): THREE.BufferGeometry {
     bill.rotateX(Math.PI / 2);
     parts.push(fp(place(bill, 0, 0.03, 0.29), "#ff5a2a", 0, v));
     for (const s of [-1, 1]) parts.push(fp(place(box(0.02, 0.01, 0.2), s * 0.04, 0, -0.26, s * 0.25), "#f0f0f4", 0, v));
+  }
+  return mergeAll(parts);
+}
+
+// ── ski gear (the Penguin Ski Run): one instanced mesh, a variant per thing ──
+
+export const G_SKI = 0;
+export const G_POLE = 1;
+export const G_CHAIR = 2;
+/** chair: the seat's top is at y = 0, the hanger runs up to the cable (CHAIR_DROP above) */
+export function buildSkiGear(chairDrop: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  // a ski (model units, binding at the origin, tip +z, curled up): coloured per instance
+  {
+    const v = G_SKI;
+    parts.push(fp(box(0.11, 0.03, 0.86, 0, 0.015, -0.05), "#ffffff", 1, v));
+    const tip = box(0.11, 0.03, 0.16, 0, 0, 0.08);
+    tip.rotateX(-0.6);
+    parts.push(fp(place(tip, 0, 0.02, 0.36), "#ffffff", 1, v));
+  }
+  // a pole: grip at the origin, shaft down -y (length 1), a basket near the tip
+  {
+    const v = G_POLE;
+    parts.push(fp(box(0.025, 1, 0.025, 0, -0.5, 0), (p) => (p.y > -0.12 ? "#ff5a7a" : "#cfd6e2"), 0, v));
+    parts.push(fp(box(0.11, 0.012, 0.11, 0, -0.9, 0), "#2a2f3a", 0, v));
+  }
+  // a chair (world units): seat, backrest, the hanger up behind it and over to the cable grip
+  {
+    const v = G_CHAIR;
+    parts.push(fp(box(1.05, 0.1, 0.7, 0, -0.05, 0), "#4fc3f7", 0, v));
+    parts.push(fp(box(1.05, 0.62, 0.08, 0, 0.27, -0.36), (p) => (p.y > 0.5 ? "#e0503c" : "#4fc3f7"), 0, v));
+    parts.push(fp(box(0.9, 0.05, 0.25, 0, -0.62, 0.38), "#4a5568", 0, v));
+    parts.push(fp(stick(v3(0, 0.5, -0.42), v3(0, chairDrop - 0.35, -0.42), 0.07), "#4a5568", 0, v));
+    parts.push(fp(stick(v3(0, chairDrop - 0.35, -0.42), v3(0, chairDrop, 0), 0.07), "#4a5568", 0, v));
+    parts.push(fp(box(0.22, 0.16, 0.3, 0, chairDrop + 0.02, 0), "#2a2f3a", 0, v));
   }
   return mergeAll(parts);
 }

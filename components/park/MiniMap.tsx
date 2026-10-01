@@ -5,8 +5,11 @@
 // buildings. Everything comes from lib/park/registry/island.ts, so it always matches the 3D park.
 // The little map (top-left) follows you and turns with the camera — up is the way you're looking.
 // Tap it for the big map (north-up): tap a land or a pin and your animal walks there along the trails.
+// Rides kids can find (dragons, manta reefs, docks, unicorn glades) get their own little pins, read
+// from the engine once the park has loaded (so none of the ride registries load before it).
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ParkWorld } from "@/lib/park/engine/ParkWorld";
+import type { RidePin } from "@/lib/park/world/rideables";
 import { LANDS, PLACES, type LandDef } from "@/lib/park/registry/places";
 import { HILLS, ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, coastR, nearStream, nearTrail, routeBetween, type P2 } from "@/lib/park/registry/island";
 import { playSfx } from "@/lib/audio/sound-manager";
@@ -170,6 +173,7 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
   const [pose, setPose] = useState<Pose | null>(null);
   const [big, setBig] = useState(false);
   const [globe, setGlobe] = useState(false);
+  const [rides, setRides] = useState<RidePin[]>([]);
   const last = useRef("");
 
   // poll the engine ~8x a second; only re-render when something visibly moved
@@ -177,6 +181,10 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
     if (hidden && !big) return;
     const id = window.setInterval(() => {
       const p = world.current?.getPose() ?? null;
+      if (p && !rides.length) {
+        const rp = world.current?.ridePins ?? [];
+        if (rp.length) setRides(rp);
+      }
       const key = p ? `${p.x.toFixed(1)},${p.z.toFixed(1)},${p.facing.toFixed(2)},${p.yaw.toFixed(2)},${p.pet?.x.toFixed(0)},${p.pet?.z.toFixed(0)}` : "";
       if (key !== last.current) {
         last.current = key;
@@ -184,7 +192,7 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
       }
     }, 125);
     return () => window.clearInterval(id);
-  }, [world, hidden, big]);
+  }, [world, hidden, big, rides.length]);
 
   if (!pose || (hidden && !big)) return null;
   const here = landAt(pose.x, pose.z);
@@ -204,6 +212,21 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
     world.current?.walkKidPath(routeToSpot(pose, pin.x, pin.z + 4));
     setBig(false);
   };
+  /** a ride pin: walk up beside it (land rides), or say how to get there (sea / sky) */
+  const goToRide = (r: RidePin) => {
+    if (r.sky || r.sea || r.how) {
+      playSfx("tap");
+      onSkyPin?.({ id: r.id, x: r.x, z: r.z, emoji: r.emoji, label: r.label, sky: r.sky, how: r.how });
+      setBig(false);
+      return;
+    }
+    playSfx("tap");
+    // stop just short of it, on the side facing the middle of the island (where the trails are)
+    const d = Math.hypot(r.x, r.z) || 1;
+    const k = r.kind === "dragon" ? 5 : 3;
+    world.current?.walkKidPath(routeToSpot(pose, r.x - (r.x / d) * k, r.z - (r.z / d) * k));
+    setBig(false);
+  };
 
   return (
     <>
@@ -216,7 +239,7 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
         style={miniBtn}
         aria-label="Open the park map"
       >
-        <MapSvg pose={pose} size={typeof window !== "undefined" && window.innerWidth < 520 ? 96 : 128} pins={pins} />
+        <MapSvg pose={pose} size={typeof window !== "undefined" && window.innerWidth < 520 ? 96 : 128} pins={pins} rides={rides} />
         <span style={hereTag}>{here ? `${here.emoji} ${here.name}` : "🍭 Park trails"}</span>
       </button>
       {big && (
@@ -238,7 +261,7 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
                 ✕
               </button>
             </div>
-            <MapSvg pose={pose} size={0} labels globe={globe} onLand={goTo} onPin={goToPin} hereId={here?.id} pins={pins} />
+            <MapSvg pose={pose} size={0} labels globe={globe} onLand={goTo} onPin={goToPin} onRide={goToRide} hereId={here?.id} pins={pins} rides={rides} />
           </div>
         </div>
       )}
@@ -254,6 +277,8 @@ function MapSvg({
   onPin,
   hereId,
   pins = [],
+  rides = [],
+  onRide,
   globe = false,
 }: {
   pose: Pose;
@@ -265,6 +290,9 @@ function MapSvg({
   onPin?: (p: MapPin) => void;
   hereId?: string;
   pins?: MapPin[];
+  /** rides to find (dragons, manta reefs, docks, unicorns) */
+  rides?: RidePin[];
+  onRide?: (r: RidePin) => void;
 }) {
   // big map: north-up and centred on the island; small map: follows you and turns with the camera
   const deg = labels ? 0 : (pose.yaw * 180) / Math.PI;
@@ -418,6 +446,39 @@ function MapSvg({
               )}
             </g>
           ))}
+          {/* rides to find: dragons, manta reefs, docks and unicorn glades (only those in view) */}
+          {!globe &&
+            rides.map((r0) => {
+              let r = r0;
+              const dx = r.x - (labels ? 0 : pose.x);
+              const dz = r.z - (labels ? 0 : pose.z);
+              const dd = Math.hypot(dx, dz);
+              if (labels && r.sea && dd > WORLD_VIEW - 10 && dd < WORLD_VIEW + 70) {
+                // the reefs (and Candy Harbour) just off the beach: on the map's edge, pointing the way
+                const k = (WORLD_VIEW - 10) / dd;
+                r = { ...r, x: r.x * k, z: r.z * k };
+              } else if (dd > (labels ? WORLD_VIEW - 6 : VIEW - 4 * u)) return null;
+              // (unicorns only on the big map: the little one stays uncluttered)
+              if (!labels && r.kind === "unicorn") return null;
+              const big = r.kind === "dragon";
+              const rr = (labels ? (big ? 6.4 : 5) : big ? 5 : 4) * (labels ? 1 : u);
+              return (
+                <g key={r.id} transform={upright(r.x, r.z)} onClick={onRide ? () => onRide(r0) : undefined} style={{ cursor: onRide ? "pointer" : undefined }}>
+                  {big && (
+                    <circle cx={r.x} cy={r.z} r={rr + 1.2 * (labels ? 1 : u)} fill="none" stroke="#e8475e" strokeWidth={1.4 * (labels ? 1 : u)} opacity={0.85} />
+                  )}
+                  <circle cx={r.x} cy={r.z} r={rr} fill={r.kind === "manta" || r.kind === "dock" ? "#e9fbff" : "#fff7e8"} stroke={r.kind === "dragon" ? "#e8475e" : r.kind === "manta" ? "#2b8fd6" : r.kind === "dock" ? "#2f6fa8" : "#c48ae8"} strokeWidth={1.2 * (labels ? 1 : u)} />
+                  <text x={r.x} y={r.z + rr * 0.42} textAnchor="middle" fontSize={rr * 1.25}>
+                    {r.emoji}
+                  </text>
+                  {labels && big && (
+                    <text x={r.x} y={r.z + rr + 6.5} textAnchor="middle" fontSize={5.2} fontWeight={900} fill="#a3122f" stroke="#ffffff" strokeWidth={2} paintOrder="stroke">
+                      {r.label}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
           {/* important places, e.g. the Quest Board and how many quests are left */}
           {(globe ? [] : labels ? [...pins, ...FAR_PINS] : [...pins, ...(atSea ? [] : FAR_PINS)]).map((pin) => {
             // on the small map, a far-away pin sticks to the rim, pointing the way

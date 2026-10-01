@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { RIDEABLE_SPOTS, placeClearance, rideableKeepOut, trailInfo } from "./rideables";
+import { DRAGON_BREED_IDS } from "../characters/mounts";
+import { DRAGON_PAD, DRAGON_ROOST, RIDEABLE_SPOTS, placeClearance, rideableKeepOut, strollable, trailInfo } from "./rideables";
 import { MOUNT_CAPS, RIDEABLE_KINDS, mountLean, type MountKind } from "../characters/mounts";
-import { PLACES } from "./places";
-import { TRAIL_WIDTH, coastR, nearStream } from "./island";
-import { WATER_Y, groundY } from "./terrain";
+import { PLACES, SPAWN } from "./places";
+import { TRAIL_POINTS, TRAIL_WIDTH, coastR, nearStream } from "./island";
+import { WATER_Y, groundY, slopeAt } from "./terrain";
 import { SKY_PADS, skyBaseY, skyIslandById, skyWalkable } from "./skyIslands";
 import { seaDepth, seaFloorY } from "../world/sea/wander";
 import { zoneBounds } from "../builder/rules";
@@ -19,7 +20,7 @@ describe("rideable spots", () => {
     expect(of("car").length).toBeLessThanOrEqual(4);
     expect(of("unicorn").length).toBeGreaterThanOrEqual(4);
     expect(of("unicorn").length).toBeLessThanOrEqual(6);
-    expect(of("dragon").length).toBe(4);
+    expect(of("dragon").length).toBe(7);
     expect(of("manta").length).toBeGreaterThanOrEqual(4);
     expect(of("manta").length).toBeLessThanOrEqual(6);
     // sea friends come to you, they're never parked
@@ -69,16 +70,88 @@ describe("rideable spots", () => {
     }
   });
 
-  it("dragons perch on hilltops, and one on a floating mountain's walkable top", () => {
-    const hills = of("dragon").filter((s) => !s.sky);
-    const sky = of("dragon").filter((s) => s.sky);
-    expect(hills.length).toBe(3);
-    expect(sky.length).toBe(1);
-    for (const s of hills) {
-      expect(s.y!, s.id).toBeGreaterThan(5);
-      // the highest point round about
-      for (let a = 0; a < 8; a++) expect(groundY(s.x + Math.sin(a) * 5, s.z + Math.cos(a) * 5), s.id).toBeLessThan(s.y! + 0.3);
+  it("dragons stand where kids walk: open, gentle ground a short stroll off a trail (never a cliff top)", () => {
+    const land = of("dragon").filter((s) => !s.sky && !s.lounge);
+    expect(land.length).toBe(4);
+    const zb = zoneBounds();
+    for (const s of land) {
+      const where = `${s.id} @ ${s.x.toFixed(1)},${s.z.toFixed(1)}`;
+      expect(s.y!, where).toBeCloseTo(groundY(s.x, s.z), 0);
+      expect(groundY(s.x, s.z), where).toBeGreaterThan(WATER_Y + 0.25);
+      // level under its whole body
+      expect(slopeAt(s.x, s.z), where).toBeLessThan(0.25);
+      for (let a = 0; a < 8; a++) {
+        const x = s.x + Math.sin(a) * DRAGON_PAD;
+        const z = s.z + Math.cos(a) * DRAGON_PAD;
+        expect(Math.abs(groundY(x, z) - groundY(s.x, s.z)), where).toBeLessThan(1.4);
+      }
+      // clear of every building and door, the Dream Park grid, off the trail itself
+      expect(placeClearance(s.x, s.z), where).toBeGreaterThan(DRAGON_PAD + 2);
+      expect(s.x > zb.minX - DRAGON_PAD && s.x < zb.maxX + DRAGON_PAD && s.z > zb.minZ - DRAGON_PAD && s.z < zb.maxZ + DRAGON_PAD, where).toBe(false);
+      expect(trailInfo(s.x, s.z).d, where).toBeGreaterThan(DRAGON_PAD * 0.6 + 2);
+      // the harbour dragon is on the beach by the jetty; the rest a few steps off a trail
+      if (s.id !== "dragon-harbour") {
+        expect(trailInfo(s.x, s.z).d, where).toBeLessThan(22);
+        expect(strollable(s.x, s.z), where).toBe(true);
+      }
+      // not perched up a crag: no higher than a gentle hill above the trail beside it
+      if (s.id !== "dragon-harbour") {
+        let bp = TRAIL_POINTS[0][0];
+        for (const pts of TRAIL_POINTS) for (const q of pts) if (Math.hypot(q[0] - s.x, q[1] - s.z) < Math.hypot(bp[0] - s.x, bp[1] - s.z)) bp = q;
+        expect(Math.abs(groundY(s.x, s.z) - groundY(bp[0], bp[1])), where).toBeLessThan(4);
+      }
+      expect(Number.isFinite(s.yaw), where).toBe(true);
     }
+    // spread round the island (one never far away)
+    for (let i = 0; i < land.length; i++) for (let j = i + 1; j < land.length; j++) expect(Math.hypot(land[i].x - land[j].x, land[i].z - land[j].z), `${land[i].id}/${land[j].id}`).toBeGreaterThan(55);
+  });
+
+  it("every dragon is one of the breeds, and all five breeds live round the park", () => {
+    const ds = of("dragon");
+    for (const d of ds) expect(DRAGON_BREED_IDS, d.id).toContain(d.breed);
+    expect(new Set(ds.map((d) => d.breed)).size).toBe(DRAGON_BREED_IDS.length);
+    expect(ds.find((d) => d.id === "dragon-roost")!.breed).toBe("roostwarden");
+    // the land dragons out on their own are all different breeds
+    const alone = ds.filter((d) => !d.lounge && d.id !== "dragon-roost");
+    expect(new Set(alone.map((d) => d.breed)).size).toBe(alone.length);
+  });
+
+  it("two dragons lounge in the Roost's yard, on open ground clear of the trail", () => {
+    const lz = of("dragon").filter((s) => s.lounge);
+    expect(lz.length).toBe(2);
+    for (const s of lz) {
+      expect(Math.hypot(s.x - DRAGON_ROOST.x, s.z - DRAGON_ROOST.z), s.id).toBeLessThan(DRAGON_ROOST.r);
+      expect(trailInfo(s.x, s.z).d, s.id).toBeGreaterThan(TRAIL_WIDTH / 2 + 2);
+      expect(placeClearance(s.x, s.z), s.id).toBeGreaterThan(4);
+      expect(slopeAt(s.x, s.z), s.id).toBeLessThan(0.3);
+    }
+  });
+
+  it("the Dragon Roost is a few steps from where kids start, with its sign by the trail", () => {
+    const r = of("dragon").find((s) => s.id === "dragon-roost")!;
+    expect(r).toBeTruthy();
+    expect(Math.hypot(r.x - SPAWN.x, r.z - SPAWN.z)).toBeLessThan(30);
+    expect(DRAGON_ROOST.x).toBeCloseTo(r.x, 5);
+    expect(DRAGON_ROOST.z).toBeCloseTo(r.z, 5);
+    const sg = DRAGON_ROOST.sign;
+    expect(trailInfo(sg.x, sg.z).d).toBeLessThan(TRAIL_WIDTH / 2 + 2.5);
+    expect(trailInfo(sg.x, sg.z).d).toBeGreaterThan(TRAIL_WIDTH / 2);
+    expect(Math.hypot(sg.x - r.x, sg.z - r.z)).toBeGreaterThan(DRAGON_PAD);
+    expect(sg.y).toBeCloseTo(groundY(sg.x, sg.z), 3);
+  });
+
+  it("the harbour dragon waits on the sand by Candy Harbour, a short walk up from the jetty", () => {
+    const h = of("dragon").find((s) => s.id === "dragon-harbour")!;
+    expect(h).toBeTruthy();
+    const r = Math.hypot(h.x, h.z);
+    expect(r).toBeGreaterThan(coastR(Math.atan2(h.x, h.z)) - 40);
+    expect(Math.abs(Math.atan2(h.x, h.z) - -0.3)).toBeLessThan(0.2);
+    expect(rideableKeepOut(h.x, h.z, 0)).toBe(true);
+  });
+
+  it("one dragon stands on a floating mountain's walkable top", () => {
+    const sky = of("dragon").filter((s) => s.sky);
+    expect(sky.length).toBe(1);
     const d = sky[0];
     const isl = skyIslandById(d.sky!)!;
     expect(isl).toBeTruthy();

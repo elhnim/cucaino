@@ -132,12 +132,20 @@ const TERRACE_L = { lx: -4, lz: 4, h: 11 };
 const CAMP_L = { lx: -20, lz: 37 };
 const HUT_L = { lx: -6, lz: 47.5 };
 const CAVE_L = { lx: 6, lz: -38 };
+/** the Penguin Ski Run: its start terrace on the peak's south-east shoulder, and the run-out at the bottom */
+const SKI_TOP_L = { lx: 31, lz: 3, h: 11 };
+const SKI_BOT_L = { lx: 41, lz: 31, h: 3 };
+/** the warm-up lodge, on its own little terrace beside the run-out */
+const LODGE_L = { lx: 32.6, lz: 36.6 };
 const FLATS: [number, number, number, number, number][] = [
   [COLONY_L.lx, COLONY_L.lz, 8, 12.5, 1.9], // Penguin Point
   [TERRACE_L.lx, TERRACE_L.lz, 5.6, 10, TERRACE_L.h], // Slide Top
   [CAMP_L.lx, CAMP_L.lz, 8, 12, 2.6], // the igloo camp
   [HUT_L.lx, HUT_L.lz, 3.8, 6.5, 2.7], // the research station
   [CAVE_L.lx, CAVE_L.lz, 5.5, 8.5, 2.8], // the ice cave's floor
+  [SKI_TOP_L.lx, SKI_TOP_L.lz, 6.5, 10.5, SKI_TOP_L.h], // the ski run's start
+  [SKI_BOT_L.lx, SKI_BOT_L.lz, 5.5, 9.5, SKI_BOT_L.h], // the ski run's bottom (the lift station)
+  [LODGE_L.lx, LODGE_L.lz, 4.4, 7.5, SKI_BOT_L.h + 0.1], // the warm-up lodge
 ];
 const POND_L = { lx: 3, lz: 30, rx: 8, rz: 5.5, rot: 0.3, iceY: 2.05, bedY: 1.55 };
 
@@ -435,11 +443,105 @@ function rampAt(lx: number, lz: number): { h: number; d: number } | null {
   return best;
 }
 
+// ── the Penguin Ski Run: a groomed piste traversing the peak's south-east shoulder (a steady
+// ~17° at its steepest, gentle at both ends), and a little nursery slope beside its bottom ──
+
+/** half the width of the groomed piste (world units) */
+export const PISTE_HW = 5;
+export const NURSERY_HW = 2.6;
+interface Run {
+  x: Float32Array;
+  z: Float32Array;
+  h: Float32Array;
+  u: Float32Array;
+  len: number;
+  hw: number;
+  carveIn: number;
+  carveOut: number;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+function buildRun(ctrl: [number, number][], h0: number, h1: number, hw: number, carveIn: number, carveOut: number): Run {
+  const pts = spline(ctrl, 1);
+  const n = pts.length;
+  const x = Float32Array.from(pts, (p) => p[0]);
+  const z = Float32Array.from(pts, (p) => p[1]);
+  const u = new Float32Array(n);
+  for (let i = 1; i < n; i++) u[i] = u[i - 1] + Math.hypot(x[i] - x[i - 1], z[i] - z[i - 1]);
+  const len = u[n - 1];
+  // (half linear, half eased: a steady fall line, flattening out at the start and the run-out)
+  const h = Float32Array.from(u, (s) => {
+    const k = s / len;
+    return h0 + (h1 - h0) * (0.45 * k + 0.55 * fade(k));
+  });
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < n; i++) {
+    minX = Math.min(minX, x[i]);
+    maxX = Math.max(maxX, x[i]);
+    minZ = Math.min(minZ, z[i]);
+    maxZ = Math.max(maxZ, z[i]);
+  }
+  return { x, z, h, u, len, hw, carveIn, carveOut, minX, maxX, minZ, maxZ };
+}
+const PISTE = buildRun(
+  [
+    [33.5, 6],
+    [39, 10.5],
+    [43.5, 16],
+    [45.5, 22],
+    [44, 27.5],
+  ],
+  SKI_TOP_L.h,
+  SKI_BOT_L.h,
+  PISTE_HW,
+  PISTE_HW + 1.5,
+  PISTE_HW + 7,
+);
+const NURSERY = buildRun(
+  [
+    [53.5, 18.5],
+    [52.6, 22.5],
+    [51.5, 26.5],
+  ],
+  4.6,
+  3.15,
+  NURSERY_HW,
+  NURSERY_HW + 1,
+  NURSERY_HW + 5,
+);
+const SKI_RUNS = [PISTE, NURSERY];
+/** the nearest point of a run: its groomed height, distance from the centreline, distance along it */
+function runAt(r: Run, lx: number, lz: number, reach: number): { h: number; d: number; s: number } | null {
+  if (lx < r.minX - reach || lx > r.maxX + reach || lz < r.minZ - reach || lz > r.maxZ + reach) return null;
+  let best: { h: number; d: number; s: number } | null = null;
+  const n = r.x.length;
+  for (let i = 0; i + 1 < n; i++) {
+    const ax = r.x[i];
+    const az = r.z[i];
+    const ux = r.x[i + 1] - ax;
+    const uz = r.z[i + 1] - az;
+    const L2 = ux * ux + uz * uz || 1;
+    const t = Math.min(1, Math.max(0, ((lx - ax) * ux + (lz - az) * uz) / L2));
+    const d = Math.hypot(ax + ux * t - lx, az + uz * t - lz);
+    if (d < reach && (!best || d < best.d)) best = { h: r.h[i] + (r.h[i + 1] - r.h[i]) * t, d, s: r.u[i] + (r.u[i + 1] - r.u[i]) * t };
+  }
+  return best;
+}
+
 /** the island's height at a local point (the smooth truth the grid samples) */
 function localHeight(lx: number, lz: number): number {
   let h = rawHeight(lx, lz);
   const r = rampAt(lx, lz);
   if (r) h = lerp(h, r.h, 1 - smooth(RAMP_IN, RAMP_OUT, r.d));
+  for (const run of SKI_RUNS) {
+    const p = runAt(run, lx, lz, run.carveOut);
+    if (p) h = lerp(h, p.h, 1 - smooth(run.carveIn, run.carveOut, p.d));
+  }
   const c = chuteAt(lx, lz);
   if (!c) return h;
   return lerp(h, c.h, 1 - smooth(CARVE_IN, CARVE_OUT, c.d));
@@ -657,6 +759,129 @@ export const FROST_SWIMS: { x: number; z: number }[][] = FROST_SLIDES.map((s) =>
   return out;
 });
 
+// ── the Penguin Ski Run (world): the piste, the nursery slope, the slalom course, the chairlift ──
+
+export interface FrostRun {
+  /** centreline samples ~1 m apart from the top down (world x, z; y = the groomed snow) */
+  x: Float32Array;
+  z: Float32Array;
+  y: Float32Array;
+  /** distance along from the top */
+  u: Float32Array;
+  len: number;
+  /** half the groomed width */
+  hw: number;
+}
+const worldRun = (r: Run): FrostRun => ({ x: Float32Array.from(r.x, (v) => v + X0), z: Float32Array.from(r.z, (v) => v + Z0), y: Float32Array.from(r.h), u: r.u, len: r.len, hw: r.hw });
+
+/** a point on a run, `lat` to the left of its centreline (looking downhill); dx, dz = downhill */
+export function frostRunPoint(r: FrostRun, s: number, lat: number, out: { x: number; z: number; dx: number; dz: number }) {
+  const d = Math.min(r.len, Math.max(0, s));
+  const n = r.x.length;
+  // (binary search: runs are a few dozen samples)
+  let lo = 1;
+  let hi = n - 1;
+  while (lo < hi) {
+    const m = (lo + hi) >> 1;
+    if (r.u[m] < d) lo = m + 1;
+    else hi = m;
+  }
+  const k = lo;
+  const seg = r.u[k] - r.u[k - 1] || 1;
+  const f = (d - r.u[k - 1]) / seg;
+  const dx = (r.x[k] - r.x[k - 1]) / seg;
+  const dz = (r.z[k] - r.z[k - 1]) / seg;
+  out.dx = dx;
+  out.dz = dz;
+  // (left = (dz, -dx))
+  out.x = r.x[k - 1] + (r.x[k] - r.x[k - 1]) * f + dz * lat;
+  out.z = r.z[k - 1] + (r.z[k] - r.z[k - 1]) * f - dx * lat;
+  return out;
+}
+
+/** the slalom course: the racing line weaves `COURSE_AMP` either side of the piste's centre */
+export const COURSE_AMP = 2.3;
+export const COURSE_WAVE = 7.6;
+export const COURSE_S0 = 3.5;
+const COURSE_S1 = PISTE.len - 3.5;
+/** the racing line's offset (left +) at distance s down the piste */
+export function frostCourseLat(s: number): number {
+  const a = COURSE_AMP * smooth(COURSE_S0, COURSE_S0 + 3, s) * (1 - smooth(COURSE_S1 - 3, COURSE_S1, s));
+  return a * Math.sin(((s - COURSE_S0) / COURSE_WAVE) * Math.PI * 2);
+}
+/** each gate's two poles stand this far either side of the racing line */
+export const GATE_HALF = 1.05;
+const gates: { s: number; lat: number; red: boolean }[] = [];
+for (let k = 0, s = COURSE_S0 + COURSE_WAVE / 4; s < COURSE_S1 - 1.5; k++, s += COURSE_WAVE / 2) if (s > COURSE_S0 + 3) gates.push({ s, lat: frostCourseLat(s), red: k % 2 === 0 });
+
+/** the chairlift: bottom (B) and top (T) stations, the line between them (world) */
+const LIFT_B = W(36.8, 30.6);
+const LIFT_T = W(27.8, 2.0);
+const LIFT_LEN = Math.hypot(LIFT_T.x - LIFT_B.x, LIFT_T.z - LIFT_B.z);
+const LIFT_DX = (LIFT_T.x - LIFT_B.x) / LIFT_LEN;
+const LIFT_DZ = (LIFT_T.z - LIFT_B.z) / LIFT_LEN;
+/** the up line and the down line run this far either side of the lift's axis */
+export const LIFT_GAP = 1.2;
+/** a chair's seat hangs this far below its cable */
+export const CHAIR_DROP = 2.25;
+const liftGround = (d: number) => frostLandY(LIFT_B.x + LIFT_DX * d, LIFT_B.z + LIFT_DZ * d) ?? 3;
+/** the cable's heads: [distance from the bottom station, height] — station wheels and pylon tops */
+const CABLE: [number, number][] = (() => {
+  const ds = [0, 6.5, 13, 19.5, 25, LIFT_LEN];
+  const hs = ds.map((d, i) => liftGround(d) + (i === 0 || i === ds.length - 1 ? 2.95 : 5.4));
+  // raise pylons until a hanging penguin clears the snow everywhere along the line
+  for (let pass = 0; pass < 8; pass++) {
+    for (let i = 0; i + 1 < ds.length; i++) {
+      for (let k = 1; k < 10; k++) {
+        const d = ds[i] + ((ds[i + 1] - ds[i]) * k) / 10;
+        const y = hs[i] + ((hs[i + 1] - hs[i]) * k) / 10;
+        const need = liftGround(d) + CHAIR_DROP + 1.1 - y;
+        if (need > 0) {
+          if (i > 0) hs[i] += need;
+          if (i + 1 < ds.length - 1) hs[i + 1] += need;
+        }
+      }
+    }
+  }
+  return ds.map((d, i) => [d, hs[i]] as [number, number]);
+})();
+/** the cable's height at distance d (0 = bottom station .. LIFT_LEN = top) along the lift */
+export function frostCableY(d: number): number {
+  const c = CABLE;
+  if (d <= 0) return c[0][1];
+  for (let i = 0; i + 1 < c.length; i++) if (d <= c[i + 1][0]) return c[i][1] + ((c[i + 1][1] - c[i][1]) * (d - c[i][0])) / (c[i + 1][0] - c[i][0]);
+  return c[c.length - 1][1];
+}
+
+const runStart = (r: Run) => W(r.x[0], r.z[0]);
+const pisteDir0 = { x: PISTE.x[4] - PISTE.x[0], z: PISTE.z[4] - PISTE.z[0] };
+const pd0L = Math.hypot(pisteDir0.x, pisteDir0.z);
+/** the start hut beside the piste's start gate, the lodge at the bottom (world) */
+const SKI_HUT_L = { lx: PISTE.x[0] + (pisteDir0.z / pd0L) * 5.2 - (pisteDir0.x / pd0L) * 1.8, lz: PISTE.z[0] - (pisteDir0.x / pd0L) * 5.2 - (pisteDir0.z / pd0L) * 1.8 };
+
+export const FROST_SKI = {
+  piste: worldRun(PISTE),
+  nursery: worldRun(NURSERY),
+  /** the start terrace and the run-out (world, y = the snow) */
+  top: { ...W(SKI_TOP_L.lx, SKI_TOP_L.lz), y: SKI_TOP_L.h },
+  bottom: { ...W(SKI_BOT_L.lx, SKI_BOT_L.lz), y: SKI_BOT_L.h },
+  start: runStart(PISTE),
+  gates,
+  lift: { b: LIFT_B, t: LIFT_T, len: LIFT_LEN, dx: LIFT_DX, dz: LIFT_DZ, heads: CABLE, wheel: 0.6 },
+  hut: W(SKI_HUT_L.lx, SKI_HUT_L.lz),
+  lodge: W(LODGE_L.lx, LODGE_L.lz),
+};
+/** distance (m) from a world point to the piste's or the nursery slope's centreline, and along it */
+export function frostPisteAt(x: number, z: number): { d: number; s: number; nursery: boolean } | null {
+  const lx = x - X0;
+  const lz = z - Z0;
+  const a = runAt(PISTE, lx, lz, PISTE.hw + 2);
+  const b = runAt(NURSERY, lx, lz, NURSERY.hw + 1.5);
+  // (the nearer of the two)
+  if (a && (!b || a.d - PISTE.hw <= b.d - NURSERY.hw)) return { d: a.d, s: a.s, nursery: false };
+  return b ? { d: b.d, s: b.s, nursery: true } : null;
+}
+
 // ── the island's things ──
 
 export type FrostPropKind =
@@ -675,7 +900,15 @@ export type FrostPropKind =
   | "fishhole"
   | "crates"
   | "slidegate"
-  | "fire";
+  | "fire"
+  | "skihut"
+  | "lodge"
+  | "skirack"
+  | "pylon"
+  | "liftstation"
+  | "skigate"
+  | "marker"
+  | "arrow";
 
 export interface FrostProp {
   kind: FrostPropKind;
@@ -688,6 +921,8 @@ export interface FrostProp {
   s: number;
   seed: number;
   v: number;
+  /** a height (pylons: the cable head above the base; ski gates: the gate's half-width) */
+  h?: number;
 }
 
 /** obstacle radius of one prop (0 = walk-through) at scale 1 */
@@ -708,6 +943,14 @@ const PROP_R: Record<FrostPropKind, number> = {
   crates: 0.8,
   slidegate: 0,
   fire: 0.8,
+  skihut: 2.3,
+  lodge: 3.4,
+  skirack: 0.7,
+  pylon: 0.55,
+  liftstation: 1.7,
+  skigate: 0,
+  marker: 0,
+  arrow: 0,
 };
 /** the ice cave: a dome of blue ice (radius, height) you can walk into; entrance faces `rot` */
 export const FROST_CAVE = { ...W(CAVE_L.lx, CAVE_L.lz), r: 6, h: 5.2, rot: -2.4, y: 2.8 };
@@ -768,6 +1011,55 @@ function buildProps(): FrostProp[] {
   add("sign", 34.5, -17.8, 0.2, { v: 3 });
   // the ice cave
   add("cave", CAVE_L.lx, CAVE_L.lz, FROST_CAVE.rot);
+  // the way back up to Slide Top: blue arrow posts either side of the snowy ramp
+  for (let i = 0; i + 1 < ASCENT_L.length; i++) {
+    const [ax, az] = ASCENT_L[i];
+    const [bx, bz] = ASCENT_L[i + 1];
+    const L = Math.hypot(bx - ax, bz - az);
+    const rot = Math.atan2(bx - ax, bz - az);
+    for (let d = i === 0 ? 1 : 0; d < L - 1; d += 4.6) {
+      const k = d / L;
+      let side = (i + Math.floor(d / 4.6)) % 2 ? 1 : -1;
+      const at = (sd: number) => [ax + (bx - ax) * k + ((bz - az) / L) * 2.1 * sd, az + (bz - az) * k - ((bx - ax) / L) * 2.1 * sd];
+      // (the ramp runs between two chutes: keep the posts off their walls)
+      if (chuteNear(at(side)[0], at(side)[1], 3.2)) side = -side;
+      if (chuteNear(at(side)[0], at(side)[1], 3.2)) continue;
+      add("arrow", at(side)[0], at(side)[1], rot, { v: 0 });
+    }
+  }
+
+  // ── the Penguin Ski Run ──
+  const pt = { x: 0, z: 0, dx: 0, dz: 1 };
+  const PW = worldRun(PISTE);
+  const startRot = Math.atan2(pisteDir0.x, pisteDir0.z);
+  add("skihut", SKI_HUT_L.lx, SKI_HUT_L.lz, face(SKI_HUT_L.lx, SKI_HUT_L.lz, PISTE.x[0], PISTE.z[0]));
+  add("skirack", SKI_HUT_L.lx - (pisteDir0.x / pd0L) * 3.3, SKI_HUT_L.lz - (pisteDir0.z / pd0L) * 3.3, startRot + Math.PI / 2, { v: 0 });
+  add("lodge", LODGE_L.lx, LODGE_L.lz, face(LODGE_L.lx, LODGE_L.lz, SKI_BOT_L.lx + 2, SKI_BOT_L.lz - 2));
+  add("skirack", LODGE_L.lx + 3.9, LODGE_L.lz - 3.2, face(LODGE_L.lx, LODGE_L.lz, SKI_BOT_L.lx, SKI_BOT_L.lz) + Math.PI / 2, { v: 1 });
+  add("lamp", LODGE_L.lx - 3.6, LODGE_L.lz - 3.4, 0);
+  add("lamp", SKI_TOP_L.lx - 2.5, SKI_TOP_L.lz + 3.4, 0);
+  // the start gate: a banner arch over the piste's first metres
+  add("skigate", PISTE.x[1], PISTE.z[1], startRot, { v: 2, h: 3.3 });
+  // slalom gates (red / blue) along the racing line, and orange marker poles down both edges
+  for (const g of gates) {
+    frostRunPoint(PW, g.s, g.lat, pt);
+    add("skigate", pt.x - X0, pt.z - Z0, Math.atan2(pt.dx, pt.dz), { v: g.red ? 0 : 1, h: GATE_HALF });
+  }
+  for (let s = 2; s < PISTE.len - 1; s += 5.5)
+    for (const side of [-1, 1]) {
+      frostRunPoint(PW, s, side * (PISTE.hw + 0.5), pt);
+      add("marker", pt.x - X0, pt.z - Z0, 0, { v: Math.round(s / 5.5) % 2 });
+    }
+  // the chairlift: a station at each end, pylons between
+  const liftRot = Math.atan2(LIFT_DX, LIFT_DZ);
+  const at = (d: number) => ({ lx: LIFT_B.x - X0 + LIFT_DX * d, lz: LIFT_B.z - Z0 + LIFT_DZ * d });
+  for (let i = 0; i < CABLE.length; i++) {
+    const [d, hy] = CABLE[i];
+    const p = at(d);
+    const g = groundAt(p.lx + X0, p.lz + Z0);
+    const end = i === 0 || i === CABLE.length - 1;
+    add(end ? "liftstation" : "pylon", p.lx, p.lz, liftRot, { h: hy - g, v: i === 0 ? 0 : 1 });
+  }
 
   // ── scatter: snowy pines, rocks, ice crystals (kept off the routes, chutes, terraces, the pond) ──
   const rnd = frostRng(4242);
@@ -776,6 +1068,9 @@ function buildProps(): FrostProp[] {
   discs.push({ ...W(COLONY_L.lx, COLONY_L.lz), r: 14 });
   discs.push({ ...W(TERRACE_L.lx, TERRACE_L.lz), r: 9 });
   discs.push({ ...W(CAMP_L.lx, CAMP_L.lz), r: 10 });
+  discs.push({ ...W(SKI_TOP_L.lx, SKI_TOP_L.lz), r: 8 });
+  discs.push({ ...W(SKI_BOT_L.lx, SKI_BOT_L.lz), r: 9 });
+  discs.push({ ...W(LODGE_L.lx, LODGE_L.lz), r: 6 });
   const lines: [number, number, number, number][] = [];
   for (let i = 0; i + 1 < FROST_ASCENT.length; i++) lines.push([FROST_ASCENT[i].x, FROST_ASCENT[i].z, FROST_ASCENT[i + 1].x, FROST_ASCENT[i + 1].z]);
   lines.push([FROST_COLONY.x, FROST_COLONY.z, FROST_SHORE.land.x, FROST_SHORE.land.z]);
@@ -785,6 +1080,8 @@ function buildProps(): FrostProp[] {
     const c = chuteAt(x - X0, z - Z0);
     if (c && c.d < CARVE_OUT) return false;
     if (chuteNear(x - X0, z - Z0, pad + 4)) return false;
+    if (segDist2(x, z, LIFT_B.x, LIFT_B.z, LIFT_T.x, LIFT_T.z) < (pad + 5) ** 2) return false;
+    for (const run of SKI_RUNS) if (runAt(run, x - X0, z - Z0, run.hw + 3.5 + pad)) return false;
     return pondE(x - X0, z - Z0) > 1.45;
   };
   const tryPlace = (kind: FrostPropKind, lx: number, lz: number, pad: number, minY: number, maxY: number, extra: Partial<FrostProp> = {}) => {
@@ -865,7 +1162,7 @@ export const FROST_LAMPS: { x: number; z: number; y: number }[] = FROST_PROPS.fi
 
 // ── named spots (landing, HUD, discoveries) ──
 
-export type FrostSpotKind = "colony" | "slide" | "icecave" | "igloo" | "peak" | "floe" | "aurora";
+export type FrostSpotKind = "colony" | "slide" | "icecave" | "igloo" | "peak" | "floe" | "aurora" | "ski";
 export const FROST_SPOTS: { id: string; name: string; x: number; z: number; kind: FrostSpotKind }[] = [
   { id: "frost-colony", name: "Penguin Point", ...W(COLONY_L.lx + 2, COLONY_L.lz + 1), kind: "colony" },
   { id: "frost-slide-top", name: "Slide Top", ...W(TERRACE_L.lx - 1, TERRACE_L.lz + 0.5), kind: "slide" },
@@ -881,9 +1178,10 @@ export const FROST_SPOTS: { id: string; name: string; x: number; z: number; kind
   { id: "frost-lookout", name: "Aurora Lookout", ...FROST_LOOKOUT, kind: "aurora" },
   ...FROST_FLOES.filter((_, i) => i % 2 === 0).map((f) => ({ id: `frost-${f.id}`, name: "Seal Floe", x: f.x, z: f.z, kind: "floe" as const })),
   { id: "frost-berg", name: "Giant Iceberg", x: FROST_BERGS[2].x, z: FROST_BERGS[2].z, kind: "floe" },
+  { id: "frost-ski", name: "Penguin Ski Run", ...W(PISTE.x[Math.floor(PISTE.x.length * 0.6)] - 3, PISTE.z[Math.floor(PISTE.x.length * 0.6)] + 2), kind: "ski" },
 ];
 /** how close (m) you must be to discover a spot */
-export const FROST_SPOT_R: Record<FrostSpotKind, number> = { colony: 11, slide: 6.5, icecave: 7, igloo: 8, peak: 9, floe: 9, aurora: 7 };
+export const FROST_SPOT_R: Record<FrostSpotKind, number> = { colony: 11, slide: 6.5, icecave: 7, igloo: 8, peak: 9, floe: 9, aurora: 7, ski: 9 };
 
 /** real, fun facts for each spot (shown in turn each time you come back) */
 export const FROST_FACTS: Record<string, string[]> = {
@@ -894,6 +1192,7 @@ export const FROST_FACTS: Record<string, string[]> = {
     "Frostpeak is magic! In the real world penguins live in the far south, and narwhals in the far north.",
   ],
   "frost-slide-top": [
+    "Tap 🐧 Slide! at a chute's arch to toboggan down like a penguin. Swim back to the beach and follow the blue arrows up the ramp to go again!",
     "Penguins 'toboggan': they flop on their bellies and push with their feet to zoom over the snow!",
     "Penguins can't fly in the air — but underwater they 'fly' with their flippers!",
   ],
@@ -926,6 +1225,11 @@ export const FROST_FACTS: Record<string, string[]> = {
     "A narwhal's 'tusk' is really a super-long tooth — it can grow up to 3 metres!",
   ],
   "frost-berg": ["Only about a tenth of an iceberg shows above the water — the rest is hiding underneath!"],
+  "frost-ski": [
+    "Real penguins can't ski — Frostpeak's penguins are just pretending! In the wild they 'toboggan': flop on their tummies and push with their feet.",
+    "Penguins have strong, claw-tipped feet for gripping slippery ice — perfect for climbing back up a snowy hill.",
+    "The very first chairlift was built in 1936 in Sun Valley, USA — before that, skiers had to climb back up!",
+  ],
 };
 /** the facts for a spot id */
 export function frostFacts(id: string): string[] {

@@ -31,6 +31,7 @@ import {
   frostGrid,
   frostHeightAt,
   frostOnPond,
+  frostPisteAt,
   frostRng,
 } from "../../registry/frostIsland";
 import { noise2 } from "../fantasy/noise";
@@ -55,6 +56,9 @@ const UNDER_TEAL = c("#4d93ad");
 const UNDER_DEEP = c("#23527c");
 const POND_BED = c("#5c86b0");
 const STAR = c("#ff8a5c");
+const GROOM_A = c("#f7faff");
+const GROOM_B = c("#e6effb");
+const GROOM_EDGE = c("#d9e7f8");
 
 const _c = new THREE.Color();
 const smooth = (a: number, b: number, x: number) => {
@@ -94,8 +98,15 @@ function faceColor(x: number, y: number, z: number, slope: number, rnd: () => nu
     return out.copy(band > 0.35 ? ICE_C : band > -0.3 ? ICE_A : ICE_B).multiplyScalar(0.96 + rnd() * 0.05);
   }
   // steep rock (the peak's crags, the hills' faces), streaked with ice high up; snow clings to the rest
+  // the ski run: freshly groomed corduroy stripes across the piste, packed edges
+  const ps = frostPisteAt(wx, wz);
+  if (ps && y > 2) {
+    const hw = ps.nursery ? 2.6 : 5;
+    if (ps.d < hw - 0.5) return out.copy(Math.floor(ps.s / 1.15) % 2 ? GROOM_A : GROOM_B).multiplyScalar(0.99 + rnd() * 0.015);
+    if (ps.d < hw + 0.6) return out.copy(GROOM_EDGE).multiplyScalar(0.98 + rnd() * 0.03);
+  }
   const peakD = Math.hypot(x - (FROST_SUMMIT.x - X0), z - (FROST_SUMMIT.z - Z0));
-  const built = rampDist(x, z) < 7 || frostChuteDistance(wx, wz) < 7;
+  const built = rampDist(x, z) < 7 || frostChuteDistance(wx, wz) < 7 || (ps !== null && ps.d < 9);
   if (y > 3 && !built && ((slope > 1.2 && peakD < 30) || slope > 1.6)) {
     if (y > 18 && rnd() < 0.3) return out.copy(ICE_A);
     if (y > 30 && rnd() < 0.35) return out.copy(SNOW_C);

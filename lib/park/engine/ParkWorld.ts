@@ -38,10 +38,15 @@ import { BOAT_CAPS, MOUNT_BODY, MOUNT_CAPS, MOUNT_SEA_DRAFT, MOUNT_VIEW, SUB_CAP
 import { HARBOUR_OBSTACLES, worldFloorY } from "../registry/harbours";
 import { boatCanMove, boatClearance, hullTilt, landingSpot, seaWave, steer, subAltRange, subCanMove, swellDamp, type Helm, type Tilt } from "../world/rideables/craft";
 import type { DrivenCraft } from "../world/rideables/fleet";
+import type { RidePin } from "../world/rideables";
+import { createDragonFlight, type DragonFlight } from "../world/rideables/dragonFlight";
+import { RIDEABLE_SPOTS } from "../registry/rideables";
+import { DRAGON_BREEDS, type DragonBreed } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { ISLAND_R } from "../registry/island";
 import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { FROST_ISLAND } from "../registry/frostIsland";
+import { makeKidSlide, slideName, stepKidSlide, type KidSlide } from "../world/frost/kidSlide";
 import { DINO_ISLAND } from "../registry/dinoIsland";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_SPOTS, skyIslandById, skyStreamEnd, skyTopY, type SkySpot } from "../registry/skyIslands";
@@ -112,10 +117,16 @@ export interface ParkWorldOptions {
   onPearl?: (id: number) => void;
   /** the kid waded into deep water (true) or climbed back onto the beach (false) */
   onSwim?: (inSea: boolean) => void;
+  /** a one-off hint about a ride close by ("A dragon! Walk up to it and tap Hop on") */
+  onRideHint?: (text: string) => void;
+  /** the kid has just made friends with a dragon (keep it: friends stay friends) */
+  onDragonBond?: (id: string) => void;
   /** a Star Shard was collected (id 0..29) */
   onShard?: (id: number) => void;
   /** flew through Sky Ring `passed` of 12; `lap` = seconds when the course is complete */
   onRing?: (passed: number, lap?: number) => void;
+  /** Frostpeak's penguin slides: set off ("start"), waiting for the penguin ahead ("wait"), SPLASH ("splash") */
+  onSlide?: (what: "start" | "wait" | "splash", name: string) => void;
   onError?: (err: unknown) => void;
 }
 
@@ -224,6 +235,14 @@ export class ParkWorld {
   private camUnder = false;
   // ── the Sky Coaster: riding the train round the island (speed follows the drops) ──
   private sky: { v: number; dist: number; cheered: boolean } | null = null;
+  // ── Frostpeak's penguin slides: the kid tobogganing down a chute (null = not), the chute whose start
+  // the kid is standing at (-1), how far the lying kid's belly sits below its middle, the flop (0..1) ──
+  private slide: KidSlide | null = null;
+  private slideNear = -1;
+  private slideDepth = 0.5;
+  private slideFlop = 0;
+  private slideWaitSaid = false;
+  private slideCam = new THREE.Vector3();
   // ── floating mountains: standing on one (its id), gliding down off an edge, flight's reference height ──
   private onSky: string | null = null;
   private gliding = false;
@@ -233,7 +252,15 @@ export class ParkWorld {
   /** the world ride we're on (bikes, unicorns … are found round the world, not summoned) */
   private rideId: string | null = null;
   private prevFacing = 0;
-  private hopNear: { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number } | null = null;
+  private hopNear: { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number; breed?: DragonBreed } | null = null;
+  /** parked dragons we've already told the kid about (once each per visit) */
+  private dragonHints = new Set<string>();
+  /** dragons this kid has made friends with (see setBondedDragons) */
+  private bondedDragons = new Set<string>();
+  /** flying a dragon: banks, dives, rolls, fire puffs and the clouds (made the first time) */
+  private dragonFx: DragonFlight | null = null;
+  private dragonPrevAlt = 0;
+  private bondSync = true;
   // ── boats and subs: momentum, how they sit on the swell, and what the fleet draws behind them ──
   private helm: Helm = { yaw: 0, speed: 0, reverse: false, revT: 0 };
   private craftPitch = 0;
@@ -538,6 +565,7 @@ export class ParkWorld {
   }
   /** Kid-sized walk up to a spot (used by stations so the kid stands next to them). */
   walkKidTo(x: number, z: number) {
+    this.endSlide(false);
     this.walkQueue = [];
     this.walkTarget = new THREE.Vector3(x, 0, z);
   }
@@ -567,6 +595,7 @@ export class ParkWorld {
   /** Enter a ride scene: the kid (and pet) travel into it, the park pauses behind it. */
   enterRide(build: (accent: string) => Ride) {
     if (this.ride || !this.kid) return;
+    this.endSlide(false);
     this.dismount(true);
     const ride = build("#ff5fa8");
     this.ride = ride;
@@ -614,6 +643,7 @@ export class ParkWorld {
   }
   /** Build mode: camera swoops overhead the Dream Park lawn and taps go to the builder. */
   setBuildMode(on: boolean) {
+    if (on) this.endSlide(false);
     this.building = on;
     this.walkTarget = null;
     this.walkQueue = [];
@@ -1036,12 +1066,12 @@ export class ParkWorld {
         }
       }
     }
-    if (this.sky) {
+    if (this.sky || this.slide) {
       vx = 0;
       vz = 0;
     }
     const moving = Math.hypot(vx, vz) > 0.01;
-    const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
+    const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && !this.slide && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
     const craft = this.mount && isCraft(this.mount.kind) ? this.mount.kind : null;
     if (craft) {
       // boats and subs have momentum: they take a moment to get going, coast when you let go,
@@ -1184,6 +1214,7 @@ export class ParkWorld {
       this.walkTarget = null;
       this.walkQueue = [];
       this.opts.onWrap?.();
+      if (this.slide) this.endSlide(false);
     }
     // walk round the grassy hills
     for (const o of aloft ? [] : this.onSky ? (SKY_OBSTACLES_BY.get(this.onSky) ?? []) : this.gliding ? [] : this.park.obstacles) {
@@ -1265,6 +1296,12 @@ export class ParkWorld {
         kid.root.rotation.x = m.root.rotation.x;
         kid.root.rotation.z = m.root.rotation.z;
       } else m.root.rotation.z = MOUNT_CAPS[m.kind].medium === "land" ? mountLean(m.kind, dYaw / Math.max(dt, 1e-3), rideSpeed) : moving && m.flies ? Math.sin(this.time * 1.5) * 0.06 : 0;
+      // a dragon banks, dives, rolls and beats its wings (./world/rideables/dragonFlight)
+      if (m.kind === "dragon") {
+        const climb = (this.alt - this.dragonPrevAlt) / Math.max(dt, 1e-3);
+        this.dragonPrevAlt = this.alt;
+        this.dragonFlight().apply(dt, { mount: m, kidRig: kid.rig?.root ?? null, pos, dYaw, alt: this.alt, climb, moving });
+      }
       // wings beat under water too; the shadow measures down to the real ground / sea floor
       m.update(dt, isC ? rideSpeed : moving ? WALK_SPEED * 2 : 0, m.flies && Math.abs(this.alt) > 0.4, this.park.atmosphere.glow, pos.y - floorY);
       if (kid.rig) kid.rig.root.position.copy(m.seat);
@@ -1277,6 +1314,8 @@ export class ParkWorld {
           this.burst(pos.clone().setY(pos.y + 0.4), 4);
         }
       }
+    } else if (this.slide) {
+      this.tickSlide(dt, kid);
     } else if (this.onSky || this.gliding || this.launch) {
       // up on a floating mountain; step off the edge and you float gently down (steering as you go)
       if (this.launch) {
@@ -1359,8 +1398,8 @@ export class ParkWorld {
     this.swimPitch += (pitchWant - this.swimPitch) * Math.min(1, dt * 4);
     // (no blob shadow on the ground while swimming — it floated under the kid like a pink ring)
     const blob = kid.root.children[1];
-    if (blob && !this.mount) blob.visible = !swimNow;
-    if (kid.rig && !this.mount) {
+    if (blob && !this.mount) blob.visible = !swimNow && !this.slide;
+    if (kid.rig && !this.mount && !this.slide) {
       kid.rig.root.rotation.x = this.swimPitch;
       kid.rig.root.position.y = this.swimPitch * 0.45;
       kid.rig.setSwim(swimNow, swimMove);
@@ -1393,8 +1432,9 @@ export class ParkWorld {
         driven.roll = this.mount.root.rotation.z;
         driven.speed = this.craftSpeed;
       }
-      this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow, driven });
-      const canHop = !this.mount && !this.sky && !this.launch && !this.gliding;
+      const diving = !this.mount && this.wasInSea && this.swimDepth > 1;
+      this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow, driven, diving });
+      const canHop = !this.mount && !this.sky && !this.launch && !this.gliding && !this.slide;
       // (measured to the ride's side: a whale or a pirate ship is as easy to reach as a bike)
       const n = canHop ? this.park.rides.nearest(pos) : null;
       if (n && Math.abs(n.y - pos.y) < 4.5) {
@@ -1406,8 +1446,34 @@ export class ParkWorld {
         h.y = n.y;
         h.z = n.z;
         h.yaw = n.yaw;
+        h.breed = n.breed;
+        // a dragon that doesn't know the kid yet: say hello first
+        if (n.kind === "dragon" && !this.bondedDragons.has(n.id)) h.label = `\u{1F91A} Say hi to ${DRAGON_BREEDS[n.breed ?? "roostwarden"].name}`;
         this.hopNear = h;
       } else this.hopNear = null;
+      if (this.bondSync) {
+        this.bondSync = false;
+        this.park.rides.setBonded(this.bondedDragons);
+      }
+      if (this.park.rides.bonding()) this.hopNear = null;
+      const bondId = this.park.rides.takeBonded();
+      if (bondId) {
+        this.bondedDragons.add(bondId);
+        this.opts.onDragonBond?.(bondId);
+        const nm = DRAGON_BREEDS[RIDEABLE_SPOTS.find((q) => q.id === bondId)?.breed ?? "roostwarden"].name;
+        this.opts.onRideHint?.(`\u{1F496} ${nm} is your friend now! Tap Fly to take off`);
+        kid.rig?.play("cheer", true);
+      }
+      // point out a parked dragon close by (once each), and a manta that's come to a diving kid
+      if (canHop) {
+        const dn = this.park.rides.parkedNear(pos, "dragon", 25);
+        if (dn && !this.dragonHints.has(dn)) {
+          this.dragonHints.add(dn);
+          this.opts.onRideHint?.(this.bondedDragons.has(dn) ? "\u{1F409} Your dragon friend is waiting! Walk up to it and tap Fly" : "\u{1F409} A dragon! Walk up slowly and say hi");
+        }
+      }
+      this.dragonFx?.update(dt, this.time, { pos, riding: this.mount?.kind === "dragon" });
+      if (this.park.rides.takeMantaArrival() && !this.mount) this.opts.onRideHint?.("\u{1FABD} A manta ray has come to see you! Swim up to it and tap Hop on");
     }
 
     // Coralcove Isle: say hello the first time you arrive; villagers chat when you're close
@@ -1577,7 +1643,7 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn && !aloft && !this.sky && !this.gliding && !this.launch) {
+    if (this.inputOn && !aloft && !this.sky && !this.gliding && !this.launch && !this.slide) {
       let found: PlaceDef | null = null;
       const here = this.onSky
         ? [...this.park.places.filter((p) => p.sky === this.onSky), ...this.wizards.filter((w) => w.island === this.onSky).map((w) => w.place)]
@@ -1613,6 +1679,10 @@ export class ParkWorld {
     const ab = this.park.abyss.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow }).spot;
     if (ab && ab.id !== this.abyssSpot) this.opts.onAbyssSpot?.(ab);
     this.abyssSpot = ab?.id ?? null;
+    // Frostpeak's slides: standing at a chute's start arch offers a turn (its penguins step aside)
+    const nearFrost = Math.hypot(pos.x - FROST_ISLAND.x, pos.z - FROST_ISLAND.z) < FROST_ISLAND.r + 20;
+    this.slideNear = nearFrost && !this.slide && !this.mount && !this.sky && !this.onSky && !this.gliding && !this.launch && !this.wasInSea && !this.building ? this.park.frost.slide.offer(pos.x, pos.z) : -1;
+    this.park.frost.slide.hold(this.slide ? this.slide.chute : this.slideNear);
     const fs = this.park.frost.update(dt, this.time, { kid: pos, glow: this.park.atmosphere.glow, hour: this.park.atmosphere.hour, under: this.camUnder }).spot;
     if (fs && fs.id !== this.frostSpot) this.opts.onAbyssSpot?.(fs);
     this.frostSpot = fs?.id ?? null;
@@ -1699,7 +1769,7 @@ export class ParkWorld {
 
     // the camera drifts round behind the kid as they move, so "forward" is ahead — unless a finger
     // turned the view a moment ago, or they're heading back towards the camera (no sudden spins)
-    if (moving && !this.building && !this.sky && !this.ride && this.time - this.userTurnAt > 2.2) {
+    if (moving && !this.building && !this.sky && !this.slide && !this.ride && this.time - this.userTurnAt > 2.2) {
       let d = kid.facing + Math.PI - this.camYaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       // strong when heading away from the camera, only a gentle drift when walking sideways
@@ -1707,7 +1777,18 @@ export class ParkWorld {
       const w = 0.22 + 0.78 * Math.max(0, Math.cos(d));
       if (Math.abs(d) < 2.4) this.camYaw += d * Math.min(1, dt * 1.3 * w);
     }
-    if (this.sky) {
+    if (this.slide) {
+      // tobogganing: chase cam just behind and a little above, framing the chute ahead
+      const k = this.slide;
+      const want = this.slideCam.set(pos.x - k.dx * 7.5, pos.y + 3.6 + Math.max(0, Math.tan(k.pitch)) * 4, pos.z - k.dz * 7.5);
+      this.camera.position.lerp(want, Math.min(1, dt * 4.5));
+      const ground = worldFloor(this.camera.position.x, this.camera.position.z) + 1.4;
+      if (this.camera.position.y < ground) this.camera.position.y = ground;
+      this.camera.lookAt(pos.x + k.dx * 5, pos.y + 0.4 - Math.tan(k.pitch) * 3, pos.z + k.dz * 5);
+      this.camBase.copy(this.camera.position);
+      this.lookAtPt.set(pos.x, pos.y + 1.2, pos.z);
+      this.camYaw = k.yaw + Math.PI;
+    } else if (this.sky) {
       // chase cam: behind and above the car, looking down the track
       const tan = this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
       // high and to one side of the train, so the smoke streams past rather than into the lens
@@ -1732,7 +1813,7 @@ export class ParkWorld {
       // (big rides - a whale, the dragon, the Pirate Ship - pull the camera further back)
       const view = this.mount ? MOUNT_VIEW[this.mount.kind] : 1;
       const seatY = this.mount ? this.mount.seat.y : 0;
-      let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.32 : 1) * (this.mount?.flies && this.alt > 1 ? 1.3 : this.mount ? 1.15 : 1) * view;
+      let dist = CAM_OFFSET.length() * this.camZoom * (this.look === "diorama" ? 1.32 : 1) * (this.mount?.flies && this.alt > 1 ? 1.3 : this.mount ? 1.15 : 1) * view * (this.mount?.kind === "dragon" && this.dragonFx ? this.dragonFx.camBack : 1);
       // under the sea the water swallows anything far away: bring the camera in close (the
       // storybook look's model-railway distance lost the kid and the manta in the haze)
       // (riding: is the KID's head under? a sub's cabin can sit below its root)
@@ -1800,7 +1881,8 @@ export class ParkWorld {
       // (aiming straight at them left the bottom half of the screen as empty grass)
       // (under the sea, look a little DOWN at the reef instead — up is just the surface)
       // (under water: look level, out across the reef and the blue — the water is clear now)
-      const aimUp = kidUnder ? 0.2 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35);
+      // (on a dragon, aim lower so the whole dragon - wings, rolls, fire - stays in the picture)
+      const aimUp = (kidUnder ? 0.2 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35)) * (this.mount?.kind === "dragon" && this.alt > 1 ? 0.35 : 1);
       this.camera.lookAt(this.lookAtPt.x, this.lookAtPt.y + aimUp, this.lookAtPt.z);
       // a telescope's peek: glance over at the island it's aimed at
       if (this.peek && this.time < this.peek.until) this.camera.lookAt(this.peek.x, this.peek.y, this.peek.z);
@@ -1985,6 +2067,28 @@ export class ParkWorld {
   }
 
   /** A ride waiting close by (for the HUD's "Hop on" button), or null. */
+  /** where the rides kids can find are (dragons, manta reefs, docks, unicorn glades), for the map */
+  get ridePins(): RidePin[] {
+    return this.park ? this.park.rides.pins() : [];
+  }
+
+  /** the dragons this kid has already made friends with (saved per kid by the app) */
+  setBondedDragons(ids: string[]) {
+    this.bondedDragons = new Set(ids);
+    this.bondSync = true;
+  }
+
+  /** On a dragon: "roll" = a barrel roll, "fire" = a puff of sparkly (harmless) fire. */
+  dragonTrick(k: "roll" | "fire"): boolean {
+    if (this.mount?.kind !== "dragon" || this.alt < 1) return false;
+    return this.dragonFlight().trick(k);
+  }
+
+  private dragonFlight(): DragonFlight {
+    if (!this.dragonFx) this.dragonFx = createDragonFlight(this.scene, { lowQuality: this.opts.quality === "low" });
+    return this.dragonFx;
+  }
+
   get hopTarget(): { kind: MountKind; label: string } | null {
     return this.hopNear ? { kind: this.hopNear.kind, label: this.hopNear.label } : null;
   }
@@ -1993,6 +2097,20 @@ export class ParkWorld {
   hopOn(accent?: string, skin?: MountSkin): MountKind | null {
     const n = this.hopNear;
     if (!n || !this.park || !this.kid || this.mount || this.sky || this.ride) return null;
+    // a dragon the kid hasn't met: hold out a hand; it sniffs, nuzzles, and you're friends
+    if (n.kind === "dragon" && !this.bondedDragons.has(n.id)) {
+      if (this.park.rides.bond(n.id)) {
+        const kp = this.kid.root.position;
+        this.kid.facing = Math.atan2(n.x - kp.x, n.z - kp.z);
+        this.kid.root.rotation.y = this.kid.facing;
+        this.kid.rig?.play("wave", true);
+        this.walkTarget = null;
+        this.walkQueue = [];
+        this.opts.onRideHint?.(`\u{1F91A} Hold out your hand and stay still... ${DRAGON_BREEDS[n.breed ?? "roostwarden"].name} is a little shy`);
+      }
+      this.hopNear = null;
+      return null;
+    }
     this.park.rides.take(n.id);
     // climb aboard where it is, facing the way it faces (a boat stays at its mooring; the kid
     // steps off the jetty onto it)
@@ -2001,7 +2119,7 @@ export class ParkWorld {
     this.kid.facing = n.yaw;
     this.kid.root.rotation.y = n.yaw;
     this.prevFacing = n.yaw;
-    this.mountUp(n.kind, accent, skin);
+    this.mountUp(n.kind, accent, skin, n.breed);
     if (isSub(n.kind)) this.alt = this.altTarget = this.prevAlt = Math.min(SUB_CAPS[n.kind].surf, n.y - WATER_Y);
     this.helm.speed = this.craftSpeed = 0;
     this.helm.reverse = false;
@@ -2030,9 +2148,126 @@ export class ParkWorld {
     return this.onSky ? (skyIslandById(this.onSky)?.name ?? null) : null;
   }
 
+  // ── Frostpeak's penguin slides ──
+
+  /** Standing at a penguin slide's start arch? Its name (the HUD offers "🐧 Slide!"). */
+  get slideOffer(): string | null {
+    return this.slideNear >= 0 && !this.slide ? slideName(this.slideNear) : null;
+  }
+  /** Tobogganing down a penguin slide right now? (the HUD keeps only the joystick) */
+  get sliding(): boolean {
+    return !!this.slide;
+  }
+
+  /** Flop onto your tummy at the slide's start and toboggan down it (waiting for the penguin ahead first). */
+  startSlide(): boolean {
+    const kid = this.kid;
+    if (!this.park || !kid || this.slide || this.ride || this.slideNear < 0) return false;
+    const c = this.slideNear;
+    const p = kid.root.position;
+    this.slide = makeKidSlide(c, p.x, p.z);
+    this.slideFlop = 0;
+    this.slideWaitSaid = false;
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.swimVX = this.swimVZ = 0;
+    // how far in front of its feet the kid's tummy (or snout) reaches: lying down, that's under them
+    if (kid.rig) {
+      const r = kid.rig.root;
+      const yaw0 = kid.root.rotation.y;
+      kid.root.rotation.y = 0;
+      r.rotation.set(0, 0, 0);
+      r.position.set(0, 0, 0);
+      kid.root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(r);
+      kid.root.rotation.y = yaw0;
+      if (Number.isFinite(box.max.z)) this.slideDepth = Math.max(0.25, Math.min(1.2, box.max.z - p.z));
+      kid.rig.setSwim(false, false);
+      kid.rig.setSlide(true);
+    }
+    this.swimPitch = 0;
+    this.park.frost.slide.hold(c);
+    this.opts.onSlide?.("start", slideName(c));
+    return true;
+  }
+
+  private tickSlide(dt: number, kid: Actor) {
+    const k = this.slide!;
+    const frost = this.park!.frost.slide;
+    // the joystick's sideways push (the camera chases from behind: screen-right = the kid's right)
+    const mag = Math.hypot(this.move.x, this.move.y);
+    const steer = this.inputOn && mag > 0.12 ? -Math.max(-1, Math.min(1, this.move.x)) : 0;
+    const wasWaiting = k.waiting;
+    stepKidSlide(k, dt, steer, frost.clear(k.chute), frost.ahead(k.chute, k.s));
+    if (k.waiting && k.t > 1.2 && !this.slideWaitSaid) {
+      this.slideWaitSaid = true;
+      this.opts.onSlide?.("wait", slideName(k.chute));
+    }
+    const pos = kid.root.position;
+    pos.set(k.x, k.y, k.z);
+    kid.facing = k.yaw;
+    kid.root.rotation.y = k.yaw;
+    // the flop: tip forward onto the tummy, lying along the slope, leaning into the bends
+    this.slideFlop = Math.min(1, this.slideFlop + dt * 3.2);
+    const w = this.slideFlop * this.slideFlop * (3 - 2 * this.slideFlop);
+    if (kid.rig) {
+      const r = kid.rig.root;
+      const half = 1.0;
+      const ca = Math.cos(k.pitch);
+      const sa = Math.sin(k.pitch);
+      r.rotation.order = "XYZ";
+      r.rotation.set((Math.PI / 2 + k.pitch) * w, k.lean * w, 0);
+      // (its middle on the chute's floor: feet back up the slope, tummy resting on the ice)
+      r.position.set(0, (half * sa + this.slideDepth / Math.max(0.5, ca) + Math.abs(k.lean) * 0.2) * w, -half * ca * w);
+    }
+    this.tickActor(kid, dt, 0, false);
+    // snow off the sides, a bump on the wall, the big SPLASH
+    if (k.puff || k.bump) frost.fx(pos.x - k.dx * 1.2 + k.dz * (Math.random() - 0.5), pos.y + 0.15, pos.z - k.dz * 1.2 - k.dx * (Math.random() - 0.5), k.bump ? 0.7 : 0.45 + k.v * 0.03, 2);
+    if (wasWaiting && !k.waiting) frost.fx(pos.x, pos.y + 0.15, pos.z, 0.7, 2);
+    if (k.splash) {
+      // a big crown of spray (and a ring of little ones round it)
+      frost.fx(pos.x, WATER_Y, pos.z, 2.2, 0);
+      for (let i = 0; i < 4; i++) frost.fx(pos.x + Math.sin(k.yaw + i * 1.6) * 1.1, WATER_Y, pos.z + Math.cos(k.yaw + i * 1.6) * 1.1, 1, 1);
+      this.burst(pos.clone().setY(WATER_Y + 1.2), 70);
+      this.play(kid, "cheer", true);
+      this.opts.onSlide?.("splash", slideName(k.chute));
+    }
+    if (k.done) this.endSlide(true);
+  }
+
+  /** Off the slide: in the sea (swimming on with your speed) after a splash, else back on your feet. */
+  private endSlide(splashed: boolean) {
+    const k = this.slide;
+    if (!k) return;
+    this.slide = null;
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.park?.frost.slide.hold(-1);
+    const kid = this.kid;
+    if (!kid) return;
+    if (kid.rig) {
+      kid.rig.root.rotation.set(0, 0, 0);
+      kid.rig.root.position.set(0, 0, 0);
+      kid.rig.setSlide(false);
+    }
+    const p = kid.root.position;
+    if (splashed) {
+      // glide on as a swimmer, at the depth the chute left you
+      this.swimVX = k.dx * Math.min(6, k.v + 2);
+      this.swimVZ = k.dz * Math.min(6, k.v + 2);
+      const maxD = Math.max(0, seaDepth(p.x, p.z) - 1.1);
+      this.swimDepth = this.swimTarget = Math.max(0, Math.min(maxD, WATER_Y - 0.95 - k.y));
+    } else {
+      p.y = worldFloor(p.x, p.z);
+    }
+    const blob = kid.root.children[1];
+    if (blob) blob.visible = true;
+  }
+
   /** Board the Sky Coaster at its station for one full lap round the island. */
   rideSkyCoaster(): boolean {
     if (!this.park || !this.kid || this.ride || this.sky || this.building) return false;
+    this.endSlide(false);
     this.dismount(true);
     const st = this.park.skyTrain;
     st.held = true;
@@ -2088,10 +2323,15 @@ export class ParkWorld {
   }
 
   /** Hop on a mount (pony gallops, manta/dragon fly). Replaces any current mount. */
-  mountUp(kind: MountKind, accent?: string, skin?: MountSkin) {
+  mountUp(kind: MountKind, accent?: string, skin?: MountSkin, breed?: DragonBreed) {
     if (!this.kid || this.ride) return;
+    this.endSlide(false);
     this.dismount(true);
-    const m = buildMount(kind, accent ?? this.opts.accent, skin);
+    const m = buildMount(kind, accent ?? this.opts.accent, skin, breed);
+    if (kind === "dragon") {
+      this.dragonFlight().start(m.breed ?? "roostwarden");
+      this.dragonPrevAlt = 0;
+    }
     m.root.traverse((o) => ((o as THREE.Mesh).isMesh && o.name !== "mount-shadow" && (o.castShadow = true)));
     this.mount = m;
     this.scene.add(m.root);
@@ -2244,6 +2484,7 @@ export class ParkWorld {
 
   /** Leave a place: step back out of its door so it doesn't reopen straight away. */
   stepOutOf(placeId: string) {
+    this.endSlide(false);
     const p = this.allPlaces().find((x) => x.id === placeId);
     if (!p || !this.kid) return;
     const dir = new THREE.Vector3(-p.x, 0, -p.z).normalize();
@@ -2254,6 +2495,7 @@ export class ParkWorld {
 
   dispose() {
     this.disposed = true;
+    this.dragonFx?.dispose();
     this.stop();
     this.ro.disconnect();
     this.renderer.domElement.removeEventListener("pointerdown", this.onDown);

@@ -7,7 +7,7 @@
 // TRUE SIZE: the kid is 2.26 world units tall and stands for a ~1.4 m 10-year-old, so 1 real metre
 // is 1.6 world units (M below). Animals are modelled in a small "chibi" unit and scaled up by
 // MOUNT_SCALE (unicorn 1.6 m at the shoulder, dolphin ~2.7 m, manta ~6 m wingspan, humpback whale
-// ~14 m, dragon ~10 m); boats and subs are modelled at true size directly (MOUNT_SCALE 1).
+// ~14 m, dragon ~11 m nose to tail); boats and subs are modelled at true size directly (MOUNT_SCALE 1).
 //
 // Every rig is ONE skinned mesh (one draw call + a blob shadow): the parts are rigid "bones"
 // (legs, wheels, wings, tail...) and all colours are vertex colours on one shared toon material,
@@ -19,6 +19,8 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { getToonRamp } from "../assets/loader";
 import { buildCraftParts } from "./boats";
+import { DRAGON_BREEDS, buildDragonParts, dragonBody, type DragonBreed, type DragonDrive } from "./dragons";
+export { DRAGON_BREEDS, DRAGON_BREED_IDS, dragonSnout, type DragonAct, type DragonBreed, type DragonDrive } from "./dragons";
 
 /** world units per real metre (the kid: 2.26 units = 1.4 m) */
 export const M = 1.6;
@@ -72,7 +74,7 @@ export const MOUNT_CAPS: Record<MountKind, { medium: MountMedium; speed: number;
  * are modelled at true size already.
  */
 export const MOUNT_SCALE: Record<MountKind, number> = {
-  pony: 1.28, unicorn: 1.28, bike: 1, car: 1, manta: 1.6, dragon: 3.2, whale: 2, dolphin: 1,
+  pony: 1.28, unicorn: 1.28, bike: 1, car: 1, manta: 1.6, dragon: 2.9, whale: 2, dolphin: 1,
   pedalo: 1, sailboat: 1, speedboat: 1, ship: 1, sub: 1, deepsub: 1,
 };
 
@@ -83,7 +85,7 @@ export const MOUNT_SCALE: Record<MountKind, number> = {
  */
 export const MOUNT_BODY: Record<MountKind, [number, number, number]> = {
   bike: [1.0, 0.35, 0], car: [1.6, 0.9, 0], pony: [1.8, 0.8, 0.2], unicorn: [1.8, 0.8, 0.2],
-  dragon: [6.5, 3.2, 0], manta: [1.6, 4.2, 0], dolphin: [1.9, 0.6, -0.3], whale: [8.6, 3.3, -2.2],
+  dragon: [5.3, 2.2, 1.4], manta: [1.6, 4.2, 0], dolphin: [1.9, 0.6, -0.3], whale: [8.6, 3.3, -2.2],
   pedalo: [2.6, 1.3, 0], sailboat: [4.6, 1.8, 0], speedboat: [4.3, 1.7, 0], ship: [11, 3.5, 0.4], sub: [3.2, 1.25, 0], deepsub: [2.8, 2.7, 0.3],
 };
 
@@ -142,8 +144,8 @@ const SKIN_COLORS: Record<MountKind, Record<MountSkin, string>> = {
   unicorn: { classic: "#fff4fb", aurora: "#b8f4ff", golden: "#ffe08a", starlight: "#d6c6ff" },
   bike: { classic: "#3fc4e8", aurora: "#8fe8c8", golden: "#f0c040", starlight: "#8a6ae8" },
   car: { classic: "#ff6b6b", aurora: "#5fd0e8", golden: "#f0c040", starlight: "#6a5ab8" },
-  manta: { classic: "#6a5ab8", aurora: "#2fb8c8", golden: "#c9962e", starlight: "#2a2a6a" },
-  dragon: { classic: "#8fe0c8", aurora: "#8fb8ff", golden: "#f0c040", starlight: "#9a7ae8" },
+  manta: { classic: "#2b3f8c", aurora: "#2fb8c8", golden: "#c9962e", starlight: "#2a2a6a" },
+  dragon: { classic: "#e8475e", aurora: "#4f8fff", golden: "#e8a020", starlight: "#8a62e0" },
   whale: { classic: "#6f8fcf", aurora: "#5fb8c8", golden: "#c9a24e", starlight: "#4a4a9a" },
   dolphin: { classic: "#7fb4e6", aurora: "#8fe0e0", golden: "#e8c070", starlight: "#8a7ad8" },
   pedalo: { classic: "#ffd84a", aurora: "#9fe8ff", golden: "#ffc23a", starlight: "#c6b0ff" },
@@ -167,6 +169,10 @@ export interface MountRig {
   update(dt: number, speed: number, airborne: boolean, glow: number, above?: number): void;
   /** idle pose 0..1 (unicorn grazes with its head down, dragon folds its wings) */
   rest?(amount: number): void;
+  /** dragons: what it's doing (parked acts, or flying with a flap / dive) */
+  drive?(d: DragonDrive): void;
+  /** dragons: which breed */
+  breed?: DragonBreed;
   dispose(): void;
 }
 
@@ -219,13 +225,13 @@ export function mountShadowTexture(): THREE.DataTexture {
 }
 /** blob shadow footprint (w, l) per kind */
 export const MOUNT_SHADOW: Record<MountKind, [number, number]> = {
-  pony: [2.2, 3.4], unicorn: [2.2, 3.4], bike: [1.2, 2.4], car: [2.6, 3.8], manta: [4.2, 3.6], dragon: [3.2, 3.6], whale: [5, 10], dolphin: [1.6, 3.4],
+  pony: [2.2, 3.4], unicorn: [2.2, 3.4], bike: [1.2, 2.4], car: [2.6, 3.8], manta: [4.2, 3.6], dragon: [3, 5], whale: [5, 10], dolphin: [1.6, 3.4],
   pedalo: [2.6, 5], sailboat: [3.4, 9], speedboat: [3.2, 8.4], ship: [6.6, 21], sub: [2.4, 6.4], deepsub: [4.6, 5.8],
 };
 /** the blob shadow's footprint in world units (scaled with the ride) */
-export function mountShadowSize(kind: MountKind): [number, number] {
+export function mountShadowSize(kind: MountKind, breed?: DragonBreed): [number, number] {
   const [w, l] = MOUNT_SHADOW[kind];
-  const s = MOUNT_SCALE[kind];
+  const s = mountScale(kind, breed);
   return [w * s, l * s];
 }
 
@@ -253,9 +259,22 @@ const BUILD_MAT = new THREE.MeshBasicMaterial();
 type V3 = [number, number, number];
 const UP = new THREE.Vector3(0, 1, 0);
 
-export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin = "classic"): MountRig {
+/** the model scale for a kind (dragons: each breed is its own size) */
+export function mountScale(kind: MountKind, breed?: DragonBreed): number {
+  return (MOUNT_SCALE[kind] ?? 1) * (kind === "dragon" ? DRAGON_BREEDS[breed ?? "roostwarden"].size : 1);
+}
+
+/** the footprint capsule (see MOUNT_BODY), per dragon breed */
+export function mountBody(kind: MountKind, breed?: DragonBreed): [number, number, number] {
+  if (kind !== "dragon") return MOUNT_BODY[kind];
+  const S = mountScale(kind, breed);
+  const [hl, hw, off] = dragonBody(breed ?? "roostwarden");
+  return [hl * S, hw * S, off * S];
+}
+
+export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin = "classic", breed?: DragonBreed): MountRig {
   const main = SKIN_COLORS[kind][skin] ?? SKIN_COLORS[kind].classic;
-  const S = MOUNT_SCALE[kind] ?? 1;
+  const S = mountScale(kind, breed);
   const root = new THREE.Group();
   root.name = `mount:${kind}`;
   // everything visual hangs off `sc`, which scales the chibi-unit model up to true size
@@ -337,6 +356,7 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
   let eyeList: THREE.Bone[] = [];
   /** per-frame animation; `speed` in m/s */
   let anim: (t: number, dt: number, speed: number, airborne: boolean) => void = () => {};
+  let driveFn: ((d: DragonDrive) => void) | null = null;
   let restAmt = 0;
   let caps = MOUNT_CAPS[kind];
   /** craft: adds non-baked parts (a sub's glass bubble) once the body is skinned */
@@ -741,6 +761,9 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
       g.rotateX(-Math.PI / 2);
       if (side < 0) g.scale(-1, 1, 1);
       w.add(mesh(g, top));
+      // a softly glowing rim round the wing (easy to spot against the reef)
+      const rim = shape.getPoints(10).filter((q) => q.x > 0.04).map((q) => new THREE.Vector3(q.x * side, 0.1, -q.y));
+      w.add(mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rim), 20, 0.05, 4), "#7ff4ff", true));
       wings.push(w);
     }
     for (const side of [-1, 1]) {
@@ -757,8 +780,8 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
     tail.add(tl);
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2;
-      const s = mesh(new THREE.SphereGeometry(0.07, 6, 4), "#8ff7ff", true);
-      s.position.set(Math.sin(a) * 0.75, 0.62, Math.cos(a) * 0.95);
+      const s = mesh(new THREE.SphereGeometry(0.1, 6, 4), "#8ff7ff", true);
+      s.position.set(Math.sin(a) * 0.75, 0.6, Math.cos(a) * 0.95);
       body.add(s);
     }
     saddle(body, 0.66, -0.1, 0.45);
@@ -773,80 +796,13 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
       tail.rotation.y = Math.sin(t * 1.3) * 0.25;
     };
   } else if (kind === "dragon") {
-    // a small round cloud dragon with bat wings, little horns and a curly tail
-    const scale = main;
-    const torso = mesh(new THREE.SphereGeometry(0.85, 16, 12), scale);
-    torso.scale.set(1, 0.9, 1.25);
-    torso.position.y = 1.1;
-    body.add(torso);
-    const belly = mesh(new THREE.SphereGeometry(0.7, 12, 9), "#fff3c8");
-    belly.scale.set(0.9, 0.8, 1.1);
-    belly.position.set(0, 0.95, 0.35);
-    body.add(belly);
-    const head = bone(body, 0, 1.85, 1.05);
-    head.add(mesh(new THREE.SphereGeometry(0.62, 14, 10), scale));
-    const snout = mesh(new THREE.SphereGeometry(0.38, 12, 9), scale);
-    snout.scale.set(1.1, 0.8, 1);
-    snout.position.set(0, -0.15, 0.5);
-    head.add(snout);
-    for (const side of [-1, 1]) {
-      const nostril = mesh(new THREE.SphereGeometry(0.05, 6, 4), "#2b1d2e");
-      nostril.position.set(side * 0.13, -0.08, 0.86);
-      head.add(nostril);
-      const horn = mesh(new THREE.ConeGeometry(0.1, 0.35, 8), "#fff3c8");
-      horn.position.set(side * 0.28, 0.58, -0.1);
-      horn.rotation.z = -side * 0.35;
-      head.add(horn);
-    }
-    eyeList = eyes(head, 0.26, 0.15, 0.45, 0.12);
-    for (let i = 0; i < 5; i++) {
-      const sp = mesh(new THREE.ConeGeometry(0.12, 0.3, 6), "#ff9fd6");
-      sp.position.set(0, 1.95 - i * 0.12, 0.4 - i * 0.45);
-      body.add(sp);
-    }
-    const wings: THREE.Bone[] = [];
-    for (const side of [-1, 1]) {
-      const w = bone(body, side * 0.6, 1.6, -0.1);
-      const shape = new THREE.Shape();
-      shape.moveTo(0, 0);
-      shape.lineTo(1.5, 0.9);
-      shape.quadraticCurveTo(1.3, 0.3, 1.6, 0.1);
-      shape.quadraticCurveTo(1.1, -0.1, 1.2, -0.45);
-      shape.quadraticCurveTo(0.7, -0.3, 0.5, -0.6);
-      shape.lineTo(0, 0);
-      const g = new THREE.ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: false, curveSegments: 6 });
-      g.rotateX(-Math.PI / 2 + 0.4);
-      if (side < 0) g.scale(-1, 1, 1);
-      w.add(mesh(g, "#ffb3e0"));
-      wings.push(w);
-    }
-    const tail = bone(body, 0, 0.9, -1);
-    for (let i = 0; i < 6; i++) {
-      const s = mesh(new THREE.SphereGeometry(0.28 - i * 0.035, 9, 7), scale);
-      s.position.set(Math.sin(i * 0.6) * 0.2 * i, -i * 0.05, -i * 0.3);
-      tail.add(s);
-    }
-    const tip = mesh(new THREE.OctahedronGeometry(0.16, 0), "#ffd36b", true);
-    tip.position.set(Math.sin(6 * 0.6) * 1.2, -0.3, -1.85);
-    tail.add(tip);
-    for (const [x, z] of [[-0.45, 0.45], [0.45, 0.45], [-0.45, -0.4], [0.45, -0.4]] as const) {
-      const l = mesh(new THREE.CapsuleGeometry(0.17, 0.25, 4, 8), scale);
-      l.position.set(x, 0.3, z);
-      body.add(l);
-    }
-    saddle(body, 1.93, -0.15, 0.45);
-    baseSeat.set(0, 1.97, -0.1);
-    basePet.set(0, 1.8, -0.85);
-    anim = (t, _dt, speed, air) => {
-      const fold = restAmt;
-      const flap = air ? Math.sin(t * 7) * 0.7 : Math.sin(t * 1.5) * 0.12 * (1 - fold * 0.5) - 0.3 - fold * 0.55;
-      wings[0].rotation.z = flap;
-      wings[1].rotation.z = -flap;
-      body.position.y = air ? Math.sin(t * 7) * 0.1 : Math.abs(Math.sin(t * (4 + speed))) * 0.08 * Math.min(1, speed / 3) + Math.sin(t * 1.1) * 0.02;
-      tail.rotation.y = Math.sin(t * 2.2) * 0.35;
-      head.rotation.x = Math.sin(t * 1.4) * 0.05 + fold * 0.12;
-      head.rotation.y = Math.sin(t * 0.37) * 0.25 * fold;
-    };
+    // the dragon breeds (./dragons): four-legged, expressive, each its own shape and colours
+    // (a Star Shard skin recolours the hide)
+    const d = buildDragonParts(breed ?? "roostwarden", { body, sc, mesh, bone, tube, flat, eyes, main, accent }, { main: skin !== "classic" ? main : undefined });
+    baseSeat.set(...d.seat);
+    basePet.set(...d.pet);
+    anim = d.anim;
+    driveFn = d.drive;
   } else if (kind === "whale") {
     // a huge friendly humpback: you sit on its broad back just behind the head; long white
     // flippers, a knobbly head, a big smile, and a slow majestic fluke beat
@@ -1115,6 +1071,8 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
       shadowMat.opacity = Math.max(0.2, 1 - h * 0.03);
       setMountGlow(glow);
     },
+    drive: driveFn ?? undefined,
+    breed: kind === "dragon" ? breed ?? "roostwarden" : undefined,
     rest(amount) {
       restAmt = Math.max(0, Math.min(1, amount));
     },
@@ -1135,8 +1093,8 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
  * The rig frozen in its idle pose as a plain (unskinned) geometry, for instancing parked/idle
  * rideables (position + normal + color + glow; feet at y=0, facing +Z). Caller owns/disposes it.
  */
-export function mountStatueGeometry(kind: MountKind, accent = "#ff5fa8", skin: MountSkin = "classic", pose: { rest?: number; airborne?: boolean } = {}): THREE.BufferGeometry {
-  const rig = buildMount(kind, accent, skin);
+export function mountStatueGeometry(kind: MountKind, accent = "#ff5fa8", skin: MountSkin = "classic", pose: { rest?: number; airborne?: boolean } = {}, breed?: DragonBreed): THREE.BufferGeometry {
+  const rig = buildMount(kind, accent, skin, breed);
   rig.rest?.(pose.rest ?? 0);
   // settle the idle pose (a few quiet frames)
   for (let i = 0; i < 3; i++) rig.update(0.02, 0, !!pose.airborne, 0, 0);
@@ -1167,7 +1125,7 @@ export function mountStatueGeometry(kind: MountKind, accent = "#ff5fa8", skin: M
   out.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
   out.setAttribute("color", (src.attributes.color as THREE.BufferAttribute).clone());
   out.setAttribute("glow", (src.attributes.glow as THREE.BufferAttribute).clone());
-  const S = MOUNT_SCALE[kind] ?? 1;
+  const S = mountScale(kind, breed);
   if (S !== 1) out.scale(S, S, S);
   out.computeBoundingSphere();
   rig.dispose();

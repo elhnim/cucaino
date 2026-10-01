@@ -1,22 +1,23 @@
 // Where kids FIND things to ride in Cucaino Park (no more summoning from a button): bikes at little
 // racks by the plaza and the lands, buggies in small car parks beside the trails, unicorns
-// grazing in the meadows, Cloud Dragons perched on hilltops (and one on a floating mountain), and
-// manta rays waiting over the reef gardens, and boats and submarines moored at the harbours
+// grazing in the meadows, Cloud Dragons beside the trails (the Dragon Roost by the plaza, gentle
+// hills, the Candy Harbour beach, and one on a floating mountain), manta rays over the reef gardens
+// (and one more comes gliding up to any kid diving in deep water), and boats and submarines moored at the harbours
 // (lib/park/registry/harbours). Dolphins and whales aren't placed — they come up to swim with you
 // when you're out at sea (lib/park/world/rideables).
 //
 // Pure data + maths, deterministic. Every spot is searched for once at load: open, level ground
 // next to (never on) a trail, clear of every building and its door, off the stream, the Dream Park
 // grid and the Sky Coaster track. Tested in rideables.test.ts.
-import type { MountKind } from "../characters/mounts";
-import { LANDS, PLACES, SKY_LOOP_N, skyLoopXZ } from "./places";
+import type { DragonBreed, MountKind } from "../characters/mounts";
+import { LANDS, PLACES, SKY_LOOP_N, SPAWN, skyLoopXZ } from "./places";
 import { HILLS, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, TRAIL_WIDTH, coastR } from "./island";
 import { WATER_Y, groundY, slopeAt } from "./terrain";
 import { zoneBounds } from "../builder/rules";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_SPOTS, skyBaseY, skyWalkable } from "./skyIslands";
 import { GARDENS, FOOTPRINTS, atSea, midWater, type GardenKind } from "../world/underwater/plan";
 import { seaFloorY } from "../world/sea/wander";
-import { MOORINGS, harbourKeepOut, mooredY } from "./harbours";
+import { DOCKS, MOORINGS, harbourKeepOut, mooredY } from "./harbours";
 
 export interface RideableSpot {
   id: string;
@@ -33,6 +34,12 @@ export interface RideableSpot {
   wander?: number;
   /** boats / subs: the dock they're moored at */
   dock?: string;
+  /** keep-clear radius for other placers (m; default RIDEABLE_CLEAR[kind]) */
+  clear?: number;
+  /** dragons: the breed (each has its own look and temper) */
+  breed?: DragonBreed;
+  /** dragons: lounging at the Roost (naps / hovers about there; never wanders off) */
+  lounge?: boolean;
 }
 
 type P2 = [number, number];
@@ -192,42 +199,196 @@ for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream
   }
 }
 
-// ── Cloud Dragons: perched on the three highest level hilltops + one floating mountain ──
+// ── Cloud Dragons: where kids actually walk ──
+// A Dragon Roost (perch + sign) beside a trail just off the plaza, two more on gentle hills a short
+// stroll off the trails, one on the sand at Candy Harbour (for kids out at sea) and one on the
+// Buttercup Meadow floating mountain. Never on cliff tops: every land dragon stands on open, gentle
+// ground that a kid can walk up to from the nearest trail (see strollable()).
+
+/** open ground a parked dragon needs round its middle (m) */
+export const DRAGON_PAD = 6;
+/** the Dragon Roost's perch: a low round stone the dragon stands on (m proud of the grass) */
+export const ROOST_LIFT = 0.06;
+/** keep-clear round the Roost's middle for trees and props (its yard) */
+export const ROOST_CLEAR = 6;
+
+/** the nearest trail sample to (x, z) */
+function nearestTrailPt(x: number, z: number): P2 {
+  let best: P2 = trailPts[0];
+  let bd = Infinity;
+  for (const p of trailPts) {
+    const d = (p[0] - x) ** 2 + (p[1] - z) ** 2;
+    if (d < bd) ((bd = d), (best = p));
+  }
+  return best;
+}
+
+/**
+ * Can a kid stroll from the nearest trail (or from `from`) to (x, z)? Dry, gentle ground all the
+ * way, never through a building, the stream or the pond.
+ */
+export function strollable(x: number, z: number, maxSlope = 0.3, from?: P2): boolean {
+  const [px, pz] = from ?? nearestTrailPt(x, z);
+  const L = Math.hypot(x - px, z - pz);
+  const n = Math.max(2, Math.ceil(L / 1.2));
+  for (let i = 0; i <= n; i++) {
+    const u = i / n;
+    const sx = px + (x - px) * u;
+    const sz = pz + (z - pz) * u;
+    if (groundY(sx, sz) < WATER_Y + 0.4) return false;
+    if (slopeAt(sx, sz) > maxSlope) return false;
+    if (placeClearance(sx, sz) < 0.5) return false;
+    if (Math.hypot(sx - POND.x, sz - POND.z) < POND.r + 0.5) return false;
+    for (const p of STREAM_POINTS) if ((p[0] - sx) ** 2 + (p[1] - sz) ** 2 < (STREAM_WIDTH / 2 + 0.3) ** 2) return false;
+  }
+  return true;
+}
+
+/** gentle under the dragon's whole body (no ledge under a leg or the tail) */
+function level(x: number, z: number, r: number, maxSlope = 0.24, maxStep = 1.1): boolean {
+  const y0 = groundY(x, z);
+  if (slopeAt(x, z) > maxSlope) return false;
+  for (let a = 0; a < 8; a++)
+    for (const k of [0.5, 1]) {
+      const sx = x + Math.sin(a * 0.785) * r * k;
+      const sz = z + Math.cos(a * 0.785) * r * k;
+      if (slopeAt(sx, sz) > maxSlope + 0.06 || Math.abs(groundY(sx, sz) - y0) > maxStep * k) return false;
+    }
+  return true;
+}
+
+/** a dragon parked side-on to the trail (its whole silhouette shows), head towards `face` */
+function sideOn(x: number, z: number, face: P2): number {
+  const h = trailInfo(x, z).heading;
+  const fx = face[0] - x;
+  const fz = face[1] - z;
+  return Math.sin(h) * fx + Math.cos(h) * fz >= 0 ? h : h + Math.PI;
+}
+
+/** open, level, strollable ground `near` m off a trail, nearest the anchor */
+function dragonGround(ax: number, az: number, near: [number, number], maxR: number, ok: (x: number, z: number) => boolean = () => true): { x: number; z: number } | null {
+  for (let ring = 0; ring <= maxR; ring += 1.5) {
+    const n = Math.max(1, Math.round(ring * 2));
+    let best: { x: number; z: number; s: number } | null = null;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + ring * 0.29;
+      const x = ax + Math.sin(a) * ring;
+      const z = az + Math.cos(a) * ring;
+      const ti = trailInfo(x, z);
+      if (ti.d < near[0] || ti.d > near[1]) continue;
+      if (!openGround(x, z, DRAGON_PAD, near[0] - DRAGON_PAD * 0.6) || !clearOfOthers(x, z, 13)) continue;
+      if (!level(x, z, DRAGON_PAD) || !strollable(x, z) || !ok(x, z)) continue;
+      const s = Math.abs(ti.d - (near[0] + near[1]) / 2);
+      if (!best || s < best.s) best = { x, z, s };
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
+/** the Dragon Roost by the plaza: a little dragon academy (perches, a fish trough, a banner) */
+export interface DragonRoost {
+  id: string;
+  /** the yard's middle (the Roostwarden stands here) */
+  x: number;
+  z: number;
+  y: number;
+  /** the yard's radius (m) */
+  r: number;
+  /** the sign post, between the yard and the trail */
+  sign: { x: number; z: number; y: number };
+  /** unit vector from the middle towards the trail (the open side), and along it */
+  u: { x: number; z: number };
+  f: { x: number; z: number };
+}
+/** the Dragon Roost's yard (m) */
+export const ROOST_R = 9.5;
+let roost: DragonRoost | null = null;
+
 {
-  const cands: { x: number; z: number; y: number }[] = [];
-  for (let x = -148; x <= 148; x += 4)
-    for (let z = -148; z <= 148; z += 4) {
-      const y = groundY(x, z);
-      if (y < 5) continue;
-      let top = true;
-      for (let dx = -8; dx <= 8 && top; dx += 4) for (let dz = -8; dz <= 8; dz += 4) if ((dx || dz) && groundY(x + dx, z + dz) > y) top = false;
-      if (top) cands.push({ x, z, y });
-    }
-  cands.sort((a, b) => b.y - a.y);
+  // 1. the Dragon Roost: the open ground nearest where kids start, a few steps off a plaza trail
+  const r = dragonGround(SPAWN.x, SPAWN.z, [8, 13], 45, (x, z) => Math.hypot(x, z) > 22);
+  if (!r) throw new Error("rideables: no open ground for the Dragon Roost");
+  const y = groundY(r.x, r.z) + ROOST_LIFT;
+  // (its clearing is the roost's own boulder ring: the meadow by the plaza is open already, and a
+  // wider keep-clear here cut the animals' paths round the plaza)
+  const yaw0 = sideOn(r.x, r.z, [0, 0]);
+  add({ id: "dragon-roost", kind: "dragon", breed: "roostwarden", x: r.x, z: r.z, yaw: yaw0, y, clear: ROOST_CLEAR }, 14);
+  const [tx, tz] = nearestTrailPt(r.x, r.z);
+  const d = Math.hypot(r.x - tx, r.z - tz) || 1;
+  const sx = tx + ((r.x - tx) / d) * (TRAIL_WIDTH / 2 + 1.4);
+  const sz = tz + ((r.z - tz) / d) * (TRAIL_WIDTH / 2 + 1.4);
+  const u = { x: (tx - r.x) / d, z: (tz - r.z) / d };
+  const f = { x: -u.z, z: u.x };
+  roost = { id: "dragon-roost", x: r.x, z: r.z, y, r: ROOST_R, sign: { x: sx, z: sz, y: groundY(sx, sz) }, u, f };
+  // two dragons lounging in the yard: a Puffwing napping on the warm rocks at the back, a Zippit
+  // flitting about at one end
+  const lounge = (id: string, breed: DragonBreed, du: number, df: number, yaw: number) => {
+    const x = r.x + u.x * du + f.x * df;
+    const z = r.z + u.z * du + f.z * df;
+    add({ id, kind: "dragon", breed, x, z, yaw, y: groundY(x, z), lounge: true, clear: 0 }, 5);
+  };
+  lounge("dragon-roost-puffwing", "puffwing", -4.6, 1, Math.atan2(f.x, f.z) + 0.4);
+  lounge("dragon-roost-zippit", "zippit", 3.6, -3.8, Math.atan2(u.x, u.z) - 0.6);
+
+  // 2. two more: on gentle grassy hills (or open meadows) a short stroll off the trails, spread
+  // round the island (far from each other and from the Roost) so there's always one not far away
+  const cands: { x: number; z: number; hill: boolean }[] = [];
+  for (const h of HILLS) {
+    if (trailInfo(h.x, h.z).d > 26 || Math.hypot(h.x, h.z) < 30) continue;
+    const p = dragonGround(h.x, h.z, [7, 20], Math.min(10, h.r));
+    if (p) cands.push({ ...p, hill: true });
+  }
+  for (const l of LANDS) {
+    if (l.id === "gate" || l.id === "dream") continue;
+    const [ax, az] = landEdge(l.id, 1.6);
+    const p = dragonGround(ax, az, [8, 18], 30);
+    if (p) cands.push({ ...p, hill: false });
+  }
   let n = 0;
-  for (const c of cands) {
-    if (n >= 3) break;
-    // settle onto the exact local top
-    let { x, z } = c;
-    for (let it = 0; it < 12; it++) {
-      let bx = x;
-      let bz = z;
-      let by = groundY(x, z);
-      for (let a = 0; a < 8; a++) {
-        const tx = x + Math.sin(a * 0.785) * 1;
-        const tz = z + Math.cos(a * 0.785) * 1;
-        const ty = groundY(tx, tz);
-        if (ty > by) ((by = ty), (bx = tx), (bz = tz));
-      }
-      x = bx;
-      z = bz;
+  while (n < 2) {
+    const dragons = spots.filter((s) => s.kind === "dragon");
+    let pick: { x: number; z: number; s: number } | null = null;
+    for (const c of cands) {
+      const far = Math.min(...dragons.map((d) => Math.hypot(d.x - c.x, d.z - c.z)));
+      if (far < 60 || !clearOfOthers(c.x, c.z, 13)) continue;
+      // spread out, prefer a hilltop, and not too far out from the middle
+      const sc = Math.min(far, 140) + (c.hill ? 15 : 0) - Math.max(0, Math.hypot(c.x, c.z) - 110);
+      if (!pick || sc > pick.s) pick = { x: c.x, z: c.z, s: sc };
     }
-    if (slopeAt(x, z) > 0.35 || placeClearance(x, z) < 8 || trailInfo(x, z).d < 4 || !clearOfOthers(x, z, 30)) continue;
-    add({ id: `dragon-hill-${n + 1}`, kind: "dragon", x, z, yaw: Math.atan2(x, z), y: groundY(x, z) }, 30);
+    if (!pick) break;
+    add({ id: `dragon-hill-${n + 1}`, kind: "dragon", breed: n === 0 ? "skyfin" : "sparkspike", x: pick.x, z: pick.z, yaw: sideOn(pick.x, pick.z, [0, 0]), y: groundY(pick.x, pick.z) }, 14);
     n++;
   }
-  if (n < 3) throw new Error("rideables: not enough hilltops for dragons");
-  // the floating meadow nearest the Park Gate
+  if (n < 2) throw new Error("rideables: not enough reachable hills for dragons");
+
+  // 3. on the sand at Candy Harbour, beside the jetty (swim or sail in, walk up the beach, fly off)
+  const dock = DOCKS.find((q) => q.id === "candy-harbour");
+  if (dock) {
+    const a0 = Math.atan2(dock.x, dock.z);
+    // where the jetty meets dry sand
+    let rb = coastR(a0);
+    while (rb > 100 && groundY(Math.sin(a0) * rb, Math.cos(a0) * rb) < WATER_Y + 0.45) rb -= 0.5;
+    const ramp: P2 = [Math.sin(a0) * rb, Math.cos(a0) * rb];
+    let best: { x: number; z: number; s: number } | null = null;
+    for (let da = -0.16; da <= 0.16; da += 0.01)
+      for (let dr = -36; dr <= 0; dr += 1) {
+        const a = a0 + da;
+        const rr = coastR(a) + dr;
+        const x = Math.sin(a) * rr;
+        const z = Math.cos(a) * rr;
+        if (groundY(x, z) < WATER_Y + 0.3 || !level(x, z, DRAGON_PAD * 0.8, 0.26, 1.3)) continue;
+        if (harbourKeepOut(x, z, DRAGON_PAD) || placeClearance(x, z) < DRAGON_PAD + 2.5 || !clearOfOthers(x, z, 13)) continue;
+        if (trailInfo(x, z).d < DRAGON_PAD * 0.6 + 2) continue;
+        if (!strollable(x, z, 0.32, ramp)) continue;
+        // on the sand near the ramp, a little way along the beach from it
+        const s = Math.abs(Math.abs(da) * rr - 13) + Math.abs(dr + 16) * 0.3;
+        if (!best || s < best.s) best = { x, z, s };
+      }
+    if (best) add({ id: "dragon-harbour", kind: "dragon", breed: "puffwing", x: best.x, z: best.z, yaw: Math.atan2(best.x, best.z) + Math.PI / 2, y: groundY(best.x, best.z) }, 14);
+  }
+
+  // 4. the floating meadow nearest the Park Gate
   const isl = SKY_ISLANDS.find((s) => s.id === "buttercup-meadow") ?? SKY_ISLANDS.find((s) => s.kind === "meadow")!;
   let best: { x: number; z: number; s: number } | null = null;
   for (let rr = 2; rr <= isl.r; rr += 0.5)
@@ -246,8 +407,11 @@ for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream
       if (!best || s < best.s) best = { x, z, s };
     }
   if (!best) throw new Error("rideables: no room for the sky dragon");
-  add({ id: "dragon-sky", kind: "dragon", x: best.x, z: best.z, yaw: Math.atan2(best.x - isl.x, best.z - isl.z), y: skyBaseY(isl, best.x, best.z), sky: isl.id }, 3);
+  add({ id: "dragon-sky", kind: "dragon", breed: "zippit", x: best.x, z: best.z, yaw: Math.atan2(best.x - isl.x, best.z - isl.z), y: skyBaseY(isl, best.x, best.z), sky: isl.id }, 3);
 }
+
+/** the Dragon Roost by the plaza (its perch and sign are drawn by lib/park/world/rideables) */
+export const DRAGON_ROOST: DragonRoost = roost!;
 
 // ── mantas: waiting in mid-water over the four reef gardens (two at the Rainbow Reef) ──
 {
@@ -286,7 +450,7 @@ for (const m of MOORINGS) add({ id: m.id, kind: m.kind, x: m.x, z: m.z, yaw: m.y
 export const RIDEABLE_SPOTS: RideableSpot[] = spots;
 
 /** clearing radius kept round each parked ride (m) (the true-size dragon wants a big bald summit) */
-export const RIDEABLE_CLEAR: Partial<Record<MountKind, number>> = { bike: 2.2, car: 3.6, unicorn: 8, dragon: 9 };
+export const RIDEABLE_CLEAR: Partial<Record<MountKind, number>> = { bike: 2.2, car: 3.6, unicorn: 8, dragon: 11 };
 const AT_SEA = new Set<MountKind>(["manta", "pedalo", "sailboat", "speedboat", "ship", "sub", "deepsub"]);
 
 /**
@@ -298,7 +462,8 @@ export function rideableKeepOut(x: number, z: number, pad: number): boolean {
   if (harbourKeepOut(x, z, pad)) return true;
   for (const s of RIDEABLE_SPOTS) {
     if (s.sky || AT_SEA.has(s.kind)) continue;
-    const r = RIDEABLE_CLEAR[s.kind] ?? 3;
+    const r = s.clear ?? RIDEABLE_CLEAR[s.kind] ?? 3;
+    if (r <= 0) continue;
     if ((s.x - x) ** 2 + (s.z - z) ** 2 < (r + pad) ** 2) return true;
   }
   return false;

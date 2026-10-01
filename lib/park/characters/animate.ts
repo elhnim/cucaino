@@ -81,6 +81,9 @@ export class ChibiAnimator {
   private swimW = 0;
   private swimMoving = 0;
   private swimPh = 0;
+  // tobogganing on the tummy (Frostpeak's penguin slides): arms out ahead like a superhero
+  private slideTarget = 0;
+  private slideW = 0;
   private ctx: AnimCtx = { t: 0, dt: 0, phase: 0, move: 0, run: 0, w: {}, glow: 0 };
 
   constructor(private k: Kit, private height: number, seed: number) {
@@ -99,6 +102,11 @@ export class ChibiAnimator {
   setSwim(on: boolean, moving: boolean) {
     this.swimTarget = on ? 1 : 0;
     this.swimMoving += ((moving ? 1 : 0) - this.swimMoving) * 0.12;
+  }
+
+  /** lying on the tummy, sliding head-first (the engine lays the rig down along the slope) */
+  setSlide(on: boolean) {
+    this.slideTarget = on ? 1 : 0;
   }
 
   setGlow(a: number) {
@@ -206,6 +214,15 @@ export class ChibiAnimator {
       for (let i = 0; i < N; i++) B[i] += (S[i] - B[i]) * m;
     }
 
+    // tobogganing
+    this.slideW += (this.slideTarget - this.slideW) * (1 - Math.exp(-dt * 8));
+    if (this.slideW > 0.001) {
+      const S = this.tmp;
+      this.slidePose(S, t);
+      const m = smooth(this.slideW);
+      for (let i = 0; i < N; i++) B[i] += (S[i] - B[i]) * m;
+    }
+
     // action layers
     const O = this.out;
     O.set(B);
@@ -310,6 +327,31 @@ export class ChibiAnimator {
     P[SQUASH] = 0.02 * Math.sin(p * 2);
     P[MOUTH_OPEN] = 0.2 + 0.2 * moving;
     P[HAPPY] = 0.6;
+  }
+
+  /** Belly-sliding: arms stretched out ahead (overhead, lying down), legs straight out behind with a
+   *  happy little flutter, head up to see where we're going, a big grin. */
+  private slidePose(P: Float32Array, t: number) {
+    this.idlePose(P, t);
+    const w = Math.sin(t * 9);
+    P[ARM_LX] = 2.85 + 0.08 * w;
+    P[ARM_RX] = 2.85 - 0.08 * w;
+    P[ARM_LZ] = 0.22;
+    P[ARM_RZ] = 0.22;
+    P[LEG_LX] = 0.18 + 0.12 * Math.sin(t * 11);
+    P[LEG_RX] = 0.18 - 0.12 * Math.sin(t * 11);
+    P[LEG_LY] = P[LEG_RY] = 0;
+    P[HEAD_X] = -0.55;
+    P[HEAD_Y] = 0.1 * Math.sin(t * 1.7);
+    P[EAR_L] = P[EAR_R] = -0.35;
+    P[TAIL_Y] = 0.5 * Math.sin(t * 6);
+    P[TWIST] = 0;
+    P[SWAY] = 0;
+    P[RIG_Y] = 0;
+    P[SQUASH] = 0.03;
+    P[MOUTH_OPEN] = 0.75;
+    P[HAPPY] = 1;
+    P[EYE_OPEN] = 1;
   }
 
   private locoPose(P: Float32Array, phase: number, r: number, t: number) {

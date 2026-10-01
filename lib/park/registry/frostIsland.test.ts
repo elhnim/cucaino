@@ -242,6 +242,13 @@ describe("Frostpeak Isle (the snowy penguin island)", () => {
     expect(count("cave")).toBe(1);
     expect(count("pine")).toBeGreaterThanOrEqual(30);
     expect(count("slidegate")).toBe(FROST_SLIDES.length);
+    // the way back up to Slide Top is marked; the ski run has its huts, lift and gates
+    expect(count("arrow")).toBeGreaterThanOrEqual(4);
+    expect(count("skihut")).toBe(1);
+    expect(count("lodge")).toBe(1);
+    expect(count("liftstation")).toBe(2);
+    expect(count("pylon")).toBeGreaterThanOrEqual(3);
+    expect(count("skigate")).toBeGreaterThanOrEqual(5);
     for (const p of FROST_PROPS) {
       const g = frostGroundY(p.x, p.z);
       expect(g, `${p.kind} ${p.x - I.x},${p.z - I.z}`).not.toBeNull();
@@ -260,7 +267,7 @@ describe("Frostpeak Isle (the snowy penguin island)", () => {
   it("has discoveries everywhere worth finding, each with real facts", () => {
     expect(new Set(FROST_SPOTS.map((s) => s.id)).size).toBe(FROST_SPOTS.length);
     const kinds = new Set(FROST_SPOTS.map((s) => s.kind));
-    for (const k of ["colony", "slide", "icecave", "igloo", "peak", "floe", "aurora"]) expect(kinds.has(k as never), k).toBe(true);
+    for (const k of ["colony", "slide", "icecave", "igloo", "peak", "floe", "aurora", "ski"]) expect(kinds.has(k as never), k).toBe(true);
     for (const s of FROST_SPOTS) {
       expect(hyp(s.x - I.x, s.z - I.z), s.id).toBeLessThan(FROST_SEA_R);
       const f = frostFacts(s.id);

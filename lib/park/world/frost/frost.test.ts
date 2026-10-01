@@ -22,12 +22,12 @@ function worstCase(low: boolean) {
 }
 
 describe("Frostpeak Isle rendering", { timeout: 60_000 }, () => {
-  it("stays within budget: ≤ 16 draw calls, ≤ 150k triangles (≤ 75k low quality)", () => {
+  it("stays within budget: ≤ 14 draw calls, ≤ 150k triangles (≤ 75k low quality)", () => {
     const hi = worstCase(false);
-    expect(hi.calls).toBeLessThanOrEqual(16);
+    expect(hi.calls).toBeLessThanOrEqual(14);
     expect(hi.tris).toBeLessThanOrEqual(150_000);
     const lo = worstCase(true);
-    expect(lo.calls).toBeLessThanOrEqual(16);
+    expect(lo.calls).toBeLessThanOrEqual(14);
     expect(lo.tris).toBeLessThanOrEqual(75_000);
     expect(hi.left).toBe(0);
     expect(lo.left).toBe(0);

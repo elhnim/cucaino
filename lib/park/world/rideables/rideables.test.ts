@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { buildRideables } from "./index";
-import { pickSeaCall, angleTo, turnTowards, SEA_MIN_DEPTH, type SeaCall } from "./plan";
+import { BOND_STEPS, buildRideables } from "./index";
+import { createDragonFlight } from "./dragonFlight";
+import { pickSeaCall, pickMantaCall, angleTo, turnTowards, keepGap, sideGap, MANTA_CALL, MIN_GAP, SEA_FIRST_CALL, SEA_MIN_DEPTH, type MantaCall, type SeaCall } from "./plan";
 import { RIDEABLE_SPOTS } from "../../registry/rideables";
-import { M, MOUNT_BODY, RIDEABLE_KINDS, buildMount, isBoat, isCraft, isSub, mountStatueGeometry, type MountKind } from "../../characters/mounts";
-import { atSea } from "../underwater/plan";
-import { seaDepth } from "../sea/wander";
+import { DRAGON_BREEDS, DRAGON_BREED_IDS, HOP_REACH, M, MOUNT_BODY, RIDEABLE_KINDS, mountBody, buildMount, isBoat, isCraft, isSub, mountStatueGeometry, type MountKind } from "../../characters/mounts";
+import { GARDENS, atSea } from "../underwater/plan";
+import { seaDepth, seaFloorY } from "../sea/wander";
 import { WATER_Y, groundY } from "../../registry/terrain";
 
 const spot = (id: string) => RIDEABLE_SPOTS.find((s) => s.id === id)!;
@@ -75,6 +76,31 @@ describe("mount rigs", () => {
     const dr = box("dragon");
     expect(m(dr.max.z - dr.min.z)).toBeGreaterThan(8.5);
     expect(m(dr.max.z - dr.min.z)).toBeLessThan(12);
+    // the breeds: a 4-5 m Zippit up to the ~11 m Roostwarden; every one stands on four legs, its
+    // back level (like a big cat: longer than it is tall), with the saddle on top
+    const lens: Record<string, number> = {};
+    for (const b of DRAGON_BREED_IDS) {
+      const g = mountStatueGeometry("dragon", "#ff5fa8", "classic", {}, b);
+      g.computeBoundingBox();
+      const bb = g.boundingBox!;
+      const len = m(bb.max.z - bb.min.z);
+      lens[b] = len;
+      // (cheap enough to have several about: ~7k triangles each)
+      expect(g.attributes.position.count / 3, b).toBeLessThan(9000);
+      g.dispose();
+      expect(len, b).toBeGreaterThan(b === "zippit" ? 3.5 : 5.5);
+      expect(len, b).toBeLessThan(12);
+      const rig = buildMount("dragon", "#ff5fa8", "classic", b);
+      rig.drive!({ mode: "park", act: "stand", look: 0, flap: 0, dive: 0 });
+      for (let i = 0; i < 30; i++) rig.update(0.05, 0, false, 0, 0);
+      expect(rig.breed).toBe(b);
+      // the seat is up on its back, well under its length (not stood up tall like a kangaroo)
+      expect(rig.seat.y / M, b).toBeGreaterThan(b === "zippit" ? 0.8 : 1.4);
+      expect(rig.seat.y / M, b).toBeLessThan(len * 0.42);
+      rig.dispose();
+    }
+    expect(lens.zippit).toBeLessThan(lens.puffwing);
+    expect(lens.roostwarden).toBeGreaterThan(lens.puffwing);
     // boats: pedalo ~3.4 m, sailboat ~6 m, Rocket Boat ~5.5 m, the Pirate Ship ~14 m; subs ~4 m
     const len = (k: MountKind) => {
       const b = box(k);
@@ -120,6 +146,42 @@ describe("sea call planning", () => {
     const shallow = atSea(0.9, 16); // the lagoon
     for (let i = 0; i < 20; i++) expect(pickSeaCall(shallow.x, shallow.z, "whale", i / 20, 0.5, out)).toBeNull();
   });
+  it("a waiting ride is only ever nudged aside, just enough not to sit on the kid", () => {
+    const r = { kind: "whale" as MountKind, x: 0, z: 0, yaw: 0 };
+    // the kid well clear: it doesn't move
+    keepGap(r, 10, 0);
+    expect(r.x).toBe(0);
+    expect(r.z).toBe(0);
+    // the kid swimming into its flank: pushed aside to exactly MIN_GAP
+    keepGap(r, 3, -1);
+    expect(sideGap("whale", r.x, r.z, r.yaw, 3, -1)).toBeCloseTo(MIN_GAP, 4);
+    expect(Math.hypot(r.x, r.z)).toBeLessThan(2);
+    // right on its middle line: steps sideways
+    const q = { kind: "dolphin" as MountKind, x: 5, z: 5, yaw: 1 };
+    keepGap(q, 5, 5);
+    expect(sideGap("dolphin", q.x, q.z, q.yaw, 5, 5)).toBeCloseTo(MIN_GAP, 4);
+  });
+
+  it("a manta glides in to a diving kid from open water, at their depth", () => {
+    const out: MantaCall = { x: 0, y: 0, z: 0, sx: 0, sz: 0 };
+    const k = atSea(2.8, 70);
+    const ky = WATER_Y - 4;
+    let ok = 0;
+    for (let i = 0; i < 16; i++) {
+      const c = pickMantaCall(k.x, ky, k.z, i / 16, out);
+      if (!c) continue;
+      ok++;
+      expect(Math.hypot(c.sx - k.x, c.sz - k.z)).toBeCloseTo(MANTA_CALL.startR, 3);
+      expect(Math.hypot(c.x - k.x, c.z - k.z)).toBeCloseTo(MANTA_CALL.wait, 3);
+      expect(c.y).toBeLessThan(WATER_Y - 1.5);
+      expect(c.y).toBeGreaterThan(seaFloorY(c.sx, c.sz) + 1.5);
+    }
+    expect(ok).toBeGreaterThan(8);
+    // never through the shallows of a beach
+    const beach = atSea(2.8, -12);
+    for (let i = 0; i < 16; i++) if (seaDepth(beach.x, beach.z) < 2) expect(pickMantaCall(beach.x, ky, beach.z, i / 16, out)).toBeNull();
+  });
+
   it("angle helpers wrap", () => {
     expect(angleTo(3, -3)).toBeCloseTo(2 * Math.PI - 6, 5);
     expect(turnTowards(0, 1, 2, 0.1)).toBeCloseTo(0.2, 5);
@@ -217,6 +279,282 @@ describe("buildRideables", () => {
       expect(n?.kind === "dolphin" || n?.kind === "whale").toBe(false);
     }
     w.dispose();
+  });
+
+  /** run a kid at sea until `id` waits beside them (at most `secs`), returning the seconds taken */
+  function waitFor(w: ReturnType<typeof buildRideables>, id: string, kid: THREE.Vector3, secs: number, o: { under?: boolean; diving?: boolean } = {}, t0 = 0): number {
+    let t = t0;
+    for (let i = 0; i < secs * 10; i++) {
+      w.update(0.1, (t += 0.1), { kid, under: !!o.under, atSea: true, glow: 0, diving: o.diving });
+      if (w.peek(id)?.state === "waiting") return t - t0;
+    }
+    return Infinity;
+  }
+  /** swim the kid straight at a ride's middle at `speed` m/s until it can hop on; seconds taken */
+  function swimTo(w: ReturnType<typeof buildRideables>, id: string, kid: THREE.Vector3, speed: number, secs: number, t0: number, o: { under?: boolean; diving?: boolean } = {}): number {
+    let t = t0;
+    let minGap = Infinity;
+    const start = w.peek(id)!;
+    for (let i = 0; i < secs * 20; i++) {
+      const p = w.peek(id)!;
+      const dx = p.x - kid.x;
+      const dz = p.z - kid.z;
+      const d = Math.hypot(dx, dz) || 1;
+      kid.x += (dx / d) * speed * 0.05;
+      kid.z += (dz / d) * speed * 0.05;
+      w.update(0.05, (t += 0.05), { kid, under: !!o.under, atSea: true, glow: 0, diving: o.diving });
+      const q = w.peek(id)!;
+      minGap = Math.min(minGap, sideGap(id.startsWith("whale") ? "whale" : id.startsWith("dolphin") ? "dolphin" : "manta", q.x, q.z, q.yaw, kid.x, kid.z));
+      const n = w.nearest(kid);
+      if (n?.id === id) {
+        // it never sat on top of the kid, and it stayed put (no backing away) while they swam up
+        expect(minGap).toBeGreaterThan(MIN_GAP - 0.05);
+        expect(Math.hypot(q.x - start.x, q.z - start.z)).toBeLessThan(3);
+        return t - t0;
+      }
+    }
+    return Infinity;
+  }
+
+  it("swim off a beach: the dolphin comes within ~15 s and waits; swim to it and it can be boarded", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const k0 = atSea(4.4, 28); // ~28 m off the beach
+    const kid = V(k0.x, WATER_Y - 0.95, k0.z);
+    expect(seaDepth(kid.x, kid.z)).toBeGreaterThan(2.5);
+    const t = waitFor(w, "dolphin-sea", kid, 40);
+    expect(t).toBeLessThan(SEA_FIRST_CALL.dolphin + 3 + 10);
+    const p = w.peek("dolphin-sea")!;
+    expect(Math.hypot(p.x - kid.x, p.z - kid.z)).toBeGreaterThan(5);
+    const s = swimTo(w, "dolphin-sea", kid, 5, 15, t);
+    expect(s).toBeLessThan(5);
+    w.dispose();
+  });
+
+  it("in the deep the whale comes too, stays put broadside, and a kid swimming at the surface can climb on", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const k0 = atSea(1.2, 70);
+    const kid = V(k0.x, WATER_Y - 0.95, k0.z);
+    const t = waitFor(w, "whale-sea", kid, 60);
+    expect(t).toBeLessThan(SEA_FIRST_CALL.whale + 3 + 25);
+    const p = w.peek("whale-sea")!;
+    // it waits beside the kid (they swim the last bit to its side)
+    expect(sideGap("whale", p.x, p.z, p.yaw, kid.x, kid.z)).toBeGreaterThan(HOP_REACH - 1);
+    const s = swimTo(w, "whale-sea", kid, 5, 20, t);
+    expect(s).toBeLessThan(6);
+    // the engine's hop height check: the whale's root vs a kid paddling at the surface
+    const n = w.nearest(kid)!;
+    expect(n.kind).toBe("whale");
+    expect(Math.abs(n.y - kid.y)).toBeLessThan(4.5);
+    // and a kid a couple of metres under, beside it, too
+    kid.y = WATER_Y - 2.4;
+    w.update(0.05, t + s + 0.05, { kid, under: true, atSea: true, glow: 0 });
+    expect(w.nearest(kid)?.kind).toBe("whale");
+    w.dispose();
+  });
+
+  it("a kid diving in deep water is visited by a manta within ~40 s, beside them at their depth", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    // well away from the reef gardens' mantas
+    const a = 2.6; // between the Rainbow Reef and the Glow Reef
+    const k0 = atSea(a, 60);
+    const kid = V(k0.x, WATER_Y - 4.5, k0.z);
+    expect(seaDepth(kid.x, kid.z)).toBeGreaterThan(MANTA_CALL.minDepth);
+    for (const s of RIDEABLE_SPOTS.filter((q) => q.kind === "manta")) expect(Math.hypot(s.x - kid.x, s.z - kid.z)).toBeGreaterThan(25);
+    const t = waitFor(w, "manta-visit", kid, 60, { under: true, diving: true });
+    expect(t).toBeLessThan(40);
+    const p = w.peek("manta-visit")!;
+    expect(Math.abs(p.y - kid.y)).toBeLessThan(1.5);
+    // it's right there: hop on straight away, or after a stroke or two
+    const s = swimTo(w, "manta-visit", kid, 4, 10, t, { under: true, diving: true });
+    expect(s).toBeLessThan(3);
+    w.take("manta-visit");
+    w.release("manta-visit", kid.x, kid.y, kid.z, 0);
+    expect(w.peek("manta-visit")!.state).toBe("leaving");
+    w.dispose();
+  });
+
+  it("the manta doesn't come to a kid paddling at the top, or in the shallows", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const k0 = atSea(2.6, 60);
+    const kid = V(k0.x, WATER_Y - 0.95, k0.z);
+    expect(waitFor(w, "manta-visit", kid, 60, { under: false, diving: false })).toBe(Infinity);
+    w.dispose();
+  });
+
+  it("a parked dragon is found from 25 m (for the hint), and hopped on from its side", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const d = spot("dragon-hill-1");
+    const far = V(d.x + 40, groundY(d.x + 40, d.z), d.z);
+    w.update(0.05, 0.05, { kid: far, under: false, atSea: false, glow: 0 });
+    expect(w.parkedNear(far, "dragon", 25)).toBeNull();
+    const near = V(d.x + 20, groundY(d.x + 20, d.z), d.z);
+    w.update(0.05, 0.1, { kid: near, under: false, atSea: false, glow: 0 });
+    expect(w.parkedNear(near, "dragon", 25)).toBe("dragon-hill-1");
+    // walk up to its flank
+    const p = w.peek("dragon-hill-1")!;
+    const hw = mountBody("dragon", d.breed)[1];
+    const sx = p.x + Math.cos(p.yaw) * (hw + 2);
+    const sz = p.z - Math.sin(p.yaw) * (hw + 2);
+    const side = V(sx, groundY(sx, sz), sz);
+    w.update(0.05, 0.15, { kid: side, under: false, atSea: false, glow: 0 });
+    const n = w.nearest(side)!;
+    expect(n.id).toBe("dragon-hill-1");
+    expect(n.breed).toBe(d.breed);
+    expect(n.label).toContain(DRAGON_BREEDS[d.breed!].name);
+    // pins for the map: every dragon, the reefs and the docks
+    const pins = w.pins();
+    expect(pins.filter((q) => q.kind === "dragon").length).toBe(RIDEABLE_SPOTS.filter((q) => q.kind === "dragon" && !q.lounge).length);
+    expect(pins.filter((q) => q.kind === "manta").length).toBe(GARDENS.length);
+    expect(pins.some((q) => q.kind === "dock" && q.label === "Candy Harbour")).toBe(true);
+    w.dispose();
+  });
+
+  it("making friends with a dragon: shy, a sniff, a nuzzle, hearts, then friends (and it trots over after)", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const id = "dragon-hill-2";
+    const d = spot(id);
+    const hw = mountBody("dragon", d.breed)[1];
+    const sx = d.x + Math.cos(d.yaw) * (hw + 2.5);
+    const sz = d.z - Math.sin(d.yaw) * (hw + 2.5);
+    const kid = V(sx, groundY(sx, sz), sz);
+    let t = 0;
+    const step = (n: number, k = kid) => {
+      for (let i = 0; i < n; i++) w.update(0.05, (t += 0.05), { kid: k, under: false, atSea: false, glow: 0 });
+    };
+    step(20);
+    // a stranger close by: it's shy
+    expect(w.peek(id)!.act).toBe("shy");
+    expect(w.peek(id)!.bonded).toBe(false);
+    expect(w.bond(id)).toBe(true);
+    const acts = new Set<string>();
+    let done: string | null = null;
+    let hearts = 0;
+    const group = scene.getObjectByName("rideables")!;
+    for (let i = 0; i < 160 && !done; i++) {
+      step(1);
+      acts.add(w.peek(id)!.act!);
+      // (no Hop on while they're getting to know each other)
+      if (w.bonding() === id) expect(w.nearest(kid)?.id).not.toBe(id);
+      const h = group.getObjectByName("rideables:hearts") as THREE.InstancedMesh;
+      hearts = Math.max(hearts, h.visible ? h.count : 0);
+      done = w.takeBonded();
+    }
+    expect(done).toBe(id);
+    expect(t).toBeLessThan(BOND_STEPS.happy + 2);
+    for (const a of ["shy", "sniff", "nuzzle", "happy"]) expect(acts, a).toContain(a);
+    expect(hearts).toBeGreaterThan(3);
+    expect(w.peek(id)!.bonded).toBe(true);
+    // its snout came up to the kid's hand (it shuffled to face them, at a snout's reach)
+    const p = w.peek(id)!;
+    expect(Math.abs(angleTo(p.yaw, Math.atan2(kid.x - p.x, kid.z - p.z)))).toBeLessThan(0.4);
+    // now it's a friend: hop straight on
+    step(60);
+    expect(w.nearest(kid)?.id).toBe(id);
+    // and when the kid stands a little way off, it trots over to them
+    const far = V(p.x + Math.sin(p.yaw + 2) * 16, 0, p.z + Math.cos(p.yaw + 2) * 16);
+    far.y = groundY(far.x, far.z);
+    const d0 = Math.hypot(p.x - far.x, p.z - far.z);
+    step(160, far);
+    const q = w.peek(id)!;
+    expect(Math.hypot(q.x - far.x, q.z - far.z)).toBeLessThan(d0 - 4);
+    expect(q.y).toBeCloseTo(groundY(q.x, q.z), 1);
+    // remembered friends: a fresh park told about them knows the kid straight away
+    const w2 = buildRideables(new THREE.Scene(), {});
+    w2.setBonded([id]);
+    expect(w2.peek(id)!.bonded).toBe(true);
+    w2.dispose();
+    w.dispose();
+  });
+
+  it("left alone, dragons nap, scratch, chase their tails and look about (and stay home)", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    const far = V(500, 0, 500);
+    const acts = new Set<string>();
+    let t = 0;
+    for (let i = 0; i < 2400; i++) {
+      w.update(0.1, (t += 0.1), { kid: far, under: false, atSea: false, glow: 0 });
+      if (i % 5 === 0) for (const s of RIDEABLE_SPOTS.filter((q) => q.kind === "dragon")) acts.add(w.peek(s.id)!.act!);
+    }
+    for (const a of ["nap", "scratch", "chase", "stand"]) expect(acts, a).toContain(a);
+    for (const s of RIDEABLE_SPOTS.filter((q) => q.kind === "dragon")) {
+      const p = w.peek(s.id)!;
+      expect(Math.hypot(p.x - s.x, p.z - s.z), s.id).toBeLessThan(3);
+    }
+    w.dispose();
+  });
+
+  it("dragon flight: banks into turns, noses down in a dive, rolls, puffs fire, bursts clouds", () => {
+    const scene = new THREE.Scene();
+    const fx = createDragonFlight(scene, {});
+    const rig = buildMount("dragon", "#ff5fa8", "classic", "skyfin");
+    scene.add(rig.root);
+    const kidRig = new THREE.Group();
+    const pos = V(0, 30, 0);
+    fx.start("skyfin");
+    const frame = (dYaw: number, climb: number, alt = 20) => fx.apply(0.05, { mount: rig, kidRig, pos, dYaw, alt, climb, moving: true });
+    for (let i = 0; i < 40; i++) frame(0.06, 0);
+    const bankL = rig.root.rotation.z;
+    expect(Math.abs(bankL)).toBeGreaterThan(0.3);
+    for (let i = 0; i < 60; i++) frame(-0.06, 0);
+    expect(Math.sign(rig.root.rotation.z)).toBe(-Math.sign(bankL));
+    // the kid leans forward
+    expect(kidRig.rotation.x).toBeGreaterThan(0.2);
+    // a dive: nose down, camera pulls back
+    for (let i = 0; i < 60; i++) frame(0, -12);
+    expect(rig.root.rotation.x).toBeGreaterThan(0.3);
+    expect(fx.camBack).toBeGreaterThan(1.25);
+    for (let i = 0; i < 60; i++) frame(0, 0);
+    expect(fx.camBack).toBeLessThan(1.1);
+    // a barrel roll goes all the way round
+    expect(fx.trick("roll")).toBe(true);
+    let maxRoll = 0;
+    for (let i = 0; i < 30; i++) {
+      frame(0, 0);
+      maxRoll = Math.max(maxRoll, Math.abs(rig.root.rotation.z));
+    }
+    expect(maxRoll).toBeGreaterThan(Math.PI);
+    // a fire puff
+    expect(fx.trick("fire")).toBe(true);
+    const puffs = scene.getObjectByName("dragon-flight:puffs") as THREE.InstancedMesh;
+    for (let i = 0; i < 6; i++) {
+      frame(0, 0);
+      fx.update(0.05, i * 0.05, { pos, riding: true });
+    }
+    expect(puffs.visible).toBe(true);
+    // fly into a cloud: it bursts
+    const c = fx.clouds[0];
+    pos.set(c.x, c.y, c.z);
+    fx.update(0.05, 1, { pos, riding: true });
+    expect(fx.clouds[0].pop).toBeGreaterThan(0);
+    // the wings: real beats when climbing (they swing through a big arc), held out when gliding
+    const arm = (r: typeof rig) => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < 40; i++) {
+        r.update(0.05, 8, true, 0, 20);
+        const b = r.root.getObjectByName("mount-body") as THREE.SkinnedMesh;
+        const z = b.skeleton.bones.find((x) => x.children.length && Math.abs(x.position.x) > 0.1 && x.position.y > 0.8)!.rotation.z;
+        lo = Math.min(lo, z);
+        hi = Math.max(hi, z);
+      }
+      return hi - lo;
+    };
+    rig.drive!({ mode: "fly", act: "stand", look: 0, flap: 1, dive: 0 });
+    const beat = arm(rig);
+    rig.drive!({ mode: "fly", act: "stand", look: 0, flap: 0, dive: 0 });
+    const glide = arm(rig);
+    expect(beat).toBeGreaterThan(0.8);
+    expect(glide).toBeLessThan(0.15);
+    rig.dispose();
+    fx.dispose();
+    expect(scene.getObjectByName("dragon-flight")).toBeUndefined();
   });
 
   it("stays within the draw-call budget wherever the kid is", () => {
