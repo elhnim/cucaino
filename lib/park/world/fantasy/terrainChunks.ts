@@ -18,7 +18,7 @@ import type { GrassMask } from "./mask";
 export const BLOCK = [120, 240, 480];
 /** segments per block side at each level, finest first, then: the finest level's blocks a little
  *  further off (FINE_R), and a quick stand-in */
-export const BLOCK_SEGS = { std: [56, 32, 16, 28, 4], low: [28, 16, 8, 16, 4] };
+export const BLOCK_SEGS = { std: [56, 32, 16, 28, 8], low: [28, 16, 8, 16, 6] };
 /** the finest blocks get their full detail only within this of the kid */
 export const FINE_R = 45;
 /** a block splits into the next finer level when the kid is nearer than this (per level, from 1) */
@@ -266,16 +266,25 @@ export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMas
     leaves.length = 0;
     for (let bj = 0; bj < NBZ; bj++) for (let bi = 0; bi < NBX; bi++) collect(TOP, bi, bj, focus.x, focus.z);
     leaves.sort((a, b) => a.d - b.d);
+    // (while the ground right round the kid is still a rough stand-in, build it faster)
+    let budget = budgetMs;
+    for (const L of leaves) {
+      if (L.d > 60) break;
+      if (!built.has(key(L.level, L.bi, L.bj, L.level === 0 && L.d > FINE_R ? MID : -1))) {
+        budget = Math.max(budget, 8);
+        break;
+      }
+    }
     const now = new Set<Built>();
     for (const L of leaves) {
       const variant = L.level === 0 && L.d > FINE_R ? MID : -1;
       const k = key(L.level, L.bi, L.bj, variant);
       let b = built.get(k);
-      if (!b && performance.now() - t0 < budgetMs) {
+      if (!b && performance.now() - t0 < budget) {
         // (a few rows within this frame's budget: big blocks finish over the next frames)
         let J = jobs.get(k);
         if (!J) jobs.set(k, (J = startJob(L.level, L.bi, L.bj, variant)));
-        const done = stepJob(J, t0 + budgetMs);
+        const done = stepJob(J, t0 + budget);
         if (done) {
           jobs.delete(k);
           built.set(k, (b = done));

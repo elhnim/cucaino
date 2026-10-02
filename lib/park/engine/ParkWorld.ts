@@ -46,6 +46,7 @@ import { RIDEABLE_SPOTS } from "../registry/rideables";
 import { DRAGON_BREEDS, type DragonBreed } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaDist } from "../registry/island";
+import { stationAt, type Station } from "../registry/railway";
 import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../registry/jungle";
 import { waterSdf } from "../registry/waterways";
 import { VILLAGE_ISLAND } from "../registry/villageIsland";
@@ -239,6 +240,9 @@ export class ParkWorld {
   private alt = 0;
   private altTarget = 0;
   private flyInput = 0;
+  /** flying a dragon (or another flier) to a spot picked on the map: it steers itself, climbs to
+   *  cruise, goes a good bit faster, then glides down and lands there (the joystick takes over) */
+  private autoFly: { x: number; z: number; label: string } | null = null;
   // ── swimming: depth below the surface (0 = paddling at the top), eased toward swimTarget ──
   private swimDepth = 0;
   private swimTarget = 0;
@@ -258,7 +262,11 @@ export class ParkWorld {
   private readonly afloatBig: SeaBody[] = [];
   private deepHintT = 0;
   // ── the Sky Coaster: riding the train round the island (speed follows the drops) ──
-  private sky: { v: number; dist: number; cheered: boolean } | null = null;
+  /** riding the Sky Coaster — or, with `train`, the Wildlands Railway */
+  private sky: { v: number; dist: number; cheered: boolean; train?: boolean } | null = null;
+  /** standing on a station's platform, waiting for the train we called */
+  private trainWait: Station | null = null;
+  private trainPose = { x: 0, y: 0, z: 0, yaw: 0 };
   // ── Frostpeak's penguin slides: the kid tobogganing down a chute (null = not), the chute whose start
   // the kid is standing at (-1), how far the lying kid's belly sits below its middle, the flop (0..1) ──
   private slide: KidSlide | null = null;
@@ -1124,7 +1132,23 @@ export class ParkWorld {
     // movement: joystick first, else tap-to-walk target
     let vx = 0;
     let vz = 0;
-    if (this.inputOn) {
+    // (flying somewhere picked on the map, until the joystick takes over)
+    if (this.autoFly && (!this.mount?.flies || this.landing || Math.hypot(this.move.x, this.move.y) > 0.12)) this.autoFly = null;
+    if (this.autoFly) {
+      const dx = this.autoFly.x - pos.x;
+      const dz = this.autoFly.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 22) {
+        this.autoFly = null;
+        this.dismount();
+      } else {
+        vx = dx / d;
+        vz = dz / d;
+        // cruise well up (over the Great Ridge's crags), coming down as it nears
+        const cruise = Math.min(55, 18 + d * 0.08);
+        this.altTarget += (cruise - this.altTarget) * Math.min(1, dt * 0.8);
+      }
+    } else if (this.inputOn) {
       const mag = Math.hypot(this.move.x, this.move.y);
       if (mag > 0.12) {
         // joystick "up" = away from the camera, whichever way the kid has turned the view
@@ -1219,7 +1243,7 @@ export class ParkWorld {
       if (!this.walkTarget) this.routing = false;
       const swimming = !this.mount && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
       const caps = this.mount ? MOUNT_CAPS[this.mount.kind] : null;
-      const sp = WALK_SPEED * (caps ? caps.speed : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
+      const sp = WALK_SPEED * (caps ? caps.speed * (this.autoFly ? 2.6 : 1) : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
       const px = pos.x;
       const pz = pos.z;
       pos.x += vx * sp * dt;
@@ -1516,6 +1540,20 @@ export class ParkWorld {
     }
 
     if (this.sky) this.tickSky(dt, kid);
+    // waiting on a platform: aboard as soon as the train stands there; walk off and it's off
+    if (this.trainWait) {
+      const st = this.trainWait;
+      const rw = this.park.railway;
+      if (stationAt(pos.x, pos.z, 4) !== st || this.mount) {
+        this.trainWait = null;
+      } else if (rw.train.at === st) {
+        this.trainWait = null;
+        this.sky = { v: 0, dist: 0, cheered: false, train: true };
+        this.walkTarget = null;
+        this.walkQueue = [];
+        this.burst(pos.clone().setY(pos.y + 1.4), 24);
+      }
+    }
 
     // wizards stand on their floating mountains (which bob gently)
     for (const w of this.wizards) {
@@ -1771,8 +1809,13 @@ export class ParkWorld {
       if (this.petZzz) this.petZzz.position.set(pet.root.position.x + 0.6, head + 0.4 + Math.sin(this.time * 2) * 0.25, pet.root.position.z);
     }
 
-    // on the coaster the pet rides in the car behind
-    if (this.sky && this.pet) {
+    // on the coaster (or the train) the pet rides in the car behind
+    if (this.sky?.train && this.pet) {
+      this.park.railway.carPose(2, this.trainPose);
+      this.pet.root.position.set(this.trainPose.x, this.trainPose.y + 0.4, this.trainPose.z);
+      this.pet.facing = this.trainPose.yaw;
+      this.pet.root.rotation.y = this.trainPose.yaw;
+    } else if (this.sky && this.pet) {
       const st = this.park.skyTrain;
       const pp = st.loop.getPointAt((st.u - ((RIDE_CAR + 1) * CAR_GAP) / st.len + 1) % 1);
       this.pet.root.position.set(pp.x, pp.y + 0.75, pp.z);
@@ -2000,7 +2043,7 @@ export class ParkWorld {
       this.lookAtPt.set(pos.x, pos.y + 1.2, pos.z);
     } else if (this.sky) {
       // chase cam: behind and above the car, looking down the track
-      const tan = this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
+      const tan = this.sky.train ? this.trainTan() : this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
       // high and to one side of the train, so the smoke streams past rather than into the lens
       const sideX = tan.z;
       const sideZ = -tan.x;
@@ -2765,6 +2808,60 @@ export class ParkWorld {
     return true;
   }
 
+  // ── the Wildlands Railway ──
+  private _tan = new THREE.Vector3();
+  private trainTan(): THREE.Vector3 {
+    const P = this.trainPose;
+    this.park!.railway.carPose(0, P);
+    const x0 = P.x;
+    const y0 = P.y;
+    const z0 = P.z;
+    this.park!.railway.carPose(1, P);
+    return this._tan.set(x0 - P.x, y0 - P.y, z0 - P.z).normalize();
+  }
+  /** On a station's platform, on foot: the station (the HUD offers "Ride the train"), and whether
+   *  the train's already been called */
+  get railOffer(): { name: string; emoji: string; waiting: boolean } | null {
+    if (!this.park || !this.kid || this.sky || this.mount || this.ride || this.building) return null;
+    const p = this.kid.root.position;
+    const st = stationAt(p.x, p.z, 1.5);
+    return st ? { name: st.name, emoji: st.emoji, waiting: this.trainWait === st } : null;
+  }
+  /** On the train, standing at a station: where (the HUD offers "Get off here") */
+  get railStop(): { name: string; emoji: string } | null {
+    if (!this.park || !this.sky?.train) return null;
+    const at = this.park.railway.train.at;
+    return at ? { name: at.name, emoji: at.emoji } : null;
+  }
+  /** riding the railway right now (the HUD hides the joystick) */
+  get onTrain(): boolean {
+    return !!this.sky?.train;
+  }
+  /** Call the train to the platform the kid's standing on; they get on when it comes in. */
+  boardTrain(): boolean {
+    if (!this.park || !this.kid || this.sky || this.ride || this.building) return false;
+    const p = this.kid.root.position;
+    const st = stationAt(p.x, p.z, 1.5);
+    if (!st) return false;
+    this.dismount(true);
+    this.trainWait = st;
+    this.park.railway.call(st);
+    return true;
+  }
+  /** Get off at the station the train's standing at (onto its platform). */
+  leaveTrain(): boolean {
+    if (!this.park || !this.kid || !this.sky?.train) return false;
+    const st = this.park.railway.train.at;
+    if (!st) return false;
+    this.sky = null;
+    const kp = this.kid.root.position;
+    kp.set(st.x, 0, st.z);
+    kp.y = groundY(kp.x, kp.z);
+    if (this.pet) this.pet.root.position.set(kp.x + 1.2, groundY(kp.x + 1.2, kp.z + 1), kp.z + 1);
+    this.burst(kp.clone().setY(kp.y + 1.2), 30);
+    return true;
+  }
+
   /** Riding the coaster right now? (the HUD hides the joystick) */
   get onSkyCoaster(): boolean {
     return !!this.sky;
@@ -2772,6 +2869,15 @@ export class ParkWorld {
 
   private tickSky(dt: number, kid: Actor) {
     const s = this.sky!;
+    if (s.train) {
+      // in the first carriage, behind the engine (the train drives itself: ../world/railway)
+      const P = this.trainPose;
+      this.park!.railway.carPose(1, P);
+      kid.root.position.set(P.x, P.y + 0.4, P.z);
+      kid.facing = P.yaw;
+      kid.root.rotation.y = P.yaw;
+      return;
+    }
     const st = this.park!.skyTrain;
     const tan = st.loop.getTangentAt(st.u);
     // gravity: slow up the climbs, whoosh down the drops (a chain lift keeps it moving)
@@ -2848,6 +2954,25 @@ export class ParkWorld {
     this.burst(this.kid.root.position.clone().setY(1.5), 50);
     this.walkTarget = null;
     this.walkQueue = [];
+  }
+
+  /** Riding a flier, in the air: the map can send it somewhere (flyTo) */
+  get canFlyTo(): boolean {
+    return !!this.mount?.flies && !this.landing && !this.sky && !this.ride;
+  }
+  /** where the autopilot's flying to (the HUD shows it), or null */
+  get flyingTo(): string | null {
+    return this.autoFly?.label ?? null;
+  }
+  /** Fly the dragon (any flier) to (x, z): it steers itself, cruises faster, and lands there.
+   *  Touch the joystick to take over. */
+  flyTo(x: number, z: number, label = ""): boolean {
+    if (!this.canFlyTo || !this.kid) return false;
+    this.autoFly = { x, z, label };
+    this.walkTarget = null;
+    this.walkQueue = [];
+    if (this.altTarget < 12) this.altTarget = 12;
+    return true;
   }
 
   /** Hop off. Fliers glide down and land first (unless `now`). */

@@ -265,6 +265,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [landName, setLandName] = useState<string | null>(null);
   // Frostpeak's penguin slides: the chute whose start arch the kid is standing at
   const [slideOffer, setSlideOffer] = useState<string | null>(null);
+  // the Wildlands Railway: on a platform (call the train), aboard at a stop (get off here), riding
+  const [railOffer, setRailOffer] = useState<{ name: string; emoji: string; waiting: boolean } | null>(null);
+  const [railStop, setRailStop] = useState<{ name: string; emoji: string } | null>(null);
+  const [onTrain, setOnTrain] = useState(false);
   // Frostpeak's ski run: skis on offer at the start hut, the chairlift at the bottom
   const [skiOffer, setSkiOffer] = useState<"ski" | "lift" | null>(null);
   const skiHinted = useRef({ start: false, view: false });
@@ -930,6 +934,12 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setHopTarget((cur) => (cur?.label === ht?.label && cur?.kind === ht?.kind ? cur : ht));
       const so = worldRef.current?.slideOffer ?? null;
       setSlideOffer((cur) => (cur === so ? cur : so));
+      const ro = worldRef.current?.railOffer ?? null;
+      setRailOffer((cur) => (cur?.name === ro?.name && cur?.waiting === ro?.waiting ? cur : ro));
+      const rs = worldRef.current?.railStop ?? null;
+      setRailStop((cur) => (cur?.name === rs?.name ? cur : rs));
+      const ot = !!worldRef.current?.onTrain;
+      setOnTrain((cur) => (cur === ot ? cur : ot));
       const sk = worldRef.current?.skiOffer ? "ski" : worldRef.current?.liftOffer ? "lift" : null;
       setSkiOffer((cur) => (cur === sk ? cur : sk));
       const ln = worldRef.current?.skyLandable ?? null;
@@ -1315,6 +1325,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           onSkyPin={(p) =>
             toast(p.how ? `${p.emoji} ${p.how}` : `🧙 ${p.label} is up on a floating mountain! Hop on the dragon or manta and fly there — then tap "Land"`)
           }
+          onToast={toast}
         />
       )}
       {ready && !busy && !building && (
@@ -1346,7 +1357,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           </button>
         </div>
       )}
-      {ready && !busy && !building && !onCoaster && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {ready && !busy && !building && !onCoaster && !onTrain && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={rideBar}>
           {((riding && MOUNT_CAPS[riding.kind].medium !== "land" && MOUNT_CAPS[riding.kind].medium !== "boat" && !riding.landing) || (swim && !riding)) && (
@@ -1384,6 +1395,37 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                 🔥 Puff
               </RoundButton>
             </>
+          )}
+          {railOffer && !riding && (
+            <RoundButton
+              size={62}
+              active={!railOffer.waiting}
+              style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 96, borderRadius: 20 }}
+              onClick={() => {
+                if (railOffer.waiting) return;
+                if (!worldRef.current?.boardTrain()) return;
+                playSfx("sparkle");
+                toast(`🚂 Toot toot! The train's coming to ${railOffer.emoji} ${railOffer.name} — wait on the platform`);
+              }}
+              aria-label="Ride the train"
+            >
+              {railOffer.waiting ? "🚂 Coming…" : "🚂 Ride the train"}
+            </RoundButton>
+          )}
+          {railStop && (
+            <RoundButton
+              size={62}
+              active
+              style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 104, borderRadius: 20 }}
+              onClick={() => {
+                if (!worldRef.current?.leaveTrain()) return;
+                playSfx("tap");
+                toast(`${railStop.emoji} ${railStop.name}! Explore, then come back to the platform for the train`);
+              }}
+              aria-label={`Get off at ${railStop.name}`}
+            >
+              {`Get off: ${railStop.emoji} ${railStop.name}`}
+            </RoundButton>
           )}
           {(riding || hopTarget) && (
             <RoundButton

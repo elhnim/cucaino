@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { STATIONS, nearRail } from "./railway";
 import { DRAGON_BREED_IDS } from "../characters/mounts";
 import { DRAGON_PAD, DRAGON_ROOST, RIDEABLE_SPOTS, placeClearance, rideableKeepOut, strollable, trailInfo } from "./rideables";
 import { MOUNT_CAPS, RIDEABLE_KINDS, mountLean, type MountKind } from "../characters/mounts";
@@ -12,7 +13,9 @@ import { DINO_OBSTACLES, DINO_PLAZA, DINO_TRAIL_HALF, dinoGroundY, dinoTrailDist
 
 /** Dino Isle's safari jeeps (cars parked out on Dino Isle, not the main island: tested on their own below) */
 const isDinoJeep = (s: { id: string }) => s.id.startsWith("jeep-dino");
-const of = (k: MountKind) => RIDEABLE_SPOTS.filter((s) => s.kind === k && !isDinoJeep(s));
+/** the jeeps waiting behind the Wildlands Railway's stations (they have their own test below) */
+const isWildJeep = (s: { id: string }) => s.id.startsWith("jeep-") && s.id.includes("-station-");
+const of = (k: MountKind) => RIDEABLE_SPOTS.filter((s) => s.kind === k && !isDinoJeep(s) && !isWildJeep(s));
 const LAND: MountKind[] = ["bike", "car", "unicorn"];
 
 describe("rideable spots", () => {
@@ -33,7 +36,7 @@ describe("rideable spots", () => {
 
   it("land rides stand on dry, open ground off the trails, clear of every door", () => {
     const zb = zoneBounds();
-    for (const s of RIDEABLE_SPOTS.filter((q) => LAND.includes(q.kind) && !isDinoJeep(q))) {
+    for (const s of RIDEABLE_SPOTS.filter((q) => LAND.includes(q.kind) && !isDinoJeep(q) && !isWildJeep(q))) {
       const where = `${s.id} @ ${s.x.toFixed(1)},${s.z.toFixed(1)}`;
       expect(groundY(s.x, s.z), where).toBeGreaterThan(WATER_Y + 0.5);
       expect(seaDepth(s.x, s.z), where).toBeLessThan(0);
@@ -53,6 +56,19 @@ describe("rideable spots", () => {
 
   it("bikes and buggies are parked right beside a trail (easy to find)", () => {
     for (const s of [...of("bike"), ...of("car")]) expect(trailInfo(s.x, s.z).d, s.id).toBeLessThan(7.5);
+  });
+
+  it("two jeeps wait behind every Wildlands station, on dry, gentle ground beside the platform", () => {
+    for (const st of STATIONS.slice(1)) {
+      const js = RIDEABLE_SPOTS.filter((q) => isWildJeep(q) && q.id.startsWith(`jeep-${st.id}-`));
+      expect(js.length, st.id).toBe(2);
+      for (const j of js) {
+        expect(j.kind).toBe("car");
+        expect(Math.hypot(j.x - st.x, j.z - st.z), j.id).toBeLessThan(20);
+        expect(groundY(j.x, j.z)).toBeGreaterThan(WATER_Y + 0.5);
+        expect(nearRail(j.x, j.z, 2)).toBe(false);
+      }
+    }
   });
 
   it("parked rides don't overlap each other", () => {

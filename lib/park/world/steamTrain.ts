@@ -44,7 +44,7 @@ function wheels(color: THREE.Color, zs: number[]): THREE.BufferGeometry[] {
   return out;
 }
 
-function locomotiveGeometry(): THREE.BufferGeometry {
+export function locomotiveGeometry(): THREE.BufferGeometry {
   const black = new THREE.Color("#2a2a33");
   const red = new THREE.Color("#c8352b");
   const gold = new THREE.Color("#e8b64a");
@@ -72,7 +72,7 @@ function locomotiveGeometry(): THREE.BufferGeometry {
   return mergeGeometries(parts)!;
 }
 
-function carriageGeometry(): THREE.BufferGeometry {
+export function carriageGeometry(): THREE.BufferGeometry {
   const green = new THREE.Color("#2f6b4f");
   const cream = new THREE.Color("#f3e3bf");
   const red = new THREE.Color("#c8352b");
@@ -95,7 +95,7 @@ function carriageGeometry(): THREE.BufferGeometry {
 }
 
 /** A unit-height red trestle (legs splayed, cross beams and X braces), scaled in y to reach the deck. */
-function trestleGeometry(): THREE.BufferGeometry {
+export function trestleGeometry(): THREE.BufferGeometry {
   const red = new THREE.Color("#b83227");
   const parts: THREE.BufferGeometry[] = [];
   for (const s of [-1, 1]) {

@@ -11,14 +11,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ParkWorld } from "@/lib/park/engine/ParkWorld";
 import type { RidePin } from "@/lib/park/world/rideables";
 import { LANDS, PLACES, type LandDef } from "@/lib/park/registry/places";
-import { BRIDGES, HILLS, ISLAND_R, POND, TRAIL_POINTS, coastR, nearStream, nearTrail, routeBetween, type P2 } from "@/lib/park/registry/island";
+import { BRIDGES, HILLS, ISLAND_R, POND, TRAIL_POINTS, coastR, nearStream, nearTrail, parkCoastR, routeBetween, type P2 } from "@/lib/park/registry/island";
 import { FALLS, JETTY, LAKE_OUTLINE, MESA, OUTLET_HALF, OUTLET_POINTS, RIVER_LENGTH, mesaEdgeDist, mesaRadius, riverHalfWidth, riverPointAt } from "@/lib/park/registry/waterways";
 import { underCanopy } from "@/lib/park/registry/jungle";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { groundYFar } from "@/lib/park/registry/terrain";
-/** the shaded relief covers the park's own land (the map of the whole island is drawn from the coast) */
+/** the shaded relief covers the park's own land (the whole island's relief is a separate, lazier picture) */
 const TERRAIN_EXTENT = 200;
-import { WORLD_EDGE, WORLD_PLACES, type WorldPlace } from "@/lib/park/registry/worldMap";
+import { ISLAND_CENTER, ISLAND_DESTINATIONS, ISLAND_LANDMARKS, ISLAND_VIEW, WORLD_EDGE, WORLD_PLACES, type MapDestination, type WorldPlace } from "@/lib/park/registry/worldMap";
+import { RAIL_POINTS, STATIONS } from "@/lib/park/registry/railway";
+import { WILD_FALLS, WILD_LAKE_OUTLINE, WILD_OUTLET_POINTS, WILD_RIVER_POINTS, wildRainforestK, wildRiverHalfWidth } from "@/lib/park/registry/wildWater";
 
 type Pose = NonNullable<ReturnType<ParkWorld["getPose"]>>;
 
@@ -44,7 +46,12 @@ export interface MapPin {
 const NEAR_VIEW = 44;
 /** the little map zooms out when you're out at sea, so the islands round about show */
 const SEA_VIEW = 150;
+/** the little map zooms out wider still when you're out walking the Wildlands (the park is tiny
+ *  from way out there, but the island's relief, water and railway keep it from looking empty) */
+const WILD_VIEW = 160;
 const WORLD_VIEW = ISLAND_R + 34;
+/** the big map's Island view: the whole ~3 km island, north-up */
+const BIG_ISLAND_VIEW = ISLAND_VIEW;
 /** the big map's World view: the whole ocean, out to the edge of the world */
 const GLOBE_VIEW = WORLD_EDGE + 36;
 
@@ -76,6 +83,17 @@ const ring = (extra: number) =>
   );
 const COAST = ring(0);
 const BEACH = ring(13);
+/** the park's own coastline (just the old little island, the south-west end of the big island):
+ *  drawn as a highlighted "Cucaino Park" area on the Island tab, so a kid can tell the park from
+ *  the wider Wildlands */
+const PARK_AREA = d(
+  Array.from({ length: 100 }, (_, i) => {
+    const a = (i / 100) * Math.PI * 2;
+    const r = parkCoastR(a) + 7;
+    return [Math.sin(a) * r, Math.cos(a) * r] as P2;
+  }),
+  true,
+);
 const blob = (l: LandDef) => {
   const seed = l.x * 0.13 + l.z * 0.07;
   return d(
@@ -113,6 +131,37 @@ const MESA_PATH = d(
   }),
   true,
 );
+// ── the Wildlands' own waterway (lib/park/registry/wildWater.ts): the Wild River as a true-width
+// ribbon (same technique as the park's own river above), the Great Lake, and the outlet (drawn as
+// a simple wide band — its exact half-width isn't exported, and a kid's map doesn't need it to the
+// metre) ──
+const wildRiverLen = (() => {
+  let acc = 0;
+  const out = [0];
+  for (let i = 1; i < WILD_RIVER_POINTS.length; i++) {
+    acc += Math.hypot(WILD_RIVER_POINTS[i][0] - WILD_RIVER_POINTS[i - 1][0], WILD_RIVER_POINTS[i][1] - WILD_RIVER_POINTS[i - 1][1]);
+    out.push(acc);
+  }
+  return out;
+})();
+const wildRiverEdge = (side: number, extra: number): P2[] =>
+  WILD_RIVER_POINTS.map((p, i) => {
+    const a = WILD_RIVER_POINTS[Math.max(0, i - 1)];
+    const b = WILD_RIVER_POINTS[Math.min(WILD_RIVER_POINTS.length - 1, i + 1)];
+    const h = Math.atan2(b[0] - a[0], b[1] - a[1]);
+    const w = (wildRiverHalfWidth(wildRiverLen[i]) + extra) * side;
+    return [p[0] + Math.cos(h) * w, p[1] - Math.sin(h) * w] as P2;
+  });
+const wildRiverShape = (extra: number) => d([...wildRiverEdge(1, extra), ...wildRiverEdge(-1, extra).reverse()], true);
+const WILD_RIVER_BANK = wildRiverShape(3.2);
+const WILD_RIVER = wildRiverShape(0);
+const WILD_LAKE_PATH = d(WILD_LAKE_OUTLINE, true);
+const WILD_OUTLET_PATH = d(WILD_OUTLET_POINTS);
+/** the railway loop, drawn as a dashed track on the Island tab */
+const RAIL_PATH = d(RAIL_POINTS, true);
+/** the destinations a kid can tap on the Island tab (the five stations), plus the mountains it
+ *  just labels (the Great Ridge, the Lone Peak's summit) */
+const ISLAND_PINS: MapDestination[] = ISLAND_DESTINATIONS;
 /** the rainforest's crowns: big dark-green rounds packed over the canopy */
 const JUNGLE_TREES: { x: number; z: number; s: number; c: string }[] = (() => {
   let s = 11;
@@ -187,6 +236,58 @@ function relief(): string | null {
   return reliefUrl;
 }
 
+/** a shaded-relief picture of the WHOLE island (the park and the Wildlands, ~3 km across): sand,
+ *  grass, forest, rock and snow by height and slope, the rainforest darker green — drawn once,
+ *  lazily, the first time either the Island tab or the HUD's wide Wildlands view needs it (a
+ *  modest 180 px square covers the whole island, light enough to build on the spot) */
+let islandReliefUrl: string | null = null;
+function islandRelief(): string | null {
+  if (islandReliefUrl || typeof document === "undefined") return islandReliefUrl;
+  const S = 180;
+  const x0 = ISLAND_CENTER.x - ISLAND_VIEW;
+  const z0 = ISLAND_CENTER.z - ISLAND_VIEW;
+  const span = ISLAND_VIEW * 2;
+  const g = new Float32Array(S * S);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) g[j * S + i] = groundYFar(x0 + (i / (S - 1)) * span, z0 + (j / (S - 1)) * span);
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const c = cv.getContext("2d");
+  if (!c) return null;
+  const img = c.createImageData(S, S);
+  const at = (i: number, j: number) => g[Math.min(S - 1, Math.max(0, j)) * S + Math.min(S - 1, Math.max(0, i))];
+  for (let y = 0; y < S; y++)
+    for (let x = 0; x < S; x++) {
+      const h = at(x, y);
+      // light from the north-west
+      const shade = Math.max(-1, Math.min(1, (at(x - 1, y - 1) - at(x + 1, y + 1)) * 0.3));
+      let r = 230, gr = 210, b = 165; // sand
+      if (h > 4) [r, gr, b] = [124, 204, 132]; // grass
+      if (h > 16) [r, gr, b] = [96, 160, 100]; // forested hills
+      if (h > 42) [r, gr, b] = [150, 142, 124]; // rock
+      if (h > 78) [r, gr, b] = [236, 238, 250]; // snow
+      // the rainforest reads darker green, round the Great Falls and along the upper Wild River
+      if (h > 0.2 && h <= 42) {
+        const wx = x0 + (x / (S - 1)) * span;
+        const wz = z0 + (y / (S - 1)) * span;
+        const jk = wildRainforestK(wx, wz);
+        if (jk > 0.1) {
+          r = r + (46 - r) * jk * 0.8;
+          gr = gr + (120 - gr) * jk * 0.8;
+          b = b + (58 - b) * jk * 0.8;
+        }
+      }
+      const k = 1 + shade * 0.35;
+      const o = (y * S + x) * 4;
+      img.data[o] = Math.min(255, r * k);
+      img.data[o + 1] = Math.min(255, gr * k);
+      img.data[o + 2] = Math.min(255, b * k);
+      img.data[o + 3] = h > 0.2 ? 200 : 0;
+    }
+  c.putImageData(img, 0, 0);
+  islandReliefUrl = cv.toDataURL();
+  return islandReliefUrl;
+}
+
 const forest = LANDS.find((l) => l.id === "forest")!;
 const GLOW_TREES = Array.from({ length: 16 }, (_, i) => {
   const a = i * 2.39996;
@@ -223,10 +324,24 @@ const WORLD_SHAPES = WORLD_PLACES.map((w) => ({
   crack: w.path ? d(w.path.map((p) => [p.x, p.z] as P2)) : "",
 }));
 
-export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.RefObject<ParkWorld | null>; hidden?: boolean; pins?: MapPin[]; onSkyPin?: (p: MapPin) => void }) {
+export function MiniMap({
+  world,
+  hidden,
+  pins = [],
+  onSkyPin,
+  onToast,
+}: {
+  world: React.RefObject<ParkWorld | null>;
+  hidden?: boolean;
+  pins?: MapPin[];
+  onSkyPin?: (p: MapPin) => void;
+  /** a short line shown on screen (e.g. "Flying to the Great Falls!"); falls back to onSkyPin's
+   *  toast-ish hints when left out (the smoke harness doesn't pass one) */
+  onToast?: (text: string) => void;
+}) {
   const [pose, setPose] = useState<Pose | null>(null);
   const [big, setBig] = useState(false);
-  const [globe, setGlobe] = useState(false);
+  const [tab, setTab] = useState<"park" | "island" | "world">("park");
   const [rides, setRides] = useState<RidePin[]>([]);
   const last = useRef("");
 
@@ -281,6 +396,23 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
     world.current?.walkKidPath(routeToSpot(pose, r.x - (r.x / d) * k, r.z - (r.z / d) * k));
     setBig(false);
   };
+  /** a station on the Island tab (Park Station, the Great Falls, the Great Lake, the Lone Peak,
+   *  the Sunny Plains): riding a flier, the dragon flies straight there; otherwise, a hint about
+   *  the train (and, if the kid's still in the park, a walk to Park Station to catch it) */
+  const goToDestination = (dest: MapDestination) => {
+    playSfx("tap");
+    if (world.current?.canFlyTo) {
+      world.current.flyTo(dest.x, dest.z, dest.name);
+      setBig(false);
+      onToast?.(`🐉 Flying to ${dest.name}! Touch the joystick to take over`);
+      return;
+    }
+    const parkStation = STATIONS.find((s) => s.id === "park-station")!;
+    const how = dest.id === "park-station" ? "🚂 Hop on the train here to explore the Wildlands — or ride a dragon!" : `🚂 Take the train from 🎡 Park Station — or ride a dragon there!`;
+    onSkyPin?.({ id: dest.id, x: dest.x, z: dest.z, emoji: dest.emoji, label: dest.name, how });
+    if (Math.hypot(pose.x, pose.z) < ISLAND_R + 60) world.current?.walkKidPath(routeToSpot(pose, parkStation.x, parkStation.z));
+    setBig(false);
+  };
 
   return (
     <>
@@ -301,13 +433,15 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
           <div style={bigCard} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <div>
-                <div style={mapTitle}>{globe ? "🌍 Map of the World" : "🗺️ Map of Cucaino Island"}</div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: "rgba(226,230,255,0.74)", marginTop: 2 }}>{globe ? "Tap an island to find out how to get there" : "Tap a place and I'll walk you there!"}</div>
+                <div style={mapTitle}>{tab === "world" ? "🌍 Map of the World" : "🗺️ Map of Cucaino Island"}</div>
+                <div style={{ fontWeight: 800, fontSize: 13, color: "rgba(226,230,255,0.74)", marginTop: 2 }}>
+                  {tab === "world" ? "Tap an island to find out how to get there" : tab === "island" ? "Tap a station or a Wildlands spot to visit it!" : "Tap a place and I'll walk you there!"}
+                </div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                {(["island", "world"] as const).map((v) => (
-                  <button key={v} type="button" onClick={() => setGlobe(v === "world")} style={{ ...tabBtn, ...((v === "world") === globe ? tabOn : null) }}>
-                    {v === "island" ? "🏝️ Island" : "🌍 World"}
+                {(["park", "island", "world"] as const).map((v) => (
+                  <button key={v} type="button" onClick={() => setTab(v)} style={{ ...tabBtn, ...(v === tab ? tabOn : null) }}>
+                    {v === "park" ? "🍭 Park" : v === "island" ? "🏝️ Island" : "🌍 World"}
                   </button>
                 ))}
               </div>
@@ -315,7 +449,7 @@ export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.R
                 ✕
               </button>
             </div>
-            <MapSvg pose={pose} size={0} labels globe={globe} onLand={goTo} onPin={goToPin} onRide={goToRide} hereId={here?.id} pins={pins} rides={rides} />
+            <MapSvg pose={pose} size={0} labels tab={tab} onLand={goTo} onPin={goToPin} onDest={goToDestination} onRide={goToRide} hereId={here?.id} pins={pins} rides={rides} />
           </div>
         </div>
       )}
@@ -329,36 +463,47 @@ function MapSvg({
   labels,
   onLand,
   onPin,
+  onDest,
   hereId,
   pins = [],
   rides = [],
   onRide,
-  globe = false,
+  tab = "park",
 }: {
   pose: Pose;
   size: number;
   labels?: boolean;
-  /** the World view: the whole ocean and every island (big map only) */
-  globe?: boolean;
+  /** which big-map tab is open (ignored on the small HUD map, which picks its own zoom) */
+  tab?: "park" | "island" | "world";
   onLand?: (l: LandDef) => void;
   onPin?: (p: MapPin) => void;
+  /** tapping a station or a named Wildlands spot, on the Island tab */
+  onDest?: (d: MapDestination) => void;
   hereId?: string;
   pins?: MapPin[];
   /** rides to find (dragons, manta reefs, docks, unicorns) */
   rides?: RidePin[];
   onRide?: (r: RidePin) => void;
 }) {
-  // big map: north-up and centred on the island; small map: follows you and turns with the camera
+  const globe = tab === "world";
+  const island = tab === "island";
+  // big map: north-up; small map: follows you and turns with the camera. Out in the Wildlands
+  // (away from the park), the HUD zooms out wider so it's never an empty green disc.
   const deg = labels ? 0 : (pose.yaw * 180) / Math.PI;
   const atSea = Math.hypot(pose.x, pose.z) > ISLAND_R + 28;
-  const VIEW = labels ? (globe ? GLOBE_VIEW : WORLD_VIEW) : atSea ? SEA_VIEW : NEAR_VIEW;
+  const wild = !labels && Math.hypot(pose.x, pose.z) > ISLAND_R + 40;
+  const VIEW = labels ? (globe ? GLOBE_VIEW : island ? BIG_ISLAND_VIEW : WORLD_VIEW) : wild ? WILD_VIEW : atSea ? SEA_VIEW : NEAR_VIEW;
   /** icons and labels grow with the view so they stay the same size on screen */
   const u = VIEW / (labels ? WORLD_VIEW : NEAR_VIEW);
-  const follow = labels ? "" : ` translate(${-pose.x} ${-pose.z})`;
+  const follow = labels ? (island ? ` translate(${-ISLAND_CENTER.x} ${-ISLAND_CENTER.z})` : "") : ` translate(${-pose.x} ${-pose.z})`;
   const upright = (x: number, z: number) => (labels ? "" : `rotate(${-deg} ${x} ${z})`);
   const clipId = `mm-clip-${size}`;
   const k = labels ? 1 : 0.8; // line weights on the small map
   const placeIcons = useMemo(() => PLACES.filter((p) => p.land !== "plaza" && p.land !== "gate"), []);
+  // the whole-island picture (relief, water, railway): the Island tab, or the HUD out in the
+  // Wildlands — never the Park tab or the World tab, which stay as they were
+  const showWild = island || (!labels && wild);
+  const showParkRelief = !showWild;
 
   return (
     <svg
@@ -391,8 +536,11 @@ function MapSvg({
               </text>
             </g>
           )}
-          {/* the far islands, the floating mountains and the Abyss */}
-          {WORLD_SHAPES.map(({ w, beach, land, crack }) => (
+          {/* the far islands, the floating mountains and the Abyss (not on the Island tab: a couple
+              sit close enough to the big island to land inside its frame, which would read as part
+              of it — they belong on the World tab instead) */}
+          {!island &&
+            WORLD_SHAPES.map(({ w, beach, land, crack }) => (
             <g key={`w-${w.id}`} pointerEvents="none">
               {w.kind === "island" && (
                 <>
@@ -429,8 +577,70 @@ function MapSvg({
           {/* beach + island */}
           <path d={BEACH} fill="#ffe7bf" stroke="#ffffff" strokeWidth={2 * k} />
           <path d={COAST} fill="#a6e8bd" />
-          {/* the terrain: hills, valleys and the snowy northern mountains */}
-          {relief() && <image href={relief()!} x={-TERRAIN_EXTENT} y={-TERRAIN_EXTENT} width={TERRAIN_EXTENT * 2} height={TERRAIN_EXTENT * 2} preserveAspectRatio="none" clipPath={`url(#coast-${size})`} pointerEvents="none" />}
+          {/* the terrain: hills, valleys and the snowy northern mountains (the park's own close-up
+              relief, or — on the Island tab and out in the Wildlands — the whole island's) */}
+          {showParkRelief
+            ? relief() && <image href={relief()!} x={-TERRAIN_EXTENT} y={-TERRAIN_EXTENT} width={TERRAIN_EXTENT * 2} height={TERRAIN_EXTENT * 2} preserveAspectRatio="none" clipPath={`url(#coast-${size})`} pointerEvents="none" />
+            : islandRelief() && <image href={islandRelief()!} x={ISLAND_CENTER.x - ISLAND_VIEW} y={ISLAND_CENTER.z - ISLAND_VIEW} width={ISLAND_VIEW * 2} height={ISLAND_VIEW * 2} preserveAspectRatio="none" clipPath={`url(#coast-${size})`} pointerEvents="none" />}
+          {/* the Wildlands' own waterway: the Wild River, the Great Lake and its outlet to the sea,
+              the Great Falls — and the railway loop with its five stations */}
+          {showWild && (
+            <g pointerEvents="none">
+              <path d={WILD_RIVER_BANK} fill="#f5dcae" />
+              <path d={WILD_LAKE_PATH} fill="#f5dcae" stroke="#f5dcae" strokeWidth={6 * u} />
+              <path d={WILD_OUTLET_PATH} fill="none" stroke="#f5dcae" strokeWidth={Math.max(22, 3.6 * u)} strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx={WILD_FALLS.pool.x} cy={WILD_FALLS.pool.z} r={WILD_FALLS.pool.r + 3} fill="#f5dcae" />
+              <path d={WILD_RIVER} fill="#5cbcef" />
+              <path d={WILD_LAKE_PATH} fill="#5cbcef" />
+              <path d={WILD_OUTLET_PATH} fill="none" stroke="#5cbcef" strokeWidth={Math.max(16, 2.4 * u)} strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx={WILD_FALLS.pool.x} cy={WILD_FALLS.pool.z} r={WILD_FALLS.pool.r} fill="#5cbcef" />
+              {labels && (
+                <text x={WILD_FALLS.lip.x} y={WILD_FALLS.lip.z - 14 * u} textAnchor="middle" fontSize={11 * u}>
+                  💦
+                </text>
+              )}
+              {/* the railway: a dashed track round the whole loop */}
+              <path d={RAIL_PATH} fill="none" stroke="#8a5a34" strokeOpacity={0.85} strokeWidth={2.4 * u} strokeDasharray={`${3 * u} ${2.6 * u}`} strokeLinecap="round" />
+            </g>
+          )}
+          {/* the park, highlighted on the Island tab so it stands out from the wider Wildlands */}
+          {island && (
+            <g pointerEvents="none">
+              <path d={PARK_AREA} fill="#ffe28a" fillOpacity={0.22} stroke="#ffe28a" strokeOpacity={0.85} strokeWidth={2.6 * u} strokeDasharray={`${1.5 * u} ${2.2 * u}`} />
+              <text x={0} y={-ISLAND_R - 16 * u} textAnchor="middle" fontSize={9 * u} fontWeight={900} fill="#8a5a1a" stroke="#ffffff" strokeWidth={2.6 * u} paintOrder="stroke">
+                🍭 Cucaino Park
+              </text>
+            </g>
+          )}
+          {/* mountains, labelled (not themselves destinations) */}
+          {showWild &&
+            ISLAND_LANDMARKS.map((lm) => (
+              <g key={lm.id} pointerEvents="none">
+                <text x={lm.x} y={lm.z + 4 * u} textAnchor="middle" fontSize={10 * u}>
+                  {lm.emoji}
+                </text>
+                {labels && (
+                  <text x={lm.x} y={lm.z + 15 * u} textAnchor="middle" fontSize={6.6 * u} fontWeight={900} fill="#3a4a66" stroke="#ffffff" strokeWidth={2.4 * u} paintOrder="stroke">
+                    {lm.name}
+                  </text>
+                )}
+              </g>
+            ))}
+          {/* stations: Park Station and the four named Wildlands stops — tap one to go there */}
+          {showWild &&
+            ISLAND_PINS.map((st) => (
+              <g key={st.id} transform={upright(st.x, st.z)} onClick={onDest ? () => onDest(st) : undefined} style={{ cursor: onDest ? "pointer" : undefined }}>
+                <circle cx={st.x} cy={st.z} r={7 * u} fill="#fff7e8" stroke="#8a5a34" strokeWidth={1.6 * u} />
+                <text x={st.x} y={st.z + 3 * u} textAnchor="middle" fontSize={8.5 * u}>
+                  {st.emoji}
+                </text>
+                {labels && (
+                  <text x={st.x} y={st.z + 16 * u} textAnchor="middle" fontSize={6.6 * u} fontWeight={900} fill="#8a5a1a" stroke="#ffffff" strokeWidth={2.6 * u} paintOrder="stroke">
+                    {st.name}
+                  </text>
+                )}
+              </g>
+            ))}
           {/* Rainbow Falls' mesa, the river, the plunge pool, Rainbow Lake and its outlet */}
           <path d={MESA_PATH} fill="#a88a70" stroke="#7a5e4a" strokeWidth={1.2 * k} pointerEvents="none" />
           <path d={RIVER_BANK} fill="#f5dcae" pointerEvents="none" />
@@ -525,8 +735,10 @@ function MapSvg({
               )}
             </g>
           ))}
-          {/* rides to find: dragons, manta reefs, docks and unicorn glades (only those in view) */}
+          {/* rides to find: dragons, manta reefs, docks and unicorn glades (only those in view —
+              not on the Island tab, which keeps to stations, landmarks and the park itself) */}
           {!globe &&
+            !island &&
             rides.map((r0) => {
               let r = r0;
               const dx = r.x - (labels ? 0 : pose.x);
@@ -558,8 +770,9 @@ function MapSvg({
                 </g>
               );
             })}
-          {/* important places, e.g. the Quest Board and how many quests are left */}
-          {(globe ? [] : labels ? [...pins, ...FAR_PINS] : [...pins, ...(atSea ? [] : FAR_PINS)]).map((pin) => {
+          {/* important places, e.g. the Quest Board and how many quests are left (not on the
+              Island tab, which has its own stations and landmarks instead) */}
+          {(globe || island ? [] : labels ? [...pins, ...FAR_PINS] : [...pins, ...(atSea ? [] : FAR_PINS)]).map((pin) => {
             // on the small map, a far-away pin sticks to the rim, pointing the way
             let p = pin;
             if (!labels) {
@@ -604,7 +817,7 @@ function MapSvg({
           })}
           {pose.pet && <circle pointerEvents="none" cx={pose.pet.x} cy={pose.pet.z} r={labels ? 3 : 2} fill="#ffb020" stroke="#fff" strokeWidth={1.2} />}
           {/* you are here: an arrow pointing the way your animal faces */}
-          <g transform={`translate(${pose.x} ${pose.z}) rotate(${(-pose.facing * 180) / Math.PI}) scale(${globe ? u * 0.8 : !labels && atSea ? u * 0.7 : 1})`} pointerEvents="none">
+          <g transform={`translate(${pose.x} ${pose.z}) rotate(${(-pose.facing * 180) / Math.PI}) scale(${globe ? u * 0.8 : island ? u * 0.9 : !labels && (atSea || wild) ? u * 0.7 : 1})`} pointerEvents="none">
             <circle r={labels ? 8 : 4.5} fill="#ff4f9e" opacity={0.25}>
               <animate attributeName="r" values={labels ? "7;12;7" : "4;7;4"} dur="1.6s" repeatCount="indefinite" />
             </circle>

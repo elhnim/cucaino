@@ -19,6 +19,8 @@ import { GARDENS, FOOTPRINTS, atSea, midWater, type GardenKind } from "../world/
 import { seaFloorY } from "../world/sea/wander";
 import { DOCKS, MOORINGS, harbourKeepOut, mooredY } from "./harbours";
 import { DINO_JEEPS } from "./dinoIsland";
+import { STATIONS, nearRail, railAt } from "./railway";
+import { waterSdf } from "./waterways";
 import { underCanopy, thicketAt } from "./jungle";
 
 export interface RideableSpot {
@@ -175,6 +177,26 @@ for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream
 }
 // ── the safari jeeps: two buggies parked by the trail at Dino Isle's plaza (registry/dinoIsland) ──
 for (const j of DINO_JEEPS) add({ id: j.id, kind: "car", x: j.x, z: j.z, yaw: j.yaw, y: j.y }, 2.6);
+
+// ── the Wildlands' jeeps: two waiting behind every station out there (off the train, drive off) ──
+for (const st of STATIONS.slice(1)) {
+  const p = railAt(st.s);
+  // (behind the platform, away from the track, parked side by side facing along it)
+  const bx = st.x + p.dz * 9;
+  const bz = st.z - p.dx * 9;
+  const yaw = Math.atan2(p.dx, p.dz);
+  let made = 0;
+  for (const along of [-6, 6, -12, 12, 0]) {
+    if (made >= 2) break;
+    const x = bx + p.dx * along;
+    const z = bz + p.dz * along;
+    const y = groundY(x, z);
+    const sl = Math.hypot(groundY(x + 2, z) - groundY(x - 2, z), groundY(x, z + 2) - groundY(x, z - 2)) / 4;
+    if (y < WATER_Y + 0.5 || sl > 0.18 || nearRail(x, z, 2) || waterSdf(x, z) < 6) continue;
+    add({ id: `jeep-${st.id}-${made}`, kind: "car", x, z, yaw, y }, 2.6);
+    made++;
+  }
+}
 
 // ── unicorns: grazing in the open meadows (well away from trails) ──
 {

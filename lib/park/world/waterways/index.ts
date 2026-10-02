@@ -68,7 +68,7 @@ export function buildWaterways(scene: THREE.Scene, opts: { lowQuality?: boolean;
     const wz = Math.max(WILD_WATER_BOUNDS.z0 - kid.z, 0, kid.z - WILD_WATER_BOUNDS.z1);
     const away = Math.hypot(wx, wz);
     if (!wildWater && away < 900) {
-      if (!wildJob) wildJob = waterSurfaceJob({ lowQuality: low, bounds: WILD_WATER_BOUNDS, cell: low ? 5 : 3.5, falls: { x: WILD_FALLS.lip.x + Math.sin(WILD_FALLS.heading) * 4, z: WILD_FALLS.lip.z + Math.cos(WILD_FALLS.heading) * 4 } });
+      if (!wildJob) wildJob = waterSurfaceJob({ lowQuality: low, bounds: WILD_WATER_BOUNDS, cell: low ? 3.4 : 2.4, falls: { x: WILD_FALLS.lip.x + Math.sin(WILD_FALLS.heading) * 4, z: WILD_FALLS.lip.z + Math.cos(WILD_FALLS.heading) * 4 } });
       // (right beside it already — a jump there — finish now; otherwise ~2 ms a frame)
       const until = away < 120 ? Infinity : performance.now() + 2;
       let r = wildJob.next();

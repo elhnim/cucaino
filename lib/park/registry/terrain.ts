@@ -11,6 +11,7 @@ import { LANDS, PLACES } from "./places";
 import { ISLAND_R, TRAIL_POINTS, coastR, parkCoastR, seaDist } from "./island";
 import { mesaY, waterBedY, waterSdf } from "./waterways";
 import { wildShelfY } from "./wildWater";
+import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
 
 // ── value noise ──
@@ -248,6 +249,15 @@ function stamps(): Stamp[][] {
     for (let pass = 0; pass < 6; pass++) for (let i = 1; i + 1 < hs.length; i++) hs[i] = (hs[i - 1] + hs[i] * 2 + hs[i + 1]) / 4;
     pts.forEach(([x, z], i) => stamp(x, z, 2.6, 7, hs[i]));
   }
+  // the Wildlands Railway: the ground levelled under the track and the platforms (not over the
+  // water: the trestle bridges cross the river and the outlet)
+  const RH = railHeights();
+  for (let i = 0; i < RAIL_POINTS.length; i++) {
+    const [x, z] = RAIL_POINTS[i];
+    if (waterSdf(x, z) < 16) continue;
+    stamp(x, z, 3.4, 8.5, RH[i] - 0.3);
+  }
+  for (const st of STATIONS) stamp(st.x, st.z, 14, 21, railY(st.s) - 0.3);
   // lands, places, plaza, Dream Park: flat terraces
   const landH: Record<string, number> = {};
   for (const l of LANDS) {
@@ -277,6 +287,68 @@ function stamps(): Stamp[][] {
   }
   stampBuckets = b;
   return b;
+}
+
+// ── the railway's rails: their height along the loop, from the land under them ──
+let railH: Float32Array | null = null;
+/** the rails' height at every RAIL_POINTS point: the wild land under them, smoothed a long way
+ *  and kept to a gentle grade (a toy steam train can't climb cliffs), at least a few metres over
+ *  any water it bridges */
+export function railHeights(): Float32Array {
+  if (railH) return railH;
+  const n = RAIL_POINTS.length;
+  let h: Float32Array = new Float32Array(n);
+  for (let i = 0; i < n; i++) h[i] = Math.max(rawHeight(RAIL_POINTS[i][0], RAIL_POINTS[i][1]), WATER_Y + 1.2) + 0.35;
+  // (a long running average, round the loop)
+  const W = 12;
+  for (let pass = 0; pass < 4; pass++) {
+    const o = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      let sum = 0;
+      for (let k = -W; k <= W; k++) sum += h[(i + k + n) % n];
+      o[i] = sum / (2 * W + 1);
+    }
+    h = o;
+  }
+  // over the water: well clear of it (the bridges)
+  for (let i = 0; i < n; i++) {
+    const [x, z] = RAIL_POINTS[i];
+    const ws = waterSdf(x, z);
+    if (ws < 30) h[i] = Math.max(h[i], WATER_Y + 3.6 * (1 - smooth(10, 30, ws)) + (h[i] - WATER_Y) * smooth(10, 30, ws));
+  }
+  // at most a 4% grade, both ways round (each segment by its own length; until it settles)
+  const segL = new Float32Array(n);
+  for (let i = 0; i < n; i++) segL[i] = Math.hypot(RAIL_POINTS[(i + 1) % n][0] - RAIL_POINTS[i][0], RAIL_POINTS[(i + 1) % n][1] - RAIL_POINTS[i][1]);
+  for (let pass = 0; pass < 30; pass++) {
+    let changed = false;
+    for (let i = 1; i <= 2 * n; i++) {
+      const a = (i - 1) % n;
+      const k = i % n;
+      const lim = h[a] - 0.04 * segL[a];
+      if (h[k] < lim) {
+        h[k] = lim;
+        changed = true;
+      }
+    }
+    for (let i = 2 * n - 1; i >= 0; i--) {
+      const k = i % n;
+      const b = (i + 1) % n;
+      const lim = h[b] - 0.04 * segL[k];
+      if (h[k] < lim) {
+        h[k] = lim;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  railH = h;
+  return h;
+}
+/** the rails' height at distance s along the loop */
+export function railY(s: number): number {
+  const H = railHeights();
+  const { i, u } = railIndexAt(s);
+  return H[i] + (H[(i + 1) % H.length] - H[i]) * u;
 }
 
 /** Rainbow Falls' mesa rises out of the west coast; the waterways are carved in; and no other

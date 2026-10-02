@@ -3,10 +3,11 @@
 // little map and the big World map draw it. Pure data (derived from each place's own registry).
 import { VILLAGE_ISLAND } from "./villageIsland";
 import { SKY_ISLANDS } from "./skyIslands";
-import { WRAP_R } from "./terrain";
+import { TERRAIN_X0, TERRAIN_X1, TERRAIN_Z0, TERRAIN_Z1, WRAP_R } from "./terrain";
 import { ABYSS } from "./abyss";
 import { FROST_ISLAND } from "./frostIsland";
 import { DINO_ISLAND, dinoOutline } from "./dinoIsland";
+import { STATIONS } from "./railway";
 
 export interface WorldPlace {
   id: string;
@@ -89,3 +90,27 @@ export const WORLD_PLACES: WorldPlace[] = [
 
 /** the edge of the world: sail past it and you come back round from the other side */
 export const WORLD_EDGE = WRAP_R;
+
+// ── the whole ~3 km island (the park + the Wildlands), for the big map's "Island" tab and the
+// HUD's wide Wildlands view: a square framing centred on the island's middle, big enough to hold
+// the whole coastline (reusing terrain.ts's own field bounds, so it always matches) ──
+export const ISLAND_CENTER = { x: (TERRAIN_X0 + TERRAIN_X1) / 2, z: (TERRAIN_Z0 + TERRAIN_Z1) / 2 };
+export const ISLAND_VIEW = Math.max(TERRAIN_X1 - TERRAIN_X0, TERRAIN_Z1 - TERRAIN_Z0) / 2 + 40;
+
+/** a place a kid can tap on the Island tab to go to: the five railway stations (lib/park/registry/
+ *  railway.ts) — Park Station plus the four named Wildlands stops (the Great Falls, the Great Lake,
+ *  the Lone Peak and the Sunny Plains). Tapping one flies a dragon there (riding a flier), or hints
+ *  at the train. */
+export interface MapDestination {
+  id: string;
+  name: string;
+  emoji: string;
+  x: number;
+  z: number;
+  blurb: string;
+}
+export const ISLAND_DESTINATIONS: MapDestination[] = STATIONS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: s.blurb }));
+
+/** mountains labelled on the Island tab (not themselves destinations — the Lone Peak already has
+ *  its own station marker, so only the long Great Ridge needs a label of its own) */
+export const ISLAND_LANDMARKS: { id: string; name: string; emoji: string; x: number; z: number }[] = [{ id: "great-ridge", name: "Great Ridge", emoji: "⛰️", x: 860, z: -927 }];

@@ -10,6 +10,7 @@ import { LANDS, PLACES } from "../../registry/places";
 import { TERRAIN_CELL, TERRAIN_NX, TERRAIN_NZ, TERRAIN_X0, TERRAIN_Z0, terrainSample } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
 import { smoothstep } from "./noise";
+import { RAIL_POINTS, STATIONS } from "../../registry/railway";
 import { WILD_WATER_BOUNDS, inWildWater, wildWaterSdf } from "../../registry/wildWater";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
@@ -67,6 +68,9 @@ function discs(): Disc[] {
   for (const [x, z] of STREAM_POINTS) carve(x, z, sr, sr + 1.3);
   carve(POND.x, POND.z, POND.r + 1.4, POND.r + 2.8);
   carve(0, 0, 9.6, 11.5); // the plaza
+  // the Wildlands Railway's ballast and its platforms
+  for (let i = 0; i < RAIL_POINTS.length; i++) carve(RAIL_POINTS[i][0], RAIL_POINTS[i][1], 1.9, 3.2);
+  for (const st of STATIONS) carve(st.x, st.z, 7, 10);
   for (const p of PLACES) {
     const r = Math.max(p.radius, 1.5);
     carve(p.x, p.z, r + 0.8, r + 2.4);

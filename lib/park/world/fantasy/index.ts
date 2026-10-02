@@ -126,6 +126,8 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
   // ── the Wildlands beyond the park: forests, groves and boulders, streamed round the player ──
   // (the rainforest round the Great Falls gets the park rainforest's see-through cut)
   const wildCut = makeJungleCut();
+  // (you can walk anywhere in this one, under the low palms and ferns too: a wider window)
+  wildCut.uJR.value.set(3.2, 9.5, 8);
   const wildJungleMat = track(addJungleCut(fxMaterial(U, { roughness: 0.9, metalness: 0 }), wildCut, { shadeBelow: true }));
   const wilds = buildWilds(foliageMat, { lowQuality: low, jungleMaterial: wildJungleMat, cut: wildCut });
   disposables.push(wilds);
