@@ -11,6 +11,8 @@
 import { LANDS, PLACES } from "../../registry/places";
 import { ISLAND_R, STREAM_POINTS, TRAIL_POINTS, coastR } from "../../registry/island";
 import { groundY, slopeAt } from "../../registry/terrain";
+import { lakeEdgeDist, waterSdf } from "../../registry/waterways";
+import { trailDistance } from "../../registry/jungle";
 import { zoneBounds } from "../../builder/rules";
 import { fbm2, noise2, rngOf, smoothstep, type Rng } from "../fantasy/noise";
 
@@ -73,7 +75,7 @@ export interface OpenFields {
   trail: Float32Array;
   /** metres to the nearest land / place / plaza / Dream Park edge (0 inside) */
   land: Float32Array;
-  /** metres to the stream or pond */
+  /** metres to the water (the river, the plunge pool, the lake, the outlet) */
   stream: Float32Array;
 }
 
@@ -101,6 +103,7 @@ export function openFields(): OpenFields {
       const x = cellCentre(i);
       const z = cellCentre(j);
       const k = j * GN + i;
+      if (waterSdf(x, z) < 0) stream[k] = 0; // the river, the plunge pool, the lake, the outlet
       if (Math.hypot(x, z) < 14) land[k] = 0; // the plaza
       else if (x > zb.minX && x < zb.maxX && z > zb.minZ && z < zb.maxZ) land[k] = 0;
       else if (LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius)) land[k] = 0;
@@ -188,7 +191,9 @@ export function clearing(x: number, z: number): number {
   const byLand = smoothstep(l0, l0 + 5, fieldAt(f.land, x, z));
   // keep the view from the park's start point (the gate, looking in) open
   const start = smoothstep(12, 20, Math.hypot(x, z - 30));
-  return byTrail * byLand * start;
+  // Rainbow Lake's shores stay open meadow (the herds come down to drink, the giants included)
+  const byLake = smoothstep(5, 14, lakeEdgeDist(x, z) + (noise2(x / 9, z / 9, 34) - 0.5) * 6);
+  return byTrail * byLand * start * byLake;
 }
 
 // ── meadows: open clearings kept for the sheep and the windmills ──
@@ -234,6 +239,13 @@ export function outsideMeadows(meadows: Meadow[], x: number, z: number): number 
 
 /** canopy radius of a tree (m) */
 export const canopyR = (kind: number, s: number) => (isPine(kind) ? 1.65 : 1.95) * s;
+
+/**
+ * The trails are open-sky lanes through the woods: no crown hangs within this of a trail's centre
+ * line, so a giraffe or an elephant walking a wooded trail keeps its head out of the leaves, and
+ * the safari's herds can travel the trails from meadow to meadow.
+ */
+export const TRAIL_LANE = 2.8;
 
 /**
  * Plan the dense forest: candidates on a fine jittered grid, each wanting to be forest by the
@@ -301,6 +313,8 @@ export function planForest(free: FreeFn, opts: ForestOptions & { meadows?: Meado
     const sizeN = noise2(x / 14 - 3, z / 14 + 1, 44);
     const s = (0.7 + c.core * 0.6 + sizeN * 0.3 + (noise2(x * 1.3, z * 1.3, 47) - 0.5) * 0.2) * (low ? 1.2 : 1);
     const cr = canopyR(pine ? KIND_PINE : KIND_ROUND, s);
+    // (crowns stay off the trails' lanes)
+    if (fieldAt(openFields().trail, x, z) < cr + TRAIL_LANE + 3 && trailDistance(x, z, cr + TRAIL_LANE + 1) < cr + TRAIL_LANE) continue;
     // spacing: crowns may overlap a little (0.66 of the sum of radii)
     const bi = hb(x);
     const bj = hb(z);
@@ -394,6 +408,55 @@ export function planPasture(free: FreeFn, covered: Uint8Array): Pasture {
       ok[k] = 1;
     }
   return { ok };
+}
+
+/**
+ * Take ground out of the pasture (the horses' paddock and the farm corner, which the fauna plans
+ * once the flocks are placed): the sheep never graze there. Call it before the first step.
+ */
+export function carvePasture(p: Pasture, out: (x: number, z: number) => boolean, flocks: Flock[] = []): number {
+  let n = 0;
+  for (let j = 0; j < GN; j++)
+    for (let i = 0; i < GN; i++) {
+      const k = j * GN + i;
+      if (!p.ok[k]) continue;
+      const x = cellCentre(i);
+      const z = cellCentre(j);
+      // (a sheep is a metre across: the whole cell and a little round it must be clear)
+      if (out(x, z) || out(x - 1.2, z - 1.2) || out(x + 1.2, z - 1.2) || out(x - 1.2, z + 1.2) || out(x + 1.2, z + 1.2)) {
+        p.ok[k] = 0;
+        n++;
+      }
+    }
+  // a flock that was grazing there moves over onto the pasture next to it (before anyone sees)
+  for (const f of flocks) {
+    if (pastureShare(p, f.x, f.z, f.r) > 0.85 && f.sheep.every((s) => pastureAt(p, s.x, s.z))) continue;
+    let best: { x: number; z: number } | null = null;
+    for (let d = 2; d < 90 && !best; d += 2)
+      for (let k = 0; k < 24 && !best; k++) {
+        const a = (k / 24) * TAU;
+        const x = f.x + Math.sin(a) * d;
+        const z = f.z + Math.cos(a) * d;
+        if (pastureAt(p, x, z) && pastureShare(p, x, z, f.r + 1) > 0.85) best = { x, z };
+      }
+    if (!best) continue;
+    const dx = best.x - f.x;
+    const dz = best.z - f.z;
+    f.x = best.x;
+    f.z = best.z;
+    for (const s of f.sheep) {
+      s.x += dx;
+      s.z += dz;
+      if (pastureAt(p, s.x, s.z)) continue;
+      s.x = f.x + s.ox * 0.3;
+      s.z = f.z + s.oz * 0.3;
+      if (!pastureAt(p, s.x, s.z)) {
+        s.x = f.x;
+        s.z = f.z;
+      }
+    }
+  }
+  return n;
 }
 
 export const pastureAt = (p: Pasture, x: number, z: number) => {
@@ -511,7 +574,7 @@ export function stepFlock(f: Flock, p: Pasture, dt: number, t: number): void {
   } else {
     const nx = f.x + Math.sin(f.heading) * sp * dt;
     const nz = f.z + Math.cos(f.heading) * sp * dt;
-    if (pastureAt(p, nx, nz)) {
+    if (pastureAt(p, nx, nz) || !pastureAt(p, f.x, f.z)) {
       f.x = nx;
       f.z = nz;
     }
@@ -547,7 +610,8 @@ export function stepFlock(f: Flock, p: Pasture, dt: number, t: number): void {
         const yaw = s.yaw + SIDESTEP[k];
         const nx = s.x + Math.sin(yaw) * v;
         const nz = s.z + Math.cos(yaw) * v;
-        if (pastureAt(p, nx, nz)) {
+        // (one that finds itself off the pasture — ground carved out under it — may walk back on)
+        if (pastureAt(p, nx, nz) || !pastureAt(p, s.x, s.z)) {
           s.x = nx;
           s.z = nz;
           moved = true;

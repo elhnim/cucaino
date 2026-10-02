@@ -265,6 +265,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [landName, setLandName] = useState<string | null>(null);
   // Frostpeak's penguin slides: the chute whose start arch the kid is standing at
   const [slideOffer, setSlideOffer] = useState<string | null>(null);
+  // Frostpeak's ski run: skis on offer at the start hut, the chairlift at the bottom
+  const [skiOffer, setSkiOffer] = useState<"ski" | "lift" | null>(null);
+  const skiHinted = useRef({ start: false, view: false });
   const slideHinted = useRef({ start: false, splash: false });
   // a ride waiting close by (you find rides round the world now — no summoning)
   const [hopTarget, setHopTarget] = useState<{ kind: MountKind; label: string } | null>(null);
@@ -683,6 +686,22 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               slideHinted.current.splash = true;
             }
           },
+          onSki: (what, n, of) => {
+            if (what === "start") {
+              playSfx("sparkle");
+              toast(skiHinted.current.start ? "⛷️ Skis on! Off you go!" : "⛷️ Skis on! Steer left and right with the joystick — go through the slalom gates!");
+              skiHinted.current.start = true;
+            } else if (what === "gate") playSfx("tap");
+            else if (what === "finish") {
+              playSfx("win");
+              toast(`🏁 You skied the Penguin Ski Run! ${n ?? 0}/${of ?? 0} gates ${n === of ? "— PERFECT! 🌟" : "🎉"} Take the chairlift 🚡 back up!`);
+            } else if (what === "lift") toast("🚡 Hold on! Up the chairlift we go");
+            else if (what === "top") toast("⛷️ Top of the run! Grab your skis at the hut and go again");
+            else if (what === "view" && !skiHinted.current.view) {
+              skiHinted.current.view = true;
+              toast("🔭 The Penguin Ski Run! Watch the penguins carve through the gates — then ski it yourself from the hut at the top");
+            }
+          },
           onRing: (passed, lap) => ringRef.current(passed, lap),
           onError: () => !disposed && setBootError(true),
           onReady: () => {
@@ -911,6 +930,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setHopTarget((cur) => (cur?.label === ht?.label && cur?.kind === ht?.kind ? cur : ht));
       const so = worldRef.current?.slideOffer ?? null;
       setSlideOffer((cur) => (cur === so ? cur : so));
+      const sk = worldRef.current?.skiOffer ? "ski" : worldRef.current?.liftOffer ? "lift" : null;
+      setSkiOffer((cur) => (cur === sk ? cur : sk));
       const ln = worldRef.current?.skyLandable ?? null;
       setLandName((cur) => (cur === ln ? cur : ln));
       const sw = worldRef.current?.swim ?? null;
@@ -1119,8 +1140,15 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   openHomeRef.current = (id) => void openHome(id);
   const leaveHomeRef = useRef(() => {});
   leaveHomeRef.current = () => {
+    // a pet napping in its bed at home doesn't sleepwalk out beside the kid: it carries on its nap
+    // in its Pet Meadow bed (and wakes when it's next fed / played with, as ever)
+    const asleep = !!worldRef.current?.petSleeping;
     setHome(null);
     leaveRide();
+    if (asleep) {
+      const bed = getPlace("pet-bed");
+      worldRef.current?.setPetSleeping(true, bed ? { x: bed.x, z: bed.z } : undefined);
+    }
   };
   const leaveHome = useCallback(() => leaveHomeRef.current(), []);
 
@@ -1417,6 +1445,18 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             }}
           >
             🐧 Slide! <span style={{ fontSize: "0.72em", opacity: 0.85 }}>{slideOffer}</span>
+          </GameButton>
+        </div>
+      )}
+      {skiOffer && !busy && !riding && (
+        <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(max(20px, env(safe-area-inset-bottom)) + 230px)", zIndex: 23 }}>
+          <GameButton
+            onClick={() => {
+              const w = worldRef.current;
+              if (skiOffer === "ski" ? w?.startSki() : w?.rideLift()) setSkiOffer(null);
+            }}
+          >
+            {skiOffer === "ski" ? "⛷️ Ski!" : "🚡 Chairlift"} <span style={{ fontSize: "0.72em", opacity: 0.85 }}>{skiOffer === "ski" ? "Penguin Ski Run" : "up to the top"}</span>
           </GameButton>
         </div>
       )}

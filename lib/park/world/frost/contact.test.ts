@@ -8,7 +8,7 @@ import { PENGUIN_BODY, STATE_NAMES, makeColony, penguinGround, penguinRoot, step
 import { SKI_STATE_NAMES, makeSkiField, stepSkiField } from "./ski";
 import { FROST_COLONY, FROST_ISLAND, FROST_SEA_R, FROST_WATER_Y, FLOE_TOP, frostFloeAt, frostGroundY, frostLandY } from "../../registry/frostIsland";
 import { seaFloorY } from "../sea/wander";
-import { buildFrostIsland, cutFrostFloor } from "./index";
+import { islandFloors, sandCutAt } from "../sea/islandFloors";
 
 const DIRS: THREE.Vector3[] = [];
 for (let a = 0; a < 12; a++)
@@ -113,24 +113,12 @@ describe("penguins rest on the snow (true size, every pose)", { timeout: 180_000
     for (let x = FROST_COLONY.x - 10; x < FROST_COLONY.x + 10; x += 0.5) for (let z = FROST_COLONY.z - 10; z < FROST_COLONY.z + 10; z += 0.5) buried = Math.max(buried, sandAt(x, z) - frostLandY(x, z)!);
     // uncut, the sand rose up to ~0.7 m through Penguin Point's snow - half an emperor penguin
     expect(buried).toBeGreaterThan(0.5);
-    // so the island cuts it away over everything it draws itself (its ground + skirt reach FROST_SEA_R + 2)
-    const scene = new THREE.Scene();
-    const sandMat = new THREE.MeshStandardMaterial();
-    const sand = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sandMat);
-    sand.name = "uw-deep-floor";
-    scene.add(sand);
-    const f = buildFrostIsland(scene, {});
-    f.update(1 / 30, 1, { kid: new THREE.Vector3(FROST_COLONY.x, 2, FROST_COLONY.z), glow: 0, hour: 12, under: false });
-    expect((sandMat as unknown as { __frostCut?: boolean }).__frostCut).toBe(true);
-    const shader = { vertexShader: "void main() {", fragmentShader: "void main() {", uniforms: {} } as unknown as THREE.WebGLProgramParametersWithUniforms;
-    sandMat.onBeforeCompile(shader, null as unknown as THREE.WebGLRenderer);
-    const m = /length\( vFrostXZ - vec2\( ([\d.]+), ([\d.]+) \) \) < ([\d.]+) \) discard/.exec(shader.fragmentShader)!;
-    expect(Number(m[1])).toBeCloseTo(FROST_ISLAND.x, 1);
-    expect(Number(m[2])).toBeCloseTo(FROST_ISLAND.z, 1);
-    expect(Number(m[3])).toBeGreaterThan(FROST_SEA_R - 2);
-    expect(sandMat.customProgramCacheKey()).toContain("frost-cut");
-    // (and only once)
-    expect(cutFrostFloor(sandMat)).toBe(sandMat);
-    f.dispose();
+    // so the sand is cut away wherever the island's own ground is at / above it (../sea/islandFloors,
+    // where Frostpeak is registered with the other islands): nowhere over the colony does sand remain
+    const frost = islandFloors().find((g) => g.id === FROST_ISLAND.id)!;
+    expect(frost.maxX - frost.minX).toBeGreaterThan(FROST_SEA_R * 2);
+    let left = 0;
+    for (let x = FROST_COLONY.x - 10; x < FROST_COLONY.x + 10; x += 0.5) for (let z = FROST_COLONY.z - 10; z < FROST_COLONY.z + 10; z += 0.5) if (sandAt(x, z) > frostLandY(x, z)! && !sandCutAt(frost, x, z)) left++;
+    expect(left).toBe(0);
   });
 });

@@ -12,16 +12,18 @@
 import * as THREE from "three";
 import {
   DINO_CAVE,
-  DINO_EXTENT,
+  DINO_FENCE_E,
+  DINO_FORD,
   DINO_GRID,
+  DINO_GX0,
+  DINO_GZ0,
   DINO_ISLAND,
   DINO_LAGOON,
-  DINO_N,
-  DINO_PADDOCK,
+  DINO_NX,
+  DINO_NZ,
   DINO_POND,
+  DINO_POOL,
   DINO_RIVER,
-  DINO_RIVER_HALF,
-  DINO_SEA_R,
   DINO_STREAM,
   DINO_SWAMP,
   DINO_VOLCANO,
@@ -33,14 +35,17 @@ import {
   DINO_CAMP,
   DINO_PLAZA,
   DINO_GATE,
+  DINO_TRAIL_HALF,
   dinoCalm,
-  dinoCoastR,
   dinoGlacier,
+  dinoGorgeE,
   dinoGrid,
   dinoHeightAt,
   dinoInCave,
   dinoLandY,
+  dinoOutlines,
   dinoRng,
+  dinoShoreDist,
   dinoSnow,
   dinoTrailDistance,
   dinoWaterAt,
@@ -53,6 +58,11 @@ const c = (h: string) => new THREE.Color(h);
 const JUNGLE = [c("#3f9a46"), c("#4fae4c"), c("#358a40")];
 const PLAINS_A = c("#96c95a");
 const PLAINS_B = c("#b5d466");
+/** the savanna: sunny gold-green tussocks */
+const SAVANNA = c("#c9cf68");
+const GORGE_FLOOR = c("#8fb04e");
+const CLIFF = c("#b07a58");
+const CLIFF_D = c("#8e5e46");
 const FLOWER = [c("#ffd84a"), c("#ff8fb0"), c("#fff4f0")];
 const SAND = c("#f4dfa4");
 const SAND_WET = c("#dcc284");
@@ -96,11 +106,10 @@ function faceColor(x: number, y: number, z: number, slope: number, rnd: () => nu
   // (x, z local)
   const wx = x + X0;
   const wz = z + Z0;
-  const d = Math.hypot(x, z);
-  const s = d / dinoCoastR(Math.atan2(x, z));
+  const sd = dinoShoreDist(wx, wz);
   const jit = 0.95 + rnd() * 0.07;
-  if (y < DINO_WATER_Y - 0.1 && s > 0.95) {
-    if (s > 1.16 && s < 1.28 && rnd() < 0.45) return out.copy(CORAL[Math.floor(rnd() * CORAL.length)]);
+  if (y < DINO_WATER_Y - 0.1 && sd > -4) {
+    if (sd > 14 && sd < 24 && rnd() < 0.45) return out.copy(CORAL[Math.floor(rnd() * CORAL.length)]);
     out.copy(UNDER_SAND).lerp(UNDER_TEAL, smooth(-0.5, -6, y));
     return out.lerp(UNDER_DEEP, smooth(-6, -20, y)).multiplyScalar(0.94 + rnd() * 0.06);
   }
@@ -109,7 +118,7 @@ function faceColor(x: number, y: number, z: number, slope: number, rnd: () => nu
   const water = dinoWaterAt(wx, wz);
   if (water !== null && water > y) {
     if (Math.hypot(wx - DINO_SWAMP.x, wz - DINO_SWAMP.z) < DINO_SWAMP.rx * 1.4) return out.copy(SWAMP_BED).multiplyScalar(jit);
-    if (Math.hypot(wx - DINO_LAGOON.x, wz - DINO_LAGOON.z) < DINO_LAGOON.rx * 1.4) return out.copy(LAGOON_BED).multiplyScalar(jit);
+    if (Math.hypot(wx - DINO_LAGOON.x, wz - DINO_LAGOON.z) < DINO_LAGOON.rx * 1.4 || Math.hypot(wx - DINO_POOL.x, wz - DINO_POOL.z) < DINO_POOL.rx * 1.5) return out.copy(LAGOON_BED).multiplyScalar(jit);
     return out.copy(RIVER_BED).multiplyScalar(0.9 + rnd() * 0.12);
   }
   // the volcano: dark rock, red-hot gullies near the top, the black crater
@@ -137,20 +146,28 @@ function faceColor(x: number, y: number, z: number, slope: number, rnd: () => nu
   const pd = Math.hypot(wx - DINO_POND.x, wz - DINO_POND.z);
   if (pd < DINO_POND.r) return rnd() < 0.08 ? out.copy(SNOW) : out.copy(POND_ICE).multiplyScalar(0.97 + rnd() * 0.04);
   const td = dinoTrailDistance(wx, wz);
-  const beach = y < 1.6 || s > 0.9;
+  const beach = y < 1.6 || sd > -9;
+  const ge = dinoGorgeE(wx, wz);
   // warm ground
   if (beach) out.copy(y < 0.7 ? SAND_WET : SAND).multiplyScalar(0.95 + rnd() * 0.05);
-  else if (td < 1.25) out.copy(PATH).multiplyScalar(0.93 + rnd() * 0.07);
+  else if (td < DINO_TRAIL_HALF) out.copy(PATH).multiplyScalar(0.93 + rnd() * 0.07);
+  else if (ge > 0.97 && ge < DINO_FENCE_E - 0.08 && slope > 0.6) out.copy(rnd() < 0.5 ? CLIFF : CLIFF_D).multiplyScalar(jit);
   else if (slope > 1.25) out.copy(rnd() < 0.5 ? ROCK : ROCK_D);
-  else {
+  else if (ge < 1) {
+    // the T-rex's valley floor: lush grass, trampled earth along its beat
+    out.copy(GORGE_FLOOR).lerp(JUNGLE[Math.floor(rnd() * 3)], 0.35).lerp(DIRT, Math.max(0, noise2(x / 9, z / 9, 9) - 0.62) * 1.4).multiplyScalar(0.95 + rnd() * 0.07);
+  } else {
     const jk = jungleK(x, z);
     const k = noise2(x / 11 + 3, z / 11 - 7, 5);
     out.copy(PLAINS_A).lerp(PLAINS_B, Math.min(1, Math.max(0, (k - 0.3) * 1.8)));
+    // (the savanna: golden patches out on the open plains)
+    const sv = Math.max(0, noise2(x / 23 + 7, z / 23 - 4, 6) - 0.48) * 2.4 * (1 - jk);
+    if (sv > 0) out.lerp(SAVANNA, Math.min(0.75, sv));
     _t.copy(JUNGLE[Math.floor(rnd() * 3)]);
     out.lerp(_t, jk);
     if (rnd() < 0.007 * (1 - jk)) out.lerp(FLOWER[Math.floor(rnd() * 3)], 0.55);
-    // trampled places: the paddock, the nests, the dig, the plaza, the gate
-    const pk = Math.hypot(wx - DINO_PADDOCK.x, wz - DINO_PADDOCK.z) < DINO_PADDOCK.r - 0.5 ? 0.45 + noise2(x / 3, z / 3, 9) * 0.4 : 0;
+    // trampled places: the ford's banks, the nests, the dig, the plaza, the gate
+    const pk = Math.hypot(wx - DINO_FORD.x, wz - DINO_FORD.z) < DINO_FORD.half + 9 ? 0.4 + noise2(x / 3, z / 3, 9) * 0.3 : 0;
     const nk = Math.hypot(wx - DINO_NESTS.x, wz - DINO_NESTS.z) < 6 ? 0.7 : 0;
     const dk = Math.hypot(wx - DINO_DIG.x, wz - DINO_DIG.z) < DINO_DIG.r + 0.6 ? 1 : 0;
     const plk = Math.hypot(wx - DINO_PLAZA.x, wz - DINO_PLAZA.z) < 6.5 || Math.hypot(wx - DINO_GATE.x, wz - DINO_GATE.z) < 5 ? 0.85 : 0;
@@ -160,12 +177,12 @@ function faceColor(x: number, y: number, z: number, slope: number, rnd: () => nu
     if (dk) out.copy(c("#d9a45e")).multiplyScalar(0.92 + rnd() * 0.1);
     if (plk) out.lerp(PATH, plk);
     if (swk) out.lerp(MUD, swk);
-    if (s > 0.84) out.lerp(SAND, 0.4);
+    if (sd > -14) out.lerp(SAND, 0.4);
     out.multiplyScalar(0.97 + rnd() * 0.05);
   }
   // snow over it all in the Ice Age valley (the trails packed, rock showing on steep faces)
   if (snow > 0.02) {
-    if (td < 1.25 && !beach) _t.copy(SNOW_PATH);
+    if (td < DINO_TRAIL_HALF && !beach) _t.copy(SNOW_PATH);
     else if (slope > 1.15) _t.copy(SNOW_ROCK).multiplyScalar(0.92 + rnd() * 0.12);
     else if (Math.hypot(wx - DINO_CAMP.x, wz - DINO_CAMP.z) < 6) _t.copy(SNOW_B).lerp(TUNDRA, 0.25);
     else _t.copy(rnd() < 0.55 ? SNOW : SNOW_B).lerp(TUNDRA, noise2(x / 6, z / 6, 17) > 0.72 ? 0.5 : 0);
@@ -174,24 +191,26 @@ function faceColor(x: number, y: number, z: number, slope: number, rnd: () => nu
   return out;
 }
 
-/** 0 open plains .. 1 deep jungle (for the ground's greens; matches the registry's tree scatter) */
+/** 0 open plains .. 1 deep jungle (for the ground's greens; roughly the registry's tree scatter) */
 function jungleK(x: number, z: number) {
-  const west = smooth(10, -20, x) * (1 - smooth(-10, 10, z - 60));
-  const gate = 1 - smooth(8, 24, Math.hypot(x - 38, z + 36));
-  const ring = smooth(0.55, 0.78, Math.hypot(x, z) / dinoCoastR(Math.atan2(x, z)));
-  return Math.min(1, Math.max(west, gate, ring * 0.7) + (noise2(x / 12, z / 12, 41) - 0.5) * 0.4);
+  const falls = 1 - smooth(18, 42, Math.hypot(x + 60, z + 36));
+  const swamp = 1 - smooth(20, 42, Math.hypot(x - 60, z - 128));
+  const gate = 1 - smooth(14, 30, Math.hypot(x - 74, z + 34));
+  const volc = 1 - smooth(40, 70, Math.hypot(x - 6, z - 178));
+  const west = smooth(-30, -70, x) * (1 - smooth(60, 120, z)) * 0.8;
+  const coast = smooth(-28, -12, dinoShoreDist(x + X0, z + Z0)) * 0.55;
+  return Math.min(1, Math.max(falls, swamp, gate, volc * 0.7, west, coast) + (noise2(x / 12, z / 12, 41) - 0.5) * 0.4);
 }
 
-/** the island's ground (land + reef + flanks) as one flat-shaded, face-coloured mesh */
+/** the island's ground (land + reef + flanks, down to the deep floor) as one flat-shaded, face-coloured mesh */
 export function buildGroundGeometry(low: boolean): THREE.BufferGeometry {
-  const N = DINO_N;
+  const NX = DINO_NX;
+  const NZ = DINO_NZ;
   const G = DINO_GRID;
-  const E = DINO_EXTENT;
   const g = dinoGrid();
   const rnd = dinoRng(77);
   const pos: number[] = [];
   const colr: number[] = [];
-  const keepR = E - 0.5;
   const tri = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, cx: number, cy: number, cz: number) => {
     pos.push(ax, ay, az, bx, by, bz, cx, cy, cz);
     const ux = bx - ax;
@@ -207,54 +226,43 @@ export function buildGroundGeometry(low: boolean): THREE.BufferGeometry {
     faceColor((ax + bx + cx) / 3, (ay + by + cy) / 3, (az + bz + cz) / 3, slope * 2.2, rnd, _c);
     for (let k = 0; k < 3; k++) colr.push(_c.r, _c.g, _c.b);
   };
-  // the grid (cells split along the (i+1, j) – (i, j+1) diagonal, like dinoLandY). Where a 2x2
-  // block is well under the sea (nobody stands there) it's drawn as one coarser cell.
-  const deep = (i: number, j: number) => {
-    if (i + 2 >= N || j + 2 >= N) return false;
-    for (let b = 0; b <= 2; b++) for (let a = 0; a <= 2; a++) if (g[(j + b) * N + i + a] > DINO_WATER_Y - (low ? 0.5 : 1.2)) return false;
-    return true;
+  // the grid (cells split along the (i+1, j) – (i, j+1) diagonal, like dinoLandY). Where a block is
+  // well under the sea (nobody stands there) it's drawn as one coarser cell (2x2, or 4x4 down deep);
+  // where it's all down at the deep floor it's left out (the open ocean's floor is there already).
+  const H = (i: number, j: number) => g[Math.min(NZ - 1, j) * NX + Math.min(NX - 1, i)];
+  const blockMax = (i: number, j: number, S: number) => {
+    let m = -Infinity;
+    for (let b = 0; b <= S; b++) for (let a = 0; a <= S; a++) m = Math.max(m, H(i + a, j + b));
+    return m;
   };
-  for (let j = 0; j < N - 1; j++)
-    for (let i = 0; i < N - 1; i++) {
-      const x0 = -E + i * G;
-      const z0 = -E + j * G;
-      if (Math.hypot(x0 + G / 2, z0 + G / 2) > keepR) continue;
-      const bi = i - (i % 2);
-      const bj = j - (j % 2);
-      const block = deep(bi, bj);
-      if (block && (i % 2 || j % 2)) continue;
-      const S = block ? 2 : 1;
-      const x1 = x0 + G * S;
-      const z1 = z0 + G * S;
-      const k = j * N + i;
-      const h00 = g[k];
-      const h10 = g[k + S];
-      const h01 = g[k + N * S];
-      const h11 = g[k + N * S + S];
-      tri(x0, h00, z0, x0, h01, z1, x1, h10, z0);
-      tri(x1, h11, z1, x1, h10, z0, x0, h01, z1);
-    }
-  // the skirt: rings from inside the grid's edge down the flanks to the deep floor
-  const segs = low ? 80 : 120;
-  const rings = low ? 5 : 8;
-  const r0 = E - 3;
-  const r1 = DINO_SEA_R + 2;
-  const ringR = (i: number) => r0 + (r1 - r0) * Math.pow(i / rings, 1.3);
-  const hAt = (r: number, a: number) => dinoHeightAt(X0 + Math.sin(a) * r, Z0 + Math.cos(a) * r);
-  for (let i = 0; i < rings; i++)
-    for (let k = 0; k < segs; k++) {
-      const a0 = (k / segs) * Math.PI * 2;
-      const a1 = ((k + 1) / segs) * Math.PI * 2;
-      const ra = ringR(i);
-      const rb = ringR(i + 1);
-      const p = [
-        [Math.sin(a0) * ra, hAt(ra, a0), Math.cos(a0) * ra],
-        [Math.sin(a1) * ra, hAt(ra, a1), Math.cos(a1) * ra],
-        [Math.sin(a0) * rb, hAt(rb, a0), Math.cos(a0) * rb],
-        [Math.sin(a1) * rb, hAt(rb, a1), Math.cos(a1) * rb],
-      ];
-      tri(p[0][0], p[0][1] - 0.05, p[0][2], p[2][0], p[2][1], p[2][2], p[1][0], p[1][1] - 0.05, p[1][2]);
-      tri(p[1][0], p[1][1] - 0.05, p[1][2], p[2][0], p[2][1], p[2][2], p[3][0], p[3][1], p[3][2]);
+  const SHALLOW = DINO_WATER_Y - (low ? 0.4 : 0.9);
+  const DEEPISH = low ? -3.2 : -4.5;
+  const cell = (ci: number, cj: number, S: number) => {
+    if (ci + S >= NX || cj + S >= NZ) return;
+    const x0 = DINO_GX0 + ci * G;
+    const z0 = DINO_GZ0 + cj * G;
+    const x1 = x0 + G * S;
+    const z1 = z0 + G * S;
+    tri(x0, H(ci, cj), z0, x0, H(ci, cj + S), z1, x1, H(ci + S, cj), z0);
+    tri(x1, H(ci + S, cj + S), z1, x1, H(ci + S, cj), z0, x0, H(ci, cj + S), z1);
+  };
+  for (let j = 0; j + 1 < NZ; j += 4)
+    for (let i = 0; i + 1 < NX; i += 4) {
+      // a 4x4 block: all at the deep floor -> nothing; all deep -> one cell; else 2x2 blocks
+      const m4 = blockMax(i, j, 4);
+      if (m4 < -21.6) continue;
+      if (m4 < DEEPISH && i + 4 < NX && j + 4 < NZ) {
+        cell(i, j, 4);
+        continue;
+      }
+      for (let bj = j; bj < j + 4; bj += 2)
+        for (let bi = i; bi < i + 4; bi += 2) {
+          if (blockMax(bi, bj, 2) < SHALLOW && bi + 2 < NX && bj + 2 < NZ) {
+            cell(bi, bj, 2);
+            continue;
+          }
+          for (let cj = bj; cj < bj + 2; cj++) for (let ci = bi; ci < bi + 2; ci++) cell(ci, cj, 1);
+        }
     }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -352,8 +360,9 @@ export function buildWater(low: boolean, U: WaterUniforms): THREE.Mesh {
   };
   ellipse(DINO_LAGOON, W_LAGOON, low ? 26 : 36, low ? 4 : 6);
   ellipse(DINO_SWAMP, W_SWAMP, low ? 28 : 40, low ? 4 : 6);
+  ellipse(DINO_POOL, W_LAGOON, low ? 16 : 22, 3);
   // the river: a ribbon down its centreline, each cross-section at its own water height
-  const ribbon = (pts: { x: number; z: number; y: number }[], half: number, step: number, skip: number) => {
+  const ribbon = (pts: { x: number; z: number; y: number; half: number }[], pad: number, step: number, skip: number) => {
     let acc = 0;
     let prevRow: [number, number, number] | null = null;
     for (let i = 0; i + 1 < pts.length; i++) {
@@ -368,6 +377,7 @@ export function buildWater(low: boolean, U: WaterUniforms): THREE.Mesh {
         const x = a.x + (b.x - a.x) * u;
         const z = a.z + (b.z - a.z) * u;
         const y = a.y + (b.y - a.y) * u;
+        const half = a.half + (b.half - a.half) * u + pad;
         const px = -(b.z - a.z) / L;
         const pz = (b.x - a.x) / L;
         const row: [number, number, number] = [
@@ -386,10 +396,10 @@ export function buildWater(low: boolean, U: WaterUniforms): THREE.Mesh {
       acc += L;
     }
   };
-  ribbon(DINO_RIVER, DINO_RIVER_HALF + 0.9, low ? 2.2 : 1.4, 2.5);
+  ribbon(DINO_RIVER, 1.2, low ? 3.2 : 2.2, 3.5);
   // the plateau's stream (sitting in its groove)
-  const streamPts = DINO_STREAM.map((p) => ({ x: p.x, z: p.z, y: (dinoLandY(p.x, p.z) ?? 12) + 0.16 }));
-  ribbon(streamPts, 1.2, 1.2, 0);
+  const streamPts = DINO_STREAM.map((p) => ({ x: p.x, z: p.z, y: (dinoLandY(p.x, p.z) ?? 12) + 0.16, half: 1.5 }));
+  ribbon(streamPts, 0, 1.2, 0);
   // the waterfall: a curtain from the lip down the cliff face into the lagoon, hugging the rock
   const F = DINO_WATERFALL;
   const fx = Math.sin(F.rot);
@@ -424,19 +434,17 @@ export function buildWater(low: boolean, U: WaterUniforms): THREE.Mesh {
       idx.push(a, b, cc, b, d, cc);
     }
   // the reef shallows: a ring from under the beach out past the reef
-  const ss = low ? 100 : 150;
+  const ss = low ? 150 : 220;
   const sRings = low ? 9 : 13;
-  const s0 = 0.84;
-  const s1 = 1.5;
+  const L0 = -12;
+  const L1 = 44;
+  const levels = Array.from({ length: sRings + 1 }, (_, i) => L0 + (L1 - L0) * Math.pow(i / sRings, 1.25));
+  const rings = dinoOutlines(levels, ss);
   const sb = pos.length / 3;
   for (let i = 0; i <= sRings; i++) {
-    const s = s0 + (s1 - s0) * Math.pow(i / sRings, 1.25);
     for (let q = 0; q < ss; q++) {
-      const a = (q / ss) * Math.PI * 2;
-      const r = dinoCoastR(a) * s;
-      const x = Math.sin(a) * r;
-      const z = Math.cos(a) * r;
-      vert(x, DINO_WATER_Y, z, W_SEA, dinoHeightAt(x + X0, z + Z0), smooth(1.24, s1, s), 0);
+      const p = rings[i][q];
+      vert(p.x - X0, DINO_WATER_Y, p.z - Z0, W_SEA, dinoHeightAt(p.x, p.z), smooth(22, L1, levels[i]), 0);
     }
   }
   const sr = (i: number, q: number) => sb + i * ss + (q % ss);

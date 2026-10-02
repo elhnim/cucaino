@@ -16,8 +16,9 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { nameTag } from "../../wizards/wizardModel";
 import { DRAGON_BREEDS, HOP_REACH, MOUNT_BODY, MOUNT_CAPS, SUB_CAPS, buildMount, dragonSnout, isBoat, isCraft, isSub, mountBody, mountMaterial, mountScale, mountShadowSize, mountShadowTexture, mountStatueGeometry, setMountGlow, type DragonAct, type DragonBreed, type DragonDrive, type MountKind, type MountRig } from "../../characters/mounts";
 import { buildFleet, type CraftKind, type CraftView, type DrivenCraft } from "./fleet";
-import { hullTilt, swellDamp, seaWave, type Tilt } from "./craft";
-import { DRAGON_ROOST, RIDEABLE_SPOTS } from "../../registry/rideables";
+import { BUMP_GROUND, boatClearance, hullBody, hullTilt, moveBoat, swellDamp, seaWave, type Helm, type SeaBody, type Tilt } from "./craft";
+import { DRAGON_ROOST, RIDEABLE_SPOTS, ROOST_LOUNGE } from "../../registry/rideables";
+import { facedGap, separateDragons, type DragonFoot, type RoundProp } from "./dragonSpace";
 import { DOCKS } from "../../registry/harbours";
 import { GARDENS, atSea as seaPoint } from "../underwater/plan";
 import { WATER_Y, groundY } from "../../registry/terrain";
@@ -30,11 +31,11 @@ type RideKind = Exclude<MountKind, "pony">;
 
 export interface Rideables {
   /** idle animation (unicorns graze/wander, dragons shuffle wings, mantas glide in slow loops, dolphins/whales swim) */
-  update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean; atSea: boolean; glow: number; driven?: DrivenCraft | null; diving?: boolean }): void;
+  update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean; atSea: boolean; glow: number; driven?: DrivenCraft | null; diving?: boolean; camera?: THREE.Camera }): void;
   /** the nearest free rideable whose side is within `reach` m of the kid (default HOP_REACH; big
    *  rides measure to their flank, not their middle), with a hop-on prompt label. The returned
    *  object is reused between calls — copy what you keep. */
-  nearest(kid: THREE.Vector3, reach?: number): { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number; breed?: DragonBreed } | null;
+  nearest(kid: THREE.Vector3, reach?: number, facing?: number): { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number; breed?: DragonBreed } | null;
   /** dragons the kid has made friends with (they come over and nuzzle; the rest are shy at first) */
   setBonded(ids: Iterable<string>): void;
   /** the kid holds out a hand to a dragon: it sniffs, presses its snout to it, a heart puff - friends.
@@ -50,6 +51,13 @@ export interface Rideables {
   takeMantaArrival(): boolean;
   /** where the rides kids can find are, for the map */
   pins(): RidePin[];
+  /** the dragon "Say hi" / "Fly" is for right now (a glowing ring at its feet and a bobbing arrow over it), or null */
+  setTarget(id: string | null): void;
+  /** (tests / smoke harness) hold a parked dragon in one act (null = back to its own life) */
+  forceAct(id: string, act: DragonAct | null): void;
+  /** what's afloat round the kid that a boat mustn't sail through: the moored / drifting boats and
+   *  subs, and the sea friends at the surface (refilled every update; read-only) */
+  seaBodies(): readonly SeaBody[];
   /** (tests / smoke harness) where a ride is and what it's doing */
   peek(id: string): { state: "idle" | "taken" | "away" | "coming" | "waiting" | "leaving"; x: number; y: number; z: number; yaw: number; act?: DragonAct; bonded?: boolean } | null;
   /** the kid hops on: hide it from the world (the engine builds a MountRig) */
@@ -128,6 +136,13 @@ interface Ride {
   /** heart puff timer (-1 = none) */
   heartT: number;
   drv: DragonDrive | null;
+  /** (tests / smoke harness) held in this act */
+  forced: DragonAct | null;
+  /** boats / subs left out at sea: sailing home (seconds stuck on the way; true = no way through) */
+  stuckT?: number;
+  homeBlocked?: boolean;
+  /** on its way home (it keeps going once it's set off) */
+  homing?: boolean;
 }
 
 const LIVE_R = 48;
@@ -166,6 +181,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
     breed: kind === "dragon" ? breed ?? "roostwarden" : undefined, vk: kind === "dragon" ? `dragon:${breed ?? "roostwarden"}` : kind, lounge,
     act: "stand", actT: rnd() * 6, bondT: -1, bonded: false, heartT: -1,
     drv: kind === "dragon" ? { mode: "park", act: "stand", look: 0, flap: 0, dive: 0 } : null,
+    forced: null,
   });
   const rides: Ride[] = RIDEABLE_SPOTS.map((s) => mk(s.id, (s.kind === "pony" ? "unicorn" : s.kind) as RideKind, s.x, s.y ?? groundY(s.x, s.z), s.z, s.yaw, s.sky ?? null, s.wander ?? 0, IDLE, s.breed, !!s.lounge));
   let bondDone: string | null = null;
@@ -195,6 +211,16 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
   const craftViews: CraftView[] = crafts.map((r) => r.view!);
   const fleet = buildFleet(group, { lowQuality: low, count: craftCount });
   const tilt: Tilt = { pitch: 0, roll: 0, y: 0 };
+  // everything afloat (for the boats: ParkWorld bumps the one you drive off them, and a boat
+  // sailing home steers round them): one capsule per craft / sea friend, refilled every update
+  const afloat: SeaBody[] = [];
+  const afloatOf = new Map<Ride, SeaBody>();
+  const drivenBody: SeaBody = { x: 0, z: 0, r: 0, hl: 0, yaw: 0 };
+  let drivenOn = false;
+  const homeBodies: SeaBody[] = [];
+  const HELM: Helm = { yaw: 0, speed: 0, reverse: false, revT: 0 };
+  const bodyPool: SeaBody[] = [];
+  const kidBody: SeaBody = { x: 0, z: 0, r: 1.3, hl: 0, yaw: 0 };
   const fleetOpts: { crafts: CraftView[]; driven: DrivenCraft | null; glow: number; under: boolean } = { crafts: craftViews, driven: null, glow: 0, under: false };
 
   // ── per kind: the statue InstancedMesh + a pool of live rigs ──
@@ -276,6 +302,29 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
   hearts.frustumCulled = false;
   hearts.count = 0;
   group.add(hearts);
+
+  // ── the dragon a kid's "Say hi" / "Fly" is for: a glowing ring round its feet and a bobbing arrow ──
+  const hiMat = new THREE.MeshBasicMaterial({ color: "#ffe45c", transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide });
+  const hiRingGeo = new THREE.RingGeometry(0.8, 1, 48, 1);
+  hiRingGeo.rotateX(-Math.PI / 2);
+  const hiRing = new THREE.Mesh(hiRingGeo, hiMat);
+  hiRing.name = "rideables:target-ring";
+  hiRing.renderOrder = 2;
+  hiRing.visible = false;
+  group.add(hiRing);
+  const hiArrowGeo = new THREE.ConeGeometry(1.1, 2.2, 4);
+  hiArrowGeo.rotateX(Math.PI);
+  const hiArrowMat = new THREE.MeshBasicMaterial({ color: "#ffd257" });
+  const hiArrow = new THREE.Mesh(hiArrowGeo, hiArrowMat);
+  hiArrow.name = "rideables:target-arrow";
+  hiArrow.visible = false;
+  group.add(hiArrow);
+  let targetId: string | null = null;
+  // ── keeping dragons apart and out of the Roost's perches, trough and banner ──
+  const roostProps: RoundProp[] = roostObstacles();
+  const feet: DragonFoot[] = [];
+  const footOf: Ride[] = [];
+  const pinned: boolean[] = [];
 
   // ── bubbles streaming off the mantas near a kid under water (one draw) ──
   const BUB_N = low ? 12 : 30;
@@ -379,6 +428,18 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
 
   /** a dragon's life: naps, scratches and tail-chasing when no one's about; it notices a kid,
    *  shyly at first; once it knows them it trots over and nuzzles; making friends is a little scene */
+  /** room to chase its tail round in a circle (no other dragon inside the sweep of its body) */
+  const roomToSpin = (r: Ride) => {
+    const [hl, , off] = mountBody("dragon", r.breed);
+    const reachR = hl + Math.abs(off);
+    for (let i = 0; i < rides.length; i++) {
+      const o = rides[i];
+      if (o === r || o.kind !== "dragon" || o.state !== IDLE) continue;
+      const [ohl, ohw, ooff] = mountBody("dragon", o.breed);
+      if (Math.hypot(o.x - r.x, o.z - r.z) < reachR + ohl + Math.abs(ooff) * 0.5 + ohw * 0.5) return false;
+    }
+    return true;
+  };
   const updateDragon = (r: Ride, dt: number, t: number, kid: THREE.Vector3) => {
     const br = DRAGON_BREEDS[r.breed!];
     const S = mountScale("dragon", r.breed);
@@ -392,7 +453,10 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
     const canWalk = !r.sky && !r.lounge;
     let walkTo = false;
     const homeD = Math.hypot(r.x - r.hx, r.z - r.hz);
-    if (r.bondT >= 0) {
+    if (r.forced) {
+      r.act = r.forced;
+      drv.look = 0;
+    } else if (r.bondT >= 0) {
       // ── making friends ──
       r.bondT += dt;
       const T = r.bondT;
@@ -452,7 +516,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         const roll = rnd() * (wn + ws + wc + wl);
         if (roll < wn) ((r.act = "nap"), (r.actT = 14 + rnd() * 12));
         else if (roll < wn + ws) ((r.act = "scratch"), (r.actT = 3 + rnd() * 1.5));
-        else if (roll < wn + ws + wc && !r.sky) ((r.act = "chase"), (r.actT = 4 + rnd() * 3));
+        else if (roll < wn + ws + wc && !r.sky && roomToSpin(r)) ((r.act = "chase"), (r.actT = 4 + rnd() * 3));
         else ((r.act = "stand"), (r.actT = 5 + rnd() * 6));
       }
       // chasing its tail round and round
@@ -662,16 +726,97 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
     v.x = r.x;
     v.z = r.z;
     v.yaw = r.yaw;
-    // left away from its dock: drift home once the kid's well away
-    if (Math.hypot(r.x - r.hx, r.z - r.hz) > 2) {
+    // left away from its dock: once the kid's moved off, it sails itself home - turning for the
+    // dock, steering round coasts and other boats, and easing into its mooring. (If there's truly no
+    // way through, it waits until it's out of sight and is quietly back at the dock.)
+    const awayD = Math.hypot(r.x - r.hx, r.z - r.hz);
+    if (awayD > 0.05 || Math.abs(angleTo(r.yaw, r.hyaw)) > 0.01) {
       r.timer -= dt;
-      if (r.timer < 0 && Math.hypot(kid.x - r.x, kid.z - r.z) > 90 && Math.hypot(kid.x - r.hx, kid.z - r.hz) > 70) {
+      const kidD = Math.hypot(kid.x - r.x, kid.z - r.z);
+      if (r.timer < 0 && (kidD > 16 || r.homing) && !r.homeBlocked) {
+        r.homing = true;
+        sailHome(r, dt, awayD, kid);
+      } else r.speed = 0;
+      if (r.homeBlocked && kidD > CRAFT_SHOW_R * 1.2 && Math.hypot(kid.x - r.hx, kid.z - r.hz) > CRAFT_SHOW_R * 1.2) {
         r.x = r.hx;
         r.z = r.hz;
         r.y = r.hy;
         r.yaw = r.hyaw;
+        r.homeBlocked = false;
+        r.homing = false;
+        r.stuckT = 0;
+      }
+    } else {
+      r.speed = 0;
+      r.homing = false;
+    }
+  };
+
+  /** clear water ahead for a boat (or a surfaced sub) heading yaw from (x, z), `look` m on */
+  const clearAhead = (r: Ride, x: number, z: number, yaw: number, look: number) => {
+    for (let d = 3; d <= look; d += 3) {
+      const px = x + Math.sin(yaw) * d;
+      const pz = z + Math.cos(yaw) * d;
+      if (isBoat(r.kind) ? boatClearance(r.kind, px, pz, yaw, seaDepth) < 0.3 : seaDepth(px, pz) < 3) return false;
+    }
+    return true;
+  };
+
+  /** one step of a boat sailing itself home (see updateCraft) */
+  const sailHome = (r: Ride, dt: number, awayD: number, kid: THREE.Vector3) => {
+    if (awayD < 7) {
+      // berthing: ease into the mooring, turning to lie as it was
+      const k = Math.min(1, dt * 0.45);
+      r.x += (r.hx - r.x) * k;
+      r.z += (r.hz - r.z) * k;
+      r.yaw = turnTowards(r.yaw, r.hyaw, 0.35, dt);
+      if (awayD < 0.06) {
+        r.x = r.hx;
+        r.z = r.hz;
+        if (Math.abs(angleTo(r.yaw, r.hyaw)) < 0.02) r.yaw = r.hyaw;
+      }
+      r.speed = awayD * k / Math.max(dt, 1e-3);
+      return;
+    }
+    // steer for the dock - or the nearest heading either side of it that's clear water
+    const want = Math.atan2(r.hx - r.x, r.hz - r.z);
+    let aim = want;
+    for (const da of [0, 0.45, -0.45, 0.9, -0.9, 1.4, -1.4, 2.0, -2.0]) {
+      if (clearAhead(r, r.x, r.z, want + da, Math.min(18, awayD))) {
+        aim = want + da;
+        break;
       }
     }
+    HELM.yaw = turnTowards(r.yaw, aim, 0.45, dt);
+    HELM.speed = r.speed + (Math.min(3.2, 0.6 + awayD * 0.12) - r.speed) * Math.min(1, dt * 0.5);
+    HELM.reverse = false;
+    HELM.revT = 0;
+    // (round the other boats, the sea friends - and the boat the kid's driving)
+    homeBodies.length = 0;
+    for (let i = 0; i < afloat.length; i++) if (afloat[i] !== afloatOf.get(r)) homeBodies.push(afloat[i]);
+    if (drivenOn) homeBodies.push(drivenBody);
+    // (and round a kid swimming in its way)
+    if (kid.y < WATER_Y + 0.6 && !drivenOn) {
+      kidBody.x = kid.x;
+      kidBody.z = kid.z;
+      homeBodies.push(kidBody);
+    }
+    const x0 = r.x;
+    const z0 = r.z;
+    let ev = 0;
+    if (isBoat(r.kind)) ev = moveBoat(r.kind, HELM, r, dt, seaDepth, homeBodies);
+    else if (seaDepth(r.x + Math.sin(HELM.yaw) * HELM.speed * dt * 4, r.z + Math.cos(HELM.yaw) * HELM.speed * dt * 4) > 3) {
+      r.x += Math.sin(HELM.yaw) * HELM.speed * dt;
+      r.z += Math.cos(HELM.yaw) * HELM.speed * dt;
+    } else ev = BUMP_GROUND;
+    r.yaw = HELM.yaw;
+    r.speed = HELM.speed;
+    // making no headway (a coast in the way): after a while, give up on sailing
+    const gain = awayD - Math.hypot(r.x - r.hx, r.z - r.hz);
+    r.stuckT = ev === BUMP_GROUND || gain < 0.02 * dt ? (r.stuckT ?? 0) + dt : Math.max(0, (r.stuckT ?? 0) - dt * 0.5);
+    if ((r.stuckT ?? 0) > 25) r.homeBlocked = true;
+    void x0;
+    void z0;
   };
 
   const placeRig = (r: Ride, dt: number, glow: number) => {
@@ -704,6 +849,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       const kid = o.kid;
       cam0x = kid.x;
       cam0z = kid.z + 20;
+      const camQ = o.camera ? o.camera.quaternion : null;
       const onLand = !o.atSea && !o.under && kid.y > WATER_Y - 0.3;
       // just swum out into deep water: the sea friends come up soon
       if (o.atSea && !wasAtSea) {
@@ -724,6 +870,30 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         diveT = 0;
         diveNeed = MANTA_CALL.after[0] + rnd() * (MANTA_CALL.after[1] - MANTA_CALL.after[0]);
       }
+      // ── what's afloat (boats bump off it, a boat sailing home steers round it) ──
+      afloat.length = 0;
+      afloatOf.clear();
+      for (let i = 0; i < rides.length; i++) {
+        const r = rides[i];
+        const sea = r.kind === "whale" || r.kind === "dolphin";
+        if (r.state === TAKEN || r.state === AWAY) continue;
+        if (!(r.view || (sea && r.y > WATER_Y - 3.5))) continue;
+        if (Math.abs(r.x - kid.x) > 140 || Math.abs(r.z - kid.z) > 140) continue;
+        const b = bodyPool[afloat.length] ?? (bodyPool[afloat.length] = { x: 0, z: 0, r: 0, hl: 0, yaw: 0 });
+        if (isBoat(r.kind)) hullBody(r.kind, r.x, r.z, r.yaw, b);
+        else {
+          const [hl, hw, off] = MOUNT_BODY[r.kind];
+          b.x = r.x + Math.sin(r.yaw) * off;
+          b.z = r.z + Math.cos(r.yaw) * off;
+          b.r = hw;
+          b.hl = Math.max(0, hl - hw);
+          b.yaw = r.yaw;
+        }
+        afloat.push(b);
+        afloatOf.set(r, b);
+      }
+      drivenOn = !!o.driven && isBoat(o.driven.kind);
+      if (o.driven && isBoat(o.driven.kind)) hullBody(o.driven.kind, o.driven.x, o.driven.z, o.driven.yaw, drivenBody);
       // ── behaviour ──
       for (let i = 0; i < rides.length; i++) {
         const r = rides[i];
@@ -736,6 +906,77 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         } else if (r.kind === "manta") updateManta(r, dt, t, kid, o.under, deep);
         else if (r.kind === "dolphin" || r.kind === "whale") updateSea(r, dt, t, kid, o.atSea);
         else if (r.view) updateCraft(r, dt, t, kid);
+      }
+      // dragons never stand in each other or in the Roost's things; the Roost's residents stay in its yard
+      {
+        let n = 0;
+        for (let i = 0; i < rides.length; i++) {
+          const r = rides[i];
+          if (r.kind !== "dragon" || r.state !== IDLE || r.sky) continue;
+          if (Math.abs(r.x - kid.x) > 160 || Math.abs(r.z - kid.z) > 160) continue;
+          const [hl, hw, off] = mountBody("dragon", r.breed);
+          const f = feet[n] ?? (feet[n] = { x: 0, z: 0, yaw: 0, hl, hw, off });
+          f.x = r.x;
+          f.z = r.z;
+          f.yaw = r.yaw;
+          f.hl = hl;
+          f.hw = hw;
+          f.off = off;
+          footOf[n] = r;
+          pinned[n] = r.bondT >= 0 || !!r.forced;
+          n++;
+        }
+        feet.length = n;
+        footOf.length = n;
+        pinned.length = n;
+        for (let pass = 0; pass < 3; pass++) separateDragons(feet, roostProps, 0.4, pinned);
+        for (let i = 0; i < n; i++) {
+          const r = footOf[i];
+          let x = feet[i].x;
+          let z = feet[i].z;
+          // (a Roost dragon is kept inside the boulder ring)
+          if (Math.hypot(r.hx - DRAGON_ROOST.x, r.hz - DRAGON_ROOST.z) < DRAGON_ROOST.r) {
+            const [hl, , off] = mountBody("dragon", r.breed);
+            const fx = Math.sin(r.yaw);
+            const fz = Math.cos(r.yaw);
+            for (let e = 0; e < 2; e++) {
+              const along = off + (e ? hl : -hl);
+              const ex = x + fx * along - DRAGON_ROOST.x;
+              const ez = z + fz * along - DRAGON_ROOST.z;
+              const ed = Math.hypot(ex, ez);
+              const lim = DRAGON_ROOST.r + 0.6;
+              if (ed > lim) {
+                x -= (ex / ed) * (ed - lim);
+                z -= (ez / ed) * (ed - lim);
+              }
+            }
+          }
+          if (x !== r.x || z !== r.z) {
+            r.x = x;
+            r.z = z;
+            r.y = landY(x, z) + (r.id === DRAGON_ROOST.id ? 0.06 : 0);
+          }
+        }
+      }
+      // the target's highlight: a ring round its body, pulsing, and an arrow bobbing over its head
+      {
+        const r = targetId ? byId.get(targetId) : undefined;
+        const on = !!r && r.kind === "dragon" && r.state === IDLE;
+        hiRing.visible = hiArrow.visible = on;
+        if (on && r) {
+          const [hl, hw, off] = mountBody("dragon", r.breed);
+          const S = mountScale("dragon", r.breed);
+          const fx = Math.sin(r.yaw);
+          const fz = Math.cos(r.yaw);
+          const pulse = 1 + Math.sin(t * 5) * 0.05;
+          hiRing.position.set(r.x + fx * off, r.y + 0.12, r.z + fz * off);
+          hiRing.rotation.y = r.yaw;
+          hiRing.scale.set((hw + 0.9) * pulse, 1, (hl + 0.9) * pulse);
+          hiMat.opacity = 0.65 + Math.sin(t * 5) * 0.25;
+          const [sy, sz] = dragonSnout(r.breed!);
+          hiArrow.position.set(r.x + fx * sz * S * 0.5, r.y + sy * S + 3.2 + Math.abs(Math.sin(t * 3)) * 0.7, r.z + fz * sz * S * 0.5);
+          hiArrow.rotation.y = t * 2;
+        }
       }
       // (moored craft past the fog aren't drawn)
       for (let i = 0; i < crafts.length; i++) {
@@ -907,8 +1148,14 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
           if (u <= 0 || u >= 1) continue;
           const a = k * 2.1;
           P.set(hx + Math.sin(a) * u * 2.2, hy + u * 4 + Math.sin(k) * 0.4, hz + Math.cos(a) * u * 2.2);
-          E.set(0, Math.atan2(cam0x - P.x, cam0z - P.z), Math.sin(t * 4 + k) * 0.3, "YXZ");
-          Q.setFromEuler(E);
+          if (camQ) {
+            // (truly facing the camera: its rotation, plus a little wobble round the view axis)
+            E.set(0, 0, Math.sin(t * 4 + k) * 0.3, "YXZ");
+            Q.setFromEuler(E).premultiply(camQ);
+          } else {
+            E.set(0, Math.atan2(cam0x - P.x, cam0z - P.z), Math.sin(t * 4 + k) * 0.3, "YXZ");
+            Q.setFromEuler(E);
+          }
           const sc = Math.sin(Math.min(1, u * 1.4) * Math.PI) * (1.5 + (k % 3) * 0.45);
           S3.set(sc, sc, sc);
           M.compose(P, Q, S3);
@@ -922,9 +1169,9 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       if (roostSign) roostSign.visible = roost.visible;
     },
 
-    nearest(kid, reach = HOP_REACH) {
+    nearest(kid, reach = HOP_REACH, facing) {
       let best: Ride | null = null;
-      let bd = reach * reach;
+      let bd = Infinity;
       for (let i = 0; i < rides.length; i++) {
         const r = rides[i];
         if (r.state !== IDLE && r.state !== WAITING) continue;
@@ -938,7 +1185,10 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         // measure to the ride's side (a capsule along its heading), not its middle: a whale or a
         // pirate ship is as easy to climb onto as a bike
         const dh = Math.max(0, sideGap(r.kind, r.x, r.z, r.yaw, kid.x, kid.z, r.breed ? mountBody(r.kind, r.breed) : undefined));
-        const d = dh * dh + dy * dy;
+        if (dh * dh + dy * dy >= reach * reach) continue;
+        // a dragon: the one the kid faces (or walks toward) wins over one merely a step nearer
+        const de = r.kind === "dragon" && facing !== undefined ? facedGap(dh, kid.x, kid.z, facing, r.x, r.z) : dh;
+        const d = de * de + dy * dy;
         if (d < bd) ((bd = d), (best = r));
       }
       if (!best) return null;
@@ -998,6 +1248,15 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       return ridePins();
     },
 
+    setTarget(id) {
+      targetId = id;
+    },
+
+    forceAct(id, act) {
+      const r = byId.get(id);
+      if (r && r.drv) r.forced = act;
+    },
+
     peek(id) {
       const r = byId.get(id);
       if (!r) return null;
@@ -1018,6 +1277,9 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       }
     },
 
+    seaBodies() {
+      return afloat;
+    },
     release(id, x, y, z, yaw) {
       const r = byId.get(id);
       if (!r) return;
@@ -1033,7 +1295,11 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
         // a boat stays bobbing where it's left (a sub floats up); it drifts home later
         r.state = IDLE;
         r.y = isBoat(r.kind) ? WATER_Y : Math.min(y, WATER_Y + SUB_CAPS[r.kind as "sub"].surf);
-        r.timer = 45;
+        // (it sets off home a little while after the kid's moved away)
+        r.timer = 12;
+        r.stuckT = 0;
+        r.homeBlocked = false;
+        r.homing = false;
         return;
       }
       if (r.kind === "manta" || r.kind === "dolphin" || r.kind === "whale") {
@@ -1079,6 +1345,10 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       bubGeo.dispose();
       bubMat.dispose();
       hearts.dispose();
+      hiRingGeo.dispose();
+      hiArrowGeo.dispose();
+      hiMat.dispose();
+      hiArrowMat.dispose();
       heartGeo.dispose();
       heartMat.dispose();
       roostGeo.dispose();
@@ -1088,6 +1358,20 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       }
     },
   };
+}
+
+/** the Dragon Roost's perches, trough and banner poles, as round obstacles the dragons keep out of */
+export function roostObstacles(): RoundProp[] {
+  const R0 = DRAGON_ROOST;
+  const at = (du: number, df: number, r: number): RoundProp => ({ x: R0.x + R0.u.x * du + R0.f.x * df, z: R0.z + R0.u.z * du + R0.f.z * df, r });
+  const out: RoundProp[] = [];
+  // the perches (a post with a long crossbar along f): along the bar
+  for (const df of [-6.5, 6.5]) for (const e of [-1.6, 0, 1.6]) out.push(at(-6.8, df + e, 0.55));
+  // the trough (3.6 long along f)
+  for (const e of [-1.3, 0, 1.3]) out.push(at(1.5, -7.6 + e, 0.8));
+  // the banner's poles
+  for (const e of [-1.9, 1.9]) out.push(at(4.2, 6.8 + e, 0.35));
+  return out;
 }
 
 /** the Dragon Roost's pad (draped over the grass), boulder ring and sign post, as one mesh */
@@ -1209,11 +1493,15 @@ function buildRoostGeometry(): THREE.BufferGeometry {
   }
   // warm napping rocks round the Puffwing's spot
   {
-    const c = at(-4.6, 1);
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2;
-      const x = c[0] + Math.sin(a) * 3.2;
-      const z = c[2] + Math.cos(a) * 3.2;
+    // (an oval round its whole body, a step clear of it)
+    const [hl, hw, off] = mountBody("dragon", "puffwing");
+    const c = at(ROOST_LOUNGE.puffwing[0], ROOST_LOUNGE.puffwing[1] + off);
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      const du = Math.sin(a) * (hw + 1.1);
+      const df = Math.cos(a) * (hl + 1.1);
+      const x = c[0] + R0.u.x * du + R0.f.x * df;
+      const z = c[2] + R0.u.z * du + R0.f.z * df;
       const g = new THREE.DodecahedronGeometry(0.45 + (i % 3) * 0.12, 0);
       g.scale(1.3, 0.6, 1);
       g.translate(x, groundY(x, z) + 0.2, z);

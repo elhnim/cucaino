@@ -1,11 +1,15 @@
 // The shape of Cucaino Island, shared by the 3D park (lib/park/world/buildPark.ts), the mini
 // map and walk-to routes: a network of natural winding trails (a big loop round the island,
-// four trails out from the plaza, and a short trail into every land), a stream running from
-// the Glow Forest down to the sea with bridges where trails cross it, and gentle grassy hills
-// in the open meadows. Pure data + geometry maths, computed once and deterministic.
+// four trails out from the plaza, a short trail into every land, and the rainforest's and the
+// lake's own trails), the river from Rainbow Falls down to Rainbow Lake (./waterways.ts) with
+// bridges where trails cross it, and gentle grassy hills in the open meadows. Pure data +
+// geometry maths, computed once and deterministic.
 import { LANDS, PLACES, type LandDef } from "./places";
+import { smooth, segHit, type P2 } from "./geom2d";
+import { DUCK_BAY, MESA, OUTLET_HALF, OUTLET_POINTS, RIVER_POINTS, RIVER_WIDTH, WATER_LEVEL, mesaRadius, nearWater, riverAt, waterSdf } from "./waterways";
 
-export type P2 = [number, number];
+export type { P2 };
+export { smooth };
 
 /** grass meets sand here; the sea starts a little further out */
 export const ISLAND_R = 152;
@@ -18,32 +22,6 @@ function rng(seed: number) {
     s ^= s << 5;
     return (s >>> 0) / 4294967296;
   };
-}
-
-/** Smooth a polyline with Catmull-Rom so trails bend gently (samples every ~step units). */
-export function smooth(pts: P2[], step = 2.4, closed = false): P2[] {
-  if (pts.length < 2) return pts;
-  const out: P2[] = [];
-  const n = pts.length;
-  const get = (i: number) => (closed ? pts[((i % n) + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
-  const segs = closed ? n : n - 1;
-  for (let i = 0; i < segs; i++) {
-    const p0 = get(i - 1);
-    const p1 = get(i);
-    const p2 = get(i + 1);
-    const p3 = get(i + 2);
-    const len = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-    const k = Math.max(1, Math.ceil(len / step));
-    for (let j = 0; j < k; j++) {
-      const t = j / k;
-      const t2 = t * t;
-      const t3 = t2 * t;
-      const f = (a: number, b: number, c: number, d: number) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
-    }
-  }
-  if (!closed) out.push(pts[n - 1]);
-  return out;
 }
 
 // ── the trail network ──
@@ -117,6 +95,17 @@ export const TRAILS: Trail[] = [
     const start = nearestOnLoop(l.x, l.z);
     return { id: `land-${l.id}`, pts: bendy(start, entranceOf(l), (R() - 0.5) * 8) };
   }),
+  // ── the rainforest's trails (you walk under the canopy along these; the undergrowth either side
+  // is too thick to push through — see ./jungle.ts) ──
+  // off the loop, west through the trees to the viewpoint over Rainbow Falls' plunge pool
+  { id: "jungle-falls", pts: [nearestOnLoop(-41, 30), [-53, 37.5], [-66, 44.5], [-78, 45.5], [-87.5, 43.5]] as P2[] },
+  // a branch south through the deep woods, over the river and down its far bank to the lake
+  { id: "jungle-river", pts: [[-66, 44.5], [-71, 56], [-74, 66], [-81, 72], [-92, 76], [-101, 84], [-105.5, 94], [-102, 104], [-91, 112.5], [-76, 117], [-62, 121.5], [-49, 124], [-39, 122.5]] as P2[] },
+  // Friends Café's back door, over the river near its mouth, to the lake's south-west shore
+  { id: "jungle-friends", pts: [[-56.5, 92.5], [-59, 96.5], [-62, 101.5], [-65, 106.6], [-68, 111.7], [-67, 118], [-58, 122.8], [-49, 124]] as P2[] },
+  // ── Rainbow Lake: from the park gate down to its beach and jetty, and round the north shore ──
+  { id: "lake-beach", pts: [[0, 67.6], [1.2, 73.5], [0, 79.5]] as P2[] },
+  { id: "lake-north", pts: [[0, 79.5], [-13, 80.5], [-26, 82.5], [-38, 87.5], [-48, 92], [-54, 93.5]] as P2[] },
 ];
 
 export const LAND_ENTRANCE: Record<string, P2> = Object.fromEntries(LANDS.map((l) => [l.id, entranceOf(l)]));
@@ -173,6 +162,13 @@ const nodes: Node[] = [];
   // the plaza itself joins its four trail starts and the quest trail
   const plazaEnds = nodes.map((n, i) => (Math.hypot(n.p[0], n.p[1]) < 9 ? i : -1)).filter((i) => i >= 0);
   for (const a of plazaEnds) for (const b of plazaEnds) if (a < b) link(a, b);
+  // ... and every land joins the trail ends that arrive at its edge (you walk across a land to its
+  // back door: the Friends Café's trail into the rainforest, the gate's trail down to the lake)
+  const ends = TRAIL_POINTS.flatMap((pts) => [pts[0], pts[pts.length - 1]]).map(idOf);
+  for (const l of LANDS) {
+    const here = ends.filter((i) => Math.hypot(nodes[i].p[0] - l.x, nodes[i].p[1] - l.z) < l.radius + 4);
+    for (const a of here) for (const b of here) if (a < b && !nodes[a].next.some((n) => n.i === b)) link(a, b);
+  }
 })();
 
 function nearestNode(x: number, z: number) {
@@ -225,49 +221,88 @@ export function nearTrail(x: number, z: number, pad: number): boolean {
   return false;
 }
 
-// ── the stream: a spring in the Glow Forest, winding across the meadow, under the loop
-// trail's bridge, into a lily pond in the inner meadow ──
-const forest = LANDS.find((l) => l.id === "forest")!;
-export const POND = { x: 40, z: 13, r: 6.5 };
-export const STREAM_CTRL: P2[] = [
-  [forest.x + 2, forest.z - 10],
-  [forest.x + 4, forest.z - 28],
-  [forest.x - 4, forest.z - 44],
-  [53, 24],
-  [POND.x + 3, POND.z + 3],
-];
-export const STREAM_POINTS: P2[] = smooth(STREAM_CTRL, 1.6);
-export const STREAM_WIDTH = 3.4;
+// ── the river (./waterways.ts): from Rainbow Falls' plunge pool through the rainforest into
+// Rainbow Lake. The old names stay so every placer keeps avoiding the water. ──
+/** the river's centre line (the fauna's bears fish along it, frogs sit on its banks) */
+export const STREAM_POINTS: P2[] = RIVER_POINTS;
+/** the river's nominal width (it varies a little: see riverHalfWidth) */
+export const STREAM_WIDTH = RIVER_WIDTH;
+/** the ducks' bay in Rainbow Lake (the fauna's "pond": ducks, the platypus) */
+export const POND = { x: DUCK_BAY.x, z: DUCK_BAY.z, r: DUCK_BAY.r };
 
-function segHit(a: P2, b: P2, c: P2, d: P2): P2 | null {
-  const r = [b[0] - a[0], b[1] - a[1]];
-  const q = [d[0] - c[0], d[1] - c[1]];
-  const den = r[0] * q[1] - r[1] * q[0];
-  if (Math.abs(den) < 1e-9) return null;
-  const t = ((c[0] - a[0]) * q[1] - (c[1] - a[1]) * q[0]) / den;
-  const u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den;
-  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? [a[0] + r[0] * t, a[1] + r[1] * t] : null;
+/** a footbridge where a trail crosses the river or the lake's outlet (true size: ~2.2 m wide) */
+export interface Bridge {
+  x: number;
+  z: number;
+  /** the trail's heading over it */
+  heading: number;
+  /** end to end, bank to bank (units) */
+  span: number;
+  /** half the deck's width */
+  half: number;
+  /** deck height at each end and the arch's rise in the middle */
+  y0: number;
+  y1: number;
+  rise: number;
 }
 
-/** where a trail crosses the stream: a bridge goes here (with the trail's heading) */
-export const BRIDGES: { x: number; z: number; heading: number }[] = (() => {
-  const out: { x: number; z: number; heading: number }[] = [];
-  TRAIL_POINTS.forEach((pts) => {
-    for (let i = 0; i + 1 < pts.length; i++) {
-      for (let j = 0; j + 1 < STREAM_POINTS.length; j++) {
-        const hit = segHit(pts[i], pts[i + 1], STREAM_POINTS[j], STREAM_POINTS[j + 1]);
-        if (hit && !out.some((b) => Math.hypot(b.x - hit[0], b.z - hit[1]) < 8)) {
-          out.push({ x: hit[0], z: hit[1], heading: Math.atan2(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) });
-        }
+/** where a trail crosses the river or the outlet: a bridge goes here (bank to bank, along the trail) */
+export const BRIDGES: Bridge[] = (() => {
+  const out: Bridge[] = [];
+  for (const pts of TRAIL_POINTS) {
+    // walk the trail finely; every wet stretch gets a deck from where it gets wet to where it's dry
+    const fine: P2[] = [];
+    for (let i = 0; i + 1 < pts.length; i++)
+      for (let u = 0; u < 1; u += 0.1) fine.push([pts[i][0] + (pts[i + 1][0] - pts[i][0]) * u, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * u]);
+    fine.push(pts[pts.length - 1]);
+    let runStart = -1;
+    for (let i = 0; i <= fine.length; i++) {
+      const wet = i < fine.length && waterSdf(fine[i][0], fine[i][1]) < 1.1;
+      if (wet && runStart < 0) runStart = i;
+      if (!wet && runStart >= 0) {
+        const a = fine[Math.max(0, runStart - 1)];
+        const b = fine[Math.min(fine.length - 1, i)];
+        runStart = -1;
+        const dx = b[0] - a[0];
+        const dz = b[1] - a[1];
+        const L = Math.hypot(dx, dz);
+        // (a trail just grazing a bank isn't a crossing)
+        let deepest = 0;
+        for (let k = 0; k <= 10; k++) deepest = Math.min(deepest, waterSdf(a[0] + (dx * k) / 10, a[1] + (dz * k) / 10));
+        if (deepest > -1 || L < 2) continue;
+        let dev = 0;
+        for (let k = Math.max(0, i - 1 - Math.round(L / 0.24)); k < i; k++) dev = Math.max(dev, Math.abs(((fine[k][0] - a[0]) * dz - (fine[k][1] - a[1]) * dx) / L));
+        out.push({ x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2, heading: Math.atan2(dx, dz), span: L + 1.2, half: Math.max(1.4, dev + 0.7), y0: WATER_LEVEL + 0.72, y1: WATER_LEVEL + 0.72, rise: 0.5 + L * 0.06 });
       }
     }
-  });
+  }
   return out;
 })();
 
+/** the deck height under (x, z) if it's on one of the bridges (else null) */
+export function bridgeDeckY(x: number, z: number): number | null {
+  for (const b of BRIDGES) {
+    const dx = x - b.x;
+    const dz = z - b.z;
+    const along = dx * Math.sin(b.heading) + dz * Math.cos(b.heading);
+    const side = dx * Math.cos(b.heading) - dz * Math.sin(b.heading);
+    if (Math.abs(side) > b.half + 0.15 || Math.abs(along) > b.span / 2) continue;
+    const u = along / b.span + 0.5;
+    return b.y0 + (b.y1 - b.y0) * u + Math.sin(u * Math.PI) * b.rise;
+  }
+  return null;
+}
+
+/** within `pad` of the river, the lake, the plunge pool or the outlet (the old stream + pond helper) */
 export function nearStream(x: number, z: number, pad: number): boolean {
-  const p2 = (pad + STREAM_WIDTH / 2) ** 2;
-  return Math.hypot(x - POND.x, z - POND.z) < POND.r + pad || STREAM_POINTS.some((p) => (p[0] - x) ** 2 + (p[1] - z) ** 2 < p2);
+  return nearWater(x, z, pad);
+}
+
+/** on (or within `pad` of) the Rainbow Falls mesa and its cliffs */
+export function nearMesa(x: number, z: number, pad: number): boolean {
+  const dx = x - MESA.x;
+  const dz = z - MESA.z;
+  return Math.hypot(dx, dz) < mesaRadius(Math.atan2(dx, dz)) + 3.6 + pad;
 }
 
 // ── gentle grassy hills in the open meadows (you walk round them, like little mounds) ──
@@ -280,7 +315,7 @@ export const HILLS: { x: number; z: number; r: number; h: number }[] = (() => {
     const x = Math.sin(a) * d;
     const z = Math.cos(a) * d;
     const rad = 4 + r() * 7;
-    if (nearTrail(x, z, rad + 3) || nearStream(x, z, rad + 2)) continue;
+    if (nearTrail(x, z, rad + 3) || nearStream(x, z, rad + 2) || nearMesa(x, z, rad + 2)) continue;
     if (LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius + rad + 3)) continue;
     if (PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < rad + 6)) continue;
     if (out.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + rad + 4)) continue;

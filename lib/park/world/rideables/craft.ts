@@ -62,9 +62,11 @@ export function hullTilt(x: number, z: number, yaw: number, len: number, beam: n
 
 /**
  * The least spare water under a boat's hull at (x, z) facing `yaw` (m; < 0 = it would run aground),
- * sampled under the bow, the stern, both sides and the middle. `depth(x, z)` = how deep the sea is
- * there (<= 0 on land, beaches, jetties and ice floes). The pedalo also counts the open ocean as
- * out of bounds (it's a shore boat: deeper than its maxSea = "too far out").
+ * sampled all over the hull: stations every ~1.1 m from bow to stern, each at the keel and both
+ * sides (narrowing to the bow), so even the Pirate Ship's 22-unit hull can't slide over a jetty
+ * post, a rock or a sandbar between samples. `depth(x, z)` = how deep the sea is there (<= 0 on
+ * land, beaches, jetties and ice floes). The pedalo also counts the open ocean as out of bounds
+ * (it's a shore boat: deeper than its maxSea = "too far out").
  */
 export function boatClearance(kind: BoatKind, x: number, z: number, yaw: number, depth: (x: number, z: number) => number): number {
   const [hl, hw, off] = MOUNT_BODY[kind];
@@ -74,17 +76,175 @@ export function boatClearance(kind: BoatKind, x: number, z: number, yaw: number,
   const cx = x + fx * off;
   const cz = z + fz * off;
   let worst = Infinity;
-  // bow, stern, the two sides amidships, and the middle (the bow is pointy: sample it a touch in)
-  for (let i = 0; i < 5; i++) {
-    const along = i === 0 ? hl * 0.92 : i === 1 ? -hl * 0.95 : i === 4 ? 0 : hl * 0.1;
-    const across = i === 2 ? hw * 0.95 : i === 3 ? -hw * 0.95 : 0;
-    const px = cx + fx * along + fz * across;
-    const pz = cz + fz * along - fx * across;
-    const d = depth(px, pz);
-    worst = Math.min(worst, d - cap.draft);
-    if (i === 4 && d > cap.maxSea) worst = Math.min(worst, cap.maxSea - d);
+  const n = Math.max(5, Math.ceil((hl * 2) / HULL_STEP) + 1);
+  for (let k = 0; k < n; k++) {
+    // u: -1 stern .. 1 bow (the bow is pointy: sampled a touch in, and narrower)
+    const u = -1 + (2 * k) / (n - 1);
+    const along = u * hl * (u > 0 ? 0.92 : 0.95);
+    const w = hw * 0.95 * Math.sqrt(Math.max(0.05, 1 - u * u * (u > 0 ? 0.8 : 0.3)));
+    for (let sd = -1; sd <= 1; sd++) {
+      const px = cx + fx * along + fz * sd * w;
+      const pz = cz + fz * along - fx * sd * w;
+      worst = Math.min(worst, depth(px, pz) - cap.draft);
+    }
   }
+  const dm = depth(cx, cz);
+  if (dm > cap.maxSea) worst = Math.min(worst, cap.maxSea - dm);
   return worst;
+}
+
+/** hull samples' spacing along a boat (m): finer than any jetty, rock or sandbar */
+export const HULL_STEP = 1.1;
+
+/** is the boat's middle out deeper than it may go (the pedalo: "too far from the shore") */
+export function boatTooDeep(kind: BoatKind, x: number, z: number, yaw: number, depth: (x: number, z: number) => number): boolean {
+  const [, , off] = MOUNT_BODY[kind];
+  return depth(x + Math.sin(yaw) * off, z + Math.cos(yaw) * off) > BOAT_CAPS[kind].maxSea;
+}
+
+// ── bumping into things afloat: other boats, whales, orcas, the sea friends ──
+
+/** something afloat a boat mustn't sail through: a circle (hl 0) or a capsule hl each way along yaw */
+export interface SeaBody {
+  x: number;
+  z: number;
+  /** radius (m) */
+  r: number;
+  /** half length of its middle segment along yaw (0 = a circle) */
+  hl: number;
+  yaw: number;
+}
+
+/** closest points between segments a-b and c-d (2D): the squared distance (points in `out`) */
+function segSeg(ax: number, az: number, bx: number, bz: number, cx: number, cz: number, dx: number, dz: number, out: { px: number; pz: number; qx: number; qz: number }): number {
+  const ux = bx - ax;
+  const uz = bz - az;
+  const vx = dx - cx;
+  const vz = dz - cz;
+  const wx = ax - cx;
+  const wz = az - cz;
+  const a = ux * ux + uz * uz;
+  const b = ux * vx + uz * vz;
+  const c = vx * vx + vz * vz;
+  const d = ux * wx + uz * wz;
+  const e = vx * wx + vz * wz;
+  const D = a * c - b * b;
+  let s = 0;
+  let t = 0;
+  if (a < 1e-9 && c < 1e-9) s = t = 0;
+  else if (a < 1e-9) t = Math.min(1, Math.max(0, e / c));
+  else if (c < 1e-9) s = Math.min(1, Math.max(0, -d / a));
+  else {
+    s = D > 1e-9 ? Math.min(1, Math.max(0, (b * e - c * d) / D)) : 0;
+    t = (b * s + e) / c;
+    if (t < 0) {
+      t = 0;
+      s = Math.min(1, Math.max(0, -d / a));
+    } else if (t > 1) {
+      t = 1;
+      s = Math.min(1, Math.max(0, (b - d) / a));
+    }
+  }
+  out.px = ax + ux * s;
+  out.pz = az + uz * s;
+  out.qx = cx + vx * t;
+  out.qz = cz + vz * t;
+  return (out.px - out.qx) ** 2 + (out.pz - out.qz) ** 2;
+}
+const CP = { px: 0, pz: 0, qx: 0, qz: 0 };
+
+/** a boat's hull as a capsule (its footprint, MOUNT_BODY) */
+export function hullBody(kind: BoatKind, x: number, z: number, yaw: number, out: SeaBody): SeaBody {
+  const [hl, hw, off] = MOUNT_BODY[kind];
+  out.x = x + Math.sin(yaw) * off;
+  out.z = z + Math.cos(yaw) * off;
+  out.r = hw;
+  out.hl = Math.max(0, hl - hw);
+  out.yaw = yaw;
+  return out;
+}
+
+/** how far two capsules overlap (m, > 0 = touching), and which way to push the first out (unit, in `out`) */
+export function bodyOverlap(a: SeaBody, b: SeaBody, out: { x: number; z: number }): number {
+  const ax = Math.sin(a.yaw) * a.hl;
+  const az = Math.cos(a.yaw) * a.hl;
+  const bx = Math.sin(b.yaw) * b.hl;
+  const bz = Math.cos(b.yaw) * b.hl;
+  const d = Math.sqrt(segSeg(a.x - ax, a.z - az, a.x + ax, a.z + az, b.x - bx, b.z - bz, b.x + bx, b.z + bz, CP));
+  const pen = a.r + b.r - d;
+  if (pen <= 0) return pen;
+  if (d > 1e-6) {
+    out.x = (CP.px - CP.qx) / d;
+    out.z = (CP.pz - CP.qz) / d;
+  } else {
+    // (dead centre: out sideways from the other's heading)
+    out.x = Math.cos(b.yaw);
+    out.z = -Math.sin(b.yaw);
+  }
+  return pen;
+}
+
+/** what happened to a boat this step (moveBoat) */
+export const BUMP_NONE = 0;
+export const BUMP_GROUND = 1;
+/** the pedalo nosed out past its depth: bounced back toward the shore */
+export const BUMP_DEEP = 2;
+/** it bumped another boat / a whale / a sea friend: pushed apart, with a gentle bounce */
+export const BUMP_BODY = 3;
+
+const HB: SeaBody = { x: 0, z: 0, r: 0, hl: 0, yaw: 0 };
+const PUSH = { x: 0, z: 0 };
+
+/**
+ * Move a boat one step along its helm (h.yaw / h.speed): keeping to water deep enough for its whole
+ * hull, the pedalo near the shore (a gentle bounce back when it noses out too far), and off
+ * everything afloat in `bodies` (pushed apart, with a soft bounce). Updates pos and h in place;
+ * returns a BUMP_*.
+ */
+export function moveBoat(kind: BoatKind, h: Helm, pos: { x: number; z: number }, dt: number, depth: (x: number, z: number) => number, bodies: readonly SeaBody[]): number {
+  const nx = pos.x + Math.sin(h.yaw) * h.speed * dt;
+  const nz = pos.z + Math.cos(h.yaw) * h.speed * dt;
+  let ev = BUMP_NONE;
+  const moved = Math.hypot(nx - pos.x, nz - pos.z) > 1e-5;
+  if (moved && boatTooDeep(kind, nx, nz, h.yaw, depth) && depth(nx, nz) >= depth(pos.x, pos.z)) {
+    // too far out: don't go on - spring back a little, like a bump on a rope
+    h.speed = -Math.sign(h.speed) * Math.max(1.4, Math.abs(h.speed) * 0.5);
+    return BUMP_DEEP;
+  }
+  const ok = (x: number, z: number) => boatCanMove(kind, pos.x, pos.z, x, z, h.yaw, depth);
+  if (!moved) {
+    // (standing still: nothing to check against the ground)
+  } else if (ok(nx, nz)) {
+    pos.x = nx;
+    pos.z = nz;
+  } else if (ok(nx, pos.z)) {
+    pos.x = nx;
+    h.speed *= 0.6;
+  } else if (ok(pos.x, nz)) {
+    pos.z = nz;
+    h.speed *= 0.6;
+  } else {
+    // a gentle bump: stop, and bounce back a touch
+    h.speed *= -0.2;
+    ev = BUMP_GROUND;
+  }
+  // things afloat: push apart; heading into one, a soft bounce back
+  hullBody(kind, pos.x, pos.z, h.yaw, HB);
+  for (let i = 0; i < bodies.length; i++) {
+    const pen = bodyOverlap(HB, bodies[i], PUSH);
+    if (pen <= 0) continue;
+    const px = pos.x + PUSH.x * pen;
+    const pz = pos.z + PUSH.z * pen;
+    if (boatCanMove(kind, pos.x, pos.z, px, pz, h.yaw, depth)) {
+      pos.x = px;
+      pos.z = pz;
+    }
+    const into = Math.sin(h.yaw) * PUSH.x + Math.cos(h.yaw) * PUSH.z;
+    if (h.speed * into < 0) h.speed = -h.speed * 0.3;
+    hullBody(kind, pos.x, pos.z, h.yaw, HB);
+    ev = BUMP_BODY;
+  }
+  return ev;
 }
 
 /**

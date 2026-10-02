@@ -1,7 +1,7 @@
 "use client";
 
 // The park map, drawn like a storybook: a wobbly island in a wavy sea, sandy beach, grassy hills,
-// the winding stream, the trails, little trees, and every land as a soft coloured blob with its
+// Rainbow Falls on its mesa, the river winding through the rainforest into Rainbow Lake, the trails, little trees, and every land as a soft coloured blob with its
 // buildings. Everything comes from lib/park/registry/island.ts, so it always matches the 3D park.
 // The little map (top-left) follows you and turns with the camera — up is the way you're looking.
 // Tap it for the big map (north-up): tap a land or a pin and your animal walks there along the trails.
@@ -11,7 +11,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ParkWorld } from "@/lib/park/engine/ParkWorld";
 import type { RidePin } from "@/lib/park/world/rideables";
 import { LANDS, PLACES, type LandDef } from "@/lib/park/registry/places";
-import { HILLS, ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, coastR, nearStream, nearTrail, routeBetween, type P2 } from "@/lib/park/registry/island";
+import { BRIDGES, HILLS, ISLAND_R, POND, TRAIL_POINTS, coastR, nearStream, nearTrail, routeBetween, type P2 } from "@/lib/park/registry/island";
+import { FALLS, JETTY, LAKE_OUTLINE, MESA, OUTLET_HALF, OUTLET_POINTS, RIVER_LENGTH, mesaEdgeDist, mesaRadius, riverHalfWidth, riverPointAt } from "@/lib/park/registry/waterways";
+import { underCanopy } from "@/lib/park/registry/jungle";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { TERRAIN_EXTENT, TERRAIN_N, terrainGrid } from "@/lib/park/registry/terrain";
 import { WORLD_EDGE, WORLD_PLACES, type WorldPlace } from "@/lib/park/registry/worldMap";
@@ -85,7 +87,45 @@ const blob = (l: LandDef) => {
 };
 const LAND_SHAPES = LANDS.filter((l) => l.id !== "gate").map((l) => ({ l, path: blob(l) }));
 const TRAIL_PATHS = TRAIL_POINTS.map((pts) => d(pts));
-const STREAM_PATH = d(STREAM_POINTS);
+/** the river as a filled ribbon (its true width all the way), the lake, the outlet, the mesa */
+const riverEdge = (side: number, extra: number): P2[] =>
+  Array.from({ length: Math.ceil(RIVER_LENGTH / 2) + 1 }, (_, i) => {
+    const s = Math.min(RIVER_LENGTH, i * 2);
+    const [x, z] = riverPointAt(s);
+    const [nx, nz] = riverPointAt(Math.min(RIVER_LENGTH, s + 0.5));
+    const [px, pz] = riverPointAt(Math.max(0, s - 0.5));
+    const h = Math.atan2(nx - px, nz - pz);
+    const w = (riverHalfWidth(s) + extra) * side;
+    return [x + Math.cos(h) * w, z - Math.sin(h) * w] as P2;
+  });
+const riverShape = (extra: number) => d([...riverEdge(1, extra), ...riverEdge(-1, extra).reverse()], true);
+const RIVER_BANK = riverShape(1.6);
+const RIVER = riverShape(0);
+const LAKE_PATH = d(LAKE_OUTLINE, true);
+const OUTLET_PATH = d(OUTLET_POINTS);
+const MESA_PATH = d(
+  Array.from({ length: 48 }, (_, i) => {
+    const a = (i / 48) * Math.PI * 2;
+    const r = mesaRadius(a) + 1.5;
+    return [MESA.x + Math.sin(a) * r, MESA.z + Math.cos(a) * r] as P2;
+  }),
+  true,
+);
+/** the rainforest's crowns: big dark-green rounds packed over the canopy */
+const JUNGLE_TREES: { x: number; z: number; s: number; c: string }[] = (() => {
+  let s = 11;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const out: { x: number; z: number; s: number; c: string }[] = [];
+  const cols = ["#2f8a4a", "#3f9a46", "#2a7a52", "#4aa850"];
+  for (let z = -160; z < 160; z += 5.5)
+    for (let x = -160; x < 160; x += 5.5) {
+      const jx = x + (rnd() - 0.5) * 4;
+      const jz = z + (rnd() - 0.5) * 4;
+      if (!underCanopy(jx, jz) || nearTrail(jx, jz, 3) || nearStream(jx, jz, 1)) continue;
+      out.push({ x: jx, z: jz, s: 3.4 + rnd() * 1.6, c: cols[out.length % cols.length] });
+    }
+  return out;
+})();
 /** little trees scattered in the open meadows (none on trails, the stream or in lands) */
 const TREES: { x: number; z: number; s: number; c: string }[] = (() => {
   let s = 7;
@@ -97,7 +137,7 @@ const TREES: { x: number; z: number; s: number; c: string }[] = (() => {
     const r = 14 + Math.sqrt(rnd()) * (ISLAND_R - 20);
     const x = Math.sin(a) * r;
     const z = Math.cos(a) * r;
-    if (nearTrail(x, z, 3.5) || nearStream(x, z, 2) || LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius + 4)) continue;
+    if (nearTrail(x, z, 3.5) || nearStream(x, z, 2) || underCanopy(x, z) || mesaEdgeDist(x, z) < 4 || LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius + 4)) continue;
     if (HILLS.some((h) => Math.hypot(x - h.x, z - h.z) < h.r + 2)) continue;
     if (out.some((t) => Math.hypot(t.x - x, t.z - z) < 7)) continue;
     out.push({ x, z, s: 2.4 + rnd() * 1.6, c: cols[out.length % cols.length] });
@@ -128,6 +168,10 @@ function relief(): string | null {
       if (h > 6) [r, gr, b] = [110, 178, 112];
       if (h > 12) [r, gr, b] = [150, 142, 124];
       if (h > 22) [r, gr, b] = [236, 238, 250];
+      // (Rainbow Falls' mesa is warm rock with a mossy top, not a snowy peak)
+      const wx = -TERRAIN_EXTENT + (x / (S - 1)) * TERRAIN_EXTENT * 2;
+      const wz = -TERRAIN_EXTENT + (y / (S - 1)) * TERRAIN_EXTENT * 2;
+      if (mesaEdgeDist(wx, wz) < 4) [r, gr, b] = mesaEdgeDist(wx, wz) < -1.5 ? [104, 150, 92] : [140, 108, 88];
       const k = 1 + shade * 0.35;
       const o = (y * S + x) * 4;
       img.data[o] = Math.min(255, r * k);
@@ -167,7 +211,14 @@ const islandBlob = (w: WorldPlace, extra: number) => {
     true,
   );
 };
-const WORLD_SHAPES = WORLD_PLACES.map((w) => ({ w, beach: w.kind === "island" ? islandBlob(w, 8) : "", land: islandBlob(w, 0), crack: w.path ? d(w.path.map((p) => [p.x, p.z] as P2)) : "" }));
+/** (an island with a real outline — a long one, like Dino Isle — draws that; round ones a blob) */
+const shapeOf = (pts: { x: number; z: number }[]) => d(pts.map((p) => [p.x, p.z] as P2), true);
+const WORLD_SHAPES = WORLD_PLACES.map((w) => ({
+  w,
+  beach: w.kind === "island" ? (w.shore ? shapeOf(w.shore) : islandBlob(w, 8)) : "",
+  land: w.outline ? shapeOf(w.outline) : islandBlob(w, 0),
+  crack: w.path ? d(w.path.map((p) => [p.x, p.z] as P2)) : "",
+}));
 
 export function MiniMap({ world, hidden, pins = [], onSkyPin }: { world: React.RefObject<ParkWorld | null>; hidden?: boolean; pins?: MapPin[]; onSkyPin?: (p: MapPin) => void }) {
   const [pose, setPose] = useState<Pose | null>(null);
@@ -377,13 +428,38 @@ function MapSvg({
           <path d={COAST} fill="#a6e8bd" />
           {/* the terrain: hills, valleys and the snowy northern mountains */}
           {relief() && <image href={relief()!} x={-TERRAIN_EXTENT} y={-TERRAIN_EXTENT} width={TERRAIN_EXTENT * 2} height={TERRAIN_EXTENT * 2} preserveAspectRatio="none" clipPath={`url(#coast-${size})`} pointerEvents="none" />}
-          {/* the stream */}
-          <path d={STREAM_PATH} fill="none" stroke="#f5dcae" strokeWidth={STREAM_WIDTH + 2.2} strokeLinecap="round" strokeLinejoin="round" />
-          <path d={STREAM_PATH} fill="none" stroke="#6cc6f5" strokeWidth={STREAM_WIDTH} strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx={POND.x} cy={POND.z} r={POND.r + 1.4} fill="#f5dcae" />
-          <circle cx={POND.x} cy={POND.z} r={POND.r} fill="#6cc6f5" />
-          <circle cx={POND.x - 2} cy={POND.z + 1} r={1.1} fill="#5fcf7a" />
-          <circle cx={POND.x + 2.2} cy={POND.z - 1.5} r={0.9} fill="#5fcf7a" />
+          {/* Rainbow Falls' mesa, the river, the plunge pool, Rainbow Lake and its outlet */}
+          <path d={MESA_PATH} fill="#a88a70" stroke="#7a5e4a" strokeWidth={1.2 * k} pointerEvents="none" />
+          <path d={RIVER_BANK} fill="#f5dcae" pointerEvents="none" />
+          <path d={LAKE_PATH} fill="#f5dcae" stroke="#f5dcae" strokeWidth={3.2} pointerEvents="none" />
+          <path d={OUTLET_PATH} fill="none" stroke="#f5dcae" strokeWidth={OUTLET_HALF * 2 + 3} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+          <circle cx={FALLS.pool.x} cy={FALLS.pool.z} r={FALLS.pool.r + 1.6} fill="#f5dcae" pointerEvents="none" />
+          <path d={RIVER} fill="#5cbcef" pointerEvents="none" />
+          <path d={LAKE_PATH} fill="#5cbcef" pointerEvents="none" />
+          <path d={OUTLET_PATH} fill="none" stroke="#5cbcef" strokeWidth={OUTLET_HALF * 2} strokeLinecap="round" strokeLinejoin="round" pointerEvents="none" />
+          <circle cx={FALLS.pool.x} cy={FALLS.pool.z} r={FALLS.pool.r} fill="#5cbcef" pointerEvents="none" />
+          {/* the falls: a white cascade off the mesa's edge into the pool */}
+          <path d={`M${FALLS.lip.x.toFixed(1)} ${(FALLS.lip.z - 3.5).toFixed(1)} L${(FALLS.lip.x + 3).toFixed(1)} ${(FALLS.lip.z - 5).toFixed(1)} L${(FALLS.lip.x + 3).toFixed(1)} ${(FALLS.lip.z + 5).toFixed(1)} L${FALLS.lip.x.toFixed(1)} ${(FALLS.lip.z + 3.5).toFixed(1)} Z`} fill="#ffffff" stroke="#bfe8ff" strokeWidth={0.8} pointerEvents="none" />
+          <circle cx={POND.x - 2} cy={POND.z + 1} r={1.1} fill="#5fcf7a" pointerEvents="none" />
+          <circle cx={POND.x + 2.2} cy={POND.z - 1.5} r={0.9} fill="#5fcf7a" pointerEvents="none" />
+          <circle cx={POND.x + 0.4} cy={POND.z + 3} r={1} fill="#5fcf7a" pointerEvents="none" />
+          {/* the footbridges and the jetty */}
+          {BRIDGES.map((b, i) => (
+            <line key={`br${i}`} x1={b.x - Math.sin(b.heading) * b.span * 0.5} y1={b.z - Math.cos(b.heading) * b.span * 0.5} x2={b.x + Math.sin(b.heading) * b.span * 0.5} y2={b.z + Math.cos(b.heading) * b.span * 0.5} stroke="#b07a44" strokeWidth={3.2} strokeLinecap="round" pointerEvents="none" />
+          ))}
+          <line x1={JETTY.ax} y1={JETTY.az} x2={JETTY.bx} y2={JETTY.bz} stroke="#b07a44" strokeWidth={2.6} pointerEvents="none" />
+          {/* the rainforest */}
+          {JUNGLE_TREES.map((t, i) => (
+            <g key={`j${i}`} pointerEvents="none">
+              <circle cx={t.x + 0.8} cy={t.z + 1} r={t.s} fill="#000" opacity={0.12} />
+              <circle cx={t.x} cy={t.z} r={t.s} fill={t.c} stroke="#1f6a3a" strokeWidth={0.6} />
+            </g>
+          ))}
+          {labels && (
+            <text x={FALLS.lip.x + 1} y={FALLS.lip.z - 9} textAnchor="middle" fontSize={11} pointerEvents="none">
+              🌈
+            </text>
+          )}
           {/* lands as soft blobs */}
           {LAND_SHAPES.map(({ l, path }) => (
             <path

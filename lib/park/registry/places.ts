@@ -36,8 +36,22 @@ export type PlaceAction =
 export const SKY_LOOP_N = 32;
 export function skyLoopXZ(i: number): [number, number] {
   const a = (i / SKY_LOOP_N) * Math.PI * 2;
-  const rad = 100 + Math.sin(a * 3) * 8;
+  const rad = skyLoopRadius(a);
   return [Math.sin(a) * rad, Math.cos(a) * rad];
+}
+/**
+ * How far out the Sky Coaster's track runs at heading `a` (atan2(x, z)): round the island at
+ * ~100 m, but swinging out over the west-south-west sea to pass the Rainbow Falls mesa's sea cliffs
+ * instead of cutting through the rainforest (lib/park/registry/jungle.ts).
+ */
+export function skyLoopRadius(a: number): number {
+  const w = Math.atan2(Math.sin(a), Math.cos(a));
+  const s = (e0: number, e1: number, x: number) => {
+    const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+    return t * t * (3 - 2 * t);
+  };
+  const detour = s(-1.95, -1.6, w) * (1 - s(-0.55, -0.25, w));
+  return 100 + Math.sin(a * 3) * 8 + detour * 68;
 }
 /** the control point where the station sits (south-west, beside Rides land) */
 export const SKY_STATION_I = 20;

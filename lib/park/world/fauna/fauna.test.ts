@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { LANDS, PLACES } from "../../registry/places";
-import { POND, TRAIL_POINTS, coastR, nearStream, nearTrail } from "../../registry/island";
+import { POND, TRAIL_POINTS, coastR, nearMesa, nearStream, nearTrail } from "../../registry/island";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { rideableKeepOut } from "../../registry/rideables";
 import { zoneBounds } from "../../builder/rules";
-import { planFlocks, planForest, planMeadows, planPasture, planWindmills, stepFlock, trunkObstacles, type FreeFn } from "../storybook/plan";
+import { inJungle } from "../../registry/jungle";
+import { WATER_BODIES, waterBodyAt, waterSdf } from "../../registry/waterways";
+import { carvePasture, planFlocks, planForest, planMeadows, planPasture, planWindmills, stepFlock, trunkObstacles, type FreeFn } from "../storybook/plan";
 import { B_BLOCK, B_KEEP, B_LAND, B_OPEN, B_TRAIL, bitsAt, buildWalkGrid, dryLandAt } from "./ground";
-import { RMAX, planFauna } from "./plan";
+import { RMAX, planFauna, sheepKeepOut } from "./plan";
 import { activeNow, makeEnv, passable, stepFauna, type FaunaEnv } from "./brain";
-import { TAG_PATH, TAG_WATER, componentSizes, route, segmentOk } from "./roam";
+import { TAG_PATH, TAG_WATER, componentSizes, nearestNode, route, segmentOk } from "./roam";
 import { buildMeshGeometries, measureModel } from "./species";
 import {
   C_GIANT,
@@ -52,14 +54,14 @@ import {
   type KidSense,
 } from "./types";
 
-// a stand-in for the park's free() predicate (trails, places, plaza, Dream Park, stream, beach, rides parked about)
+// a stand-in for the park's free() predicate (trails, places, plaza, Dream Park, the river and the lake, beach, rides parked about, the rainforest)
 const zb = zoneBounds();
 const inDream = (x: number, z: number, pad = 0) => x > zb.minX - pad && x < zb.maxX + pad && z > zb.minZ - pad && z < zb.maxZ + pad;
 const free: FreeFn = (x, z, pad) => {
   const r = Math.hypot(x, z);
   if (r < 12 + pad || r > coastR(Math.atan2(x, z)) - 4 - pad) return false;
   if (inDream(x, z, pad)) return false;
-  if (nearTrail(x, z, pad + 1.6) || nearStream(x, z, pad) || rideableKeepOut(x, z, pad)) return false;
+  if (nearTrail(x, z, pad + 1.6) || nearStream(x, z, pad) || rideableKeepOut(x, z, pad) || inJungle(x, z, pad) || nearMesa(x, z, pad)) return false;
   return !PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < Math.max(p.radius, 1.5) + pad + 1.2);
 };
 
@@ -67,7 +69,7 @@ const meadows = planMeadows(free, { count: 8 });
 const forest = planForest(free, { meadows });
 // (the storybook's trunk obstacles + a windmill-sized one, as the park passes them)
 const obstacles = [...trunkObstacles(forest.trees, 1400), { x: -40, z: 40, r: 2.6 }];
-const grid = buildWalkGrid(forest.covered, obstacles, free);
+const grid = buildWalkGrid(forest.covered, obstacles, free, forest.trees);
 // the storybook's sheep, as the fauna re-plans them
 const pasture = planPasture(free, forest.covered);
 const mills = planWindmills(pasture, { count: 4, avoid: [{ x: 0, z: 30, r: 20 }] });
@@ -78,7 +80,7 @@ const fresh = () => planFauna(free, grid, { trees: forest.trees, meadows }, { ob
 const plan = fresh();
 const lowMeadows = planMeadows(free, { count: 6 });
 const lowForest = planForest(free, { meadows: lowMeadows, lowQuality: true });
-const lowPlan = planFauna(free, buildWalkGrid(lowForest.covered, [], free), { trees: lowForest.trees, meadows: lowMeadows }, { lowQuality: true });
+const lowPlan = planFauna(free, buildWalkGrid(lowForest.covered, [], free, lowForest.trees), { trees: lowForest.trees, meadows: lowMeadows }, { lowQuality: true });
 const nSheep = flocks0.reduce((n, f) => n + f.sheep.length, 0);
 
 interface Sim {
@@ -87,7 +89,10 @@ interface Sim {
 }
 const simOf = (p: typeof plan): Sim => {
   const env = makeEnv({ g: grid, trees: forest.trees, paddock: p.paddock, agents: p.agents, shores: p.shores, graph: p.graph, routes: p.routes, farm: p.farm, maxSheep: nSheep });
-  return { env, flocks: flockPlan() };
+  // (the sheep graze round the paddock and the farm corner, as in the park)
+  const flocks = flockPlan();
+  carvePasture(pasture, sheepKeepOut(p), flocks);
+  return { env, flocks };
 };
 const kidAt = (x: number, z: number, speed = 0, still = 0, dx = 0, dz = 1): KidSense => ({ x, y: groundY(x, z), z, speed, dx, dz, still, ground: true });
 const FAR: KidSense = { x: 9999, y: 0, z: 9999, speed: 0, dx: 0, dz: 1, still: 0, ground: true };
@@ -230,6 +235,23 @@ describe("true size", { timeout: 30000 }, () => {
 
 describe("the roaming map", { timeout: 30000 }, () => {
   const G = plan.graph;
+  it("has drinking places on Rainbow Lake's shores and the river's open banks — the giants included", () => {
+    const water = [...Array(G.n).keys()].filter((i) => G.tag[i] & TAG_WATER);
+    const lake = water.filter((i) => waterBodyAt(G.x[i], G.z[i]) === WATER_BODIES.lake);
+    const river = water.filter((i) => waterBodyAt(G.x[i], G.z[i]) === WATER_BODIES.river);
+    expect(lake.length).toBeGreaterThan(8);
+    expect(river.length).toBeGreaterThan(0);
+    // each faces the water, a step from it
+    for (const i of water) expect(waterSdf(G.x[i] + Math.sin(G.face[i]) * 4, G.z[i] + Math.cos(G.face[i]) * 4), `spot ${i}`).toBeLessThan(waterSdf(G.x[i], G.z[i]));
+    // the elephants and giraffes can walk from where they live down to the lake or the river to drink
+    for (const a of plan.agents.filter((q) => q.kind === K_ELEPHANT || q.kind === K_GIRAFFE)) {
+      const home = nearestNode(G, grid, C_GIANT, a.x, a.z, 40);
+      expect(home, `${KIND_NAMES[a.kind]} near the roaming map`).toBeGreaterThanOrEqual(0);
+      const comp = G.comp[C_GIANT][home];
+      expect([...lake, ...river].some((i) => G.ok[C_GIANT][i] && G.comp[C_GIANT][i] === comp), `${KIND_NAMES[a.kind]} @ ${a.x.toFixed(0)},${a.z.toFixed(0)} can reach the water`).toBe(true);
+    }
+  });
+
   it("covers the island and joins it up for the medium-sized travellers", () => {
     expect(G.n).toBeGreaterThan(300);
     const big = componentSizes(G, C_LARGE)[0];

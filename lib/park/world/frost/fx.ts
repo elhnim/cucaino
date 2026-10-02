@@ -324,6 +324,14 @@ export function buildFx(U: FxUniforms, low: boolean): FrostFx {
           spawn(x + Math.sin(a) * 0.2, wy + 0.05, z + Math.cos(a) * 0.2, Math.sin(a) * sp, (2.2 + r01() * 2.8) * Math.sqrt(size), Math.cos(a) * sp, 0.7 + r01() * 0.4, (0.08 + r01() * 0.08) * (0.7 + size * 0.5), 0);
         }
         spawn(x, wy + 0.2, z, 0, 0.5, 0, 0.6, 0.45 * size + 0.2, 1);
+      } else if (kind === 4) {
+        // a skier's spray: a big fan of snow thrown up and out from the skis
+        const n = low ? 5 : 11;
+        for (let k = 0; k < n; k++) {
+          const a = r01() * Math.PI * 2;
+          const sp = (1.2 + r01() * 2.4) * Math.sqrt(size);
+          spawn(x + Math.sin(a) * 0.4, wy + 0.15, z + Math.cos(a) * 0.4, Math.sin(a) * sp, 1.2 + r01() * 1.8, Math.cos(a) * sp, 0.9 + r01() * 0.6, 0.5 * size + 0.35, 1);
+        }
       } else if (kind === 2) {
         const n = low ? 2 : 4;
         for (let k = 0; k < n; k++) {

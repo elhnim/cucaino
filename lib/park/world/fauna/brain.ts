@@ -22,9 +22,10 @@
 import { POND } from "../../registry/island";
 import { groundY } from "../../registry/terrain";
 import { noise2 } from "../fantasy/noise";
-import { B_BLOCK, B_KEEP, B_LAND, B_OPEN, B_POND, B_TRAIL, bitsAt, slopeOf, type WalkGrid } from "./ground";
+import { B_BLOCK, B_JUNGLE, B_KEEP, B_LAND, B_OPEN, B_POND, B_TRAIL, bitsAt, headroomAt, slopeOf, type WalkGrid } from "./ground";
 import { canopyOf, RMAX } from "./plan";
 import {
+  CLASS_HEAD,
   CLASS_SLOPE,
   CLEAR,
   HCELL,
@@ -326,16 +327,22 @@ export function passable(env: FaunaEnv, a: Agent, x: number, z: number): boolean
   const p = env.paddock;
   if (a.kind === K_HORSE) return p ? inPaddock(p, x, z, 0.9 * a.s) : true;
   if (a.cls === C_GIANT) {
-    if (!(b & (B_OPEN | B_TRAIL))) return false;
+    if (!(b & (B_OPEN | B_TRAIL)) || b & B_JUNGLE) return false;
   } else if (T.open && !(b & B_OPEN)) return false;
   if (p && inPaddock(p, x, z, -0.7)) return false; // everyone else stays outside the fence
   if (roams) {
-    // the big ones need room either side (no trunks, water or keep-clear ground under them)
+    // the big ones need room either side (no trunks, water or keep-clear ground under them), and
+    // head room: the giants keep out from under every crown, the deer and roos under low ones
     if (a.cls > 0) {
+      const head = a.cls === C_GIANT ? CLASS_HEAD[C_GIANT] : a.head + 0.25;
+      if (headroomAt(env.g, x, z) < head) return false;
       const c = CLEAR[a.cls] * 0.8;
       for (let k = 0; k < 8; k += 2) {
-        const bb = bitsAt(env.g, x + DIRS[k] * c, z + DIRS[k + 1] * c);
+        const bx = x + DIRS[k] * c;
+        const bz = z + DIRS[k + 1] * c;
+        const bb = bitsAt(env.g, bx, bz);
         if ((bb & (B_LAND | B_BLOCK | B_KEEP)) !== B_LAND) return false;
+        if (a.cls === C_GIANT && headroomAt(env.g, bx, bz) < head) return false;
       }
     }
     return true;
@@ -352,6 +359,20 @@ function looseOk(env: FaunaEnv, x: number, z: number): boolean {
   return (bitsAt(env.g, x, z) & (B_LAND | B_BLOCK | B_KEEP)) === B_LAND;
 }
 
+/** would this step walk an animal further into a sheep it's already brushing past? */
+function sheepBlocks(env: FaunaEnv, a: Agent, nx: number, nz: number): boolean {
+  const R = TUNE[a.kind].body * a.s;
+  if (R < 0.35) return false;
+  const R2 = (R + 0.95) * (R + 0.95);
+  for (let k = 0; k < env.nSheep; k++) {
+    const sx = env.sheep[k * 2];
+    const sz = env.sheep[k * 2 + 1];
+    const dn = (nx - sx) ** 2 + (nz - sz) ** 2;
+    if (dn < R2 && dn < (a.x - sx) ** 2 + (a.z - sz) ** 2) return true;
+  }
+  return false;
+}
+
 /** step forward (sidestepping round whatever's in the way); false if boxed in */
 export function moveFwd(env: FaunaEnv, a: Agent, dist: number): boolean {
   if (dist <= 0) return true;
@@ -361,7 +382,7 @@ export function moveFwd(env: FaunaEnv, a: Agent, dist: number): boolean {
     const yaw = a.yaw + SIDESTEP[k];
     const nx = a.x + Math.sin(yaw) * dist;
     const nz = a.z + Math.cos(yaw) * dist;
-    if (passable(env, a, nx, nz) || (loose && looseOk(env, nx, nz))) {
+    if ((passable(env, a, nx, nz) || (loose && looseOk(env, nx, nz))) && !sheepBlocks(env, a, nx, nz)) {
       a.x = nx;
       a.z = nz;
       // (it turns toward the way it could go; backed into a corner, it turns right round)
@@ -2412,6 +2433,25 @@ export function stepFauna(env: FaunaEnv, kid: KidSense, dt: number, t: number, g
     finish(a, kid, dt);
   }
   separate(env, dt);
+  // (at a slow frame rate a herd can bunch up in one long step: settle it twice)
+  if (dt > 0.07) separate(env, dt);
+  // (everyone bigger than a rabbit gets a last look round for sheep: shoved by a herd-mate into a
+  // grazing sheep, they step back out of it — the sheep don't budge)
+  for (let i = 0; i < agents.length; i++) {
+    const a = agents[i];
+    if (!jostles(a)) continue;
+    const R = TUNE[a.kind].body * a.s;
+    if (R < 0.35) continue;
+    for (let k = 0; k < env.nSheep; k++) {
+      const dx = a.x - env.sheep[k * 2];
+      const dz = a.z - env.sheep[k * 2 + 1];
+      const min = (R + 0.95) * 0.92;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= min * min || d2 < 1e-8) continue;
+      const d = Math.sqrt(d2);
+      pushOut(env, a, dx / d, dz / d, min - d);
+    }
+  }
   for (let i = 0; i < agents.length; i++) {
     const a = agents[i];
     if (!jostles(a)) continue;

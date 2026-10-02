@@ -12,11 +12,14 @@
 //             the Sky Coaster's corridor, ruins ...) — trails and their verges excepted
 //   B_WET     inland water: the meadow lakes (the sea's beaches don't count)
 //   B_SHORE   dry ground right at the edge of the pond, the stream or a lake (drinking spots)
+//   B_JUNGLE  under the rainforest's canopy (lib/park/registry/jungle.ts)
 import { ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, coastR } from "../../registry/island";
 import { LANDS, PLACES } from "../../registry/places";
 import { zoneBounds } from "../../builder/rules";
 import { WATER_Y, groundY, slopeAt } from "../../registry/terrain";
 import { fieldAt, gridIndex, openFields, type FreeFn } from "../storybook/plan";
+import { waterSdf } from "../../registry/waterways";
+import { underCanopy } from "../../registry/jungle";
 
 export const WHALF = 160;
 export const WN = 320;
@@ -31,13 +34,78 @@ export const B_BLOCK = 64;
 export const B_KEEP = 128;
 export const B_WET = 256;
 export const B_SHORE = 512;
+/** under the rainforest's canopy (its trails included): too close-packed for the safari's giants */
+export const B_JUNGLE = 1024;
 
 export interface WalkGrid {
   bits: Uint16Array;
   /** slope 0..1 quantised to 0..255 */
   slope: Uint8Array;
+  /**
+   * Head room: how high (0.1-unit steps above the ground) the lowest leaves hang over each cell —
+   * the storybook trees' crowns (a little wider than the leaves, for a reaching head) and the
+   * rainforest's canopy. 255 = open sky. A tall animal only walks where its head clears them.
+   */
+  crown: Uint8Array;
   /** the pond's water surface */
   pondY: number;
+}
+
+/** a tree whose crown the animals keep their heads out of (the storybook forest's) */
+export interface CrownTree {
+  x: number;
+  z: number;
+  y: number;
+  kind: number;
+  s: number;
+  sy: number;
+}
+
+/** the rainforest's leaves hang this low (units) — and its edge trees reach this far out over the meadow */
+export const JUNGLE_CROWN = 4.5;
+const JUNGLE_REACH = 3;
+/** how far past its leaves a crown counts (a head reaching forward, a neck swinging round) */
+export const CROWN_PAD = 0.7;
+
+/**
+ * The lowest leaves of a storybook tree at `rho` units from its trunk, above the tree's foot
+ * (matches storybook/geometry.ts buildForestTree: round crowns are squashed spheres, pines
+ * stacked cones from 1.2 up), and how far out its crown reaches. Unit-scale numbers × t.s.
+ */
+export function crownShape(kind: number): { r: number; cy: number; ry: number; cone: boolean } {
+  if (kind === 0) return { r: 1.85, cy: 3.35, ry: 1.6, cone: false };
+  if (kind === 1) return { r: 1.75, cy: 3.15, ry: 1.4, cone: false };
+  if (kind === 2) return { r: 1.4, cy: 3.5, ry: 1.25, cone: false };
+  return { r: kind === 4 ? 1.25 : 1.75, cy: kind === 4 ? 1.3 : 1.2, ry: 0, cone: true };
+}
+
+/** bake the head room grid (see WalkGrid.crown) */
+function bakeCrowns(crown: Uint8Array, trees: readonly CrownTree[]) {
+  crown.fill(255);
+  for (const t of trees) {
+    const c = crownShape(t.kind);
+    const rx = c.r * t.s;
+    const R = rx + CROWN_PAD;
+    const foot = t.y - 0.15 * t.s;
+    const i0 = Math.max(0, Math.floor(t.x - R + WHALF));
+    const i1 = Math.min(WN - 1, Math.floor(t.x + R + WHALF));
+    const j0 = Math.max(0, Math.floor(t.z - R + WHALF));
+    const j1 = Math.min(WN - 1, Math.floor(t.z + R + WHALF));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const x = -WHALF + i + 0.5;
+        const z = -WHALF + j + 0.5;
+        const rho = Math.hypot(x - t.x, z - t.z);
+        if (rho > R) continue;
+        // (inside the leaves: the squashed sphere's underside; in the pad: its rim)
+        const u = Math.min(1, rho / rx);
+        const under = c.cone ? c.cy : c.cy - c.ry * Math.sqrt(1 - u * u);
+        const h = foot + under * t.s * t.sy - groundY(x, z);
+        const q = Math.max(0, Math.min(254, Math.round(h * 10)));
+        const k = j * WN + i;
+        if (q < crown[k]) crown[k] = q;
+      }
+  }
 }
 
 /** metres from (x, z) to the stream's centre line (exact, segment distance) */
@@ -69,7 +137,7 @@ export function dryLandAt(x: number, z: number): boolean {
   if (r > coastR(Math.atan2(x, z)) - 2.5) return false;
   if (groundY(x, z) < WATER_Y + 0.3) return false;
   if (Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.3) return false;
-  if (streamDist(x, z) < STREAM_WIDTH / 2 + 0.35) return false;
+  if (waterSdf(x, z) < 0.35) return false;
   return true;
 }
 
@@ -88,10 +156,12 @@ function nearLand(x: number, z: number): boolean {
  * pass null to treat everything as open. `free` is the park's placement rule: where it says no
  * (away from the trails) the ground is B_KEEP.
  */
-export function buildWalkGrid(covered: Uint8Array | null, obstacles: readonly { x: number; z: number; r: number }[] = [], free?: FreeFn): WalkGrid {
+export function buildWalkGrid(covered: Uint8Array | null, obstacles: readonly { x: number; z: number; r: number }[] = [], free?: FreeFn, trees: readonly CrownTree[] = []): WalkGrid {
   const f = openFields();
   const bits = new Uint16Array(WN * WN);
   const slope = new Uint8Array(WN * WN);
+  const crown = new Uint8Array(WN * WN);
+  bakeCrowns(crown, trees);
   for (let j = 0; j < WN; j++) {
     const z = -WHALF + j + 0.5;
     for (let i = 0; i < WN; i++) {
@@ -105,22 +175,37 @@ export function buildWalkGrid(covered: Uint8Array | null, obstacles: readonly { 
       const sd = nearS ? streamDist(x, z) : 1e6;
       let b = 0;
       if (pd < POND.r - 0.5) b |= B_POND;
-      if (sd < STREAM_WIDTH / 2) b |= B_STREAM;
+      if (sd < STREAM_WIDTH / 2 || (nearS && waterSdf(x, z) < 0 && groundY(x, z) < WATER_Y)) b |= B_STREAM;
       const coast = coastR(Math.atan2(x, z));
       const low = lowest(x, z);
       const lf = fieldAt(f.land, x, z);
       // (near a land's edge the 2 m distance field is coarse: check the real shapes)
-      const land = r < coast - 2.5 && low > WATER_Y + 0.4 && pd > POND.r + 0.3 && sd > STREAM_WIDTH / 2 + 0.35 && lf > 0 && (lf > 5 || !nearLand(x, z));
+      const land = r < coast - 2.5 && low > WATER_Y + 0.4 && pd > POND.r + 0.3 && waterSdf(x, z) > 0.35 && lf > 0 && (lf > 5 || !nearLand(x, z));
       if (land) {
         b |= B_LAND;
-        if (sd < STREAM_WIDTH / 2 + 2.6 || pd < POND.r + 2.6) b |= B_BANK;
+        if (waterSdf(x, z) < 2.6) b |= B_BANK;
       } else if (r < coast - 8 && groundY(x, z) < WATER_Y - 0.05) b |= B_WET;
       const g = gridIndex(x, z);
       if (!covered || g < 0 || !covered[g]) b |= B_OPEN;
       if (fieldAt(f.trail, x, z) < 2.1) b |= B_TRAIL;
+      if (underCanopy(x, z)) b |= B_JUNGLE;
       bits[k] = b;
     }
   }
+  // the rainforest's roof (and the edge trees' boughs, reaching a few metres out over the meadow)
+  const JQ = Math.round(JUNGLE_CROWN * 10);
+  for (let j = 0; j < WN; j++)
+    for (let i = 0; i < WN; i++) {
+      if (!(bits[j * WN + i] & B_JUNGLE)) continue;
+      for (let dj = -JUNGLE_REACH; dj <= JUNGLE_REACH; dj++)
+        for (let di = -JUNGLE_REACH; di <= JUNGLE_REACH; di++) {
+          const ii = i + di;
+          const jj = j + dj;
+          if (ii < 0 || jj < 0 || ii >= WN || jj >= WN || di * di + dj * dj > JUNGLE_REACH * JUNGLE_REACH) continue;
+          const k = jj * WN + ii;
+          if (crown[k] > JQ) crown[k] = JQ;
+        }
+    }
   // the shore: dry land with water a step or two away
   const WATERY = B_WET | B_POND | B_STREAM;
   for (let j = 4; j < WN - 4; j++)
@@ -165,7 +250,15 @@ export function buildWalkGrid(covered: Uint8Array | null, obstacles: readonly { 
         bits[k + WN] |= B_KEEP;
         bits[k + WN + 1] |= B_KEEP;
       }
-  return { bits, slope, pondY: groundY(POND.x, POND.z) + 0.065 };
+  return { bits, slope, crown, pondY: groundY(POND.x, POND.z) + 0.065 };
+}
+
+/** head room over (x, z) in units (see WalkGrid.crown; 25.5 = open sky) */
+export function headroomAt(g: WalkGrid, x: number, z: number): number {
+  const i = Math.floor(x + WHALF);
+  const j = Math.floor(z + WHALF);
+  if (i < 0 || j < 0 || i >= WN || j >= WN) return 25.5;
+  return g.crown[j * WN + i] / 10;
 }
 
 export function bitsAt(g: WalkGrid, x: number, z: number): number {

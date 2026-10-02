@@ -36,20 +36,31 @@ import { buildWizardModel, nameTag, type WizardModel } from "../wizards/wizardMo
 import { buildChibi, type ChibiAction, type ChibiRig } from "../characters/chibi";
 import { BOAT_CAPS, MOUNT_BODY, MOUNT_CAPS, MOUNT_SEA_DRAFT, MOUNT_VIEW, SUB_CAPS, buildMount, isBoat, isCraft, isSub, mountLean, type MountKind, type MountRig, type MountSkin } from "../characters/mounts";
 import { HARBOUR_OBSTACLES, worldFloorY } from "../registry/harbours";
-import { boatCanMove, boatClearance, hullTilt, landingSpot, seaWave, steer, subAltRange, subCanMove, swellDamp, type Helm, type Tilt } from "../world/rideables/craft";
+import { BUMP_DEEP, boatCanMove, boatClearance, hullTilt, landingSpot, moveBoat, seaWave, steer, subAltRange, subCanMove, swellDamp, type Helm, type SeaBody, type Tilt } from "../world/rideables/craft";
 import type { DrivenCraft } from "../world/rideables/fleet";
 import type { RidePin } from "../world/rideables";
 import { createDragonFlight, type DragonFlight } from "../world/rideables/dragonFlight";
+import { hintsReady } from "../world/rideables/dragonSpace";
+import { bigFrame, forEachBigSea, setOccluderFocus, type BigBody } from "../world/sea/bigSea";
 import { RIDEABLE_SPOTS } from "../registry/rideables";
 import { DRAGON_BREEDS, type DragonBreed } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { ISLAND_R } from "../registry/island";
+import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../registry/jungle";
+import { waterSdf } from "../registry/waterways";
 import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { FROST_ISLAND } from "../registry/frostIsland";
-import { makeKidSlide, slideName, stepKidSlide, type KidSlide } from "../world/frost/kidSlide";
-import { DINO_ISLAND } from "../registry/dinoIsland";
+import { makeKidSlide, petSlidePose, slideName, slideSplashS, stepKidSlide, type KidSlide } from "../world/frost/kidSlide";
+import { makeKidSki, stepKidSki, type KidSki } from "../world/frost/kidSki";
+import { KL_DONE, KL_RIDE, KL_WAIT } from "../world/frost/ski";
+import { FROST_SKI } from "../registry/frostIsland";
+import { DINO_ISLAND, dinoShoreDist } from "../registry/dinoIsland";
 import { CAR_GAP, RIDE_CAR } from "../world/steamTrain";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_SPOTS, skyIslandById, skyStreamEnd, skyTopY, type SkySpot } from "../registry/skyIslands";
+import { applySafeShaders } from "./safeShaders";
+
+// (before any material compiles: flat-shaded faces too thin to shade must never output NaN)
+applySafeShaders();
 
 /** each floating island's obstacles (trees, rocks, its peak), for walking about up there */
 const SKY_OBSTACLES_BY = new Map<string, { x: number; z: number; r: number }[]>();
@@ -127,6 +138,9 @@ export interface ParkWorldOptions {
   onRing?: (passed: number, lap?: number) => void;
   /** Frostpeak's penguin slides: set off ("start"), waiting for the penguin ahead ("wait"), SPLASH ("splash") */
   onSlide?: (what: "start" | "wait" | "splash", name: string) => void;
+  /** Frostpeak's ski run: skis on ("start"), a slalom gate ("gate", passed, of), the bottom
+   *  ("finish", passed, of), on the chairlift ("lift"), off at the top ("top"), at the viewpoint ("view") */
+  onSki?: (what: "start" | "gate" | "finish" | "lift" | "top" | "view", n?: number, of?: number) => void;
   onError?: (err: unknown) => void;
 }
 
@@ -233,6 +247,16 @@ export class ParkWorld {
   private swimVZ = 0;
   private wasInSea = false;
   private camUnder = false;
+  /** under water: how much further back (units) / wider (degrees) the camera is for a giant nearby */
+  private camBigX = 0;
+  private camBigFov = 0;
+  private uwPull = 1;
+  private readonly bigBuf: BigBody[] = [];
+  private readonly bigOut = { dist: 0, fov: 0, w: 0 };
+  /** what's afloat round a boat you're driving (other boats, sea friends, whales and orcas at the surface) */
+  private readonly afloat: SeaBody[] = [];
+  private readonly afloatBig: SeaBody[] = [];
+  private deepHintT = 0;
   // ── the Sky Coaster: riding the train round the island (speed follows the drops) ──
   private sky: { v: number; dist: number; cheered: boolean } | null = null;
   // ── Frostpeak's penguin slides: the kid tobogganing down a chute (null = not), the chute whose start
@@ -243,6 +267,21 @@ export class ParkWorld {
   private slideFlop = 0;
   private slideWaitSaid = false;
   private slideCam = new THREE.Vector3();
+  // ── Frostpeak's ski run: the kid skiing (null = not), riding the chairlift, the viewpoint ──
+  private ski: KidSki | null = null;
+  private skiFrom = new THREE.Vector3();
+  private skiNear = false;
+  private liftNear = false;
+  private lifting = false;
+  private skiGear: THREE.Group | null = null;
+  /** 0..1: how far the camera has swung round to frame the whole run from the lodge's viewpoint */
+  private skiView = 0;
+  private skiViewSaid = false;
+  private skiSaved = { p: new THREE.Vector3(), q: new THREE.Quaternion(), on: false };
+  /** the pet's own slide down the chute once the kid has splashed in (it's a few metres behind) */
+  private petSlide: KidSlide | null = null;
+  private petSlideS = 0;
+  private petSlideOut = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 };
   // ── floating mountains: standing on one (its id), gliding down off an edge, flight's reference height ──
   private onSky: string | null = null;
   private gliding = false;
@@ -255,6 +294,17 @@ export class ParkWorld {
   private hopNear: { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number; breed?: DragonBreed } | null = null;
   /** parked dragons we've already told the kid about (once each per visit) */
   private dragonHints = new Set<string>();
+  /** on skis or on the chairlift: the joystick steers the skis (or does nothing on the lift) */
+  private get skiLock(): boolean {
+    return !!this.ski || this.lifting;
+  }
+  /** the "a dragon!" hints wait for the welcome toasts and a few steps (../world/rideables/dragonSpace hintsReady) */
+  private readyAt = Infinity;
+  private hintWalk = 0;
+  /** the way the kid last walked (kept while they stand and turn to wave at the camera): the dragon
+   *  they walked up to is the one they mean */
+  private headFacing = Math.PI;
+  private hintLast = new THREE.Vector3(Number.NaN, 0, 0);
   /** dragons this kid has made friends with (see setBondedDragons) */
   private bondedDragons = new Set<string>();
   /** flying a dragon: banks, dives, rolls, fire puffs and the clouds (made the first time) */
@@ -306,6 +356,9 @@ export class ParkWorld {
   private camBase = new THREE.Vector3(SPAWN.x, 12, SPAWN.z + 14);
   private lookAtPt = new THREE.Vector3(SPAWN.x, 1.2, SPAWN.z);
   private camZoom = 1;
+  /** 0..1 eased: the camera's dropped down under the rainforest's canopy */
+  private forestCam = 0;
+  private forestPull = 30;
   private dragging = false;
   private lastDrag: { x: number; y: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
@@ -518,6 +571,10 @@ export class ParkWorld {
     this.petStatus = sprite;
   }
   /** Pet snoozes in its bed (stops following) until woken. */
+  /** is the pet asleep (in the park, or napping in its bed at home)? */
+  get petSleeping(): boolean {
+    return this.petMode === "sleep";
+  }
   setPetSleeping(on: boolean, bed?: { x: number; z: number }) {
     if (!this.pet) return;
     if (on) {
@@ -566,6 +623,8 @@ export class ParkWorld {
   /** Kid-sized walk up to a spot (used by stations so the kid stands next to them). */
   walkKidTo(x: number, z: number) {
     this.endSlide(false);
+    this.endSki();
+    this.endLift();
     this.walkQueue = [];
     this.walkTarget = new THREE.Vector3(x, 0, z);
   }
@@ -596,6 +655,8 @@ export class ParkWorld {
   enterRide(build: (accent: string) => Ride) {
     if (this.ride || !this.kid) return;
     this.endSlide(false);
+    this.endSki();
+    this.endLift();
     this.dismount(true);
     const ride = build("#ff5fa8");
     this.ride = ride;
@@ -730,6 +791,7 @@ export class ParkWorld {
       }
       if (this.disposed) return;
       this.renderer.render(this.scene, this.camera);
+      this.readyAt = this.time;
       this.opts.onReady?.();
       this.start();
       void this.spawnVisitors();
@@ -940,18 +1002,29 @@ export class ParkWorld {
       if (place) {
         // walk to the door, it opens on arrival
         const dir = new THREE.Vector3(-place.x, 0, -place.z).normalize();
-        this.walkTarget = new THREE.Vector3(place.x, 0, place.z).addScaledVector(dir, place.radius + 1.4);
-        this.walkQueue = [];
+        const door = new THREE.Vector3(place.x, 0, place.z).addScaledVector(dir, place.radius + 1.4);
+        this.walkRouted(door.x, door.z);
         this.nearPlace = null;
         return;
       }
     }
     const ground = new THREE.Vector3();
-    if (this.groundHit(ground)) {
-      this.walkTarget = ground;
+    if (this.groundHit(ground)) this.walkRouted(ground.x, ground.z);
+  };
+  /** tap-to-walk: straight there, or round the rainforest's thicket along its trails */
+  private walkRouted(x: number, z: number) {
+    const k = this.kid?.root.position;
+    const path = k && !this.mount?.flies ? findWalkPath(k.x, k.z, x, z) : null;
+    if (path && path.length) {
+      const q = path.map(([px, pz]) => new THREE.Vector3(px, 0, pz));
+      this.walkTarget = q.shift() ?? null;
+      this.walkQueue = q;
+      this.routing = q.length > 1;
+    } else {
+      this.walkTarget = new THREE.Vector3(x, 0, z);
       this.walkQueue = [];
     }
-  };
+  }
   private onVisibility = () => {
     if (document.hidden) this.stop();
     else if (!this.paused) this.start();
@@ -1037,7 +1110,13 @@ export class ParkWorld {
         this.camera.position.lerp(focus.clone().add(off), Math.min(1, dt * 4));
         this.camera.lookAt(focus.x, focus.y + 0.8, focus.z);
       }
-      this.renderer.render(ride.scene, this.camera);
+      // (the same diorama finish as the park: ink outlines and colour steps on interiors and rides too)
+      if (this.sceneRT && this.composer) {
+        this.renderer.setRenderTarget(this.sceneRT);
+        this.renderer.render(ride.scene, this.camera);
+        this.renderer.setRenderTarget(null);
+        this.composer.render();
+      } else this.renderer.render(ride.scene, this.camera);
       this.frame = requestAnimationFrame(this.tick);
       return;
     }
@@ -1066,12 +1145,12 @@ export class ParkWorld {
         }
       }
     }
-    if (this.sky || this.slide) {
+    if (this.sky || this.slide || this.skiLock) {
       vx = 0;
       vz = 0;
     }
     const moving = Math.hypot(vx, vz) > 0.01;
-    const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && !this.slide && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
+    const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && !this.slide && !this.skiLock && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
     const craft = this.mount && isCraft(this.mount.kind) ? this.mount.kind : null;
     if (craft) {
       // boats and subs have momentum: they take a moment to get going, coast when you let go,
@@ -1091,20 +1170,30 @@ export class ParkWorld {
       }
       kid.facing = h.yaw;
       kid.root.rotation.y = h.yaw;
-      const nx = pos.x + Math.sin(h.yaw) * h.speed * dt;
-      const nz = pos.z + Math.cos(h.yaw) * h.speed * dt;
-      if (this.craftOk(craft, pos, nx, nz)) {
-        pos.x = nx;
-        pos.z = nz;
-      } else if (this.craftOk(craft, pos, nx, pos.z)) {
-        pos.x = nx;
-        h.speed *= 0.6;
-      } else if (this.craftOk(craft, pos, pos.x, nz)) {
-        pos.z = nz;
-        h.speed *= 0.6;
+      if (isBoat(craft)) {
+        // (the whole hull keeps to deep enough water, the pedalo near the shore - a gentle bounce
+        // and a hint when it noses too far out - and it bumps softly off other boats, the sea
+        // friends and the whales and orcas at the surface: ../world/rideables/craft moveBoat)
+        if (moveBoat(craft, h, pos, dt, seaDepth, this.afloatNear(pos)) === BUMP_DEEP && this.time > this.deepHintT) {
+          this.deepHintT = this.time + 8;
+          this.opts.onRideHint?.(craft === "pedalo" ? "\u{1F986} The duck pedalo likes to stay near the shore!" : `${MOUNT_CAPS[craft].emoji} The ${MOUNT_CAPS[craft].label} likes to stay near the shore!`);
+        }
       } else {
-        // a gentle bump: stop, and bounce back a touch
-        h.speed *= -0.2;
+        const nx = pos.x + Math.sin(h.yaw) * h.speed * dt;
+        const nz = pos.z + Math.cos(h.yaw) * h.speed * dt;
+        if (this.craftOk(craft, pos, nx, nz)) {
+          pos.x = nx;
+          pos.z = nz;
+        } else if (this.craftOk(craft, pos, nx, pos.z)) {
+          pos.x = nx;
+          h.speed *= 0.6;
+        } else if (this.craftOk(craft, pos, pos.x, nz)) {
+          pos.z = nz;
+          h.speed *= 0.6;
+        } else {
+          // a gentle bump: stop, and bounce back a touch
+          h.speed *= -0.2;
+        }
       }
       this.craftSpeed = Math.abs(h.speed);
       if (moving) {
@@ -1146,6 +1235,7 @@ export class ParkWorld {
         }
       }
       kid.facing = Math.atan2(vx, vz);
+      this.headFacing = kid.facing;
       this.idleT = 0;
       this.waved = false;
     } else {
@@ -1226,6 +1316,9 @@ export class ParkWorld {
         pos.z = o.z + (dz / d) * o.r;
       }
     }
+    // the rainforest's undergrowth is too thick to push through (and nobody climbs the falls' cliffs):
+    // slide along its edge
+    if (!aloft && !this.onSky && !this.gliding && !this.launch && !this.sky) pushOutOfThicket(pos, this.mount ? 0.9 : 0.55);
     for (const p of aloft || this.gliding ? [] : this.onSky ? this.park.places.filter((q) => q.sky === this.onSky) : this.allPlaces().filter((q) => !q.sky)) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;
@@ -1300,7 +1393,7 @@ export class ParkWorld {
       if (m.kind === "dragon") {
         const climb = (this.alt - this.dragonPrevAlt) / Math.max(dt, 1e-3);
         this.dragonPrevAlt = this.alt;
-        this.dragonFlight().apply(dt, { mount: m, kidRig: kid.rig?.root ?? null, pos, dYaw, alt: this.alt, climb, moving });
+        this.dragonFlight().apply(dt, { mount: m, kidRig: kid.rig?.root ?? null, pos, dYaw, alt: this.alt, climb, moving, cam: this.camera.position });
       }
       // wings beat under water too; the shadow measures down to the real ground / sea floor
       m.update(dt, isC ? rideSpeed : moving ? WALK_SPEED * 2 : 0, m.flies && Math.abs(this.alt) > 0.4, this.park.atmosphere.glow, pos.y - floorY);
@@ -1316,6 +1409,10 @@ export class ParkWorld {
       }
     } else if (this.slide) {
       this.tickSlide(dt, kid);
+    } else if (this.ski) {
+      this.tickSki(dt, kid);
+    } else if (this.lifting) {
+      this.tickLift(dt, kid);
     } else if (this.onSky || this.gliding || this.launch) {
       // up on a floating mountain; step off the edge and you float gently down (steering as you go)
       if (this.launch) {
@@ -1398,8 +1495,8 @@ export class ParkWorld {
     this.swimPitch += (pitchWant - this.swimPitch) * Math.min(1, dt * 4);
     // (no blob shadow on the ground while swimming — it floated under the kid like a pink ring)
     const blob = kid.root.children[1];
-    if (blob && !this.mount) blob.visible = !swimNow && !this.slide;
-    if (kid.rig && !this.mount && !this.slide) {
+    if (blob && !this.mount) blob.visible = !swimNow && !this.slide && !this.lifting;
+    if (kid.rig && !this.mount && !this.slide && !this.skiLock) {
       kid.rig.root.rotation.x = this.swimPitch;
       kid.rig.root.position.y = this.swimPitch * 0.45;
       kid.rig.setSwim(swimNow, swimMove);
@@ -1433,10 +1530,11 @@ export class ParkWorld {
         driven.speed = this.craftSpeed;
       }
       const diving = !this.mount && this.wasInSea && this.swimDepth > 1;
-      this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow, driven, diving });
-      const canHop = !this.mount && !this.sky && !this.launch && !this.gliding && !this.slide;
-      // (measured to the ride's side: a whale or a pirate ship is as easy to reach as a bike)
-      const n = canHop ? this.park.rides.nearest(pos) : null;
+      this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow, driven, diving, camera: this.camera });
+      const canHop = !this.mount && !this.sky && !this.launch && !this.gliding && !this.slide && !this.skiLock;
+      // (measured to the ride's side: a whale or a pirate ship is as easy to reach as a bike; a
+      // dragon: the one the kid faces / walks toward)
+      const n = canHop ? this.park.rides.nearest(pos, undefined, this.headFacing) : null;
       if (n && Math.abs(n.y - pos.y) < 4.5) {
         const h = this.hopNear ?? { id: "", kind: n.kind, label: "", x: 0, y: 0, z: 0, yaw: 0 };
         h.id = n.id;
@@ -1456,6 +1554,8 @@ export class ParkWorld {
         this.park.rides.setBonded(this.bondedDragons);
       }
       if (this.park.rides.bonding()) this.hopNear = null;
+      // which dragon "Say hi" / "Fly" is for: a ring at its feet and an arrow over it
+      this.park.rides.setTarget(this.hopNear && this.hopNear.kind === "dragon" ? this.hopNear.id : null);
       const bondId = this.park.rides.takeBonded();
       if (bondId) {
         this.bondedDragons.add(bondId);
@@ -1465,7 +1565,10 @@ export class ParkWorld {
         kid.rig?.play("cheer", true);
       }
       // point out a parked dragon close by (once each), and a manta that's come to a diving kid
-      if (canHop) {
+      // (on foot: how far the kid has walked, for the hints' wait)
+      if (!Number.isNaN(this.hintLast.x) && !this.mount) this.hintWalk += Math.min(2, Math.hypot(pos.x - this.hintLast.x, pos.z - this.hintLast.z));
+      this.hintLast.copy(pos);
+      if (canHop && hintsReady(this.time - this.readyAt, this.hintWalk)) {
         const dn = this.park.rides.parkedNear(pos, "dragon", 25);
         if (dn && !this.dragonHints.has(dn)) {
           this.dragonHints.add(dn);
@@ -1539,7 +1642,55 @@ export class ParkWorld {
     }
 
     // pet: follows behind, trots circles round the kid when idle — unless a station has it busy
-    if (this.pet && this.mount && this.petMode === "follow") {
+    if (this.pet && (this.slide || this.petSlide) && this.petMode === "follow") {
+      // on the penguin slides it toboggans too: on its tummy down the same chute, just behind the kid
+      const pet = this.pet;
+      const o = this.petSlideOut;
+      if (this.slide) {
+        const s0 = this.petSlideS;
+        this.petSlideS = petSlidePose(this.slide, o);
+        // (in it goes, just after the kid: its own splash)
+        if (s0 < slideSplashS(this.slide.chute) && this.petSlideS >= slideSplashS(this.slide.chute)) {
+          this.park.frost.slide.fx(o.x, WATER_Y, o.z, 1.4, 0);
+          this.play(pet, "cheer", true);
+        }
+      } else if (this.petSlide) {
+        const q = this.petSlide;
+        stepKidSlide(q, dt, 0, true, Infinity);
+        o.x = q.x;
+        o.y = q.y;
+        o.z = q.z;
+        o.yaw = q.yaw;
+        o.pitch = q.pitch;
+        if (q.splash) {
+          this.park.frost.slide.fx(q.x, WATER_Y, q.z, 1.4, 0);
+          this.play(pet, "cheer", true);
+        }
+      }
+      pet.root.position.set(o.x, o.y, o.z);
+      pet.root.rotation.y = o.yaw;
+      pet.facing = o.yaw;
+      if (pet.rig) {
+        pet.rig.setSlide(true);
+        const r = pet.rig.root;
+        const ca = Math.cos(o.pitch);
+        const sa = Math.sin(o.pitch);
+        r.rotation.order = "XYZ";
+        r.rotation.set(Math.PI / 2 + o.pitch, 0, 0);
+        r.position.set(0, 0.55 * sa + 0.32 / Math.max(0.5, ca), -0.55 * ca);
+      }
+      this.tickActor(pet, dt, 0, false);
+      if (this.petSlide && this.petSlide.done) this.endPetSlide();
+    } else if (this.pet && this.lifting && this.petMode === "follow") {
+      // on the chairlift it sits on the seat beside the kid (and waits beside them to board)
+      const L = this.park.frost.ski.lift();
+      const pet = this.pet;
+      const side = L.state === KL_RIDE ? 0.85 : 1.3;
+      pet.root.position.set(L.x + Math.cos(L.yaw) * side, L.y + (L.state === KL_RIDE ? 0.02 : 0), L.z - Math.sin(L.yaw) * side);
+      pet.root.rotation.y = L.yaw;
+      pet.facing = L.yaw;
+      this.tickActor(pet, dt, 0, L.state !== KL_RIDE);
+    } else if (this.pet && this.mount && this.petMode === "follow") {
       const seat = this.mount.root.localToWorld(this.mount.petSeat.clone());
       this.pet.root.position.copy(seat);
       this.pet.root.rotation.y = kid.root.rotation.y;
@@ -1643,7 +1794,7 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn && !aloft && !this.sky && !this.gliding && !this.launch && !this.slide) {
+    if (this.inputOn && !aloft && !this.sky && !this.gliding && !this.launch && !this.slide && !this.skiLock) {
       let found: PlaceDef | null = null;
       const here = this.onSky
         ? [...this.park.places.filter((p) => p.sky === this.onSky), ...this.wizards.filter((w) => w.island === this.onSky).map((w) => w.place)]
@@ -1674,7 +1825,9 @@ export class ParkWorld {
     // the sea: the reef and its creatures show when you're in (or looking into) the water
     const uw = this.park.underwater;
     const nearSea = Math.hypot(pos.x, pos.z) > 118;
-    uw.group.visible = this.camUnder || this.wasInSea || nearSea || (!!this.mount && MOUNT_CAPS[this.mount.kind].medium === "under" && pos.y < WATER_Y);
+    // (not in Rainbow Lake or the river: they're fresh water, with their own fish)
+    const inland = Math.hypot(pos.x, pos.z) < ISLAND_R - 4 && waterSdf(pos.x, pos.z) < 3;
+    uw.group.visible = !inland && (this.camUnder || this.wasInSea || nearSea || (!!this.mount && MOUNT_CAPS[this.mount.kind].medium === "under" && pos.y < WATER_Y));
     const uwr = uw.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow });
     const ab = this.park.abyss.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow }).spot;
     if (ab && ab.id !== this.abyssSpot) this.opts.onAbyssSpot?.(ab);
@@ -1686,12 +1839,30 @@ export class ParkWorld {
     const fs = this.park.frost.update(dt, this.time, { kid: pos, glow: this.park.atmosphere.glow, hour: this.park.atmosphere.hour, under: this.camUnder }).spot;
     if (fs && fs.id !== this.frostSpot) this.opts.onAbyssSpot?.(fs);
     this.frostSpot = fs?.id ?? null;
+    // the Penguin Ski Run: skis at the start hut, the chairlift at the bottom, the lodge's viewpoint;
+    // and on foot the kid never walks through a penguin (they step aside; the rest is a bump)
+    {
+      const fr = this.park.frost;
+      const onFoot = nearFrost && !this.slide && !this.skiLock && !this.mount && !this.sky && !this.onSky && !this.gliding && !this.launch && !this.wasInSea && !this.building;
+      this.skiNear = onFoot && fr.ski.hutAt(pos.x, pos.z);
+      this.liftNear = onFoot && fr.ski.liftAt(pos.x, pos.z);
+      fr.ski.kidOnPiste(this.ski ? this.ski.s : -99);
+      if (onFoot) fr.blockKid(pos);
+      const v = FROST_SKI.view;
+      const dv = Math.hypot(pos.x - v.x, pos.z - v.z);
+      const atView = onFoot && dv < 2.6;
+      this.skiView += ((atView ? 1 : 0) - this.skiView) * Math.min(1, dt * 1.6);
+      if (atView && !this.skiViewSaid) {
+        this.skiViewSaid = true;
+        this.opts.onSki?.("view");
+      } else if (dv > 7) this.skiViewSaid = false;
+    }
     this.park.dolphins.update(dt, this.time, { kid: pos, under: this.camUnder });
     const dn = this.park.dino.update(dt, this.time, { kid: pos, glow: this.park.atmosphere.glow, hour: this.park.atmosphere.hour });
     if (dn.roar) this.opts.onRoar?.();
     if (dn.spot && dn.spot.id !== this.dinoSpot) this.opts.onAbyssSpot?.(dn.spot);
     this.dinoSpot = dn.spot?.id ?? null;
-    if (!this.metDino && Math.hypot(pos.x - DINO_ISLAND.x, pos.z - DINO_ISLAND.z) < DINO_ISLAND.r + 10) {
+    if (!this.metDino && dinoShoreDist(pos.x, pos.z) < 10) {
       this.metDino = true;
       this.opts.onVillage?.(DINO_ISLAND.name, "the dinosaurs");
     }
@@ -1769,7 +1940,7 @@ export class ParkWorld {
 
     // the camera drifts round behind the kid as they move, so "forward" is ahead — unless a finger
     // turned the view a moment ago, or they're heading back towards the camera (no sudden spins)
-    if (moving && !this.building && !this.sky && !this.slide && !this.ride && this.time - this.userTurnAt > 2.2) {
+    if (moving && !this.building && !this.sky && !this.slide && !this.skiLock && !this.ride && this.time - this.userTurnAt > 2.2) {
       let d = kid.facing + Math.PI - this.camYaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       // strong when heading away from the camera, only a gentle drift when walking sideways
@@ -1788,6 +1959,32 @@ export class ParkWorld {
       this.camBase.copy(this.camera.position);
       this.lookAtPt.set(pos.x, pos.y + 1.2, pos.z);
       this.camYaw = k.yaw + Math.PI;
+    } else if (this.ski || this.lifting) {
+      // skiing: chase cam behind and up, looking down the piste; on the lift: off to the side,
+      // watching the chair climb with the run below
+      if (this.ski) {
+        const k = this.ski;
+        const hx = Math.sin(Math.atan2(k.dx, k.dz));
+        const hz = Math.cos(Math.atan2(k.dx, k.dz));
+        // (up behind the kid and off to the side away from the chairlift, so the lift's top station
+        // and its chairs never come between the camera and the kid)
+        this.slideCam.set(pos.x - hx * 6.5 + hz * 3, pos.y + 6.5, pos.z - hz * 6.5 - hx * 3);
+        this.camera.position.lerp(this.slideCam, Math.min(1, dt * 3.5));
+        this.camera.lookAt(pos.x + hx * 5, pos.y - 0.3, pos.z + hz * 5);
+        this.camYaw = Math.atan2(k.dx, k.dz) + Math.PI;
+      } else {
+        const L = this.park.frost.ski.lift();
+        const sx = Math.cos(L.yaw);
+        const sz = -Math.sin(L.yaw);
+        this.slideCam.set(pos.x - sx * 9 - Math.sin(L.yaw) * 4, pos.y + 2.5, pos.z - sz * 9 - Math.cos(L.yaw) * 4);
+        this.camera.position.lerp(this.slideCam, Math.min(1, dt * 3));
+        this.camera.lookAt(pos.x, pos.y + 0.6, pos.z);
+        this.camYaw = L.yaw + Math.PI;
+      }
+      const ground = worldFloor(this.camera.position.x, this.camera.position.z) + 1.4;
+      if (this.camera.position.y < ground) this.camera.position.y = ground;
+      this.camBase.copy(this.camera.position);
+      this.lookAtPt.set(pos.x, pos.y + 1.2, pos.z);
     } else if (this.sky) {
       // chase cam: behind and above the car, looking down the track
       const tan = this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
@@ -1818,7 +2015,23 @@ export class ParkWorld {
       // storybook look's model-railway distance lost the kid and the manta in the haze)
       // (riding: is the KID's head under? a sub's cabin can sit below its root)
       const headUp = this.mount ? 2.0 : 1.6;
-      if (pos.y + seatY + headUp < WATER_Y) dist = Math.min(dist, this.mount ? 15 * view : 13);
+      // (…but a giant near the kid — a true-size blue whale is 40 units, the megalodon 26 — pulls it
+      // back smoothly, and a little wider, until both fit: ../world/sea/bigSea)
+      const uwView = pos.y + seatY + headUp < WATER_Y;
+      let bigWant = 0;
+      let bigFov = 0;
+      if (uwView) {
+        dist = Math.min(dist, this.mount ? 15 * view : 13);
+        const bb = this.bigBuf;
+        bb.length = 0;
+        forEachBigSea((b) => bb.push(b));
+        const f = bigFrame(this.lookAtPt, bb, dist, 36, this.bigOut);
+        bigWant = f.dist - dist;
+        bigFov = f.fov;
+      }
+      this.camBigX += (bigWant - this.camBigX) * Math.min(1, dt * (bigWant > this.camBigX ? 0.9 : 0.6));
+      this.camBigFov += (bigFov - this.camBigFov) * Math.min(1, dt * 0.9);
+      if (uwView) dist += this.camBigX;
       // a tree (or big rock) between the camera and the kid? slide the camera in closer, like
       // a proper third-person camera, instead of staring at a trunk
       // (not in the diorama look: from that height canopies rarely block, and pulling in ruins the view)
@@ -1839,7 +2052,35 @@ export class ParkWorld {
         this.camPull += (want - this.camPull) * Math.min(1, dt * (want < this.camPull ? 6 : 2));
         dist = Math.min(dist, this.camPull);
       }
-      const off = new THREE.Vector3(0, Math.sin(this.camPitch) * dist, Math.cos(this.camPitch) * dist).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camYaw);
+      // under the rainforest's canopy on foot: drop down among the trunks, closer in and looking up a
+      // little, so the roof of leaves is overhead (the jungle's cut keeps the leaves off the lens)
+      const inForest = !this.mount && !this.building && underCanopy(pos.x, pos.z) && pos.y > WATER_Y - 0.5;
+      this.forestCam += ((inForest ? 1 : 0) - this.forestCam) * Math.min(1, dt * 1.6);
+      const fc = this.forestCam * this.forestCam * (3 - 2 * this.forestCam);
+      const pitch = this.camPitch + (Math.min(this.camPitch, 0.3) - this.camPitch) * fc;
+      if (fc > 0.001) {
+        dist *= 1 - 0.38 * fc;
+        // keep the camera over the trail behind the kid rather than deep in the undergrowth
+        const dx = Math.sin(this.camYaw);
+        const dz = Math.cos(this.camYaw);
+        let room = dist;
+        for (let k = 2; k <= 14; k++) {
+          const d = (k / 14) * dist * Math.cos(pitch);
+          if (thicketSdf(pos.x + dx * d, pos.z + dz * d) < -2.2) {
+            room = Math.max(7, d / Math.max(0.3, Math.cos(pitch)));
+            break;
+          }
+        }
+        this.forestPull += (room - this.forestPull) * Math.min(1, dt * (room < this.forestPull ? 5 : 1.5));
+        dist = Math.min(dist, dist + (this.forestPull - dist) * fc);
+      }
+      const fov0 = this.look === "diorama" ? (this.camera.aspect < 0.8 ? 56 : 38) : this.camera.aspect < 0.8 ? 58 : 42;
+      const fov = fov0 + 20 * fc + this.camBigFov;
+      if (Math.abs(this.camera.fov - fov) > 0.05) {
+        this.camera.fov = fov;
+        this.camera.updateProjectionMatrix();
+      }
+      const off = new THREE.Vector3(0, Math.sin(pitch) * dist, Math.cos(pitch) * dist).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.camYaw);
       // look a little ahead of where the kid is heading, so they can see what's coming
       const ahead = moving ? 3 : 1.2;
       const lx = pos.x + Math.sin(kid.facing) * ahead;
@@ -1875,14 +2116,40 @@ export class ParkWorld {
         // filled the view with its bright underside)
         // float a little above the kid, over the coral tops (down among the coral, sea fans and
         // grass blocked the view), and never up through the surface
+        // (pulled back over a rift wall or a reef slope, the floor there would lift the camera far
+        // above the kid, looking down from the rim: slide it in toward them instead)
+        for (let k = 0; k < 10 && worldFloor(cp.x, cp.z) + 2.2 > pos.y + seatY + 4.5; k++) cp.lerp(this.lookAtPt, 0.25);
         cp.y = Math.min(WATER_Y - 0.6, Math.max(pos.y + seatY + 1.6, worldFloor(cp.x, cp.z) + 2.2));
+        // the line from the kid back to the camera must stay in open water (pulled back for a giant,
+        // it would otherwise sit inside a rift wall, a reef slope or up through the surface): slide
+        // in to the last clear point, smoothly
+        const L = this.lookAtPt;
+        let clear = 1;
+        for (let k = 1; k <= 14; k++) {
+          const u = k / 14;
+          const sx = L.x + (cp.x - L.x) * u;
+          const sy = L.y + (cp.y - L.y) * u;
+          const sz = L.z + (cp.z - L.z) * u;
+          if (sy < worldFloor(sx, sz) + 1.1 || sy > WATER_Y - 0.4) {
+            clear = (k - 1) / 14;
+            break;
+          }
+        }
+        const span = Math.hypot(cp.x - L.x, cp.y - L.y, cp.z - L.z);
+        clear = Math.max(clear, Math.min(1, 4 / Math.max(span, 1e-3)));
+        this.uwPull += (clear - this.uwPull) * Math.min(1, dt * (clear < this.uwPull ? 8 : 1.5));
+        // (in at once when something's in the way, back out gently)
+        const pull = Math.min(this.uwPull, clear);
+        if (pull < 0.999) cp.set(L.x + (cp.x - L.x) * pull, L.y + (cp.y - L.y) * pull, L.z + (cp.z - L.z) * pull);
       } else if (seaDepth(cp.x, cp.z) > 0 && cp.y < WATER_Y + 1.2) cp.y = WATER_Y + 1.2;
       // aim a little above the kid: they sit in the lower third and the world fills the frame
       // (aiming straight at them left the bottom half of the screen as empty grass)
       // (under the sea, look a little DOWN at the reef instead — up is just the surface)
       // (under water: look level, out across the reef and the blue — the water is clear now)
       // (on a dragon, aim lower so the whole dragon - wings, rolls, fire - stays in the picture)
-      const aimUp = (kidUnder ? 0.2 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(this.camPitch) - 0.35)) * (this.mount?.kind === "dragon" && this.alt > 1 ? 0.35 : 1);
+      const aimUp = (kidUnder ? 0.2 : dist * (this.camera.aspect < 0.8 ? 0.34 : 0.38) * Math.max(0, Math.cos(pitch) - 0.35) + this.forestCam * dist * 0.1) * (this.mount?.kind === "dragon" && this.alt > 1 ? 0.35 : 1) - (this.mount?.kind === "ship" ? dist * 0.38 * Math.max(0, Math.cos(pitch) - 0.35) + 2.2 : 0);
+      // (the Pirate Ship: aim at the captain at the wheel, so they sit in the middle of the picture
+      // with the deck, masts and sails rising ahead - aimed higher, the stern and the kid fell off the bottom)
       this.camera.lookAt(this.lookAtPt.x, this.lookAtPt.y + aimUp, this.lookAtPt.z);
       // a telescope's peek: glance over at the island it's aimed at
       if (this.peek && this.time < this.peek.until) this.camera.lookAt(this.peek.x, this.peek.y, this.peek.z);
@@ -1890,16 +2157,24 @@ export class ParkWorld {
     // under the sea? deep-blue fog, no sky
     const camUnder = !this.building && !this.ride && this.camera.position.y < WATER_Y - 0.05;
     if (camUnder || this.camUnder) {
+      // (Rainbow Lake and the river are fresh water: greener and clearer than the sea)
+      this.park.atmosphere.setFresh(camUnder && waterSdf(this.camera.position.x, this.camera.position.z) < 3 && Math.hypot(this.camera.position.x, this.camera.position.z) < ISLAND_R);
       this.park.atmosphere.setUnderwater(camUnder, WATER_Y - this.camera.position.y);
       this.park.storybook?.setUnderwater(camUnder);
       this.park.fauna.setVisible(!camUnder);
     }
     this.camUnder = camUnder;
+    // (big creatures dither away between the camera and the kid, under water)
+    if (this.kid) {
+      const kp = this.kid.root.position;
+      setOccluderFocus(kp.x, kp.y + (this.mount ? this.mount.seat.y : 0) + 1.1, kp.z, camUnder ? 1 : 0);
+    }
     // bloom a little stronger at twilight, when the magic comes out
     const glowNow = this.park.atmosphere.glow;
     if (this.bloom) this.bloom.strength = 0.28 + glowNow * 0.5;
     // lift the exposure at twilight so the world stays readable around the glow
     this.renderer.toneMappingExposure = 1.12 + glowNow * 0.55;
+    const framed = this.frameSkiView();
     if (this.sceneRT) {
       this.renderer.setRenderTarget(this.sceneRT);
       this.renderer.render(this.scene, this.camera);
@@ -1907,8 +2182,36 @@ export class ParkWorld {
     }
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
+    if (framed) {
+      this.camera.position.copy(this.skiSaved.p);
+      this.camera.quaternion.copy(this.skiSaved.q);
+    }
     this.frame = requestAnimationFrame(this.tick);
   };
+
+  /** at the lodge's viewpoint: swing the camera round behind the kid to frame the whole ski run */
+  private frameSkiView(): boolean {
+    const w = this.skiView;
+    if (w < 0.01 || !this.kid || this.ride) return false;
+    const e = w * w * (3 - 2 * w);
+    const v = FROST_SKI.view;
+    const k = this.kid.root.position;
+    const lx = v.look.x;
+    const lz = v.look.z;
+    const dx = lx - v.x;
+    const dz = lz - v.z;
+    const dl = Math.hypot(dx, dz) || 1;
+    this.skiSaved.p.copy(this.camera.position);
+    this.skiSaved.q.copy(this.camera.quaternion);
+    // (behind the kid and well up, over the chairlift's cables, the whole run filling the view beyond)
+    const want = this.skiCamTmp.set(k.x - (dx / dl) * 9, k.y + 12, k.z - (dz / dl) * 9);
+    this.camera.position.lerp(want, e);
+    const q0 = this.skiSaved.q;
+    this.camera.lookAt(lx, v.lookY + 1, lz);
+    this.camera.quaternion.slerpQuaternions(q0, this.camera.quaternion.clone(), e);
+    return true;
+  }
+  private skiCamTmp = new THREE.Vector3();
 
   /** where the pointer ray meets the ground (the terrain mesh, else a flat plane) */
   private groundHit(out: THREE.Vector3): boolean {
@@ -2061,6 +2364,27 @@ export class ParkWorld {
   }
 
   /** can the boat / sub we're driving move from `pos` to (x, z)? */
+  /** everything afloat near a boat at pos: the rides' boats and sea friends, and the big sea creatures at the surface */
+  private afloatNear(pos: THREE.Vector3): readonly SeaBody[] {
+    const out = this.afloat;
+    out.length = 0;
+    if (this.park) for (const b of this.park.rides.seaBodies()) out.push(b);
+    let n = 0;
+    forEachBigSea((b) => {
+      // (a whale or an orca with its back up near the surface)
+      if (Math.abs(b.x - pos.x) > 80 || Math.abs(b.z - pos.z) > 80 || b.y + b.len * 0.09 < WATER_Y - 2.4) return;
+      const s = this.afloatBig[n] ?? (this.afloatBig[n] = { x: 0, z: 0, r: 0, hl: 0, yaw: 0 });
+      n++;
+      s.x = b.x;
+      s.z = b.z;
+      s.r = Math.max(0.8, b.len * 0.1);
+      s.hl = b.len * 0.36;
+      s.yaw = b.yaw;
+      out.push(s);
+    });
+    return out;
+  }
+
   private craftOk(kind: MountKind, pos: THREE.Vector3, x: number, z: number): boolean {
     const yaw = this.kid?.root.rotation.y ?? 0;
     return isBoat(kind) ? boatCanMove(kind, pos.x, pos.z, x, z, yaw, seaDepth) : isSub(kind) ? subCanMove(kind, pos.y, x, z, worldFloor) : true;
@@ -2146,6 +2470,143 @@ export class ParkWorld {
   /** Standing on a floating mountain? Its name. */
   get onSkyIslandName(): string | null {
     return this.onSky ? (skyIslandById(this.onSky)?.name ?? null) : null;
+  }
+
+  // ── Frostpeak's Penguin Ski Run ──
+
+  /** By the start hut? (the HUD offers "⛷️ Ski!") */
+  get skiOffer(): boolean {
+    return this.skiNear && !this.skiLock;
+  }
+  /** By the chairlift's boarding line? (the HUD offers "🚡 Chairlift") */
+  get liftOffer(): boolean {
+    return this.liftNear && !this.skiLock;
+  }
+  /** On skis or on the chairlift right now? (the HUD keeps only the joystick) */
+  get skiing(): boolean {
+    return this.skiLock;
+  }
+
+  /** Grab skis at the start hut and glide onto the start line (off when the top's clear). */
+  startSki(): boolean {
+    const kid = this.kid;
+    if (!this.park || !kid || this.skiLock || this.slide || this.ride || this.mount || !this.skiNear) return false;
+    this.ski = makeKidSki();
+    this.skiFrom.copy(kid.root.position);
+    this.walkTarget = null;
+    this.walkQueue = [];
+    kid.rig?.setSwim(false, false);
+    kid.rig?.setStance("ski");
+    if (!this.skiGear) this.skiGear = buildKidSkis();
+    kid.root.add(this.skiGear);
+    this.opts.onSki?.("start");
+    return true;
+  }
+
+  private tickSki(dt: number, kid: Actor) {
+    const k = this.ski!;
+    const fr = this.park!.frost;
+    // (the joystick's sideways push: the camera chases from behind, screen-right = the kid's right)
+    const mag = Math.hypot(this.move.x, this.move.y);
+    const steer = this.inputOn && mag > 0.12 ? -Math.max(-1, Math.min(1, this.move.x)) : 0;
+    stepKidSki(k, dt, steer, fr.ski.topClear(), fr.ski.aheadOf(k.s));
+    const pos = kid.root.position;
+    if (k.phase === "start") {
+      // gliding from the hut onto the start line
+      const u = Math.min(1, k.t / 0.8);
+      pos.lerpVectors(this.skiFrom, this.skiCamTmp.set(k.x, k.y, k.z), u * u * (3 - 2 * u));
+    } else pos.set(k.x, k.y, k.z);
+    kid.facing = k.yaw;
+    kid.root.rotation.y = k.yaw;
+    if (kid.rig) {
+      kid.rig.root.rotation.set(0, 0, -k.roll);
+      kid.rig.root.position.set(0, 0.06, 0);
+    }
+    this.tickActor(kid, dt, 0, false);
+    if (k.spray) {
+      // a fan of snow off the outside ski
+      const side = k.turnSign || 1;
+      fr.slide.fx(pos.x - Math.cos(k.yaw) * side * 0.5 - k.dx * 0.4, pos.y + 0.1, pos.z + Math.sin(k.yaw) * side * 0.5 - k.dz * 0.4, 1.3 + k.v * 0.15, 4);
+    }
+    if (k.gate) this.opts.onSki?.("gate", k.gates, FROST_SKI.gates.length);
+    if (k.finish) {
+      fr.slide.fx(pos.x, pos.y + 0.1, pos.z, 2, 4);
+      this.burst(pos.clone().setY(pos.y + 1.6), 60);
+      this.opts.onSki?.("finish", k.gates, FROST_SKI.gates.length);
+      this.endSki();
+      this.play(kid, "cheer", true);
+    }
+  }
+
+  /** Skis off (at the bottom, or if anything else takes over). */
+  endSki() {
+    if (!this.ski) return;
+    this.ski = null;
+    this.park?.frost.ski.kidOnPiste(-99);
+    const kid = this.kid;
+    if (!kid) return;
+    if (this.skiGear) kid.root.remove(this.skiGear);
+    kid.rig?.setStance(null);
+    if (kid.rig) {
+      kid.rig.root.rotation.set(0, 0, 0);
+      kid.rig.root.position.set(0, 0, 0);
+    }
+    const p = kid.root.position;
+    p.y = worldFloor(p.x, p.z);
+  }
+
+  /** Step onto the chairlift's boarding line: the next chair scoops you up, you hop off at the top. */
+  rideLift(): boolean {
+    const kid = this.kid;
+    if (!this.park || !kid || this.skiLock || this.slide || this.ride || this.mount || !this.liftNear) return false;
+    if (!this.park.frost.ski.rideLift(kid.root.position.x, kid.root.position.z)) return false;
+    this.lifting = true;
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.opts.onSki?.("lift");
+    return true;
+  }
+
+  private tickLift(dt: number, kid: Actor) {
+    const fr = this.park!.frost;
+    const L = fr.ski.lift();
+    const pos = kid.root.position;
+    pos.set(L.x, L.y, L.z);
+    kid.facing = L.yaw;
+    kid.root.rotation.y = L.yaw;
+    const sit = L.state === KL_RIDE;
+    kid.rig?.setStance(sit ? "sit" : null);
+    if (kid.rig) kid.rig.root.position.set(0, sit ? -KID_SEAT_DROP : 0, sit ? 0.12 : 0);
+    this.tickActor(kid, dt, L.state === KL_WAIT && L.t < 0.6 ? 1.2 : 0, false);
+    if (L.state === KL_DONE) this.endLift(true);
+  }
+
+  /** Off the chairlift (hopped off at the top, or called off). */
+  endLift(top = false) {
+    if (!this.lifting) return;
+    this.lifting = false;
+    this.park?.frost.ski.liftDone();
+    const kid = this.kid;
+    if (!kid) return;
+    kid.rig?.setStance(null);
+    kid.rig?.root.position.set(0, 0, 0);
+    const p = kid.root.position;
+    p.y = worldFloor(p.x, p.z);
+    if (top) {
+      this.play(kid, "cheer", true);
+      this.opts.onSki?.("top");
+    }
+  }
+
+  /** the pet's slide is over (in the sea after the kid): back on its feet / paddling */
+  private endPetSlide() {
+    this.petSlide = null;
+    const pet = this.pet;
+    if (pet?.rig) {
+      pet.rig.setSlide(false);
+      pet.rig.root.rotation.set(0, 0, 0);
+      pet.rig.root.position.set(0, 0, 0);
+    }
   }
 
   // ── Frostpeak's penguin slides ──
@@ -2243,6 +2704,15 @@ export class ParkWorld {
     this.walkTarget = null;
     this.walkQueue = [];
     this.park?.frost.slide.hold(-1);
+    if (splashed && this.pet && this.petMode === "follow") {
+      // (the pet is a few metres behind: it carries on down the chute and splashes in after the kid)
+      const q = makeKidSlide(k.chute, this.petSlideOut.x, this.petSlideOut.z);
+      q.s = this.petSlideS;
+      q.lat = k.lat * 0.6;
+      q.v = Math.max(3, k.v);
+      q.waiting = false;
+      this.petSlide = q;
+    } else this.endPetSlide();
     const kid = this.kid;
     if (!kid) return;
     if (kid.rig) {
@@ -2268,6 +2738,8 @@ export class ParkWorld {
   rideSkyCoaster(): boolean {
     if (!this.park || !this.kid || this.ride || this.sky || this.building) return false;
     this.endSlide(false);
+    this.endSki();
+    this.endLift();
     this.dismount(true);
     const st = this.park.skyTrain;
     st.held = true;
@@ -2326,6 +2798,8 @@ export class ParkWorld {
   mountUp(kind: MountKind, accent?: string, skin?: MountSkin, breed?: DragonBreed) {
     if (!this.kid || this.ride) return;
     this.endSlide(false);
+    this.endSki();
+    this.endLift();
     this.dismount(true);
     const m = buildMount(kind, accent ?? this.opts.accent, skin, breed);
     if (kind === "dragon") {
@@ -2485,6 +2959,8 @@ export class ParkWorld {
   /** Leave a place: step back out of its door so it doesn't reopen straight away. */
   stepOutOf(placeId: string) {
     this.endSlide(false);
+    this.endSki();
+    this.endLift();
     const p = this.allPlaces().find((x) => x.id === placeId);
     if (!p || !this.kid) return;
     const dir = new THREE.Vector3(-p.x, 0, -p.z).normalize();
@@ -2556,4 +3032,31 @@ function badgeSprite(emoji: string, size: number): THREE.Sprite {
 function turnTowards(a: Actor, dt: number) {
   const diff = ((((a.facing - a.root.rotation.y + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) - Math.PI;
   a.root.rotation.y += diff * Math.min(1, dt * 10);
+}
+
+/** sitting on the chairlift: how far below the seat the kid's feet-origin hangs (their hips on the seat) */
+const KID_SEAT_DROP = 0.48;
+
+/** the Park kid's skis and poles (bright, chunky; under their feet, facing +z) */
+function buildKidSkis(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = "kid-skis";
+  const skiMat = new THREE.MeshToonMaterial({ color: "#ff3d6e" });
+  const tipMat = new THREE.MeshToonMaterial({ color: "#ffd257" });
+  const poleMat = new THREE.MeshToonMaterial({ color: "#e8eef8" });
+  for (const side of [-1, 1]) {
+    const ski = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 1.9), skiMat);
+    ski.position.set(side * 0.22, 0.03, 0.12);
+    g.add(ski);
+    const tip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.3), tipMat);
+    tip.position.set(side * 0.22, 0.1, 1.12);
+    tip.rotation.x = -0.6;
+    g.add(tip);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.2, 6), poleMat);
+    pole.position.set(side * 0.62, 0.62, 0.3);
+    pole.rotation.x = 0.35;
+    g.add(pole);
+  }
+  g.traverse((o) => ((o as THREE.Mesh).isMesh && (o.castShadow = true)));
+  return g;
 }

@@ -334,11 +334,61 @@ export function buildFleet(scene: THREE.Group | THREE.Scene, opts: { lowQuality?
       const a = (s * WAKE_N + i) * 2;
       wakeIdx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
     }
+  // per vertex: (which edge of its ribbon 0 / 1, age 0..1) - the foam breaks up toward the edges
+  // and as it ages
+  const wakeFx = new Float32Array(WAKE_N * 2 * 3 * 2);
   const wakeGeo = new THREE.BufferGeometry();
   wakeGeo.setAttribute("position", new THREE.BufferAttribute(wakePos, 3).setUsage(THREE.DynamicDrawUsage));
   wakeGeo.setAttribute("color", new THREE.BufferAttribute(wakeCol, 4).setUsage(THREE.DynamicDrawUsage));
+  wakeGeo.setAttribute("aWake", new THREE.BufferAttribute(wakeFx, 2).setUsage(THREE.DynamicDrawUsage));
   wakeGeo.setIndex(wakeIdx);
   const wakeMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+  // foam, not a ribbon: frothy noise in world space eats the ribbons' edges into broken, bubbly
+  // lace (more as the foam ages and spreads), with holes and flecks through the middle
+  const wakeTime = { value: 0 };
+  wakeMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uWakeT = wakeTime;
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 aWake;\nvarying vec2 vWake;\nvarying vec2 vWakeXZ;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvWake = aWake;\nvWakeXZ = ( modelMatrix * vec4( position, 1.0 ) ).xz;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace(
+        "#include <common>",
+        `#include <common>
+        varying vec2 vWake; varying vec2 vWakeXZ; uniform float uWakeT;
+        float wkHash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+        float wkNoise( vec2 p ) {
+          vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
+          return mix( mix( wkHash( i ), wkHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( wkHash( i + vec2( 0.0, 1.0 ) ), wkHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
+        }
+        // bubbles: round cells that pop in and out
+        float wkBubbles( vec2 p ) {
+          vec2 i = floor( p ); vec2 f = fract( p ) - 0.5;
+          vec2 o = vec2( wkHash( i ), wkHash( i + 7.3 ) ) - 0.5;
+          float r = 0.18 + 0.22 * wkHash( i + 3.1 );
+          return 1.0 - smoothstep( r - 0.08, r, length( f - o * 0.4 ) );
+        }`,
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          vec2 q = vWakeXZ;
+          float n = wkNoise( q * 1.3 + vec2( 0.0, uWakeT * 0.25 ) ) * 0.55 + wkNoise( q * 3.7 - uWakeT * 0.4 ) * 0.3 + wkNoise( q * 9.0 ) * 0.15;
+          float edge = abs( vWake.x * 2.0 - 1.0 );
+          float age = vWake.y;
+          // the frothy edge: noise must beat a threshold that rises toward the edges and with age
+          float thr = 0.24 + edge * edge * 0.3 + age * 0.28;
+          float foam = smoothstep( thr, thr + 0.07, n );
+          // holes through the older foam, and bright bubbles round its broken edge
+          float holes = wkBubbles( q * 2.4 + 0.5 ) * smoothstep( 0.15, 0.6, age );
+          foam *= 1.0 - holes * 0.9;
+          float fleck = wkBubbles( q * 5.0 ) * ( 1.0 - foam ) * step( edge, 0.97 ) * ( 1.0 - age ) * 0.8;
+          diffuseColor.a *= clamp( foam * 1.25 + fleck, 0.0, 1.0 );
+        }`,
+      );
+  };
+  wakeMat.customProgramCacheKey = () => "fleet-wake-foam";
   const wake = new THREE.Mesh(wakeGeo, wakeMat);
   wake.name = "fleet:wake";
   wake.frustumCulled = false;
@@ -477,7 +527,7 @@ export function buildFleet(scene: THREE.Group | THREE.Scene, opts: { lowQuality?
       wake.visible = false;
       return;
     }
-    const LIFE = 2.6;
+    const LIFE = 3.2;
     let alive = false;
     // newest first: i = 0 is the latest sample
     for (let i = 0; i < WAKE_N; i++) {
@@ -515,6 +565,8 @@ export function buildFleet(scene: THREE.Group | THREE.Scene, opts: { lowQuality?
             wakePos[p + 1] = wakePos[p - 5];
             wakePos[p + 2] = wakePos[p - 4];
           }
+          wakeFx[(vi + e) * 2] = e;
+          wakeFx[(vi + e) * 2 + 1] = Math.min(1, age / LIFE);
           const q = (vi + e) * 4;
           wakeCol[q] = 1;
           wakeCol[q + 1] = 1;
@@ -528,6 +580,8 @@ export function buildFleet(scene: THREE.Group | THREE.Scene, opts: { lowQuality?
     if (!alive) trailCount = 0;
     (wakeGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     (wakeGeo.attributes.color as THREE.BufferAttribute).needsUpdate = true;
+    (wakeGeo.attributes.aWake as THREE.BufferAttribute).needsUpdate = true;
+    wakeTime.value = t;
   };
 
   const updateParticles = (dc: DrivenCraft | null, dt: number) => {

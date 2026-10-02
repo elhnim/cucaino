@@ -21,6 +21,8 @@ export interface DragonFlightFrame {
   alt: number;
   climb: number;
   moving: boolean;
+  /** where the camera is (wind streaks rush past between it and the dragon, where they're seen) */
+  cam?: THREE.Vector3;
 }
 
 export interface DragonFlight {
@@ -40,7 +42,7 @@ export interface DragonFlight {
 }
 
 const CLOUD_N = 12;
-const PUFF_N = 64;
+const PUFF_N = 96;
 
 export function createDragonFlight(scene: THREE.Scene, opts: { lowQuality?: boolean } = {}): DragonFlight {
   const low = !!opts.lowQuality;
@@ -95,12 +97,13 @@ export function createDragonFlight(scene: THREE.Scene, opts: { lowQuality?: bool
     /** 0 fire, 1 streak, 2 cloud bit */
     kind: number;
     yaw: number;
+    pit: number;
   }
-  const puffs: Puff[] = Array.from({ length: PUFF_N }, () => ({ on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 1, age: 0, size: 1, kind: 0, yaw: 0 }));
+  const puffs: Puff[] = Array.from({ length: PUFF_N }, () => ({ on: false, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, life: 1, age: 0, size: 1, kind: 0, yaw: 0, pit: 0 }));
   const FIRE = ["#ffd257", "#ff9a3c", "#ff6f91", "#fff3a0"];
   const BIT = ["#ffffff", "#ffe1f0", "#e8f2ff"];
   let nextPuff = 0;
-  const emit = (x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number, size: number, kind: number, c: string, yaw = 0) => {
+  const emit = (x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number, size: number, kind: number, c: string, yaw = 0, pit = 0) => {
     const i = nextPuff;
     nextPuff = (nextPuff + 1) % PUFF_N;
     const p = puffs[i];
@@ -116,6 +119,7 @@ export function createDragonFlight(scene: THREE.Scene, opts: { lowQuality?: bool
     p.size = size;
     p.kind = kind;
     p.yaw = yaw;
+    p.pit = pit;
     puffMesh.setColorAt(i, col.set(c));
     if (puffMesh.instanceColor) puffMesh.instanceColor.needsUpdate = true;
   };
@@ -219,17 +223,52 @@ export function createDragonFlight(scene: THREE.Scene, opts: { lowQuality?: bool
       const yaw = m.root.rotation.y;
       const fx = Math.sin(yaw);
       const fz = Math.cos(yaw);
-      if (dive > 0.35 && Math.random() < dt * (low ? 10 : 24)) {
-        const sx = (Math.random() - 0.5) * 9;
-        const sy = (Math.random() - 0.3) * 5;
-        emit(f.pos.x + fz * sx + fx * 9, f.pos.y + sy + 2, f.pos.z - fx * sx + fz * 9, -fx * 30, 6, -fz * 30, 0.5, 0.35, 1, "#ffffff", yaw);
+      // long, bright streaks hanging in the air along the dive path just ahead: the dragon rushes past
+      // them (so from the chase camera they whip by on both sides and overhead)
+      if (dive > 0.3 && lastPos.ok) {
+        const vx = (f.pos.x - lastPos.x) / Math.max(dt, 1e-3);
+        const vy = (f.pos.y - lastPos.y) / Math.max(dt, 1e-3);
+        const vz = (f.pos.z - lastPos.z) / Math.max(dt, 1e-3);
+        const vl = Math.hypot(vx, vy, vz) || 1;
+        const ux = vx / vl;
+        const uy = vy / vl;
+        const uz = vz / vl;
+        // (two directions across the path: sideways, and "up" relative to it)
+        const hl = Math.hypot(ux, uz) || 1;
+        const sx0 = uz / hl;
+        const sz0 = -ux / hl;
+        const upx = -uy * (ux / hl);
+        const upy = hl;
+        const upz = -uy * (uz / hl);
+        let k = dt * (low ? 18 : 40) * Math.min(1, dive * 1.4);
+        while (k > 0) {
+          if (Math.random() < k) {
+            const a = Math.random() * Math.PI * 2;
+            const rr = 3 + Math.random() * 5;
+            const ox = Math.cos(a) * rr;
+            const oy = Math.sin(a) * rr * 0.8 + 1.5;
+            // (along the dive path ahead of the dragon, or - with a camera - anywhere between it and the
+            // camera, so the streaks are big on screen however far the chase camera pulls back)
+            let bx = f.pos.x + ux * (8 + Math.random() * 14);
+            let by = f.pos.y + uy * (8 + Math.random() * 14);
+            let bz = f.pos.z + uz * (8 + Math.random() * 14);
+            if (f.cam && Math.random() < 0.7) {
+              const q = 0.15 + Math.random() * 0.7;
+              bx = f.pos.x + (f.cam.x - f.pos.x) * q;
+              by = f.pos.y + (f.cam.y - f.pos.y) * q;
+              bz = f.pos.z + (f.cam.z - f.pos.z) * q;
+            }
+            emit(bx + sx0 * ox + upx * oy, by + upy * oy, bz + sz0 * ox + upz * oy, vx * 0.05, vy * 0.05, vz * 0.05, 0.75, 1, 1, Math.random() < 0.5 ? "#ffffff" : "#a8e6ff", Math.atan2(ux, uz), Math.asin(Math.max(-1, Math.min(1, uy))));
+          }
+          k -= 1;
+        }
       }
       wasDive = Math.max(dive, wasDive - dt * 0.6);
       if (wasDive > 0.55 && dive < 0.25) {
         wasDive = 0;
         for (let i = 0; i < (low ? 6 : 14); i++) {
           const a = (i / 14) * Math.PI * 2;
-          emit(f.pos.x + Math.cos(a) * 3, f.pos.y + 3 + Math.sin(a) * 3, f.pos.z, Math.cos(a) * 10 - fx * 12, Math.sin(a) * 10, -fz * 12, 0.6, 0.4, 1, "#ffffff", yaw);
+          emit(f.pos.x + Math.cos(a) * 3, f.pos.y + 3 + Math.sin(a) * 3, f.pos.z, Math.cos(a) * 10 - fx * 12, Math.sin(a) * 10, -fz * 12, 0.6, 0.9, 1, "#ffffff", yaw);
         }
       }
       // (how fast we're going, so the fire streams out ahead of the snout)
@@ -320,9 +359,10 @@ export function createDragonFlight(scene: THREE.Scene, opts: { lowQuality?: bool
         const sc = p.size * grow * fade;
         P.set(p.x, p.y, p.z);
         if (p.kind === 1) {
-          E.set(0, p.yaw, 0);
+          // (along the way it's flying, tipped with the dive)
+          E.set(-p.pit, p.yaw, 0, "YXZ");
           Q.setFromEuler(E);
-          S.set(sc * 0.12, sc * 0.12, sc * 6);
+          S.set(sc * 0.28, sc * 0.28, sc * 10);
         } else {
           E.set(t * 3 + i, t * 2 + i, 0);
           Q.setFromEuler(E);

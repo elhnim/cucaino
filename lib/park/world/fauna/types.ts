@@ -286,6 +286,8 @@ export interface Agent {
   climb: number;
   /** a per-animal counter for one-off actions (pounces, hops, swipes) */
   act: number;
+  /** the top of its head above the ground (units, standing tall): it keeps that clear of the trees' crowns */
+  head: number;
 }
 
 export interface Tune {
@@ -397,6 +399,37 @@ SIZES[K_CHICKEN] = { m: 0.42, measure: "head", model: 0.642, variant: V_CHICKEN,
 SIZES[K_GIRAFFE] = { m: 5.0, measure: "head", model: 4.923, variant: V_GIRAFFE, young: 0.45, spread: 0.06 };
 SIZES[K_ZEBRA] = { m: 1.35, measure: "back", model: 1.631, variant: V_ZEBRA, spread: 0.04 };
 SIZES[K_ELEPHANT] = { m: 2.8, measure: "back", model: 2.77, variant: V_ELEPHANT, young: 0.42, spread: 0.06 }; // African bush elephant, ~3 m at the shoulder
+
+/**
+ * How high each species carries its head standing tall (metres, a grown-up): the giants keep out
+ * from under the trees' crowns, the deer and the roos duck under nothing lower (WalkGrid.crown).
+ */
+export const HEAD_M: number[] = [];
+HEAD_M[K_DEER] = 1.55; // (a stag's antlers ~1.7)
+HEAD_M[K_RABBIT] = 0.25;
+HEAD_M[K_FOX] = 0.55;
+HEAD_M[K_SQUIRREL] = 0.2;
+HEAD_M[K_HEDGEHOG] = 0.15;
+HEAD_M[K_HORSE] = 2.1;
+HEAD_M[K_GOAT] = 1.05;
+HEAD_M[K_COW] = 1.65;
+HEAD_M[K_DUCK] = 0.4;
+HEAD_M[K_FROG] = 0.05;
+HEAD_M[K_OWL] = 0.45;
+HEAD_M[K_BEAR] = 1.4;
+HEAD_M[K_TURTLE] = 0.15;
+HEAD_M[K_KANGAROO] = 1.6;
+HEAD_M[K_EMU] = 1.7;
+HEAD_M[K_KOALA] = 0.7;
+HEAD_M[K_WOMBAT] = 0.45;
+HEAD_M[K_ECHIDNA] = 0.2;
+HEAD_M[K_KOOKABURRA] = 0.42;
+HEAD_M[K_PLATYPUS] = 0.15;
+HEAD_M[K_SHEEP] = 1.05;
+HEAD_M[K_CHICKEN] = 0.42;
+HEAD_M[K_GIRAFFE] = 5.0;
+HEAD_M[K_ZEBRA] = 1.9;
+HEAD_M[K_ELEPHANT] = 3.3;
 
 /** the instance scale that draws this species at its real size (× `young` for the little ones) */
 export function trueScale(kind: number, young = false, extra = 1): number {

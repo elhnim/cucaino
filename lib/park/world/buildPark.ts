@@ -3,14 +3,16 @@
 // shadows (soft blob shadows instead) and every repeated prop is one draw call per part.
 import * as THREE from "three";
 import type { ParkAssets, KitName } from "../assets/loader";
-import { PLACES, LANDS, SKY_LOOP_N, SKY_STATION_I, skyLoopXZ, type PlaceDef, type LandDef } from "../registry/places";
+import { PLACES, LANDS, SKY_LOOP_N, SKY_STATION_I, skyLoopRadius, skyLoopXZ, type PlaceDef, type LandDef } from "../registry/places";
 import { labelSprite } from "@/lib/game3d/buildingKit";
 import { zoneBounds } from "../builder/rules";
 import { buildAtmosphere, type Atmosphere } from "./atmosphere";
 import { buildGlowFlora } from "./glowFlora";
 import { buildOcean, BEACH_IN, wobbleToCoast } from "./ocean";
-import { buildNature } from "./nature";
-import { TRAILS, ISLAND_R, nearStream, coastR } from "../registry/island";
+import { TRAILS, ISLAND_R, nearStream, nearMesa, coastR } from "../registry/island";
+import { inJungle, underCanopy } from "../registry/jungle";
+import { buildJungle } from "./jungle";
+import { buildWaterways } from "./waterways";
 import { groundY, slopeAt } from "../registry/terrain";
 import { buildFantasyWorld, buildTerrainMesh, type FantasyWorld } from "./fantasy";
 import { SKY_PADS, skyTopY } from "../registry/skyIslands";
@@ -288,10 +290,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     return Math.hypot(x - l.x, z - l.z) < l.radius;
   };
 
-  // ── the stream, its bridges and the grassy hills ──
-  const nature = buildNature(scene);
-  disposables.push(nature);
-  const nearHill = (x: number, z: number, pad: number) => nature.obstacles.some((h) => Math.hypot(x - h.x, z - h.z) < h.r * 1.2 + pad);
+  // (the river, the lake and their bridges are built by ./waterways below; nothing grows in the
+  // rainforest but the rainforest, nor on Rainbow Falls' mesa)
+  const wild = (x: number, z: number, pad: number) => inJungle(x, z, pad) || nearMesa(x, z, pad);
+  const nearHill = (_x: number, _z: number, _pad: number) => false;
 
   // ── places ──
   const tappables: THREE.Object3D[] = [];
@@ -516,7 +518,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
         z = Math.cos(a) * rad;
         if (LANDS.some((l) => l.id !== "forest" && Math.hypot(x - l.x, z - l.z) < l.radius + 1)) continue;
       }
-      if (nearPath(x, z, k.pad + 1.6) || nearPlace(x, z, k.pad + 1.5) || nearStream(x, z, k.pad) || nearHill(x, z, k.pad)) continue;
+      if (nearPath(x, z, k.pad + 1.6) || nearPlace(x, z, k.pad + 1.5) || nearStream(x, z, k.pad) || nearHill(x, z, k.pad) || wild(x, z, k.pad)) continue;
       if (!land && inLand(x, z, "forest")) continue;
       if (slopeAt(x, z) > 0.45 || groundY(x, z) > 18) continue; // not on cliffs or peaks
       if (Math.hypot(x - 0, z - 30) < 16) continue; // keep the view from the start point open
@@ -539,12 +541,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     "centripetal",
   ).getSpacedPoints(360);
   const nearSky = (x: number, z: number, pad: number) => {
-    if (Math.abs(Math.hypot(x, z) - 100) > 18 + pad) return false;
+    if (Math.abs(Math.hypot(x, z) - skyLoopRadius(Math.atan2(x, z))) > 18 + pad) return false;
     const rr = (5.5 + pad) ** 2;
     return skyXZ.some((q) => (q.x - x) ** 2 + (q.z - z) ** 2 < rr);
   };
   const fantasy = buildFantasyWorld(scene, {
-    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearSky(x, z, pad) && !rideableKeepOut(x, z, pad),
+    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 2 && Math.hypot(x, z) > 12 + pad && !nearPath(x, z, pad + 1.6) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearSky(x, z, pad) && !rideableKeepOut(x, z, pad) && !wild(x, z, pad),
     lowQuality: opts.lowQuality,
     // the diorama look wants clean, flat meadows (blades turn into pixel noise when chunky), and
     // its own chunky storybook forest instead of the kit's candy trees
@@ -576,14 +578,17 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     !nearStream(x, z, pad) &&
     !nearSky(x, z, pad) &&
     !rideableKeepOut(x, z, pad) &&
+    !wild(x, z, pad) &&
     // (and clear of the fantasy kit's ruins, rocks and giant trees)
     !fantasy.plan.ruins.some((s) => Math.hypot(x - s.x, z - s.z) < s.r + pad) &&
     !fantasy.obstacles.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + pad + 1);
   const storybook = storyLook ? buildStorybook(scene, { lowQuality: opts.lowQuality, free: storyFree }) : null;
   if (storybook) disposables.push(storybook);
   // ── wildlife: deer, rabbits, foxes, squirrels, ponies, cows, goats, ducks, frogs, owls, bears … ──
-  const fauna = buildFauna(scene, { free: storyFree, lowQuality: opts.lowQuality, obstacles: [...nature.obstacles, ...fantasy.obstacles, ...(storybook?.obstacles ?? [])], sheep: !!storybook });
+  const fauna = buildFauna(scene, { free: storyFree, lowQuality: opts.lowQuality, obstacles: [...fantasy.obstacles, ...(storybook?.obstacles ?? [])], sheep: !!storybook });
   disposables.push(fauna);
+  // (the storybook's sheep graze round the fauna's paddock and farm corner, never through them)
+  storybook?.keepSheepOut(fauna.sheepKeepOut);
   // ── Coralcove Isle, far out at sea: the Tidewing Folk's villages ──
   const village = buildVillage(scene, { lowQuality: opts.lowQuality });
   disposables.push(village);
@@ -596,6 +601,13 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   track(ground.geometry);
   track(ground.material as THREE.Material);
   scene.add(ground);
+
+  // ── the rainforest round Rainbow Falls (true size, you walk under its canopy), and the falls, the
+  //    river, Rainbow Lake and their life ──
+  const jungle = buildJungle(scene, { lowQuality: opts.lowQuality, ground, keep: (x, z, pad) => nearSky(x, z, pad) || rideableKeepOut(x, z, pad) });
+  disposables.push(jungle);
+  const waterways = buildWaterways(scene, { lowQuality: opts.lowQuality, cut: jungle.cut });
+  disposables.push(waterways);
 
   // ── the sea: beach, glowing ocean, jellyfish (some float over the Glow Forest), whales, mantas, dolphins ──
   const ocean = buildOcean(scene, { skyJellies: { x: forestLand.x, z: forestLand.z, radius: forestLand.radius + 4 }, lowQuality: opts.lowQuality });
@@ -628,7 +640,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const glowFlora = buildGlowFlora(scene, {
     forest: { x: forestLand.x + 4, z: forestLand.z + 6, radius: forestLand.radius + 12, count: opts.lowQuality ? 40 : 70 },
     park: { x: 0, z: 0, radius: ISLAND_R - 6, count: opts.lowQuality ? 80 : 140 },
-    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 3 && Math.hypot(x, z) > 24 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearHill(x, z, pad),
+    free: (x, z, pad) => Math.hypot(x, z) < ISLAND_R - 3 && Math.hypot(x, z) > 24 + pad && !nearPath(x, z, pad + 1.4) && !nearPlace(x, z, pad + 1.2) && !inDreamZone(x, z, pad) && !nearStream(x, z, pad) && !nearHill(x, z, pad) && !wild(x, z, pad),
     lowQuality: opts.lowQuality,
     lights: lanternMats.map((mx) => {
       const p = new THREE.Vector3().setFromMatrixPosition(mx);
@@ -698,6 +710,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   if (!storyLook) scene.add(clouds);
 
   const tmp = new THREE.Matrix4();
+  const origin0 = new THREE.Vector3();
   const q = new THREE.Quaternion();
   const look = new THREE.Matrix4();
   const cloudPos = new THREE.Vector3();
@@ -709,7 +722,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
-    obstacles: [...nature.obstacles, ...fantasy.obstacles, ...SEA_FOOTPRINTS, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES, ...DINO_OBSTACLES],
+    obstacles: [...fantasy.obstacles, ...SEA_FOOTPRINTS, ...waterways.obstacles, ...jungle.obstacles, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES, ...DINO_OBSTACLES],
     quests3d,
     underwater,
     skyTrain,
@@ -737,7 +750,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
         const top = skyTopY(sp.x, sp.z, t);
         if (top) sp.group.position.y = top.y;
       }
-      nature.update(dt, t, atmosphere.glow);
+      jungle.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow });
+      atmosphere.setShade(focus && underCanopy(focus.x, focus.z) ? 1 : 0);
+      waterways.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow });
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       for (const l of landmarks) l.update(dt, t, atmosphere.glow);
       lolly.rotation.y += dt * 0.5;

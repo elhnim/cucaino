@@ -7,6 +7,7 @@
 // back. Pet care reuses the park's PetCareSheet + lib/actions/pet.ts unchanged, with the home's
 // own 3D reactions (the pet trots to its bowl, naps in its bed ...).
 import dynamic from "next/dynamic";
+import { HomeSpeech } from "./HomeSpeech";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { buyHomeItem, saveHome, type HomeData } from "@/lib/actions/home";
 import { getHomeItem, isStyle } from "@/lib/park/home/catalog";
@@ -317,6 +318,7 @@ export function HomeScreen({
   return (
     <>
       <style>{PARK_CSS}</style>
+      <HomeSpeech ride={ride} />
       {editing ? (
         <HomeEditor
           tickets={data.tickets}

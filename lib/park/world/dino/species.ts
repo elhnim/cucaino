@@ -340,6 +340,49 @@ export function compy(): SpeciesGeo {
   return { geo: merge(P), neck, head, hip };
 }
 
+/**
+ * The Swiftclaw: Dino Isle's own raptor (an original, friendly-looking pack hunter, Deinonychus-
+ * sized: ~3 m nose to tail). Feathered — a fluffy coat, a bright crest and a tail fan, little
+ * feathered wing-arms — with big round eyes and a cheeky grin, and the famous curved toe claw.
+ */
+export function raptor(): SpeciesGeo {
+  const neck: V3 = [0, 0.98, 0.42];
+  const head: V3 = [0, 1.32, 0.86];
+  const hip: V3 = [0, 0.86, -0.18];
+  const P: THREE.BufferGeometry[] = [];
+  // a slim body leaning forward, fluffy chest
+  P.push(rp(egg(0.24, 0.27, 0.6, 0, 0.9, 0.0, 0.16, 1, 0.12, 5), coat(), { slot: belly(-0.3) }));
+  P.push(rp(egg(0.2, 0.22, 0.22, 0, 0.86, 0.36), coat(1.08), { slot: 2 }));
+  // long legs: thighs, bird-like shins, three toes (the second one a curved claw held up off the ground)
+  P.push(...legPair({ x: 0.17, pts: [[0.9, -0.18, 0.12, 0.14], [0.52, 0.0, 0.07, 0.08], [0.24, -0.16, 0.05, 0.05], [0.04, -0.04, 0.045, 0.045]], hind: true, phase: BIPED, seg: 5, foot: { r: 0.05, h: 0.03, col: "#3f3a44", toes: 3 } }));
+  for (const s of [-1, 1]) P.push(rp(coneAt(0.03, 0.14, 4, [s * 0.17, 0.1, 0.02], [0, 0.8, 0.6]), "#3f3a44", { kind: K_LEG, pivot: [s * 0.17, 0.9, -0.18], t: 1, p1: s > 0 ? 0 : PI, p2: 1 }));
+  // the S-curved neck and the head: a long snout with a grin, big friendly eyes, a feather crest
+  P.push(rp(tube([[0, 0.98, 0.38, 0.11, 0.12], [0, 1.18, 0.55, 0.09, 0.1], [0, 1.3, 0.78, 0.085, 0.09]], 6, false, false), coat(), { kind: K_NECK, t: along(neck, head), slot: 1 }));
+  P.push(rp(egg(0.13, 0.13, 0.17, 0, 1.34, 0.86, 0.05), coat(), { kind: K_NECK, slot: 1 }));
+  P.push(rp(egg(0.075, 0.07, 0.2, 0, 1.3, 1.05, 0.12), coat(), { kind: K_NECK, slot: 1 }));
+  const hinge: V3 = [0, 1.27, 0.88];
+  P.push(rp(egg(0.065, 0.035, 0.18, 0, 1.25, 1.03, 0.12), coat(0.92), { kind: K_JAW, pivot: hinge, slot: 2 }));
+  P.push(rp(egg(0.05, 0.02, 0.13, 0, 1.27, 1.03, 0.12), "#e0607a", { kind: K_JAW, pivot: hinge }));
+  P.push(...eyes(0.095, 1.4, 0.92, 0.042));
+  // (the crest: a fan of bright feathers on the head)
+  for (let i = 0; i < 4; i++) P.push(rp(coneAt(0.045, 0.24 - i * 0.03, 4, [0, 1.44, 0.84 - i * 0.07], [0, 1, -0.55 - i * 0.25]), coat(), { kind: K_NECK, slot: 2 }));
+  // feathered wing-arms with three little claws
+  for (const s of [-1, 1]) {
+    const piv: V3 = [s * 0.16, 0.95, 0.3];
+    P.push(rp(sheet([[0, 0.02], [0.08, 0.32], [0.04, 0.42], [-0.04, 0.3], [-0.06, 0.02]], [s * 0.18, 0.95, 0.3], [s * 0.15, -0.9, 0.2], [0, -0.25, 1]), coat(), { kind: K_ARM, pivot: piv, p1: s > 0 ? 0.3 : PI + 0.3, slot: 2 }));
+    P.push(rp(tube([[s * 0.17, 0.95, 0.3, 0.035, 0.035], [s * 0.2, 0.74, 0.42, 0.03, 0.03]], 4), coat(), { kind: K_ARM, pivot: piv, p1: s > 0 ? 0.3 : PI + 0.3, slot: 1 }));
+    P.push(rp(coneAt(0.018, 0.07, 3, [s * 0.2, 0.72, 0.44], [0, -0.5, 1]), IVORY, { kind: K_ARM, pivot: piv, p1: s > 0 ? 0.3 : PI + 0.3 }));
+  }
+  // the long stiff tail, ending in a fan of feathers
+  const tr: V3 = [0, 0.9, -0.5];
+  const tt = along(tr, [0, 0.82, -1.75]);
+  P.push(rp(tube([[0, 0.92, -0.46, 0.13, 0.14], [0, 0.88, -1.0, 0.07, 0.07], [0, 0.84, -1.5, 0.035, 0.035]], 5, false, true), coat(), { kind: K_TAIL, pivot: tr, t: tt, slot: 1 }));
+  P.push(rp(sheet([[0, 0], [0.16, -0.12], [0.2, -0.32], [0, -0.42], [-0.2, -0.32], [-0.16, -0.12]], [0, 0.85, -1.33], [1, 0, 0], [0, -0.05, 1]), coat(), { kind: K_TAIL, pivot: tr, t: tt, slot: 2 }));
+  // (stripes of darker feathers down the back)
+  for (let i = 0; i < 4; i++) P.push(rp(boxAt(0.3, 0.04, 0.09, 0, 1.15 - i * 0.03, 0.2 - i * 0.2, 0.15), coat(0.7), { slot: 1 }));
+  return { geo: merge(P), neck, head, hip };
+}
+
 export function pteranodon(): SpeciesGeo {
   const neck: V3 = [0, 0.12, 0.6];
   const head: V3 = [0, 0.25, 1.0];

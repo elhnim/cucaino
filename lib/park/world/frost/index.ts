@@ -18,12 +18,13 @@ import { addFolkInstanceAttrs, folkDepthMaterial, folkMaterial, trisOf } from ".
 import { buildPropsGeometry } from "./props";
 import { buildGroundGeometry, buildWater } from "./terrain";
 import { buildFx } from "./fx";
-import { B_NARWHAL, B_SEAL, B_TERN, G_CHAIR, G_POLE, G_SKI, PENGUIN_RIG, W_TERN_L, W_TERN_R, buildBeasts, buildPenguinBody, buildPenguinHead, buildSkiGear, buildWings } from "./critters";
-import { PENGUIN_BODY, colonyAheadOn, colonyChuteClear, colonyKidChute, makeColony, penguinGround, penguinRoot, stepColony, type PenguinPose } from "./colony";
-import { makeSkiField, stepSkiField } from "./ski";
+import { B_NARWHAL, B_SEAL, B_TERN, G_CHAIR, G_POLE, G_SCARF, G_SKI, G_SUIT, PENGUIN_RIG, W_TERN_L, W_TERN_R, buildBeasts, buildPenguinBody, buildPenguinHead, buildSkiGear, buildWings } from "./critters";
+import { PENGUIN_BODY, STATE_NAMES, colonyAheadOn, colonyChuteClear, colonyKidChute, makeColony, penguinGround, penguinRoot, stepColony, type PenguinPose } from "./colony";
+import { kidLiftOffer, kidLiftRequest, kidLiftReset, makeSkiField, skierStands, stepSkiField, type KidLift } from "./ski";
+import { skiHutAt } from "./kidSki";
 import { slideStartAt } from "./kidSlide";
 import { buildSigns } from "./signs";
-import { CHAIR_DROP } from "../../registry/frostIsland";
+import { CHAIR_DROP, FROST_WATER_Y } from "../../registry/frostIsland";
 import { BEAST_K, NARWHAL_CALF, makeWildlife, stepWildlife } from "./wildlife";
 
 export interface FrostSpotOut {
@@ -44,9 +45,29 @@ export interface FrostWorld {
     clear(c: number): boolean;
     /** how far down chute c the nearest penguin ahead of s is (Infinity: nobody) */
     ahead(c: number, s: number): number;
-    /** a puff of snow (kind 2) or a splash (0 big, 1 small) at a world point */
+    /** a puff of snow (kind 2), a skier's spray (4) or a splash (0 big, 1 small) at a world point */
     fx(x: number, y: number, z: number, size: number, kind: number): void;
   };
+  /** the Park kid on the Penguin Ski Run (./kidSki.ts) and its chairlift (./ski.ts kidLift*) */
+  ski: {
+    /** standing by the start hut (skis on offer) */
+    hutAt(x: number, z: number): boolean;
+    /** standing by the lift's boarding line */
+    liftAt(x: number, z: number): boolean;
+    /** the kid's run: how far down they are (-99 when not skiing): the start gate holds the penguins */
+    kidOnPiste(s: number): void;
+    /** is the top of the piste clear (nobody just setting off) */
+    topClear(): boolean;
+    /** how far down the nearest penguin skiing ahead of s is (Infinity: nobody) */
+    aheadOf(s: number): number;
+    /** ride the chairlift up: false if the kid's already on it */
+    rideLift(x: number, z: number): boolean;
+    /** the kid on the lift (state KL_*, where they are) */
+    lift(): KidLift;
+    liftDone(): void;
+  };
+  /** the penguins stand where they stand: push the Park kid (on foot) out of any they'd walk into */
+  blockKid(p: { x: number; z: number }): void;
   dispose(): void;
 }
 
@@ -67,37 +88,14 @@ export const FROST_HIDE_D = 500;
 const AUR_NEAR = 240;
 const AUR_FAR = 430;
 
-/**
- * The open ocean's sandy deep floor (../sea/deepFloor.ts) follows seaFloorY, which counts this island's
- * land and slopes as sea floor (so creatures steer round it) — so its coarse sand cells drew a second,
- * sandy island poking up through the snow wherever the ground dips between them. The island draws all
- * of its own ground out past FROST_SEA_R (its skirt), so cut the sand out over it, the way the Midnight
- * Rift cuts its crack out of the same material (../abyss cutAbyssFloor).
- */
-export function cutFrostFloor(mat: THREE.Material): THREE.Material {
-  const m = mat as THREE.Material & { __frostCut?: boolean };
-  if (m.__frostCut) return mat;
-  m.__frostCut = true;
-  const prev = mat.onBeforeCompile;
-  const prevKey = mat.customProgramCacheKey;
-  mat.onBeforeCompile = function (shader, renderer) {
-    prev.call(this, shader, renderer);
-    shader.vertexShader = shader.vertexShader.replace(/void\s+main\s*\(\s*\)\s*\{/, (q) => `varying vec2 vFrostXZ;
-${q}
-  vFrostXZ = ( modelMatrix * vec4( position, 1.0 ) ).xz;`);
-    shader.fragmentShader = shader.fragmentShader.replace(
-      /void\s+main\s*\(\s*\)\s*\{/,
-      (q) => `varying vec2 vFrostXZ;
-${q}
-  if ( length( vFrostXZ - vec2( ${X0.toFixed(2)}, ${Z0.toFixed(2)} ) ) < ${(FROST_SEA_R - 1).toFixed(2)} ) discard;`,
-    );
-  };
-  mat.customProgramCacheKey = function () {
-    return prevKey.call(this) + "-frost-cut";
-  };
-  mat.needsUpdate = true;
-  return mat;
-}
+// (the ocean's sandy deep floor follows seaFloorY, which counts this island's land and slopes as sea
+// floor: it's cut away over the island's own ground by ../sea/islandFloors, where Frostpeak is
+// registered with every other island — no lookup by mesh name here any more)
+
+/** the colony's states in which a penguin is standing or waddling about on the snow */
+const STANDS = new Set(["home", "walkout", "ascend", "queue", "walkhome", "huddle", "follow", "creche"].map((n) => STATE_NAMES.indexOf(n)));
+/** the Park kid's half-width (for stepping aside / bumping into penguins) */
+const KID_R = 0.5;
 
 const smooth = (a: number, b: number, x: number) => {
   const u = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -150,6 +148,12 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
   /** every penguin drawn: the colony's, then the skiers */
   const NP = NC + NK;
   const pose = (i: number): PenguinPose & { kind: number; headPitch: number; headYaw: number; flipOut: number; flipBack: number } => (i < NC ? colony.penguins[i] : ski.skiers[i - NC]);
+  /** standing / waddling about on the snow (not sliding, swimming, skiing or on the lift): steps aside */
+  const standsAside = (i: number) => {
+    if (i >= NC) return skierStands(ski.skiers[i - NC]);
+    const p = colony.penguins[i];
+    return p.y > FROST_WATER_Y + 0.3 && STANDS.has(p.state);
+  };
   const NS = wild.seals.length;
   const NN = wild.narwhals.length;
   const NT = wild.terns.length;
@@ -172,13 +176,22 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
   const heads = inst("frost-penguin-heads", buildPenguinHead(low), NP, true);
   const wings = inst("frost-wings", buildWings(), NP * 2 + NT * 2, false);
   const beasts = inst("frost-beasts", buildBeasts(low), NS + NN + NT, true);
-  // the ski run's gear: skis and poles for every skier, and the chairlift's chairs
-  const gear = inst("frost-skigear", buildSkiGear(CHAIR_DROP), NK * 4 + ski.chairs, true);
-  const ALL = [bodies, heads, wings, beasts, gear];
+  // the ski run's gear: skis and poles for every skier, a bright ski suit and a scarf, and the chairlift's chairs
+  // (three meshes, so each instance only draws its own piece)
+  const gear = inst("frost-skigear", buildSkiGear(CHAIR_DROP, [G_SKI, G_POLE]), NK * 4, true);
+  const wear = inst("frost-skiwear", buildSkiGear(CHAIR_DROP, [G_SUIT, G_SCARF]), NK * 2, true);
+  const chairs = inst("frost-chairs", buildSkiGear(CHAIR_DROP, [G_CHAIR]), ski.chairs, true);
+  // (penguins standing about step aside for the Park kid: an offset per penguin, eased in and out)
+  const offX = new Float32Array(NC + NK);
+  const offZ = new Float32Array(NC + NK);
+  const ALL = [bodies, heads, wings, beasts, gear, wear, chairs];
   // (a touch of per-penguin variety: slightly different blacks and whites)
   const tint = [...colony.penguins, ...ski.skiers].map((p) => new THREE.Color().setScalar(0.94 + ((p.seed % 11) / 11) * 0.08));
-  const SKI_COLS = ["#ff5a7a", "#4f7bff", "#ffcf4a", "#4fc3a1", "#b07ce8", "#ff9a3d"].map((c) => new THREE.Color(c));
+  const SKI_COLS = ["#ff3d6e", "#2f6bff", "#ffc21a", "#14c79a", "#a35cff", "#ff7a1a"].map((c) => new THREE.Color(c));
+  const SCARF_COLS = ["#fff04a", "#ff4fd8", "#3dfcff", "#ff5a3d", "#7dff4a", "#ffffff"].map((c) => new THREE.Color(c));
   const skiCol = ski.skiers.map((k) => SKI_COLS[k.seed % SKI_COLS.length]);
+  // (the scarf never matches the suit)
+  const scarfCol = ski.skiers.map((k) => SCARF_COLS[(k.seed + 1 + Math.floor(k.seed / 7)) % SCARF_COLS.length]);
 
   // ── the painted words on the signs and banners ──
   const signs = buildSigns();
@@ -227,18 +240,9 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
 
   const FOG_U = [WU, XU];
   let visible = true;
-  let sandCut = false;
 
   return {
     update(dtIn, t, o) {
-      // (the ocean's deep sand floor: cut out over the island, once it exists)
-      if (!sandCut) {
-        const sand = scene.getObjectByName("uw-deep-floor") as THREE.Mesh | undefined;
-        if (sand) {
-          cutFrostFloor(sand.material as THREE.Material);
-          sandCut = true;
-        }
-      }
       const dt = Math.min(0.1, Math.max(0, dtIn));
       const dKid = Math.hypot(o.kid.x - X0, o.kid.z - Z0);
       visible = dKid < FROST_HIDE_D;
@@ -282,7 +286,27 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
       stepWildlife(wild, dtIn, t);
       for (let k = 0; k < ski.ev.n; k++) {
         const b = ski.ev.buf;
-        fx.burst(b[k * 5], b[k * 5 + 1], b[k * 5 + 2], b[k * 5 + 3], b[k * 5 + 4]);
+        // (the ski run's snow puffs, bigger: they read from the lodge)
+        fx.burst(b[k * 5], b[k * 5 + 1], b[k * 5 + 2], b[k * 5 + 3] * (b[k * 5 + 4] === 2 ? 1.7 : 1), b[k * 5 + 4]);
+      }
+      // penguins standing about (queues, the colony at home, waddling up) step aside for the kid
+      for (let i = 0; i < NP; i++) {
+        const p = pose(i);
+        let wx = 0;
+        let wz = 0;
+        if (near && standsAside(i)) {
+          const dx = p.x - kidW.x;
+          const dz = p.z - kidW.z;
+          const d = Math.hypot(dx, dz);
+          const R = KID_R + PENGUIN_BODY[p.kind].rx * p.size + 0.35;
+          if (d < R && d > 1e-4) {
+            wx = (dx / d) * (R - d);
+            wz = (dz / d) * (R - d);
+          }
+        }
+        const e = Math.min(1, dt * 7);
+        offX[i] += (wx - offX[i]) * e;
+        offZ[i] += (wz - offZ[i]) * e;
       }
       for (let k = 0; k < colony.ev.n; k++) {
         const b = colony.ev.buf;
@@ -299,7 +323,11 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
         const p = pose(i);
         const rig = PENGUIN_RIG[p.kind];
         // (rest it on the real snow; swimmers well under the waves have their own floor)
+        p.x += offX[i];
+        p.z += offZ[i];
         penguinRoot(p, root, p.y > WY_DRAW ? penguinGround : undefined);
+        p.x -= offX[i];
+        p.z -= offZ[i];
         local(root.x - X0, root.y, root.z - Z0, p.pitch, p.yaw, p.roll, p.size, mRoot);
         setInst(bodies, i, mRoot, tint[i], p.kind);
         mOut.multiplyMatrices(mRoot, local(0, rig.neck, 0.02, p.headPitch, p.headYaw, 0, 1, mLocal));
@@ -311,12 +339,28 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
       }
       // skis, poles and chairs
       let ng = 0;
+      let nwr = 0;
       for (let j = 0; j < NK; j++) {
         const k = ski.skiers[j];
         const i = NC + j;
         const rig = PENGUIN_RIG[k.kind];
+        k.x += offX[i];
+        k.z += offZ[i];
         penguinRoot(k, root, penguinGround);
+        k.x -= offX[i];
+        k.z -= offZ[i];
         local(root.x - X0, root.y, root.z - Z0, k.pitch, k.yaw, k.roll, k.size, mRoot);
+        // the ski suit round the body and the scarf round the neck (racers; the chicks have no suits)
+        if (k.kind !== 1) {
+          const B = PENGUIN_BODY[k.kind];
+          mLocal.compose(vp.set(0, B.cy, 0.005), q.identity(), vs.set(B.rx, B.ry, B.rz));
+          mOut.multiplyMatrices(mRoot, mLocal);
+          setInst(wear, nwr++, mOut, skiCol[j], G_SUIT);
+          const nr = B.rx * 0.62;
+          mLocal.compose(vp.set(0, rig.neck - 0.02, 0.01), q.setFromEuler(e.set(0.1, 0, 0, "YXZ")), vs.set(nr, nr, nr));
+          mOut.multiplyMatrices(mRoot, mLocal);
+          setInst(wear, nwr++, mOut, scarfCol[j], G_SCARF);
+        }
         const foot = PENGUIN_BODY[k.kind].foot + 0.02;
         const sy = Math.sin(k.yaw);
         const cyw = Math.cos(k.yaw);
@@ -351,9 +395,10 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
       for (let c = 0; c < ski.chairs; c++) {
         const P4 = ski.chairPose;
         local(P4[c * 4] - X0, P4[c * 4 + 1] - 0.02, P4[c * 4 + 2] - Z0, 0, P4[c * 4 + 3], 0, 1, mOut);
-        setInst(gear, ng++, mOut, white, G_CHAIR);
+        setInst(chairs, c, mOut, white, G_CHAIR);
       }
       gear.m.count = ng;
+      wear.m.count = nwr;
       // seals, narwhals, terns
       let nb = 0;
       for (let i = 0; i < NS; i++) {
@@ -410,6 +455,42 @@ export function buildFrostIsland(scene: THREE.Scene, opts: { lowQuality?: boolea
         result.spot = spotOut;
       }
       return result;
+    },
+    ski: {
+      hutAt: (x, z) => skiHutAt(x, z),
+      liftAt: (x, z) => kidLiftOffer(x, z),
+      kidOnPiste: (s) => {
+        ski.kidSkiS = s;
+      },
+      topClear: () => {
+        for (const k of ski.skiers) if ((k.state === 6 || k.state === 7) && k.s < 6) return false;
+        return true;
+      },
+      aheadOf: (s) => {
+        let best = Infinity;
+        for (const k of ski.skiers) if ((k.state === 6 || k.state === 7) && k.s > s) best = Math.min(best, k.s);
+        return best;
+      },
+      rideLift: (x, z) => kidLiftRequest(ski, x, z),
+      lift: () => ski.kid,
+      liftDone: () => kidLiftReset(ski),
+    },
+    blockKid(p) {
+      if (Math.abs(p.x - X0) > FROST_ISLAND.r + 40 || Math.abs(p.z - Z0) > FROST_ISLAND.r + 40) return;
+      for (let i = 0; i < NP; i++) {
+        if (!standsAside(i)) continue;
+        const q2 = pose(i);
+        const px = q2.x + offX[i];
+        const pz = q2.z + offZ[i];
+        const dx = p.x - px;
+        const dz = p.z - pz;
+        const d = Math.hypot(dx, dz);
+        const R = KID_R + PENGUIN_BODY[q2.kind].rx * q2.size + 0.15;
+        if (d < R && d > 1e-4) {
+          p.x = px + (dx / d) * R;
+          p.z = pz + (dz / d) * R;
+        }
+      }
     },
     slide: {
       offer: (x, z) => slideStartAt(x, z),

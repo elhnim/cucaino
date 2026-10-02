@@ -18,6 +18,8 @@ import { SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_SPOTS, skyBaseY, skyWalkable 
 import { GARDENS, FOOTPRINTS, atSea, midWater, type GardenKind } from "../world/underwater/plan";
 import { seaFloorY } from "../world/sea/wander";
 import { DOCKS, MOORINGS, harbourKeepOut, mooredY } from "./harbours";
+import { DINO_JEEPS } from "./dinoIsland";
+import { underCanopy, thicketAt } from "./jungle";
 
 export interface RideableSpot {
   id: string;
@@ -90,6 +92,8 @@ export function openGround(x: number, z: number, pad: number, trailMin = TRAIL_W
   if (r > coastR(Math.atan2(x, z)) - 8) return false; // on the grass, not the beach
   if (r < 13 + pad) return false; // the plaza's paving + fountain
   if (groundY(x, z) < WATER_Y + 0.6) return false;
+  // (nothing's parked under the rainforest's canopy, nor anywhere near its thicket)
+  if (underCanopy(x, z) || thicketAt(x, z) || underCanopy(x + pad, z) || underCanopy(x - pad, z) || underCanopy(x, z + pad) || underCanopy(x, z - pad)) return false;
   if (slopeAt(x, z) > 0.22 || slopeAt(x + pad * 0.7, z) > 0.3 || slopeAt(x, z + pad * 0.7) > 0.3) return false;
   if (placeClearance(x, z) < pad + 2.5) return false; // well clear of doors
   if (x > zb.minX - pad - 2 && x < zb.maxX + pad + 2 && z > zb.minZ - pad - 2 && z < zb.maxZ + pad + 2) return false;
@@ -169,14 +173,18 @@ for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream
   const p = trailside(ax, az, 2, [4, 6.5], 30);
   add({ id: `car-${land}`, kind: "car", x: p.x, z: p.z, yaw: p.yaw, y: groundY(p.x, p.z) }, 2.6);
 }
+// ── the safari jeeps: two buggies parked by the trail at Dino Isle's plaza (registry/dinoIsland) ──
+for (const j of DINO_JEEPS) add({ id: j.id, kind: "car", x: j.x, z: j.z, yaw: j.yaw, y: j.y }, 2.6);
 
 // ── unicorns: grazing in the open meadows (well away from trails) ──
 {
   const homes: [string, P2][] = [
-    ["pets-a", [-74, 42]],
-    ["pets-b", [-100, 34]],
+    // (the meadows by Pet Meadow are rainforest now, and the south meadow is Rainbow Lake: the
+    // unicorns graze on the open ground north of Pet Meadow and east of the lake instead)
+    ["pets-a", [-120, -58]],
+    ["pets-b", [-88, -50]],
     ["meadow-west", [-34, 32]],
-    ["meadow-south", [26, 100]],
+    ["meadow-south", [48, 118]],
     ["meadow-east", [112, 8]],
   ];
   for (const [name, [ax, az]] of homes) {
@@ -209,8 +217,10 @@ for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream
 export const DRAGON_PAD = 6;
 /** the Dragon Roost's perch: a low round stone the dragon stands on (m proud of the grass) */
 export const ROOST_LIFT = 0.06;
-/** keep-clear round the Roost's middle for trees and props (its yard) */
-export const ROOST_CLEAR = 6;
+/** the Dragon Roost's yard (m) */
+export const ROOST_R = 9.5;
+/** keep-clear round the Roost's middle for trees and props: the whole yard and its boulder ring */
+export const ROOST_CLEAR = ROOST_R + 2;
 
 /** the nearest trail sample to (x, z) */
 function nearestTrailPt(x: number, z: number): P2 {
@@ -301,17 +311,16 @@ export interface DragonRoost {
   u: { x: number; z: number };
   f: { x: number; z: number };
 }
-/** the Dragon Roost's yard (m) */
-export const ROOST_R = 9.5;
 let roost: DragonRoost | null = null;
+/** where the Roost's loungers lie, as (u, f) from the yard's middle (u: toward the trail) */
+export const ROOST_LOUNGE = { puffwing: [-5.4, -1.5], zippit: [4.6, -3.5] } as const;
 
 {
   // 1. the Dragon Roost: the open ground nearest where kids start, a few steps off a plaza trail
   const r = dragonGround(SPAWN.x, SPAWN.z, [8, 13], 45, (x, z) => Math.hypot(x, z) > 22);
   if (!r) throw new Error("rideables: no open ground for the Dragon Roost");
   const y = groundY(r.x, r.z) + ROOST_LIFT;
-  // (its clearing is the roost's own boulder ring: the meadow by the plaza is open already, and a
-  // wider keep-clear here cut the animals' paths round the plaza)
+  // (the keep-clear covers the whole yard and its boulder ring: no tree grows inside it)
   const yaw0 = sideOn(r.x, r.z, [0, 0]);
   add({ id: "dragon-roost", kind: "dragon", breed: "roostwarden", x: r.x, z: r.z, yaw: yaw0, y, clear: ROOST_CLEAR }, 14);
   const [tx, tz] = nearestTrailPt(r.x, r.z);
@@ -321,15 +330,17 @@ let roost: DragonRoost | null = null;
   const u = { x: (tx - r.x) / d, z: (tz - r.z) / d };
   const f = { x: -u.z, z: u.x };
   roost = { id: "dragon-roost", x: r.x, z: r.z, y, r: ROOST_R, sign: { x: sx, z: sz, y: groundY(sx, sz) }, u, f };
-  // two dragons lounging in the yard: a Puffwing napping on the warm rocks at the back, a Zippit
-  // flitting about at one end
+  // two dragons lounging in the yard, side by side with the Roostwarden (who lies along the yard's
+  // long axis, f): a Puffwing napping on the warm rocks at the back, a Zippit flitting about at the
+  // front. Spaced so their whole bodies (true size) stay clear of each other and of the perches,
+  // trough and banner (lib/park/world/rideables keeps them apart as they move about too).
   const lounge = (id: string, breed: DragonBreed, du: number, df: number, yaw: number) => {
     const x = r.x + u.x * du + f.x * df;
     const z = r.z + u.z * du + f.z * df;
     add({ id, kind: "dragon", breed, x, z, yaw, y: groundY(x, z), lounge: true, clear: 0 }, 5);
   };
-  lounge("dragon-roost-puffwing", "puffwing", -4.6, 1, Math.atan2(f.x, f.z) + 0.4);
-  lounge("dragon-roost-zippit", "zippit", 3.6, -3.8, Math.atan2(u.x, u.z) - 0.6);
+  lounge("dragon-roost-puffwing", "puffwing", ROOST_LOUNGE.puffwing[0], ROOST_LOUNGE.puffwing[1], Math.atan2(f.x, f.z));
+  lounge("dragon-roost-zippit", "zippit", ROOST_LOUNGE.zippit[0], ROOST_LOUNGE.zippit[1], Math.atan2(u.x, u.z) - 0.6);
 
   // 2. two more: on gentle grassy hills (or open meadows) a short stroll off the trails, spread
   // round the island (far from each other and from the Roost) so there's always one not far away

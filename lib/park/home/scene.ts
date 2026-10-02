@@ -32,6 +32,8 @@ import {
   snapFloor,
   snapWall,
   wallAlong,
+  wallFrame,
+  SIDE_SPLAY,
   worldToGlobal,
   GRID_W,
   footprint,
@@ -43,6 +45,7 @@ import {
   type RoomStyle,
   type WallId,
 } from "./rules";
+import { homeCamera } from "./camera";
 import { backdropTexture, bubbleTexture, emojiTexture, floorTexture, signTexture, wallpaperTexture, windowViewTexture } from "./textures";
 
 export interface HomePetState {
@@ -107,6 +110,14 @@ export interface HomeController {
   readonly petFx: HomePetFx;
   petSay(text: string, seconds?: number): void;
   celebrate(): void;
+  /**
+   * What the pet is saying right now and where its bubble goes on screen (normalised device
+   * coordinates, -1..1, y up), or null. With a HUD attached (setSpeechHud) the bubble is drawn by
+   * the page (crisp text at the screen's own resolution, see components/park/home/HomeSpeech)
+   * instead of as a sprite in the (chunky-pixel) scene.
+   */
+  speech(): { text: string; x: number; y: number } | null;
+  setSpeechHud(on: boolean): void;
 }
 
 export type HomeRide = Ride & HomeController;
@@ -238,8 +249,10 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
   // grassy base + foundation (the cottage is a little diorama on a lawn)
   const grass = addMesh(new THREE.CylinderGeometry(1, 1, 0.5, 40), toon("#a4e3a0"), 0, -0.52, 0.6);
   grass.scale.set(15.5, 1, 8.6);
-  addMesh(new THREE.BoxGeometry(20.6, 0.5, 9.0), toon("#f0d6b0"), 0, -0.25, -0.1);
-  addMesh(new THREE.BoxGeometry(20.8, 0.12, 0.3), toon("#e2bf92"), 0, -0.05, 4.35);
+  addMesh(new THREE.BoxGeometry(27.2, 0.5, 9.0), toon("#f0d6b0"), 0, -0.25, -0.1);
+  addMesh(new THREE.BoxGeometry(27.4, 0.12, 0.3), toon("#e2bf92"), 0, -0.05, 4.35);
+  // (outside the splayed side walls: how far out the wall is at z)
+  const out = (x: number, z: number) => x + Math.sign(x) * Math.max(0, z + 4.3) * Math.tan(SIDE_SPLAY);
   // bushes, flowers and a lollipop tree round the outside
   for (const [x, z, s, c] of [
     [-11.3, 3.6, 0.8, "#7fd08f"],
@@ -249,13 +262,13 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     [-6, 5.2, 0.5, "#7fd08f"],
     [4.5, 5.3, 0.45, "#6cc47f"],
   ] as const) {
-    const b = addMesh(new THREE.SphereGeometry(1, 14, 10), toon(c), x, 0.1 + s * 0.5, z);
+    const b = addMesh(new THREE.SphereGeometry(1, 14, 10), toon(c), Math.abs(x) > 9 ? out(x, z) : x, 0.1 + s * 0.5, z);
     b.scale.set(s * 1.3, s, s * 1.1);
   }
   for (let i = 0; i < 14; i++) {
     const x = (i % 2 ? 1 : -1) * (10.6 + ((i * 37) % 10) / 12);
     const z = -3 + ((i * 53) % 70) / 10;
-    addMesh(new THREE.SphereGeometry(0.14, 8, 6), toon(["#ff8fc4", "#ffd36b", "#b99bff", "#ffffff"][i % 4]), x, 0.12, z);
+    addMesh(new THREE.SphereGeometry(0.14, 8, 6), toon(["#ff8fc4", "#ffd36b", "#b99bff", "#ffffff"][i % 4]), out(x, z), 0.12, z);
   }
   addMesh(new THREE.CylinderGeometry(0.1, 0.12, 2.6, 8), toon("#ffffff"), 11.6, 1.1, -3.2);
   addMesh(new THREE.SphereGeometry(1.1, 16, 12), toon("#ff8fc4"), 11.6, 2.9, -3.2);
@@ -282,11 +295,11 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
   // ── walls ──
   const trim = toon("#fff3dc");
   const skirting = toon("#ffffff");
-  const wallBox = (room: RoomId, w: number, h: number, d: number, x: number, y: number, z: number) => {
+  const wallBox = (room: RoomId, w: number, h: number, d: number, x: number, y: number, z: number, parent: THREE.Object3D = shell) => {
     const g = new THREE.BoxGeometry(w, h, d);
     g.translate(x, y, z);
     worldUV(g);
-    return addMesh(g, wallMat[room]);
+    return addMesh(g, wallMat[room], 0, 0, 0, parent);
   };
   const holesOn = (room: RoomId, wall: WallId, offset = 0): Rect[] =>
     (WALL_FEATURES[room][wall] ?? []).filter((f) => f.kind === "window").map((f) => ({ a: f.from + offset, b: f.to + 1 + offset, y0: WIN_Y0, y1: WIN_Y1 }));
@@ -302,18 +315,38 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     const sb = id === "bedroom" ? -MID : R.x0 + R.cols;
     addMesh(new THREE.BoxGeometry(sb - sa, 0.16, 0.06), skirting, (sa + sb) / 2, 0.08, R.z0 + 0.03);
   }
-  // side walls
+  // side walls: hinged at the back corners and splayed outward like a dollhouse's (see rules.ts
+  // SIDE_SPLAY), so they face the camera a little and what hangs on them reads; a wedge of floor runs
+  // out to meet each one
   for (const [id, wall] of [
     ["bedroom", "left"],
     ["den", "right"],
   ] as const) {
     const R = ROOMS[id];
-    const x = wall === "left" ? R.x0 - T / 2 : R.x0 + R.cols + T / 2;
-    for (const r of wallRects(R.rows, WALL_H, holesOn(id, wall))) {
-      wallBox(id, T, r.y1 - r.y0, r.b - r.a, x, (r.y0 + r.y1) / 2, R.z0 + (r.a + r.b) / 2);
+    const f = wallFrame(id, wall);
+    const sg = wall === "left" ? -1 : 1;
+    const pivot = new THREE.Group();
+    pivot.position.set(f.x, 0, f.z);
+    pivot.rotation.y = sg * SIDE_SPLAY;
+    shell.add(pivot);
+    // (long enough to reach the floor's front edge)
+    const len = R.rows / Math.cos(SIDE_SPLAY);
+    const x = sg * (T / 2);
+    for (const r of wallRects(len, WALL_H, holesOn(id, wall))) {
+      wallBox(id, T, r.y1 - r.y0, r.b - r.a, x, (r.y0 + r.y1) / 2, (r.a + r.b) / 2, pivot);
     }
-    addMesh(new THREE.BoxGeometry(T + 0.14, 0.16, R.rows + T), trim, x, WALL_H + 0.08, R.z0 + R.rows / 2 - T / 2);
-    addMesh(new THREE.BoxGeometry(0.06, 0.16, R.rows), skirting, wall === "left" ? R.x0 + 0.03 : R.x0 + R.cols - 0.03, 0.08, R.z0 + R.rows / 2);
+    addMesh(new THREE.BoxGeometry(T + 0.14, 0.16, len + T), trim, x, WALL_H + 0.08, len / 2 - T / 2, pivot);
+    addMesh(new THREE.BoxGeometry(0.06, 0.16, len), skirting, -sg * 0.03, 0.08, len / 2, pivot);
+    // the wedge of floor between the room's grid and the splayed wall
+    const wedge = new THREE.BufferGeometry();
+    const fx = f.x + sg * R.rows * Math.tan(SIDE_SPLAY);
+    const zf = R.z0 + R.rows;
+    const tri = wall === "left" ? [f.x, 0, f.z, fx, 0, zf, f.x, 0, zf] : [f.x, 0, f.z, f.x, 0, zf, fx, 0, zf];
+    wedge.setAttribute("position", new THREE.Float32BufferAttribute(tri, 3));
+    wedge.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(6), 2));
+    wedge.computeVertexNormals();
+    worldUV(wedge);
+    addMesh(wedge, floorMat[id]).castShadow = false;
   }
   // the middle wall with its arch (each face wears its own room's wallpaper)
   {
@@ -390,9 +423,8 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
         if (f.kind !== "window") continue;
         const w = f.to - f.from + 1;
         const along = f.from + w / 2;
-        if (wall === "back") addWindow(R.x0 + along, R.z0, 0, w);
-        else if (wall === "left") addWindow(R.x0, R.z0 + along, Math.PI / 2, w);
-        else addWindow(R.x0 + R.cols, R.z0 + along, -Math.PI / 2, w);
+        const fr = wallFrame(id, wall);
+        addWindow(fr.x + fr.dx * along, fr.z + fr.dz * along, fr.rotY, w);
       }
     }
   }
@@ -580,13 +612,22 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     s.material.map?.dispose();
     s.material.dispose();
   };
+  let speechText: string | null = null;
+  let speechUntil = 0;
+  let speechHud = false;
+  const speechAt = new THREE.Vector3();
+  const speechTmp = new THREE.Vector3();
+  const speechNdc = { x: 0, y: 0 };
   const petSay = (text: string, seconds = 3.2) => {
+    speechText = text;
+    speechUntil = time + seconds;
     if (bubble) clearSprite(bubble.s);
     const b = bubbleTexture(text);
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: b.texture, transparent: true, depthWrite: false }));
     const h = 1.3;
     s.scale.set(h * b.aspect * 0.55, h, 1);
     fx.add(s);
+    s.visible = !speechHud;
     bubble = { s, until: time + seconds };
   };
   let statusBar: { s: THREE.Sprite; until: number } | null = null;
@@ -725,11 +766,9 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
       for (let i = 0; i < def.w; i++) {
         const m = new THREE.Mesh(tileGeo, mat);
         const along = spec.gx + i + 0.5;
-        if (spec.wall === "back") m.position.set(R.x0 + along, 0.5, R.z0 + 0.02);
-        else {
-          m.position.set(spec.wall === "left" ? R.x0 + 0.02 : R.x0 + R.cols - 0.02, 0.5, R.z0 + along);
-          m.rotation.y = spec.wall === "left" ? Math.PI / 2 : -Math.PI / 2;
-        }
+        const fr = wallFrame(spec.room, spec.wall);
+        m.position.set(fr.x + fr.dx * along + Math.sin(fr.rotY) * 0.02, 0.5, fr.z + fr.dz * along + Math.cos(fr.rotY) * 0.02);
+        m.rotation.y = fr.rotY;
         m.scale.y = 0.2;
         m.position.y = (def.wallY ?? 2.2) - 0.75;
         group.add(m);
@@ -782,8 +821,14 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
       };
       tryPlane("bedroom", "back", new THREE.Plane(new THREE.Vector3(0, 0, 1), -ROOMS.bedroom.z0));
       tryPlane("den", "back", new THREE.Plane(new THREE.Vector3(0, 0, 1), -ROOMS.den.z0));
-      tryPlane("bedroom", "left", new THREE.Plane(new THREE.Vector3(1, 0, 0), -ROOMS.bedroom.x0));
-      tryPlane("den", "right", new THREE.Plane(new THREE.Vector3(-1, 0, 0), ROOMS.den.x0 + ROOMS.den.cols));
+      for (const [room, wall] of [
+        ["bedroom", "left"],
+        ["den", "right"],
+      ] as const) {
+        const fr = wallFrame(room, wall);
+        const n = new THREE.Vector3(Math.sin(fr.rotY), 0, Math.cos(fr.rotY));
+        tryPlane(room, wall, new THREE.Plane().setFromNormalAndCoplanarPoint(n, new THREE.Vector3(fr.x, 0, fr.z)));
+      }
       const b = best as { room: RoomId; wall: WallId; along: number; t: number } | null;
       if (b) {
         const s = snapWall(ghost.itemId, b.room, b.wall, b.along);
@@ -867,38 +912,33 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
   const camLook = new THREE.Vector3(0, 0.5, 0);
   let camInit = false;
   const camera = (cam: THREE.PerspectiveCamera, dt: number) => {
-    const aspect = cam.aspect || 1;
-    const tanV = Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
-    const tanH = tanV * aspect;
-    // portrait phones / tablets: a closer view of part of a room that pans with the kid (or,
-    // decorating, with the ghost); landscape: the whole cottage at once
-    const portrait = aspect < 1.15;
-    const pitch = portrait ? (editing ? 1.12 : 1.0) : editing ? 1.02 : 0.9;
-    const viewW = portrait ? Math.min(10.6, Math.max(7.4, 16 * aspect)) : 21.4;
-    const depth = 8.6;
-    const needH = (depth * Math.sin(pitch) + WALL_H * Math.cos(pitch) * 0.9) / 2;
-    const d = portrait ? viewW / 2 / tanH : Math.max(viewW / 2 / tanH, needH / tanV) * (editing ? 1.12 : 1.02);
-    let fx = 0;
-    if (portrait) {
-      const half = viewW / 2 - 0.35;
-      if (editing) {
-        const R = ROOMS[viewed];
-        const lo = (viewed === "bedroom" ? R.x0 - T : MID) + half;
-        const hi = (viewed === "bedroom" ? -MID : R.x0 + R.cols + T) - half;
-        const sel = ghost ? ghost.holder.position.x : selected && items.has(selected) ? items.get(selected)!.holder.position.x : R.x0 + R.cols / 2;
-        fx = lo > hi ? R.x0 + R.cols / 2 : Math.max(lo, Math.min(hi, sel));
-      } else fx = Math.max(-9.8 + half, Math.min(9.8 - half, kidPos.x));
+    // (the framing itself is ./camera.ts homeCamera: tested)
+    const portrait = (cam.aspect || 1) < 1.15;
+    let focusX = kidPos.x;
+    let panLo: number | undefined;
+    let panHi: number | undefined;
+    if (portrait && editing) {
+      const R = ROOMS[viewed];
+      panLo = viewed === "bedroom" ? R.x0 - T : MID;
+      panHi = viewed === "bedroom" ? -MID : R.x0 + R.cols + T;
+      focusX = ghost ? ghost.holder.position.x : selected && items.has(selected) ? items.get(selected)!.holder.position.x : R.x0 + R.cols / 2;
     }
-    // decorate mode: slide the house up the screen so the bar at the bottom doesn't cover it
-    const fz = 0.4 + (editing ? d * (portrait ? 0.16 : 0.07) : 0);
-    const look = new THREE.Vector3(fx, 0.9, fz);
-    const pos = look.clone().add(new THREE.Vector3(0, Math.sin(pitch) * d, Math.cos(pitch) * d));
+    const hc = homeCamera({ aspect: cam.aspect || 1, fov: cam.fov, editing, focusX, panLo, panHi });
+    const look = new THREE.Vector3(hc.look.x, hc.look.y, hc.look.z);
+    const pos = new THREE.Vector3(hc.pos.x, hc.pos.y, hc.pos.z);
     const k = camInit ? Math.min(1, dt * 4) : 1;
     camInit = true;
     camPos.lerp(pos, k);
     camLook.lerp(look, k);
     cam.position.copy(camPos);
     cam.lookAt(camLook);
+    // (where the pet's speech bubble sits on screen, for the page's HUD)
+    if (speechText) {
+      cam.updateMatrixWorld();
+      const v = speechTmp.copy(speechAt).project(cam);
+      speechNdc.x = v.x;
+      speechNdc.y = v.y;
+    }
   };
 
   // ── per-frame ──
@@ -1047,6 +1087,8 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     if (selected && items.has(selected)) items.get(selected)!.holder.scale.setScalar(1 + Math.sin(time * 6) * 0.03);
     // effects
     const head = petActor ? petY + 1.25 * ACTOR_SCALE + 0.5 : 1.6;
+    speechAt.set(petPos.x, head + 0.55, petPos.z);
+    if (speechText && time > speechUntil) speechText = null;
     if (bubble) {
       bubble.s.position.set(petPos.x, head + 0.5, petPos.z);
       if (time > bubble.until) {
@@ -1315,6 +1357,11 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     },
     petFx,
     petSay,
+    speech: () => (speechText ? { text: speechText, x: speechNdc.x, y: speechNdc.y } : null),
+    setSpeechHud: (on: boolean) => {
+      speechHud = on;
+      if (bubble) bubble.s.visible = !on;
+    },
     celebrate: petFx.celebrate,
   };
   return ride;

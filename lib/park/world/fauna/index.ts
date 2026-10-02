@@ -12,12 +12,12 @@
 // whole menagerie is 15 draw calls (+ shadows for the big ones).
 import * as THREE from "three";
 import { groundY } from "../../registry/terrain";
-import { planFlocks, planForest, planMeadows, planPasture, planWindmills, stepFlock, type Flock, type FreeFn, type Meadow, type Pasture } from "../storybook/plan";
+import { carvePasture, planFlocks, planForest, planMeadows, planPasture, planWindmills, stepFlock, type Flock, type FreeFn, type Meadow, type Pasture } from "../storybook/plan";
 import { buildForestTree } from "../storybook/geometry";
 import { makeEnv, stepFauna, type FaunaEnv } from "./brain";
 import { buildProps, trisOf } from "./geometry";
 import { buildWalkGrid } from "./ground";
-import { canopyOf, planFauna } from "./plan";
+import { canopyOf, planFauna, sheepKeepOut } from "./plan";
 import { rigDepthMaterial, rigMaterial } from "./rig";
 import { buildMeshGeometries } from "./species";
 import { KIND_NAMES, K_KOOKABURRA, K_OWL, MESHES, MESH_NAMES, M_BEAR, M_COW, M_DEER, M_GOAT, M_HORSE, M_ROO, M_SAFARI, type Agent, type KidSense, type TreeLite } from "./types";
@@ -26,6 +26,8 @@ export interface Fauna {
   update(dt: number, t: number, o: { kid: THREE.Vector3; glow: number; hour?: number }): void;
   /** hide while the camera's under the sea / far away */
   setVisible(v: boolean): void;
+  /** where the storybook's sheep may not graze (the paddock, the farm corner): carve it out of their pasture */
+  sheepKeepOut: (x: number, z: number) => boolean;
   dispose(): void;
 }
 
@@ -120,9 +122,12 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
     flocks = planFlocks(pasture, { count: low ? 5 : 7, avoid: [...millObstacles.map((o) => ({ ...o, r: o.r + 2 })), startView], sites: forest.meadows });
   }
   const nSheep = flocks.reduce((n, f) => n + f.sheep.length, 0);
-  const grid = buildWalkGrid(forest.covered, opts.obstacles, free);
+  const grid = buildWalkGrid(forest.covered, opts.obstacles, free, forest.trees);
   const plan = planFauna(free, grid, { trees: forest.trees, meadows: forest.meadows }, { lowQuality: low, obstacles: opts.obstacles, flocks: flocks.map((f) => ({ x: f.x, z: f.z, r: f.r + 2 })) });
   perchBirds(plan.agents, forest.trees, low);
+  // (the sheep stay out of the paddock and the farm: this copy of their pasture, and the storybook's own via sheepKeepOut)
+  const keepOut = sheepKeepOut(plan);
+  if (pasture) carvePasture(pasture, keepOut, flocks);
   const env: FaunaEnv = makeEnv({ g: grid, trees: forest.trees, paddock: plan.paddock, agents: plan.agents, shores: plan.shores, graph: plan.graph, routes: plan.routes, farm: plan.farm, maxSheep: nSheep });
 
   const group = new THREE.Group();
@@ -208,6 +213,21 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
   group.userData.sites = plan.sites;
   group.userData.agents = plan.agents;
   group.userData.env = env;
+  /** (harnesses) fast-forward the animals `seconds` of park time with the kid far away, sampling every `every` s */
+  group.userData.simulate = (seconds: number, o: { dt?: number; h0?: number; day?: number; every?: number; sample?: (t: number) => void } = {}) => {
+    const dt = o.dt ?? 0.1;
+    const far: KidSense = { x: 9999, y: 0, z: 9999, speed: 0, dx: 0, dz: 1, still: 0, ground: true };
+    let next = 0;
+    for (let s = 0; s < seconds; s += dt) {
+      const h = ((o.h0 ?? 9) + (s / (o.day ?? 900)) * 24) % 24;
+      stepSheep(dt, s);
+      stepFauna(env, far, dt, s, h > 19.5 || h < 5.5 ? 1 : h > 17.5 ? 0.55 : 0, h);
+      if (o.sample && s >= next) {
+        next += o.every ?? 5;
+        o.sample(s);
+      }
+    }
+  };
 
   // the kid, as the animals sense it
   const kid: KidSense = { x: 0, y: 0, z: 0, speed: 0, dx: 0, dz: 1, still: 0, ground: true };
@@ -339,6 +359,7 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
         }
       }
     },
+    sheepKeepOut: keepOut,
     setVisible(vis) {
       visible = vis;
       group.visible = vis;

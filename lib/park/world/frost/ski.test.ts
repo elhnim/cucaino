@@ -75,7 +75,7 @@ describe("the Penguin Ski Run", { timeout: 120_000 }, () => {
         }
         if ((k.state === K_NDOWN || k.state === K_NUP) && !frostPisteAt(k.x, k.z)?.nursery) fail(`chick off the nursery slope ${k.i}`);
       }
-      for (let e = 0; e < f.ev.n; e++) if (f.ev.buf[e * 5 + 4] === 2) sprays++;
+      for (let e = 0; e < f.ev.n; e++) if (f.ev.buf[e * 5 + 4] === 2 || f.ev.buf[e * 5 + 4] === 4) sprays++;
     });
     expect(bad.join("; ")).toBe("");
     for (const s of [K_QUEUE, K_LIFT, K_TOPQ, K_SKI, K_FALL, K_NDOWN, K_NUP]) expect(seen.has(s), SKI_STATE_NAMES[s]).toBe(true);
@@ -97,8 +97,15 @@ describe("the Penguin Ski Run", { timeout: 120_000 }, () => {
         for (let b = a + 1; b < S.length; b++) {
           const A = S[a];
           const B = S[b];
-          // (the two seats of one chair are side by side, a seat apart)
-                    const d = Math.hypot(A.x - B.x, A.z - B.z);
+          // (the two seats of one chair are side by side, a seat apart: shoulder to shoulder, not inside each other)
+          const d = Math.hypot(A.x - B.x, A.z - B.z);
+          if (A.state === K_LIFT && B.state === K_LIFT && A.chair === B.chair) {
+            if (d - 0.95 < worst) {
+              worst = d - 0.95;
+              who = `chairmates ${d.toFixed(2)}`;
+            }
+            continue;
+          }
           const dy = Math.abs(A.y - B.y);
           const r = (A.size * 0.3 + B.size * 0.3) * 1.15;
           if (dy < 1.2 && d - r < worst) {

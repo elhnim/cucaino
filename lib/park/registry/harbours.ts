@@ -16,7 +16,8 @@
 import type { BoatKind, SubKind } from "../characters/mounts";
 import { MOUNT_BODY, BOAT_CAPS, SUB_CAPS } from "../characters/mounts";
 import { WATER_Y, groundY } from "./terrain";
-import { coastR } from "./island";
+import { bridgeDeckY, coastR } from "./island";
+import { JETTY, fordStoneY } from "./waterways";
 import { seaFloorY } from "../world/sea/wander";
 import { VILLAGE_DECKS, villageGroundY, villageSeaFloorY } from "./villageIsland";
 import { FROST_BERGS, FROST_FLOES, FROST_ISLAND, FROST_OBSTACLES, FROST_SWIMS, FROST_SLIDES, frostCoastR, frostGroundY } from "./frostIsland";
@@ -130,6 +131,10 @@ const main: Jetty = (() => {
   return jetty("candy-harbour", base, HARBOUR_A, len, 17, 1.15, 1.4);
 })();
 docks.push({ id: "candy-harbour", name: "Candy Harbour", x: main.head.x, z: main.head.z, style: "candy" });
+
+// Rainbow Lake's jetty: from the beach below the park gate out over the clear water (no boats moor
+// here: it's for looking at the fish, the lily pads and the ducks)
+jetty("lake-jetty", W(JETTY.ax, JETTY.az), Math.atan2(JETTY.bx - JETTY.ax, JETTY.bz - JETTY.az), Math.hypot(JETTY.bx - JETTY.ax, JETTY.bz - JETTY.az), JETTY.headHalf, JETTY.y, JETTY.half);
 
 // Frostpeak's ice dock: on a gentle south beach, away from the penguins' slides, swims and floes
 const frost: Jetty = (() => {
@@ -360,6 +365,9 @@ export function harbourDeckY(x: number, z: number): number | null {
 export function worldFloorY(x: number, z: number): number {
   const h = harbourDeckY(x, z);
   if (h !== null) return Math.max(h, baseFloorY(x, z));
+  // the footbridges over the main island's river and the lake's outlet
+  const b = bridgeDeckY(x, z) ?? fordStoneY(x, z);
+  if (b !== null) return Math.max(b, baseFloorY(x, z));
   return baseFloorY(x, z);
 }
 

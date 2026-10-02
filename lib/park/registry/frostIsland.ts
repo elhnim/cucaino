@@ -859,6 +859,20 @@ const pd0L = Math.hypot(pisteDir0.x, pisteDir0.z);
 /** the start hut beside the piste's start gate, the lodge at the bottom (world) */
 const SKI_HUT_L = { lx: PISTE.x[0] + (pisteDir0.z / pd0L) * 5.2 - (pisteDir0.x / pd0L) * 1.8, lz: PISTE.z[0] - (pisteDir0.x / pd0L) * 5.2 - (pisteDir0.z / pd0L) * 1.8 };
 
+/** the start gate's queue pen (to the right of the start line, looking downhill): how far right and
+ *  back from the gate its rows run (world units) */
+export const SKI_PEN = { right0: 2.4, right1: 6.6, back0: 0.8, back1: 2.4 };
+/** the ski run's viewpoint: a telescope deck on the lodge's terrace, looking up the whole run */
+const SKI_VIEW_L = (() => {
+  const mid = Math.floor(PISTE.x.length * 0.45);
+  const dx = PISTE.x[mid] - LODGE_L.lx;
+  const dz = PISTE.z[mid] - LODGE_L.lz;
+  const l = Math.hypot(dx, dz);
+  // (round to the west of the line to the run, clear of the lift's bottom station)
+  const a = Math.atan2(dx, dz) + 0.62;
+  return { lx: LODGE_L.lx + Math.sin(a) * 5.6, lz: LODGE_L.lz + Math.cos(a) * 5.6, mid, l };
+})();
+
 export const FROST_SKI = {
   piste: worldRun(PISTE),
   nursery: worldRun(NURSERY),
@@ -870,6 +884,8 @@ export const FROST_SKI = {
   lift: { b: LIFT_B, t: LIFT_T, len: LIFT_LEN, dx: LIFT_DX, dz: LIFT_DZ, heads: CABLE, wheel: 0.6 },
   hut: W(SKI_HUT_L.lx, SKI_HUT_L.lz),
   lodge: W(LODGE_L.lx, LODGE_L.lz),
+  /** the viewpoint (stand here to see the whole run) and the point on the run it looks at */
+  view: { ...W(SKI_VIEW_L.lx, SKI_VIEW_L.lz), look: W(PISTE.x[SKI_VIEW_L.mid], PISTE.z[SKI_VIEW_L.mid]), lookY: PISTE.h[SKI_VIEW_L.mid] },
 };
 /** distance (m) from a world point to the piste's or the nursery slope's centreline, and along it */
 export function frostPisteAt(x: number, z: number): { d: number; s: number; nursery: boolean } | null {
@@ -1038,6 +1054,22 @@ function buildProps(): FrostProp[] {
   add("skirack", LODGE_L.lx + 3.9, LODGE_L.lz - 3.2, face(LODGE_L.lx, LODGE_L.lz, SKI_BOT_L.lx, SKI_BOT_L.lz) + Math.PI / 2, { v: 1 });
   add("lamp", LODGE_L.lx - 3.6, LODGE_L.lz - 3.4, 0);
   add("lamp", SKI_TOP_L.lx - 2.5, SKI_TOP_L.lz + 3.4, 0);
+  // the viewpoint's telescope, looking up the run
+  add("telescope", SKI_VIEW_L.lx + 0.9, SKI_VIEW_L.lz + 0.3, Math.atan2(PISTE.x[SKI_VIEW_L.mid] - SKI_VIEW_L.lx, PISTE.z[SKI_VIEW_L.mid] - SKI_VIEW_L.lz));
+  // rope posts round the start gate's queue pen (beside the start line, not on it)
+  {
+    const d0 = { x: pisteDir0.x / pd0L, z: pisteDir0.z / pd0L };
+    const byStart = (back: number, right: number) => [PISTE.x[0] - d0.x * back - d0.z * right, PISTE.z[0] - d0.z * back + d0.x * right] as const;
+    const P0 = SKI_PEN;
+    const b0 = P0.back0 - 0.8;
+    const b1 = P0.back1 + 0.8;
+    const r0 = P0.right0 - 0.9;
+    const r1 = P0.right1 + 0.9;
+    for (const [b, r] of [[b0, r0], [b0, (r0 + r1) / 2], [b0, r1], [b1, r1], [b1, (r0 + r1) / 2], [b1, r0]] as const) {
+      const [x, z] = byStart(b, r);
+      add("marker", x, z, 0, { v: 1 });
+    }
+  }
   // the start gate: a banner arch over the piste's first metres
   add("skigate", PISTE.x[1], PISTE.z[1], startRot, { v: 2, h: 3.3 });
   // slalom gates (red / blue) along the racing line, and orange marker poles down both edges

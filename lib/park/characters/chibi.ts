@@ -42,6 +42,8 @@ export interface ChibiRig {
   setSwim(on: boolean, moving: boolean): void;
   /** belly-sliding head-first (Frostpeak's penguin slides); false = back on your feet */
   setSlide(on: boolean): void;
+  /** Frostpeak's ski run: "ski" (carving down the piste) or "sit" (on the chairlift); null = normal */
+  setStance(s: "ski" | "sit" | null): void;
   dispose(): void;
 }
 
@@ -90,6 +92,7 @@ export function buildChibi(id: AnimalId, opts: ChibiOptions): ChibiRig {
     setGlow: (g) => anim.setGlow(g),
     setSwim: (on, moving) => anim.setSwim(on, moving),
     setSlide: (on) => anim.setSlide(on),
+    setStance: (st) => anim.setStance(st),
     dispose() {
       if (disposed) return;
       disposed = true;

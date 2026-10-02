@@ -95,7 +95,9 @@ export const HOP_REACH = 3.2;
 /** how much further back the camera sits while riding (1 = a kid-sized ride) */
 export const MOUNT_VIEW: Record<MountKind, number> = {
   bike: 1, car: 1, pony: 1.05, unicorn: 1.05, dragon: 1.5, manta: 1.2, dolphin: 1, whale: 1.55,
-  pedalo: 1.0, sailboat: 1.3, speedboat: 1.1, ship: 1.75, sub: 1.0, deepsub: 1.05,
+  // (the Pirate Ship: close enough that the captain at the wheel on the quarterdeck reads clearly,
+  // with the deck, masts and sails filling the view ahead - further back the kid was a speck)
+  pedalo: 1.0, sailboat: 1.3, speedboat: 1.1, ship: 0.85, sub: 1.0, deepsub: 1.05,
 };
 
 /**
@@ -103,7 +105,9 @@ export const MOUNT_VIEW: Record<MountKind, number> = {
  * seat - sits just out of the water. (The engine's generic "at sea" height is WATER_Y - 0.85.)
  * Boats ride with their root ON the surface (their hulls are modelled below it).
  */
-export const MOUNT_SEA_DRAFT: Partial<Record<MountKind, number>> = { dolphin: 0.42, whale: 1.6 };
+// (the whale rides high: its broad back, head and saddle well out of the water so it reads as a
+// whale, not a low flat island - see the whale in buildMount)
+export const MOUNT_SEA_DRAFT: Partial<Record<MountKind, number>> = { dolphin: 0.42, whale: 0.55 };
 
 /** boats: how deep the water must be under the hull (m), the deepest sea they'll go out on, and how they handle */
 export const BOAT_CAPS: Record<BoatKind, { draft: number; maxSea: number; accel: number; turn: number }> = {
@@ -813,7 +817,20 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
     hull.position.set(0, -0.1, 0);
     body.add(hull);
     // the body's surface height (for sitting things on it)
-    const topY = (x: number, z: number) => -0.1 + 1.35 * Math.sqrt(Math.max(0, 1 - (x / 1.65) ** 2 - (z / 4.3) ** 2));
+    // (the hull, or the raised head out front where it's higher)
+    const topY = (x: number, z: number) =>
+      Math.max(-0.1 + 1.35 * Math.sqrt(Math.max(0, 1 - (x / 1.65) ** 2 - (z / 4.3) ** 2)), 0.32 + 0.95 * Math.sqrt(Math.max(0, 1 - (x / 1.25) ** 2 - ((z - 2.75) / 1.75) ** 2)) - (Math.abs(z - 2.75) < 1.75 && Math.abs(x) < 1.25 ? 0 : 9));
+    // the head: a broad, raised brow out front, so it reads as a whale's head held up out of the
+    // water (not one smooth dome)
+    const head = mesh(new THREE.SphereGeometry(1, 18, 12), skin0);
+    head.scale.set(1.25, 0.95, 1.75);
+    head.position.set(0, 0.32, 2.75);
+    body.add(head);
+    // a low ridge down the back to the hump
+    const ridge = mesh(new THREE.CapsuleGeometry(0.16, 2.6, 3, 8), skin0);
+    ridge.rotation.x = Math.PI / 2;
+    ridge.position.set(0, topY(0, -1.2) - 0.02, -1.2);
+    body.add(ridge);
     const bellyM = mesh(new THREE.SphereGeometry(1, 18, 8, 0, Math.PI * 2, Math.PI * 0.58, Math.PI * 0.42), pale);
     bellyM.scale.set(1.68, 1.37, 4.34);
     bellyM.position.set(0, -0.1, 0);
@@ -843,11 +860,29 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
     hump.rotation.x = -0.7;
     hump.position.set(0, topY(0, -2.4) + 0.15, -2.4);
     body.add(hump);
-    saddle(body, topY(0, 1.15) + 0.04, 1.15, 0.55);
-    // blowhole with a sparkly water drop
-    const spout = mesh(new THREE.SphereGeometry(0.12, 6, 5), "#bff4ff", true);
-    spout.position.set(0, topY(0, 2.2) + 0.02, 2.2);
-    body.add(spout);
+    // the seat: a big golden saddle cushion on top, with a back rest and a grab handle in front, so
+    // it's clear where you sit
+    saddle(body, topY(0, 1.15) + 0.04, 1.15, 0.62);
+    const rest = mesh(new THREE.CapsuleGeometry(0.16, 0.7, 4, 8), accent);
+    rest.rotation.z = Math.PI / 2;
+    rest.position.set(0, topY(0, 0.55) + 0.32, 0.55);
+    body.add(rest);
+    for (const sd of [-1, 1]) {
+      const post = mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.42, 6), "#ffe08a");
+      post.position.set(sd * 0.28, topY(sd * 0.28, 1.85) + 0.18, 1.85);
+      body.add(post);
+    }
+    const grip = mesh(new THREE.CapsuleGeometry(0.07, 0.5, 3, 6), "#ffe08a");
+    grip.rotation.z = Math.PI / 2;
+    grip.position.set(0, topY(0, 1.85) + 0.42, 1.85);
+    body.add(grip);
+    // the blowhole: a dark double slit on top of the head (the spout itself is added after the bake)
+    for (const sd of [-1, 1]) {
+      const slit = mesh(new THREE.CapsuleGeometry(0.035, 0.16, 2, 6), "#2a3a6a");
+      slit.rotation.x = Math.PI / 2;
+      slit.position.set(sd * 0.06, topY(0, 2.35) + 0.01, 2.35);
+      body.add(slit);
+    }
     // long pectoral flippers
     const flippers: THREE.Bone[] = [];
     for (const side of [-1, 1]) {
@@ -874,16 +909,42 @@ export function buildMount(kind: MountKind, accent = "#ff5fa8", skin: MountSkin 
     const fu = mesh(flukeUnder, pale);
     fu.position.set(0, -0.09, -0.25);
     tail2.add(fu);
-    baseSeat.set(0, 1.12, 1.15);
-    basePet.set(0, 1.18, 0.1);
+    baseSeat.set(0, topY(0, 1.15) + 0.13, 1.15);
+    basePet.set(0, topY(0, 0.1) + 0.06, 0.1);
+    // the spout: a misty white column with a puffy top on its own bone, blown every few seconds
+    // (baked like every other part; between blows it sinks out of sight inside the head)
+    const spoutTop = topY(0, 2.35);
+    const spout = bone(body, 0, spoutTop - 2.4, 2.35);
+    const col = mesh(new THREE.CylinderGeometry(0.16, 0.06, 1.6, 8), "#f4fcff", true);
+    col.position.y = 0.8;
+    spout.add(col);
+    for (const [x, y, z, r] of [[-0.14, 1.75, 0, 0.42], [0.2, 1.62, 0.06, 0.36], [0.02, 2.05, -0.05, 0.3]] as const) {
+      const puff = mesh(new THREE.SphereGeometry(r, 10, 8), "#f4fcff", true);
+      puff.position.set(x, y, z);
+      spout.add(puff);
+    }
     let ph = 0;
+    let lift = 0;
     anim = (t, dt, speed) => {
       ph += dt * (0.8 + Math.min(1.5, speed * 0.15));
       const amp = 0.14 + Math.min(0.14, speed * 0.02);
-      tail1.rotation.x = Math.sin(ph) * amp;
-      tail2.rotation.x = Math.sin(ph - 0.9) * amp * 1.8;
-      body.rotation.x = Math.sin(ph + 1.4) * 0.02;
+      // every ~9 s (gliding slowly or waiting) the flukes lift right up out of the water, and drop back
+      const cyc = (t % 9) / 9;
+      const want = speed < 4 ? Math.max(0, Math.sin(Math.min(1, cyc / 0.32) * Math.PI)) : 0;
+      lift += (want - lift) * Math.min(1, dt * 2.5);
+      tail1.rotation.x = Math.sin(ph) * amp * (1 - lift) + lift * 0.42;
+      tail2.rotation.x = Math.sin(ph - 0.9) * amp * 1.8 * (1 - lift) + lift * 0.55;
+      // the head and back ride high, nose a touch up
+      body.rotation.x = Math.sin(ph + 1.4) * 0.02 - 0.05;
       body.position.y = Math.sin(t * 0.7) * 0.08 + Math.sin(ph + 1.4) * 0.05;
+      // the blow: a puff every ~6 s, rising and fading (only at the surface)
+      const bu = (t % 6.2) / 6.2;
+      const up = root.position.y > -1.8;
+      const k = bu < 0.07 ? bu / 0.07 : Math.max(0, 1 - (bu - 0.07) / 0.3);
+      // (it shoots up out of the blowhole, billows, then sinks back in; never squashed flat)
+      const e = up ? k : 0;
+      spout.position.y = spoutTop - 2.4 * (1 - Math.min(1, e * 1.6));
+      spout.scale.set(0.6 + e * 0.6, 0.6 + e * 0.5, 0.6 + e * 0.6);
       flippers[0].rotation.z = 0.26 + Math.sin(t * 0.6) * 0.14;
       flippers[1].rotation.z = -0.26 - Math.sin(t * 0.6) * 0.14;
       flippers[0].rotation.x = flippers[1].rotation.x = Math.sin(t * 0.6 + 1) * 0.1;

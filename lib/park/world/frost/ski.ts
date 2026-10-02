@@ -10,11 +10,15 @@
 //   ski       carving S-turns down the slalom course, a spray of snow at every turn; some wobble
 //   fall      ...and some fall over: a tumble, a slide off to the edge, a flail, back up, carry on
 //   runout    gliding to a stop at the bottom and over to the lift
+// Chairs seat two: the skiers ride up in pairs (the front two of the queue board together). The Park
+// kid can ride the lift too (kidLift*: they wait on the boarding line, the next chair scoops them up,
+// they hop off at the top), and the queue at the start gate stands in its own roped pen beside the
+// gate, clear of the start line. Penguins standing about step aside for the kid (skiAside).
 // The chicks have the nursery slope: snowploughing slowly down their own lane, then herringboning back
 // up it, with an emperor coach watching (and flapping encouragement) at the bottom.
 // Each skier is a penguin pose (./colony.ts PenguinPose: drawn by the same renderer) plus its skis.
 // Queues are lanes (polylines) everyone shuffles along in order, so nobody ever cuts through anybody.
-import { CHAIR_DROP, COURSE_AMP, COURSE_S0, COURSE_WAVE, FROST_SKI, LIFT_GAP, frostCableY, frostCourseLat, frostGroundY, frostLandY, frostRng, frostRunPoint } from "../../registry/frostIsland";
+import { SKI_PEN, CHAIR_DROP, COURSE_AMP, COURSE_S0, COURSE_WAVE, FROST_SKI, LIFT_GAP, frostCableY, frostCourseLat, frostGroundY, frostLandY, frostRng, frostRunPoint } from "../../registry/frostIsland";
 import { CHICK, EMPEROR, LITTLE, PENGUIN_K } from "./colony";
 
 const TAU = Math.PI * 2;
@@ -79,8 +83,9 @@ export interface Skier {
   wobble: boolean;
   fallAt: number;
   fallSide: number;
-  /** riding: its chair */
+  /** riding: its chair, and which of its two seats (0 left, 1 right) */
   chair: number;
+  seat: number;
   /** queueing: how far along its queue's lane (0 = the front) */
   qd: number;
   /** a nursery chick's lane; a runout's leg (0 to the queue's end) */
@@ -108,8 +113,14 @@ export interface SkiField {
   /** the lift's loop position of chair 0 */
   chairU: number;
   chairs: number;
-  /** per chair: who's riding (-1 empty) */
+  /** per chair, two seats: who's riding (chair c seat s at [c * 2 + s]; -1 empty, -2 the Park kid) */
   seatBy: Int16Array;
+  /** the Park kid on the chairlift (see kidLiftRequest) */
+  kid: KidLift;
+  /** the Park kid on the piste: how far down (-99 = not skiing): the start gate holds the penguins */
+  kidSkiS: number;
+  /** how long the front of the lift queue has let chairs go by, waiting for a partner to ride with */
+  pairWait: number;
   /** the chairs' world poses (for drawing): x, y, z, yaw */
   chairPose: Float32Array;
   /** the queues, front first */
@@ -145,6 +156,32 @@ const BOARD_D = 0.5;
 const UNLOAD_D = L.len - 0.8;
 const LEFT = { x: L.dz, z: -L.dx };
 const START_GAP = 3.4;
+/** a chair's two seats sit this far either side of its middle (they fit two emperors side by side) */
+export const SEAT_HALF = 0.6;
+/** the chair's seat across (world units): wide enough for two */
+export const CHAIR_W = 2.3;
+
+// the Park kid on the chairlift
+export const KL_NONE = 0;
+export const KL_WAIT = 1;
+export const KL_RIDE = 2;
+export const KL_OFF = 3;
+export const KL_DONE = 4;
+export interface KidLift {
+  state: number;
+  chair: number;
+  t: number;
+  /** where the kid is (their feet / seat), facing */
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  ax: number;
+  ay: number;
+  az: number;
+  bx: number;
+  bz: number;
+}
 const VMAX = [6.4, 5.8, 5.4];
 /** spacing in the queues */
 const QSP = 1.7;
@@ -242,7 +279,20 @@ const D0 = (() => {
   return { x: dx / l, z: dz / l };
 })();
 const byStart = (back: number, right: number) => ({ x: P.x[0] - D0.x * back - D0.z * right, z: P.z[0] - D0.z * back + D0.x * right });
-const TOP_LANE = makeLane([byStart(1.6, 0), byStart(1.6, 5.6), byStart(3.2, 5.6), byStart(3.2, 0)]);
+/** (the queue stands in its own roped pen to the right of the start gate, not on the start line
+ *  where the kid gets going: its front steps across onto the line only when it's that one's turn) */
+export const PEN = SKI_PEN;
+const TOP_LANE = makeLane([byStart(PEN.back0, PEN.right0), byStart(PEN.back0, PEN.right1), byStart(PEN.back1, PEN.right1), byStart(PEN.back1, PEN.right0)]);
+/** the rope posts round the pen (world x, z), for the props */
+export function skiPenPosts(): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  const b0 = PEN.back0 - 0.8;
+  const b1 = PEN.back1 + 0.8;
+  const r0 = PEN.right0 - 0.9;
+  const r1 = PEN.right1 + 0.9;
+  for (const [b, r] of [[b0, r0], [b0, (r0 + r1) / 2], [b0, r1], [b1, r1], [b1, (r0 + r1) / 2], [b1, r0]]) out.push(byStart(b, r));
+  return out;
+}
 export const SKI_LANES = { bottom: BOTTOM_LANE, top: TOP_LANE };
 
 export function skiCounts(low: boolean) {
@@ -258,7 +308,10 @@ export function makeSkiField(low: boolean, seed = 4321): SkiField {
     skiers: [],
     chairU: 0,
     chairs,
-    seatBy: new Int16Array(chairs).fill(-1),
+    seatBy: new Int16Array(chairs * 2).fill(-1),
+    kid: { state: KL_NONE, chair: -1, t: 0, x: 0, y: 0, z: 0, yaw: 0, ax: 0, ay: 0, az: 0, bx: 0, bz: 0 },
+    kidSkiS: -99,
+    pairWait: 0,
     chairPose: new Float32Array(chairs * 4),
     bottomQ: new Int16Array(nR).fill(-1),
     bqLen: 0,
@@ -307,6 +360,7 @@ export function makeSkiField(low: boolean, seed = 4321): SkiField {
       fallAt: -1,
       fallSide: 1,
       chair: -1,
+      seat: 0,
       qd: 0,
       lane: 0,
       ax: 0,
@@ -324,15 +378,17 @@ export function makeSkiField(low: boolean, seed = 4321): SkiField {
   for (let k = 0; k < C.emperors; k++) racers.push(add(EMPEROR, K_QUEUE));
   for (let k = 0; k < C.little; k++) racers.push(add(LITTLE, K_QUEUE));
   // spread round the loop from the first frame: some riding up, some at the top, some at the bottom
-  let chairK = 1;
+  let chairK = 2;
   racers.forEach((k, j) => {
     const u = j / racers.length;
     if (u < 0.35) {
       // (every other chair on the up line)
-      const c = chairK % f.chairs;
+      const c = (chairK >> 1) % f.chairs;
+      const st = chairK & 1;
       chairK += 1;
-      f.seatBy[c] = k.i;
+      f.seatBy[c * 2 + st] = k.i;
       k.chair = c;
+      k.seat = st;
       k.state = K_LIFT;
     } else if (u < 0.65) {
       k.state = K_TOPQ;
@@ -389,6 +445,15 @@ function place(f: SkiField, k: Skier) {
   slopeAt(k);
 }
 
+/** where seat `seat` of a chair is as it sweeps past the boarding line (the boarder stands under it) */
+function boardSpot(seat: number, out: { x: number; z: number }) {
+  liftPoint(L.wheel + BOARD_D, cp);
+  const o = seatSide(cp.yaw, seat);
+  out.x = cp.x + Math.cos(cp.yaw) * o;
+  out.z = cp.z - Math.sin(cp.yaw) * o;
+  return out;
+}
+
 /** did chair c sweep past loop position `at` this step (from prevU) */
 function crossed(f: SkiField, prevU: number, c: number, at: number) {
   const a = (prevU + c * (LOOP / f.chairs)) % LOOP;
@@ -399,10 +464,13 @@ function crossed(f: SkiField, prevU: number, c: number, at: number) {
 /** chair c's place on the loop */
 const chairAt = (f: SkiField, c: number) => (f.chairU + c * (LOOP / f.chairs)) % LOOP;
 
+/** the across-the-chair direction (to seat 1's side) for a chair facing yaw */
+const seatSide = (yaw: number, seat: number) => (seat ? 1 : -1) * SEAT_HALF;
 function seatPos(f: SkiField, k: Skier) {
   liftPoint(chairAt(f, k.chair), cp);
-  k.x = cp.x;
-  k.z = cp.z;
+  const o = seatSide(cp.yaw, k.seat);
+  k.x = cp.x + Math.cos(cp.yaw) * o;
+  k.z = cp.z - Math.sin(cp.yaw) * o;
   k.y = cp.y + 0.02;
   k.yaw = cp.yaw;
   k.gx = k.gz = 0;
@@ -501,8 +569,8 @@ function onPiste(k: Skier) {
   frostRunPoint(P, sAhead, lat2, pt2);
   if (k.s < 0) {
     // (behind the start line: on the line the piste sets off along)
-    pt.x = P.x[0] + D0.x * k.s;
-    pt.z = P.z[0] + D0.z * k.s;
+    pt.x = P.x[0] + D0.x * k.s + D0.z * k.lat;
+    pt.z = P.z[0] + D0.z * k.s - D0.x * k.lat;
   }
   k.x = pt.x;
   k.z = pt.z;
@@ -535,44 +603,102 @@ export function stepSkiField(f: SkiField, dtIn: number, t: number, kid: { x: num
   let nextIn = Infinity;
   for (let c = 0; c < f.chairs; c++) nextIn = Math.min(nextIn, ((boardU - chairAt(f, c) + LOOP) % LOOP) / LIFT_V);
   for (let c = 0; c < f.chairs; c++) {
-    if (crossed(f, prevU, c, unloadU) && f.seatBy[c] >= 0) {
-      const k = S[f.seatBy[c]];
-      f.seatBy[c] = -1;
-      k.state = K_UNLOAD;
-      k.t = 0;
-      k.chair = -1;
-      k.ax = k.x;
-      k.az = k.z;
-      k.ay = k.y;
-      // (hop off forward and out to the right, clear of the chairs swinging round the wheel)
-      k.bx = k.x + L.dx * 0.6 - LEFT.x * 1.8;
-      k.bz = k.z + L.dz * 0.6 - LEFT.z * 1.8;
+    if (crossed(f, prevU, c, unloadU)) {
+      for (let st = 0; st < 2; st++) {
+        const who = f.seatBy[c * 2 + st];
+        if (who === -2) {
+          // the Park kid hops off (forward, out to the right, past where the penguins land)
+          const kl = f.kid;
+          f.seatBy[c * 2 + st] = -1;
+          kl.state = KL_OFF;
+          kl.t = 0;
+          kl.chair = -1;
+          kl.ax = kl.x;
+          kl.ay = kl.y;
+          kl.az = kl.z;
+          kl.bx = kl.x + L.dx * 1.4 - LEFT.x * 4.2;
+          kl.bz = kl.z + L.dz * 1.4 - LEFT.z * 4.2;
+          continue;
+        }
+        if (who < 0) continue;
+        const k = S[who];
+        f.seatBy[c * 2 + st] = -1;
+        k.state = K_UNLOAD;
+        k.t = 0;
+        k.chair = -1;
+        k.ax = k.x;
+        k.az = k.z;
+        k.ay = k.y;
+        // (hop off forward and out to the right, clear of the chairs swinging round the wheel; the
+        // pair side by side)
+        const out = st ? 1.8 : 3.2;
+        k.bx = k.x + L.dx * 0.6 - LEFT.x * out;
+        k.bz = k.z + L.dz * 0.6 - LEFT.z * out;
+      }
     }
     if (crossed(f, prevU, c, boardU)) {
       f.lastChairAt = t;
-      const k = f.bqLen ? S[f.bottomQ[0]] : null;
-      if (k && k.state === K_BOARD && f.seatBy[c] < 0) {
-        f.seatBy[c] = k.i;
-        k.chair = c;
-        k.state = K_LIFT;
-        k.t = 0;
-        f.rides++;
-        dequeue(f, f.bottomQ, "b");
+      const free = f.seatBy[c * 2] === -1 && f.seatBy[c * 2 + 1] === -1;
+      if (free && f.kid.state === KL_WAIT && f.kid.t > 0.6 && !(f.bqLen && S[f.bottomQ[0]].state === K_BOARD)) {
+        // the Park kid's turn: this chair's theirs (they sit in the middle, a seat each side free)
+        f.seatBy[c * 2] = -2;
+        f.seatBy[c * 2 + 1] = -3;
+        f.kid.chair = c;
+        f.kid.state = KL_RIDE;
+        f.kid.t = 0;
+      } else if (free) {
+        // the front two board together
+        for (let j = 0; j < 2 && f.bqLen; j++) {
+          const k = S[f.bottomQ[0]];
+          if (k.state !== K_BOARD) break;
+          f.seatBy[c * 2 + k.seat] = k.i;
+          k.chair = c;
+          k.state = K_LIFT;
+          k.t = 0;
+          f.rides++;
+          dequeue(f, f.bottomQ, "b");
+        }
       }
     }
+    // (the kid's chair: once it's round the top wheel its empty seat marker clears)
+    if (f.seatBy[c * 2 + 1] === -3 && f.seatBy[c * 2] !== -2) f.seatBy[c * 2 + 1] = -1;
   }
   // the bottom queue: the front steps onto the boarding line just after a chair has gone by
   const front = f.bqLen ? S[f.bottomQ[0]] : null;
   const go = front !== null && front.state === K_QUEUE && (front.qd < BOARD_WAIT - 0.01 || (t - f.lastChairAt < 0.5 && nextIn > 1.6));
-  if (front && front.state === K_QUEUE && front.qd < 0.02 && nextIn < 0.45) {
+  const kidBoarding = f.kid.state === KL_WAIT;
+  // (chairs seat two: if someone's on their way along the queue, or gliding in from a run, the front
+  // lets a chair or two go by so they can ride up together)
+  if (front && front.state === K_QUEUE && front.qd < 0.02) f.pairWait += dt;
+  let partnerComing = false;
+  if (f.bqLen > 1 && S[f.bottomQ[1]].state === K_QUEUE && S[f.bottomQ[1]].qd >= QSP + 0.15) partnerComing = true;
+  if (f.bqLen === 1) for (let j = 0; j < S.length; j++) if (S[j].state === K_RUNOUT) partnerComing = true;
+  const waitForPartner = partnerComing && f.pairWait < 7;
+  if (front && front.state === K_QUEUE && front.qd < 0.02 && nextIn < 0.45 && !kidBoarding && !waitForPartner) {
+    f.pairWait = 0;
     front.state = K_BOARD;
     front.t = 0;
     front.ay = front.y;
+    front.ax = front.x;
+    front.az = front.z;
+    // (the front takes the far seat; the one behind, coming in from the lane on the right, the near one)
+    front.seat = 1;
+    // ...and the one behind steps up beside them (chairs seat two)
+    const second = f.bqLen > 1 ? S[f.bottomQ[1]] : null;
+    if (second && second.state === K_QUEUE && second.qd < QSP + 0.15) {
+      second.state = K_BOARD;
+      second.t = 0;
+      second.ay = second.y;
+      second.ax = second.x;
+      second.az = second.z;
+      second.seat = 0;
+    }
   }
   if (f.bqLen) {
-    // (shuffle everyone but a boarding front)
-    const b0 = front && front.state === K_BOARD ? 1 : 0;
-    shuffle(f, f.bottomQ, b0, f.bqLen, BOTTOM_LANE, b0 ? QSP : go ? 0 : BOARD_WAIT, Math.atan2(L.dx, L.dz), t, dt);
+    // (shuffle everyone but the boarding front pair)
+    let b0 = 0;
+    while (b0 < f.bqLen && b0 < 2 && S[f.bottomQ[b0]].state === K_BOARD) b0++;
+    shuffle(f, f.bottomQ, b0, f.bqLen, BOTTOM_LANE, b0 ? QSP * b0 : go && !kidBoarding ? 0 : BOARD_WAIT + (kidBoarding ? QSP : 0), Math.atan2(L.dx, L.dz), t, dt);
   }
   // the top queue: off we go when the front's at the gate, the top of the piste is clear, a gap since the last
   let busy = false;
@@ -580,6 +706,7 @@ export function stepSkiField(f: SkiField, dtIn: number, t: number, kid: { x: num
     const o = S[j];
     if ((o.state === K_SKI || o.state === K_FALL) && o.s < 8) busy = true;
   }
+  if (f.kidSkiS > -50 && f.kidSkiS < 10) busy = true;
   if (f.tqLen) {
     const k = S[f.topQ[0]];
     if (k.qd < 0.02 && !busy && t - f.lastStart > START_GAP && k.t > 1) {
@@ -587,8 +714,8 @@ export function stepSkiField(f: SkiField, dtIn: number, t: number, kid: { x: num
       f.lastStart = t;
       k.state = K_SKI;
       k.t = 0;
-      k.s = -1.6;
-      k.lat = 0;
+      k.s = -PEN.back0;
+      k.lat = -PEN.right0;
       k.v = 1.2;
       k.turnSign = 0;
       newRun(f, k);
@@ -610,9 +737,9 @@ export function stepSkiField(f: SkiField, dtIn: number, t: number, kid: { x: num
         // a hop up onto the seat as it swings in behind (it scoops us up at the line)
         const u = clamp(k.t / 0.45, 0, 1);
         const seatY = frostCableY(BOARD_D) - CHAIR_DROP + 0.02;
-        lanePoint(BOTTOM_LANE, 0, qp);
-        k.x = qp.x;
-        k.z = qp.z;
+        boardSpot(k.seat, qp);
+        k.x = k.ax + (qp.x - k.ax) * Math.min(1, u * 1.6);
+        k.z = k.az + (qp.z - k.az) * Math.min(1, u * 1.6);
         k.y = k.ay + (seatY - k.ay) * u + Math.sin(Math.PI * u) * 0.35;
         k.flipOut = 0.9;
         k.dangle = u;
@@ -729,9 +856,10 @@ export function stepSkiField(f: SkiField, dtIn: number, t: number, kid: { x: num
         // a spray of snow off the outside ski at every turn
         const turn = Math.sign(Math.cos(ph));
         if (k.s > 2 && turn !== k.turnSign) {
+          // (a big fan of snow off the outside ski: kind 4, see ./fx.ts)
           const sx = Math.cos(k.yaw) * -turn * 0.5;
           const sz = -Math.sin(k.yaw) * -turn * 0.5;
-          emit(f, k.x + sx, k.y + 0.08, k.z + sz, 0.5 + k.v * 0.07, 2);
+          emit(f, k.x + sx, k.y + 0.08, k.z + sz, 0.9 + k.v * 0.12, 4);
         }
         k.turnSign = turn;
         if (k.fallAt > 0 && prevS < k.fallAt && k.s >= k.fallAt) {
@@ -903,6 +1031,104 @@ export function stepSkiField(f: SkiField, dtIn: number, t: number, kid: { x: num
     }
     if (k.state === K_QUEUE || k.state === K_TOPQ || k.state === K_TOPWALK || k.state === K_RUNOUT || k.state === K_COACH || k.state === K_NREST) slopeAt(k);
   }
+  // (skaters off the lift / out of a run never skate through each other)
+  for (let a = 0; a < S.length; a++) {
+    const A = S[a];
+    if (A.state !== K_TOPWALK && A.state !== K_RUNOUT) continue;
+    for (let b = 0; b < S.length; b++) {
+      const B = S[b];
+      const still = B.state === K_UNLOAD || B.state === K_TOPQ || B.state === K_QUEUE || B.state === K_BOARD;
+      if (B === A || (B.state !== K_TOPWALK && B.state !== K_RUNOUT && !still) || (B.state === A.state && b < a)) continue;
+      const dx = A.x - B.x;
+      const dz = A.z - B.z;
+      const d = Math.hypot(dx, dz);
+      const r = (A.size + B.size) * 0.36;
+      if (d < r && d > 1e-4) {
+        const push = r - d;
+        const share = still ? 1 : 0.5;
+        A.x += (dx / d) * push * share;
+        A.z += (dz / d) * push * share;
+        if (share < 1) {
+          B.x -= (dx / d) * push * 0.5;
+          B.z -= (dz / d) * push * 0.5;
+          B.y = ground(B.x, B.z);
+        }
+        A.y = ground(A.x, A.z);
+      }
+    }
+  }
+  stepKidLift(f, dt);
+}
+
+// ── the Park kid on the chairlift ──
+
+/** where the kid waits to be scooped up (on the boarding line, under the chair's middle) */
+export function kidLiftSpot(out = { x: 0, z: 0 }) {
+  liftPoint(L.wheel + BOARD_D, cp);
+  out.x = cp.x;
+  out.z = cp.z;
+  return out;
+}
+/** standing by the lift's bottom station, near the boarding line? (the HUD offers "🚡 Chairlift") */
+export function kidLiftOffer(x: number, z: number): boolean {
+  kidLiftSpot(qp);
+  return (x - qp.x) ** 2 + (z - qp.z) ** 2 < 3.2 * 3.2;
+}
+/** the kid steps onto the boarding line: the next free chair scoops them up */
+export function kidLiftRequest(f: SkiField, x: number, z: number): boolean {
+  if (f.kid.state !== KL_NONE && f.kid.state !== KL_DONE) return false;
+  const kl = f.kid;
+  kl.state = KL_WAIT;
+  kl.t = 0;
+  kl.ax = x;
+  kl.az = z;
+  kl.ay = ground(x, z);
+  return true;
+}
+/** back to normal (riding done, or called off) */
+export function kidLiftReset(f: SkiField) {
+  for (let i = 0; i < f.seatBy.length; i++) if (f.seatBy[i] <= -2) f.seatBy[i] = -1;
+  f.kid.state = KL_NONE;
+  f.kid.chair = -1;
+}
+function stepKidLift(f: SkiField, dt: number) {
+  const kl = f.kid;
+  if (kl.state === KL_NONE || kl.state === KL_DONE) return;
+  kl.t += dt;
+  if (kl.state === KL_WAIT) {
+    // walk onto the boarding line, turn uphill, wait for the chair
+    kidLiftSpot(qp);
+    const u = clamp(kl.t / 0.6, 0, 1);
+    kl.x = kl.ax + (qp.x - kl.ax) * u;
+    kl.z = kl.az + (qp.z - kl.az) * u;
+    kl.y = ground(kl.x, kl.z);
+    kl.yaw = Math.atan2(L.dx, L.dz);
+  } else if (kl.state === KL_RIDE) {
+    liftPoint(chairAt(f, kl.chair), cp);
+    kl.x = cp.x;
+    kl.z = cp.z;
+    // (the seat: a little lift from the boarding line as the chair swings in under the kid)
+    const s0 = ground(cp.x, cp.z);
+    kl.y = kl.t < 0.45 ? s0 + (cp.y - s0) * (kl.t / 0.45) : cp.y;
+    kl.yaw = cp.yaw;
+  } else if (kl.state === KL_OFF) {
+    const u = clamp(kl.t / 0.7, 0, 1);
+    kl.x = kl.ax + (kl.bx - kl.ax) * u;
+    kl.z = kl.az + (kl.bz - kl.az) * u;
+    const gy = ground(kl.bx, kl.bz);
+    kl.y = Math.max(ground(kl.x, kl.z), kl.ay + (gy - kl.ay) * u + Math.sin(Math.PI * u) * 0.5);
+    if (u >= 1) {
+      kl.y = gy;
+      kl.state = KL_DONE;
+      emit(f, kl.x, kl.y + 0.05, kl.z, 0.7, 2);
+      for (let i = 0; i < f.seatBy.length; i++) if (f.seatBy[i] <= -2) f.seatBy[i] = -1;
+    }
+  }
+}
+
+/** is skier k standing about (queues, walking to them, resting), so it can step aside for the kid */
+export function skierStands(k: Skier): boolean {
+  return k.state === K_QUEUE || k.state === K_TOPQ || k.state === K_TOPWALK || k.state === K_RUNOUT || k.state === K_COACH || k.state === K_NREST;
 }
 
 /** for tests: the skiers' kind constants */

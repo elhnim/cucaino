@@ -6,7 +6,7 @@ import { SKY_ISLANDS } from "./skyIslands";
 import { WRAP_R } from "./terrain";
 import { ABYSS } from "./abyss";
 import { FROST_ISLAND } from "./frostIsland";
-import { DINO_ISLAND } from "./dinoIsland";
+import { DINO_ISLAND, dinoOutline } from "./dinoIsland";
 
 export interface WorldPlace {
   id: string;
@@ -23,6 +23,9 @@ export interface WorldPlace {
   how: string;
   /** for the abyss: the crack's winding path */
   path?: { x: number; z: number }[];
+  /** an island's real shape, when it isn't round: its coast, and its beach's outer edge */
+  outline?: { x: number; z: number }[];
+  shore?: { x: number; z: number }[];
 }
 
 export const WORLD_PLACES: WorldPlace[] = [
@@ -46,7 +49,9 @@ export const WORLD_PLACES: WorldPlace[] = [
     r: DINO_ISLAND.r,
     kind: "island",
     land: "#5fb04a",
-    how: `${DINO_ISLAND.name} is a lost world far out at sea, where dinosaurs roam (and mammoths in its icy valley)! Swim, ride a whale or fly the dragon there.`,
+    how: `${DINO_ISLAND.name} is a long, wild lost world out west, where dinosaurs roam free (and mammoths over its land bridge)! Swim, sail or fly the dragon there.`,
+    outline: dinoOutline(-4, 72),
+    shore: dinoOutline(6, 72),
   },
   {
     id: FROST_ISLAND.id,

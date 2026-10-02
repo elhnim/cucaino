@@ -8,7 +8,7 @@
 import { ISLAND_R, TRAIL_POINTS } from "../../registry/island";
 import { groundY } from "../../registry/terrain";
 import { fieldAt, openFields, rngOf } from "../storybook/plan";
-import { B_BLOCK, B_KEEP, B_LAND, B_OPEN, B_POND, B_SHORE, B_STREAM, B_TRAIL, B_WET, bitsAt, shareAround, slopeOf, type WalkGrid } from "./ground";
+import { B_BLOCK, B_JUNGLE, B_KEEP, B_LAND, B_OPEN, B_POND, B_SHORE, B_STREAM, B_TRAIL, B_WET, bitsAt, headroomAt, shareAround, slopeOf, type WalkGrid } from "./ground";
 import { CLASSES, C_GIANT, C_SMALL } from "./types";
 
 const TAU = Math.PI * 2;
@@ -26,6 +26,12 @@ export const TAG_PATH = 128; // on a trail itself (a waypoint for travelling, ne
 /** how much room a mover class needs either side, and the steepest ground it takes */
 export const CLEAR = [0.35, 0.7, 1.2];
 export const CLASS_SLOPE = [0.6, 0.52, 0.46];
+/**
+ * head room a mover class needs under the trees (units): the medium ones (a stag's antlers, an
+ * emu's head ~2.7) duck under nothing lower; the giants (a giraffe's head is 8 units up, an
+ * elephant's back 4.5) keep out from under every crown (WalkGrid.crown, CROWN_PAD past the leaves)
+ */
+export const CLASS_HEAD = [0, 2.9, 9];
 
 export interface RoamGraph {
   n: number;
@@ -57,7 +63,8 @@ export function cellOk(g: WalkGrid, cls: number, x: number, z: number): boolean 
   const b = bitsAt(g, x, z);
   if ((b & (B_LAND | B_BLOCK | B_KEEP)) !== B_LAND) return false;
   if (slopeOf(g, x, z) > CLASS_SLOPE[cls]) return false;
-  if (cls === C_GIANT && !(b & (B_OPEN | B_TRAIL))) return false;
+  if (cls === C_GIANT && (!(b & (B_OPEN | B_TRAIL)) || b & B_JUNGLE)) return false;
+  if (cls !== C_SMALL && headroomAt(g, x, z) < CLASS_HEAD[cls]) return false;
   return true;
 }
 

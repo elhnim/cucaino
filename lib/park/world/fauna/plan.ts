@@ -13,10 +13,11 @@
 //     fishing at the stream and turtles plodding across the trails
 import { LANDS } from "../../registry/places";
 import { BRIDGES, ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS } from "../../registry/island";
+import { LAKE, LAKE_OUTLINE, riverAt } from "../../registry/waterways";
 import { groundY } from "../../registry/terrain";
 import { fieldAt, openFields, rngOf, type FreeFn, type Meadow, type Rng } from "../storybook/plan";
 import { B_BANK, B_BLOCK, B_KEEP, B_LAND, B_OPEN, B_TRAIL, bitsAt, shareAround, slopeOf, type WalkGrid } from "./ground";
-import { TAG_HILL, TAG_OPEN, TAG_PLAZA, TAG_ROOMY, TAG_SHADE, TAG_TRAIL, buildRoamGraph, componentSizes, spotOk, type RoamGraph } from "./roam";
+import { TAG_HILL, TAG_OPEN, TAG_PLAZA, TAG_ROOMY, TAG_SHADE, TAG_TRAIL, TAG_WATER, buildRoamGraph, componentSizes, spotOk, type RoamGraph } from "./roam";
 import {
   C_GIANT,
   C_LARGE,
@@ -96,6 +97,8 @@ import {
   inPaddock,
   paddockPoint,
   trueScale,
+  HEAD_M,
+  UNITS_PER_M,
   type Agent,
   type Paddock,
   type TreeLite,
@@ -206,6 +209,7 @@ export function makeAgent(kind: number, role: number, x: number, z: number, s: n
     tree2: -1,
     climb: 0,
     act: 0,
+    head: (HEAD_M[kind] ?? 1) * UNITS_PER_M * (s / trueScale(kind)),
   };
 }
 
@@ -338,6 +342,8 @@ function planPaddock(g: WalkGrid, free: FreeFn, trees: TreeLite[], meadows: Mead
     [8.5, 5.5],
     [7, 4.8],
   ];
+  // (clear of every flock if it can be; else as far from them as fits — the sheep's pasture is carved round it anyway)
+  for (const strict of [true, false])
   for (const [hw, hd] of sizes) {
     let best: Paddock | null = null;
     let bestScore = Infinity;
@@ -371,6 +377,8 @@ function planPaddock(g: WalkGrid, free: FreeFn, trees: TreeLite[], meadows: Mead
             }
           if (!ok) continue;
           if (near.some((t) => inPaddock(p, t.x, t.z, -0.9))) continue;
+          // (never on a flock's grazing: the paddock and the farm are carved out of the sheep's pasture)
+          if (strict && flocks.some((fl) => Math.hypot(fl.x - x, fl.z - z) < fl.r + Math.hypot(hw, hd) + 4)) continue;
           const sheep = meadows.some((m) => Math.hypot(m.x - x, m.z - z) < m.r + Math.max(hw, hd) + 3);
           const flock = flocks.some((fl) => Math.hypot(fl.x - x, fl.z - z) < fl.r + Math.max(hw, hd) + 14);
           const score = dist + rough * 30 + (sheep ? 40 : 0) + (flock ? 60 : 0);
@@ -406,6 +414,13 @@ function planPaddock(g: WalkGrid, free: FreeFn, trees: TreeLite[], meadows: Mead
     }
   }
   return null;
+}
+
+/** the storybook's sheep keep out of the paddock (and a sheep's width round its fence) and the farm corner */
+export function sheepKeepOut(plan: Pick<FaunaPlan, "paddock" | "farm">): (x: number, z: number) => boolean {
+  const p = plan.paddock;
+  const f = plan.farm;
+  return (x, z) => (p !== null && inPaddock(p, x, z, -2.2)) || (f !== null && (x - f.x) ** 2 + (z - f.z) ** 2 < 8 * 8);
 }
 
 // ── canopy geometry (matches storybook/geometry.ts buildForestTree, unit scale) ──
@@ -669,8 +684,19 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
   }
 
   // ── the big ones: cows, and the safari (giraffes, zebras tagging along, an elephant family) ──
-  const G0 = mainComp(C_GIANT, 0);
-  const G1 = mainComp(C_GIANT, 1);
+  // (the safari lives where it can walk down to drink: the biggest part of the giants' map that
+  // reaches the lake or the river)
+  const wetComp = (() => {
+    const sizes = componentSizes(graph, C_GIANT);
+    for (let rank = 0; rank < Math.min(4, sizes.length); rank++) {
+      const c = mainComp(C_GIANT, rank);
+      if (sizes[rank] < 24) break;
+      for (let i = 0; i < graph.n; i++) if (graph.ok[C_GIANT][i] && graph.comp[C_GIANT][i] === c && graph.tag[i] & TAG_WATER) return c;
+    }
+    return -1;
+  })();
+  const G0 = wetComp >= 0 ? wetComp : mainComp(C_GIANT, 0);
+  const G1 = mainComp(C_GIANT, 0) === G0 ? mainComp(C_GIANT, 1) : mainComp(C_GIANT, 0);
   const safariNode = startNode(C_GIANT, TAG_ROOMY, G0);
   const gi = addHerd("giraffes", C_GIANT, safariNode, low ? [[K_GIRAFFE, R_BULL, V_GIRAFFE, 0xb8743a, false, -1], [K_GIRAFFE, R_KIT, V_GIRAFFE, 0xc8844a, true, 0]] : [[K_GIRAFFE, R_BULL, V_GIRAFFE, 0xa8642e, false, -1], [K_GIRAFFE, R_NONE, V_GIRAFFE, 0xb8743a, false, 0], [K_GIRAFFE, R_KIT, V_GIRAFFE, 0xc8844a, true, 1]], 70);
   if (gi >= 0) {
@@ -941,16 +967,23 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
   }
 
   // ── ducks and the platypus on the pond ──
+  // (the lake's shore nearest the ducks' bay, a step up the bank from the water)
   const shoreList: number[] = [];
-  for (let k = 0; k < 28; k++) {
-    const a = (k / 28) * TAU;
-    const d = POND.r + 2.6;
-    const x = POND.x + Math.sin(a) * d;
-    const z = POND.z + Math.cos(a) * d;
-    const b = bitsAt(g, x, z);
-    if (!(b & B_LAND) || slopeOf(g, x, z) > 0.4) continue;
-    if (!(bitsAt(g, POND.x + Math.sin(a) * (POND.r + 1), POND.z + Math.cos(a) * (POND.r + 1)) & B_LAND)) continue;
-    shoreList.push(x, z);
+  {
+    const cand: { x: number; z: number; d: number }[] = [];
+    for (let k = 0; k < LAKE_OUTLINE.length - 1; k += 4) {
+      const [ox, oz] = LAKE_OUTLINE[k];
+      const dx = ox - LAKE.x;
+      const dz = oz - LAKE.z;
+      const l = Math.hypot(dx, dz) || 1;
+      const x = ox + (dx / l) * 2.6;
+      const z = oz + (dz / l) * 2.6;
+      const b = bitsAt(g, x, z);
+      if (!(b & B_LAND) || b & (B_KEEP | B_BLOCK) || slopeOf(g, x, z) > 0.4) continue;
+      cand.push({ x, z, d: Math.hypot(x - POND.x, z - POND.z) });
+    }
+    cand.sort((a, b) => a.d - b.d);
+    for (const c of cand.slice(0, 28)) shoreList.push(c.x, c.z);
   }
   {
     const gid = group++;
@@ -996,20 +1029,23 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
       const nx = (qz - pz) / tl;
       const nz = -(qx - px) / tl;
       const side = (i >> 1) % 2 ? 1 : -1; // (alternate banks)
-      const x = px + nx * side * (STREAM_WIDTH / 2 + 0.75);
-      const z = pz + nz * side * (STREAM_WIDTH / 2 + 0.75);
+      const half = riverAt(px, pz).half;
+      const x = px + nx * side * (half + 0.9);
+      const z = pz + nz * side * (half + 0.9);
       const b = bitsAt(g, x, z);
-      if (!(b & B_LAND) || !(b & B_BANK) || b & (B_TRAIL | B_BLOCK)) continue;
+      if (!(b & B_LAND) || !(b & B_BANK) || b & (B_TRAIL | B_BLOCK | B_KEEP)) continue;
       if (BRIDGES.some((br) => Math.hypot(br.x - x, br.z - z) < 6)) continue;
       if (fieldAt(f.land, x, z) < 2 || spots.some((s) => Math.hypot(s.x - x, s.z - z) < 6)) continue;
       spots.push({ x, z, yaw: Math.atan2(-nx * side, -nz * side) });
     }
-    const edge = (POND.r + 1.7) / (POND.r + 2.6);
+    // (frogs sit right at the water's edge, a step down from the shore spots)
+    const edge = 0.985;
     for (let k = 0; spots.length < nF && k < shoreList.length; k += 6) {
-      const x = POND.x + (shoreList[k] - POND.x) * edge;
-      const z = POND.z + (shoreList[k + 1] - POND.z) * edge;
-      if (!(bitsAt(g, x, z) & B_LAND) || bitsAt(g, x, z) & B_BLOCK) continue;
-      spots.push({ x, z, yaw: Math.atan2(POND.x - x, POND.z - z) });
+      const x = LAKE.x + (shoreList[k] - LAKE.x) * edge;
+      const z = LAKE.z + (shoreList[k + 1] - LAKE.z) * edge;
+      if (!(bitsAt(g, x, z) & B_LAND) || bitsAt(g, x, z) & (B_BLOCK | B_KEEP)) continue;
+      if (spots.some((q) => Math.hypot(q.x - x, q.z - z) < 6)) continue;
+      spots.push({ x, z, yaw: Math.atan2(LAKE.x - x, LAKE.z - z) });
     }
     const greens = [0x5fb03c, 0x7cc242, 0x4f9a3a, 0x9ac43c];
     spots.forEach((s, i) => {
@@ -1037,9 +1073,9 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
       const nx = (qz - pz) / tl;
       const nz = -(qx - px) / tl;
       for (const side of [1, -1]) {
-        const x = px + nx * side * (STREAM_WIDTH / 2 + 1.6);
-        const z = pz + nz * side * (STREAM_WIDTH / 2 + 1.6);
-        if (!(bitsAt(g, x, z) & B_LAND) || bitsAt(g, x, z) & B_BLOCK || slopeOf(g, x, z) > 0.4) continue;
+        const x = px + nx * side * (riverAt(px, pz).half + 1.6);
+        const z = pz + nz * side * (riverAt(px, pz).half + 1.6);
+        if (!(bitsAt(g, x, z) & B_LAND) || bitsAt(g, x, z) & (B_BLOCK | B_KEEP) || slopeOf(g, x, z) > 0.4) continue;
         if (shareAround(g, x + nx * side * 3, z + nz * side * 3, 3, B_LAND) < 0.8) continue;
         const score = Math.min(td, 20) + shareAround(g, x, z, 4, B_LAND | B_OPEN) * 5;
         if (!best || score > best.score) best = { i, side, score };
@@ -1053,8 +1089,8 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
       const tz = (qz - pz) / tl;
       const nx = tz * best.side;
       const nz = -tx * best.side;
-      const mx = px + nx * (STREAM_WIDTH / 2 + 1.5);
-      const mz = pz + nz * (STREAM_WIDTH / 2 + 1.5);
+      const mx = px + nx * (riverAt(px, pz).half + 1.5);
+      const mz = pz + nz * (riverAt(px, pz).half + 1.5);
       note("bears", mx, mz);
       rocks.push({ x: px - nx * 0.2 + tx * 0.6, z: pz - nz * 0.2 + tz * 0.6, r: 0.55 }, { x: px + tx * -1.3 + nx * 0.5, z: pz + tz * -1.3 + nz * 0.5, r: 0.42 }, { x: px - nx * 0.9 - tx * 0.4, z: pz - nz * 0.9 - tz * 0.4, r: 0.36 });
       const gid = group++;

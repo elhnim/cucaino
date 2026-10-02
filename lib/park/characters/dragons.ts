@@ -74,7 +74,7 @@ export const DRAGON_BREEDS: Record<DragonBreed, BreedDef> = {
     speed: 0.85,
     moods: [4, 1, 0.5, 1],
     colors: { hide: "#f6b0cc", top: "#e889b4", belly: "#fff2c9", spike: "#ffe08a", horn: "#fff6e0", memb: "#ffd6e8", iris: "#6fc0ff" },
-    shape: { H: 0.74, bw: 0.64, bh: 0.56, bl: 0.86, neckL: 0.55, neckR: 0.3, rise: 0.75, headR: 0.36, snoutL: 0.24, eyeR: 0.12, span: 2.2, chord: 1.25, tailL: 1.3, tailR: 0.3, tip: "tuft", horns: "nubs", ears: "round", back: "bumps" },
+    shape: { H: 0.74, bw: 0.64, bh: 0.56, bl: 0.86, neckL: 0.6, neckR: 0.3, rise: 0.75, headR: 0.33, snoutL: 0.36, eyeR: 0.12, span: 2.2, chord: 1.25, tailL: 1.4, tailR: 0.3, tip: "tuft", horns: "nubs", ears: "frills", back: "bumps" },
   },
   sparkspike: {
     id: "sparkspike",
@@ -142,6 +142,27 @@ export function dragonBody(breed: DragonBreed): [number, number, number] {
   return [(front - back) / 2, Math.max(s.bw * 1.05, 0.5), (front + back) / 2];
 }
 
+/**
+ * The poses that have to reach something (tuned against the rig in dragons.test.ts):
+ * - scratch: sitting back on its haunches, the neck curled round to the right and the head tipped
+ *   so its right ear meets the right hind foot, which lifts forward and scratches away (a dog's ear
+ *   scratch); the other hind leg folds under, the front legs prop it up
+ * - nap: lying flat, front paws stretched out ahead, hind legs folded forward along the flanks (on
+ *   the grass, never through it)
+ */
+export const SCRATCH_POSE = { lower: 0.28, pitch: -0.25, neckX: 0.65, neckY: 2.35, neckZ: 0.05, headX: 0.1, headY: 0.3, headZ: -0.7, hindRx: -1.98, hindRz: 0.08, otherRx: -1.2, frontRx: 0.35, tailX: 0.4 };
+/** per-breed tweaks to the scratch (a short-legged Puffwing has to bend further) */
+export const SCRATCH_TUNE: Record<DragonBreed, Partial<typeof SCRATCH_POSE>> = {
+  skyfin: { pitch: 0, lower: 0, neckY: 2.25, neckX: 0.75, headZ: -0.25, hindRx: -2, hindRz: 0.2, frontRx: 0.75, neckZ: -0.2, headX: 0.08, headY: -0.25, otherRx: -0.9 },
+  puffwing: { pitch: -0.2, lower: 0, neckY: 1.6, neckX: 0.75, headZ: -0.63, hindRx: -2.12, hindRz: 0.45, frontRx: 0.85, neckZ: -0.15, headX: -0.58, headY: -0.38, otherRx: -1.2 },
+  sparkspike: { pitch: -0.2, lower: 0.1, neckY: 2.2, neckX: 0.75, headZ: -0.62, hindRx: -2.02, hindRz: 0.22, frontRx: 0.55, neckZ: -0.03, headX: -0.58, headY: -0.08, otherRx: -0.9 },
+  zippit: { pitch: -0.2, lower: 0.2, neckY: 1.52, neckX: 0.65, headZ: -0.5, hindRx: -2.25, hindRz: 0.23, frontRx: 1.05, neckZ: -0.2, headX: -0.13, headY: -0.13, otherRx: -1.2 },
+  roostwarden: { pitch: -0.2, lower: 0.1, neckY: 2.18, neckX: 0.7, headZ: -0.12, hindRx: -2.2, hindRz: 0.25, frontRx: 0.55, neckZ: -0.15, headX: 0.08, headY: -0.38, otherRx: -0.9 },
+};
+export const NAP_POSE = { frontRx: -1.5, hindRx: -1.4, hindRz: 0.3, neckX: 0.45, headX: 0.35 };
+/** how high the belly stays off the grass lying down, per breed (so the folded legs rest on it, not through it) */
+export const NAP_DROP: Record<DragonBreed, number> = { skyfin: 0.14, puffwing: 0.06, sparkspike: 0.11, zippit: 0.1, roostwarden: 0.1 };
+
 export interface DragonParts {
   seat: V3;
   pet: V3;
@@ -184,6 +205,44 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
     return m;
   };
 
+  /** a smooth tapered tube along a curve through `pts` (radius r0 at the start .. r1 at the end,
+   *  easing), with round caps; no segment steps. `rings` along it, `radial` round it. */
+  const taper = (parent: THREE.Object3D, pts: V3[], r0: number, r1: number, col: string, rings = 8, radial = 12, capA = true, capB = true) => {
+    const curve = new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(...q)), false, "centripetal");
+    const fr = curve.computeFrenetFrames(rings, false);
+    const pos: number[] = [];
+    const idx: number[] = [];
+    const c = new THREE.Vector3();
+    for (let i = 0; i <= rings; i++) {
+      const u = i / rings;
+      curve.getPointAt(u, c);
+      const r = r0 + (r1 - r0) * (u * u * (3 - 2 * u) * 0.5 + u * 0.5);
+      const N = fr.normals[i];
+      const Bn = fr.binormals[i];
+      for (let j = 0; j <= radial; j++) {
+        const a = (j / radial) * Math.PI * 2;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        pos.push(c.x + r * (ca * N.x + sa * Bn.x), c.y + r * (ca * N.y + sa * Bn.y), c.z + r * (ca * N.z + sa * Bn.z));
+      }
+    }
+    for (let i = 0; i < rings; i++)
+      for (let j = 0; j < radial; j++) {
+        const a = i * (radial + 1) + j;
+        const b = a + radial + 1;
+        idx.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    add(parent, g, col);
+    // round caps (exactly the tube's radius: the joint to the next segment is seamless)
+    if (capA) ball(parent, r0, col, ...pts[0], 1, 1, 1, radial);
+    if (capB) ball(parent, r1, col, ...pts[pts.length - 1], 1, 1, 1, radial);
+    return g;
+  };
+
   const H = s.H;
   // ── body: chest, barrel and hips, level like a big cat's; top colour along the back ──
   const torso = body;
@@ -199,10 +258,10 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
   {
     const g = new THREE.SphereGeometry(1, 14, 6, 0, Math.PI * 2, Math.PI * 0.6, Math.PI * 0.4);
     add(torso, g, belly, 0, H, 0).scale.set(s.bw * 1.02, s.bh * 1.03, s.bl * 1.03);
-    for (let i = 0; i < 6; i++) {
-      const z = -s.bl * 0.7 + (i / 5) * s.bl * 1.4;
+    for (let i = 0; i < 5; i++) {
+      const z = -s.bl * 0.7 + (i / 4) * s.bl * 1.4;
       const kk = Math.sqrt(Math.max(0.1, 1 - (z / (s.bl * 1.03)) ** 2));
-      const tg = new THREE.TorusGeometry(1, 0.03, 3, 12, Math.PI * 0.55);
+      const tg = new THREE.TorusGeometry(1, 0.03, 3, 8, Math.PI * 0.55);
       tg.rotateZ(Math.PI * 1.225);
       add(torso, tg, B.colors.spike === "#ffe08a" ? "#f4c56a" : "#f2b45a", 0, H, z).scale.set(s.bw * 1.03 * kk, s.bh * 1.04 * kk, 1);
     }
@@ -215,8 +274,10 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
     if (s.back === "spikes") plate(torso, 0, y, z, 0.3 - i * 0.03, -0.45);
     else if (s.back === "plates") plate(torso, 0, y, z, 0.26 - i * 0.02, -0.3, spike, 0.7);
     else if (s.back === "bumps") ball(torso, 0.09, spike, 0, y + 0.02, z, 1, 0.8, 1, 7);
-    else if (s.back === "fins" && i < 2) {
-      const f = add(torso, flat([[0, 0], [0.5, 0], [0.1, 0.42]], 0.02, 0.01, 1), spike, 0, y, z + 0.25);
+    else if (s.back === "fins") {
+      // a tall swept sail-fin, thick enough to read from any side
+      const h = 0.46 - i * 0.07;
+      const f = add(torso, flat([[0, 0], [0.62 * h / 0.46, 0], [0.5 * h / 0.46, 0.18 * h / 0.46], [0.08, h]], 0.07, 0.015, 1), spike, 0, y - 0.04, z + 0.36);
       f.rotation.set(0, Math.PI / 2, Math.PI / 2);
     }
   }
@@ -239,40 +300,51 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
     tube(leg, knee, ankle, lr * 0.92, hide, 8);
     ball(leg, lr * 1.25, hide, ankle[0], -ly + 0.09, ankle[2] + 0.07, 1.1, 0.6, 1.5, 8);
     for (let c = -1; c <= 1; c++) cone(leg, 0.035, 0.11, claw, ankle[0] + c * lr * 0.55, -ly + 0.06, ankle[2] + 0.07 + lr * 1.5, Math.PI / 2 + 0.3, 0, 5);
+    leg.name = `leg${legs.length}`;
     legs.push(leg);
   }
 
   // ── a neck reaching forward and up, and the head ──
   const neck = bone(torso, 0, H + s.bh * 0.55, s.bl * 0.85);
-  const nSeg = 3;
-  let prev: V3 = [0, 0, 0];
-  for (let i = 1; i <= nSeg; i++) {
-    const u = i / nSeg;
-    const p: V3 = [0, Math.sin(s.rise) * s.neckL * u, Math.cos(s.rise) * s.neckL * u];
-    const r = s.neckR * (1 - u * 0.25);
-    tube(neck, prev, p, r, hide, 10);
-    ball(neck, r, hide, ...p, 1, 1, 1, 10);
-    // throat stripe
-    ball(neck, r * 0.72, belly, p[0], p[1] - r * 0.45, p[2] + r * 0.35, 0.9, 0.55, 0.7, 7);
-    if (s.back === "spikes" || s.back === "plates") plate(neck, 0, p[1] + r * 0.7, p[2] - r * 0.4, 0.18, -0.9);
-    else if (s.back === "fins" && i === 2) {
-      const f = add(neck, flat([[0, 0], [0.42, 0], [0.05, 0.3]], 0.02, 0.01, 1), spike, 0, p[1] + r * 0.6, p[2] - 0.1);
-      f.rotation.set(0, Math.PI / 2, Math.PI / 2);
+  neck.name = "neck";
+  neck.rotation.order = "YXZ";
+  // (an S: up out of the chest, then curving forward to the head)
+  const nk = (u: number): V3 => [0, Math.sin(s.rise) * s.neckL * u + Math.sin(u * Math.PI) * 0.06, Math.cos(s.rise) * s.neckL * u - Math.sin(u * Math.PI) * 0.05 + u * u * 0.06];
+  const neckPts: V3[] = [nk(0), nk(0.33), nk(0.66), nk(1)];
+  taper(neck, [[0, -0.12, -0.12], ...neckPts], s.neckR * 1.45, s.neckR * 0.8, hide, 9, 12, false, true);
+  // the throat stripe, belly coloured, all the way up
+  taper(neck, neckPts.map((q, i): V3 => [0, q[1] - s.neckR * (0.5 - i * 0.04), q[2] + s.neckR * (0.42 - i * 0.05)]), s.neckR * 0.95, s.neckR * 0.5, belly, 6, 8, false, false);
+  // ridge along the back of the neck
+  for (let i = 1; i <= 3; i++) {
+    const p = nk(i / 3.6);
+    const r = s.neckR * (1.3 - i * 0.12);
+    if (s.back === "spikes" || s.back === "plates") plate(neck, 0, p[1] + r * 0.72, p[2] - r * 0.45, 0.18, -0.9);
+    else if (s.back === "bumps") ball(neck, 0.08, spike, 0, p[1] + r * 0.85, p[2] - r * 0.35, 1, 0.8, 1, 6);
+    else if (s.back === "fins") {
+      const h = 0.3 - i * 0.04;
+      const f = add(neck, flat([[0, 0], [h * 1.3, 0], [h * 1.05, h * 0.4], [0.05, h]], 0.06, 0.012, 1), spike, 0, p[1] + r * 0.62, p[2] + 0.12);
+      f.rotation.set(-0.35, Math.PI / 2, Math.PI / 2);
     }
-    prev = p;
   }
+  const prev: V3 = nk(1);
   const head = bone(neck, ...prev);
+  head.name = "head";
   const hr = s.headR * 1.18;
-  ball(head, hr, hide, 0, 0, 0, 1, 0.88, 1.02, 14);
+  ball(head, hr, hide, 0, 0, 0, 1, 0.88, 1.02, 12);
   add(head, new THREE.SphereGeometry(1, 12, 5, 0, Math.PI * 2, 0, Math.PI * 0.35), top, 0, 0.005, -0.01).scale.set(hr * 1.02, hr * 0.9, hr * 1.04);
   // the snout (upper jaw) with a big grin, nostrils on top
-  const snout = add(head, new THREE.CapsuleGeometry(hr * 0.62, s.snoutL, 5, 10), hide, 0, -hr * 0.1, hr * 0.45 + s.snoutL * 0.5);
-  snout.rotation.x = Math.PI / 2;
-  snout.scale.set(1.05, 1, 0.78);
+  // (a long, tapering muzzle: wide at the cheeks, narrower at the nose - a dragon's, not a pig's)
+  const snoutG = taper(head, [[0, -hr * 0.12, hr * 0.2], [0, -hr * 0.1, hr * 0.45 + s.snoutL * 0.5], [0, -hr * 0.14, hr * 0.45 + s.snoutL + hr * 0.1]], hr * 0.66, hr * 0.44, hide, 6, 12, false, true);
+  void snoutG;
   const tipZ = hr * 0.45 + s.snoutL + hr * 0.5;
   for (const side of [-1, 1]) {
-    ball(head, hr * 0.12, "#3a1f2e", side * hr * 0.24, hr * 0.22, tipZ - hr * 0.12, 1, 0.6, 0.8, 6);
-    // brows over the eyes (they lift when it's happy)
+    // nostril ridges on top near the tip, flaring back
+    const nr = ball(head, hr * 0.13, top, side * hr * 0.2, hr * 0.17, tipZ - hr * 0.3, 0.8, 0.55, 1.5, 7);
+    nr.rotation.y = side * 0.3;
+    ball(head, hr * 0.07, "#3a1f2e", side * hr * 0.21, hr * 0.2, tipZ - hr * 0.16, 1, 0.6, 0.8, 5);
+    // a brow ridge over each eye, angled down toward the snout
+    const br = ball(head, hr * 0.2, top, side * hr * 0.5, hr * 0.56, hr * 0.48, 1.25, 0.42, 0.9, 7);
+    br.rotation.set(0.25, side * 0.45, -side * 0.35);
   }
   // the lower jaw on its own bone (it opens into a grin)
   const jaw = bone(head, 0, -hr * 0.35, hr * 0.15);
@@ -300,7 +372,7 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
   for (const side of [-1, 1]) {
     const e = bone(head, side * hr * 0.55, hr * 0.28, hr * 0.5);
     e.rotation.y = side * 0.5;
-    ball(e, er, "#ffffff", 0, 0, 0, 1, 1, 0.8, 12);
+    ball(e, er, "#ffffff", 0, 0, 0, 1, 1, 0.8, 10);
     ball(e, er * 0.7, iris, 0, 0, er * 0.42, 1, 1, 0.5, 10);
     const p = bone(e, 0, 0, er * 0.62);
     ball(p, er * 0.42, "#24142a", 0, 0, 0, 1, 1, 0.45, 8);
@@ -314,7 +386,10 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
     if (s.horns === "swept") {
       cone(head, hr * 0.17, hr * 1.5, horn, side * hr * 0.4, hr * 0.62, -hr * 0.5, -1.15, -side * 0.25, 7);
     } else if (s.horns === "nubs") {
-      ball(head, hr * 0.17, horn, side * hr * 0.42, hr * 0.78, -hr * 0.05, 1, 1.3, 1, 7);
+      // short, curving, swept-back horns (cute, but a dragon's), and a little cheek spike
+      taper(head, [[side * hr * 0.36, hr * 0.62, hr * 0.05], [side * hr * 0.48, hr * 0.98, -hr * 0.28], [side * hr * 0.56, hr * 1.06, -hr * 0.72]], hr * 0.17, hr * 0.03, horn, 5, 7, true, false);
+      cone(head, hr * 0.08, hr * 0.42, spike, side * hr * 0.86, -hr * 0.12, -hr * 0.2, -1.6, -side * 0.5, 4);
+      if (side > 0) for (let i = 0; i < 3; i++) ball(head, hr * (0.12 - i * 0.02), spike, 0, hr * (0.86 - i * 0.12), -hr * (0.15 + i * 0.32), 1, 0.85, 1.1, 6);
     } else if (s.horns === "spiky") {
       cone(head, hr * 0.14, hr * 1.1, horn, side * hr * 0.42, hr * 0.62, -hr * 0.4, -0.9, -side * 0.35, 5);
       cone(head, hr * 0.1, hr * 0.7, spike, side * hr * 0.7, hr * 0.25, -hr * 0.5, -1.2, -side * 0.9, 4);
@@ -322,23 +397,20 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
     } else if (s.horns === "tiny") {
       cone(head, hr * 0.1, hr * 0.45, horn, side * hr * 0.3, hr * 0.9, -hr * 0.05, -0.3, -side * 0.3, 5);
     } else {
-      // big curling ram-ish horns, in three pieces
+      // big curling ram-ish horns: one smooth tapering curl
+      const curl: V3[] = [];
       let px = side * hr * 0.5;
       let py = hr * 0.6;
       let pz = -hr * 0.3;
-      let rr = hr * 0.2;
+      curl.push([px, py, pz]);
       for (let i = 0; i < 4; i++) {
         const a = i * 0.9;
-        const nx = px + side * hr * 0.25;
-        const ny = py + Math.cos(a) * hr * 0.35;
-        const nz = pz - Math.sin(a + 0.3) * hr * 0.45;
-        tube(head, [px, py, pz], [nx, ny, nz], rr, horn, 7);
-        ball(head, rr, horn, nx, ny, nz, 1, 1, 1, 7);
-        px = nx;
-        py = ny;
-        pz = nz;
-        rr *= 0.78;
+        px += side * hr * 0.25;
+        py += Math.cos(a) * hr * 0.35;
+        pz -= Math.sin(a + 0.3) * hr * 0.45;
+        curl.push([px, py, pz]);
       }
+      taper(head, curl, hr * 0.21, hr * 0.06, horn, 8, 8, true, true);
       // a spiky chin
       cone(head, hr * 0.1, hr * 0.5, spike, 0, -hr * 0.7, hr * 0.1, Math.PI - 0.5, 0, 4);
     }
@@ -358,6 +430,7 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
     // (lies flat; the bone stands it up)
     const m = add(e, g, s.ears === "round" ? hide : memb);
     m.rotation.set(0, 0, 0);
+    e.name = side > 0 ? "earR" : "earL";
     ears.push(e);
   }
 
@@ -418,16 +491,26 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
   const segL = s.tailL / 3;
   const tail2 = bone(tail1, 0, -0.08, -segL);
   const tail3 = bone(tail2, 0, -0.04, -segL);
-  tube(tail1, [0, 0, 0.1], [0, -0.08, -segL], s.tailR, hide, 9);
-  ball(tail2, s.tailR * 0.8, hide, 0, 0, 0, 1, 1, 1, 8);
-  tube(tail2, [0, 0, 0], [0, -0.04, -segL], s.tailR * 0.72, hide, 8);
-  ball(tail3, s.tailR * 0.58, hide, 0, 0, 0, 1, 1, 1, 8);
-  tube(tail3, [0, 0, 0], [0, 0, -segL], s.tailR * 0.42, hide, 7);
+  tail1.name = "tail1";
+  // one smooth taper from the hips to the tip: each bone's piece starts at exactly the radius the
+  // last one ended at, and the joints are balls of that radius, so bending never shows a step
+  const tr = [s.tailR * 1.55, s.tailR * 0.95, s.tailR * 0.62, s.tailR * 0.3];
+  // (each piece reaches a little back inside the one before, so a bend never opens a gap - and
+  // there are no joint balls to show as rings)
+  const lap = Math.min(0.14, segL * 0.2);
+  taper(tail1, [[0, 0.04, 0.3], [0, -0.01, -segL * 0.45], [0, -0.08, -segL - lap * 0.3]], tr[0], tr[1] * 0.98, hide, 6, 12, false, false);
+  taper(tail2, [[0, 0.012, lap], [0, -0.025, -segL * 0.5], [0, -0.04, -segL - lap * 0.3]], tr[1], tr[2] * 0.98, hide, 6, 12, false, false);
+  taper(tail3, [[0, 0.006, lap], [0, 0, -segL * 0.55], [0, 0, -segL]], tr[2], tr[3], hide, 6, 10, false, true);
+  if (s.back === "fins")
+    for (const [b, h] of [[tail1, 0.3], [tail2, 0.24], [tail3, 0.18]] as const) {
+      const f = add(b, flat([[0, 0], [h * 1.4, 0], [h * 1.1, h * 0.35], [0.05, h]], 0.06, 0.012, 1), spike, 0, s.tailR * 0.5, -segL * 0.15);
+      f.rotation.set(0, Math.PI / 2, Math.PI / 2);
+    }
   const tz = -segL - 0.02;
   if (s.back === "spikes" || s.back === "plates") for (const [b, h] of [[tail1, 0.2], [tail2, 0.16], [tail3, 0.12]] as const) plate(b, 0, s.tailR * 0.6, -segL * 0.5, h, -0.9);
   if (s.tip === "fins") {
     for (const side of [-1, 1]) {
-      const f = add(tail3, flat([[0, 0], [0.42, -0.1], [0.5, -0.42], [0.1, -0.3]], 0.025, 0.01, 1), spike, 0, 0, tz);
+      const f = add(tail3, flat([[0, 0], [0.55, -0.12], [0.66, -0.55], [0.12, -0.38]], 0.05, 0.012, 1), spike, 0, 0, tz);
       f.scale.set(side, 1, 1);
     }
   } else if (s.tip === "tuft") {
@@ -476,7 +559,8 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
   let flapPh = 0;
   let lookT = 0;
   let lookA = 0;
-  const maxDrop = H - s.bh - 0.04;
+  const maxDrop = H - s.bh - NAP_DROP[breed];
+  const scratchQ = { ...SCRATCH_POSE, ...SCRATCH_TUNE[breed] };
   const target = (act: DragonAct, t: number) => {
     Object.assign(T, { lower: 0, pitch: 0, neckX: 0, neckY: 0, neckZ: 0, headX: 0, headY: 0, headZ: 0, jaw: 0.15, ear: 0.3, pupil: 1, eye: 1, tailY: 0.2, tailX: 0, fold: 1, wingUp: 0.5, nap: 0, scratch: 0, walk: 0, wiggle: 0, sniff: 0, hover: B.hover ? 1 : 0, chase: 0 });
     // looking about (or at the kid)
@@ -485,10 +569,13 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
     T.headY = T.neckY * 0.5;
     switch (act) {
       case "nap":
-        Object.assign(T, { lower: 1, nap: 1, neckX: 0.75, headX: 0.2, neckY: 0.5, headY: 0.4, eye: 0.04, ear: -0.6, tailY: 0.9, jaw: 0, pupil: 1, hover: 0, wingUp: 0.1 });
+        Object.assign(T, { lower: 1, nap: 1, neckX: NAP_POSE.neckX, headX: NAP_POSE.headX, neckY: 0.5, headY: 0.4, eye: 0.04, ear: -0.6, tailY: 0.9, jaw: 0, pupil: 1, hover: 0, wingUp: 0.1 });
         break;
-      case "scratch":
-        Object.assign(T, { lower: 0.35, pitch: -0.25, scratch: 1, neckX: 0.45, neckY: 0.9, headY: 0.4, headZ: 0.5, eye: 0.35, ear: 0.6, jaw: 0.4, hover: 0 });
+      case "scratch": {
+        const q = scratchQ;
+        Object.assign(T, { lower: q.lower, pitch: q.pitch, scratch: 1, neckX: q.neckX, neckY: q.neckY, neckZ: q.neckZ, headX: q.headX, headY: q.headY, headZ: q.headZ, eye: 0.2, ear: -0.2, jaw: 0.55, pupil: 1.2, tailY: 0.6, tailX: q.tailX, hover: 0, wingUp: 0.3 });
+        break;
+      }
         break;
       case "chase":
         Object.assign(T, { walk: 1, chase: 1, neckY: 1.0, headY: 0.6, tailY: 0.8, ear: 0.9, jaw: 0.5, pupil: 1.25 });
@@ -577,15 +664,17 @@ export function buildDragonParts(breed: DragonBreed, k: CraftKit, opts: { main?:
       let rx = Math.sin(ph) * 0.5 * P.walk;
       let rz = 0;
       // lying down: front paws stretched forward, back legs tucked to the sides
-      rx = lerp(rx, front ? -1.35 : -0.9, P.nap);
-      rz = lerp(rz, front ? 0 : side * 0.6, P.nap);
-      // sitting back to scratch: the back legs fold; the right one lifts and scratches away
-      if (!front) rx = lerp(rx, -0.55, P.scratch * 0.7);
+      rx = lerp(rx, front ? NAP_POSE.frontRx : NAP_POSE.hindRx, P.nap);
+      rz = lerp(rz, front ? 0 : side * NAP_POSE.hindRz, P.nap);
+      // sitting back to scratch: the left hind leg folds under; the right one lifts forward to the ear
+      // and scratches away (quick little kicks); the front legs prop the chest up
+      const q = scratchQ;
+      if (i === 2) rx = lerp(rx, q.otherRx, P.scratch);
       if (i === 3) {
-        rx = lerp(rx, -1.7 + Math.sin(t * 22) * 0.22, P.scratch);
-        rz = lerp(rz, 0.5, P.scratch);
+        rx = lerp(rx, q.hindRx + Math.sin(t * 24) * 0.16, P.scratch);
+        rz = lerp(rz, q.hindRz + Math.sin(t * 24) * 0.06, P.scratch);
       }
-      if (front) rx = lerp(rx, 0.15, P.scratch);
+      if (front) rx = lerp(rx, q.frontRx, P.scratch);
       // hovering: legs dangle and paddle a little
       rx += P.hover * Math.sin(t * 5 + i) * 0.15;
       legs[i].rotation.set(rx, 0, rz);

@@ -18,6 +18,8 @@ import {
   footprint,
   isItemUnlocked,
   nearestWall,
+  SIDE_SPLAY,
+  wallAlong,
   placedTransform,
   sanitizeLayout,
   sanitizeOwned,
@@ -78,8 +80,16 @@ describe("footprints and coordinates", () => {
   });
   it("puts wall items on the right wall, facing into the room", () => {
     expect(placedTransform({ item: "poster-star", room: "bedroom", gx: 0, gz: 0, r: 0, wall: "back" })).toMatchObject({ x: -9, z: -4, rotY: 0 });
-    expect(placedTransform({ item: "poster-star", room: "bedroom", gx: 0, gz: 0, r: 0, wall: "left" })).toMatchObject({ x: -9.5, z: -3.5 });
-    expect(placedTransform({ item: "poster-star", room: "den", gx: 0, gz: 0, r: 0, wall: "right" }).x).toBeCloseTo(9.5);
+    // (the side walls are splayed out like a dollhouse's: hinged at the back corner, turned toward the front)
+    const l = placedTransform({ item: "poster-star", room: "bedroom", gx: 0, gz: 0, r: 0, wall: "left" });
+    expect(l.x).toBeCloseTo(-9.5 - 0.5 * Math.sin(SIDE_SPLAY));
+    expect(l.z).toBeCloseTo(-4 + 0.5 * Math.cos(SIDE_SPLAY));
+    expect(l.rotY).toBeCloseTo(Math.PI / 2 - SIDE_SPLAY);
+    const r = placedTransform({ item: "poster-star", room: "den", gx: 0, gz: 0, r: 0, wall: "right" });
+    expect(r.x).toBeCloseTo(9.5 + 0.5 * Math.sin(SIDE_SPLAY));
+    expect(r.rotY).toBeCloseTo(-(Math.PI / 2 - SIDE_SPLAY));
+    // ...and a point on the splayed wall measures back to where it is along it
+    expect(wallAlong("bedroom", "left", l.x, l.z)).toBeCloseTo(0.5);
     expect(nearestWall("bedroom", -9.2, 1)).toBe("left");
     expect(nearestWall("den", 5, -3.6)).toBe("back");
     expect(nearestWall("den", 9.1, 2)).toBe("right");

@@ -133,15 +133,33 @@ function floorCells(def: HomeItemDef, gx: number, gz: number, r: number): [numbe
 }
 
 /** World-space centre + facing of a placed item (floor items: y = 0; wall items: on the wall). */
+/**
+ * The side walls are splayed outward like a dollhouse's (hinged at the back corners, the front ends
+ * swung out by this angle), so they turn toward the camera at the front and what hangs on them reads
+ * (instead of being seen edge-on).
+ */
+export const SIDE_SPLAY = 0.36;
+/**
+ * A wall's frame: its inner face at the back corner (x, z), the unit direction along it (dx, dz),
+ * and the way things hung on it face (rotY). Side walls run along their splayed line.
+ */
+export function wallFrame(room: RoomId, wall: WallId): { x: number; z: number; dx: number; dz: number; rotY: number } {
+  const R = ROOMS[room] ?? ROOMS.bedroom;
+  if (wall === "back") return { x: R.x0, z: R.z0, dx: 1, dz: 0, rotY: 0 };
+  const s = Math.sin(SIDE_SPLAY);
+  const c = Math.cos(SIDE_SPLAY);
+  if (wall === "left") return { x: R.x0, z: R.z0, dx: -s, dz: c, rotY: Math.PI / 2 - SIDE_SPLAY };
+  return { x: R.x0 + R.cols, z: R.z0, dx: s, dz: c, rotY: -(Math.PI / 2 - SIDE_SPLAY) };
+}
+
 export function placedTransform(p: Pick<HomePlaced, "item" | "room" | "gx" | "gz" | "r" | "wall">): { x: number; y: number; z: number; rotY: number } {
   const def = getHomeItem(p.item);
   const R = ROOMS[p.room] ?? ROOMS.bedroom;
   if (def?.surface === "wall" && p.wall) {
     const along = p.gx + def.w / 2;
     const y = def.wallY ?? 2.2;
-    if (p.wall === "back") return { x: R.x0 + along, y, z: R.z0, rotY: 0 };
-    if (p.wall === "left") return { x: R.x0, y, z: R.z0 + along, rotY: Math.PI / 2 };
-    return { x: R.x0 + R.cols, y, z: R.z0 + along, rotY: -Math.PI / 2 };
+    const f = wallFrame(p.room, p.wall);
+    return { x: f.x + f.dx * along, y, z: f.z + f.dz * along, rotY: f.rotY };
   }
   const { w, d } = footprint(def ?? { w: 1, d: 1 }, p.r);
   return { x: R.x0 + p.gx + w / 2, y: 0, z: R.z0 + p.gz + d / 2, rotY: (((p.r % 4) + 4) % 4) * (Math.PI / 2) };
@@ -164,8 +182,8 @@ export function snapFloor(itemId: string, x: number, z: number, r: number, room:
 
 /** Distance along a wall of a world point (x, z). */
 export function wallAlong(room: RoomId, wall: WallId, x: number, z: number): number {
-  const R = ROOMS[room];
-  return wall === "back" ? x - R.x0 : z - R.z0;
+  const f = wallFrame(room, wall);
+  return (x - f.x) * f.dx + (z - f.z) * f.dz;
 }
 
 /** The hangable wall of `room` nearest to (x, z). */
@@ -174,7 +192,9 @@ export function nearestWall(room: RoomId, x: number, z: number): WallId {
   let best: WallId = "back";
   let bestD = Infinity;
   for (const w of R.walls) {
-    const d = w === "back" ? z - R.z0 : w === "left" ? x - R.x0 : R.x0 + R.cols - x;
+    // (how far in front of the wall's face, along the way it faces)
+    const f = wallFrame(room, w);
+    const d = (x - f.x) * Math.sin(f.rotY) + (z - f.z) * Math.cos(f.rotY);
     if (d < bestD) {
       bestD = d;
       best = w;

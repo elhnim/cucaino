@@ -96,6 +96,7 @@ import {
 } from "./scenery";
 
 export { ABYSS, abyssDistance, abyssFloorY } from "../../registry/abyss";
+import { addOccluderFade, setBigSea, type BigBody } from "../sea/bigSea";
 
 export interface Abyss {
   update(dt: number, t: number, o: { kid: THREE.Vector3; under: boolean; glow: number }): { spot: { id: string; name: string; text: string } | null };
@@ -157,6 +158,9 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
   rockMat.polygonOffsetFactor = -1;
   rockMat.polygonOffsetUnits = -2;
   const lifeMat = track(abyssMaterial(AU, { rim: 0.55, lift: 0.17 }, { roughness: 0.55 }));
+  // (the rift's life dithers away wherever it comes between the camera and the kid - the giant
+  // octopus's arms in its grotto, the megalodon gliding past the lens: ../sea/bigSea)
+  addOccluderFade(lifeMat);
   const glassMat = track(glassMaterial(AU));
   const plumeMat = track(plumeMaterial(AU));
 
@@ -256,6 +260,17 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
 
   // ── the creatures ──
   const creatures = planCreatures(low);
+  // the giants (the megalodon, the giant squid, the octopus...), for the camera: ../sea/bigSea
+  const bigLen = (c: Creature) => 2.2 * c.radius * c.scale;
+  // (not the octopus sitting in its grotto: it doesn't swim past, and its arms fade instead)
+  const bigOf: number[] = creatures.map((c) => (bigLen(c) >= 8 && c.kind !== "fixed" ? 0 : -1));
+  const big: BigBody[] = [];
+  creatures.forEach((c, i) => {
+    if (bigOf[i] < 0) return;
+    bigOf[i] = big.length;
+    big.push({ x: 0, y: -1e4, z: 0, len: bigLen(c), yaw: 0 });
+  });
+  setBigSea("abyss", big);
   const GEO: Record<Species, () => CreatureGeo> = {
     megalodon: () => megalodonGeometry(low),
     greenland: () => greenlandGeometry(low),
@@ -555,6 +570,7 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
       group.visible = show;
       if (!show) {
         kidLight.intensity = 0;
+        for (const b of big) b.y = -1e4;
         return result;
       }
       AU.uTime.value = t;
@@ -603,6 +619,14 @@ export function buildAbyss(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
         else stepCreature(c, t, d);
         c.ph = (c.ph + d * c.phRate) % PH_WRAP;
         const p = c.pose;
+        if (bigOf[i] >= 0) {
+          const b = big[bigOf[i]];
+          b.x = p.x;
+          b.y = p.y;
+          b.z = p.z;
+          b.yaw = p.yaw;
+          b.len = 2.2 * c.radius * p.scale;
+        }
         const dx = p.x - kid.x;
         const dy = p.y - kid.y;
         const dz = p.z - kid.z;

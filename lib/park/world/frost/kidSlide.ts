@@ -254,5 +254,30 @@ export function stepKidSlide(k: KidSlide, dtIn: number, steer: number, clear: bo
   return k;
 }
 
+// ── the pet slides down too, on its tummy, a few metres behind the kid ──
+
+/** how far behind the kid (along the chute) the pet slides */
+export const PET_SLIDE_GAP = 3.2;
+let petScratch: KidSlide | null = null;
+/**
+ * Where the pet is on the kid's chute: lying ready just behind the kid while they wait, then sliding
+ * the same line PET_SLIDE_GAP behind them (it splashes in just after the kid does). Writes x, y, z
+ * (the chute's floor), yaw, pitch; returns its distance down the chute.
+ */
+export function petSlidePose(k: KidSlide, out: { x: number; y: number; z: number; yaw: number; pitch: number }): number {
+  if (!petScratch) petScratch = makeKidSlide(k.chute, CHUTES[k.chute].x[0], CHUTES[k.chute].z[0]);
+  const q = petScratch;
+  q.chute = k.chute;
+  q.s = k.waiting ? Math.min(k.s, 0) - 1.6 : k.s - PET_SLIDE_GAP;
+  q.lat = k.waiting ? Math.max(-SLIDE_LAT_MAX, Math.min(SLIDE_LAT_MAX, k.lat - 0.7)) : k.lat * 0.6;
+  place(q);
+  out.x = q.x;
+  out.y = q.y;
+  out.z = q.z;
+  out.yaw = q.yaw;
+  out.pitch = q.pitch;
+  return q.s;
+}
+
 /** the chutes, for tests */
 export const KID_CHUTES = CHUTES;

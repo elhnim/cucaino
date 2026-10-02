@@ -23,16 +23,18 @@ import {
   type FreeFn,
 } from "./plan";
 import { LANDS, PLACES } from "../../registry/places";
-import { TRAIL_POINTS, coastR, nearStream, nearTrail } from "../../registry/island";
+import { TRAIL_POINTS, coastR, nearMesa, nearStream, nearTrail } from "../../registry/island";
+import { inJungle } from "../../registry/jungle";
 import { zoneBounds } from "../../builder/rules";
 
-// a stand-in for the park's free() predicate (trails, places, plaza, Dream Park, stream, beach)
+// a stand-in for the park's free() predicate (trails, places, plaza, Dream Park, the river and the lake, beach,
+// the rainforest and the falls' mesa)
 const zb = zoneBounds();
 const free: FreeFn = (x, z, pad) => {
   const r = Math.hypot(x, z);
   if (r < 12 + pad || r > coastR(Math.atan2(x, z)) - 4 - pad) return false;
   if (x > zb.minX - pad && x < zb.maxX + pad && z > zb.minZ - pad && z < zb.maxZ + pad) return false;
-  if (nearTrail(x, z, pad + 1.6) || nearStream(x, z, pad)) return false;
+  if (nearTrail(x, z, pad + 1.6) || nearStream(x, z, pad) || inJungle(x, z, pad) || nearMesa(x, z, pad)) return false;
   return !PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < Math.max(p.radius, 1.5) + pad + 1.2);
 };
 

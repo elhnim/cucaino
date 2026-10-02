@@ -1,11 +1,12 @@
 // Dino Isle's things, as chunky faceted storybook models in the fantasy kit's layout (so they share
 // its wind sway and night glow), all merged into ONE mesh: the great log park gate with its
-// "DINO ISLE" sign, torches, the research hut and safari jeep, the lookout tower, the paddock's
-// tall log fence, rail fences and signposts, nests full of speckled eggs, the fossil dig with its
-// half-dug skeleton, the Ice Age camp (mammoth-bone huts, a drying rack, a cave-painting rock, a
-// mammoth skull), the ice cave's arch; and the plants — monkey-puzzle trees, tree ferns, cycads,
-// giant ferns and elephant-ear leaves, jungle giants with vines, palms, horsetails, swamp cypresses,
-// snowy pines, ice crystals — plus every deck (jetty, boardwalk, bridges, ramps).
+// "DINO ISLE" sign, torches, the research hut, the lookout tower, the river hide and the Rex
+// lookouts, the tall log fence round the T-rex's valley, rail fences and signposts, nests full of
+// speckled eggs, the fossil dig with its half-dug skeleton, the Ice Age camp (mammoth-bone huts, a
+// drying rack, a cave-painting rock, a mammoth skull), the ice cave's arch; the understorey —
+// cycads, giant ferns and elephant-ear leaves, horsetails, swamp cypresses, ice crystals, rocks —
+// plus every deck (jetty, boardwalks, the Rex Bridge across the valley, ramps). The big trees are
+// drawn instanced (./trees.ts).
 import * as THREE from "three";
 import {
   DINO_CAVE,
@@ -14,8 +15,8 @@ import {
   DINO_GATE,
   DINO_GATE_SIGN_Y,
   DINO_GLACIER,
+  DINO_GORGE,
   DINO_ISLAND,
-  DINO_PADDOCK,
   DINO_PROPS,
   dinoGroundY,
   dinoLandY,
@@ -45,6 +46,7 @@ const SNOWC = "#f6f9ff";
 const PINE = ["#2f7a4e", "#3a8a58", "#2a6e48"];
 
 const shade = (hex: string, k: number) => _c.set(hex).multiplyScalar(k).clone();
+const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
 /** a box turned about x, then y, then z */
 function boxR(w: number, h: number, d: number, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0): THREE.BufferGeometry {
   const g = new THREE.BoxGeometry(w, h, d);
@@ -237,138 +239,175 @@ function kiosk(): THREE.BufferGeometry[] {
   return P;
 }
 
-function jeep(): THREE.BufferGeometry[] {
-  const P: THREE.BufferGeometry[] = [];
-  const body = (p: THREE.Vector3, n: THREE.Vector3) => (Math.abs(n.y) < 0.5 && Math.abs(p.y - 0.95) < 0.12 ? col("#d83a3a") : col("#f4f0e0"));
-  P.push(pp(box(1.8, 0.8, 3.6, 0, 0.9, 0), body));
-  P.push(pp(box(1.7, 0.45, 1.2, 0, 1.45, 1.1), body));
-  P.push(pp(box(1.6, 0.6, 0.06, 0, 1.75, 0.5), "#bfe6f4"));
-  // roll bar, seats, spare tyre, lights
-  P.push(pp(box(1.8, 0.08, 0.08, 0, 2.15, -0.7), "#3a3a40"));
-  for (const x of [-0.86, 0.86]) P.push(pp(box(0.08, 0.9, 0.08, x, 1.7, -0.7), "#3a3a40"));
-  for (const x of [-0.45, 0.45]) P.push(pp(box(0.6, 0.5, 0.5, x, 1.45, -0.1), "#6a4a3a"));
-  P.push(pp(place(new THREE.CylinderGeometry(0.42, 0.42, 0.3, 8), 0, 1.1, -1.95, 0, 1, PI / 2, 0), "#2a2a2e"));
-  for (const x of [-0.6, 0.6]) P.push(pp(box(0.3, 0.2, 0.06, x, 1.0, 1.82), "#fff4a0", [0, 0, 0.6]));
-  for (const x of [-0.95, 0.95])
-    for (const z of [-1.2, 1.2]) {
-      P.push(pp(place(new THREE.CylinderGeometry(0.45, 0.45, 0.35, 8), x, 0.45, z, 0, 1, 0, PI / 2), "#2a2a2e"));
-      P.push(pp(place(new THREE.CylinderGeometry(0.2, 0.2, 0.37, 6), x, 0.45, z, 0, 1, 0, PI / 2), "#c8c8d0"));
+/** the round deck a raised prop stands under (the nearest one) */
+function deckUnder(p: DinoProp): DinoDeck {
+  let best = DINO_DECKS[0];
+  let bd = Infinity;
+  for (const d of DINO_DECKS) {
+    if (d.r === undefined) continue;
+    const dd = (d.ax - p.x) ** 2 + (d.az - p.z) ** 2;
+    if (dd < bd) {
+      bd = dd;
+      best = d;
     }
-  return P;
+  }
+  return best;
 }
-
-function tower(p: DinoProp, low: boolean): THREE.BufferGeometry[] {
-  // the lookout: four big log legs from the ground up past the deck, braces, a rail, a thatched roof
-  const d = DINO_DECKS.find((q) => q.id === "lookout")!;
-  const up = d.ya - p.y;
-  const P: THREE.BufferGeometry[] = [];
-  const R = (d.r ?? 3) - 0.35;
-  const ramp = DINO_DECKS.find((q) => q.id === "lookout-ramp")!;
-  const ra = Math.atan2(ramp.bx - ramp.ax, ramp.bz - ramp.az) - p.rot;
-  for (let k = 0; k < 4; k++) {
-    const a = (k / 4) * PI * 2 + PI / 4;
+/** the angle (prop-local) its ramp leaves at */
+function rampAngle(d: DinoDeck, p: DinoProp): number {
+  if (d.open !== undefined) return d.open - p.rot;
+  let best: DinoDeck | null = null;
+  let bd = Infinity;
+  for (const q of DINO_DECKS) {
+    if (q.kind !== "ramp") continue;
+    const dd = (q.ax - d.ax) ** 2 + (q.az - d.az) ** 2;
+    if (dd < bd) {
+      bd = dd;
+      best = q;
+    }
+  }
+  return best ? Math.atan2(best.bx - best.ax, best.bz - best.az) - p.rot : 0;
+}
+/** log legs from the ground up to (and past) a round deck at `up` above the prop's base (prop-local) */
+function legs(P: THREE.BufferGeometry[], d: DinoDeck, p: DinoProp, R: number, n: number, over: number, r: number) {
+  for (let k = 0; k < n; k++) {
+    const a = (k / n) * PI * 2 + PI / n;
     const x = Math.sin(a) * R;
     const z = Math.cos(a) * R;
-    P.push(pp(cyl(0.22, 0.28, up + 2.9, 6, x, -0.3, z), LOG));
-    const b = ((k + 1) / 4) * PI * 2 + PI / 4;
-    P.push(pp(stick(v3(x, 0.4, z), v3(Math.sin(b) * R, up - 0.4, Math.cos(b) * R), 0.14), WOOD_D));
+    // (world point of this leg, for the ground under it)
+    const wx = p.x + x * Math.cos(p.rot) + z * Math.sin(p.rot);
+    const wz = p.z - x * Math.sin(p.rot) + z * Math.cos(p.rot);
+    const g = (dinoLandY(wx, wz) ?? d.ya - 3) - p.y;
+    P.push(pp(cyl(r, r * 1.25, -g + over, 6, x, g - 0.3, z), LOG));
+    const b = ((k + 1) / n) * PI * 2 + PI / n;
+    if (-g > 1.5) P.push(pp(stick(v3(x, g + 0.4, z), v3(Math.sin(b) * R, -0.4, Math.cos(b) * R), r * 0.6), WOOD_D));
   }
-  const roof = new THREE.ConeGeometry(R + 1.3, 2.0, low ? 6 : 8);
-  roof.translate(0, up + 3.4, 0);
-  P.push(pp(roof, THATCH, [0, 0.04, 0]));
-  P.push(pp(cone(0.12, 1.2, 4, 0, up + 4.3, 0), WOOD_D));
-  P.push(pp(place(flat([[0, 0], [0.9, -0.25], [0, -0.5]]), 0.03, up + 5.4, 0), "#ff6b4a", [0, 0.9, 0]));
-  // rail (open where the ramp arrives)
-  const n = 14;
+}
+function rail(P: THREE.BufferGeometry[], R: number, ra: number, n: number) {
   for (let i = 0; i < n; i++) {
     const a = (i / n) * PI * 2;
     if (Math.abs(Math.atan2(Math.sin(a - ra), Math.cos(a - ra))) < 0.45) continue;
     const x = Math.sin(a) * (R + 0.25);
     const z = Math.cos(a) * (R + 0.25);
-    P.push(pp(box(0.1, 1.0, 0.1, x, up + 0.5, z), WOOD_D));
+    P.push(pp(box(0.11, 1.05, 0.11, x, 0.52, z), WOOD_D));
     const b = ((i + 1) / n) * PI * 2;
     if (Math.abs(Math.atan2(Math.sin(b - ra), Math.cos(b - ra))) < 0.45) continue;
-    P.push(pp(stick(v3(x, up + 1.0, z), v3(Math.sin(b) * (R + 0.25), up + 1.0, Math.cos(b) * (R + 0.25)), 0.09), WOOD));
+    P.push(pp(stick(v3(x, 1.05, z), v3(Math.sin(b) * (R + 0.25), 1.05, Math.cos(b) * (R + 0.25)), 0.1), WOOD));
   }
+}
+
+function tower(p: DinoProp, low: boolean): THREE.BufferGeometry[] {
+  // the plains lookout: four big log legs from the ground up past the deck, braces, a rail, a thatched roof
+  // (the prop's base is the deck itself)
+  const d = deckUnder(p);
+  const P: THREE.BufferGeometry[] = [];
+  const R = (d.r ?? 3) - 0.35;
+  const ra = rampAngle(d, p);
+  legs(P, d, p, R, 4, 2.9, 0.26);
+  const roof = new THREE.ConeGeometry(R + 1.5, 2.2, low ? 6 : 8);
+  roof.translate(0, 3.5, 0);
+  P.push(pp(roof, THATCH, [0, 0.04, 0]));
+  P.push(pp(cone(0.12, 1.2, 4, 0, 4.5, 0), WOOD_D));
+  P.push(pp(place(flat([[0, 0], [0.9, -0.25], [0, -0.5]]), 0.03, 5.6, 0), "#ff6b4a", [0, 0.9, 0]));
+  rail(P, R, ra, 16);
   // a telescope on a post
-  P.push(pp(cyl(0.05, 0.06, 1.1, 4, 0, up, 0), "#3a3a40"));
-  P.push(pp(place(new THREE.CylinderGeometry(0.09, 0.12, 0.7, 6), 0, up + 1.2, 0.15, 0, 1, -1.2, 0), "#c89a40"));
+  P.push(pp(cyl(0.05, 0.06, 1.1, 4, 0, 0, 0), "#3a3a40"));
+  P.push(pp(place(new THREE.CylinderGeometry(0.09, 0.12, 0.7, 6), 0, 1.2, 0.15, 0, 1, -1.2, 0), "#c89a40"));
   return P;
 }
 
 function platform(p: DinoProp): THREE.BufferGeometry[] {
-  const d = DINO_DECKS.find((q) => q.id === "platform")!;
-  const up = d.ya - p.y;
+  // a Rex lookout on the valley's rim: log legs, a rail, a yellow-and-black "!" warning board facing the valley
+  const d = deckUnder(p);
   const P: THREE.BufferGeometry[] = [];
   const R = (d.r ?? 3) - 0.3;
-  const ramp = DINO_DECKS.find((q) => q.id === "platform-ramp")!;
-  const ra = Math.atan2(ramp.bx - ramp.ax, ramp.bz - ramp.az) - p.rot;
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * PI * 2;
-    P.push(pp(cyl(0.18, 0.22, up, 6, Math.sin(a) * R, -0.2, Math.cos(a) * R), LOG));
-  }
-  const n = 16;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * PI * 2;
-    if (Math.abs(Math.atan2(Math.sin(a - ra), Math.cos(a - ra))) < 0.45) continue;
-    const x = Math.sin(a) * (R + 0.2);
-    const z = Math.cos(a) * (R + 0.2);
-    P.push(pp(box(0.1, 1.05, 0.1, x, up + 0.52, z), WOOD_D));
-    const b = ((i + 1) / n) * PI * 2;
-    if (Math.abs(Math.atan2(Math.sin(b - ra), Math.cos(b - ra))) < 0.45) continue;
-    P.push(pp(stick(v3(x, up + 1.05, z), v3(Math.sin(b) * (R + 0.2), up + 1.05, Math.cos(b) * (R + 0.2)), 0.1), WOOD));
-  }
-  // a warning sign facing the paddock side, yellow and black: "!"
-  P.push(pp(box(0.1, 1.6, 0.1, 0, up, R + 0.2), WOOD_D));
-  P.push(pp(box(1.3, 0.9, 0.08, 0, up + 1.9, R + 0.26), (q) => (Math.floor((q.x + q.y) * 3) % 2 ? col("#ffd84a") : col("#2a2a2e"))));
-  P.push(pp(box(0.9, 0.55, 0.06, 0, up + 1.9, R + 0.32), "#ffd84a"));
-  P.push(pp(box(0.1, 0.3, 0.05, 0, up + 1.97, R + 0.36), "#2a2a2e"));
-  P.push(pp(box(0.1, 0.08, 0.05, 0, up + 1.72, R + 0.36), "#2a2a2e"));
+  const ra = rampAngle(d, p);
+  legs(P, d, p, R, 6, 0.05, 0.2);
+  rail(P, R, ra, 18);
+  P.push(pp(box(0.1, 1.6, 0.1, 0, 0, R + 0.2), WOOD_D));
+  P.push(pp(box(1.3, 0.9, 0.08, 0, 1.9, R + 0.26), (q) => (Math.floor((q.x + q.y) * 3) % 2 ? col("#ffd84a") : col("#2a2a2e"))));
+  P.push(pp(box(0.9, 0.55, 0.06, 0, 1.9, R + 0.32), "#ffd84a"));
+  P.push(pp(box(0.1, 0.3, 0.05, 0, 1.97, R + 0.36), "#2a2a2e"));
+  P.push(pp(box(0.1, 0.08, 0.05, 0, 1.72, R + 0.36), "#2a2a2e"));
+  // a coin telescope
+  P.push(pp(cyl(0.06, 0.07, 1.1, 5, 0, 0, R - 0.8), "#3a3a40"));
+  P.push(pp(place(new THREE.CylinderGeometry(0.1, 0.13, 0.75, 6), 0, 1.2, R - 0.6, 0, 1, -1.3, 0), "#5aa0e0"));
   return P;
 }
 
-function paddockFence(low: boolean): THREE.BufferGeometry[] {
-  // (built in island-local coordinates: returned as-is)
+function hideHut(p: DinoProp, low: boolean): THREE.BufferGeometry[] {
+  // the river hide: a low deck with a thatched, slatted shelter — a long viewing slot facing the ford
+  const d = deckUnder(p);
+  const P: THREE.BufferGeometry[] = [];
+  const R = (d.r ?? 3) - 0.3;
+  const ra = rampAngle(d, p);
+  legs(P, d, p, R, 6, 0.05, 0.2);
+  // (walls round three-quarters of it, open at the ramp; a slot at eye height facing +z, the ford)
+  const n = low ? 10 : 14;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * PI * 2;
+    if (Math.abs(Math.atan2(Math.sin(a - ra), Math.cos(a - ra))) < 0.6) continue;
+    const x = Math.sin(a) * (R + 0.15);
+    const z = Math.cos(a) * (R + 0.15);
+    const front = Math.cos(a) > 0.55;
+    const w = ((PI * 2 * (R + 0.15)) / n) * 1.05;
+    const g = box(w, front ? 1.0 : 2.4, 0.14, 0, front ? 0.5 : 1.2, 0);
+    P.push(pp(place(g, x, 0, z, a), i % 2 ? WOOD : shade(WOOD, 0.88)));
+    if (front) P.push(pp(place(box(w, 0.5, 0.14, 0, 2.15, 0), x, 0, z, a), WOOD));
+  }
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * PI * 2 + PI / 4;
+    P.push(pp(cyl(0.12, 0.14, 2.7, 5, Math.sin(a) * R, 0, Math.cos(a) * R), LOG));
+  }
+  const roof = new THREE.ConeGeometry(R + 1.1, 1.5, low ? 6 : 8);
+  roof.translate(0, 3.2, 0);
+  P.push(pp(roof, THATCH, [0, 0.04, 0]));
+  // leafy camouflage on the roof
+  for (let k = 0; k < 5; k++) P.push(pp(lump(0.7, Math.sin(k * 1.3) * R * 0.8, 3.0, Math.cos(k * 1.3) * R * 0.8, k + 11, 1.2, 0.5, 1.2), LEAF[k % 3], [0, 0.2, 0]));
+  return P;
+}
+
+function rimFence(low: boolean): THREE.BufferGeometry[] {
+  // (built in island-local coordinates: returned as-is) — tall sharpened logs round the T-rex's valley
   const P: THREE.BufferGeometry[] = [];
   const posts = DINO_FENCE_POSTS;
   const n = posts.length;
-  const ys = posts.map((q) => dinoLandY(q.x, q.z) ?? 2.7);
+  const ys = posts.map((q) => dinoLandY(q.x, q.z) ?? 12);
   for (let i = 0; i < n; i++) {
     const q = posts[i];
     const x = q.x - X0;
     const z = q.z - Z0;
     const y = ys[i];
-    const h = 4.2 + ((i * 5) % 3) * 0.15;
-    P.push(pp(cyl(0.3, 0.34, h, low ? 5 : 6, x, y - 0.3, z), i % 2 ? LOG : shade(LOG, 0.9)));
-    P.push(pp(cone(0.3, 0.5, low ? 5 : 6, x, y + h - 0.3, z), LOG_END));
+    const h = 4.6 + ((i * 5) % 3) * 0.2;
+    P.push(pp(cyl(0.3, 0.34, h, 4, x, y - 0.3, z, true), i % 2 ? LOG : shade(LOG, 0.9)));
+    P.push(pp(cone(0.3, 0.5, 4, x, y + h - 0.3, z), LOG_END));
     const b = posts[(i + 1) % n];
+    // (rails only between neighbours: not across the Rex Bridge's gap)
+    if (Math.hypot(b.x - q.x, b.z - q.z) > 2.5) continue;
     const yb = ys[(i + 1) % n];
-    for (const hh of [1.0, 2.2, 3.4]) P.push(pp(stick(v3(x, y + hh, z), v3(b.x - X0, yb + hh, b.z - Z0), 0.16, 0.12), WOOD));
+    if (i % 2 === 0) for (const hh of [1.3, 3.1]) P.push(pp(stick(v3(x, y + hh, z), v3((posts[(i + 2) % n].x - X0), ys[(i + 2) % n] + hh, posts[(i + 2) % n].z - Z0), 0.16, 0.12), WOOD));
+    void yb;
   }
   // yellow-and-black warning boards every so often (facing out)
-  for (let i = 3; i < n; i += 9) {
+  for (let i = 3; i < n; i += 11) {
     const q = posts[i];
-    const a = Math.atan2(q.x - DINO_PADDOCK.x, q.z - DINO_PADDOCK.z);
+    const a = Math.atan2(q.x - DINO_GORGE.x, q.z - DINO_GORGE.z);
     const g = box(1.1, 0.5, 0.06, 0, 0, 0);
     const out = place(g, q.x - X0 + Math.sin(a) * 0.35, ys[i] + 2.8, q.z - Z0 + Math.cos(a) * 0.35, a);
     P.push(pp(out, (pt) => (Math.floor((pt.x + pt.y + pt.z) * 3.5) % 2 ? col("#ffd84a") : col("#2a2a2e"))));
   }
-  // inside: a feeding trough and a giant bone chew-toy (the T-rex's favourite)
-  const cx = DINO_PADDOCK.x - X0;
-  const cz = DINO_PADDOCK.z - Z0;
-  const gy = dinoLandY(DINO_PADDOCK.x + 6, DINO_PADDOCK.z - 5) ?? 2.7;
-  P.push(pp(box(3.2, 0.7, 1.1, cx + 6, gy + 0.35, cz - 5), WOOD_D));
-  P.push(pp(box(3.0, 0.1, 0.9, cx + 6, gy + 0.72, cz - 5), "#7ab04a"));
-  const by = dinoLandY(DINO_PADDOCK.x - 4, DINO_PADDOCK.z + 6) ?? 2.7;
-  P.push(pp(place(new THREE.CylinderGeometry(0.22, 0.22, 2.4, 6), cx - 4, by + 0.3, cz + 6, 0.6, 1, 0, PI / 2), BONE));
-  for (const s of [-1, 1]) for (const k of [-1, 1]) P.push(pp(ball(0.32, cx - 4 + Math.cos(0.6) * s * 1.2 + Math.sin(0.6) * k * 0.2, by + 0.32, cz + 6 - Math.sin(0.6) * s * 1.2 + Math.cos(0.6) * k * 0.2), BONE));
-  // hay piles
+  // down on the valley floor: a giant bone chew-toy (the T-rex's favourite) and some hay
+  const cx = DINO_GORGE.x - X0;
+  const cz = DINO_GORGE.z - Z0;
+  const by = dinoLandY(DINO_GORGE.x - 6, DINO_GORGE.z + 14) ?? 3.3;
+  P.push(pp(place(new THREE.CylinderGeometry(0.34, 0.34, 3.6, 6), cx - 6, by + 0.4, cz + 14, 0.6, 1, 0, PI / 2), BONE));
+  for (const s of [-1, 1]) for (const k of [-1, 1]) P.push(pp(ball(0.48, cx - 6 + Math.cos(0.6) * s * 1.8 + Math.sin(0.6) * k * 0.3, by + 0.45, cz + 14 - Math.sin(0.6) * s * 1.8 + Math.cos(0.6) * k * 0.3), BONE));
   for (const [dx, dz] of [
-    [-6, -4],
-    [3, 7],
+    [8, -18],
+    [-9, -30],
   ]) {
-    const hy = dinoLandY(DINO_PADDOCK.x + dx, DINO_PADDOCK.z + dz) ?? 2.7;
-    P.push(pp(lump(0.9, cx + dx, hy + 0.3, cz + dz, dx * 3, 1.3, 0.5, 1.1), "#e8c860"));
+    const hy = dinoLandY(DINO_GORGE.x + dx, DINO_GORGE.z + dz) ?? 3.3;
+    P.push(pp(lump(1.4, cx + dx, hy + 0.4, cz + dz, dx * 3, 1.3, 0.5, 1.1), "#e8c860"));
   }
   return P;
 }
@@ -704,62 +743,26 @@ function skull(): THREE.BufferGeometry[] {
 
 // ── plants ──
 
-function palm(v: number, seed: number, low: boolean): THREE.BufferGeometry[] {
-  const P: THREE.BufferGeometry[] = [];
-  const rnd = dinoRng(seed);
-  const H = 5.2 + v * 0.6;
-  const lean = 0.45;
-  let prev = v3(0, 0, 0);
-  const n = low ? 4 : 6;
-  for (let i = 1; i <= n; i++) {
-    const u = i / n;
-    const p = v3(0, u * H, lean * u * u * H * 0.35);
-    P.push(pp(stick(prev, p, 0.3 - u * 0.1), i % 2 ? "#a07a50" : "#8a6440", (q) => [0, q.y * 0.02, 0]));
-    prev = p;
-  }
-  const leaves = low ? 6 : 8;
-  for (let k = 0; k < leaves; k++) {
-    const a = (k / leaves) * PI * 2 + rnd() * 0.3;
-    P.push(pp(place(frond(2.9, 0.42, 1.6, low ? 3 : 4), prev.x, prev.y, prev.z, a), LEAF_L[(k + v) % 3], sway(0.1)));
-  }
-  for (let k = 0; k < 3; k++) P.push(pp(ball(0.16, prev.x + Math.sin(k * 2.1) * 0.25, prev.y - 0.25, prev.z + Math.cos(k * 2.1) * 0.25), "#8a5a2a"));
-  return P;
-}
-
-function treefern(v: number, seed: number, low: boolean): THREE.BufferGeometry[] {
-  const P: THREE.BufferGeometry[] = [];
-  const rnd = dinoRng(seed);
-  const H = 3.4 + v * 0.5;
-  P.push(pp(cyl(0.18, 0.28, H, 6), (p) => (Math.floor(p.y * 3) % 2 ? col("#6a4a30") : col("#5a3e28")), (q) => [0, q.y * 0.015, 0]));
-  const n = low ? 7 : 10;
-  for (let k = 0; k < n; k++) {
-    const a = (k / n) * PI * 2 + rnd() * 0.2;
-    P.push(pp(place(frond(2.6, 0.38, 1.5, low ? 3 : 4), 0, H, 0, a, 1, -0.15, 0), LEAF[(k + v) % 3], sway(0.12)));
-  }
-  P.push(pp(ball(0.3, 0, H + 0.05, 0), "#4a7a30"));
-  return P;
-}
-
 function cycad(v: number, seed: number, low: boolean): THREE.BufferGeometry[] {
   const P: THREE.BufferGeometry[] = [];
   const rnd = dinoRng(seed);
   const H = 1.1 + v * 0.35;
-  P.push(pp(cyl(0.34, 0.42, H, 7), (p) => (Math.floor(p.y * 5 + Math.atan2(p.x, p.z) * 1.2) % 2 ? col("#8a6a3a") : col("#6e5230"))));
-  const n = low ? 8 : 12;
+  P.push(pp(cyl(0.34, 0.42, H, 6, 0, 0, 0, true), (p) => (Math.floor(p.y * 5 + Math.atan2(p.x, p.z) * 1.2) % 2 ? col("#8a6a3a") : col("#6e5230"))));
+  const n = low ? 6 : 8;
   for (let k = 0; k < n; k++) {
     const a = (k / n) * PI * 2 + rnd() * 0.3;
-    P.push(pp(place(frond(1.9, 0.26, 0.5, 3), 0, H, 0, a, 1, -0.35 - (k % 2) * 0.25, 0), LEAF[(k + v + 1) % 3], sway(0.08)));
+    P.push(pp(place(frond(1.9, 0.28, 0.5, 2), 0, H, 0, a, 1, -0.35 - (k % 2) * 0.25, 0), LEAF[(k + v + 1) % 3], sway(0.08)));
   }
-  P.push(pp(cone(0.25, 0.5, 6, 0, H - 0.05, 0), "#d8a040"));
+  P.push(pp(cone(0.25, 0.5, 5, 0, H - 0.05, 0), "#d8a040"));
   return P;
 }
 
 function fern(v: number, seed: number): THREE.BufferGeometry[] {
   const P: THREE.BufferGeometry[] = [];
   const rnd = dinoRng(seed);
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * PI * 2 + rnd() * 0.4;
-    P.push(pp(place(frond(1.3 + rnd() * 0.4, 0.22, 0.6, 3), 0, 0.05, 0, a, 1, -0.5, 0), LEAF_L[(k + v) % 3], sway(0.3)));
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * PI * 2 + rnd() * 0.4;
+    P.push(pp(place(frond(1.4 + rnd() * 0.4, 0.26, 0.6, 2), 0, 0.05, 0, a, 1, -0.5, 0), LEAF_L[(k + v) % 3], sway(0.3)));
   }
   return P;
 }
@@ -789,69 +792,18 @@ function bigleaf(v: number, seed: number): THREE.BufferGeometry[] {
   return P;
 }
 
-function araucaria(v: number, seed: number, low: boolean): THREE.BufferGeometry[] {
-  // the monkey-puzzle: a tall straight trunk, whorls of upturned branches with flat leafy pads
-  // making an umbrella crown on top
-  const P: THREE.BufferGeometry[] = [];
-  const rnd = dinoRng(seed);
-  const H = 10.5 + v * 1.2;
-  P.push(pp(cyl(0.22, 0.42, H, 6), (p) => (Math.floor(p.y * 1.3) % 2 ? col("#7a5a3e") : col("#6a4c34")), (q) => [0, q.y * 0.004, 0]));
-  const whorls = low ? 2 : 3;
-  for (let w = 0; w < whorls; w++) {
-    const y = H * (0.66 + w * 0.13);
-    const reach = 2.9 - w * 0.65;
-    const n = low ? 5 : 6;
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * PI * 2 + w * 0.5 + rnd() * 0.3;
-      const tip = v3(Math.sin(a) * reach, y + 0.55, Math.cos(a) * reach);
-      P.push(pp(stick(v3(0, y - 0.3, 0), tip, 0.1), "#6a4c34", sway(0.02)));
-      const pad = new THREE.CylinderGeometry(0.55, 0.95 - w * 0.12, 0.55, 5, 1);
-      P.push(pp(place(pad, tip.x, tip.y + 0.1, tip.z, a), PINE[(k + w + v) % 3], sway(0.03)));
-    }
-  }
-  P.push(pp(lump(1.25, 0, H + 0.35, 0, seed + 99, 1.45, 0.55, 1.45), PINE[v % 3], sway(0.03)));
-  return P;
-}
-
-function jungletree(v: number, seed: number, low: boolean): THREE.BufferGeometry[] {
-  const P: THREE.BufferGeometry[] = [];
-  const rnd = dinoRng(seed);
-  const H = 6.2 + v * 0.8;
-  P.push(pp(cyl(0.45, 0.7, H, 7), "#7a5a40", (q) => [0, q.y * 0.006, 0]));
-  // buttress roots
-  for (let k = 0; k < 4; k++) {
-    const a = (k / 4) * PI * 2 + 0.4;
-    P.push(pp(stick(v3(0, 1.8, 0), v3(Math.sin(a) * 1.5, -0.1, Math.cos(a) * 1.5), 0.3, 0.18), "#6a4c34"));
-  }
-  const blobs = low ? 3 : 5;
-  for (let k = 0; k < blobs; k++) {
-    const a = (k / blobs) * PI * 2 + rnd();
-    const r = k === 0 ? 0 : 1.9;
-    P.push(pp(lump(2.0 - (k ? 0.3 : 0), Math.sin(a) * r, H + (k ? -0.4 : 0.6), Math.cos(a) * r, seed + k, 1.25, 0.75, 1.25), LEAF[(k + v) % 3], sway(0.05)));
-  }
-  // hanging vines, with a flower or two
-  for (let k = 0; k < (low ? 2 : 4); k++) {
-    const a = rnd() * PI * 2;
-    const x = Math.sin(a) * 2.4;
-    const z = Math.cos(a) * 2.4;
-    P.push(pp(stick(v3(x, H - 0.2, z), v3(x * 1.05, H - 2.6 - rnd(), z * 1.05), 0.05), "#3a7a30", (q) => [0, (H - q.y) * 0.1, 0]));
-    if (k % 2) P.push(pp(gem(0.14, x * 1.05, H - 2.2, z * 1.05), "#ff5a8a", [0, 0.2, 0.3]));
-  }
-  return P;
-}
-
 function reeds(v: number, seed: number): THREE.BufferGeometry[] {
   // horsetails: jointed green stems with dark rings (dinosaur food!)
   const P: THREE.BufferGeometry[] = [];
   const rnd = dinoRng(seed);
-  for (let k = 0; k < 6; k++) {
+  for (let k = 0; k < 4; k++) {
     const a = rnd() * PI * 2;
     const r = rnd() * 0.45;
     const h = 0.9 + rnd() * 0.9 + v * 0.3;
     const x = Math.sin(a) * r;
     const z = Math.cos(a) * r;
-    P.push(pp(cyl(0.035, 0.05, h, 4, x, 0, z), (p) => (Math.floor(p.y * 5) % 3 === 0 ? col("#2e5a2a") : col("#6aa84a")), (q) => [0, q.y * 0.25, 0]));
-    P.push(pp(cone(0.06, 0.18, 4, x, h, z), "#8a6a3a", [0, h * 0.25, 0]));
+    P.push(pp(cyl(0.035, 0.05, h, 3, x, 0, z, true), (p) => (Math.floor(p.y * 5) % 3 === 0 ? col("#2e5a2a") : col("#6aa84a")), (q) => [0, q.y * 0.25, 0]));
+    P.push(pp(cone(0.06, 0.18, 3, x, h, z), "#8a6a3a", [0, h * 0.25, 0]));
   }
   return P;
 }
@@ -885,11 +837,11 @@ function flowers(v: number, seed: number): THREE.BufferGeometry[] {
     ["#ff7ad0", "#fff08a"],
     ["#ffffff", "#ffd04a"],
   ][v % 3];
-  for (let k = 0; k < 5; k++) {
+  for (let k = 0; k < 4; k++) {
     const a = rnd() * PI * 2;
     const r = rnd() * 0.5;
     const h = 0.4 + rnd() * 0.4;
-    P.push(pp(cyl(0.02, 0.02, h, 3, Math.sin(a) * r, 0, Math.cos(a) * r), "#3a8a30", (q) => [0, q.y * 0.3, 0]));
+    P.push(pp(cyl(0.02, 0.02, h, 3, Math.sin(a) * r, 0, Math.cos(a) * r, true), "#3a8a30", (q) => [0, q.y * 0.3, 0]));
     P.push(pp(gem(0.13, Math.sin(a) * r, h + 0.05, Math.cos(a) * r, 1.3, 0.6, 1.3), cols[k % 2], [0, h * 0.3, 0.25]));
   }
   return P;
@@ -904,23 +856,6 @@ function rock(seed: number, snowy: boolean, lava: boolean): THREE.BufferGeometry
 
 function boulder(seed: number, snowy: boolean): THREE.BufferGeometry[] {
   return [pp(lump(2.0, 0, 1.0, 0, seed, 1.15, 0.72, 1, 0.22, 1), (_p, n) => (snowy && n.y > 0.5 ? col(SNOWC) : col(n.y > 0.4 ? "#a8a0a0" : "#8c8488")))];
-}
-
-function pine(v: number, seed: number, low: boolean): THREE.BufferGeometry[] {
-  const P: THREE.BufferGeometry[] = [];
-  const H = 5.5 + v * 0.8;
-  P.push(pp(cyl(0.18, 0.26, 1.4, 5), "#6a4c34"));
-  const tiers = low ? 3 : 4;
-  for (let k = 0; k < tiers; k++) {
-    const u = k / tiers;
-    const r = 1.9 * (1 - u * 0.7);
-    const y = 1.0 + u * (H - 1.8);
-    const h = (H - 1.0) / tiers + 0.9;
-    P.push(pp(cone(r, h, low ? 6 : 7, 0, y, 0), PINE[(k + v + seed) % 3], sway(0.02)));
-    // a cap of snow on each tier
-    P.push(pp(cone(r * 0.62, h * 0.42, low ? 6 : 7, 0, y + h * 0.58, 0), SNOWC, sway(0.02)));
-  }
-  return P;
 }
 
 function snowbush(seed: number): THREE.BufferGeometry[] {
@@ -1102,7 +1037,9 @@ function deckParts(d: DinoDeck, low: boolean): THREE.BufferGeometry[] {
       const x = d.ax + ux * L * u + px * s * (d.half - 0.1);
       const z = d.az + uz * L * u + pz * s * (d.half - 0.1);
       const ground = dinoLandY(x, z);
-      if (ground === null || ground < y - 0.35) postTo(x, z, y - 0.12, d.kind === "jetty" ? 0.17 : 0.12);
+      // (the Rex Bridge hangs free over the valley: posts only where the rim's under it)
+      const hanging = d.id.startsWith("rexbridge") && (ground === null || ground < y - 3);
+      if (!hanging && (ground === null || ground < y - 0.35)) postTo(x, z, y - 0.12, d.kind === "jetty" ? 0.17 : 0.12);
       if (rails && !low) {
         const [lx, lz] = toLocal(x, z);
         parts.push(pp(box(0.09, 0.95, 0.09, lx, y + 0.47, lz), WOOD_D));
@@ -1114,6 +1051,41 @@ function deckParts(d: DinoDeck, low: boolean): THREE.BufferGeometry[] {
       const a = v3(ax + px * s * (d.half - 0.1), d.ya + 0.9, az + pz * s * (d.half - 0.1));
       const b = v3(ax + ux * L + px * s * (d.half - 0.1), d.yb + 0.9, az + uz * L + pz * s * (d.half - 0.1));
       parts.push(pp(stick(a, b, 0.07), d.kind === "boardwalk" ? "#e8dcc0" : WOOD));
+    }
+  }
+  if (d.id.startsWith("rexbridge")) {
+    // a suspension bridge: a tall timber tower at its rim end, thick ropes sagging to the middle,
+    // hangers down to the deck
+    const rimEnd = d.id.endsWith("-a") ? 0 : 1;
+    const ex = ax + ux * L * rimEnd;
+    const ez = az + uz * L * rimEnd;
+    const ey = rimEnd ? d.yb : d.ya;
+    const midY = rimEnd ? d.ya : d.yb;
+    const sgn = rimEnd ? -1 : 1;
+    void sgn;
+    for (const s of [-1, 1]) {
+      const tx = ex + px * s * (d.half + 0.35) - ux * sgn * 0.6;
+      const tz = ez + pz * s * (d.half + 0.35) - uz * sgn * 0.6;
+      const ground = dinoLandY(tx + X0, tz + Z0) ?? ey - 0.5;
+      parts.push(pp(cyl(0.3, 0.36, ey - ground + 6.4, 6, tx, ground - 0.3, tz), LOG));
+      parts.push(pp(cone(0.36, 0.7, 6, tx, ey + 6.1, tz), LOG_END));
+      // (the rope: from the tower top, sagging to just above the rails at the bridge's middle)
+      let prev = v3(tx, ey + 5.8, tz);
+      const steps = low ? 5 : 8;
+      const sx0 = rimEnd ? ax + ux * L : ax;
+      const sz0 = rimEnd ? az + uz * L : az;
+      const mx0 = rimEnd ? ax : ax + ux * L;
+      const mz0 = rimEnd ? az : az + uz * L;
+      for (let k = 1; k <= steps; k++) {
+        const u = k / steps;
+        const xx = lerp(sx0, mx0, u) + px * s * (d.half + 0.12);
+        const z = lerp(sz0, mz0, u) + pz * s * (d.half + 0.12);
+        const y = lerp(ey + 5.8, midY + 1.25, 1 - (1 - u) * (1 - u));
+        const p2 = v3(xx, y, z);
+        parts.push(pp(stick(prev, p2, 0.09), "#c8a070"));
+        if (k < steps) parts.push(pp(stick(p2, v3(xx, lerp(ey, midY, u) + 0.9, z), 0.04), "#b89060"));
+        prev = p2;
+      }
     }
   }
   if (d.id === "jetty-t") {
@@ -1143,14 +1115,12 @@ export function propParts(p: DinoProp, low: boolean): THREE.BufferGeometry[] | n
       return hut(low);
     case "kiosk":
       return kiosk();
-    case "jeep":
-      return jeep();
     case "tower":
       return tower(p, low);
     case "platform":
       return platform(p);
-    case "paddock":
-      return null;
+    case "hidehut":
+      return hideHut(p, low);
     case "fence":
       return railFence(p);
     case "signpost":
@@ -1177,20 +1147,12 @@ export function propParts(p: DinoProp, low: boolean): THREE.BufferGeometry[] | n
       return paintrock(p.seed);
     case "skull":
       return skull();
-    case "palm":
-      return palm(p.v, p.seed, low);
-    case "treefern":
-      return treefern(p.v, p.seed, low);
     case "cycad":
       return cycad(p.v, p.seed, low);
     case "fern":
       return fern(p.v, p.seed);
     case "bigleaf":
       return bigleaf(p.v, p.seed);
-    case "araucaria":
-      return araucaria(p.v, p.seed, low);
-    case "jungletree":
-      return jungletree(p.v, p.seed, low);
     case "reeds":
       return reeds(p.v, p.seed);
     case "swamptree":
@@ -1203,8 +1165,6 @@ export function propParts(p: DinoProp, low: boolean): THREE.BufferGeometry[] | n
       return rock(p.seed, false, true);
     case "boulder":
       return boulder(p.seed, snowy);
-    case "pine":
-      return pine(p.v, p.seed, low);
     case "snowbush":
       return snowbush(p.seed);
     case "icecrystal":
@@ -1231,13 +1191,13 @@ export function buildPropsGeometry(low: boolean): THREE.BufferGeometry {
     if (!parts) continue;
     e.set(0, p.rot, 0);
     // (props on sloping ground sink a little so no roots float)
-    m.compose(pos.set(p.x - X0, p.y - (p.kind === "jungletree" || p.kind === "araucaria" || p.kind === "pine" ? 0.15 : 0), p.z - Z0), q.setFromEuler(e), sc.setScalar(p.s));
+    m.compose(pos.set(p.x - X0, p.y, p.z - Z0), q.setFromEuler(e), sc.setScalar(p.s));
     for (const g of parts) {
       g.applyMatrix4(m);
       all.push(g);
     }
   }
-  all.push(...paddockFence(low));
+  all.push(...rimFence(low));
   all.push(...iceCave(low));
   for (const d of DINO_DECKS) all.push(...deckParts(d, low));
   void dinoGroundY;

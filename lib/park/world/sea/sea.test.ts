@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { abyssFloorY } from "../../registry/abyss";
 import { frostGroundY, frostSeaFloorY } from "../../registry/frostIsland";
-import { dinoSeaFloorY } from "../../registry/dinoIsland";
+import { dinoSeaFloorY, dinoShoreDist } from "../../registry/dinoIsland";
 import * as THREE from "three";
 import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, WRAP_R, groundY, wrapWorld } from "../../registry/terrain";
 import { rngOf } from "../fantasy/noise";
@@ -73,6 +73,8 @@ describe("roaming", () => {
     for (let k = 0; k < 16; k++) {
       const a = (k / 16) * Math.PI * 2;
       // start out at sea, heading straight for the beach
+      // (not from Dino Isle's side: out west its slopes come within ~260 m of the main island)
+      if (dinoShoreDist(Math.sin(a) * 260, Math.cos(a) * 260) < 80) continue;
       const s = makeSwimmer(Math.sin(a) * 260, -3, Math.cos(a) * 260, a + Math.PI, 100 + k, 4);
       let minDepth = Infinity;
       for (let t = 0; t < 120; t += dt) {
@@ -192,6 +194,7 @@ describe("giant whales", () => {
   });
   it("keep to the open ocean (never the lagoon), and never touch the sea floor", () => {
     const ws = pod();
+    // (a lap of the open ocean round the main island — out west past Dino Isle's shelf too)
     simulate(ws, 1500, (t, o) => ((o.x = Math.sin(t * 0.01) * 300), (o.z = Math.cos(t * 0.01) * 300), (o.y = 0)), false, () => {
       for (const w of ws) {
         expect(seaDepth(w.x, w.z)).toBeGreaterThan(13);
@@ -306,7 +309,8 @@ describe("giant whales", () => {
   it("glide past a diving kid at their depth", () => {
     const ws = pod();
     let passed = false;
-    simulate(ws, 150, (_t, o) => ((o.x = -380), (o.z = 20), (o.y = -8)), true, (_t, _e, kid) => {
+    // (out over the deep south of the main island: the west is Dino Isle now)
+    simulate(ws, 150, (_t, o) => ((o.x = 0), (o.z = 380), (o.y = -8)), true, (_t, _e, kid) => {
       for (const w of ws) if (dist2(w, kid) < 30 * 30 && Math.abs(w.y - kid.y) < 7) passed = true;
     });
     expect(passed).toBe(true);
@@ -316,7 +320,7 @@ describe("giant whales", () => {
     let passes = 0;
     let wasClose = false;
     let closest = Infinity;
-    simulate(ws, 300, (_t, o) => ((o.x = -380), (o.z = 20), (o.y = -8)), true, (t, _e, kid) => {
+    simulate(ws, 300, (_t, o) => ((o.x = 0), (o.z = 380), (o.y = -8)), true, (t, _e, kid) => {
       if (t < 5) return;
       let best = Infinity;
       // (measured to the whale's flank: a true-size blue whale is ~5 units thick)

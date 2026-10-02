@@ -84,6 +84,10 @@ export class ChibiAnimator {
   // tobogganing on the tummy (Frostpeak's penguin slides): arms out ahead like a superhero
   private slideTarget = 0;
   private slideW = 0;
+  // Frostpeak's ski run: skiing (a sporty crouch, arms out with the poles) or sitting on the chairlift
+  private stance: "ski" | "sit" | null = null;
+  private stanceW = 0;
+  private stanceLast: "ski" | "sit" = "ski";
   private ctx: AnimCtx = { t: 0, dt: 0, phase: 0, move: 0, run: 0, w: {}, glow: 0 };
 
   constructor(private k: Kit, private height: number, seed: number) {
@@ -107,6 +111,12 @@ export class ChibiAnimator {
   /** lying on the tummy, sliding head-first (the engine lays the rig down along the slope) */
   setSlide(on: boolean) {
     this.slideTarget = on ? 1 : 0;
+  }
+
+  /** "ski": carving down the piste; "sit": riding the chairlift (legs out in front); null = back to normal */
+  setStance(s: "ski" | "sit" | null) {
+    this.stance = s;
+    if (s) this.stanceLast = s;
   }
 
   setGlow(a: number) {
@@ -220,6 +230,15 @@ export class ChibiAnimator {
       const S = this.tmp;
       this.slidePose(S, t);
       const m = smooth(this.slideW);
+      for (let i = 0; i < N; i++) B[i] += (S[i] - B[i]) * m;
+    }
+
+    // skiing / sitting on the chairlift
+    this.stanceW += ((this.stance ? 1 : 0) - this.stanceW) * (1 - Math.exp(-dt * 8));
+    if (this.stanceW > 0.001) {
+      const S = this.tmp;
+      this.stancePose(S, this.stanceLast, t);
+      const m = smooth(this.stanceW);
       for (let i = 0; i < N; i++) B[i] += (S[i] - B[i]) * m;
     }
 
@@ -352,6 +371,37 @@ export class ChibiAnimator {
     P[MOUTH_OPEN] = 0.75;
     P[HAPPY] = 1;
     P[EYE_OPEN] = 1;
+  }
+
+  /** Skiing: leaning forward a touch, arms out and forward (the poles), legs together, a big grin.
+   *  Sitting (the chairlift): legs straight out in front, hands on the safety bar, looking about. */
+  private stancePose(P: Float32Array, s: "ski" | "sit", t: number) {
+    this.idlePose(P, t);
+    if (s === "ski") {
+      P[LEAN] = 0.22;
+      P[ARM_LX] = P[ARM_RX] = 0.55 + 0.06 * Math.sin(t * 3);
+      P[ARM_LZ] = P[ARM_RZ] = 0.5;
+      P[LEG_LX] = P[LEG_RX] = -0.12;
+      P[LEG_LY] = P[LEG_RY] = 0;
+      P[HEAD_X] = -0.15;
+      P[TWIST] = 0;
+      P[SQUASH] = -0.04;
+      P[MOUTH_OPEN] = 0.5;
+      P[HAPPY] = 1;
+    } else {
+      P[LEAN] = -0.08;
+      P[ARM_LX] = P[ARM_RX] = 0.9;
+      P[ARM_LZ] = P[ARM_RZ] = 0.15;
+      P[LEG_LX] = -1.45 + 0.12 * Math.sin(t * 2.2);
+      P[LEG_RX] = -1.45 - 0.12 * Math.sin(t * 2.2);
+      P[LEG_LY] = P[LEG_RY] = 0;
+      P[HEAD_Y] = 0.6 * Math.sin(t * 0.35);
+      P[TWIST] = 0;
+      P[SWAY] = 0;
+      P[MOUTH_OPEN] = 0.3;
+      P[HAPPY] = 1;
+    }
+    P[RIG_Y] = 0;
   }
 
   private locoPose(P: Float32Array, phase: number, r: number, t: number) {

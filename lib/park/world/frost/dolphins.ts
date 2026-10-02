@@ -315,7 +315,8 @@ function holdSlot(sim: PodSim, d: Dolphin, lead: Dolphin, dt: number, t: number,
   if (dist > 60) {
     d.x = tx;
     d.z = tz;
-    d.y = lead.y;
+    // (under the surface, even if the lead is mid-leap: the follower isn't leaping)
+    d.y = Math.min(lead.y, WY - 0.55 * d.size);
     d.yaw = lead.yaw;
     d.leaping = false;
     d.vy = 0;

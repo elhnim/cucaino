@@ -17,6 +17,10 @@ export interface Atmosphere {
   update(dt: number, t: number, focus: THREE.Vector3): void;
   /** the camera dipped below the sea: deep-blue fog, no sky, teal light (depth in metres) */
   setUnderwater(under: boolean, depth: number): void;
+  /** 0..1: the kid's under the rainforest's canopy (green shade, a closer haze); eased */
+  setShade(k: number): void;
+  /** the camera's under the water is fresh (Rainbow Lake, the river): greener and clearer */
+  setFresh(fresh: boolean): void;
   dispose(): void;
 }
 
@@ -246,6 +250,13 @@ export function buildAtmosphere(
   };
   let under = false;
   let underDepth = 0;
+  let shadeWant = 0;
+  let shade = 0;
+  let fresh = false;
+  const shadeFog = new THREE.Color("#a6d0a8");
+    const shadeGround = new THREE.Color("#5a7a3e");
+  const freshTop = new THREE.Color("#5ed0b4");
+  const freshDeep = new THREE.Color("#2a8a7a");
   const bgSaved = scene.background;
   // under the sea: bright turquoise near the surface -> clear reef blue -> open-ocean blue; dusk
   const waterTop = new THREE.Color("#3ccfd9");
@@ -268,6 +279,12 @@ export function buildAtmosphere(
         (scene.fog as THREE.Fog).far = 430;
         scene.background = bgSaved;
       }
+    },
+    setShade(k) {
+      shadeWant = k;
+    },
+    setFresh(f) {
+      fresh = f;
     },
     get glow() {
       return glow;
@@ -305,6 +322,16 @@ export function buildAtmosphere(
       hemi.intensity = cur.hemiI;
       sun.color.copy(cur.sun);
       sun.intensity = cur.sunI * 1.25;
+      // under the rainforest's roof: the sun's mostly shut out, the light is green, the haze closes in
+      shade += (shadeWant - shade) * Math.min(1, dt * 1.4);
+      if (shade > 0.001 && !under) {
+        const k = shade * (1 - glow * 0.5);
+        sun.intensity *= 1 - 0.38 * k;
+        hemi.intensity *= 1 - 0.12 * k;
+        hemi.groundColor.lerp(shadeGround, 0.3 * k);
+        const fog = scene.fog as THREE.Fog;
+        fog.color.lerp(shadeFog, 0.45 * k);
+      }
       // the shadow camera follows the player (snapped to texels so shadows don't shimmer)
       const snap = 96 / 2048;
       const fx = Math.round(focus.x / snap) * snap;
@@ -345,6 +372,8 @@ export function buildAtmosphere(
         const abyss = s01(25, 62, underDepth);
         const midnight = s01(58, 112, underDepth);
         underCol.copy(waterTop).lerp(waterReef, Math.max(down * 0.8, open * 0.6)).lerp(waterDeep, open * (0.35 + down * 0.65));
+        // (in the lake and the river: clear, green-tinged fresh water)
+        if (fresh) underCol.copy(freshTop).lerp(freshDeep, s01(0.5, 5, underDepth));
         underCol.lerp(waterNight, glow * 0.82);
         if (abyss > 0) underCol.lerp(waterAbyss, Math.min(1, abyss * 1.3)).lerp(waterMidnight, midnight * 0.92);
         const fog = scene.fog as THREE.Fog;

@@ -8,8 +8,11 @@ import { WATER_Y, groundY, slopeAt } from "./terrain";
 import { SKY_PADS, skyBaseY, skyIslandById, skyWalkable } from "./skyIslands";
 import { seaDepth, seaFloorY } from "../world/sea/wander";
 import { zoneBounds } from "../builder/rules";
+import { DINO_OBSTACLES, DINO_PLAZA, DINO_TRAIL_HALF, dinoGroundY, dinoTrailDistance } from "./dinoIsland";
 
-const of = (k: MountKind) => RIDEABLE_SPOTS.filter((s) => s.kind === k);
+/** Dino Isle's safari jeeps (cars parked out on Dino Isle, not the main island: tested on their own below) */
+const isDinoJeep = (s: { id: string }) => s.id.startsWith("jeep-dino");
+const of = (k: MountKind) => RIDEABLE_SPOTS.filter((s) => s.kind === k && !isDinoJeep(s));
 const LAND: MountKind[] = ["bike", "car", "unicorn"];
 
 describe("rideable spots", () => {
@@ -30,7 +33,7 @@ describe("rideable spots", () => {
 
   it("land rides stand on dry, open ground off the trails, clear of every door", () => {
     const zb = zoneBounds();
-    for (const s of RIDEABLE_SPOTS.filter((q) => LAND.includes(q.kind))) {
+    for (const s of RIDEABLE_SPOTS.filter((q) => LAND.includes(q.kind) && !isDinoJeep(q))) {
       const where = `${s.id} @ ${s.x.toFixed(1)},${s.z.toFixed(1)}`;
       expect(groundY(s.x, s.z), where).toBeGreaterThan(WATER_Y + 0.5);
       expect(seaDepth(s.x, s.z), where).toBeLessThan(0);
@@ -161,8 +164,26 @@ describe("rideable spots", () => {
     expect(Math.hypot(d.x - isl.landing.x, d.z - isl.landing.z)).toBeGreaterThan(3.5);
   });
 
+  it("Dino Isle's two safari jeeps wait by the safari trail at its plaza, on the island's own ground", () => {
+    const jeeps = RIDEABLE_SPOTS.filter(isDinoJeep);
+    expect(jeeps.length).toBe(2);
+    for (const j of jeeps) {
+      expect(j.kind).toBe("car");
+      const g = dinoGroundY(j.x, j.z);
+      expect(g, j.id).not.toBeNull();
+      expect(j.y!, j.id).toBeCloseTo(g!, 3);
+      expect(g!, j.id).toBeGreaterThan(WATER_Y + 1);
+      const d = dinoTrailDistance(j.x, j.z);
+      expect(d, j.id).toBeGreaterThan(DINO_TRAIL_HALF + 1);
+      expect(d, j.id).toBeLessThan(DINO_TRAIL_HALF + 6);
+      expect(Math.hypot(j.x - DINO_PLAZA.x, j.z - DINO_PLAZA.z), j.id).toBeLessThan(30);
+      for (const o of DINO_OBSTACLES) expect(Math.hypot(o.x - j.x, o.z - j.z), j.id).toBeGreaterThan(o.r + 2.5);
+      expect(Number.isFinite(j.yaw)).toBe(true);
+    }
+  });
+
   it("keep-out covers every parked ride (for tree / prop placers)", () => {
-    for (const s of RIDEABLE_SPOTS) if (!s.sky && s.kind !== "manta") expect(rideableKeepOut(s.x, s.z, 0), s.id).toBe(true);
+    for (const s of RIDEABLE_SPOTS) if (!s.sky && s.kind !== "manta" && !isDinoJeep(s)) expect(rideableKeepOut(s.x, s.z, 0), s.id).toBe(true);
     expect(rideableKeepOut(0, 0, 0)).toBe(false);
   });
 });

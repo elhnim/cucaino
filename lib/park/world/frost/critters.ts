@@ -222,11 +222,16 @@ export function buildBeasts(low: boolean): THREE.BufferGeometry {
 export const G_SKI = 0;
 export const G_POLE = 1;
 export const G_CHAIR = 2;
-/** chair: the seat's top is at y = 0, the hanger runs up to the cable (CHAIR_DROP above) */
-export function buildSkiGear(chairDrop: number): THREE.BufferGeometry {
+export const G_SUIT = 3;
+export const G_SCARF = 4;
+/** chair: the seat's top is at y = 0, the hanger runs up to the cable (CHAIR_DROP above).
+ *  `only` picks the variants to build (each instanced mesh draws its whole geometry per instance,
+ *  so the little skis and poles must not carry the suit, scarf and chair along with them) */
+export function buildSkiGear(chairDrop: number, only: readonly number[] = [G_SKI, G_POLE, G_CHAIR, G_SUIT, G_SCARF]): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
+  const want = new Set(only);
   // a ski (model units, binding at the origin, tip +z, curled up): coloured per instance
-  {
+  if (want.has(G_SKI)) {
     const v = G_SKI;
     parts.push(fp(box(0.11, 0.03, 0.86, 0, 0.015, -0.05), "#ffffff", 1, v));
     const tip = box(0.11, 0.03, 0.16, 0, 0, 0.08);
@@ -234,20 +239,42 @@ export function buildSkiGear(chairDrop: number): THREE.BufferGeometry {
     parts.push(fp(place(tip, 0, 0.02, 0.36), "#ffffff", 1, v));
   }
   // a pole: grip at the origin, shaft down -y (length 1), a basket near the tip
-  {
+  if (want.has(G_POLE)) {
     const v = G_POLE;
     parts.push(fp(box(0.025, 1, 0.025, 0, -0.5, 0), (p) => (p.y > -0.12 ? "#ff5a7a" : "#cfd6e2"), 0, v));
     parts.push(fp(box(0.11, 0.012, 0.11, 0, -0.9, 0), "#2a2f3a", 0, v));
   }
   // a chair (world units): seat, backrest, the hanger up behind it and over to the cable grip
-  {
+  if (want.has(G_CHAIR)) {
     const v = G_CHAIR;
-    parts.push(fp(box(1.05, 0.1, 0.7, 0, -0.05, 0), "#4fc3f7", 0, v));
-    parts.push(fp(box(1.05, 0.62, 0.08, 0, 0.27, -0.36), (p) => (p.y > 0.5 ? "#e0503c" : "#4fc3f7"), 0, v));
-    parts.push(fp(box(0.9, 0.05, 0.25, 0, -0.62, 0.38), "#4a5568", 0, v));
+    // (a two-seater: wide enough for two emperors side by side, or the Park kid)
+    parts.push(fp(box(2.3, 0.1, 0.7, 0, -0.05, 0), "#4fc3f7", 0, v));
+    parts.push(fp(box(2.3, 0.62, 0.08, 0, 0.27, -0.36), (p) => (p.y > 0.5 ? "#e0503c" : "#4fc3f7"), 0, v));
+    parts.push(fp(box(0.06, 0.5, 0.06, 0, 0.21, -0.3), "#ffffff", 0, v));
+    parts.push(fp(box(2.1, 0.05, 0.25, 0, -0.62, 0.38), "#4a5568", 0, v));
     parts.push(fp(stick(v3(0, 0.5, -0.42), v3(0, chairDrop - 0.35, -0.42), 0.07), "#4a5568", 0, v));
     parts.push(fp(stick(v3(0, chairDrop - 0.35, -0.42), v3(0, chairDrop, 0), 0.07), "#4a5568", 0, v));
     parts.push(fp(box(0.22, 0.16, 0.3, 0, chairDrop + 0.02, 0), "#2a2f3a", 0, v));
+  }
+  // a ski suit: a bright jacket round a unit egg (scaled per penguin to its body), open down the
+  // front so the white tummy shows, with a darker hem; tinted per instance
+  if (want.has(G_SUIT)) {
+    const v = G_SUIT;
+    const pts: THREE.Vector2[] = [];
+    for (let i = 0; i <= 4; i++) {
+      const y = -0.62 + (i / 4) * 1.2;
+      pts.push(new THREE.Vector2(Math.sqrt(Math.max(0.02, 1 - y * y)) * 1.07, y));
+    }
+    const g = new THREE.LatheGeometry(pts, 7, Math.PI * 0.32, Math.PI * 1.36);
+    parts.push(fp(g, (p) => (p.y < -0.5 ? "#d8d8e8" : "#ffffff"), 1, v));
+  }
+  // a long knitted scarf: a ring round the neck and a tail flapping down the back (unit: neck radius 1)
+  if (want.has(G_SCARF)) {
+    const v = G_SCARF;
+    const ring = new THREE.TorusGeometry(1, 0.28, 3, 8);
+    ring.rotateX(Math.PI / 2);
+    parts.push(fp(ring, "#ffffff", 1, v));
+    parts.push(fp(box(0.5, 1.5, 0.16, 0.35, -0.75, -1.02), (p) => (Math.floor((p.y + 2) * 3) % 2 ? "#ffffff" : "#e8e8f0"), 1, v));
   }
   return mergeAll(parts);
 }

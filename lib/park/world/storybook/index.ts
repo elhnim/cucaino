@@ -15,6 +15,7 @@ import {
   PINE_GREENS,
   TREE_KINDS,
   balloonAt,
+  carvePasture,
   cloudAt,
   isPine,
   planBalloons,
@@ -39,6 +40,8 @@ export interface Storybook {
   obstacles: { x: number; z: number; r: number }[];
   /** hide what shouldn't show under the sea (the painted horizon, balloons) */
   setUnderwater(under: boolean): void;
+  /** keep the sheep off this ground (the fauna's paddock and farm corner); call before the first update */
+  keepSheepOut(out: (x: number, z: number) => boolean): void;
   dispose(): void;
 }
 
@@ -284,6 +287,9 @@ export function buildStorybook(scene: THREE.Scene, opts: { free: FreeFn; lowQual
 
   const book: Storybook = {
     obstacles,
+    keepSheepOut(out) {
+      carvePasture(pasture, out, flocks);
+    },
     setUnderwater(u) {
       under = u;
       horizon.mesh.visible = !u;

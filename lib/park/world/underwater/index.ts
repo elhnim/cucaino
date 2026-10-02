@@ -92,6 +92,8 @@ import {
 import { makeCausticTexture, makeUwUniforms, uwMaterial } from "./shaders";
 import { buildRockGeometry } from "../fantasy/stones";
 import { buildDeepFloor } from "../sea/deepFloor";
+import { cutIslandFloors } from "../sea/islandFloors";
+import { addOccluderFade, setBigSea, type BigBody } from "../sea/bigSea";
 import { DROP, FOAM, MIST, buildSpray } from "../sea/spray";
 import { makeVisit, startVisit, stepVisit, visitHeight, type Visit } from "../sea/visits";
 import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFloorY, shiftSwimmers, swim, trackFocus, type Swimmer, type SwimStyle } from "../sea/wander";
@@ -183,6 +185,9 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   const turtleMat = track(uwMaterial(U, { motion: "flap", inst: true, flapSpeed: 1.7, flapWave: 0.4, cull: 1.6, rim: 0.5, lift: 0.22 }, { roughness: 0.7 }));
   const rayMat = track(uwMaterial(U, { motion: "flap", inst: true, flapSpeed: 2.4, flapWave: 5, cull: 1.2, rim: 0.3, lift: 0.2 }, { side: THREE.DoubleSide, roughness: 0.6 }));
   const orcaMat = track(uwMaterial(U, { motion: "flap", inst: true, flapAxis: "z", flapSpeed: 2.3, flapWave: 0.55, pattern: "orca", cull: 4, rim: 0.85, lift: 0.2 }, { roughness: 0.3 }));
+  // (the big ones dither away wherever they pass between the camera and the kid: ../sea/bigSea)
+  addOccluderFade(orcaMat);
+  addOccluderFade(mantaMat);
   const clamMat = track(uwMaterial(U, { motion: "none", inst: true, lift: 0.1 }, { side: THREE.DoubleSide, roughness: 0.45 }));
   const pearlMat = track(new THREE.MeshStandardMaterial({ color: "#fff6fb", roughness: 0.12, metalness: 0.15, emissive: new THREE.Color("#ffe3f4"), emissiveIntensity: 0.7 }));
 
@@ -596,6 +601,9 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   cutAbyssFloor(sandMat);
   const deepFloor = buildDeepFloor(sandMat, low ? 32 : 48, low ? 8 : 6);
   track(deepFloor);
+  // (and cut away wherever an island's own ground is at or above it: Coralcove, Frostpeak, Dino
+  // Isle, any island registered in ../sea/islandFloors — its coarse cells used to poke through)
+  const floorCut = track(cutIslandFloors(sandMat));
   group.add(deepFloor.mesh);
 
   // ── spray: whale blows, breach splashes, dripping flukes, orca splashes ──
@@ -676,6 +684,8 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
     blue: track(uwMaterial(U, { motion: "flap", inst: true, flapAxis: "z", flapSpeed: 1.2, flapWave: 3.6, pattern: "blue", ...WHALE_LOOK }, { roughness: 0.5 })),
     humpback: track(uwMaterial(U, { motion: "flap", inst: true, flapAxis: "z", flapSpeed: 1.35, flapWave: 3.4, pattern: "humpback", ...WHALE_LOOK }, { roughness: 0.48 })),
   };
+  addOccluderFade(whaleMats.blue);
+  addOccluderFade(whaleMats.humpback);
   const whaleMesh = (kind: "blue" | "humpback", n: number) => {
     const geo = track(whaleGeometry(kind));
     geo.setAttribute("aInst", new THREE.InstancedBufferAttribute(new Float32Array(n * 2), 2));
@@ -690,6 +700,9 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
   const wp: V3 = { x: 0, y: 0, z: 0 };
   const foamT = new Float32Array(whales.length);
   const counts = { blue: 0, humpback: 0 };
+  // the whales and the orca pod, for the camera (framing a diving kid with a giant) and the boats
+  const big: BigBody[] = [...whales.map((w) => ({ x: w.x, y: w.y, z: w.z, len: w.len, yaw: w.yaw })), ...orcas.map((oc) => ({ x: 0, y: 0, z: 0, len: oc.s * 6.48, yaw: 0 }))];
+  setBigSea("underwater", big);
 
   scene.add(group, surface);
 
@@ -747,6 +760,7 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
       const kid = o.kid;
       const depthHere = seaDepth(kid.x, kid.z);
       lastKid.copy(kid);
+      floorCut.update(kid);
       // just dived in? the big life comes to say hello soon, and the fish are already about
       const diveIn = o.under && !wasUnder;
       wasUnder = o.under;
@@ -832,6 +846,10 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
         m4.compose(v.set(w.x, w.y, w.z), q.setFromEuler(e), s3.setScalar(w.len));
         mesh.setMatrixAt(k, m4);
         (mesh.geometry.attributes.aInst as THREE.InstancedBufferAttribute).setXY(k, w.flap, wi * 2.1);
+        big[wi].x = w.x;
+        big[wi].y = w.y;
+        big[wi].z = w.z;
+        big[wi].yaw = w.yaw;
       }
       whaleMeshes.blue.instanceMatrix.needsUpdate = true;
       whaleMeshes.blue.geometry.attributes.aInst.needsUpdate = true;
@@ -915,6 +933,11 @@ export function buildUnderwater(scene: THREE.Scene, opts: { lowQuality?: boolean
           if (oc.lastY < peakY - 0.4 && y >= peakY - 0.4) (spray.emit(MIST, x, WATER_Y + 0.8, z, 6, 4, 0.8, 1.2, 1.6), foam(x, z, 6, 1.5)); // blow
         }
         oc.lastY = y;
+        const bo = big[whales.length + i];
+        bo.x = x;
+        bo.y = y;
+        bo.z = z;
+        bo.yaw = sw.yaw;
         e.set(pitch, sw.yaw, roll, "YXZ");
         m4.compose(v.set(x, y, z), q.setFromEuler(e), s3.setScalar(oc.s));
         orcaMesh.setMatrixAt(i, m4);

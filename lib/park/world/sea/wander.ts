@@ -8,12 +8,14 @@
 // respawned out of sight around (mostly ahead of) the focus, so wherever you swim, sail or fly
 // there's always life nearby. When the focus wraps round the world (terrain.wrapWorld) the whole
 // neighbourhood jumps with it (`focusJump` + `shiftSwimmers`), so nothing pops.
+import { WATER_BOUNDS, waterSdf } from "../../registry/waterways";
+import { coastR } from "../../registry/island";
 import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, groundY } from "../../registry/terrain";
 import { noise2, smoothstep } from "../fantasy/noise";
 import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../../registry/villageIsland";
 import { abyssFloorY } from "../../registry/abyss";
 import { FROST_ISLAND, frostSeaFloorY } from "../../registry/frostIsland";
-import { DINO_ISLAND, dinoSeaFloorY } from "../../registry/dinoIsland";
+import { DINO_ISLAND, dinoSeaFloorY, dinoShoreDist } from "../../registry/dinoIsland";
 
 const TAU = Math.PI * 2;
 const clamp = (x: number, a: number, b: number) => (x < a ? a : x > b ? b : x);
@@ -57,7 +59,15 @@ function mainSeaFloorY(x: number, z: number): number {
 }
 
 /** how deep the water is at (x, z) */
-export const seaDepth = (x: number, z: number) => WATER_Y - seaFloorY(x, z);
+export const seaDepth = (x: number, z: number) => (inlandWater(x, z) ? -1 : WATER_Y - seaFloorY(x, z));
+/** Rainbow Lake, the river and the plunge pool are fresh water, not the sea: the sea's creatures never go there */
+function inlandWater(x: number, z: number): boolean {
+  // (only the island's south-west quarter has inland water: everything else answers at once)
+  if (x < WATER_BOUNDS.x0 || x > WATER_BOUNDS.x1 || z < WATER_BOUNDS.z0 || z > WATER_BOUNDS.z1) return false;
+  const r2 = x * x + z * z;
+  if (r2 > 160 * 160) return false;
+  return Math.sqrt(r2) < coastR(Math.atan2(x, z)) - 4 && waterSdf(x, z) < 6;
+}
 
 export interface Swimmer {
   x: number;
@@ -132,9 +142,26 @@ export function deepestHeading(s: { x: number; z: number; yaw: number }): number
   const fx = s.x - FROST_ISLAND.x;
   const fz = s.z - FROST_ISLAND.z;
   if (fx * fx + fz * fz < (FROST_ISLAND.r + 110) ** 2) return Math.atan2(fx, fz);
-  const dx = s.x - DINO_ISLAND.x;
-  const dz = s.z - DINO_ISLAND.z;
-  if (dx * dx + dz * dz < (DINO_ISLAND.r + 110) ** 2) return Math.atan2(dx, dz);
+  // (Dino Isle is long and curved, with only a channel between it and the park's island: look for
+  //  the deepest water round about — the shallowest point 20, 40 and 70 m out each way — favouring
+  //  the way it's already going)
+  if (Math.abs(s.x - DINO_ISLAND.x) < 360 && Math.abs(s.z - DINO_ISLAND.z) < 440 && dinoShoreDist(s.x, s.z) < 170) {
+    let best = s.yaw;
+    let bestV = -Infinity;
+    for (let k = 0; k < 16; k++) {
+      const a = s.yaw + (k / 16) * TAU;
+      const sx = Math.sin(a);
+      const sz = Math.cos(a);
+      const d = Math.min(seaDepth(s.x + sx * 20, s.z + sz * 20), seaDepth(s.x + sx * 40, s.z + sz * 40), seaDepth(s.x + sx * 70, s.z + sz * 70));
+      const turn = Math.abs(wrapAngle(a - s.yaw));
+      const v = Math.min(d, 22) - turn * 0.8;
+      if (v > bestV) {
+        bestV = v;
+        best = a;
+      }
+    }
+    return best;
+  }
   return Math.atan2(s.x, s.z);
 }
 
@@ -279,8 +306,9 @@ export function respawn(s: Swimmer, st: SwimStyle, focus: { x: number; z: number
   let z = focus.z;
   // a little deeper than it strictly needs (the deep plain is ~21.75 m, give or take the dunes)
   const want = Math.min(st.need * 1.3, st.need + 3);
-  for (let k = 0; k < 10; k++) {
-    const a = base + (rnd() * 2 - 1) * spread;
+  for (let k = 0; k < 20; k++) {
+    // (ahead of the focus first; then all round it — out west, Dino Isle can fill the whole arc ahead)
+    const a = k < 10 ? base + (rnd() * 2 - 1) * spread : rnd() * TAU;
     const r = rMin + rnd() * (rMax - rMin);
     x = focus.x + Math.sin(a) * r;
     z = focus.z + Math.cos(a) * r;
@@ -288,8 +316,10 @@ export function respawn(s: Swimmer, st: SwimStyle, focus: { x: number; z: number
     //  rim of an island's slopes, heading in, can't turn away in time)
     const ux = (focus.x - x) / r;
     const uz = (focus.z - z) / r;
-    if (seaDepth(x, z) >= want && seaDepth(x + ux * st.look * 0.5, z + uz * st.look * 0.5) >= st.need && seaDepth(x + ux * st.look, z + uz * st.look) >= st.need) break;
-    if (k === 9) {
+    const ok = seaDepth(x, z) >= want && seaDepth(x + ux * st.look * 0.5, z + uz * st.look * 0.5) >= st.need && seaDepth(x + ux * st.look, z + uz * st.look) >= st.need;
+    // (the tries from any side must have open water all the way in, too)
+    if (ok && (k < 10 || (seaDepth(x + ux * r * 0.25, z + uz * r * 0.25) >= st.need && seaDepth(x + ux * r * 0.5, z + uz * r * 0.5) >= st.need && seaDepth(x + ux * r * 0.75, z + uz * r * 0.75) >= st.need))) break;
+    if (k === 19) {
       // everywhere nearby is shallow (we're by the island): go out to sea along this bearing
       const out = Math.atan2(x, z);
       let rr = Math.hypot(x, z);

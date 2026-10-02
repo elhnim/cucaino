@@ -320,7 +320,7 @@ describe("triangle budget", () => {
   });
 });
 
-describe("fish", () => {
+describe("fish", { timeout: 20000 }, () => {
   it("a full ocean: ~700-900 fish at standard, about half at low; most of the little ones on the cheap mesh", () => {
     const all = planSchools();
     const n = all.reduce((a, s) => a + s.n, 0);

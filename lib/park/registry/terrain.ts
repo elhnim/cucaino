@@ -1,10 +1,12 @@
 // Cucaino Island's terrain: rolling hills and valleys, a mountain range with cliffs along the
-// north coast, gentle slopes down to the beaches and a gully for the stream — while every trail,
+// north coast, gentle slopes down to the beaches, the Rainbow Falls mesa and the beds of the
+// river, the plunge pool, Rainbow Lake and its outlet (./waterways.ts) — while every trail,
 // building, land, the plaza and the Dream Park sit on smoothly levelled ground so walking stays
 // easy. Baked once into a height grid; `groundY(x, z)` samples it (bilinear) and the same grid
 // can be uploaded as a texture for shaders (grass, etc.). Pure maths, deterministic, no three.js.
 import { LANDS, PLACES } from "./places";
-import { ISLAND_R, POND, STREAM_POINTS, TRAIL_POINTS, coastR } from "./island";
+import { ISLAND_R, TRAIL_POINTS, coastR } from "./island";
+import { mesaY, waterBedY, waterSdf } from "./waterways";
 import { DREAM_ZONE } from "../builder/rules";
 
 /** the grid covers [-EXTENT, EXTENT] on x and z */
@@ -147,12 +149,6 @@ function bake(): Float32Array {
   stamp(0, 0, 13, 24, 0);
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);
-  // the stream runs in a little gully, the pond sits in a hollow
-  const streamH = STREAM_POINTS.map(([x, z]) => sample(x, z) * 0.5 - 0.6);
-  for (let pass = 0; pass < 8; pass++) for (let i = 1; i + 1 < streamH.length; i++) streamH[i] = Math.min(streamH[i - 1] + 0.02, (streamH[i - 1] + streamH[i] * 2 + streamH[i + 1]) / 4);
-  STREAM_POINTS.forEach(([x, z], i) => stamp(x, z, 1.8, 5, streamH[i]));
-  stamp(POND.x, POND.z, POND.r + 0.5, POND.r + 6, streamH[streamH.length - 1] ?? -0.6);
-
   const out = new Float32Array(N * N);
   for (let k = 0; k < out.length; k++) out[k] = raw[k] + (target[k] - raw[k]) * weight[k];
   // two soft blur passes so nothing has a hard edge (except the mountain cliffs, which stay bold)
@@ -166,6 +162,35 @@ function bake(): Float32Array {
       }
     out.set(tmp);
   }
+  // Rainbow Falls' mesa rises out of the west coast; the waterways are carved in; and no other
+  // inland hollow dips below the waterline (the only inland water is the river, the pool and the
+  // lake, so you never "swim" on dry grass)
+  for (let j = 0; j < N; j++)
+    for (let i = 0; i < N; i++) {
+      const k = j * N + i;
+      const x = -TERRAIN_EXTENT + i * CELL;
+      const z = -TERRAIN_EXTENT + j * CELL;
+      let h = out[k];
+      const r = Math.hypot(x, z);
+      const coast = coastR(Math.atan2(x, z));
+      const inland = 1 - smooth(coast - 7, coast - 2, r);
+      const bed = waterBedY(x, z);
+      if (bed !== null) {
+        // inland the beds are shaped exactly (an old hollow mustn't make a deep hole in the
+        // lake's shallows); out by the sea the outlet only ever carves down
+        const carved = Math.min(h, bed);
+        h = waterSdf(x, z) < 0 ? carved + (bed - carved) * inland : carved;
+      }
+      // (the mesa after the carving: its cliffs stand right down into the plunge pool)
+      const m = mesaY(x, z, h);
+      if (m !== null) h = Math.max(h, m);
+      if (inland > 0) {
+        const d = bed === null ? 9 : waterSdf(x, z);
+        const floor = WATER_Y + 0.35 + 0.04 * Math.min(Math.max(d, 0), 6);
+        if (d > 0.4 && h < floor) h += (floor - h) * inland;
+      }
+      out[k] = h;
+    }
   return out;
 }
 

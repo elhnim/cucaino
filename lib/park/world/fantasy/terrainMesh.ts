@@ -5,6 +5,7 @@
 //                        with variation, warm rock on cliffs, snow caps, sand at the coast
 import * as THREE from "three";
 import { coastR, TRAIL_POINTS } from "../../registry/island";
+import { beachK, mesaEdgeDist, waterSdf } from "../../registry/waterways";
 import { TERRAIN_EXTENT, TERRAIN_N, groundY, slopeAt, terrainGrid } from "../../registry/terrain";
 import { col, mix } from "./geo";
 import { maskAt, terrainGrassFactor, type GrassMask } from "./mask";
@@ -50,6 +51,14 @@ const SEA_SAND = col("#f4e3b2");
 const SEA_TINT = col("#5cc8bc");
 const REEF_ROCK = col("#c49a8e");
 const DEEP_ROCK = col("#8a9cb4");
+const MESA_A = col("#7a5e4a");
+const MESA_B = col("#5c4a40");
+const MESA_DARK = col("#3e3430");
+const MESA_MOSS = col("#3f7a2e");
+const BED_SAND = col("#cdb88a");
+const BED_MUD = col("#6f7a4a");
+const BED_DEEP = col("#3a5a4c");
+const PEBBLE = col("#a8a090");
 
 /** ground colour at (x, z) — shared by the mesh and anything else that wants to match it */
 export function groundColor(x: number, z: number, h: number, slope: number, out: THREE.Color, mask?: GrassMask, paths = false): THREE.Color {
@@ -73,13 +82,36 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
     const bare = (1 - maskAt(mask, x, z)) * terrainGrassFactor(x, z, h, slope);
     out.lerp(DIRT, bare * 0.85);
   }
+  // Rainbow Falls' mesa: warm dark rock in strata, moss and ferns on its ledges and its top
+  const md = mesaEdgeDist(x, z);
+  if (md < 6 && h > 2) {
+    const band = 0.5 + 0.5 * Math.sin(h * 0.9 + n1 * 4);
+    const rock = mix(MESA_A, MESA_B, band, new THREE.Color()).lerp(MESA_DARK, smoothstep(0.75, 1, slope) * 0.45 + n2 * 0.25);
+    const ledge = (1 - smoothstep(0.35, 0.7, slope)) * smoothstep(0.35, 0.6, n2 + 0.2);
+    out.lerp(rock, smoothstep(5, 0, md) * Math.max(smoothstep(0.25, 0.5, slope), 0.15));
+    out.lerp(MESA_MOSS, ledge * smoothstep(5, 0, md) * 0.8);
+  }
+  // the river's, the pool's and the lake's beds and banks: pebbly sand at the edge, olive mud
+  // deeper, dark green-blue in the deep; a sandy beach below the gate
+  const wsd = waterSdf(x, z);
+  if (wsd < 3) {
+    const depth = -0.25 - h;
+    if (wsd < 0.2) {
+      const bed = mix(BED_SAND, BED_MUD, smoothstep(0.4, 2.2, depth), new THREE.Color()).lerp(BED_DEEP, smoothstep(2.2, 5.5, depth));
+      bed.lerp(PEBBLE, smoothstep(0.62, 0.8, n2) * (1 - smoothstep(0.5, 2.5, depth)) * 0.6);
+      out.copy(bed);
+    } else {
+      out.lerp(BED_SAND, (1 - smoothstep(0.2, 2.6, wsd)) * (0.55 + beachK(x, z) * 0.45));
+    }
+    out.lerp(SAND, beachK(x, z) * smoothstep(3, 0, wsd) * 0.8);
+  }
   // sand at the coast, wet sand under the water line
   const r = Math.hypot(x, z);
   const coast = coastR(Math.atan2(x, z));
   out.lerp(SAND, smoothstep(coast - 7, coast - 3, r + n2 * 2));
   out.lerp(WET_SAND, smoothstep(coast + 2, coast + 10, r));
   // under the sea: pale lagoon sand, then reef rock on the mounds, dark on the deep wall
-  if (h < -0.8) {
+  if (h < -0.8 && wsd > 0.5) {
     // sand seen through water takes on the sea's colour: turquoise in the lagoon, blue deeper
     out.lerp(SEA_SAND, smoothstep(-0.8, -2.2, h));
     // (the water itself is clear turquoise now: the sand only needs a light sea tint, not grey-teal)
