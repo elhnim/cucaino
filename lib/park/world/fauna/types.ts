@@ -348,6 +348,52 @@ TUNE[K_GIRAFFE] = T({ walk: 1.6, run: 6, turn: 1.2, stride: 2.4, fleeR: 6, fleeD
 TUNE[K_ZEBRA] = T({ walk: 1.6, run: 8, turn: 2, stride: 2.1, fleeR: 8, fleeDist: 14, noticeR: 16, curiousR: 10, stopR: 3.2, body: 0.95, graze: 1.35, maxSlope: 0.45, open: true, idleMin: 5, idleMax: 12, hip: 0.95 });
 TUNE[K_ELEPHANT] = T({ walk: 1.5, run: 3.6, turn: 1.0, stride: 1.9, fleeR: 0, fleeDist: 0, noticeR: 18, curiousR: 14, stopR: 4, body: 1.05, graze: 0.5, maxSlope: 0.35, open: true, idleMin: 6, idleMax: 14, hip: 0.95 });
 
+// ── the kid's body collision (pushKid, index.ts) ──
+
+/**
+ * Which kinds have a body solid enough to block the kid from walking through it. The rest are too
+ * small to bother with (rabbits, squirrels, hedgehogs, ducks, frogs, turtles, echidnas, the
+ * platypus, chickens) or are almost always up a tree / in the air (owls, kookaburras) — a koala
+ * does stand at the foot of its tree sometimes, so it blocks except while actually climbing
+ * (a.climb > 0.01, same test `avoidKid`'s "perched" check already uses).
+ */
+export const BLOCKS_KID: boolean[] = [];
+BLOCKS_KID[K_DEER] = true;
+BLOCKS_KID[K_FOX] = true;
+BLOCKS_KID[K_HORSE] = true;
+BLOCKS_KID[K_GOAT] = true;
+BLOCKS_KID[K_COW] = true;
+BLOCKS_KID[K_BEAR] = true;
+BLOCKS_KID[K_KANGAROO] = true;
+BLOCKS_KID[K_EMU] = true;
+BLOCKS_KID[K_WOMBAT] = true;
+BLOCKS_KID[K_SHEEP] = true;
+BLOCKS_KID[K_GIRAFFE] = true;
+BLOCKS_KID[K_ZEBRA] = true;
+BLOCKS_KID[K_ELEPHANT] = true;
+BLOCKS_KID[K_KOALA] = true;
+
+/**
+ * How much longer (nose to tail) a blocking kind's body is than it is wide — its footprint for
+ * pushKid is an ellipse along its heading, `TUNE.body * a.s` wide and that × this long (1 = a
+ * circle, fine for the stockier/rounder kinds).
+ */
+export const BODY_LEN_MULT: number[] = [];
+BODY_LEN_MULT[K_DEER] = 1.5;
+BODY_LEN_MULT[K_FOX] = 1.4;
+BODY_LEN_MULT[K_HORSE] = 1.8;
+BODY_LEN_MULT[K_GOAT] = 1.3;
+BODY_LEN_MULT[K_COW] = 1.9;
+BODY_LEN_MULT[K_BEAR] = 1.4;
+BODY_LEN_MULT[K_KANGAROO] = 1.5;
+BODY_LEN_MULT[K_EMU] = 1.6;
+BODY_LEN_MULT[K_WOMBAT] = 1.3;
+BODY_LEN_MULT[K_SHEEP] = 1.3;
+BODY_LEN_MULT[K_GIRAFFE] = 2.0;
+BODY_LEN_MULT[K_ZEBRA] = 1.8;
+BODY_LEN_MULT[K_ELEPHANT] = 2.0;
+BODY_LEN_MULT[K_KOALA] = 1.1;
+
 // ── true size ──
 
 /** world units per real metre: the kid is 2.26 units tall and stands for a ~1.4 m 10-year-old */

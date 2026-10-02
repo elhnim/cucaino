@@ -643,7 +643,9 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       return;
     }
     if (r.state === COMING) {
-      const d = steer(r, dt, swim, 1.6);
+      // (a big whale cruises in quicker while it's still well off, then glides the last stretch)
+      const far = Math.hypot(r.tx - r.x, r.tz - r.z);
+      const d = steer(r, dt, isW ? Math.min(5, swim + Math.max(0, far - 18) * 0.06) : swim, 1.6);
       r.y += (surf - r.y) * Math.min(1, dt * 0.8);
       keepGap(r, kid.x, kid.z);
       if (d < 1.5) {

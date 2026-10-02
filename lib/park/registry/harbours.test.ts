@@ -14,14 +14,16 @@ import { seaFloorY } from "../world/sea/wander";
 const of = (dock: string) => MOORINGS.filter((m) => m.dock === dock);
 
 describe("harbours", () => {
-  it("has five docks with the right boats at each", () => {
-    expect(DOCKS.map((d) => d.id).sort()).toEqual(["candy-harbour", "coralcove", "dino", "frost-dock", "rift-dock"]);
+  it("has six docks with the right boats at each", () => {
+    expect(DOCKS.map((d) => d.id).sort()).toEqual(["candy-harbour", "coralcove", "dino", "frost-dock", "great-lake", "rift-dock"]);
     const kinds = (dock: string) => of(dock).map((m) => m.kind).sort();
     expect(kinds("candy-harbour")).toEqual(["pedalo", "pedalo", "sailboat", "ship", "speedboat", "sub"]);
     expect(kinds("coralcove")).toEqual(["pedalo", "sailboat"]);
     expect(kinds("dino")).toEqual(["sailboat", "speedboat"]);
     expect(kinds("frost-dock")).toEqual(["speedboat", "sub"]);
     expect(kinds("rift-dock")).toEqual(["deepsub", "speedboat"]);
+    // (out in the Wildlands, on the Great Lake's still water)
+    expect(kinds("great-lake")).toEqual(["pedalo", "pedalo", "sailboat"]);
     expect(new Set(MOORINGS.map((m) => m.id)).size).toBe(MOORINGS.length);
   });
 

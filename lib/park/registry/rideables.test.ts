@@ -14,7 +14,7 @@ import { DINO_OBSTACLES, DINO_PLAZA, DINO_TRAIL_HALF, dinoGroundY, dinoTrailDist
 /** Dino Isle's safari jeeps (cars parked out on Dino Isle, not the main island: tested on their own below) */
 const isDinoJeep = (s: { id: string }) => s.id.startsWith("jeep-dino");
 /** the jeeps waiting behind the Wildlands Railway's stations (they have their own test below) */
-const isWildJeep = (s: { id: string }) => s.id.startsWith("jeep-") && s.id.includes("-station-");
+const isWildJeep = (s: { id: string }) => (s.id.startsWith("jeep-") || s.id.startsWith("dragon-wild-")) && s.id.includes("-station");
 const of = (k: MountKind) => RIDEABLE_SPOTS.filter((s) => s.kind === k && !isDinoJeep(s) && !isWildJeep(s));
 const LAND: MountKind[] = ["bike", "car", "unicorn"];
 
@@ -68,6 +68,19 @@ describe("rideable spots", () => {
         expect(groundY(j.x, j.z)).toBeGreaterThan(WATER_Y + 0.5);
         expect(nearRail(j.x, j.z, 2)).toBe(false);
       }
+    }
+  });
+
+  it("a dragon waits at the Great Falls and at the Lone Peak, on open, level ground off the track", () => {
+    for (const sid of ["falls-station", "peak-station"]) {
+      const d = RIDEABLE_SPOTS.find((q) => q.id === `dragon-wild-${sid}`)!;
+      expect(d, sid).toBeTruthy();
+      expect(d.kind).toBe("dragon");
+      expect(d.breed).toBeTruthy();
+      const st = STATIONS.find((s) => s.id === sid)!;
+      expect(Math.hypot(d.x - st.x, d.z - st.z)).toBeLessThan(45);
+      expect(nearRail(d.x, d.z, 4)).toBe(false);
+      expect(groundY(d.x, d.z)).toBeGreaterThan(WATER_Y + 0.5);
     }
   });
 

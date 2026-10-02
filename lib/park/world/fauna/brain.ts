@@ -52,6 +52,8 @@ import {
   type SpatialHash,
 } from "./roam";
 import {
+  BLOCKS_KID,
+  BODY_LEN_MULT,
   C_GIANT,
   C_NONE,
   K_BEAR,
@@ -2462,4 +2464,112 @@ export function stepFauna(env: FaunaEnv, kid: KidSense, dt: number, t: number, g
     kidClear(env, a, kid);
     if (a.kind !== K_DUCK) a.y = groundY(a.x, a.z);
   }
+}
+
+// ── the kid's body collision ──
+// Animals already steer round the kid (avoidKid / the director), but a standing or a fast-walking
+// kid can still end up inside a big one's body before it reacts. pushKid() (called by the engine
+// every frame, next to its wildTrunkAt() push-out) shoves the kid's point back out of every nearby
+// blocking animal's footprint: a circle (TUNE.body × a.s) for the stockier kinds, an ellipse
+// stretched along the animal's heading (× BODY_LEN_MULT) for the longer-bodied ones — a cow or an
+// elephant blocks broadside just as much as nose-on. Same two-step pattern as the dinosaurs'
+// pushKid (lib/park/world/dino/herd.ts): a handful of passes (wedged between two bodies can need
+// more than one), then — on the rare chance it's still stuck — a ring search for the nearest clear
+// spot. Allocation-free; a cheap squared-distance test (no trig) skips everyone not close enough to
+// matter.
+function kidBlocked(a: Agent): boolean {
+  if (!BLOCKS_KID[a.kind] || a.present < 0.5) return false;
+  if (a.kind === K_KOALA && a.climb > 0.01) return false; // (up its tree)
+  return true;
+}
+/** is (px, pz) inside kind `a`'s footprint ellipse, inflated by the kid's own radius */
+function kidInEllipse(a: Agent, px: number, pz: number, kidR: number): boolean {
+  const dx = px - a.x;
+  const dz = pz - a.z;
+  const base = TUNE[a.kind].body * a.s;
+  const hw = base + kidR;
+  const hl = base * (BODY_LEN_MULT[a.kind] ?? 1) + kidR;
+  if (dx * dx + dz * dz > hl * hl) return false; // (cheap: no trig for anyone this far off)
+  const sy = Math.sin(a.yaw);
+  const cy = Math.cos(a.yaw);
+  const along = dx * sy + dz * cy;
+  const side = dx * cy - dz * sy;
+  return (along * along) / (hl * hl) + (side * side) / (hw * hw) < 1;
+}
+/** is the kid, at radius kidR, inside anybody's footprint (and, if kidY given, at roughly their height) */
+export function kidInsideAny(agents: Agent[], px: number, pz: number, kidR: number, kidY?: number): boolean {
+  for (let i = 0; i < agents.length; i++) {
+    const a = agents[i];
+    if (!kidBlocked(a)) continue;
+    if (kidY !== undefined && (kidY > a.y + a.head + 0.5 || kidY < a.y - 1.3)) continue;
+    if (kidInEllipse(a, px, pz, kidR)) return true;
+  }
+  return false;
+}
+/** one pass: push (pos.x, pos.z) out of every blocking animal it's inside; true if it moved anyone */
+function pushKidOnce(agents: Agent[], pos: { x: number; z: number }, kidR: number, kidY: number | undefined): boolean {
+  let moved = false;
+  for (let i = 0; i < agents.length; i++) {
+    const a = agents[i];
+    if (!kidBlocked(a)) continue;
+    if (kidY !== undefined && (kidY > a.y + a.head + 0.5 || kidY < a.y - 1.3)) continue;
+    const dx = pos.x - a.x;
+    const dz = pos.z - a.z;
+    const base = TUNE[a.kind].body * a.s;
+    const hw = base + kidR;
+    const hl = base * (BODY_LEN_MULT[a.kind] ?? 1) + kidR;
+    if (dx * dx + dz * dz > hl * hl) continue;
+    const sy = Math.sin(a.yaw);
+    const cy = Math.cos(a.yaw);
+    const along = dx * sy + dz * cy;
+    const side = dx * cy - dz * sy;
+    const k = (along * along) / (hl * hl) + (side * side) / (hw * hw);
+    if (k >= 1) continue;
+    let along2: number;
+    let side2: number;
+    if (k < 1e-8) {
+      // (dead centre: no direction to push along — out past the nose, an arbitrary but stable escape)
+      along2 = hl;
+      side2 = 0;
+    } else {
+      const scale = 1 / Math.sqrt(k);
+      along2 = along * scale;
+      side2 = side * scale;
+    }
+    pos.x = a.x + along2 * sy + side2 * cy;
+    pos.z = a.z + along2 * cy - side2 * sy;
+    moved = true;
+  }
+  return moved;
+}
+/**
+ * Pushes (pos.x, pos.z) out of every nearby blocking animal's body so the kid can never walk
+ * through one. `kidR` is the kid's own body radius; `kidY` (the kid's feet height), if given, lets
+ * an animal well above or below the kid (up a slope, down in a dip) be skipped. Allocation-free;
+ * cheap enough to call every frame. Returns whether it had to move the point at all.
+ */
+export function pushKid(agents: Agent[], pos: { x: number; z: number }, kidR: number, kidY?: number): boolean {
+  let moved = false;
+  let pass = 0;
+  for (; pass < 8; pass++) {
+    if (!pushKidOnce(agents, pos, kidR, kidY)) break;
+    moved = true;
+  }
+  if (pass < 8) return moved;
+  // (wedged between bodies with no room: the nearest free spot, in rings round where it got stuck)
+  const x0 = pos.x;
+  const z0 = pos.z;
+  for (let ring = 1; ring <= 24; ring++) {
+    const r = ring * 0.25;
+    const n = 8 + ring * 2;
+    for (let k = 0; k < n; k++) {
+      const ang = (k / n) * TAU;
+      pos.x = x0 + Math.sin(ang) * r;
+      pos.z = z0 + Math.cos(ang) * r;
+      if (!kidInsideAny(agents, pos.x, pos.z, kidR, kidY)) return true;
+    }
+  }
+  pos.x = x0;
+  pos.z = z0;
+  return moved;
 }

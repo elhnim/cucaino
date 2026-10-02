@@ -605,7 +605,9 @@ function chickenParts(): THREE.BufferGeometry[] {
 
 export function buildOwl(): THREE.BufferGeometry {
   const fur = sh("#ffffff", 0.3);
-  const face = sh("#efe1c4");
+  // a pale, almost-white face disc — the one part of a real owl that reads brightest at dusk — and
+  // it glows a little too (glow: a soft moonlit face even with no direct light reaching it)
+  const face = sh("#f7eed8");
   const N: V3 = [0, 0.5, 0];
   const O = allBut(1);
   const H = { p: HEAD, piv: N, vm: O };
@@ -617,12 +619,17 @@ export function buildOwl(): THREE.BufferGeometry {
     rp(ell(0, 0.3, 0, 0.18, 0.25, 0.17, 1), fur, { tint: 1, vm: O }),
     rp(ell(0, 0.28, 0.09, 0.12, 0.17, 0.09), speckle, { vm: O }),
     rp(ell(0, 0.62, 0, 0.19, 0.16, 0.17, 1), fur, { ...H, tint: 1 }),
-    rp(ell(0, 0.61, 0.1, 0.155, 0.13, 0.07), face, H),
-    // big glowing eyes (they glow at night)
+    rp(ell(0, 0.615, 0.105, 0.185, 0.155, 0.075), face, { ...H, glow: 0.35 }),
+    // big, round, glowing eyes (bigger and closer-set than a real tawny owl's — a kid needs to
+    // spot them from the trail at night): they glow at night (uEye), and a pale halo a little
+    // wider than the eye itself helps them read as two bright dots even at low res / in bloom
     ...[-1, 1].flatMap((s) => [
-      rp(ell(s * 0.072, 0.63, 0.155, 0.064, 0.064, 0.035), col("#ffcf3a"), { ...H, glow: 1 }),
-      rp(ell(s * 0.072, 0.63, 0.185, 0.028, 0.03, 0.014), BLACK, H),
-      rp(ell(s * 0.062, 0.648, 0.195, 0.009, 0.009, 0.005), GLINT, H),
+      // a soft, wider glow halo sitting back into the face disc, so the eye reads as a bright
+      // glowing patch even before the pupil and glint register at a distance
+      rp(ell(s * 0.078, 0.635, 0.145, 0.11, 0.11, 0.02), col("#fff2c0"), { ...H, glow: 0.6 }),
+      rp(ell(s * 0.078, 0.635, 0.17, 0.095, 0.095, 0.045), col("#ffd84a"), { ...H, glow: 1 }),
+      rp(ell(s * 0.078, 0.635, 0.205, 0.042, 0.044, 0.02), BLACK, H),
+      rp(ell(s * 0.068, 0.655, 0.218, 0.013, 0.013, 0.007), GLINT, H),
     ]),
     rp(cone([0, 0.58, 0.17], [0, 0.53, 0.2], 0.022, 4), col("#d8a13a"), H),
     // ear tufts

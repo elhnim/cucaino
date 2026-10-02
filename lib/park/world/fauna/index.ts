@@ -14,7 +14,7 @@ import * as THREE from "three";
 import { groundY } from "../../registry/terrain";
 import { carvePasture, planFlocks, planForest, planMeadows, planPasture, planWindmills, stepFlock, type Flock, type FreeFn, type Meadow, type Pasture } from "../storybook/plan";
 import { buildForestTree } from "../storybook/geometry";
-import { makeEnv, stepFauna, type FaunaEnv } from "./brain";
+import { makeEnv, pushKid as pushKidOut, stepFauna, type FaunaEnv } from "./brain";
 import { buildProps, trisOf } from "./geometry";
 import { buildWalkGrid } from "./ground";
 import { canopyOf, planFauna, sheepKeepOut } from "./plan";
@@ -28,6 +28,14 @@ export interface Fauna {
   setVisible(v: boolean): void;
   /** where the storybook's sheep may not graze (the paddock, the farm corner): carve it out of their pasture */
   sheepKeepOut: (x: number, z: number) => boolean;
+  /**
+   * Pushes a point (the kid's feet) out of every nearby animal's body so the kid can never walk
+   * through one — a cow, an elephant, a giraffe... (tiny, perched/climbing and swimming animals
+   * don't block; see brain.ts's pushKid). `kidR` is the kid's own body radius; `kidY`, if given,
+   * lets an animal well above or below the kid's feet be skipped. Allocation-free, cheap enough for
+   * every frame. Returns whether it had to move the point.
+   */
+  pushKid(pos: { x: number; z: number }, kidR: number, kidY?: number): boolean;
   dispose(): void;
 }
 
@@ -71,6 +79,23 @@ export interface FaunaOptions {
  * rough ellipsoid): drop a ray onto the actual storybook tree model, a little way out toward the
  * trail it faces.
  */
+/** candidate (canopy-radius fraction, angle offset from the facing direction) tries for an owl's
+ *  perch: the real foliage is a few overlapping clumps, not a smooth dome, so one straight-down ray
+ *  at a single spot can land in the dip between two clumps — on the surface, but tucked out of
+ *  sight from most angles. Trying a little spread near the crown's top and keeping whichever lands
+ *  highest reliably finds a clump's own peak, clear all round against the sky (kookaburras keep a
+ *  single, lower, further-out spot: they're only out by day, in plenty of light, and read fine out
+ *  on a branch) */
+const OWL_PERCH_TRIES: [number, number][] = [
+  [0.15, 0],
+  [0.3, 0],
+  [0.15, 0.55],
+  [0.15, -0.55],
+  [0.35, 0.65],
+  [0.35, -0.65],
+];
+const KOOKABURRA_PERCH_TRIES: [number, number][] = [[0.62, 0]];
+
 function perchBirds(agents: Agent[], trees: TreeLite[], low: boolean) {
   const models = new Map<number, THREE.Mesh>();
   const rc = new THREE.Raycaster();
@@ -84,19 +109,29 @@ function perchBirds(agents: Agent[], trees: TreeLite[], low: boolean) {
       m = new THREE.Mesh(buildForestTree(t.kind, low));
       models.set(t.kind, m);
     }
-    // owls perch near the crown's rim, facing out over the trail, so they sit silhouetted against
-    // the sky instead of buried under the thick of the foliage (kookaburras sit further in: they're
-    // only out by day, with plenty of light to read them against the leaves)
-    const d = canopyOf(t.kind).rx * (a.kind === K_OWL ? 0.8 : 0.62);
+    const rx = canopyOf(t.kind).rx;
     const ly = a.yaw - t.rot;
-    rc.set(from.set(Math.sin(ly) * d, 30, Math.cos(ly) * d), down);
-    const hit = rc.intersectObject(m, false)[0];
-    if (!hit) continue;
-    a.x = t.x + Math.sin(a.yaw) * d * t.s;
-    a.z = t.z + Math.cos(a.yaw) * d * t.s;
+    let bestY = -Infinity;
+    let bestDm = 0;
+    let bestDAng = 0;
+    for (const [dm, dAng] of a.kind === K_OWL ? OWL_PERCH_TRIES : KOOKABURRA_PERCH_TRIES) {
+      const d = rx * dm;
+      const a2 = ly + dAng;
+      rc.set(from.set(Math.sin(a2) * d, 30, Math.cos(a2) * d), down);
+      const hit = rc.intersectObject(m, false)[0];
+      if (!hit || hit.point.y <= bestY) continue;
+      bestY = hit.point.y;
+      bestDm = dm;
+      bestDAng = dAng;
+    }
+    if (bestY === -Infinity) continue;
+    const d = rx * bestDm;
+    const wy = a.yaw + bestDAng;
+    a.x = t.x + Math.sin(wy) * d * t.s;
+    a.z = t.z + Math.cos(wy) * d * t.s;
     a.hx = a.x;
     a.hz = a.z;
-    a.y = t.y - 0.15 * t.s + hit.point.y * t.s * t.sy - 0.06;
+    a.y = t.y - 0.15 * t.s + bestY * t.s * t.sy - 0.06;
   }
   for (const m of models.values()) m.geometry.dispose();
 }
@@ -365,6 +400,9 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
       }
     },
     sheepKeepOut: keepOut,
+    pushKid(pos, kidR, kidY) {
+      return pushKidOut(agents, pos, kidR, kidY);
+    },
     setVisible(vis) {
       visible = vis;
       group.visible = vis;

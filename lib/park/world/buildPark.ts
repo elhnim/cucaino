@@ -17,6 +17,7 @@ import { groundY, slopeAt } from "../registry/terrain";
 import { buildFantasyWorld, type FantasyWorld } from "./fantasy";
 import { buildTerrainChunks, type TerrainChunks } from "./fantasy/terrainChunks";
 import { buildRailway, type Railway } from "./railway";
+import { buildWildlife, type Wildlife } from "./wildlife";
 import { SKY_PADS, skyTopY } from "../registry/skyIslands";
 import { buildQuests3D, type Quests3D } from "./quests3d";
 import { buildUnderwater, type Underwater } from "./underwater";
@@ -49,6 +50,8 @@ export interface BuiltPark {
   pathPoints: THREE.Vector3[];
   /** the island's ground, streamed in chunks round the kid (taps are raycast against it) */
   ground: TerrainChunks;
+  /** the Wildlands' wildlife: herds, goats, ducks, parrots and eagles, streamed round the kid */
+  wildlife: Wildlife;
   /** the Wildlands Railway: its track, stations and train (the engine rides it) */
   railway: Railway;
   /** a Wildlands trunk or boulder within `r` of (x, z) (the kid bumps into them) */
@@ -601,6 +604,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── rides waiting round the world: bikes, buggies, unicorns, dragons, mantas (and sea friends) ──
   const worldRides = buildRideables(scene, { lowQuality: opts.lowQuality });
   disposables.push(worldRides);
+  // ── the Wildlands' wildlife (streamed round the kid like the trees; they steer round the trunks) ──
+  const wildlife = buildWildlife(scene, { lowQuality: opts.lowQuality, trunkAt: (x, z, r) => fantasy.wilds.trunkAt(x, z, r) });
+  disposables.push(wildlife);
   // ── the Wildlands Railway (streamed: track sections and stations are built as the kid nears) ──
   const railway = buildRailway(scene, { lowQuality: opts.lowQuality });
   disposables.push(railway);
@@ -729,6 +735,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     railway,
+    wildlife,
     wildTrunkAt: (x, z, r) => fantasy.wilds.trunkAt(x, z, r),
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
     obstacles: [...fantasy.obstacles, ...SEA_FOOTPRINTS, ...waterways.obstacles, ...jungle.obstacles, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES, ...DINO_OBSTACLES],
@@ -765,6 +772,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       ground.update(focus ?? origin0);
       railway.update(dt, t, focus ?? origin0);
+      wildlife.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow, hour: atmosphere.hour });
       for (const l of landmarks) l.update(dt, t, atmosphere.glow);
       lolly.rotation.y += dt * 0.5;
       for (const b of bobbers) b.obj.position.y = b.base + Math.sin(t * 2 + b.phase) * 0.18;

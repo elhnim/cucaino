@@ -197,6 +197,28 @@ for (const st of STATIONS.slice(1)) {
     made++;
   }
 }
+// ── and a dragon at the Great Falls and at the Lone Peak (befriend it, fly off over the Wildlands) ──
+for (const [sid, breed] of [
+  ["falls-station", "zippit"],
+  ["peak-station", "skyfin"],
+] as const) {
+  const st = STATIONS.find((s) => s.id === sid)!;
+  const p = railAt(st.s);
+  let best: { x: number; z: number; s: number } | null = null;
+  // (past the platform's far end, on the side away from the track, on open level ground)
+  for (let along = 16; along <= 34; along += 2)
+    for (let out = 6; out <= 20; out += 2) {
+      const x = st.x + p.dx * along + p.dz * out;
+      const z = st.z + p.dz * along - p.dx * out;
+      const y = groundY(x, z);
+      const sl = Math.hypot(groundY(x + 3, z) - groundY(x - 3, z), groundY(x, z + 3) - groundY(x, z - 3)) / 6;
+      if (y < WATER_Y + 0.6 || sl > 0.14 || nearRail(x, z, 5) || waterSdf(x, z) < 8 || !clearOfOthers(x, z, 10)) continue;
+      const s = sl * 40 + Math.abs(along - 22) * 0.1;
+      if (!best || s < best.s) best = { x, z, s };
+    }
+  if (!best) throw new Error(`rideables: no room for a dragon at ${sid}`);
+  add({ id: `dragon-wild-${sid}`, kind: "dragon", breed, x: best.x, z: best.z, yaw: Math.atan2(p.dx, p.dz) + Math.PI, y: groundY(best.x, best.z) }, 14);
+}
 
 // ── unicorns: grazing in the open meadows (well away from trails) ──
 {

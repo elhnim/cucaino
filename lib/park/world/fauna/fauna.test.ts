@@ -9,10 +9,12 @@ import { WATER_BODIES, waterBodyAt, waterSdf } from "../../registry/waterways";
 import { carvePasture, planFlocks, planForest, planMeadows, planPasture, planWindmills, stepFlock, trunkObstacles, type FreeFn } from "../storybook/plan";
 import { B_BLOCK, B_KEEP, B_LAND, B_OPEN, B_TRAIL, bitsAt, buildWalkGrid, dryLandAt } from "./ground";
 import { RMAX, planFauna, sheepKeepOut } from "./plan";
-import { activeNow, makeEnv, passable, stepFauna, type FaunaEnv } from "./brain";
+import { activeNow, kidInsideAny, makeEnv, passable, pushKid, stepFauna, type FaunaEnv } from "./brain";
 import { TAG_PATH, TAG_WATER, componentSizes, nearestNode, route, segmentOk } from "./roam";
 import { buildMeshGeometries, measureModel } from "./species";
 import {
+  BLOCKS_KID,
+  BODY_LEN_MULT,
   C_GIANT,
   C_LARGE,
   C_NONE,
@@ -625,5 +627,115 @@ describe("fauna behaviour", { timeout: 60000 }, () => {
       if (a.kind === K_GIRAFFE || a.kind === K_ELEPHANT || a.kind === K_COW) expect(a.cls).toBe(C_GIANT);
       if (a.kind === K_DEER || a.kind === K_KANGAROO) expect(a.cls).toBe(C_LARGE);
     }
+  });
+});
+
+describe("pushKid: the kid can't walk through an animal's body", { timeout: 30000 }, () => {
+  const kidR = 0.4;
+  const blockingKinds = [...Array(KINDS).keys()].filter((k) => BLOCKS_KID[k]);
+
+  it("blocks cows, elephants, giraffes, kangaroos, sheep (and every other blocking kind)", () => {
+    expect(blockingKinds.map((k) => KIND_NAMES[k]).sort()).toEqual(["bear", "cow", "deer", "elephant", "emu", "fox", "giraffe", "goat", "horse", "kangaroo", "koala", "sheep", "wombat", "zebra"].sort());
+  });
+
+  it("pushes the kid outside every blocking animal's body footprint, sampled from any angle and depth", () => {
+    for (const kind of blockingKinds) {
+      const src = plan.agents.find((a) => a.kind === kind);
+      expect(src, KIND_NAMES[kind]).toBeTruthy();
+      const a: Agent = { ...src! };
+      a.present = 1;
+      if (kind === K_KOALA) a.climb = 0; // (on the ground, not up its tree — it blocks there too)
+      const hw = TUNE[a.kind].body * a.s;
+      const hl = hw * (BODY_LEN_MULT[a.kind] ?? 1);
+      const sy = Math.sin(a.yaw);
+      const cy = Math.cos(a.yaw);
+      // many points inside the animal's bare body ellipse (no kid radius added — pushKid's own
+      // footprint, inflated by kidR, is strictly bigger, so these are inside it too): every angle
+      // round it, from dead centre out almost to the skin
+      for (let k = 0; k < 24; k++) {
+        const ang = (k / 24) * Math.PI * 2;
+        for (const frac of [0, 0.4, 0.85, 0.99]) {
+          const along = Math.cos(ang) * hl * frac;
+          const side = Math.sin(ang) * hw * frac;
+          const pos = { x: a.x + along * sy + side * cy, z: a.z + along * cy - side * sy };
+          pushKid([a], pos, kidR);
+          expect(kidInsideAny([a], pos.x, pos.z, kidR), `${KIND_NAMES[kind]} angle ${k} depth ${frac}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("copes wedged between two animals (a few passes resolve it, like the dinosaurs' pushKid)", () => {
+    const cow = plan.agents.find((a) => a.kind === K_COW)!;
+    const a: Agent = { ...cow, present: 1 };
+    const b: Agent = { ...cow, present: 1 };
+    const hw = TUNE[K_COW].body * a.s;
+    // two cows side by side, a gap between them too narrow for the kid: dropped right in the middle
+    b.x = a.x + hw * 1.3;
+    b.z = a.z;
+    const pos = { x: a.x + hw * 0.65, z: a.z };
+    pushKid([a, b], pos, kidR);
+    expect(kidInsideAny([a, b], pos.x, pos.z, kidR)).toBe(false);
+  });
+
+  it("doesn't block for tiny animals (rabbits, frogs, squirrels, turtles, ducks, chicks)", () => {
+    for (const kind of [K_RABBIT, K_FROG, K_SQUIRREL, K_TURTLE, K_DUCK, K_CHICKEN]) {
+      const src = plan.agents.find((a) => a.kind === kind);
+      if (!src) continue;
+      const a: Agent = { ...src, present: 1 };
+      const pos = { x: a.x, z: a.z };
+      expect(pushKid([a], pos, kidR), KIND_NAMES[kind]).toBe(false);
+      expect(pos.x).toBe(a.x);
+      expect(pos.z).toBe(a.z);
+    }
+  });
+
+  it("doesn't block for perched/climbing animals (owls, kookaburras, birds in trees) or a climbing koala", () => {
+    for (const kind of [K_OWL, K_KOOKABURRA]) {
+      const src = plan.agents.find((a) => a.kind === kind);
+      if (!src) continue;
+      const a: Agent = { ...src, present: 1 };
+      const pos = { x: a.x, z: a.z };
+      expect(pushKid([a], pos, kidR), KIND_NAMES[kind]).toBe(false);
+    }
+    const koala = plan.agents.find((a) => a.kind === K_KOALA)!;
+    const a: Agent = { ...koala, present: 1, climb: 0.5 };
+    const pos = { x: a.x, z: a.z };
+    expect(pushKid([a], pos, kidR)).toBe(false);
+  });
+
+  it("skips an animal well above or below the kid's feet (kidY given)", () => {
+    const giraffe = plan.agents.find((a) => a.kind === K_GIRAFFE)!;
+    const a: Agent = { ...giraffe, present: 1 };
+    const pos = { x: a.x, z: a.z };
+    // the kid, up on a high bridge well over the giraffe's head
+    expect(pushKid([a], pos, kidR, a.y + a.head + 20)).toBe(false);
+    expect(pos.x).toBe(a.x);
+  });
+
+  it("is fast: comfortably under 0.05 ms per call, even next to a cluster of big animals", () => {
+    const agents = plan.agents;
+    const cow = agents.find((a) => a.kind === K_COW)!;
+    const pos = { x: 0, z: 0 };
+    const reset = () => {
+      pos.x = cow.x + 0.3;
+      pos.z = cow.z + 0.3;
+    };
+    // warm up (the JIT optimises the hot path the way a running park would)
+    for (let i = 0; i < 3000; i++) {
+      reset();
+      pushKid(agents, pos, 0.4, cow.y);
+    }
+    let ms = Infinity;
+    for (let b = 0; b < 8; b++) {
+      const t0 = performance.now();
+      for (let i = 0; i < 500; i++) {
+        reset();
+        pushKid(agents, pos, 0.4, cow.y);
+      }
+      ms = Math.min(ms, (performance.now() - t0) / 500);
+    }
+    console.log(`pushKid: ${ms.toFixed(4)} ms / call (${agents.length} animals)`);
+    expect(ms).toBeLessThan(0.05);
   });
 });

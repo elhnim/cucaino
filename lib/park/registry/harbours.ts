@@ -23,6 +23,8 @@ import { VILLAGE_DECKS, villageGroundY, villageSeaFloorY } from "./villageIsland
 import { FROST_BERGS, FROST_FLOES, FROST_ISLAND, FROST_OBSTACLES, FROST_SWIMS, FROST_SLIDES, frostCoastR, frostGroundY } from "./frostIsland";
 import { DINO_DECKS, dinoGroundY } from "./dinoIsland";
 import { ABYSS } from "./abyss";
+import { STATIONS } from "./railway";
+import { WILD_LAKE } from "./wildWater";
 import { boatClearance } from "../world/rideables/craft";
 
 /** a walkable plank deck: a straight walk from a to b (half = half its width) sloping ya -> yb, or a round deck (r) */
@@ -173,6 +175,18 @@ const frost: Jetty = (() => {
 })();
 docks.push({ id: "frost-dock", name: "Frostpeak Ice Dock", x: frost.head.x, z: frost.head.z, style: "ice" });
 
+// the Great Lake's jetty, out in the Wildlands: from the beach below Great Lake Station straight
+// out over the water to where the boats float (pedalos and a sailboat to potter about the lake in)
+const greatLake: Jetty = (() => {
+  const st = STATIONS.find((s) => s.id === "lake-station")!;
+  const a = Math.atan2(WILD_LAKE.x - st.x, WILD_LAKE.z - st.z);
+  const shore = shoreAlong(st.x, st.z, a, 4, 260);
+  const base = W(st.x + Math.sin(a) * (shore - 4), st.z + Math.cos(a) * (shore - 4));
+  const len = 4 + depthAlong(st.x + Math.sin(a) * shore, st.z + Math.cos(a) * shore, a, 2.6, 60);
+  return jetty("great-lake", base, a, len, 6, 1.15, 1.3);
+})();
+docks.push({ id: "great-lake", name: "Great Lake Jetty", x: greatLake.head.x, z: greatLake.head.z, style: "candy" });
+
 // the Rift Dock: a floating pontoon on the Midnight Rift's near lip (the side facing home)
 export const RIFT_DOCK = (() => {
   // the deep stretch of the rift nearest the main island
@@ -308,6 +322,10 @@ sideNose(coral, "pedalo-coralcove", "pedalo", "coralcove", 0.72, 1);
 // Dino Isle: a Rocket Boat and a sailboat nose-in at the T
 headNose(dinoJ, "speedboat-dino", "speedboat", "dino", -2.3);
 headNose(dinoJ, "sailboat-dino", "sailboat", "dino", 2.4);
+// the Great Lake: a sailboat and two pedalos (the lake's still, sheltered water)
+headNose(greatLake, "sailboat-greatlake", "sailboat", "great-lake", 2.6);
+headNose(greatLake, "pedalo-greatlake-1", "pedalo", "great-lake", -2.6);
+sideNoseAuto(greatLake, "pedalo-greatlake-2", "pedalo", "great-lake", 1, 0.45);
 // Frostpeak: a Rocket Boat and a Bubble Sub nose-in at the head
 headNose(frost, "speedboat-frost", "speedboat", "frost-dock", -2.4);
 headNose(frost, "sub-frost", "sub", "frost-dock", 2.2);

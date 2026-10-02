@@ -1343,6 +1343,9 @@ export class ParkWorld {
     // the Wildlands' trunks and boulders
     if (!aloft && !this.onSky && !this.gliding) {
       const kr = this.mount ? 0.9 : 0.45;
+      // (and the big animals: the park's and the Wildlands')
+      this.park.fauna.pushKid(pos, kr, pos.y);
+      this.park.wildlife.pushKid(pos, kr, pos.y);
       for (let k = 0; k < 2; k++) {
         const t = this.park.wildTrunkAt(pos.x, pos.z, kr);
         if (!t) break;
