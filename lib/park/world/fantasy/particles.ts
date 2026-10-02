@@ -7,7 +7,7 @@
 import * as THREE from "three";
 import { rngOf } from "./noise";
 import { FOG_FACTOR_GLSL, GUST_GLSL, HASH_GLSL, ISL_SLOTS, ISL_WORLD, type FantasyUniforms } from "./shaders";
-import { TERRAIN_GLSL, TERRAIN_UNIFORMS } from "./terrainMesh";
+import { TERRAIN_GLSL, type TerrainWindows } from "./terrainWindow";
 
 /** sprite kinds */
 export const SPRITE_MIST = 0;
@@ -209,7 +209,7 @@ export function buildShafts(U: FantasyUniforms, defs: ShaftDef[]): THREE.Instanc
 }
 
 /** leaves and petals drifting on the wind around the player (a wrapped box that follows uFocus) */
-export function buildLeaves(U: FantasyUniforms, heightTex: THREE.Texture, count: number): THREE.Points {
+export function buildLeaves(U: FantasyUniforms, win: TerrainWindows, count: number): THREE.Points {
   const r = rngOf(4711);
   const pos = new Float32Array(count * 3);
   const seed = new Float32Array(count);
@@ -234,10 +234,7 @@ export function buildLeaves(U: FantasyUniforms, heightTex: THREE.Texture, count:
       uGust: U.uGust,
       uFocus: U.uFocus,
       uPx,
-      uHeightTex: { value: heightTex },
-      uTerrE: { value: TERRAIN_UNIFORMS.uTerrE },
-      uTerrCell: { value: TERRAIN_UNIFORMS.uTerrCell },
-      uTerrN: { value: TERRAIN_UNIFORMS.uTerrN },
+      ...win.height,
     },
     vertexShader: /* glsl */ `
       #include <common>

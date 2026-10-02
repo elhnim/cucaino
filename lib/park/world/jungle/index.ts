@@ -30,7 +30,7 @@ export interface Jungle {
 
 const LEAF = ["#3f8f3a", "#2f7a3e", "#4f9e32", "#2a6e48", "#5aa83a", "#367f2c", "#1f6a44", "#64b03e"].map((c) => new THREE.Color(c));
 
-export function buildJungle(scene: THREE.Scene, opts: { lowQuality?: boolean; keep?: KeepFn; ground?: THREE.Mesh } = {}): Jungle {
+export function buildJungle(scene: THREE.Scene, opts: { lowQuality?: boolean; keep?: KeepFn; ground?: { material: THREE.Material } } = {}): Jungle {
   const low = !!opts.lowQuality;
   const plan = planJungle({ lowQuality: low, keep: opts.keep });
   const group = new THREE.Group();

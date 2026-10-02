@@ -14,7 +14,8 @@ import { inJungle, underCanopy } from "../registry/jungle";
 import { buildJungle } from "./jungle";
 import { buildWaterways } from "./waterways";
 import { groundY, slopeAt } from "../registry/terrain";
-import { buildFantasyWorld, buildTerrainMesh, type FantasyWorld } from "./fantasy";
+import { buildFantasyWorld, type FantasyWorld } from "./fantasy";
+import { buildTerrainChunks, type TerrainChunks } from "./fantasy/terrainChunks";
 import { SKY_PADS, skyTopY } from "../registry/skyIslands";
 import { buildQuests3D, type Quests3D } from "./quests3d";
 import { buildUnderwater, type Underwater } from "./underwater";
@@ -45,8 +46,8 @@ export interface BuiltPark {
   lands: LandDef[];
   /** sampled points along every path (NPCs stroll between these) */
   pathPoints: THREE.Vector3[];
-  /** the terrain mesh (taps are raycast against it) */
-  ground: THREE.Mesh;
+  /** the island's ground, streamed in chunks round the kid (taps are raycast against it) */
+  ground: TerrainChunks;
   /** Star Shards + Sky Rings (the engine drives them with the kid's position) */
   quests3d: Quests3D;
   /** the storybook dressing (dense forest, sheep, windmills, balloons, boats, clouds, misty
@@ -278,7 +279,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     }
   };
   for (const tr of TRAILS) addCurve(tr.pts.map(([x, z]) => new THREE.Vector3(x, 0, z)), !!tr.closed);
-  void pathMats; // trails are painted into the terrain (buildTerrainMesh paths: true)
+  void pathMats; // trails are painted into the terrain (terrainChunks, from the grass mask)
 
   const nearPath = (x: number, z: number, pad: number) => pathSamples.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < pad * pad);
   const zb = zoneBounds();
@@ -595,12 +596,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── rides waiting round the world: bikes, buggies, unicorns, dragons, mantas (and sea friends) ──
   const worldRides = buildRideables(scene, { lowQuality: opts.lowQuality });
   disposables.push(worldRides);
-  const ground = buildTerrainMesh({ lowQuality: opts.lowQuality, mask: fantasy.mask, paths: true });
-  ground.name = "terrain";
-  ground.receiveShadow = true;
-  track(ground.geometry);
-  track(ground.material as THREE.Material);
-  scene.add(ground);
+  // (streamed round the kid: only the chunks in view are built, the near ones finely)
+  const ground = track(buildTerrainChunks({ lowQuality: opts.lowQuality, mask: fantasy.mask }));
+  scene.add(ground.group);
+  ground.update({ x: 0, z: 0 }, 25);
 
   // ── the rainforest round Rainbow Falls (true size, you walk under its canopy), and the falls, the
   //    river, Rainbow Lake and their life ──
@@ -754,6 +753,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       atmosphere.setShade(focus && underCanopy(focus.x, focus.z) ? 1 : 0);
       waterways.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow });
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
+      ground.update(focus ?? origin0);
       for (const l of landmarks) l.update(dt, t, atmosphere.glow);
       lolly.rotation.y += dt * 0.5;
       for (const b of bobbers) b.obj.position.y = b.base + Math.sin(t * 2 + b.phase) * 0.18;

@@ -101,35 +101,34 @@ export function wrapWorld(p: { x: number; z: number }): boolean {
   return true;
 }
 
-let grid: Float32Array | null = null;
+// ── the height field: baked lazily, tile by tile ──
+// The field is one regular grid (x = -TERRAIN_EXTENT + i * CELL, z likewise) over the land's
+// square, but nothing is baked up front: a tile of TERRAIN_TILE cells a side is worked out the
+// first time anything asks for a height inside it (the park only pays for the ground near the
+// kid, and loading stays light however big the island grows). Each tile bakes a padded patch, so
+// the soft blur and the stamps give exactly the values one whole-grid bake would.
 
-function bake(): Float32Array {
-  const N = TERRAIN_N;
-  const raw = new Float32Array(N * N);
-  for (let j = 0; j < N; j++)
-    for (let i = 0; i < N; i++) raw[j * N + i] = rawHeight(-TERRAIN_EXTENT + i * CELL, -TERRAIN_EXTENT + j * CELL);
+/** cells per tile side (a tile holds TERRAIN_TILE + 1 samples a side, sharing its edges with the next) */
+export const TERRAIN_TILE = 48;
+/** the blur's reach (two passes, one cell each) */
+const PAD = 2;
+const TILES = Math.ceil((TERRAIN_N - 1) / TERRAIN_TILE);
+const TS = TERRAIN_TILE + 1;
+const tiles: (Float32Array | undefined)[] = new Array(TILES * TILES);
 
-  // level the walkable things: stamp "target height + weight" discs, then blend
-  const target = new Float32Array(N * N);
-  const weight = new Float32Array(N * N);
-  const stamp = (x: number, z: number, rIn: number, rOut: number, h: number) => {
-    const i0 = Math.max(0, Math.floor((x - rOut + TERRAIN_EXTENT) / CELL));
-    const i1 = Math.min(N - 1, Math.ceil((x + rOut + TERRAIN_EXTENT) / CELL));
-    const j0 = Math.max(0, Math.floor((z - rOut + TERRAIN_EXTENT) / CELL));
-    const j1 = Math.min(N - 1, Math.ceil((z + rOut + TERRAIN_EXTENT) / CELL));
-    for (let j = j0; j <= j1; j++)
-      for (let i = i0; i <= i1; i++) {
-        const d = Math.hypot(-TERRAIN_EXTENT + i * CELL - x, -TERRAIN_EXTENT + j * CELL - z);
-        if (d > rOut) continue;
-        const w = 1 - smooth(rIn, rOut, d);
-        const k = j * N + i;
-        if (w > weight[k]) {
-          // the strongest stamp wins (a land beats the trail running into it)
-          target[k] = h;
-          weight[k] = w;
-        }
-      }
-  };
+interface Stamp {
+  x: number;
+  z: number;
+  rIn: number;
+  rOut: number;
+  h: number;
+}
+/** every levelling stamp, in bake order (the strongest wins; on a tie the first), bucketed by tile */
+let stampBuckets: Stamp[][] | null = null;
+function stamps(): Stamp[][] {
+  if (stampBuckets) return stampBuckets;
+  const list: Stamp[] = [];
+  const stamp = (x: number, z: number, rIn: number, rOut: number, h: number) => list.push({ x, z, rIn, rOut, h });
   const sample = (x: number, z: number) => rawHeight(x, z);
   // trails: follow the land softly, so paths roll with the hills but never get steep
   for (const pts of TRAIL_POINTS) {
@@ -149,28 +148,88 @@ function bake(): Float32Array {
   stamp(0, 0, 13, 24, 0);
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);
-  const out = new Float32Array(N * N);
+  // (each stamp goes in every tile whose padded patch it reaches, keeping the bake order)
+  const b: Stamp[][] = Array.from({ length: TILES * TILES }, () => []);
+  const tw = TERRAIN_TILE * CELL;
+  for (const st of list) {
+    const lo = (v: number) => Math.floor((v - st.rOut + TERRAIN_EXTENT) / tw) - 1;
+    const hi = (v: number) => Math.floor((v + st.rOut + TERRAIN_EXTENT) / tw) + 1;
+    for (let tj = Math.max(0, lo(st.z)); tj <= Math.min(TILES - 1, hi(st.z)); tj++)
+      for (let ti = Math.max(0, lo(st.x)); ti <= Math.min(TILES - 1, hi(st.x)); ti++) {
+        const x0 = -TERRAIN_EXTENT + (ti * TERRAIN_TILE - PAD - 1) * CELL;
+        const z0 = -TERRAIN_EXTENT + (tj * TERRAIN_TILE - PAD - 1) * CELL;
+        const x1 = -TERRAIN_EXTENT + (ti * TERRAIN_TILE + TERRAIN_TILE + PAD + 1) * CELL;
+        const z1 = -TERRAIN_EXTENT + (tj * TERRAIN_TILE + TERRAIN_TILE + PAD + 1) * CELL;
+        if (st.x + st.rOut < x0 || st.x - st.rOut > x1 || st.z + st.rOut < z0 || st.z - st.rOut > z1) continue;
+        b[tj * TILES + ti].push(st);
+      }
+  }
+  stampBuckets = b;
+  return b;
+}
+
+/** bake one tile: its padded patch of the field, levelled, blurred and carved; returns its samples */
+function bakeTile(ti: number, tj: number): Float32Array {
+  const N = TERRAIN_N;
+  // the padded patch, in whole-grid indices (clamped to the grid: its outer rim is never blurred)
+  const pi0 = Math.max(0, ti * TERRAIN_TILE - PAD);
+  const pj0 = Math.max(0, tj * TERRAIN_TILE - PAD);
+  const pi1 = Math.min(N - 1, ti * TERRAIN_TILE + TERRAIN_TILE + PAD);
+  const pj1 = Math.min(N - 1, tj * TERRAIN_TILE + TERRAIN_TILE + PAD);
+  const W = pi1 - pi0 + 1;
+  const H = pj1 - pj0 + 1;
+  const raw = new Float32Array(W * H);
+  for (let j = 0; j < H; j++)
+    for (let i = 0; i < W; i++) raw[j * W + i] = rawHeight(-TERRAIN_EXTENT + (pi0 + i) * CELL, -TERRAIN_EXTENT + (pj0 + j) * CELL);
+
+  // level the walkable things: stamp "target height + weight" discs, then blend
+  const target = new Float32Array(W * H);
+  const weight = new Float32Array(W * H);
+  for (const st of stamps()[tj * TILES + ti]) {
+    const i0 = Math.max(pi0, Math.floor((st.x - st.rOut + TERRAIN_EXTENT) / CELL));
+    const i1 = Math.min(pi1, Math.ceil((st.x + st.rOut + TERRAIN_EXTENT) / CELL));
+    const j0 = Math.max(pj0, Math.floor((st.z - st.rOut + TERRAIN_EXTENT) / CELL));
+    const j1 = Math.min(pj1, Math.ceil((st.z + st.rOut + TERRAIN_EXTENT) / CELL));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const d = Math.hypot(-TERRAIN_EXTENT + i * CELL - st.x, -TERRAIN_EXTENT + j * CELL - st.z);
+        if (d > st.rOut) continue;
+        const w = 1 - smooth(st.rIn, st.rOut, d);
+        const k = (j - pj0) * W + (i - pi0);
+        if (w > weight[k]) {
+          // the strongest stamp wins (a land beats the trail running into it)
+          target[k] = st.h;
+          weight[k] = w;
+        }
+      }
+  }
+  const out = new Float32Array(W * H);
   for (let k = 0; k < out.length; k++) out[k] = raw[k] + (target[k] - raw[k]) * weight[k];
   // two soft blur passes so nothing has a hard edge (except the mountain cliffs, which stay bold)
-  const tmp = new Float32Array(N * N);
+  // (the grid's own outer rim is never blurred; the patch's padding soaks up the patch's rim)
+  const tmp = new Float32Array(W * H);
   for (let pass = 0; pass < 2; pass++) {
     tmp.set(out);
-    for (let j = 1; j < N - 1; j++)
-      for (let i = 1; i < N - 1; i++) {
-        const k = j * N + i;
-        tmp[k] = (out[k] * 4 + out[k - 1] + out[k + 1] + out[k - N] + out[k + N]) / 8;
+    for (let j = 1; j < H - 1; j++)
+      for (let i = 1; i < W - 1; i++) {
+        const k = j * W + i;
+        tmp[k] = (out[k] * 4 + out[k - 1] + out[k + 1] + out[k - W] + out[k + W]) / 8;
       }
     out.set(tmp);
   }
   // Rainbow Falls' mesa rises out of the west coast; the waterways are carved in; and no other
   // inland hollow dips below the waterline (the only inland water is the river, the pool and the
   // lake, so you never "swim" on dry grass)
-  for (let j = 0; j < N; j++)
-    for (let i = 0; i < N; i++) {
-      const k = j * N + i;
-      const x = -TERRAIN_EXTENT + i * CELL;
-      const z = -TERRAIN_EXTENT + j * CELL;
-      let h = out[k];
+  const tile = new Float32Array(TS * TS).fill(DEEP_FLOOR);
+  for (let j = 0; j < TS; j++) {
+    const gj = tj * TERRAIN_TILE + j;
+    if (gj > N - 1) break;
+    for (let i = 0; i < TS; i++) {
+      const gi = ti * TERRAIN_TILE + i;
+      if (gi > N - 1) break;
+      const x = -TERRAIN_EXTENT + gi * CELL;
+      const z = -TERRAIN_EXTENT + gj * CELL;
+      let h = out[(gj - pj0) * W + (gi - pi0)];
       const r = Math.hypot(x, z);
       const coast = coastR(Math.atan2(x, z));
       const inland = 1 - smooth(coast - 7, coast - 2, r);
@@ -189,30 +248,77 @@ function bake(): Float32Array {
         const floor = WATER_Y + 0.35 + 0.04 * Math.min(Math.max(d, 0), 6);
         if (d > 0.4 && h < floor) h += (floor - h) * inland;
       }
-      out[k] = h;
+      tile[j * TS + i] = h;
     }
-  return out;
+  }
+  return tile;
 }
 
-/** the baked height grid (row-major, TERRAIN_N x TERRAIN_N, z rows / x columns) */
-export function terrainGrid(): Float32Array {
-  if (!grid) grid = bake();
-  return grid;
+function tileAt(ti: number, tj: number): Float32Array {
+  const k = tj * TILES + ti;
+  let t = tiles[k];
+  if (!t) {
+    t = bakeTile(ti, tj);
+    tiles[k] = t;
+  }
+  return t;
 }
+
+/** how many of the field's tiles are baked so far (load-cost checks) */
+export function terrainTilesBaked(): number {
+  let n = 0;
+  for (const t of tiles) if (t) n++;
+  return n;
+}
+
+/** the grid's cell size (world units) */
+export const TERRAIN_CELL = CELL;
+
+/** the height at grid sample (i, j) — DEEP_FLOOR off the grid */
+export function terrainSample(i: number, j: number): number {
+  if (i < 0 || j < 0 || i > TERRAIN_N - 1 || j > TERRAIN_N - 1) return DEEP_FLOOR;
+  const ti = Math.min(TILES - 1, Math.floor(i / TERRAIN_TILE));
+  const tj = Math.min(TILES - 1, Math.floor(j / TERRAIN_TILE));
+  return tileAt(ti, tj)[(j - tj * TERRAIN_TILE) * TS + (i - ti * TERRAIN_TILE)];
+}
+
+let grid: Float32Array | null = null;
+/** the whole height grid at once (row-major, TERRAIN_N x TERRAIN_N, z rows / x columns). It bakes
+ *  every tile: for tests and offline tools only — the park reads the field through groundY() */
+export function terrainGrid(): Float32Array {
+  if (grid) return grid;
+  const N = TERRAIN_N;
+  const g = new Float32Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) g[j * N + i] = terrainSample(i, j);
+  grid = g;
+  return g;
+}
+
+// (a one-tile memo: most lookups land in the same tile as the last one)
+let lastK = -1;
+let lastT: Float32Array = new Float32Array(TS * TS);
 
 /** ground height at (x, z) — everything that stands on the island uses this */
 export function groundY(x: number, z: number): number {
-  const g = terrainGrid();
   const N = TERRAIN_N;
   const fx = (x + TERRAIN_EXTENT) / CELL;
   const fz = (z + TERRAIN_EXTENT) / CELL;
-  if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return DEEP_FLOOR;
+  if (!(fx >= 0 && fz >= 0 && fx < N - 1 && fz < N - 1)) return DEEP_FLOOR;
   const i = Math.floor(fx);
   const j = Math.floor(fz);
+  const ti = (i / TERRAIN_TILE) | 0;
+  const tj = (j / TERRAIN_TILE) | 0;
+  const tk = tj * TILES + ti;
+  let g = lastT;
+  if (tk !== lastK) {
+    g = tileAt(ti, tj);
+    lastK = tk;
+    lastT = g;
+  }
   const u = fx - i;
   const v = fz - j;
-  const k = j * N + i;
-  return (g[k] * (1 - u) + g[k + 1] * u) * (1 - v) + (g[k + N] * (1 - u) + g[k + N + 1] * u) * v;
+  const k = (j - tj * TERRAIN_TILE) * TS + (i - ti * TERRAIN_TILE);
+  return (g[k] * (1 - u) + g[k + 1] * u) * (1 - v) + (g[k + TS] * (1 - u) + g[k + TS + 1] * u) * v;
 }
 
 /** how steep the ground is at (x, z): 0 flat .. 1 cliff (for rock vs grass colouring) */

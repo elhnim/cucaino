@@ -10,8 +10,7 @@
 import * as THREE from "three";
 import { rngOf } from "./noise";
 import { GUST_GLSL, HASH_GLSL, type FantasyUniforms } from "./shaders";
-import { TERRAIN_GLSL, TERRAIN_UNIFORMS } from "./terrainMesh";
-import { MASK_HALF } from "./mask";
+import { MASK_GLSL, TERRAIN_GLSL, type TerrainWindows } from "./terrainWindow";
 
 export interface GrassLayerDef {
   count: number;
@@ -80,7 +79,7 @@ const GRASS_VERTEX_HEAD = /* glsl */ `
 attribute vec4 aBlade;
 uniform float uTime; uniform float uGlow; uniform vec2 uWindDir; uniform float uGust; uniform vec2 uFocus;
 uniform float uPatch; uniform float uRadius; uniform float uInner; uniform float uHeight; uniform float uWidth;
-uniform sampler2D uMask; uniform float uMaskHalf;
+${MASK_GLSL}
 varying vec3 vGrassCol; varying vec3 vGrassGlow;
 ${TERRAIN_GLSL}
 ${GUST_GLSL}
@@ -94,7 +93,7 @@ const GRASS_VERTEX_BODY = /* glsl */ `
   float gSeed = aBlade.z;
   float gD = distance( gP, uFocus );
   float gFade = ( 1.0 - smoothstep( uRadius * 0.7, uRadius, gD ) ) * smoothstep( uInner * 0.65, uInner, gD );
-  vec4 gM = texture2D( uMask, ( gP + uMaskHalf ) / ( 2.0 * uMaskHalf ) );
+  vec4 gM = grassMaskAt( gP );
   float gAmt = gM.r;
   float gY = terrainY( gP );
   float gClump = fnoise( gP * 0.14 + 7.1 );
@@ -128,7 +127,7 @@ const GRASS_VERTEX_BODY = /* glsl */ `
   vGrassGlow = mix( vec3( 0.15, 0.85, 1.0 ), vec3( 0.6, 0.3, 1.0 ), fnoise( gP * 0.05 + uTime * 0.04 ) ) * uGlow * gTT * gT * ( 0.015 + 0.65 * gShim ) * gVis;
 `;
 
-function grassMaterial(U: FantasyUniforms, def: GrassLayerDef, maskTex: THREE.Texture, heightTex: THREE.Texture) {
+function grassMaterial(U: FantasyUniforms, def: GrassLayerDef, win: TerrainWindows) {
   const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
   const own = {
     uPatch: { value: def.patch },
@@ -145,12 +144,8 @@ function grassMaterial(U: FantasyUniforms, def: GrassLayerDef, maskTex: THREE.Te
       uWindDir: U.uWindDir,
       uGust: U.uGust,
       uFocus: U.uFocus,
-      uMask: { value: maskTex },
-      uMaskHalf: { value: MASK_HALF },
-      uHeightTex: { value: heightTex },
-      uTerrE: { value: TERRAIN_UNIFORMS.uTerrE },
-      uTerrCell: { value: TERRAIN_UNIFORMS.uTerrCell },
-      uTerrN: { value: TERRAIN_UNIFORMS.uTerrN },
+      ...win.mask,
+      ...win.height,
     });
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\n${GRASS_VERTEX_HEAD}`)
@@ -219,7 +214,7 @@ const FLOWER_VERTEX_BODY = /* glsl */ `
   float gSeed = aBlade.z;
   float gD = distance( gP, uFocus );
   float gFade = 1.0 - smoothstep( uRadius * 0.7, uRadius, gD );
-  vec4 gM = texture2D( uMask, ( gP + uMaskHalf ) / ( 2.0 * uMaskHalf ) );
+  vec4 gM = grassMaskAt( gP );
   float gClump = fnoise( gP * 0.07 + 11.0 ) * 0.75 + fnoise( gP * 0.3 - 2.0 ) * 0.25;
   float gVis = step( 0.56, gClump ) * step( 0.6, gM.r ) * step( 0.001, gFade );
   float gH = uHeight * ( 0.55 + 0.6 * fract( gSeed * 3.3 ) ) * gVis * ( 0.3 + 0.7 * gFade );
@@ -244,7 +239,7 @@ const FLOWER_VERTEX_BODY = /* glsl */ `
   vGrassGlow = aKind > 0.5 ? petal * uGlow * ( 0.35 + 0.35 * sin( uTime * 1.3 + gSeed * 30.0 ) ) : vec3( 0.0 );
 `;
 
-function flowerMaterial(U: FantasyUniforms, patch: number, radius: number, maskTex: THREE.Texture, heightTex: THREE.Texture) {
+function flowerMaterial(U: FantasyUniforms, patch: number, radius: number, win: TerrainWindows) {
   const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
   mat.customProgramCacheKey = () => "fantasy-flower";
   mat.onBeforeCompile = (shader) => {
@@ -259,12 +254,8 @@ function flowerMaterial(U: FantasyUniforms, patch: number, radius: number, maskT
       uWindDir: U.uWindDir,
       uGust: U.uGust,
       uFocus: U.uFocus,
-      uMask: { value: maskTex },
-      uMaskHalf: { value: MASK_HALF },
-      uHeightTex: { value: heightTex },
-      uTerrE: { value: TERRAIN_UNIFORMS.uTerrE },
-      uTerrCell: { value: TERRAIN_UNIFORMS.uTerrCell },
-      uTerrN: { value: TERRAIN_UNIFORMS.uTerrN },
+      ...win.mask,
+      ...win.height,
     });
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\nattribute float aKind;\n${GRASS_VERTEX_HEAD}`)
@@ -285,13 +276,13 @@ export interface GrassField {
   dispose(): void;
 }
 
-export function buildGrassField(U: FantasyUniforms, maskTex: THREE.Texture, heightTex: THREE.Texture, opts: { lowQuality?: boolean; receiveShadow?: boolean }): GrassField {
+export function buildGrassField(U: FantasyUniforms, win: TerrainWindows, opts: { lowQuality?: boolean; receiveShadow?: boolean }): GrassField {
   const meshes: THREE.Mesh[] = [];
   const disposables: { dispose(): void }[] = [];
   let blades = 0;
   grassLayers(!!opts.lowQuality).forEach((def, i) => {
     const geo = bladeGeometry(def, 101 + i * 7);
-    const mat = grassMaterial(U, def, maskTex, heightTex);
+    const mat = grassMaterial(U, def, win);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.frustumCulled = false;
     mesh.receiveShadow = !!opts.receiveShadow && i === 0;
@@ -304,7 +295,7 @@ export function buildGrassField(U: FantasyUniforms, maskTex: THREE.Texture, heig
   const fCount = opts.lowQuality ? 1400 : 4200;
   const fPatch = opts.lowQuality ? 56 : 76;
   const fGeo = flowerGeometry(fCount, 555);
-  const fMat = flowerMaterial(U, fPatch, fPatch / 2, maskTex, heightTex);
+  const fMat = flowerMaterial(U, fPatch, fPatch / 2, win);
   const flowers = new THREE.Mesh(fGeo, fMat);
   flowers.frustumCulled = false;
   flowers.name = "fantasy-flowers";

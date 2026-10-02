@@ -2216,13 +2216,7 @@ export class ParkWorld {
   /** where the pointer ray meets the ground (the terrain mesh, else a flat plane) */
   private groundHit(out: THREE.Vector3): boolean {
     const g = this.park?.ground;
-    if (g) {
-      const hit = this.raycaster.intersectObject(g, false)[0];
-      if (hit) {
-        out.copy(hit.point);
-        return true;
-      }
-    }
+    if (g && g.raycast(this.raycaster.ray, out)) return true;
     return !!this.raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), out);
   }
 

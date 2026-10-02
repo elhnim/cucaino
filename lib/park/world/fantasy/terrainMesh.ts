@@ -1,40 +1,14 @@
-// The island's ground for shaders and (optionally) as a mesh.
-//   makeHeightTexture()  the terrain height grid as a half-float texture (linear-filterable on
-//                        every WebGL2 device incl. iPad) for the grass / leaves vertex shaders
+// The island's ground colours, and (optionally) the whole field as one mesh (tools; the park
+// streams its ground in chunks: terrainChunks.ts; the shaders' textures: terrainWindow.ts).
 //   buildTerrainMesh()   an optional ground mesh: vertex-coloured by height/slope — meadow greens
 //                        with variation, warm rock on cliffs, snow caps, sand at the coast
 import * as THREE from "three";
 import { coastR, TRAIL_POINTS } from "../../registry/island";
 import { beachK, mesaEdgeDist, waterSdf } from "../../registry/waterways";
-import { TERRAIN_EXTENT, TERRAIN_N, groundY, slopeAt, terrainGrid } from "../../registry/terrain";
+import { TERRAIN_EXTENT, groundY, slopeAt } from "../../registry/terrain";
 import { col, mix } from "./geo";
 import { maskAt, terrainGrassFactor, type GrassMask } from "./mask";
 import { fbm2, noise2, smoothstep } from "./noise";
-
-export function makeHeightTexture(): THREE.DataTexture {
-  const g = terrainGrid();
-  const half = new Uint16Array(g.length);
-  for (let i = 0; i < g.length; i++) half[i] = THREE.DataUtils.toHalfFloat(g[i]);
-  const tex = new THREE.DataTexture(half, TERRAIN_N, TERRAIN_N, THREE.RedFormat, THREE.HalfFloatType);
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.generateMipmaps = false;
-  tex.needsUpdate = true;
-  return tex;
-}
-
-/** uniforms the height texture needs in GLSL (world xz -> uv) */
-export const TERRAIN_UNIFORMS = {
-  uTerrE: TERRAIN_EXTENT,
-  uTerrCell: (TERRAIN_EXTENT * 2) / (TERRAIN_N - 1),
-  uTerrN: TERRAIN_N,
-};
-
-export const TERRAIN_GLSL = /* glsl */ `
-uniform sampler2D uHeightTex; uniform float uTerrE; uniform float uTerrCell; uniform float uTerrN;
-float terrainY(vec2 p) { return texture2D(uHeightTex, ((p + uTerrE) / uTerrCell + 0.5) / uTerrN).r; }
-`;
 
 const GRASS_A = col("#4f8a2a");
 const GRASS_B = col("#7a9a2e");

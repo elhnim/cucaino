@@ -6,7 +6,8 @@
 // instanced and merged (~18 draw calls + shadow casters), placed by planFantasy() (pure,
 // tested) and animated by a handful of shared uniforms in update().
 import * as THREE from "three";
-import { bakeGrassMask, type GrassMask } from "./mask";
+import { grassMask, type GrassMask } from "./mask";
+import { buildTerrainWindows } from "./terrainWindow";
 import { planFantasy, SPECIES, type FantasyPlan, type FreeFn } from "./placement";
 import { buildGrassField } from "./grass";
 import { buildGiantTreeGeometry, buildMushroomClusterGeometry, buildTreeGeometry, tintFor } from "./trees";
@@ -14,11 +15,10 @@ import { buildCrystalGeometry, buildRockGeometry, buildRuinsGeometry, CRYSTAL_HU
 import { buildSkyIslands } from "./sky";
 import { buildLeaves, buildShafts, buildSprites, SPRITE_FOREST_MIST, SPRITE_HALO, type SpriteDef } from "./particles";
 import { fxMaterial, ISL_WORLD, makeUniforms } from "./shaders";
-import { makeHeightTexture } from "./terrainMesh";
 import { col } from "./geo";
 import { LANDS } from "../../registry/places";
 
-export { buildTerrainMesh, makeHeightTexture, groundColor } from "./terrainMesh";
+export { buildTerrainMesh, groundColor } from "./terrainMesh";
 export { defaultFantasyFree, planFantasy } from "./placement";
 export { bakeGrassMask } from "./mask";
 export type { FantasyPlan, FreeFn } from "./placement";
@@ -72,17 +72,14 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
   const disposables: { dispose(): void }[] = [];
   const track = <T extends { dispose(): void }>(d: T) => (disposables.push(d), d);
 
-  // ── textures: the grass mask + terrain heights ──
-  const mask = bakeGrassMask(low ? 512 : 1024);
-  const maskTex = track(new THREE.DataTexture(mask.data, mask.n, mask.n, THREE.RGBAFormat, THREE.UnsignedByteType));
-  maskTex.minFilter = THREE.LinearFilter;
-  maskTex.magFilter = THREE.LinearFilter;
-  maskTex.generateMipmaps = false;
-  maskTex.needsUpdate = true;
-  const heightTex = track(makeHeightTexture());
+  // ── the ground's textures: windows of the height field and the grass mask that follow the
+  //    player (baked lazily from their tiles, so nothing over the whole island is built up front) ──
+  const mask = grassMask(low ? 512 : 1024);
+  const win = track(buildTerrainWindows(mask.n, low ? 256 : 512));
+  win.update(0, 0);
 
   // ── grass + wildflowers ──
-  const grass = buildGrassField(U, maskTex, heightTex, { lowQuality: low, receiveShadow: shadowsIn });
+  const grass = buildGrassField(U, win, { lowQuality: low, receiveShadow: shadowsIn });
   disposables.push(grass);
   for (const m of grass.meshes) if (opts.blades !== false || m.name === "fantasy-flowers") group.add(m);
 
@@ -216,7 +213,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
   group.add(spriteMesh);
 
   // ── drifting leaves & petals round the player ──
-  const leaves = buildLeaves(U, heightTex, low ? 110 : 260);
+  const leaves = buildLeaves(U, win, low ? 110 : 260);
   track(leaves.geometry);
   track(leaves.material as THREE.Material);
   group.add(leaves);
@@ -249,6 +246,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
       U.uGlowK.value = 0.8 + glow * 1.7;
       U.uPulse.value = glow;
       U.uFocus.value.set(focus.x, focus.z);
+      win.update(focus.x, focus.z);
       sky.update(t);
     },
     dispose() {

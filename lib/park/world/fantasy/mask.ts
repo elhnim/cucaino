@@ -1,46 +1,30 @@
-// The grass mask: a baked RGBA8 image covering the island that tells the grass shader where it
-// may grow. R = how much grass (0 none .. 1 full), G = tidy-lawn factor (1 = wild meadow,
-// lower = shorter cut grass inside lands). Drawn from island.ts / places.ts / terrain.ts, so
-// blades never poke through trails, the stream, the pond, the plaza, buildings, the Dream Park
-// grid, steep cliffs or the beach. Pure (typed arrays only) — safe in Node and unit tested.
+// The grass mask: an RGBA8 image over the island that tells the grass shader where it may grow.
+// R = how much grass (0 none .. 1 full), G = tidy-lawn factor (1 = wild meadow, lower = shorter
+// cut grass inside lands). Drawn from island.ts / places.ts / terrain.ts, so blades never poke
+// through trails, the stream, the pond, the plaza, buildings, the Dream Park grid, steep cliffs or
+// the beach. Nothing is baked up front: the mask is worked out in tiles of MASK_TILE pixels the
+// first time something looks inside one (the grass only ever needs the window round the kid —
+// see terrainWindow.ts). Pure (typed arrays only) — safe in Node and unit tested.
 import { ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, TRAIL_WIDTH, coastR } from "../../registry/island";
 import { LANDS, PLACES } from "../../registry/places";
-import { TERRAIN_EXTENT, TERRAIN_N, terrainGrid } from "../../registry/terrain";
+import { TERRAIN_N, terrainSample, TERRAIN_CELL, TERRAIN_EXTENT } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
 import { smoothstep } from "./noise";
 
 /** mask resolution and the half-size (world units) of the square it covers, centred on 0,0 */
 export const MASK_N = 1024;
 export const MASK_HALF = ISLAND_R + 13;
+/** pixels per mask tile side */
+export const MASK_TILE = 64;
 
-/** slope (0 flat .. 1 cliff) for every terrain grid cell, same scale as terrain.ts slopeAt() */
-export function terrainSlopeGrid(): Float32Array {
-  const g = terrainGrid();
+/** slope (0 flat .. 1 cliff) at terrain grid sample (i, j), same scale as terrain.ts slopeAt() */
+function slopeSample(i: number, j: number): number {
   const N = TERRAIN_N;
-  const cell = (TERRAIN_EXTENT * 2) / (N - 1);
-  const out = new Float32Array(N * N);
-  for (let j = 0; j < N; j++)
-    for (let i = 0; i < N; i++) {
-      const l = g[j * N + Math.max(0, i - 1)];
-      const r = g[j * N + Math.min(N - 1, i + 1)];
-      const d = g[Math.max(0, j - 1) * N + i];
-      const u = g[Math.min(N - 1, j + 1) * N + i];
-      out[j * N + i] = Math.min(1, Math.hypot(r - l, u - d) / (2 * cell) / 1.4);
-    }
-  return out;
-}
-
-function bilinear(grid: Float32Array, x: number, z: number): number {
-  const N = TERRAIN_N;
-  const cell = (TERRAIN_EXTENT * 2) / (N - 1);
-  const fx = Math.min(N - 1.001, Math.max(0, (x + TERRAIN_EXTENT) / cell));
-  const fz = Math.min(N - 1.001, Math.max(0, (z + TERRAIN_EXTENT) / cell));
-  const i = Math.floor(fx);
-  const j = Math.floor(fz);
-  const u = fx - i;
-  const v = fz - j;
-  const k = j * N + i;
-  return (grid[k] * (1 - u) + grid[k + 1] * u) * (1 - v) + (grid[k + N] * (1 - u) + grid[k + N + 1] * u) * v;
+  const l = terrainSample(Math.max(0, i - 1), j);
+  const r = terrainSample(Math.min(N - 1, i + 1), j);
+  const d = terrainSample(i, Math.max(0, j - 1));
+  const u = terrainSample(i, Math.min(N - 1, j + 1));
+  return Math.min(1, Math.hypot(r - l, u - d) / (2 * TERRAIN_CELL) / 1.4);
 }
 
 /** grass amount a pixel at world (x, z) gets from the terrain alone (cliffs, peaks, beach) */
@@ -54,51 +38,29 @@ export function terrainGrassFactor(x: number, z: number, h: number, slope: numbe
 }
 
 export interface GrassMask {
+  /** the whole-island resolution this mask is read at (pixel size = 2 * half / n) */
   n: number;
   half: number;
-  /** RGBA8, row-major, rows = z (from -half), cols = x (from -half) */
-  data: Uint8Array;
+  /** RGBA8, row-major, rows = z (from -half), cols = x (from -half) — only on a whole bake
+   *  (bakeGrassMask); a lazy mask (grassMask) reads its tiles instead */
+  data?: Uint8Array;
 }
 
-/** Bake the grass mask. Deterministic; ~40 ms at 1024². */
-export function bakeGrassMask(n = MASK_N): GrassMask {
-  const half = MASK_HALF;
-  const px = (half * 2) / n;
-  const amount = new Float32Array(n * n);
-  const lawn = new Float32Array(n * n).fill(1);
-  const slope = terrainSlopeGrid();
-  const heights = terrainGrid();
-  const wx = (i: number) => -half + (i + 0.5) * px;
-
-  // start from the terrain: grass everywhere on the island except beach, cliffs, peaks
-  for (let j = 0; j < n; j++) {
-    const z = wx(j);
-    for (let i = 0; i < n; i++) {
-      const x = wx(i);
-      if (Math.hypot(x, z) > ISLAND_R + 10) continue;
-      amount[j * n + i] = terrainGrassFactor(x, z, bilinear(heights, x, z), bilinear(slope, x, z));
-    }
-  }
-
-  // carve soft-edged discs: inside r0 no grass, fading back to full by r1
-  const carve = (cx: number, cz: number, r0: number, r1: number, into = amount, floor = 0) => {
-    const i0 = Math.max(0, Math.floor((cx - r1 + half) / px));
-    const i1 = Math.min(n - 1, Math.ceil((cx + r1 + half) / px));
-    const j0 = Math.max(0, Math.floor((cz - r1 + half) / px));
-    const j1 = Math.min(n - 1, Math.ceil((cz + r1 + half) / px));
-    for (let j = j0; j <= j1; j++) {
-      const dz = wx(j) - cz;
-      for (let i = i0; i <= i1; i++) {
-        const dx = wx(i) - cx;
-        const d = Math.sqrt(dx * dx + dz * dz);
-        if (d >= r1) continue;
-        const v = floor + (1 - floor) * smoothstep(r0, r1, d);
-        const k = j * n + i;
-        if (v < into[k]) into[k] = v;
-      }
-    }
-  };
-
+// ── the carving: soft-edged discs (inside r0 no grass, fading back to full by r1) ──
+interface Disc {
+  x: number;
+  z: number;
+  r0: number;
+  r1: number;
+  /** carves the lawn factor (down to `floor`) instead of the grass amount */
+  lawn: boolean;
+  floor: number;
+}
+let discList: Disc[] | null = null;
+function discs(): Disc[] {
+  if (discList) return discList;
+  const out: Disc[] = [];
+  const carve = (x: number, z: number, r0: number, r1: number, lawn = false, floor = 0) => out.push({ x, z, r0, r1, lawn, floor });
   const tr = TRAIL_WIDTH / 2;
   for (const pts of TRAIL_POINTS) for (const [x, z] of pts) carve(x, z, tr + 0.35, tr + 1.7);
   const sr = STREAM_WIDTH / 2 + 1.1; // water + sandy bank
@@ -112,34 +74,180 @@ export function bakeGrassMask(n = MASK_N): GrassMask {
   // lands: tidy, shorter lawns (not bare)
   for (const l of LANDS) {
     if (l.id === "forest") continue;
-    carve(l.x, l.z, l.radius - 2, l.radius + 3, lawn, 0.45);
+    carve(l.x, l.z, l.radius - 2, l.radius + 3, true, 0.45);
+  }
+  discList = out;
+  return out;
+}
+
+/** each resolution's tiles and its discs bucketed by tile */
+interface MaskRes {
+  n: number;
+  px: number;
+  buckets: Map<number, Disc[]>;
+  tiles: Map<number, Uint8Array>;
+}
+const RES = new Map<number, MaskRes>();
+/** at most this many tiles are kept per resolution (the oldest go first; a re-bake is identical) */
+const KEEP_TILES = 1024;
+const tkey = (ti: number, tj: number) => (tj + 4096) * 8192 + (ti + 4096);
+
+function res(n: number): MaskRes {
+  let r = RES.get(n);
+  if (r) return r;
+  const px = (MASK_HALF * 2) / n;
+  const tw = MASK_TILE * px;
+  const buckets = new Map<number, Disc[]>();
+  for (const d of discs()) {
+    const ti0 = Math.floor((d.x - d.r1 + MASK_HALF) / tw);
+    const ti1 = Math.floor((d.x + d.r1 + MASK_HALF) / tw);
+    const tj0 = Math.floor((d.z - d.r1 + MASK_HALF) / tw);
+    const tj1 = Math.floor((d.z + d.r1 + MASK_HALF) / tw);
+    for (let tj = tj0; tj <= tj1; tj++)
+      for (let ti = ti0; ti <= ti1; ti++) {
+        const k = tkey(ti, tj);
+        let b = buckets.get(k);
+        if (!b) buckets.set(k, (b = []));
+        b.push(d);
+      }
+  }
+  r = { n, px, buckets, tiles: new Map() };
+  RES.set(n, r);
+  return r;
+}
+
+/** bake tile (ti, tj) of the mask at resolution n: MASK_TILE x MASK_TILE RGBA8 pixels, whose
+ *  pixel (i, j) is the whole mask's pixel (ti * MASK_TILE + i, tj * MASK_TILE + j) — tiles off the
+ *  island's square are simply bare (no grass) */
+function bakeTile(R: MaskRes, ti: number, tj: number): Uint8Array {
+  const T = MASK_TILE;
+  const half = MASK_HALF;
+  const px = R.px;
+  const amount = new Float32Array(T * T);
+  const lawn = new Float32Array(T * T).fill(1);
+  const I0 = ti * T;
+  const J0 = tj * T;
+  const inSquare = (I: number) => I >= 0 && I < R.n;
+  const wx = (I: number) => -half + (I + 0.5) * px;
+
+  // start from the terrain: grass everywhere on the island except beach, cliffs, peaks
+  // (the heights and slopes under this tile are read once into a little patch of the grid)
+  const N = TERRAIN_N;
+  const gi = (x: number) => Math.min(N - 1.001, Math.max(0, (x + TERRAIN_EXTENT) / TERRAIN_CELL));
+  const gi0 = Math.floor(gi(wx(I0)));
+  const gj0 = Math.floor(gi(wx(J0)));
+  const PW = Math.floor(gi(wx(I0 + T - 1))) - gi0 + 2;
+  const PH = Math.floor(gi(wx(J0 + T - 1))) - gj0 + 2;
+  const ph = new Float32Array(PW * PH);
+  const ps = new Float32Array(PW * PH);
+  for (let j = 0; j < PH; j++)
+    for (let i = 0; i < PW; i++) {
+      ph[j * PW + i] = terrainSample(gi0 + i, gj0 + j);
+      ps[j * PW + i] = slopeSample(gi0 + i, gj0 + j);
+    }
+  for (let j = 0; j < T; j++) {
+    if (!inSquare(J0 + j)) continue;
+    const z = wx(J0 + j);
+    const fz = gi(z);
+    const pj = Math.floor(fz);
+    const v = fz - pj;
+    for (let i = 0; i < T; i++) {
+      if (!inSquare(I0 + i)) continue;
+      const x = wx(I0 + i);
+      if (Math.hypot(x, z) > ISLAND_R + 10) continue;
+      const fx = gi(x);
+      const pi = Math.floor(fx);
+      const u = fx - pi;
+      const k = (pj - gj0) * PW + (pi - gi0);
+      const h = (ph[k] * (1 - u) + ph[k + 1] * u) * (1 - v) + (ph[k + PW] * (1 - u) + ph[k + PW + 1] * u) * v;
+      const s = (ps[k] * (1 - u) + ps[k + 1] * u) * (1 - v) + (ps[k + PW] * (1 - u) + ps[k + PW + 1] * u) * v;
+      amount[j * T + i] = terrainGrassFactor(x, z, h, s);
+    }
+  }
+
+  for (const d of R.buckets.get(tkey(ti, tj)) ?? []) {
+    const into = d.lawn ? lawn : amount;
+    const i0 = Math.max(I0, Math.floor((d.x - d.r1 + half) / px));
+    const i1 = Math.min(I0 + T - 1, Math.ceil((d.x + d.r1 + half) / px));
+    const j0 = Math.max(J0, Math.floor((d.z - d.r1 + half) / px));
+    const j1 = Math.min(J0 + T - 1, Math.ceil((d.z + d.r1 + half) / px));
+    for (let J = j0; J <= j1; J++) {
+      if (!inSquare(J)) continue;
+      const dz = wx(J) - d.z;
+      for (let I = i0; I <= i1; I++) {
+        if (!inSquare(I)) continue;
+        const dx = wx(I) - d.x;
+        const dd = Math.sqrt(dx * dx + dz * dz);
+        if (dd >= d.r1) continue;
+        const v = d.floor + (1 - d.floor) * smoothstep(d.r0, d.r1, dd);
+        const k = (J - J0) * T + (I - I0);
+        if (v < into[k]) into[k] = v;
+      }
+    }
   }
 
   // the Dream Park build grid stays completely clear
   const zb = zoneBounds();
-  for (let j = 0; j < n; j++) {
-    const z = wx(j);
+  for (let j = 0; j < T; j++) {
+    const z = wx(J0 + j);
     if (z < zb.minZ - 3 || z > zb.maxZ + 3) continue;
-    for (let i = 0; i < n; i++) {
-      const x = wx(i);
+    for (let i = 0; i < T; i++) {
+      const x = wx(I0 + i);
       if (x < zb.minX - 3 || x > zb.maxX + 3) continue;
       const dx = Math.max(zb.minX - x, 0, x - zb.maxX);
       const dz = Math.max(zb.minZ - z, 0, z - zb.maxZ);
-      const d = Math.hypot(dx, dz);
-      const v = smoothstep(0.6, 3, d);
-      const k = j * n + i;
+      const v = smoothstep(0.6, 3, Math.hypot(dx, dz));
+      const k = j * T + i;
       if (v < amount[k]) amount[k] = v;
     }
   }
 
-  const data = new Uint8Array(n * n * 4);
-  for (let k = 0; k < n * n; k++) {
+  const data = new Uint8Array(T * T * 4);
+  for (let k = 0; k < T * T; k++) {
     data[k * 4] = Math.round(Math.min(1, Math.max(0, amount[k])) * 255);
     data[k * 4 + 1] = Math.round(lawn[k] * 255);
     data[k * 4 + 2] = 0;
     data[k * 4 + 3] = 255;
   }
-  return { n, half, data };
+  return data;
+}
+
+/** tile (ti, tj) of the mask at resolution n (baked the first time it's asked for) */
+export function maskTile(n: number, ti: number, tj: number): Uint8Array {
+  const R = res(n);
+  const k = tkey(ti, tj);
+  let t = R.tiles.get(k);
+  if (!t) {
+    t = bakeTile(R, ti, tj);
+    if (R.tiles.size >= KEEP_TILES) R.tiles.delete(R.tiles.keys().next().value as number);
+    R.tiles.set(k, t);
+  }
+  return t;
+}
+
+/** the mask's pixel size (world units) at resolution n */
+export const maskPx = (n: number) => (MASK_HALF * 2) / n;
+
+/** A lazy mask at resolution n: maskAt() reads its tiles as needed. */
+export function grassMask(n = MASK_N): GrassMask {
+  return { n, half: MASK_HALF };
+}
+
+/** Bake the whole mask at once (tests and tools — the park reads it lazily). Deterministic. */
+export function bakeGrassMask(n = MASK_N): GrassMask {
+  const T = MASK_TILE;
+  const data = new Uint8Array(n * n * 4);
+  const nt = Math.ceil(n / T);
+  for (let tj = 0; tj < nt; tj++)
+    for (let ti = 0; ti < nt; ti++) {
+      const t = maskTile(n, ti, tj);
+      for (let j = 0; j < T && tj * T + j < n; j++) {
+        const row = (tj * T + j) * n + ti * T;
+        const w = Math.min(T, n - ti * T);
+        data.set(t.subarray(j * T * 4, (j * T + w) * 4), row * 4);
+      }
+    }
+  return { n, half: MASK_HALF, data };
 }
 
 /** Read the mask's grass amount (0..1) at world (x, z) — nearest pixel (tests, CPU checks). */
@@ -148,5 +256,9 @@ export function maskAt(mask: GrassMask, x: number, z: number): number {
   const i = Math.floor((x + mask.half) / px);
   const j = Math.floor((z + mask.half) / px);
   if (i < 0 || j < 0 || i >= mask.n || j >= mask.n) return 0;
-  return mask.data[(j * mask.n + i) * 4] / 255;
+  if (mask.data) return mask.data[(j * mask.n + i) * 4] / 255;
+  const T = MASK_TILE;
+  const ti = Math.floor(i / T);
+  const tj = Math.floor(j / T);
+  return maskTile(mask.n, ti, tj)[((j - tj * T) * T + (i - ti * T)) * 4] / 255;
 }
