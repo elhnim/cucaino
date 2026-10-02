@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WATER_Y } from "../../registry/terrain";
 import { LAKE, waterDepthAt, waterSdf } from "../../registry/waterways";
 import { F_KOI, F_PERCH, F_TROUT, U, planFish, stepFish } from "./fish";
+import { WILD_LAKE } from "../../registry/wildWater";
 
 describe("lake fish", { timeout: 60000 }, () => {
   it("koi, perch and trout at true size, every one of them always in the water", () => {
@@ -43,5 +44,20 @@ describe("lake fish", { timeout: 60000 }, () => {
     // (the model is 1 unit long: x 1.6 per metre)
     expect(0.6 * U).toBeGreaterThan(0.9);
     expect(0.25 * U).toBeLessThan(0.5);
+  });
+
+  it("the Wildlands' Great Lake and Wild River have their own fish, always in the water", () => {
+    const W = planFish({ wild: true });
+    const kinds = new Set(W.fish.map((f) => f.kind));
+    expect(kinds.has(F_KOI) && kinds.has(F_PERCH) && kinds.has(F_TROUT)).toBe(true);
+    expect(W.fish.length).toBeGreaterThanOrEqual(40);
+    const dt = 1 / 15;
+    for (let i = 0; i < 15 * 120; i++) {
+      stepFish(W, dt, i * dt, WILD_LAKE.x, WILD_LAKE.z, false);
+      for (const f of W.fish) {
+        expect(waterSdf(f.x, f.z), `${f.kind} @ ${f.x.toFixed(1)},${f.z.toFixed(1)}`).toBeLessThan(-0.3);
+        if (f.jump < 0) expect(f.y).toBeLessThan(WATER_Y);
+      }
+    }
   });
 });

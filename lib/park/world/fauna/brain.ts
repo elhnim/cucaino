@@ -1488,7 +1488,9 @@ function stepKoala(env: FaunaEnv, a: Agent, kid: KidSense, dt: number, t: number
   const dk = kidDist(a, kid);
   const awake = env.phase === P_DUSK || env.phase === P_NIGHT || env.phase === P_DAWN;
   a.alert = ease(a.alert, kid.ground && dk < TUNE[K_KOALA].noticeR ? 1 : 0, dt * 1.5);
-  const R = trunkR(tree) + 0.12 * a.s;
+  // stand it a little proud of the bark (not flattened against it) so its round grey shape reads
+  // as its own silhouette instead of a bump on the trunk
+  const R = trunkR(tree) + 0.32 * a.s;
   const top = koalaPerch(tree);
   if (a.st === S_IN_TREE) {
     a.climb = ease(a.climb, top, dt * 2);
@@ -2234,8 +2236,10 @@ function stepTurtle(env: FaunaEnv, a: Agent, kid: KidSense, dt: number, t: numbe
 // ── the frame ──
 
 const SLOPE_FIT = new Set([K_DEER, K_HORSE, K_COW, K_GOAT, K_BEAR, K_FOX, K_TURTLE, K_HEDGEHOG, K_SHEEP, K_ZEBRA, K_GIRAFFE, K_ELEPHANT, K_WOMBAT, K_ECHIDNA, K_KANGAROO, K_EMU]);
-/** small animals (real size under ~0.5 m) glow softly when the kid's right by them */
-const SMALL = new Set([K_RABBIT, K_SQUIRREL, K_HEDGEHOG, K_FROG, K_DUCK, K_TURTLE, K_ECHIDNA, K_PLATYPUS, K_CHICKEN, K_KOOKABURRA, K_OWL, K_FOX]);
+/** small animals (real size under ~0.5 m) glow softly when the kid's right by them; koalas are
+ *  bigger but sit up in a tree, a long way from the camera's usual eye line, so they get the same
+ *  helping hand */
+const SMALL = new Set([K_RABBIT, K_SQUIRREL, K_HEDGEHOG, K_FROG, K_DUCK, K_TURTLE, K_ECHIDNA, K_PLATYPUS, K_CHICKEN, K_KOOKABURRA, K_OWL, K_FOX, K_KOALA]);
 
 /** ease the pose toward the targets the behaviour set, and stand it on the ground */
 function finish(a: Agent, kid: KidSense, dt: number) {

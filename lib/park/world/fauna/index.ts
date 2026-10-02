@@ -20,7 +20,7 @@ import { buildWalkGrid } from "./ground";
 import { canopyOf, planFauna, sheepKeepOut } from "./plan";
 import { rigDepthMaterial, rigMaterial } from "./rig";
 import { buildMeshGeometries } from "./species";
-import { KIND_NAMES, K_KOOKABURRA, K_OWL, MESHES, MESH_NAMES, M_BEAR, M_COW, M_DEER, M_GOAT, M_HORSE, M_ROO, M_SAFARI, type Agent, type KidSense, type TreeLite } from "./types";
+import { KIND_NAMES, K_KOOKABURRA, K_OWL, MESHES, MESH_NAMES, M_BEAR, M_COW, M_CRITTER, M_DEER, M_GOAT, M_HORSE, M_RABBIT, M_ROO, M_SAFARI, M_SQUIRREL, type Agent, type KidSense, type TreeLite } from "./types";
 
 export interface Fauna {
   update(dt: number, t: number, o: { kid: THREE.Vector3; glow: number; hour?: number }): void;
@@ -84,7 +84,10 @@ function perchBirds(agents: Agent[], trees: TreeLite[], low: boolean) {
       m = new THREE.Mesh(buildForestTree(t.kind, low));
       models.set(t.kind, m);
     }
-    const d = canopyOf(t.kind).rx * (a.kind === K_OWL ? 0.42 : 0.62);
+    // owls perch near the crown's rim, facing out over the trail, so they sit silhouetted against
+    // the sky instead of buried under the thick of the foliage (kookaburras sit further in: they're
+    // only out by day, with plenty of light to read them against the leaves)
+    const d = canopyOf(t.kind).rx * (a.kind === K_OWL ? 0.8 : 0.62);
     const ly = a.yaw - t.rot;
     rc.set(from.set(Math.sin(ly) * d, 30, Math.cos(ly) * d), down);
     const hit = rc.intersectObject(m, false)[0];
@@ -98,8 +101,10 @@ function perchBirds(agents: Agent[], trees: TreeLite[], low: boolean) {
   for (const m of models.values()) m.geometry.dispose();
 }
 
-/** big animals cast shadows (the small ones' would be a few pixels) */
-const SHADOW_MESHES = new Set([M_DEER, M_HORSE, M_COW, M_BEAR, M_GOAT, M_ROO, M_SAFARI]);
+/** big animals cast shadows; so do the ground-level small ones (rabbits, squirrels, frogs, turtles,
+ *  the platypus) — a soft contact shadow is often the only thing that pins a tiny animal to the
+ *  ground at a glance. Birds in a tree and the koalas up a trunk wouldn't show a useful one. */
+const SHADOW_MESHES = new Set([M_DEER, M_HORSE, M_COW, M_BEAR, M_GOAT, M_ROO, M_SAFARI, M_RABBIT, M_SQUIRREL, M_CRITTER]);
 
 export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
   const t0 = typeof performance !== "undefined" ? performance.now() : 0;

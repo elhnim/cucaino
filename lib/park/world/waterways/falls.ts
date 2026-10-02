@@ -7,6 +7,16 @@ import { FOG_FACTOR_GLSL } from "../fantasy/shaders";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { FALLS, MESA } from "../../registry/waterways";
 
+/** a waterfall: where it pours over, which way, how wide (top and bottom), and the spring above */
+export interface FallsDef {
+  lip: { x: number; y: number; z: number };
+  heading: number;
+  width: number;
+  widthBottom: number;
+  spring: { x: number; z: number };
+}
+const RAINBOW_FALLS: FallsDef = { ...FALLS, spring: { x: MESA.x + 4, z: FALLS.lip.z } };
+
 export interface Falls {
   group: THREE.Group;
   update(dt: number, t: number, glow: number, camera: THREE.Vector3 | null): void;
@@ -14,10 +24,11 @@ export interface Falls {
   dispose(): void;
 }
 
-export function buildFalls(opts: { lowQuality?: boolean } = {}): Falls {
+export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: string } = {}): Falls {
+  const FALLS = opts.def ?? RAINBOW_FALLS;
   const low = !!opts.lowQuality;
   const group = new THREE.Group();
-  group.name = "rainbow-falls";
+  group.name = opts.name ?? "rainbow-falls";
   const L = FALLS.lip;
   const dx = Math.sin(FALLS.heading);
   const dz = Math.cos(FALLS.heading);
@@ -51,7 +62,7 @@ export function buildFalls(opts: { lowQuality?: boolean } = {}): Falls {
   };
   const rows: { x: number; y: number; z: number; w: number; v: number }[] = [];
   // the channel from the spring to the lip
-  const spring = { x: MESA.x + 4, z: L.z };
+  const spring = FALLS.spring;
   const nC = 6;
   for (let k = 0; k <= nC; k++) {
     const u = k / nC;
@@ -63,7 +74,8 @@ export function buildFalls(opts: { lowQuality?: boolean } = {}): Falls {
   const nF = low ? 10 : 18;
   for (let k = 1; k <= nF; k++) {
     const v = k / nF;
-    const out = 0.4 + Math.pow(v, 0.6) * 2.4;
+    // (a taller fall throws its water further out from the rock)
+    const out = (0.4 + Math.pow(v, 0.6) * 2.4) * Math.max(1, drop / 21);
     rows.push({ x: L.x + dx * out, y: L.y - drop * Math.pow(v, 1.15) + 0.2 * (1 - v), z: L.z + dz * out, w: FALLS.width + (FALLS.widthBottom - FALLS.width) * v, v });
   }
   rows[rows.length - 1].y = WATER_Y - 0.4;

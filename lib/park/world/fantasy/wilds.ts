@@ -13,15 +13,24 @@ import { buildRockGeometry } from "./stones";
 import { fbm2, noise2, rngOf } from "./noise";
 import { groundYFar } from "../../registry/terrain";
 import { ISLAND_R, seaDist } from "../../registry/island";
+import { wildRainforestK, wildWaterSdf } from "../../registry/wildWater";
+import { buildClump, buildJungleTree } from "../jungle/geometry";
+import { TREE_DIMS, T_CANOPY, T_FERN, T_GIANT, T_PALM } from "../jungle/plan";
+import type { JungleCut } from "../jungle/cutaway";
 
 /** a square of the Wildlands (world units) */
 export const WILD_CELL = 64;
 /** the trees and rocks start this far from the plaza (the park has its own) */
 export const WILD_FROM = ISLAND_R + 28;
 const ROCK = TREE_KINDS;
+/** the rainforest's own kinds: its four tree types (../jungle: giant, canopy, palm, tree fern) and undergrowth */
+const J0 = ROCK + 1;
+const CLUMP = J0 + 4;
+const isJungle = (k: number) => k >= J0 && k < CLUMP;
 
 export interface WildItem {
-  /** 0..TREE_KINDS-1 a storybook tree kind, TREE_KINDS = a boulder */
+  /** 0..TREE_KINDS-1 a storybook tree kind, TREE_KINDS = a boulder, then the rainforest's four
+   *  tree types and its undergrowth clumps */
   kind: number;
   x: number;
   y: number;
@@ -57,7 +66,34 @@ export function wildCell(ci: number, cj: number): WildItem[] {
     const dz = groundYFar(x, z + 2) - groundYFar(x, z - 2);
     return Math.min(1, Math.hypot(dx, dz) / 4 / 1.4);
   };
-  const ok = (x: number, z: number) => Math.hypot(x, z) >= WILD_FROM && seaDist(x, z) < -7;
+  const ok = (x: number, z: number) => Math.hypot(x, z) >= WILD_FROM && seaDist(x, z) < -7 && wildWaterSdf(x, z) > 4;
+  // the rainforest round the Great Falls and along the Wild River: giants, canopy trees, palms and
+  // tree ferns over thick undergrowth (true size: you walk under it)
+  if (wildRainforestK(cx, cz) > 0.02 || wildRainforestK(x0, z0) > 0.02 || wildRainforestK(x0 + WILD_CELL, z0 + WILD_CELL) > 0.02) {
+    for (let k = 0; k < 90; k++) {
+      const x = x0 + r() * WILD_CELL;
+      const z = z0 + r() * WILD_CELL;
+      const K = wildRainforestK(x, z);
+      if (K <= 0 || r() > K * 0.9 || !ok(x, z)) continue;
+      const h = groundYFar(x, z);
+      if (h < 0.5) continue;
+      if (slopeAt(x, z) > 0.6) continue;
+      const u = r();
+      const type = u < 0.1 ? T_GIANT : u < 0.45 ? T_CANOPY : u < 0.75 ? T_PALM : T_FERN;
+      const s = 0.8 + r() * 0.35;
+      const room = TREE_DIMS[type].crownR * s * (type === T_GIANT ? 0.85 : 0.7);
+      if (out.some((t) => isJungle(t.kind) && Math.hypot(t.x - x, t.z - z) < Math.max(room, TREE_DIMS[t.kind - J0].crownR * t.s * 0.5))) continue;
+      out.push({ kind: J0 + type, x, y: h, z, s, sy: 0.9 + r() * 0.2, rot: r() * Math.PI * 2, hue: Math.floor(r() * 8), keep: r() });
+    }
+    for (let k = 0; k < 60; k++) {
+      const x = x0 + r() * WILD_CELL;
+      const z = z0 + r() * WILD_CELL;
+      const K = wildRainforestK(x, z);
+      if (K <= 0 || r() > K || !ok(x, z)) continue;
+      if (out.some((t) => isJungle(t.kind) && Math.hypot(t.x - x, t.z - z) < TREE_DIMS[t.kind - J0].trunkR * t.s + 1.2)) continue;
+      out.push({ kind: CLUMP, x, y: groundYFar(x, z), z, s: 0.8 + r() * 0.9, sy: 0.8 + r() * 0.5, rot: r() * Math.PI * 2, hue: Math.floor(r() * 8), keep: r() });
+    }
+  }
   // trees: big forests and smaller groves, a few loners on the open plains
   for (let k = 0; k < 70; k++) {
     const x = x0 + r() * WILD_CELL;
@@ -66,6 +102,8 @@ export function wildCell(ci: number, cj: number): WildItem[] {
     const grove = smooth(0.6, 0.76, fbm2(x / 70 - 3.7, z / 70 + 8.2, 3, 42));
     const dense = Math.max(forest * 0.95, grove * 0.7) + 0.035;
     if (r() > dense || !ok(x, z)) continue;
+    // (the rainforest has its own trees)
+    if (wildRainforestK(x, z) > 0.25) continue;
     const h = groundYFar(x, z);
     if (h < 0.6 || h > 62) continue;
     const slope = slopeAt(x, z);
@@ -99,7 +137,7 @@ export function wildCell(ci: number, cj: number): WildItem[] {
 export interface Wilds {
   meshes: THREE.InstancedMesh[];
   /** stream the squares round `focus` (cheap when nothing changed) */
-  update(focus: { x: number; z: number }): void;
+  update(focus: { x: number; y?: number; z: number }): void;
   /** a trunk or boulder within `r` of (x, z)? returns the nearest one's centre and radius */
   trunkAt(x: number, z: number, r: number): { x: number; z: number; r: number } | null;
   stats(): { trees: number; rocks: number; triangles: number; cells: number };
@@ -111,7 +149,18 @@ export const WILD_VIEW = { std: { r: 300, trees: 2600, rocks: 700 }, low: { r: 2
 /** far squares keep only some of their trees (the canopy still reads from afar) */
 const THIN_FROM = 170;
 
-export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolean } = {}): Wilds {
+/** the rainforest's trees in full within this of the kid (beyond: chunky stand-ins), its
+ *  undergrowth within RF_CLUMP_R; at most this many of each */
+const RF = { std: { near: 110, caps: [16, 70, 80, 70], clumps: 420 }, low: { near: 80, caps: [8, 36, 40, 36], clumps: 200 } };
+const RF_CLUMP_R = 60;
+const RF_LEAF = ["#3f8f3a", "#2f7a3e", "#4f9e32", "#2a6e48", "#5aa83a", "#367f2c", "#1f6a44", "#64b03e"].map((h) => new THREE.Color(h));
+
+/**
+ * @param material the storybook trees' and the rocks' (wind-swayed) material
+ * @param opts.jungleMaterial the rainforest's material (with `cut`: see-through round the kid and
+ *   the camera, like the park's rainforest), default `material`
+ */
+export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolean; jungleMaterial?: THREE.Material; cut?: JungleCut } = {}): Wilds {
   const low = !!opts.lowQuality;
   const V = low ? WILD_VIEW.low : WILD_VIEW.std;
   const geos = Array.from({ length: TREE_KINDS }, (_, k) => buildForestTree(k, low));
@@ -133,6 +182,20 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
   };
   const treeMeshes = geos.map((g, k) => make(g, caps[k], `wild-trees-${k}`));
   const rocks = make(rockGeo, V.rocks, "wild-rocks");
+  // the rainforest: its four tree types and the undergrowth, near the kid
+  const R0 = low ? RF.low : RF.std;
+  const jGeos = [T_GIANT, T_CANOPY, T_PALM, T_FERN].map((t) => buildJungleTree(t, low));
+  const clumpGeo = buildClump(low);
+  const jMat = opts.jungleMaterial ?? material;
+  const grabCam = (_r: THREE.WebGLRenderer, _s: THREE.Scene, cam: THREE.Camera) => void opts.cut?.uJCam.value.setFromMatrixPosition(cam.matrixWorld);
+  const makeJ = (g: THREE.BufferGeometry, cap: number, name: string) => {
+    const m = make(g, cap, name);
+    m.material = jMat;
+    m.onBeforeRender = grabCam;
+    return m;
+  };
+  const jMeshes = jGeos.map((g, k) => makeJ(g, R0.caps[k], `wild-rainforest-${k}`));
+  const clumps = makeJ(clumpGeo, R0.clumps, "wild-undergrowth");
 
   const cells = new Map<number, WildItem[]>();
   const ckey = (ci: number, cj: number) => (cj + 2048) * 4096 + (ci + 2048);
@@ -176,6 +239,8 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
       }
     list.sort((a, b) => a.d - b.d);
     const counts = treeMeshes.map(() => 0);
+    const jc = jMeshes.map(() => 0);
+    let nc = 0;
     let nr = 0;
     let made = 0;
     pending = false;
@@ -203,6 +268,41 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
           nr++;
           continue;
         }
+        if (t.kind === CLUMP) {
+          if (d > RF_CLUMP_R || nc >= R0.clumps) continue;
+          e.set(0, t.rot, 0);
+          m4.compose(v.set(t.x, t.y - 0.1, t.z), q.setFromEuler(e), s3.set(t.s, t.s * t.sy, t.s));
+          clumps.setMatrixAt(nc, m4);
+          clumps.setColorAt(nc, c.copy(RF_LEAF[t.hue % 8]).multiplyScalar(0.85 + t.keep * 0.25));
+          nc++;
+          continue;
+        }
+        if (isJungle(t.kind)) {
+          const type = t.kind - J0;
+          if (d < R0.near && jc[type] < R0.caps[type]) {
+            e.set(0, t.rot, 0);
+            m4.compose(v.set(t.x, t.y - 0.2, t.z), q.setFromEuler(e), s3.set(t.s, t.s * t.sy, t.s));
+            jMeshes[type].setMatrixAt(jc[type], m4);
+            c.copy(RF_LEAF[t.hue % 8]);
+            if (type >= 2) c.offsetHSL(0.02, 0.05, 0.04);
+            jMeshes[type].setColorAt(jc[type], c);
+            jc[type]++;
+            continue;
+          }
+          // (further off: the giants and canopy trees as big chunky storybook trees — the canopy
+          // still reads from afar — and the little palms and ferns not at all)
+          if (type >= 2) continue;
+          const sk = type === T_GIANT ? 2 : 1;
+          const n = counts[sk];
+          if (n >= caps[sk]) continue;
+          const big = (TREE_DIMS[type].h / 6.4) * t.s * 0.85;
+          e.set(0, t.rot, 0);
+          m4.compose(v.set(t.x, t.y - 0.4, t.z), q.setFromEuler(e), s3.set(big * 0.9, big, big * 0.9));
+          treeMeshes[sk].setMatrixAt(n, m4);
+          treeMeshes[sk].setColorAt(n, c.copy(RF_LEAF[t.hue % 8]).multiplyScalar(0.8));
+          counts[sk] = n + 1;
+          continue;
+        }
         const n = counts[t.kind];
         if (n >= caps[t.kind] || (d > THIN_FROM && t.keep > 0.5 + 0.5 * (1 - (d - THIN_FROM) / (V.r - THIN_FROM)))) continue;
         e.set(0, t.rot, 0);
@@ -220,11 +320,21 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
     rocks.count = nr;
     rocks.instanceMatrix.needsUpdate = true;
     if (rocks.instanceColor) rocks.instanceColor.needsUpdate = true;
+    jMeshes.forEach((m, k) => {
+      m.count = jc[k];
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    });
+    clumps.count = nc;
+    clumps.instanceMatrix.needsUpdate = true;
+    if (clumps.instanceColor) clumps.instanceColor.needsUpdate = true;
   }
 
   return {
     meshes,
     update(focus) {
+      // (the rainforest's see-through cut follows the kid)
+      if (opts.cut) opts.cut.uJKid.value.set(focus.x, focus.y ?? 0, focus.z);
       // (refill when the kid crosses into another half-square, or while squares are still coming)
       const ci = Math.floor(focus.x / (WILD_CELL / 2));
       const cj = Math.floor(focus.z / (WILD_CELL / 2));
@@ -244,7 +354,8 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
           const items = cells.get(ckey(ci0 + di, cj0 + dj));
           if (!items) continue;
           for (const t of items) {
-            const tr = t.kind === ROCK ? t.s * 1.05 : (isPineKind(t.kind) ? 0.3 : 0.38) * t.s;
+            if (t.kind === CLUMP) continue;
+            const tr = t.kind === ROCK ? t.s * 1.05 : isJungle(t.kind) ? TREE_DIMS[t.kind - J0].trunkR * t.s : (isPineKind(t.kind) ? 0.3 : 0.38) * t.s;
             const d = Math.hypot(t.x - x, t.z - z) - tr;
             if (d < r && d < bd) {
               bd = d;
@@ -256,11 +367,13 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
     },
     stats() {
       const trees = treeMeshes.reduce((s, m) => s + m.count, 0);
-      const triangles = treeMeshes.reduce((s, m, k) => s + m.count * triOf(geos[k]), 0) + rocks.count * triOf(rockGeo);
+      const triangles = treeMeshes.reduce((s, m, k) => s + m.count * triOf(geos[k]), 0) + rocks.count * triOf(rockGeo) + jMeshes.reduce((s, m, k) => s + m.count * triOf(jGeos[k]), 0) + clumps.count * triOf(clumpGeo);
       return { trees, rocks: rocks.count, triangles, cells: shownCells };
     },
     dispose() {
       for (const g of geos) g.dispose();
+      for (const g of jGeos) g.dispose();
+      clumpGeo.dispose();
       rockGeo.dispose();
       for (const m of meshes) m.dispose();
     },

@@ -45,7 +45,7 @@ import { bigFrame, forEachBigSea, setOccluderFocus, type BigBody } from "../worl
 import { RIDEABLE_SPOTS } from "../registry/rideables";
 import { DRAGON_BREEDS, type DragonBreed } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
-import { ISLAND_R } from "../registry/island";
+import { seaDist } from "../registry/island";
 import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../registry/jungle";
 import { waterSdf } from "../registry/waterways";
 import { VILLAGE_ISLAND } from "../registry/villageIsland";
@@ -1529,7 +1529,7 @@ export class ParkWorld {
 
     // rides round the world: animate them, and find one close enough to hop on
     {
-      const atSea = seaDepth(pos.x, pos.z) > 2.5 && Math.hypot(pos.x, pos.z) > ISLAND_R;
+      const atSea = seaDepth(pos.x, pos.z) > 2.5 && seaDist(pos.x, pos.z) > 0;
       let driven: DrivenCraft | null = null;
       if (this.mount && isCraft(this.mount.kind)) {
         driven = this.driven;
@@ -1839,7 +1839,7 @@ export class ParkWorld {
     const uw = this.park.underwater;
     const nearSea = Math.hypot(pos.x, pos.z) > 118;
     // (not in Rainbow Lake or the river: they're fresh water, with their own fish)
-    const inland = Math.hypot(pos.x, pos.z) < ISLAND_R - 4 && waterSdf(pos.x, pos.z) < 3;
+    const inland = seaDist(pos.x, pos.z) < -4 && waterSdf(pos.x, pos.z) < 3;
     uw.group.visible = !inland && (this.camUnder || this.wasInSea || nearSea || (!!this.mount && MOUNT_CAPS[this.mount.kind].medium === "under" && pos.y < WATER_Y));
     const uwr = uw.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow });
     const ab = this.park.abyss.update(dt, this.time, { kid: pos, under: this.camUnder, glow: this.park.atmosphere.glow }).spot;
@@ -2177,7 +2177,7 @@ export class ParkWorld {
     const camUnder = !this.building && !this.ride && this.camera.position.y < WATER_Y - 0.05;
     if (camUnder || this.camUnder) {
       // (Rainbow Lake and the river are fresh water: greener and clearer than the sea)
-      this.park.atmosphere.setFresh(camUnder && waterSdf(this.camera.position.x, this.camera.position.z) < 3 && Math.hypot(this.camera.position.x, this.camera.position.z) < ISLAND_R);
+      this.park.atmosphere.setFresh(camUnder && waterSdf(this.camera.position.x, this.camera.position.z) < 3 && seaDist(this.camera.position.x, this.camera.position.z) < 0);
       this.park.atmosphere.setUnderwater(camUnder, WATER_Y - this.camera.position.y);
       this.park.storybook?.setUnderwater(camUnder);
       this.park.fauna.setVisible(!camUnder);

@@ -12,6 +12,7 @@ import { WATER_Y } from "../../registry/terrain";
 import { DUCK_BAY, JETTY, LAKE, RIVER_LENGTH, flowAt, riverPointAt, waterDepthAt, waterSdf } from "../../registry/waterways";
 import { rngOf } from "../fantasy/noise";
 import { MAX_SPLASH } from "./water";
+import { WILD_LAKE, WILD_LAKE_OUTLINE, WILD_OUTLET_POINTS, WILD_RIVER_POINTS } from "../../registry/wildWater";
 
 export const F_KOI = 0;
 export const F_PERCH = 1;
@@ -79,13 +80,15 @@ function lakePoint(r: () => number, cx: number, cz: number, R: number, out: { x:
       return out;
     }
   }
-  out.x = LAKE.x;
-  out.z = LAKE.z;
+  // (nowhere deep enough round there: its middle)
+  out.x = cx;
+  out.z = cz;
   return out;
 }
 const PICK = { x: 0, z: 0 };
 
-export function planFish(opts: { lowQuality?: boolean; seed?: number } = {}): FishWorld {
+/** `wild`: the Wildlands' Great Lake, Wild River and outlet instead of the park's water */
+export function planFish(opts: { lowQuality?: boolean; seed?: number; wild?: boolean } = {}): FishWorld {
   const low = !!opts.lowQuality;
   const r = rngOf(opts.seed ?? 6611);
   const shoals: Shoal[] = [];
@@ -100,6 +103,25 @@ export function planFish(opts: { lowQuality?: boolean; seed?: number } = {}): Fi
       fish.push({ kind, shoal: si, x: p.x + Math.sin(a) * d * 0.5, y: WATER_Y - depth, z: p.z + Math.cos(a) * d * 0.5, yaw: r() * Math.PI * 2, pitch: 0, speed: 0.5, ox: Math.sin(a) * d, oz: Math.cos(a) * d, dart: r() * 5, jump: -1, jx: 0, jz: 0, hx: 0, hz: 0, seed: r() * 100, s: 0.85 + r() * 0.3 });
     }
   };
+  if (opts.wild) {
+    // the Great Lake: koi in the warm shallows round the shore, big perch shoals over the deep
+    // middle; trout holding in the Wild River and the outlet
+    for (let k = 0; k < (low ? 3 : 6); k++) {
+      const [sx, sz] = WILD_LAKE_OUTLINE[Math.floor((k / 6) * WILD_LAKE_OUTLINE.length)];
+      addShoal(F_KOI, sx + (WILD_LAKE.x - sx) * 0.08, sz + (WILD_LAKE.z - sz) * 0.08, 12, low ? 3 : 5, 0.9);
+    }
+    for (let k = 0; k < (low ? 2 : 4); k++) addShoal(F_PERCH, WILD_LAKE.x + Math.sin(k * 1.9) * 70, WILD_LAKE.z + Math.cos(k * 1.9) * 70, 40, low ? 6 : 10, 2.2);
+    for (const [pts, n] of [
+      [WILD_RIVER_POINTS, low ? 4 : 8],
+      [WILD_OUTLET_POINTS, low ? 3 : 6],
+    ] as const)
+      for (let i = 0; i < n; i++) {
+        const [x, z] = pts[Math.floor(((i + 0.5) / n) * (pts.length - 1))];
+        if (!fishOk(x, z)) continue;
+        fish.push({ kind: F_TROUT, shoal: -1, x, y: WATER_Y - 1.1, z, yaw: 0, pitch: 0, speed: 0, ox: 0, oz: 0, dart: r() * 6, jump: -1, jx: 0, jz: 0, hx: x, hz: z, seed: r() * 100, s: 0.85 + r() * 0.3 });
+      }
+    return { fish, shoals, splash: new Float32Array(MAX_SPLASH * 4).fill(-100), nextSplash: 0, jumpT: 6, rnd: r };
+  }
   // koi round the jetty (where kids look down) and in the ducks' bay
   addShoal(F_KOI, JETTY.bx, JETTY.bz, 9, low ? 3 : 5, 0.9);
   addShoal(F_KOI, DUCK_BAY.x, DUCK_BAY.z, 8, low ? 2 : 4, 0.9);
@@ -323,7 +345,7 @@ export interface LakeFish {
   dispose(): void;
 }
 
-export function buildLakeFish(opts: { lowQuality?: boolean } = {}): LakeFish {
+export function buildLakeFish(opts: { lowQuality?: boolean; wild?: boolean } = {}): LakeFish {
   const W = planFish(opts);
   const n = W.fish.length;
   const geo = buildFishGeometry();

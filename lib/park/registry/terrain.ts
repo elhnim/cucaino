@@ -10,6 +10,7 @@
 import { LANDS, PLACES } from "./places";
 import { ISLAND_R, TRAIL_POINTS, coastR, parkCoastR, seaDist } from "./island";
 import { mesaY, waterBedY, waterSdf } from "./waterways";
+import { wildShelfY } from "./wildWater";
 import { DREAM_ZONE } from "../builder/rules";
 
 // ── value noise ──
@@ -284,8 +285,9 @@ function stamps(): Stamp[][] {
 function finish(x: number, z: number, h: number): number {
   const r = Math.hypot(x, z);
   const inland = 1 - smooth(-7, -2, seaDist(x, z));
-  // (the river, falls and lake are all near the park: far off, skip their maths)
-  const bed = r < ISLAND_R + 60 ? waterBedY(x, z) : null;
+  // (the park's river, falls and lake, and the Wildlands' great river, falls and lake: each answers
+  // at once anywhere away from its own box)
+  const bed = waterBedY(x, z);
   if (bed !== null) {
     // inland the beds are shaped exactly (an old hollow mustn't make a deep hole in the
     // lake's shallows); out by the sea the outlet only ever carves down
@@ -293,7 +295,7 @@ function finish(x: number, z: number, h: number): number {
     h = waterSdf(x, z) < 0 ? carved + (bed - carved) * inland : carved;
   }
   // (the mesa after the carving: its cliffs stand right down into the plunge pool)
-  const m = r < ISLAND_R + 60 ? mesaY(x, z, h) : null;
+  const m = r < ISLAND_R + 60 ? mesaY(x, z, h) : wildShelfY(x, z, h);
   if (m !== null) h = Math.max(h, m);
   if (inland > 0) {
     const d = bed === null ? 9 : waterSdf(x, z);

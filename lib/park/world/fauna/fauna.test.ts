@@ -601,6 +601,17 @@ describe("fauna behaviour", { timeout: 60000 }, () => {
     }
   });
 
+  it("keeps the platypus at the water's surface, where it can be seen", () => {
+    const sim = simOf(fresh());
+    const ps = sim.env.agents.filter((a) => a.kind === K_PLATYPUS);
+    expect(ps.length).toBeGreaterThan(0);
+    run(sim, 600, FAR, { glow: 0.3, h0: 18 });
+    for (const p of ps) {
+      expect(p.y).toBeGreaterThan(WATER_Y - 0.6);
+      expect(p.y).toBeLessThan(WATER_Y + 0.6);
+    }
+  });
+
   it("hops the kangaroos", () => {
     const sim = simOf(fresh());
     const roos = sim.env.agents.filter((a) => a.kind === K_KANGAROO);

@@ -249,7 +249,8 @@ export function buildWalkGrid(covered: Uint8Array | null, obstacles: readonly { 
         bits[k + WN] |= B_KEEP;
         bits[k + WN + 1] |= B_KEEP;
       }
-  return { bits, slope, crown, pondY: groundY(POND.x, POND.z) + 0.065 };
+  // (the pond is a bay of Rainbow Lake now: its surface is the water's, not the deep bed's)
+  return { bits, slope, crown, pondY: Math.max(groundY(POND.x, POND.z), WATER_Y) + 0.065 };
 }
 
 /** head room over (x, z) in units (see WalkGrid.crown; 25.5 = open sky) */

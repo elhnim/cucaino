@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import { TRAIL_POINTS, seaDist } from "../../registry/island";
 import { beachK, mesaEdgeDist, waterSdf } from "../../registry/waterways";
+import { wildShelfEdgeDist } from "../../registry/wildWater";
 import { groundY, slopeAt } from "../../registry/terrain";
 
 /** the one-piece mesh covers the park's own square */
@@ -63,7 +64,8 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
     out.lerp(DIRT, bare * 0.85);
   }
   // Rainbow Falls' mesa: warm dark rock in strata, moss and ferns on its ledges and its top
-  const md = mesaEdgeDist(x, z);
+  // (the park's mesa, or the Great Falls' shelf out in the Wildlands)
+  const md = Math.min(mesaEdgeDist(x, z), wildShelfEdgeDist(x, z));
   if (md < 6 && h > 2) {
     const band = 0.5 + 0.5 * Math.sin(h * 0.9 + n1 * 4);
     const rock = mix(MESA_A, MESA_B, band, new THREE.Color()).lerp(MESA_DARK, smoothstep(0.75, 1, slope) * 0.45 + n2 * 0.25);
@@ -74,7 +76,7 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
   // the river's, the pool's and the lake's beds and banks: pebbly sand at the edge, olive mud
   // deeper, dark green-blue in the deep; a sandy beach below the gate
   const wsd = waterSdf(x, z);
-  if (wsd < 3) {
+  if (wsd < 3 && h < 3) {
     const depth = -0.25 - h;
     if (wsd < 0.2) {
       const bed = mix(BED_SAND, BED_MUD, smoothstep(0.4, 2.2, depth), new THREE.Color()).lerp(BED_DEEP, smoothstep(2.2, 5.5, depth));

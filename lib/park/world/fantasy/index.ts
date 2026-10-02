@@ -9,6 +9,7 @@ import * as THREE from "three";
 import { grassMask, type GrassMask } from "./mask";
 import { buildTerrainWindows } from "./terrainWindow";
 import { buildWilds, type Wilds } from "./wilds";
+import { addJungleCut, makeJungleCut } from "../jungle/cutaway";
 import { planFantasy, SPECIES, type FantasyPlan, type FreeFn } from "./placement";
 import { buildGrassField } from "./grass";
 import { buildGiantTreeGeometry, buildMushroomClusterGeometry, buildTreeGeometry, tintFor } from "./trees";
@@ -123,7 +124,10 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
   }
 
   // ── the Wildlands beyond the park: forests, groves and boulders, streamed round the player ──
-  const wilds = buildWilds(foliageMat, { lowQuality: low });
+  // (the rainforest round the Great Falls gets the park rainforest's see-through cut)
+  const wildCut = makeJungleCut();
+  const wildJungleMat = track(addJungleCut(fxMaterial(U, { roughness: 0.9, metalness: 0 }), wildCut, { shadeBelow: true }));
+  const wilds = buildWilds(foliageMat, { lowQuality: low, jungleMaterial: wildJungleMat, cut: wildCut });
   disposables.push(wilds);
   group.add(...wilds.meshes);
 

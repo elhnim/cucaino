@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { FOG_FACTOR_GLSL } from "../fantasy/shaders";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { FALLS, WATER_BOUNDS, flowAt, waterBodyAt, waterSdf, WATER_BODIES } from "../../registry/waterways";
+import { seaDist } from "../../registry/island";
 
 export const MAX_SPLASH = 4;
 
@@ -23,9 +24,23 @@ export interface WaterSurface {
   dispose(): void;
 }
 
-export function buildWaterSurface(opts: { lowQuality?: boolean } = {}): WaterSurface {
-  const cell = opts.lowQuality ? 2.2 : 1.5;
-  const { x0, x1, z0, z1 } = WATER_BOUNDS;
+type SurfaceOpts = { lowQuality?: boolean; bounds?: { x0: number; x1: number; z0: number; z1: number }; cell?: number; falls?: { x: number; z: number } };
+
+/** One water surface over `bounds` (default: the park's waterways), `cell` units a quad, with the
+ *  white water where `falls` lands (default: Rainbow Falls), built all at once. */
+export function buildWaterSurface(opts: SurfaceOpts = {}): WaterSurface {
+  const job = waterSurfaceJob(opts);
+  let r = job.next();
+  while (!r.done) r = job.next();
+  return r.value;
+}
+
+/** The same, as a job that pauses after every row (step it a little each frame: a big surface
+ *  never holds a frame up). */
+export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterSurface> {
+  const cell = opts.cell ?? (opts.lowQuality ? 2.2 : 1.5);
+  const { x0, x1, z0, z1 } = opts.bounds ?? WATER_BOUNDS;
+  const fallsAt = opts.falls ?? { x: FALLS.lip.x + 2.2, z: FALLS.lip.z };
   const nx = Math.ceil((x1 - x0) / cell) + 1;
   const nz = Math.ceil((z1 - z0) / cell) + 1;
   const vid = new Int32Array(nx * nz).fill(-1);
@@ -49,20 +64,24 @@ export function buildWaterSurface(opts: { lowQuality?: boolean } = {}): WaterSur
     kind.push(b === WATER_BODIES.lake ? 0 : b === WATER_BODIES.pool ? 2 : 1);
     return vid[k];
   };
-  for (let j = 0; j < nz - 1; j++)
+  for (let j = 0; j < nz - 1; j++) {
     for (let i = 0; i < nx - 1; i++) {
       const x = x0 + (i + 0.5) * cell;
       const z = z0 + (j + 0.5) * cell;
+      // (a pause every few cells: one can bake a tile of the water's fields)
+      if ((i & 15) === 0) yield;
       // a cell is drawn if any of it can be wet (the shore fades it out in the shader)
       if (waterSdf(x, z) > cell * 0.9) continue;
       // (the sea takes over beyond the beach)
-      if (Math.hypot(x, z) > 168) continue;
+      if (seaDist(x, z) > 4) continue;
       const a = vertex(i, j);
       const b = vertex(i + 1, j);
       const c = vertex(i, j + 1);
       const d = vertex(i + 1, j + 1);
       idx.push(a, c, b, b, c, d);
     }
+    yield;
+  }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute("aFlow", new THREE.Float32BufferAttribute(flow, 2));
@@ -81,7 +100,7 @@ export function buildWaterSurface(opts: { lowQuality?: boolean } = {}): WaterSur
     depthWrite: false,
     side: THREE.DoubleSide,
     fog: true,
-    uniforms: { ...THREE.UniformsLib.fog, ...uniforms, uFalls: { value: new THREE.Vector3(FALLS.lip.x + 2.2, WATER_Y, FALLS.lip.z) } },
+    uniforms: { ...THREE.UniformsLib.fog, ...uniforms, uFalls: { value: new THREE.Vector3(fallsAt.x, WATER_Y, fallsAt.z) } },
     vertexShader: /* glsl */ `
       attribute vec2 aFlow; attribute vec2 aDepth; attribute float aKind;
       varying vec2 vFlow; varying vec2 vDepth; varying float vKind; varying vec3 vW;

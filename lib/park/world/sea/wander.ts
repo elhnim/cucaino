@@ -9,6 +9,7 @@
 // there's always life nearby. When the focus wraps round the world (terrain.wrapWorld) the whole
 // neighbourhood jumps with it (`focusJump` + `shiftSwimmers`), so nothing pops.
 import { WATER_BOUNDS, waterSdf } from "../../registry/waterways";
+import { inWildWater } from "../../registry/wildWater";
 import { coastR, seaDist } from "../../registry/island";
 import { DEEP_FLOOR, TERRAIN_X0, TERRAIN_X1, TERRAIN_Z0, TERRAIN_Z1, WATER_Y, groundY } from "../../registry/terrain";
 import { noise2, smoothstep } from "../fantasy/noise";
@@ -63,12 +64,12 @@ function mainSeaFloorY(x: number, z: number): number {
 
 /** how deep the water is at (x, z) */
 export const seaDepth = (x: number, z: number) => (inlandWater(x, z) ? -1 : WATER_Y - seaFloorY(x, z));
-/** Rainbow Lake, the river and the plunge pool are fresh water, not the sea: the sea's creatures never go there */
+/** Rainbow Lake, the river and the plunge pool — and the Wildlands' great river, falls and lake —
+ *  are fresh water, not the sea: the sea's creatures never go there */
 function inlandWater(x: number, z: number): boolean {
-  // (only the island's south-west quarter has inland water: everything else answers at once)
-  if (x < WATER_BOUNDS.x0 || x > WATER_BOUNDS.x1 || z < WATER_BOUNDS.z0 || z > WATER_BOUNDS.z1) return false;
-  const r2 = x * x + z * z;
-  if (r2 > 160 * 160) return false;
+  // (only the park's water box and the Wildlands' have inland water: everything else answers at once)
+  const park = x > WATER_BOUNDS.x0 && x < WATER_BOUNDS.x1 && z > WATER_BOUNDS.z0 && z < WATER_BOUNDS.z1;
+  if (!park && !inWildWater(x, z)) return false;
   return seaDist(x, z) < -4 && waterSdf(x, z) < 6;
 }
 

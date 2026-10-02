@@ -10,6 +10,7 @@ import { LANDS, PLACES } from "../../registry/places";
 import { TERRAIN_CELL, TERRAIN_NX, TERRAIN_NZ, TERRAIN_X0, TERRAIN_Z0, terrainSample } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
 import { smoothstep } from "./noise";
+import { WILD_WATER_BOUNDS, inWildWater, wildWaterSdf } from "../../registry/wildWater";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
  *  any i, j (the mask reaches over the whole island, tile by tile). Its resolution `n` is the
@@ -178,6 +179,19 @@ function bakeTile(R: MaskRes, ti: number, tj: number): Uint8Array {
       }
     }
   }
+
+  // the Wildlands' great river, pool and lake: water and wet banks, no grass
+  if (I0 * px - half < WILD_WATER_BOUNDS.x1 && (I0 + T) * px - half > WILD_WATER_BOUNDS.x0 && J0 * px - half < WILD_WATER_BOUNDS.z1 && (J0 + T) * px - half > WILD_WATER_BOUNDS.z0)
+    for (let j = 0; j < T; j++) {
+      const z = wx(J0 + j);
+      for (let i = 0; i < T; i++) {
+        const x = wx(I0 + i);
+        if (!inWildWater(x, z)) continue;
+        const v = smoothstep(0.8, 3.4, wildWaterSdf(x, z));
+        const k = j * T + i;
+        if (v < amount[k]) amount[k] = v;
+      }
+    }
 
   // the Dream Park build grid stays completely clear
   const zb = zoneBounds();

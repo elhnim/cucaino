@@ -14,6 +14,7 @@
 // Queries are O(1): signed distance (negative in the water), bed depth and flow are baked once into
 // a 1-unit grid over the waterways' bounding box.
 import { cumLength, nearestOnPolyline, smooth, smoothstep, type P2 } from "./geom2d";
+import { inWildWater, wildBedY, wildFlowAt, wildWaterBody, wildWaterDepth, wildWaterSdf } from "./wildWater";
 
 /** the sea's surface height (kept in step with terrain.ts WATER_Y, which can't be imported here) */
 export const WATER_LEVEL = -0.25;
@@ -258,8 +259,10 @@ function sample(f: Float32Array, x: number, z: number, far: number): number {
   return (f[k] * (1 - a) + f[k + 1] * a) * (1 - b) + (f[k + GX] * (1 - a) + f[k + GX + 1] * a) * b;
 }
 
-/** signed distance (units) to the nearest water's edge: negative in the water, large far away */
+/** signed distance (units) to the nearest water's edge: negative in the water, large far away
+ *  (the park's waterways, or the Wildlands' great river and lake: ./wildWater.ts) */
 export function waterSdf(x: number, z: number): number {
+  if (inWildWater(x, z)) return wildWaterSdf(x, z);
   return sample(grid().sdf, x, z, 99);
 }
 /** is (x, z) within `pad` of the river, the lake, the pool or the outlet */
@@ -268,6 +271,7 @@ export function nearWater(x: number, z: number, pad = 0): boolean {
 }
 /** which body (WATER_BODIES) is nearest (x, z), within ~6 units of it */
 export function waterBodyAt(x: number, z: number): number {
+  if (inWildWater(x, z)) return wildWaterBody(x, z);
   const u = Math.round(x - X0);
   const v = Math.round(z - Z0);
   if (u < 0 || v < 0 || u >= GX || v >= GZ) return 0;
@@ -275,10 +279,12 @@ export function waterBodyAt(x: number, z: number): number {
 }
 /** how deep the water is meant to be at (x, z) (0 on land) */
 export function waterDepthAt(x: number, z: number): number {
+  if (inWildWater(x, z)) return wildWaterDepth(x, z);
   return sample(grid().depth, x, z, 0);
 }
 /** the current at (x, z): units/s along x and z (0 out of the water) */
 export function flowAt(x: number, z: number, out: { x: number; z: number }): { x: number; z: number } {
+  if (inWildWater(x, z)) return wildFlowAt(x, z, out);
   const g = grid();
   out.x = sample(g.fx, x, z, 0);
   out.z = sample(g.fz, x, z, 0);
@@ -291,6 +297,7 @@ export function flowAt(x: number, z: number, out: { x: number; z: number }): { x
  * terrain takes min(ground, this) so it only ever carves down.
  */
 export function waterBedY(x: number, z: number): number | null {
+  if (inWildWater(x, z)) return wildBedY(x, z);
   const d = waterSdf(x, z);
   if (d > 9) return null;
   if (d < 0) return WATER_LEVEL - waterDepthAt(x, z);

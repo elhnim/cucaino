@@ -33,11 +33,11 @@ describe("the island: about 3 km across, the park at its south-west end", () => 
     let peak = -Infinity;
     for (let u = 0; u < 400; u++) peak = Math.max(peak, groundYFar(200 + u * 4, -400 - u * 3.2));
     expect(peak).toBeGreaterThan(70);
-    // the plains: mostly dry, gentle land
+    // the plains (east of the Great Lake): mostly dry, gentle land
     let dry = 0;
     for (let k = 0; k < 200; k++) {
-      const x = 1300 + (k % 20) * 30;
-      const z = -100 - Math.floor(k / 20) * 30;
+      const x = 1700 + (k % 20) * 28;
+      const z = 20 - Math.floor(k / 20) * 28;
       if (groundYFar(x, z) > 0.5) dry++;
     }
     expect(dry).toBeGreaterThan(180);
@@ -151,7 +151,7 @@ describe("the shaders' windows round the kid", () => {
   it("grows grass in the Wildlands' meadows, not on the snow or the beaches", () => {
     const m = grassMask(512);
     let grassy = 0;
-    for (let k = 0; k < 200; k++) if (maskAt(m, 1300 + (k % 20) * 20, -150 - Math.floor(k / 20) * 20) > 0.5) grassy++;
+    for (let k = 0; k < 200; k++) if (maskAt(m, 1700 + (k % 20) * 20, 20 - Math.floor(k / 20) * 20) > 0.5) grassy++;
     expect(grassy).toBeGreaterThan(150);
     const a = 1.2;
     const c = coastR(a);
@@ -242,14 +242,14 @@ describe("the Wildlands' trees and rocks", () => {
     const mat = new THREE.MeshStandardMaterial();
     for (const low of [false, true]) {
       const w = buildWilds(mat, { lowQuality: low });
-      for (let k = 0; k < 40; k++) w.update({ x: 1300 + k * 0.01, z: -300 });
+      for (let k = 0; k < 40; k++) w.update({ x: 1900 + k * 0.01, z: -100 });
       const s = w.stats();
       expect(s.trees).toBeGreaterThan(low ? 150 : 300);
       expect(s.triangles).toBeLessThan(low ? 90_000 : 210_000);
-      expect(w.meshes.length).toBe(6);
+      expect(w.meshes.length).toBe(11);
       // somewhere near: a trunk to bump into
       let hit = 0;
-      for (let x = 1240; x < 1360; x += 2) for (let z = -360; z < -240; z += 2) if (w.trunkAt(x, z, 0.45)) hit++;
+      for (let x = 1840; x < 1960; x += 2) for (let z = -160; z < -40; z += 2) if (w.trunkAt(x, z, 0.45)) hit++;
       expect(hit).toBeGreaterThan(3);
       w.dispose();
     }

@@ -786,7 +786,8 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
   // ── rabbit warrens ──
   const burrows: { x: number; z: number }[] = [];
   const warrens = openSpots(g, free, r, low ? 3 : 5, 30, avoid, (x, z) => roomy(x, z, 4, 4) && slopeOf(g, x, z) < 0.3 && shareAround(g, x, z, 5, B_LAND | B_OPEN) > 0.8);
-  const rabbitCoats = [0xa07a58, 0x9a948c, 0xc9a47a, 0x8a6a50, 0xefeae2, 0xa88c6a];
+  // brightened a shade so a true-size rabbit still shows up against the grass
+  const rabbitCoats = [0xb08a66, 0xb2ac9e, 0xd9b48a, 0x9a7a5e, 0xf5f1ea, 0xb89c78];
   const nRabbits = low ? 8 : 15;
   let rabbitsLeft = nRabbits;
   warrens.forEach((w, wi) => {
@@ -805,7 +806,8 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     const gid = group++;
     for (let i = 0; i < n; i++) {
       const p = nearOk(w.x + (r() - 0.5) * 5, w.z + (r() - 0.5) * 5, 3, landOk(g, 0.4), r) ?? { x: w.x, z: w.z };
-      const a = add(K_RABBIT, R_NONE, p.x, p.z, sized(K_RABBIT, false), 0, rabbitCoats[(wi * 3 + i) % rabbitCoats.length]);
+      // a hair bigger (true size well within the test's margin)
+      const a = add(K_RABBIT, R_NONE, p.x, p.z, sized(K_RABBIT, false, 1.02), 0, rabbitCoats[(wi * 3 + i) % rabbitCoats.length]);
       const hole = hs[i % hs.length];
       a.hx = w.x;
       a.hz = w.z;
@@ -876,7 +878,8 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
       made++;
       const u = leafy[best];
       note("squirrel", t.x, t.z);
-      const a = add(K_SQUIRREL, R_NONE, t.x + 1.2, t.z + 0.4, sized(K_SQUIRREL, false), 0, r() < 0.75 ? 0xc4602c : 0x8c8680);
+      // brighter grey option (the red was fine), a touch bigger (true size within the test's margin)
+      const a = add(K_SQUIRREL, R_NONE, t.x + 1.2, t.z + 0.4, sized(K_SQUIRREL, false, 1.05), 0, r() < 0.75 ? 0xd06c32 : 0xa29c90);
       a.tree = trees.indexOf(t);
       a.tree2 = trees.indexOf(u);
       a.hx = t.x;
@@ -895,7 +898,9 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     const t = leafy[i];
     note("koala", t.x, t.z);
     const dir = nearestTrailDir(t.x, t.z);
-    const a = add(K_KOALA, R_NONE, t.x, t.z, sized(K_KOALA, false), V_KOALA, [0x9a9894, 0xa8a49e, 0x8e8a86][i % 3]);
+    // (brighter, lighter grey than real koalas so they don't melt into the bark; a touch bigger —
+    // still true size within the test's 10% margin — so they read from the trail)
+    const a = add(K_KOALA, R_NONE, t.x, t.z, sized(K_KOALA, false, 1.045), V_KOALA, [0xc7c2b6, 0xd6d0c2, 0xb8b2a4][i % 3]);
     a.tree = trees.indexOf(t);
     a.yaw = dir.yaw;
     a.act = dir.yaw;
@@ -926,7 +931,9 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     const q = { x: 0, y: 0, z: 0 };
     perchOf(t, dir.yaw, q);
     note("owl", t.x, t.z);
-    const a = add(K_OWL, R_NONE, q.x, q.z, sized(K_OWL, false), 0, [0xb8946a, 0xc9a878, 0x9a7a58, 0xd8c098][agents.length % 4]);
+    // a touch bigger (true size within the test's margin) and lighter-coated, since it's only seen
+    // against a dark dusk/night canopy
+    const a = add(K_OWL, R_NONE, q.x, q.z, sized(K_OWL, false, 1.06), 0, [0xc9a878, 0xd8bb8a, 0xb2906a, 0xe2caa0][agents.length % 4]);
     a.y = q.y;
     a.yaw = dir.yaw;
     a.hx = q.x;
@@ -1010,7 +1017,9 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
       if (role === R_HEN) prev = -1;
     }
     note("ducks", POND.x, POND.z);
-    const p = add(K_PLATYPUS, R_NONE, POND.x + 2, POND.z - 1.5, sized(K_PLATYPUS, false), V_PLATYPUS, 0x8a5a3a);
+    // a touch bigger and a warmer, richer brown than the real thing so it doesn't vanish into the
+    // pond's murk (true size within the test's margin)
+    const p = add(K_PLATYPUS, R_NONE, POND.x + 2, POND.z - 1.5, sized(K_PLATYPUS, false, 1.05), V_PLATYPUS, 0xa06c3e);
     p.y = g.pondY;
     p.hx = POND.x;
     p.hz = POND.z;
@@ -1047,10 +1056,12 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
       if (spots.some((q) => Math.hypot(q.x - x, q.z - z) < 6)) continue;
       spots.push({ x, z, yaw: Math.atan2(LAKE.x - x, LAKE.z - z) });
     }
-    const greens = [0x5fb03c, 0x7cc242, 0x4f9a3a, 0x9ac43c];
+    // brighter, more lime than grass-green so a true-size frog still pops at the water's edge
+    const greens = [0x8ad345, 0xa8e34f, 0x72c23a, 0xc3ec5f];
     spots.forEach((s, i) => {
       note("frog", s.x, s.z);
-      const a = add(K_FROG, R_NONE, s.x, s.z, sized(K_FROG, false), V_FROG, greens[i % greens.length]);
+      // a touch bigger (true size within the test's margin)
+      const a = add(K_FROG, R_NONE, s.x, s.z, sized(K_FROG, false, 1.07), V_FROG, greens[i % greens.length]);
       a.yaw = s.yaw;
       a.hr = 1.6;
       a.cx = s.x + Math.sin(s.yaw) * 0.6;
