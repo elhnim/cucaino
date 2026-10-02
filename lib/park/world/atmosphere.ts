@@ -151,6 +151,13 @@ export function buildAtmosphere(
   );
   const sky = new THREE.Mesh(track(new THREE.SphereGeometry(470, 32, 20)), skyMat);
   sky.renderOrder = -10;
+  // (drawn round the camera itself, wherever it is, so no part of the dome can fall past the far
+  // plane — the dome only gives the sky's colour by direction)
+  sky.frustumCulled = false;
+  sky.onBeforeRender = (_r, _s, cam) => {
+    sky.matrixWorld.elements[12] = cam.matrixWorld.elements[12];
+    sky.matrixWorld.elements[14] = cam.matrixWorld.elements[14];
+  };
   scene.add(sky);
 
   // sun by day, a big friendly moon at twilight

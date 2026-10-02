@@ -25,7 +25,7 @@ export const FROST_WATER_Y = -0.25;
 /** the deep sea floor around the island (= terrain.DEEP_FLOOR) */
 const DEEP = -22;
 
-export const FROST_ISLAND = { id: "frostpeak", name: "Frostpeak Isle", x: 385, z: 228, r: 66 };
+export const FROST_ISLAND = { id: "frostpeak", name: "Frostpeak Isle", x: 950, z: 900, r: 66 };
 const X0 = FROST_ISLAND.x;
 const Z0 = FROST_ISLAND.z;
 const R = FROST_ISLAND.r;

@@ -33,7 +33,7 @@ export const DINO_WATER_Y = -0.25;
 const DEEP = -22;
 
 /** the island's centre (world) and its rough half-length (for maps and "you've arrived") */
-export const DINO_ISLAND: { id: string; name: string; x: number; z: number; r: number } = { id: "dino-isle", name: "Dino Isle", x: -414, z: 0, r: 215 };
+export const DINO_ISLAND: { id: string; name: string; x: number; z: number; r: number } = { id: "dino-isle", name: "Dino Isle", x: -500, z: 0, r: 215 };
 const X0 = DINO_ISLAND.x;
 const Z0 = DINO_ISLAND.z;
 /** how far past the coast (m) the submerged slopes reach the deep floor (the island's footprint) */

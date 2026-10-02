@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LANDS, PLACES } from "../../registry/places";
-import { POND, TRAIL_POINTS, coastR, nearMesa, nearStream, nearTrail } from "../../registry/island";
+import { ISLAND_R, POND, TRAIL_POINTS, nearMesa, nearStream, nearTrail, seaDist } from "../../registry/island";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { rideableKeepOut } from "../../registry/rideables";
 import { zoneBounds } from "../../builder/rules";
@@ -59,7 +59,8 @@ const zb = zoneBounds();
 const inDream = (x: number, z: number, pad = 0) => x > zb.minX - pad && x < zb.maxX + pad && z > zb.minZ - pad && z < zb.maxZ + pad;
 const free: FreeFn = (x, z, pad) => {
   const r = Math.hypot(x, z);
-  if (r < 12 + pad || r > coastR(Math.atan2(x, z)) - 4 - pad) return false;
+  // (as the park's storyFree: within the park's own land — the Wildlands beyond have their own life)
+  if (r < 12 + pad || r > ISLAND_R - 2) return false;
   if (inDream(x, z, pad)) return false;
   if (nearTrail(x, z, pad + 1.6) || nearStream(x, z, pad) || rideableKeepOut(x, z, pad) || inJungle(x, z, pad) || nearMesa(x, z, pad)) return false;
   return !PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < Math.max(p.radius, 1.5) + pad + 1.2);
@@ -165,7 +166,7 @@ describe("fauna plan", { timeout: 30000 }, () => {
       expect(inDream(a.x, a.z), at).toBe(false);
       expect(inLand(a.x, a.z), at).toBe(false);
       expect(bitsAt(grid, a.x, a.z) & B_KEEP, at).toBe(0);
-      expect(Math.hypot(a.x, a.z)).toBeLessThan(coastR(Math.atan2(a.x, a.z)) - 2);
+      expect(seaDist(a.x, a.z)).toBeLessThan(-2);
     }
   });
 
@@ -533,15 +534,28 @@ describe("fauna behaviour", { timeout: 60000 }, () => {
     let steps = 0;
     const kx0 = lamb.x + 5;
     const kz0 = lamb.z;
+    // (stroll off over dry, open meadow — whichever way that is from wherever the flock grazes:
+    // the lamb can't follow into the lake or the sea)
+    let dir = { x: 0.707, z: 0.707 };
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const d = { x: Math.sin(a), z: Math.cos(a) };
+      let dry = true;
+      for (let w = 0; w <= 96 && dry; w += 2) dry = dryLandAt(kx0 + d.x * w, kz0 + d.z * w) && waterSdf(kx0 + d.x * w, kz0 + d.z * w) > 3;
+      if (dry) {
+        dir = d;
+        break;
+      }
+    }
     run(
       sim,
       1600,
       (i) => {
         // stand a while, then stroll slowly off
         const walk = Math.max(0, i - 400) * 0.08;
-        const x = kx0 + walk * 0.7;
-        const z = kz0 + walk * 0.7;
-        return kidAt(x, z, i > 400 ? 1.6 : 0, i > 400 ? 0 : i / 20, 0.707, 0.707);
+        const x = kx0 + walk * dir.x;
+        const z = kz0 + walk * dir.z;
+        return kidAt(x, z, i > 400 ? 1.6 : 0, i > 400 ? 0 : i / 20, dir.x, dir.z);
       },
       {
         h0: 10,
@@ -551,7 +565,7 @@ describe("fauna behaviour", { timeout: 60000 }, () => {
           if (i > 600 && lamb.st === S_FOLLOW) {
             const walk = Math.max(0, i - 400) * 0.08;
             steps++;
-            if (Math.hypot(lamb.x - (kx0 + walk * 0.7), lamb.z - (kz0 + walk * 0.7)) < 9) near++;
+            if (Math.hypot(lamb.x - (kx0 + walk * dir.x), lamb.z - (kz0 + walk * dir.z)) < 9) near++;
           }
         },
       },

@@ -6,8 +6,8 @@
 // Four draw calls. Wings flap in the vertex shader (per-vertex flap weight, per-instance
 // strength + phase), so updates are just instance matrices. Allocation-free per frame.
 import * as THREE from "three";
-import { coastR } from "../registry/island";
-import { groundY, TERRAIN_EXTENT } from "../registry/terrain";
+import { coastR, parkShoreA } from "../registry/island";
+import { groundY } from "../registry/terrain";
 import { col, merge, mix, part } from "./fantasy/geo";
 import { rngOf, smoothstep } from "./fantasy/noise";
 import { buildGlowSprites } from "./underwater/fx";
@@ -100,7 +100,7 @@ export function stepFlock(pos: Float32Array, vel: Float32Array, n: number, tx: n
 /** the highest point of the northern mountains (eagles circle above it) */
 export function northernPeak(): { x: number; y: number; z: number } {
   let best = { x: 0, y: -Infinity, z: -100 };
-  for (let z = -TERRAIN_EXTENT + 20; z < -40; z += 4)
+  for (let z = -180; z < -40; z += 4)
     for (let x = -120; x <= 120; x += 4) {
       const y = groundY(x, z);
       if (y > best.y) best = { x, y, z };
@@ -295,7 +295,8 @@ export function buildBirds(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
   const nSong = nFlock * perFlock;
   const small = inst(gullGeometry(), nGull + nSong, "birds-small");
   const gulls = Array.from({ length: nGull }, (_, i) => {
-    const a = (i / nGull) * Math.PI * 2 + r() * 0.4;
+    // (over the park's own shore; they drift slowly up and down it)
+    const a = parkShoreA((i + 0.5) / nGull);
     return { a, off: -2 + r() * 12, rad: 9 + r() * 8, h: 9 + r() * 8, w: (r() < 0.5 ? -1 : 1) * (0.3 + r() * 0.15), ph: r() * 10, phase: r() * 6, flapT: r() * 5 };
   });
   gulls.forEach((_, i) => small.im.setColorAt(i, col("#ffffff")));
@@ -366,7 +367,7 @@ export function buildBirds(scene: THREE.Scene, opts: { lowQuality?: boolean }): 
       // seagulls: lazy circles over the shore, a few flaps, then a long glide
       for (let i = 0; i < nGull; i++) {
         const g = gulls[i];
-        g.a += dt * 0.004;
+        g.a = parkShoreA(Math.min(1, Math.max(0, (i + 0.5) / nGull + Math.sin(t * 0.004 + g.ph) * 0.08)));
         const u = t * g.w + g.ph;
         const cr = coastR(g.a) + g.off;
         const cx = Math.sin(g.a) * cr + Math.sin(u) * g.rad;

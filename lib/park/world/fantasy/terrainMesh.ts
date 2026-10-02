@@ -3,9 +3,12 @@
 //   buildTerrainMesh()   an optional ground mesh: vertex-coloured by height/slope — meadow greens
 //                        with variation, warm rock on cliffs, snow caps, sand at the coast
 import * as THREE from "three";
-import { coastR, TRAIL_POINTS } from "../../registry/island";
+import { TRAIL_POINTS, seaDist } from "../../registry/island";
 import { beachK, mesaEdgeDist, waterSdf } from "../../registry/waterways";
-import { TERRAIN_EXTENT, groundY, slopeAt } from "../../registry/terrain";
+import { groundY, slopeAt } from "../../registry/terrain";
+
+/** the one-piece mesh covers the park's own square */
+const TERRAIN_EXTENT = 200;
 import { col, mix } from "./geo";
 import { maskAt, terrainGrassFactor, type GrassMask } from "./mask";
 import { fbm2, noise2, smoothstep } from "./noise";
@@ -49,7 +52,10 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
     const rock = mix(ROCK_A, ROCK_B, band, new THREE.Color()).lerp(ROCK_DARK, smoothstep(0.7, 1, slope) * 0.5 + (1 - band) * 0.15);
     out.lerp(rock, rockAmt);
   }
-  const snow = smoothstep(24, 29, h + n2 * 3) * (1 - smoothstep(0.75, 0.95, slope));
+  // (the park's peaks are snowy from 24 m; out in the Wildlands only the high tops of the Great
+  // Ridge and the lone peak are)
+  const snowLine = 24 + 48 * smoothstep(260, 520, Math.hypot(x, z));
+  const snow = smoothstep(snowLine, snowLine + 5, h + n2 * 3) * (1 - smoothstep(0.75, 0.95, slope));
   out.lerp(SNOW, snow);
   // bare earth where the grass is carved away (trails, plaza, around places) — optional
   if (mask && paths) {
@@ -80,10 +86,9 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
     out.lerp(SAND, beachK(x, z) * smoothstep(3, 0, wsd) * 0.8);
   }
   // sand at the coast, wet sand under the water line
-  const r = Math.hypot(x, z);
-  const coast = coastR(Math.atan2(x, z));
-  out.lerp(SAND, smoothstep(coast - 7, coast - 3, r + n2 * 2));
-  out.lerp(WET_SAND, smoothstep(coast + 2, coast + 10, r));
+  const sd = seaDist(x, z);
+  out.lerp(SAND, smoothstep(-7, -3, sd + n2 * 2));
+  out.lerp(WET_SAND, smoothstep(2, 10, sd));
   // under the sea: pale lagoon sand, then reef rock on the mounds, dark on the deep wall
   if (h < -0.8 && wsd > 0.5) {
     // sand seen through water takes on the sea's colour: turquoise in the lagoon, blue deeper

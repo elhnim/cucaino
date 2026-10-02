@@ -17,7 +17,8 @@ import {
   depthAt,
   rimHalfAt,
 } from "./abyss";
-import { DEEP_FLOOR, TERRAIN_EXTENT, WRAP_R } from "./terrain";
+import { DEEP_FLOOR, WRAP_R, terrainCovers } from "./terrain";
+import { seaDist } from "./island";
 import { VILLAGE_ISLAND, VILLAGE_SEA_R } from "./villageIsland";
 import { dunes, seaFloorY } from "../world/sea/wander";
 
@@ -59,8 +60,9 @@ describe("the Midnight Rift (registry)", () => {
       for (const j of [0, G.cols / 2, G.cols]) {
         const x = abyssVertexX(i, j);
         const z = abyssVertexZ(i, j);
-        // off the main island's height grid (and its 12 m slope down to the plain)
-        expect(Math.max(Math.abs(x) - TERRAIN_EXTENT, Math.abs(z) - TERRAIN_EXTENT)).toBeGreaterThan(40);
+        // off the main island's ground (and well off its coast)
+        expect(terrainCovers(x, z)).toBe(false);
+        expect(seaDist(x, z)).toBeGreaterThan(160);
         expect(Math.hypot(x - VILLAGE_ISLAND.x, z - VILLAGE_ISLAND.z)).toBeGreaterThan(VILLAGE_SEA_R + 40);
         expect(Math.hypot(x, z)).toBeLessThan(WRAP_R - 50);
         // (well away from the dinosaur island being built round (-330, 300))

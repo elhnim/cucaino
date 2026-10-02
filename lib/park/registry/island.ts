@@ -324,7 +324,90 @@ export const HILLS: { x: number; z: number; r: number; h: number }[] = (() => {
   return out;
 })();
 
-/** the island's coastline wobble (shared by the 3D sand edge and the map) */
-export function coastR(angle: number): number {
+/** the park's own shore (the old little island's coastline): still the south-west coast, round
+ *  Rainbow Lake, the falls and the strait over to Dino Isle */
+export function parkCoastR(angle: number): number {
   return ISLAND_R + Math.sin(angle * 4 + 0.5) * 5 + Math.sin(angle * 9 + 2) * 2.5;
 }
+
+/** the park's own stretch of shore (round Rainbow Lake to the Dino Isle strait): headings
+ *  (atan2(x, z)) from -132° to +25° — beach things and the sea life by the park live along it */
+export const PARK_SHORE = { a0: -2.3, a1: 0.44 };
+/** a heading along the park's shore, u = 0..1 */
+export const parkShoreA = (u: number) => PARK_SHORE.a0 + u * (PARK_SHORE.a1 - PARK_SHORE.a0);
+
+/** The Wildlands: the great land rising behind the park to the east-north-east — about 2.8 km
+ *  across, round, its shore wobbling into bays and headlands. The park sits at its south-west end. */
+export const WILDLANDS = (() => {
+  const a = 0.7 * Math.PI;
+  const d = 1400;
+  return { x: Math.sin(a) * d, z: Math.cos(a) * d, r: 1420 };
+})();
+/** the Wildlands' shore radius (about its own centre) at heading `t` (atan2 round the centre) */
+export function wildShoreR(t: number): number {
+  return WILDLANDS.r * (1 + Math.sin(t * 3 + 1.1) * 0.022 + Math.sin(t * 7 + 2.3) * 0.012 + Math.sin(t * 17 + 0.4) * 0.004);
+}
+/** a smooth min: the two shores run into each other round a soft bay instead of a corner */
+const JOIN_K = 60;
+function smin(a: number, b: number, k: number): number {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
+}
+
+/** How far out to sea (x, z) is from the island's coast, in metres (negative inland): the park's
+ *  own shore and the Wildlands' shore, each measured round its own middle, joined smoothly. Use
+ *  this (not the distance along a heading from the plaza) for anything shaped by the coast:
+ *  beaches, the lagoon and reef, the sea's shallows. */
+export function seaDist(x: number, z: number): number {
+  const dp = Math.hypot(x, z) - parkCoastR(Math.atan2(x, z));
+  const wx = x - WILDLANDS.x;
+  const wz = z - WILDLANDS.z;
+  const dw = Math.hypot(wx, wz) - wildShoreR(Math.atan2(wx, wz));
+  return smin(dp, dw, JOIN_K);
+}
+
+// the coastline along each heading from the plaza (where seaDist crosses zero), in a table
+const COAST_N = 4096;
+let coastTable: Float32Array | null = null;
+function coastAlong(a: number): number {
+  const ux = Math.sin(a);
+  const uz = Math.cos(a);
+  // (from the plaza, inland, out past the far tip of the Wildlands, at sea)
+  let lo = 0;
+  let hi = 3400;
+  for (let k = 0; k < 28; k++) {
+    const m = (lo + hi) / 2;
+    if (seaDist(ux * m, uz * m) < 0) lo = m;
+    else hi = m;
+  }
+  return (lo + hi) / 2;
+}
+
+/** The island's coastline: how far from the plaza the grass meets the sand, along heading `angle`
+ *  (atan2(x, z)) — the park's own shore in the south-west, the Wildlands' everywhere else. For
+ *  placing things on the coast at a heading; for "how far from the shore" use seaDist(). */
+export function coastR(angle: number): number {
+  if (!coastTable) {
+    coastTable = new Float32Array(COAST_N + 1);
+    for (let k = 0; k <= COAST_N; k++) coastTable[k] = coastAlong((k / COAST_N) * Math.PI * 2);
+  }
+  let u = (angle / (Math.PI * 2)) % 1;
+  if (u < 0) u += 1;
+  const f = u * COAST_N;
+  const i = Math.floor(f);
+  return coastTable[i] + (coastTable[i + 1] - coastTable[i]) * (f - i);
+}
+/** the same coast in GLSL, for shaders: islandSeaDist(xz) (metres out to sea, negative inland) */
+export const COAST_GLSL = /* glsl */ `
+float islandParkCoastR( float a ) { return ${ISLAND_R.toFixed(1)} + sin( a * 4.0 + 0.5 ) * 5.0 + sin( a * 9.0 + 2.0 ) * 2.5; }
+float islandWildShoreR( float t ) { return ${WILDLANDS.r.toFixed(1)} * ( 1.0 + sin( t * 3.0 + 1.1 ) * 0.022 + sin( t * 7.0 + 2.3 ) * 0.012 + sin( t * 17.0 + 0.4 ) * 0.004 ); }
+float islandSeaDist( vec2 xz ) {
+  float dp = length( xz ) - islandParkCoastR( atan( xz.x, xz.y ) );
+  vec2 w = xz - vec2( ${WILDLANDS.x.toFixed(3)}, ${WILDLANDS.z.toFixed(3)} );
+  float dw = length( w ) - islandWildShoreR( atan( w.x, w.y ) );
+  float h = max( ${JOIN_K.toFixed(1)} - abs( dp - dw ), 0.0 ) / ${JOIN_K.toFixed(1)};
+  return min( dp, dw ) - h * h * ${JOIN_K.toFixed(1)} * 0.25;
+}
+`;
+
+

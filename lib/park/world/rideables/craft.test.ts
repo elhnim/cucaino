@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ASTERN_T, boatCanMove, boatClearance, hullTilt, landingSpot, seaSurfaceY, seaWave, steer, subAltRange, subCanMove, swellDamp, type Helm, type Tilt } from "./craft";
 import { BOAT_CAPS, MOUNT_CAPS, SUB_CAPS } from "../../characters/mounts";
 import { MOORINGS, RIFT_DOCK, worldFloorY, worldSeaDepth } from "../../registry/harbours";
-import { WATER_Y, WRAP_R } from "../../registry/terrain";
+import { WATER_Y } from "../../registry/terrain";
 import { atSea } from "../underwater/plan";
 import { DOCKS } from "../../registry/harbours";
 import { VILLAGE_ISLAND } from "../../registry/villageIsland";
@@ -66,7 +66,9 @@ describe("boats keep to water deep enough for their hull", () => {
   });
 
   it("the real moorings and the open sea check out on the world's floor", () => {
-    const deep = atSea(0.9, 120);
+    // (heading 0.9 used to be open sea on the old round island; now it's deep inside the Wildlands
+    //  — the park's own sea only still runs along its own shore arc, PARK_SHORE in registry/island.ts)
+    const deep = atSea(0.2, 120);
     expect(boatClearance("ship", deep.x, deep.z, 0, worldSeaDepth)).toBeGreaterThan(0);
     // the main island's beach is no place for a boat
     expect(boatClearance("sailboat", 0, 150, 0, worldSeaDepth)).toBeLessThan(0);
@@ -154,11 +156,17 @@ describe("the helm", () => {
 });
 
 describe("speeds fit the world", () => {
-  it("the Rocket Boat crosses the whole ocean in well under a minute; every boat is quicker than swimming", () => {
+  it("the Rocket Boat crosses the park's sea in well under a minute; every boat is quicker than swimming", () => {
     const top = WALK * MOUNT_CAPS.speedboat.speed;
-    expect((WRAP_R * 2) / top).toBeLessThan(45);
-    // the far docks are a short hop away by Rocket Boat
-    for (const d of DOCKS) expect(Math.hypot(d.x, d.z) / top, d.id).toBeLessThan(20);
+    // WRAP_R grew 5.6x (640 -> 3600) for the 10x island, so "crosses the whole wrapped world" is no
+    // longer the right measure — that's for sailing off the map's edge, not an ordinary voyage.
+    // Measure a real one instead: Candy Harbour (the main island) to the far side at Frostpeak's
+    // dock, ~1300 m — still well under a minute, without making the boat absurdly fast.
+    const candy = DOCKS.find((d) => d.id === "candy-harbour")!;
+    const frost = DOCKS.find((d) => d.id === "frost-dock")!;
+    expect(Math.hypot(frost.x - candy.x, frost.z - candy.z) / top).toBeLessThan(60);
+    // every dock is still a short hop away by Rocket Boat (the far islands sit much further out now)
+    for (const d of DOCKS) expect(Math.hypot(d.x, d.z) / top, d.id).toBeLessThan(45);
     for (const k of ["pedalo", "sailboat", "ship", "sub", "deepsub"] as const) expect(MOUNT_CAPS[k].speed).toBeGreaterThan(1.05);
     expect(MOUNT_CAPS.speedboat.speed).toBeGreaterThan(MOUNT_CAPS.sailboat.speed);
     expect(MOUNT_CAPS.sailboat.speed).toBeGreaterThan(MOUNT_CAPS.pedalo.speed);

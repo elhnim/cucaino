@@ -1,13 +1,15 @@
 // Pure rules for the boats and submarines (maths only, no scene objects) - shared by the engine
 // (steering, depth, hopping off) and the fleet (bobbing idle boats). Tested in craft.test.ts.
 import { WATER_Y } from "../../registry/terrain";
+import { seaDist } from "../../registry/island";
 import { villageCalm } from "../../registry/villageIsland";
 import { frostCalm } from "../../registry/frostIsland";
 import { dinoCalm } from "../../registry/dinoIsland";
 import { BOAT_CAPS, MOUNT_BODY, SUB_CAPS, type BoatKind, type SubKind } from "../../characters/mounts";
 
-/** where the main island's sand meets the water (= ocean.SHORE_R: the swell dies away inside it) */
-const SHORE_R = 152 + 14;
+/** where the main island's sand meets the water, past the grass line (= ocean.SHORE_R - ISLAND_R:
+ *  the swell dies away inside it) */
+const SHORE_D = 14;
 
 /** the ocean's long swells (the very same sum as the ocean surface shader's seaWave) */
 export function seaWave(x: number, z: number, t: number): number {
@@ -21,8 +23,7 @@ export function seaWave(x: number, z: number, t: number): number {
 
 /** how much of the swell reaches (x, z): calm by the main island's beach and round the far islands */
 export function swellDamp(x: number, z: number): number {
-  const r = Math.hypot(x, z);
-  const u = Math.min(1, Math.max(0, (r - SHORE_R) / 25));
+  const u = Math.min(1, Math.max(0, (seaDist(x, z) - SHORE_D) / 25));
   return u * u * (3 - 2 * u) * villageCalm(x, z) * frostCalm(x, z) * dinoCalm(x, z);
 }
 

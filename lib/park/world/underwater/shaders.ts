@@ -20,7 +20,7 @@
 // Vertex layout is the fantasy kit's (position, normal, color, aFx = tint/motion/glow) plus an
 // optional per-instance `aInst` (x = glow or flap strength, y = phase).
 import * as THREE from "three";
-import { TERRAIN_EXTENT, WATER_Y } from "../../registry/terrain";
+import { TERRAIN_X0, TERRAIN_Z0, WATER_Y, terrainCoverGrid } from "../../registry/terrain";
 import { causticField } from "./plan";
 
 export interface UwUniforms {
@@ -89,6 +89,24 @@ export interface UwMatOptions {
   peek?: boolean;
 }
 
+/** where the island's ground is drawn (one texel per terrain tile), so the deep sandy plain can
+ *  leave those places to it */
+let coverTex: THREE.DataTexture | null = null;
+const coverSpan = { x: 1, z: 1 };
+function terrainCoverTexture(): THREE.DataTexture {
+  if (coverTex) return coverTex;
+  const g = terrainCoverGrid();
+  const data = new Uint8Array(g.nx * g.nz);
+  for (let k = 0; k < data.length; k++) data[k] = g.data[k] ? 255 : 0;
+  coverTex = new THREE.DataTexture(data, g.nx, g.nz, THREE.RedFormat, THREE.UnsignedByteType);
+  coverTex.minFilter = coverTex.magFilter = THREE.NearestFilter;
+  coverTex.wrapS = coverTex.wrapT = THREE.ClampToEdgeWrapping;
+  coverTex.needsUpdate = true;
+  coverSpan.x = g.nx * g.size;
+  coverSpan.z = g.nz * g.size;
+  return coverTex;
+}
+
 export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0, ...params });
   const sea = o.sea !== false;
@@ -103,6 +121,10 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
     shader.uniforms.uCausticTex = U.uCausticTex;
     shader.uniforms.uFlapSpeed = flap.uFlapSpeed;
     shader.uniforms.uFlapWave = flap.uFlapWave;
+    if (o.pattern === "sand") {
+      shader.uniforms.uTerrCover = { value: terrainCoverTexture() };
+      shader.uniforms.uTerrCoverRect = { value: new THREE.Vector4(TERRAIN_X0, TERRAIN_Z0, coverSpan.x, coverSpan.z) };
+    }
     const defs = [
       o.inst ? "#define UW_INST" : "",
       sea ? "#define UW_SEA" : "",
@@ -282,6 +304,9 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
         `${defs}
         #include <common>
         uniform float uTime; uniform float uGlowK; uniform float uGlow; uniform float uCausticK; uniform sampler2D uCausticTex;
+        #ifdef UW_PAT_SAND
+          uniform sampler2D uTerrCover; uniform vec4 uTerrCoverRect;
+        #endif
         varying vec3 vUwWorld; varying float vUwUp; varying float vUwGlow; varying vec3 vUwLocal; varying float vUwFin; varying float vUwSp; varying float vUwPh;
         #ifdef UW_PAT_ORCA
           varying vec2 vMark;
@@ -466,8 +491,11 @@ export function uwMaterial(U: UwUniforms, o: UwMatOptions, params: THREE.MeshSta
           {
             // the deep sandy plain: long ripples, darker patches, a scatter of pale shell grit
             vec2 p = vUwWorld.xz;
-            // (the island's terrain mesh draws everything over its height grid)
-            if ( max( abs( p.x ), abs( p.y ) ) < ${(TERRAIN_EXTENT - 0.05).toFixed(2)} ) discard;
+            // (the island's ground draws everything it covers: its land and reef)
+            {
+              vec2 cuv = ( p - uTerrCoverRect.xy ) / uTerrCoverRect.zw;
+              if ( cuv.x > 0.0 && cuv.y > 0.0 && cuv.x < 1.0 && cuv.y < 1.0 && texture2D( uTerrCover, cuv ).r > 0.5 ) discard;
+            }
             float warp = uwNoise( vec3( p * 0.02, 1.0 ) ) * 12.0;
             float rip = sin( p.x * 0.55 + p.y * 0.21 + warp );
             float wr = fwidth( p.x * 0.55 + p.y * 0.21 );

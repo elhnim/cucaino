@@ -9,7 +9,7 @@
 //   - flocks of sheep that graze and wander slowly as a flock, never leaving the pasture
 //   - windmills on open hilltops, hot-air balloon loops, drifting clouds, the horizon's ridges
 import { LANDS, PLACES } from "../../registry/places";
-import { ISLAND_R, STREAM_POINTS, TRAIL_POINTS, coastR } from "../../registry/island";
+import { ISLAND_R, STREAM_POINTS, TRAIL_POINTS, seaDist } from "../../registry/island";
 import { groundY, slopeAt } from "../../registry/terrain";
 import { lakeEdgeDist, waterSdf } from "../../registry/waterways";
 import { trailDistance } from "../../registry/jungle";
@@ -172,11 +172,10 @@ export interface ForestOptions {
 export function forestMass(x: number, z: number): number {
   const f = openFields();
   const m = fbm2(x / 52 + 3.1, z / 52 - 5.3, 3, 11);
-  const r = Math.hypot(x, z);
-  const coast = coastR(Math.atan2(x, z));
+  const sd = seaDist(x, z);
   // forest edges hug the stream and the coast; the hills and mountains are wooded
   const nearStream = 1 - smoothstep(3, 14, fieldAt(f.stream, x, z));
-  const nearCoast = smoothstep(coast - 34, coast - 12, r) * (1 - smoothstep(coast - 7, coast - 3, r));
+  const nearCoast = smoothstep(-34, -12, sd) * (1 - smoothstep(-7, -3, sd));
   const high = smoothstep(4, 14, groundY(x, z));
   return m + nearStream * 0.17 + nearCoast * 0.12 + high * 0.1;
 }
@@ -268,8 +267,7 @@ export function planForest(free: FreeFn, opts: ForestOptions & { meadows?: Meado
       const x = x0 + (i + 0.1 + r() * 0.8) * step;
       const z = x0 + (j + 0.1 + r() * 0.8) * step;
       const roll = r();
-      const rad = Math.hypot(x, z);
-      if (rad > coastR(Math.atan2(x, z)) - 4) continue;
+      if (seaDist(x, z) > -4) continue;
       // (inland ground can sit at or below sea level: the sea only starts past the beach)
       const gy = groundY(x, z);
       const slope = slopeAt(x, z);
@@ -401,7 +399,7 @@ export function planPasture(free: FreeFn, covered: Uint8Array): Pasture {
       const x = cellCentre(i);
       const z = cellCentre(j);
       const rad = Math.hypot(x, z);
-      if (rad > coastR(Math.atan2(x, z)) - 7 || rad < 16) continue;
+      if (seaDist(x, z) > -7 || rad < 16) continue;
       if (f.land[k] < 3 || f.trail[k] < 4.5) continue; // off the trails, out of the lands
       if (slopeAt(x, z) > 0.34) continue;
       if (!free(x, z, 1)) continue;

@@ -15,7 +15,9 @@ import { BRIDGES, HILLS, ISLAND_R, POND, TRAIL_POINTS, coastR, nearStream, nearT
 import { FALLS, JETTY, LAKE_OUTLINE, MESA, OUTLET_HALF, OUTLET_POINTS, RIVER_LENGTH, mesaEdgeDist, mesaRadius, riverHalfWidth, riverPointAt } from "@/lib/park/registry/waterways";
 import { underCanopy } from "@/lib/park/registry/jungle";
 import { playSfx } from "@/lib/audio/sound-manager";
-import { TERRAIN_EXTENT, TERRAIN_N, terrainGrid } from "@/lib/park/registry/terrain";
+import { groundYFar } from "@/lib/park/registry/terrain";
+/** the shaded relief covers the park's own land (the map of the whole island is drawn from the coast) */
+const TERRAIN_EXTENT = 200;
 import { WORLD_EDGE, WORLD_PLACES, type WorldPlace } from "@/lib/park/registry/worldMap";
 
 type Pose = NonNullable<ReturnType<ParkWorld["getPose"]>>;
@@ -148,9 +150,10 @@ const TREES: { x: number; z: number; s: number; c: string }[] = (() => {
 let reliefUrl: string | null = null;
 function relief(): string | null {
   if (reliefUrl || typeof document === "undefined") return reliefUrl;
-  const g = terrainGrid();
-  const N = TERRAIN_N;
   const S = 200;
+  const N = S;
+  const g = new Float32Array(S * S);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) g[j * S + i] = groundYFar(-TERRAIN_EXTENT + (i / (S - 1)) * TERRAIN_EXTENT * 2, -TERRAIN_EXTENT + (j / (S - 1)) * TERRAIN_EXTENT * 2);
   const cv = document.createElement("canvas");
   cv.width = cv.height = S;
   const c = cv.getContext("2d");

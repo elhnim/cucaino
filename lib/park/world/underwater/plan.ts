@@ -7,7 +7,7 @@
 // never depends on order) and bucketed into angular sectors round the island, so the engine only
 // draws the sectors near the kid (the underwater fog hides the rest) — lots of reef for a small,
 // fixed triangle budget.
-import { coastR } from "../../registry/island";
+import { coastR, parkShoreA, seaDist } from "../../registry/island";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { fbm2, noise2, rngOf, smoothstep } from "../fantasy/noise";
 import { seaFloorY } from "../sea/wander";
@@ -46,7 +46,7 @@ export const SECTORS = 128;
 
 /** metres past the grass line (the coast) — the terrain's sea floor is shaped by this */
 export function seaD(x: number, z: number): number {
-  return Math.hypot(x, z) - coastR(Math.atan2(x, z));
+  return seaDist(x, z);
 }
 
 /** world x/z of a point `d` metres out to sea at angle `a` (a = atan2(x, z)) */
@@ -106,12 +106,17 @@ function garden(kind: GardenKind, a: number, d: number, r: number, site?: { dept
   return { kind, a, d, r, x: p.x, z: p.z, y: groundY(p.x, p.z) };
 }
 
-/** the four showpiece gardens. The galleon is just off the Park Gate's beach (south). */
+// The island's coast now runs for 2.8 km of Wildlands shore that the old full-circle headings
+// (1.75, 3.35 rad) used to land on; only the park's own stretch (PARK_SHORE/parkShoreA, headings
+// -2.3..0.44) still faces the park's sea, with its boats, snorkelling and this reef. So the four
+// showpiece gardens are spread along that arc by u (0 = the Dino Isle strait end .. 1 = the park
+// gate end) instead of round the whole old island. The galleon is just off the Park Gate's beach
+// (south, near u = 0.9); the rest keep their old out-to-sea distances (d).
 export const GARDENS: Garden[] = [
-  garden("wreck", 0.2, 30, 24, { depth: -7, flat: 5 }),
-  garden("rainbow", 1.75, 27, 24),
-  garden("glow", 3.35, 35, 26),
-  garden("ruins", -1.7, 33, 24, { depth: -7.4, flat: 6 }),
+  garden("glow", parkShoreA(0.06), 35, 26),
+  garden("ruins", parkShoreA(0.22), 33, 24, { depth: -7.4, flat: 6 }),
+  garden("rainbow", parkShoreA(0.58), 27, 24),
+  garden("wreck", parkShoreA(0.91), 30, 24, { depth: -7, flat: 5 }),
 ];
 export const gardenOf = (kind: GardenKind) => GARDENS.find((g) => g.kind === kind)!;
 

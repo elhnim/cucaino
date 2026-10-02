@@ -41,14 +41,15 @@ const clamp = (x: number, a: number, b: number) => (x < a ? a : x > b ? b : x);
 // ── the centreline ──
 
 /** control points of the crack's centreline, west to east */
+// (out in the deep southern sea, well clear of the island and its neighbours)
 const PATH_CTRL: { x: number; z: number }[] = [
-  { x: -168, z: -402 },
-  { x: -118, z: -438 },
-  { x: -58, z: -434 },
-  { x: -2, z: -462 },
-  { x: 58, z: -500 },
-  { x: 118, z: -494 },
-  { x: 186, z: -526 },
+  { x: -168, z: 1098 },
+  { x: -118, z: 1062 },
+  { x: -58, z: 1066 },
+  { x: -2, z: 1038 },
+  { x: 58, z: 1000 },
+  { x: 118, z: 1006 },
+  { x: 186, z: 974 },
 ];
 /** metres between rows along the centreline */
 export const ROW_STEP = 2;

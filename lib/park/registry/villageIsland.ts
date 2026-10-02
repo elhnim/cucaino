@@ -24,7 +24,7 @@ export const VILLAGE_WATER_Y = -0.25;
 /** the deep sea floor around the island (= terrain.DEEP_FLOOR) */
 const DEEP = -22;
 
-export const VILLAGE_ISLAND = { id: "coralcove", name: "Coralcove Isle", clan: "the Tidewing Folk", x: 285, z: -300, r: 58 };
+export const VILLAGE_ISLAND = { id: "coralcove", name: "Coralcove Isle", clan: "the Tidewing Folk", x: 330, z: 640, r: 58 };
 const X0 = VILLAGE_ISLAND.x;
 const Z0 = VILLAGE_ISLAND.z;
 const R = VILLAGE_ISLAND.r;

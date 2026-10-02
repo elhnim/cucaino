@@ -1,10 +1,10 @@
 // The deep sea floor beyond the island's height grid: a patch of sandy plain that follows the kid
 // (snapped to its cells, so nothing swims), shaped by seaFloorY (the slope off the grid's edge,
 // then low dunes at DEEP_FLOOR). The "sand" shader pattern draws ripples and patches from world
-// position and discards the part over the height grid (the terrain mesh draws that), so it joins
+// position and discards the part the island's ground covers (terrainCovers: the terrain draws that), so it joins
 // the reef's drop-off seamlessly. One draw call; rebuilt only when the kid crosses a cell.
 import * as THREE from "three";
-import { TERRAIN_EXTENT } from "../../registry/terrain";
+import { terrainCovers } from "../../registry/terrain";
 import { seaFloorY } from "./wander";
 
 export interface DeepFloor {
@@ -54,7 +54,10 @@ export function buildDeepFloor(material: THREE.Material, cells: number, cell: nu
       cx = sx;
       cz = sz;
       // entirely over the height grid: nothing to draw
-      mesh.visible = Math.abs(sx) + half > TERRAIN_EXTENT - 1 || Math.abs(sz) + half > TERRAIN_EXTENT - 1;
+      // (only where the island's ground isn't drawn: check the patch every 30 m)
+      let open = false;
+      for (let z = sz - half; z <= sz + half && !open; z += 30) for (let x = sx - half; x <= sx + half && !open; x += 30) if (!terrainCovers(x, z)) open = true;
+      mesh.visible = open;
       if (!mesh.visible) return;
       for (let j = 0; j < n; j++)
         for (let i = 0; i < n; i++) {

@@ -38,7 +38,8 @@ import {
   dinoTrailDistance,
   dinoWaterAt,
 } from "./dinoIsland";
-import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, WRAP_R } from "./terrain";
+import { DEEP_FLOOR, WATER_Y, WRAP_R, terrainCovers } from "./terrain";
+import { seaDist } from "./island";
 import { SKY_ISLANDS } from "./skyIslands";
 import { ISLAND_R } from "./island";
 import { VILLAGE_ISLAND, VILLAGE_SEA_R, villageGroundY, villageSeaFloorY } from "./villageIsland";
@@ -91,10 +92,9 @@ describe("Dino Isle (the Lost World island)", () => {
   it("sits in open ocean: clear of the main island, Coralcove, Frostpeak, the Midnight Rift, the sky islands and the world wrap", () => {
     for (const p of FOOT) {
       const d = hyp(p.x, p.z);
-      // (the main island's terrain grid is a square)
-      const gx = Math.max(-TERRAIN_EXTENT, Math.min(TERRAIN_EXTENT, p.x));
-      const gz = Math.max(-TERRAIN_EXTENT, Math.min(TERRAIN_EXTENT, p.z));
-      expect(hyp(p.x - gx, p.z - gz), "the main island's grid").toBeGreaterThan(30);
+      // (its slopes stay off the main island's own ground — its land and reef — and its coast)
+      expect(terrainCovers(p.x, p.z), "the main island's ground").toBe(false);
+      expect(seaDist(p.x, p.z), "the main island's coast").toBeGreaterThan(120);
       expect(d, "the main island").toBeGreaterThan(ISLAND_R + 80);
       expect(d, "the world wrap").toBeLessThan(WRAP_R - 60);
       expect(hyp(VILLAGE_ISLAND.x - p.x, VILLAGE_ISLAND.z - p.z), "Coralcove").toBeGreaterThan(VILLAGE_SEA_R + 60);

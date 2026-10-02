@@ -1,7 +1,7 @@
 // Pure helpers for the rideables' behaviour (maths only, no scene objects) — tested in rideables.test.ts.
 import { WATER_Y } from "../../registry/terrain";
 import { MOUNT_BODY, MOUNT_SEA_DRAFT, type MountKind } from "../../characters/mounts";
-import { seaDepth, seaFloorY } from "../sea/wander";
+import { awayFromCoast, seaDepth, seaFloorY } from "../sea/wander";
 
 /** where a sea friend's rig root floats (its back and fin just out of the water) */
 export const SEA_ROOT_Y = { dolphin: WATER_Y - MOUNT_SEA_DRAFT.dolphin!, whale: WATER_Y - MOUNT_SEA_DRAFT.whale! } as const;
@@ -115,7 +115,10 @@ export interface SeaCall {
  */
 export function pickSeaCall(kx: number, kz: number, kind: "dolphin" | "whale", r1: number, r2: number, out: SeaCall, aim?: number): SeaCall | null {
   // (`aim`: come up round that heading from the kid instead, e.g. the other side from a friend already there)
-  const out0 = aim ?? Math.atan2(kx, kz);
+  // "seaward" used to just mean "away from the plaza" on the old round island; now the coast is the
+  // park's own little shore joined onto the huge, lopsided Wildlands, so it has to follow whichever
+  // coast is actually nearest (awayFromCoast's seaDist gradient), not the origin
+  const out0 = aim ?? awayFromCoast(kx, kz);
   const a = out0 + (r1 - 0.5) * (aim === undefined ? 2.2 : 1.2);
   const [lo, hi] = SEA_WAIT_R[kind];
   const d = lo + (hi - lo) * r2;

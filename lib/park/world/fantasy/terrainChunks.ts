@@ -1,40 +1,49 @@
-// The island's ground, streamed: the height field (terrain.ts) is drawn as square chunks — one
-// per terrain tile — each at a level of detail picked by how far it is from the kid, so the
-// ground near you is finely shaped and the far hills cost a handful of triangles. Chunks are
-// built as they're needed (nearest first, within a small time budget each frame, so walking
-// never hitches), kept for a while in case you come back, and an older level of detail stays
-// up until its replacement is ready (no holes). Skirts hide the seams between levels; normals
-// come from the field itself so neighbouring chunks light the same. Vertex-coloured by
-// groundColor() — meadow greens, rock, snow, sand, river beds, trails — like the old one-piece mesh.
+// The island's ground, streamed: the height field (terrain.ts) is drawn as a quadtree of square
+// blocks round the kid — small, finely shaped blocks close by, then bigger and coarser ones out to
+// the horizon — so the whole 3 km island costs a couple of dozen draw calls. Blocks are built as
+// they're needed (nearest first, within a small time budget each frame, so walking never
+// hitches), kept for a while in case you come back, and anything not ready yet shows a quick
+// rough stand-in (no holes). Only the nearest blocks read the baked field (groundY); the far ones
+// work their heights out on the spot (groundYFar), so nothing far away gets baked. Skirts hide the
+// seams between levels; normals come from the field so neighbouring blocks light the same.
+// Vertex-coloured by groundColor() — meadow greens, rock, snow, sand, river beds, trails.
 // Taps find the ground by marching the pointer's ray over the field (no mesh raycast needed).
 import * as THREE from "three";
-import { TERRAIN_CELL, TERRAIN_EXTENT, TERRAIN_N, TERRAIN_TILE, groundY, slopeAt } from "../../registry/terrain";
+import { DEEP_FLOOR, TERRAIN_X0, TERRAIN_X1, TERRAIN_Z0, TERRAIN_Z1, groundY, groundYFar, inTerrain, slopeAt, terrainCoverGrid, terrainCovers, terrainPrefetch } from "../../registry/terrain";
 import { groundColor } from "./terrainMesh";
+import { ISLAND_R } from "../../registry/island";
 import type { GrassMask } from "./mask";
 
-/** a chunk's side (world units): one terrain tile */
-export const CHUNK = TERRAIN_TILE * TERRAIN_CELL;
-/** chunks across the field */
-const NC = Math.ceil((TERRAIN_N - 1) / TERRAIN_TILE);
-/** segments per chunk side at each level of detail (0 = finest) */
-export const CHUNK_LODS = { std: [32, 16, 8, 4], low: [16, 8, 4, 2] };
-/** the level of detail by distance (world units, from the kid to the chunk's nearest point) */
-export const LOD_RANGES = [70, 170, 330];
-/** chunks further than this aren't drawn (past the fog and the camera's far plane) */
-export const VIEW_R = 640;
-/** at most this many chunk meshes are kept (the furthest unused go first) */
-const KEEP = 220;
+/** block sides (world units) at each level, finest first */
+export const BLOCK = [120, 240, 480];
+/** segments per block side at each level, finest first, then: the finest level's blocks a little
+ *  further off (FINE_R), and a quick stand-in */
+export const BLOCK_SEGS = { std: [56, 32, 16, 28, 4], low: [28, 16, 8, 16, 4] };
+/** the finest blocks get their full detail only within this of the kid */
+export const FINE_R = 45;
+/** a block splits into the next finer level when the kid is nearer than this (per level, from 1) */
+export const SPLIT_R = [0, 60, 300];
+/** blocks further than this aren't drawn (past the fog and the camera's far plane) */
+export const VIEW_R = 700;
+/** at most this many block meshes are kept (the longest unused go first) */
+const KEEP = 160;
+const MID = 3;
+const STANDIN = 4;
+
+const TOP = BLOCK.length - 1;
+const NBX = Math.ceil((TERRAIN_X1 - TERRAIN_X0) / BLOCK[TOP]);
+const NBZ = Math.ceil((TERRAIN_Z1 - TERRAIN_Z0) / BLOCK[TOP]);
 
 export interface TerrainChunks {
   group: THREE.Group;
-  /** the one material every chunk shares (others may patch its shader, e.g. the jungle floor) */
+  /** the one material every block shares (others may patch its shader, e.g. the jungle floor) */
   material: THREE.MeshStandardMaterial;
-  /** stream the chunks round `focus`; `budgetMs` caps the building this frame (Infinity = all now) */
+  /** stream the blocks round `focus`; `budgetMs` caps the building this frame (Infinity = all now) */
   update(focus: { x: number; z: number }, budgetMs?: number): void;
   /** where `ray` first meets the island's ground (within `maxD`); false if it misses the field */
   raycast(ray: THREE.Ray, out: THREE.Vector3, maxD?: number): boolean;
-  /** what's drawn right now (and how many chunk meshes are built in all) */
-  stats(): { drawn: number; triangles: number; built: number };
+  /** what's drawn right now (and how many block meshes are built in all) */
+  stats(): { drawn: number; triangles: number; built: number; levels: number[] };
   dispose(): void;
 }
 
@@ -42,159 +51,254 @@ interface Built {
   mesh: THREE.Mesh;
   tris: number;
   used: number;
+  level: number;
 }
 
 export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMask } = {}): TerrainChunks {
-  const lods = opts.lowQuality ? CHUNK_LODS.low : CHUNK_LODS.std;
+  const segs = opts.lowQuality ? BLOCK_SEGS.low : BLOCK_SEGS.std;
   const group = new THREE.Group();
   group.name = "terrain";
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
   const built = new Map<number, Built>();
-  /** what each chunk shows now (key of the built mesh, or -1) */
-  const showing = new Int32Array(NC * NC).fill(-1);
-  const key = (ci: number, cj: number, lod: number) => (lod * NC + cj) * NC + ci;
+  /** variant: -1 = the level's own detail, MID, STANDIN */
+  const key = (level: number, bi: number, bj: number, variant: number) => ((variant < 0 ? level : variant) * 4096 + bj) * 4096 + bi;
   const c = new THREE.Color();
   let frame = 0;
 
-  function buildChunk(ci: number, cj: number, lod: number): Built {
-    const S = lods[lod];
-    const x0 = -TERRAIN_EXTENT + ci * CHUNK;
-    const z0 = -TERRAIN_EXTENT + cj * CHUNK;
-    // (the last chunks stop at the field's edge)
-    const x1 = Math.min(TERRAIN_EXTENT, x0 + CHUNK);
-    const z1 = Math.min(TERRAIN_EXTENT, z0 + CHUNK);
-    const n = S + 1;
-    // the grid, then a skirt ring hanging down round it
-    const vCount = n * n + 4 * n;
-    const pos = new Float32Array(vCount * 3);
-    const nor = new Float32Array(vCount * 3);
-    const col = new Float32Array(vCount * 3);
-    const e = TERRAIN_CELL;
-    // (trails are painted from the grass mask on the near chunks only: far off they're too small to see)
-    const mask = lod <= 1 ? opts.mask : undefined;
-    const put = (k: number, x: number, y: number, z: number, from = -1) => {
-      pos[k * 3] = x;
-      pos[k * 3 + 1] = y;
-      pos[k * 3 + 2] = z;
-      if (from >= 0) {
-        nor.copyWithin(k * 3, from * 3, from * 3 + 3);
-        col.copyWithin(k * 3, from * 3, from * 3 + 3);
-        return;
+  /** A block being built, a few rows at a time (so no frame ever waits on a whole block): first
+   *  its heights on a grid one sample wider all round (for the normals and slopes at its edges),
+   *  then its vertices row by row, then the mesh. */
+  interface Job {
+    level: number;
+    bi: number;
+    bj: number;
+    variant: number;
+    S: number;
+    n: number;
+    x0: number;
+    z0: number;
+    step: number;
+    near: boolean;
+    /** (n + 2)² heights, the outer ring one step outside the block */
+    hs: Float32Array;
+    cover: Uint8Array;
+    pos: Float32Array;
+    nor: Float32Array;
+    col: Float32Array;
+    /** samples done: heights first ((n + 2)² of them), then vertices (n²) */
+    row: number;
+  }
+  const jobs = new Map<number, Job>();
+  // a block's triangles depend only on its segment count: worked out once per size
+  const edgeCache = new Map<number, number[][]>();
+  const blockEdges = (S: number) => {
+    let e = edgeCache.get(S);
+    if (!e) {
+      const n = S + 1;
+      e = [
+        Array.from({ length: n }, (_, i) => i),
+        Array.from({ length: n }, (_, i) => S * n + (S - i)),
+        Array.from({ length: n }, (_, j) => (S - j) * n),
+        Array.from({ length: n }, (_, j) => j * n + S),
+      ];
+      edgeCache.set(S, e);
+    }
+    return e;
+  };
+  const indexCache = new Map<number, Uint32Array>();
+  const blockIndex = (S: number) => {
+    let ix = indexCache.get(S);
+    if (!ix) {
+      const n = S + 1;
+      const out: number[] = [];
+      for (let j = 0; j < S; j++)
+        for (let i = 0; i < S; i++) {
+          const a = j * n + i;
+          out.push(a, a + n, a + 1, a + 1, a + n, a + n + 1);
+        }
+      // (skirts: both windings, a skirt is seen from whichever side the crack shows it)
+      let base = n * n;
+      for (const edge of blockEdges(S)) {
+        for (let m = 0; m + 1 < n; m++) {
+          const a = edge[m];
+          const b = edge[m + 1];
+          out.push(a, base + m, b, b, base + m, base + m + 1, a, b, base + m, b, base + m + 1, base + m);
+        }
+        base += n;
       }
-      const dx = groundY(x + e, z) - groundY(x - e, z);
-      const dz = groundY(x, z + e) - groundY(x, z - e);
-      const l = Math.hypot(dx, 2 * e, dz);
+      ix = Uint32Array.from(out);
+      indexCache.set(S, ix);
+    }
+    return ix;
+  };
+
+  function startJob(level: number, bi: number, bj: number, variant: number): Job {
+    const S = variant < 0 ? segs[level] : segs[variant];
+    const side = BLOCK[level];
+    const x0 = TERRAIN_X0 + bi * side;
+    const z0 = TERRAIN_Z0 + bj * side;
+    // (the finest blocks read the baked field — and in the park, with its painted trails, the next
+    // ring out does too; elsewhere the rest work it out on the spot)
+    const near = level === 0 && (variant < 0 || (variant === MID && Math.hypot(x0 + side / 2, z0 + side / 2) < ISLAND_R + 140));
+    const n = S + 1;
+    const vCount = n * n + 4 * n;
+    return { level, bi, bj, variant, S, n, x0, z0, step: side / S, near, hs: new Float32Array((n + 2) * (n + 2)), cover: new Uint8Array((n + 2) * (n + 2)), pos: new Float32Array(vCount * 3), nor: new Float32Array(vCount * 3), col: new Float32Array(vCount * 3), row: 0 };
+  }
+
+  /** work on a job until `deadline` (performance.now()); the finished block, or null */
+  function stepJob(J: Job, deadline: number): Built | null {
+    const { n, S, step, hs, cover, pos, nor, col } = J;
+    const N2 = n + 2;
+    const hAt = J.near ? groundY : groundYFar;
+    const mask = J.near ? opts.mask : undefined;
+    // (one sample at a time, checking the clock every few: a sample can bake a tile of the ground
+    // or the grass mask, so even one row can take a while)
+    const H = N2 * N2;
+    while (J.row < H) {
+      const k = J.row;
+      const x = J.x0 + ((k % N2) - 1) * step;
+      const z = J.z0 + (Math.floor(k / N2) - 1) * step;
+      const cv = terrainCovers(x, z);
+      cover[k] = cv ? 1 : 0;
+      hs[k] = cv ? hAt(x, z) : DEEP_FLOOR;
+      J.row++;
+      if ((J.row & 15) === 0 && performance.now() > deadline) return null;
+    }
+    while (J.row < H + n * n) {
+      const k = J.row - H;
+      const i = k % n;
+      const j = Math.floor(k / n);
+      const x = J.x0 + i * step;
+      const z = J.z0 + j * step;
+      const h = (j + 1) * N2 + (i + 1);
+      const y = hs[h];
+      // (over the open deep sea the deep sea floor is drawn instead: sink these out of sight)
+      pos[k * 3] = x;
+      pos[k * 3 + 1] = cover[h] ? y : DEEP_FLOOR - 60;
+      pos[k * 3 + 2] = z;
+      const dx = hs[h + 1] - hs[h - 1];
+      const dz = hs[h + N2] - hs[h - N2];
+      const l = Math.hypot(dx, 2 * step, dz);
       nor[k * 3] = -dx / l;
-      nor[k * 3 + 1] = (2 * e) / l;
+      nor[k * 3 + 1] = (2 * step) / l;
       nor[k * 3 + 2] = -dz / l;
-      groundColor(x, z, y, slopeAt(x, z), c, mask, !!mask);
+      const slope = J.near ? slopeAt(x, z) : Math.min(1, Math.hypot(dx, dz) / (2 * step) / 1.4);
+      groundColor(x, z, y, slope, c, mask, !!mask);
       col[k * 3] = c.r;
       col[k * 3 + 1] = c.g;
       col[k * 3 + 2] = c.b;
-    };
-    for (let j = 0; j < n; j++)
-      for (let i = 0; i < n; i++) {
-        const x = x0 + ((x1 - x0) * i) / S;
-        const z = z0 + ((z1 - z0) * j) / S;
-        put(j * n + i, x, groundY(x, z), z);
-      }
-    const idx: number[] = [];
-    for (let j = 0; j < S; j++)
-      for (let i = 0; i < S; i++) {
-        const a = j * n + i;
-        idx.push(a, a + n, a + 1, a + 1, a + n, a + n + 1);
-      }
-    // skirts: each edge's vertices again, dropped, stitched to the edge (facing out)
-    const drop = 1.2 + ((x1 - x0) / S) * 0.5;
-    const edges: number[][] = [
-      Array.from({ length: n }, (_, i) => i), // z0 edge
-      Array.from({ length: n }, (_, i) => S * n + (S - i)), // z1 edge
-      Array.from({ length: n }, (_, j) => (S - j) * n), // x0 edge
-      Array.from({ length: n }, (_, j) => j * n + S), // x1 edge
-    ];
-    let k = n * n;
-    for (const edge of edges) {
-      const base = k;
-      for (const v of edge) put(k++, pos[v * 3], pos[v * 3 + 1] - drop, pos[v * 3 + 2], v);
-      for (let m = 0; m + 1 < n; m++) {
-        const a = edge[m];
-        const b = edge[m + 1];
-        // (both windings: a skirt is seen from whichever side the crack shows it)
-        idx.push(a, base + m, b, b, base + m, base + m + 1, a, b, base + m, b, base + m + 1, base + m);
-      }
+      J.row++;
+      if ((J.row & 15) === 0 && J.row < H + n * n && performance.now() > deadline) return null;
     }
+    // the mesh: the grid, then skirts — each edge's vertices again, dropped (the triangles are the
+    // same for every block of this size: ./blockIndex)
+    const drop = 1.5 + step * 0.6;
+    const edges = blockEdges(S);
+    let k = n * n;
+    for (const edge of edges)
+      for (const v of edge) {
+        pos[k * 3] = pos[v * 3];
+        pos[k * 3 + 1] = pos[v * 3 + 1] - drop;
+        pos[k * 3 + 2] = pos[v * 3 + 2];
+        nor.copyWithin(k * 3, v * 3, v * 3 + 3);
+        col.copyWithin(k * 3, v * 3, v * 3 + 3);
+        k++;
+      }
+    const idx = blockIndex(S).slice();
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    geo.setIndex(idx);
+    geo.setIndex(new THREE.BufferAttribute(idx, 1));
     geo.computeBoundingSphere();
     const mesh = new THREE.Mesh(geo, material);
-    mesh.name = `terrain-${ci}-${cj}-${lod}`;
+    mesh.name = `terrain-${J.level}-${J.bi}-${J.bj}${J.variant === STANDIN ? "-rough" : J.variant === MID ? "-mid" : ""}`;
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;
     mesh.visible = false;
     group.add(mesh);
-    return { mesh, tris: idx.length / 3, used: frame };
+    return { mesh, tris: idx.length / 3, used: frame, level: J.level };
+  }
+  /** build a block now, all at once (the quick rough stand-ins) */
+  const buildBlock = (level: number, bi: number, bj: number, variant: number) => stepJob(startJob(level, bi, bj, variant), Infinity)!;
+
+  /** distance from (x, z) to block (level, bi, bj)'s square */
+  const blockDist = (level: number, bi: number, bj: number, x: number, z: number) => {
+    const side = BLOCK[level];
+    const x0 = TERRAIN_X0 + bi * side;
+    const z0 = TERRAIN_Z0 + bj * side;
+    return Math.hypot(Math.max(x0 - x, 0, x - (x0 + side)), Math.max(z0 - z, 0, z - (z0 + side)));
+  };
+
+  /** does any of block (level, bi, bj) cover the island's ground (else it's all open deep sea) */
+  const cg = terrainCoverGrid();
+  const coversAny = (level: number, bi: number, bj: number) => {
+    const side = BLOCK[level];
+    const t0x = Math.floor((bi * side) / cg.size);
+    const t0z = Math.floor((bj * side) / cg.size);
+    const t1x = Math.min(cg.nx - 1, Math.ceil(((bi + 1) * side) / cg.size));
+    const t1z = Math.min(cg.nz - 1, Math.ceil(((bj + 1) * side) / cg.size));
+    for (let tz = t0z; tz <= t1z; tz++) for (let tx = t0x; tx <= t1x; tx++) if (cg.data[tz * cg.nx + tx]) return true;
+    return false;
+  };
+
+  /** the blocks to draw this frame (leaves of the quadtree round the focus), nearest first */
+  const leaves: { level: number; bi: number; bj: number; d: number }[] = [];
+  function collect(level: number, bi: number, bj: number, x: number, z: number) {
+    const side = BLOCK[level];
+    // (off the field's far edges: nothing)
+    if (TERRAIN_X0 + bi * side >= TERRAIN_X1 || TERRAIN_Z0 + bj * side >= TERRAIN_Z1) return;
+    const d = blockDist(level, bi, bj, x, z);
+    if (d > VIEW_R || !coversAny(level, bi, bj)) return;
+    if (level > 0 && d < SPLIT_R[level]) {
+      for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) collect(level - 1, bi * 2 + i, bj * 2 + j, x, z);
+      return;
+    }
+    leaves.push({ level, bi, bj, d });
   }
 
-  /** distance from (x, z) to chunk (ci, cj)'s square */
-  const chunkDist = (ci: number, cj: number, x: number, z: number) => {
-    const x0 = -TERRAIN_EXTENT + ci * CHUNK;
-    const z0 = -TERRAIN_EXTENT + cj * CHUNK;
-    return Math.hypot(Math.max(x0 - x, 0, x - (x0 + CHUNK)), Math.max(z0 - z, 0, z - (z0 + CHUNK)));
-  };
-  const lodFor = (d: number) => {
-    let l = 0;
-    while (l < LOD_RANGES.length && d > LOD_RANGES[l]) l++;
-    return Math.min(l, lods.length - 1);
-  };
-
-  const want: { ci: number; cj: number; lod: number; d: number }[] = [];
-  function update(focus: { x: number; z: number }, budgetMs = 3) {
+  const shown = new Set<Built>();
+  function update(focus: { x: number; z: number }, budgetMs = 2.5) {
     frame++;
     const t0 = performance.now();
-    want.length = 0;
-    for (let cj = 0; cj < NC; cj++)
-      for (let ci = 0; ci < NC; ci++) {
-        const d = chunkDist(ci, cj, focus.x, focus.z);
-        const slot = cj * NC + ci;
-        if (d > VIEW_R) {
-          if (showing[slot] >= 0) built.get(showing[slot])!.mesh.visible = false;
-          showing[slot] = -1;
-          continue;
-        }
-        want.push({ ci, cj, lod: lodFor(d), d });
-      }
-    // nearest first: anything with nothing to show at all goes before refinements
-    want.sort((a, b) => {
-      const ea = showing[a.cj * NC + a.ci] < 0 ? 0 : 1;
-      const eb = showing[b.cj * NC + b.ci] < 0 ? 0 : 1;
-      return ea - eb || a.d - b.d;
-    });
-    for (const w of want) {
-      const slot = w.cj * NC + w.ci;
-      const k = key(w.ci, w.cj, w.lod);
+    // (bake the ground just ahead of need: one tile a frame round the kid)
+    if (budgetMs < Infinity) terrainPrefetch(focus.x, focus.z, 150, 1);
+    leaves.length = 0;
+    for (let bj = 0; bj < NBZ; bj++) for (let bi = 0; bi < NBX; bi++) collect(TOP, bi, bj, focus.x, focus.z);
+    leaves.sort((a, b) => a.d - b.d);
+    const now = new Set<Built>();
+    for (const L of leaves) {
+      const variant = L.level === 0 && L.d > FINE_R ? MID : -1;
+      const k = key(L.level, L.bi, L.bj, variant);
       let b = built.get(k);
-      if (!b) {
-        // over budget: keep what's up (or, with nothing up, build the coarsest — it's cheap)
-        if (performance.now() - t0 > budgetMs) {
-          if (showing[slot] >= 0) {
-            built.get(showing[slot])!.used = frame;
-            continue;
-          }
-          const kc = key(w.ci, w.cj, lods.length - 1);
-          b = built.get(kc) ?? buildChunk(w.ci, w.cj, lods.length - 1);
-          built.set(kc, b);
-          showChunk(slot, kc, b);
-          continue;
+      if (!b && performance.now() - t0 < budgetMs) {
+        // (a few rows within this frame's budget: big blocks finish over the next frames)
+        let J = jobs.get(k);
+        if (!J) jobs.set(k, (J = startJob(L.level, L.bi, L.bj, variant)));
+        const done = stepJob(J, t0 + budgetMs);
+        if (done) {
+          jobs.delete(k);
+          built.set(k, (b = done));
         }
-        b = buildChunk(w.ci, w.cj, w.lod);
-        built.set(k, b);
       }
-      showChunk(slot, k, b);
+      if (!b) {
+        // not ready: whatever this block already has up, else a quick rough stand-in
+        b = built.get(key(L.level, L.bi, L.bj, variant === MID ? -1 : MID)) ?? built.get(key(L.level, L.bi, L.bj, STANDIN));
+        if (!b) {
+          b = buildBlock(L.level, L.bi, L.bj, STANDIN);
+          built.set(key(L.level, L.bi, L.bj, STANDIN), b);
+        }
+      }
+      b.used = frame;
+      now.add(b);
     }
-    // forget the furthest unused chunks
+    // (blocks half-built for somewhere the kid has left: dropped)
+    if (jobs.size > 12) for (const k of [...jobs.keys()].slice(0, jobs.size - 12)) jobs.delete(k);
+    for (const b of shown) if (!now.has(b)) b.mesh.visible = false;
+    for (const b of now) b.mesh.visible = true;
+    shown.clear();
+    for (const b of now) shown.add(b);
+    // forget the longest-unused blocks
     if (built.size > KEEP) {
       const old = [...built.entries()].filter(([, b]) => b.used < frame).sort((a, b) => a[1].used - b[1].used);
       for (let i = 0; i < old.length && built.size > KEEP; i++) {
@@ -205,17 +309,6 @@ export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMas
       }
     }
   }
-  function showChunk(slot: number, k: number, b: Built) {
-    if (showing[slot] !== k) {
-      if (showing[slot] >= 0) {
-        const prev = built.get(showing[slot]);
-        if (prev) prev.mesh.visible = false;
-      }
-      showing[slot] = k;
-    }
-    b.mesh.visible = true;
-    b.used = frame;
-  }
 
   const step = new THREE.Vector3();
   return {
@@ -224,18 +317,15 @@ export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMas
     update,
     raycast(ray, out, maxD = 500) {
       // march along the ray, then bisect where it crosses the ground
-      const inField = (x: number, z: number) => Math.abs(x) < TERRAIN_EXTENT && Math.abs(z) < TERRAIN_EXTENT;
       const above = (s: number) => {
         ray.at(s, step);
         return step.y - groundY(step.x, step.z);
       };
       const dt = 0.6;
       let s0 = 0;
-      let h0 = above(0);
-      if (h0 < 0) return false;
+      if (above(0) < 0) return false;
       for (let s = dt; s <= maxD; s += dt) {
-        const h = above(s);
-        if (h < 0) {
+        if (above(s) < 0) {
           let a = s0;
           let b = s;
           for (let k = 0; k < 18; k++) {
@@ -244,25 +334,24 @@ export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMas
             else a = m;
           }
           ray.at(b, out);
-          if (!inField(out.x, out.z)) return false;
+          if (!inTerrain(out.x, out.z)) return false;
           out.y = groundY(out.x, out.z);
           return true;
         }
         s0 = s;
-        h0 = h;
       }
-      void h0;
       return false;
     },
     stats() {
       let drawn = 0;
       let triangles = 0;
-      for (const b of built.values())
-        if (b.mesh.visible) {
-          drawn++;
-          triangles += b.tris;
-        }
-      return { drawn, triangles, built: built.size };
+      const levels = BLOCK.map(() => 0);
+      for (const b of shown) {
+        drawn++;
+        triangles += b.tris;
+        levels[b.level]++;
+      }
+      return { drawn, triangles, built: built.size, levels };
     },
     dispose() {
       for (const b of built.values()) b.mesh.geometry.dispose();

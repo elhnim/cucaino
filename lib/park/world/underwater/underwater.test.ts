@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { WATER_Y, groundY } from "../../registry/terrain";
+import { parkShoreA } from "../../registry/island";
 import {
   FISH_MODEL_L,
   FISH_TRUE_M,
@@ -145,9 +146,20 @@ describe("planReef", () => {
       expect(low.capacity[kind]).toBeLessThanOrEqual(Math.ceil(RULES[kind].cap / 2));
     }
   });
-  it("the reef runs all the way round the island", () => {
+  it("the reef runs the length of the park's own shore (the rest of the coast is the Wildlands now, all dry land)", () => {
+    // the island's grown ~10x across and joined onto the huge Wildlands (registry/island.ts); only
+    // the park's own stretch of coast (PARK_SHORE / parkShoreA) still faces the park's sea, so
+    // that's the only arc the reef still has to run unbroken along — check every sector on it,
+    // staying a little clear of its ends where the park shore blends into the Wildlands' shore
     let empty = 0;
-    for (let s = 0; s < SECTORS; s++) if (windowCount(plan.starts.staghorn, s, 1) + windowCount(plan.starts.seagrass, s, 1) === 0) empty++;
+    let checked = 0;
+    for (let u = 0.04; u <= 0.96; u += 0.01) {
+      const a = parkShoreA(u);
+      const s = sectorOf(Math.sin(a) * 180, Math.cos(a) * 180);
+      checked++;
+      if (windowCount(plan.starts.staghorn, s, 1) + windowCount(plan.starts.seagrass, s, 1) === 0) empty++;
+    }
+    expect(checked).toBeGreaterThan(40);
     expect(empty).toBe(0);
   });
   it("gardens are denser than the open reef", () => {

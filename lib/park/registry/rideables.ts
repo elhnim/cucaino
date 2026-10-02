@@ -11,7 +11,7 @@
 // grid and the Sky Coaster track. Tested in rideables.test.ts.
 import type { DragonBreed, MountKind } from "../characters/mounts";
 import { LANDS, PLACES, SKY_LOOP_N, SPAWN, skyLoopXZ } from "./places";
-import { HILLS, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, TRAIL_WIDTH, coastR } from "./island";
+import { HILLS, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, TRAIL_WIDTH, coastR, seaDist } from "./island";
 import { WATER_Y, groundY, slopeAt } from "./terrain";
 import { zoneBounds } from "../builder/rules";
 import { SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_SPOTS, skyBaseY, skyWalkable } from "./skyIslands";
@@ -89,7 +89,7 @@ export function placeClearance(x: number, z: number): number {
  */
 export function openGround(x: number, z: number, pad: number, trailMin = TRAIL_WIDTH / 2 + 1): boolean {
   const r = Math.hypot(x, z);
-  if (r > coastR(Math.atan2(x, z)) - 8) return false; // on the grass, not the beach
+  if (seaDist(x, z) > -8) return false; // on the grass, not the beach
   if (r < 13 + pad) return false; // the plaza's paving + fountain
   if (groundY(x, z) < WATER_Y + 0.6) return false;
   // (nothing's parked under the rainforest's canopy, nor anywhere near its thicket)

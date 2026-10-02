@@ -126,7 +126,9 @@ describe("mount rigs", () => {
 
 describe("sea call planning", () => {
   it("comes up seaward of the kid, in deep enough water, 8-14 m away", () => {
-    const kid = atSea(0.9, 60);
+    // (heading 0.9 used to be open park sea on the old round island; now it's the Wildlands, so
+    //  use a heading on the park's own shore arc instead — see PARK_SHORE in registry/island.ts)
+    const kid = atSea(0.2, 60);
     const out: SeaCall = { x: 0, z: 0, sx: 0, sz: 0 };
     let ok = 0;
     for (let i = 0; i < 40; i++) {
@@ -143,7 +145,7 @@ describe("sea call planning", () => {
   });
   it("whales only come up in the deep blue", () => {
     const out: SeaCall = { x: 0, z: 0, sx: 0, sz: 0 };
-    const shallow = atSea(0.9, 16); // the lagoon
+    const shallow = atSea(0.2, 16); // the lagoon (on the park's own shore)
     for (let i = 0; i < 20; i++) expect(pickSeaCall(shallow.x, shallow.z, "whale", i / 20, 0.5, out)).toBeNull();
   });
   it("a waiting ride is only ever nudged aside, just enough not to sit on the kid", () => {
@@ -254,7 +256,7 @@ describe("buildRideables", () => {
   it("out at sea a dolphin comes up 8-14 m away and waits; in the deep a whale comes too", () => {
     const scene = new THREE.Scene();
     const w = buildRideables(scene, {});
-    const k0 = atSea(0.9, 70);
+    const k0 = atSea(0.2, 70);
     const kid = V(k0.x, WATER_Y - 0.6, k0.z);
     const seen = new Set<string>();
     let t = 0;
@@ -334,7 +336,9 @@ describe("buildRideables", () => {
   it("in the deep the whale comes too, stays put broadside, and a kid swimming at the surface can climb on", () => {
     const scene = new THREE.Scene();
     const w = buildRideables(scene, {});
-    const k0 = atSea(1.2, 70);
+    // (heading 1.2 used to be open park sea on the old round island; now it's the Wildlands, so use
+    //  a heading on the park's own shore arc instead — see PARK_SHORE in registry/island.ts)
+    const k0 = atSea(-0.5, 70);
     const kid = V(k0.x, WATER_Y - 0.95, k0.z);
     const t = waitFor(w, "whale-sea", kid, 60);
     expect(t).toBeLessThan(SEA_FIRST_CALL.whale + 3 + 25);

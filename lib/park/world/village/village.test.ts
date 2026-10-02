@@ -39,11 +39,13 @@ describe("Coralcove Isle rendering", () => {
     const scene = new THREE.Scene();
     const v = buildVillage(scene, {});
     const group = scene.getObjectByName("village-island")!;
-    // (from the main island it is in view; from the far side of the world it is not)
+    // (far out to sea it is not in view; close in, approaching by boat, it is)
     const far = new THREE.Vector3(-300, 0, 300);
     expect(v.update(1 / 30, 1, { kid: far, glow: 0, hour: 10 }).talk).toBeNull();
     expect(group.visible).toBe(false);
-    v.update(1 / 30, 1.1, { kid: new THREE.Vector3(0, 0, 0), glow: 0, hour: 10 });
+    // Coralcove moved well out from the plaza for the 10x island (it's ~720 m away now, past the
+    // village's own view distance), so "in view" means near the isle itself, not the park's origin
+    v.update(1 / 30, 1.1, { kid: new THREE.Vector3(VILLAGE_ISLAND.x, 0, VILLAGE_ISLAND.z - 200), glow: 0, hour: 10 });
     expect(group.visible).toBe(true);
     // at the fire at dusk Grandma Coralie is telling stories: stand beside her
     let talk = null as { id: string; name: string; line: string } | null;

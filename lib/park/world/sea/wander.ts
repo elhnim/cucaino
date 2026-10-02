@@ -9,8 +9,8 @@
 // there's always life nearby. When the focus wraps round the world (terrain.wrapWorld) the whole
 // neighbourhood jumps with it (`focusJump` + `shiftSwimmers`), so nothing pops.
 import { WATER_BOUNDS, waterSdf } from "../../registry/waterways";
-import { coastR } from "../../registry/island";
-import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, groundY } from "../../registry/terrain";
+import { coastR, seaDist } from "../../registry/island";
+import { DEEP_FLOOR, TERRAIN_X0, TERRAIN_X1, TERRAIN_Z0, TERRAIN_Z1, WATER_Y, groundY } from "../../registry/terrain";
 import { noise2, smoothstep } from "../fantasy/noise";
 import { VILLAGE_ISLAND, villageGroundY, villageSeaFloorY } from "../../registry/villageIsland";
 import { abyssFloorY } from "../../registry/abyss";
@@ -49,12 +49,15 @@ export function seaFloorY(x: number, z: number): number {
   return vs !== null ? Math.max(f, vs) : f;
 }
 function mainSeaFloorY(x: number, z: number): number {
-  const E = TERRAIN_EXTENT - 0.6;
-  const ox = Math.abs(x) - E;
-  const oz = Math.abs(z) - E;
+  const x0 = TERRAIN_X0 + 0.6;
+  const x1 = TERRAIN_X1 - 0.6;
+  const z0 = TERRAIN_Z0 + 0.6;
+  const z1 = TERRAIN_Z1 - 0.6;
+  const ox = Math.max(x0 - x, x - x1);
+  const oz = Math.max(z0 - z, z - z1);
   if (ox <= 0 && oz <= 0) return groundY(x, z);
   const d = Math.hypot(Math.max(0, ox), Math.max(0, oz));
-  const edge = groundY(clamp(x, -E, E), clamp(z, -E, E));
+  const edge = groundY(clamp(x, x0, x1), clamp(z, z0, z1));
   return edge + (DEEP_FLOOR + dunes(x, z) - edge) * smoothstep(0, 12, d);
 }
 
@@ -66,7 +69,7 @@ function inlandWater(x: number, z: number): boolean {
   if (x < WATER_BOUNDS.x0 || x > WATER_BOUNDS.x1 || z < WATER_BOUNDS.z0 || z > WATER_BOUNDS.z1) return false;
   const r2 = x * x + z * z;
   if (r2 > 160 * 160) return false;
-  return Math.sqrt(r2) < coastR(Math.atan2(x, z)) - 4 && waterSdf(x, z) < 6;
+  return seaDist(x, z) < -4 && waterSdf(x, z) < 6;
 }
 
 export interface Swimmer {
@@ -133,6 +136,17 @@ export function shallowAhead(s: Swimmer, st: SwimStyle): number {
   return worst < margin ? clamp((margin - worst) / (st.need * 0.5), 0, 1) : 0;
 }
 
+/** the heading straight out to sea from (x, z): the uphill direction of seaDist's gradient (the
+ *  coast isn't a circle round the plaza any more — it's the park's own little shore joined onto
+ *  the huge Wildlands away to the east-north-east — so "away from the island" has to follow
+ *  whichever coast is actually nearest, not just point away from the origin) */
+export function awayFromCoast(x: number, z: number): number {
+  const e = 10;
+  const dx = seaDist(x + e, z) - seaDist(x - e, z);
+  const dz = seaDist(x, z + e) - seaDist(x, z - e);
+  return Math.hypot(dx, dz) > 1e-6 ? Math.atan2(dx, dz) : Math.atan2(x, z);
+}
+
 /** the way out to deep water: away from Coralcove Isle when near it, else away from the park's
  *  island (from between the two, "away from the park" pointed straight at Coralcove) */
 export function deepestHeading(s: { x: number; z: number; yaw: number }): number {
@@ -162,7 +176,9 @@ export function deepestHeading(s: { x: number; z: number; yaw: number }): number
     }
     return best;
   }
-  return Math.atan2(s.x, s.z);
+  // everywhere else: follow the coast's own distance gradient out to sea (the Wildlands made the
+  // island's coast far too big and lopsided now for "away from the plaza" to always be right)
+  return awayFromCoast(s.x, s.z);
 }
 
 /** the heading a creature wants this frame (without inertia): wander + shallows + home leash */
@@ -269,7 +285,7 @@ export function follow(s: Swimmer, st: SwimStyle, lead: Swimmer, side: number, b
   want += wiggle(t * st.wander * 2, s.seed) * st.turn * 0.15;
   // and still mind the shallows
   const here = seaDepth(s.x + Math.sin(s.yaw) * st.look * 0.5, s.z + Math.cos(s.yaw) * st.look * 0.5);
-  if (here < st.need) want = clamp(wrapAngle(Math.atan2(s.x, s.z) - s.yaw) * 2, -1, 1) * st.turn;
+  if (here < st.need) want = clamp(wrapAngle(awayFromCoast(s.x, s.z) - s.yaw) * 2, -1, 1) * st.turn;
   s.yawRate += (want - s.yawRate) * Math.min(1, dt * 2.5);
   s.yaw = wrapAngle(s.yaw + s.yawRate * dt);
   // along = how far ahead of the slot we are
@@ -320,12 +336,16 @@ export function respawn(s: Swimmer, st: SwimStyle, focus: { x: number; z: number
     // (the tries from any side must have open water all the way in, too)
     if (ok && (k < 10 || (seaDepth(x + ux * r * 0.25, z + uz * r * 0.25) >= st.need && seaDepth(x + ux * r * 0.5, z + uz * r * 0.5) >= st.need && seaDepth(x + ux * r * 0.75, z + uz * r * 0.75) >= st.need))) break;
     if (k === 19) {
-      // everywhere nearby is shallow (we're by the island): go out to sea along this bearing
-      const out = Math.atan2(x, z);
-      let rr = Math.hypot(x, z);
-      for (let j = 0; j < 40 && seaDepth(Math.sin(out) * rr, Math.cos(out) * rr) < want; j++) rr += 6;
-      x = Math.sin(out) * rr;
-      z = Math.cos(out) * rr;
+      // everywhere nearby is shallow (we're by the island): follow the coast's distance gradient
+      // out to sea, step by step (a straight line from the plaza doesn't work any more now the
+      // Wildlands has made the coast a huge, lopsided shape instead of a circle round the origin —
+      // heading further along a bearing that happens to point into the Wildlands would only run
+      // deeper inland, never reach the sea)
+      for (let j = 0; j < 80 && seaDepth(x, z) < want; j++) {
+        const out = awayFromCoast(x, z);
+        x += Math.sin(out) * 8;
+        z += Math.cos(out) * 8;
+      }
     }
   }
   s.x = x;

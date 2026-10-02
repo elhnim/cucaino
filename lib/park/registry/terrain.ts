@@ -1,18 +1,16 @@
-// Cucaino Island's terrain: rolling hills and valleys, a mountain range with cliffs along the
-// north coast, gentle slopes down to the beaches, the Rainbow Falls mesa and the beds of the
-// river, the plunge pool, Rainbow Lake and its outlet (./waterways.ts) — while every trail,
-// building, land, the plaza and the Dream Park sit on smoothly levelled ground so walking stays
-// easy. Baked once into a height grid; `groundY(x, z)` samples it (bilinear) and the same grid
-// can be uploaded as a texture for shaders (grass, etc.). Pure maths, deterministic, no three.js.
+// Cucaino Island's terrain. Round the park (the south-west end of the island): rolling hills and
+// valleys, mountains rising behind it to the north, gentle slopes down to the beaches, the Rainbow
+// Falls mesa and the beds of the river, the plunge pool, Rainbow Lake and its outlet
+// (./waterways.ts) — while every trail, building, land, the plaza and the Dream Park sit on
+// smoothly levelled ground so walking stays easy. Beyond the park, the Wildlands (island.ts): the
+// Great Ridge of snowy peaks running away to the north-east, a lone peak, the north-west uplands
+// and broad rolling plains down to a long coast. `groundY(x, z)` samples a height field that is
+// baked lazily, tile by tile, as anything asks for it; far-off ground can use groundYFar(), which
+// works the height out on the spot without baking anything. Pure maths, deterministic, no three.js.
 import { LANDS, PLACES } from "./places";
-import { ISLAND_R, TRAIL_POINTS, coastR } from "./island";
+import { ISLAND_R, TRAIL_POINTS, coastR, parkCoastR, seaDist } from "./island";
 import { mesaY, waterBedY, waterSdf } from "./waterways";
 import { DREAM_ZONE } from "../builder/rules";
-
-/** the grid covers [-EXTENT, EXTENT] on x and z */
-export const TERRAIN_EXTENT = 200;
-export const TERRAIN_N = 320;
-const CELL = (TERRAIN_EXTENT * 2) / (TERRAIN_N - 1);
 
 // ── value noise ──
 function hash(x: number, y: number) {
@@ -49,27 +47,97 @@ const smooth = (a: number, b: number, x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-/** the wild land before anything is levelled */
-function rawHeight(x: number, z: number): number {
-  const r = Math.hypot(x, z);
-  const a = Math.atan2(x, z);
-  const coast = coastR(a);
+/** the park's land (the old little island's shape); `sd` = how far out to sea (negative inland) */
+function parkHeight(x: number, z: number, sd: number): number {
   // rolling meadow hills
   let h = (fbm(x / 38 + 11, z / 38 - 7) - 0.45) * 11;
   // broad swells
   h += Math.sin(x / 61 + 1.3) * Math.cos(z / 53 - 0.7) * 3.5;
-  // a mountain range with cliffs along the north coast (z very negative = north on the map)
-  const north = smooth(0.1, 0.9, (-z - 40) / 90) * smooth(coast - 2, coast - 40, r);
+  // mountains with cliffs rising behind the park to the north (z very negative = north on the map),
+  // shaped as they always were: they fall away where the park's old shore was, down to the
+  // foothills before the Great Ridge rises
+  const north = smooth(0.1, 0.9, (-z - 40) / 90) * smooth(-2, -40, Math.max(sd, Math.hypot(x, z) - parkCoastR(Math.atan2(x, z))));
   const ridge = Math.pow(fbm(x / 22 + 40, z / 22 + 3, 5), 1.6) * 60;
   h += north * (14 + ridge);
   // softer highlands in the far west
-  const west = smooth(0.2, 1, (-x - 70) / 70) * smooth(coast, coast - 30, r);
+  const west = smooth(0.2, 1, (-x - 70) / 70) * smooth(0, -30, sd);
   h += west * fbm(x / 30 - 5, z / 30 + 9) * 16;
-  // slope down to the beach (level with the sand), then under the sea: a shallow sandy lagoon,
-  // a reef shelf with coral mounds, and a drop-off wall into the deep blue
-  const edge = smooth(coast, coast - 26, r);
-  h = h * edge;
-  const d = r - coast;
+  return h * smooth(0, -26, sd);
+}
+
+/** the Great Ridge's spine: from the mountains behind the park away to the north-east */
+const RIDGE: [number, number][] = [
+  [-40, -165],
+  [180, -380],
+  [480, -640],
+  [820, -930],
+  [1150, -1210],
+  [1460, -1470],
+  [1760, -1690],
+];
+const RIDGE_LEN: number[] = (() => {
+  const out = [0];
+  for (let i = 1; i < RIDGE.length; i++) out.push(out[i - 1] + Math.hypot(RIDGE[i][0] - RIDGE[i - 1][0], RIDGE[i][1] - RIDGE[i - 1][1]));
+  return out;
+})();
+const _rp = { d: 0, u: 0 };
+/** distance from (x, z) to the ridge's spine, and how far along it (0..1) */
+function ridgeAt(x: number, z: number): typeof _rp {
+  let best = Infinity;
+  let bu = 0;
+  for (let i = 0; i + 1 < RIDGE.length; i++) {
+    const [ax, az] = RIDGE[i];
+    const bx = RIDGE[i + 1][0] - ax;
+    const bz = RIDGE[i + 1][1] - az;
+    const L2 = bx * bx + bz * bz;
+    const t = Math.min(1, Math.max(0, ((x - ax) * bx + (z - az) * bz) / L2));
+    const d = Math.hypot(x - ax - bx * t, z - az - bz * t);
+    if (d < best) {
+      best = d;
+      bu = (RIDGE_LEN[i] + Math.sqrt(L2) * t) / RIDGE_LEN[RIDGE_LEN.length - 1];
+    }
+  }
+  _rp.d = best;
+  _rp.u = bu;
+  return _rp;
+}
+/** the lone peak out east, and the north-west uplands */
+const LONE_PEAK = { x: 1980, z: -520, r: 260, h: 95 };
+const UPLANDS = { x: 380, z: -1500, r: 520, h: 26 };
+
+/** the Wildlands' land: plains, the Great Ridge, the lone peak and the uplands */
+function wildHeight(x: number, z: number, sd: number): number {
+  // broad rolling plains (dry land: the base sits well above the sea) with smaller hills on them
+  let h = 7 + (fbm(x / 230 + 31, z / 230 - 17) - 0.45) * 30 + (fbm(x / 64 - 9, z / 64 + 4) - 0.45) * 9;
+  // the Great Ridge: a long range of crags and snowy peaks, highest along its middle
+  const rp = ridgeAt(x, z);
+  const width = 85 + fbm(x / 300 + 4, z / 300 - 8) * 70;
+  const along = Math.pow(Math.sin(Math.PI * Math.min(1, rp.u * 1.08)), 0.6);
+  const crest = 30 + along * (55 + fbm(x / 160 - 3, z / 160 + 6) * 50);
+  const k = Math.exp(-((rp.d / width) ** 2));
+  const crag = 1 - Math.abs(2 * fbm(x / 46 + 13, z / 46 - 21, 5) - 1);
+  h += k * (crest + crag * crag * 30 * (0.4 + along));
+  // the lone peak (a tall cone with gullies down its flanks)
+  const ld = Math.hypot(x - LONE_PEAK.x, z - LONE_PEAK.z) / LONE_PEAK.r;
+  if (ld < 1.6) h += LONE_PEAK.h * Math.exp(-ld * ld * 2.2) * (0.85 + 0.3 * fbm(x / 35 + 2, z / 35 - 2, 3));
+  // the north-west uplands: a high rolling plateau with a steep edge
+  const ud = Math.hypot(x - UPLANDS.x, z - UPLANDS.z) / UPLANDS.r;
+  h += UPLANDS.h * (1 - smooth(0.75, 1.0, ud + (fbm(x / 120, z / 120) - 0.5) * 0.3));
+  // down to the coast through wide lowlands
+  return h * smooth(0, -70, sd);
+}
+
+/** the wild land before anything is levelled */
+function rawHeight(x: number, z: number): number {
+  const r = Math.hypot(x, z);
+  const sd = seaDist(x, z);
+  // the park's land near the plaza, the Wildlands' beyond (blended over a wide band)
+  const wPark = 1 - smooth(190, 340, r);
+  let h = wPark > 0 ? parkHeight(x, z, sd) * wPark : 0;
+  if (wPark < 1) h += wildHeight(x, z, sd) * (1 - wPark);
+  // under the sea: a shallow sandy lagoon, a reef shelf with coral mounds, and a drop-off wall
+  // into the deep blue
+  const d = sd;
   if (d > 10) h -= seabedDrop(x, z, d);
   return h;
 }
@@ -84,13 +152,13 @@ function seabedDrop(x: number, z: number, d: number): number {
   const ripples = smooth(12, 20, d) * Math.sin(x * 0.7 + Math.sin(z * 0.13) * 3) * 0.12;
   return lagoon + shelf + wall - mounds - ripples;
 }
-/** the deepest sea floor (past the reef wall, and off the edge of the height grid) */
+/** the deepest sea floor (past the reef wall, and off the edge of the height field) */
 export const DEEP_FLOOR = -22;
 /** the sea's surface height (the water mesh's resting level) */
 export const WATER_Y = -0.25;
 /** The ocean has no edge: sail, swim or fly past this radius and you come back in from the
  *  opposite side of the world (like going round a little planet) — see wrapWorld(). */
-export const WRAP_R = 640;
+export const WRAP_R = 3600;
 /** where you reappear after crossing WRAP_R: the antipode, just inside the edge, same heading */
 export function wrapWorld(p: { x: number; z: number }): boolean {
   const r = Math.hypot(p.x, p.z);
@@ -101,20 +169,62 @@ export function wrapWorld(p: { x: number; z: number }): boolean {
   return true;
 }
 
-// ── the height field: baked lazily, tile by tile ──
-// The field is one regular grid (x = -TERRAIN_EXTENT + i * CELL, z likewise) over the land's
-// square, but nothing is baked up front: a tile of TERRAIN_TILE cells a side is worked out the
-// first time anything asks for a height inside it (the park only pays for the ground near the
-// kid, and loading stays light however big the island grows). Each tile bakes a padded patch, so
-// the soft blur and the stamps give exactly the values one whole-grid bake would.
+// ── the height field: a regular grid over the island and its reef, baked lazily ──
+/** the grid's cell size (world units) */
+export const TERRAIN_CELL = 400 / 319;
+/** how far past the coast the field reaches (the reef wall is at +46) */
+const FIELD_PAD = 64;
+const FIELD = (() => {
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let z0 = Infinity;
+  let z1 = -Infinity;
+  for (let k = 0; k < 2048; k++) {
+    const a = (k / 2048) * Math.PI * 2;
+    const c = coastR(a);
+    x0 = Math.min(x0, Math.sin(a) * c);
+    x1 = Math.max(x1, Math.sin(a) * c);
+    z0 = Math.min(z0, Math.cos(a) * c);
+    z1 = Math.max(z1, Math.cos(a) * c);
+  }
+  // (snapped to the old little island's grid, so the park's samples sit where they always did)
+  const snapLo = (v: number) => -200 + Math.floor((v - FIELD_PAD + 200) / TERRAIN_CELL) * TERRAIN_CELL;
+  const ox = snapLo(x0);
+  const oz = snapLo(z0);
+  return { x0: ox, z0: oz, nx: Math.ceil((x1 + FIELD_PAD - ox) / TERRAIN_CELL) + 1, nz: Math.ceil((z1 + FIELD_PAD - oz) / TERRAIN_CELL) + 1 };
+})();
+/** the field's first sample (its north-west corner) and its size in samples */
+export const TERRAIN_X0 = FIELD.x0;
+export const TERRAIN_Z0 = FIELD.z0;
+export const TERRAIN_NX = FIELD.nx;
+export const TERRAIN_NZ = FIELD.nz;
+export const TERRAIN_X1 = TERRAIN_X0 + (TERRAIN_NX - 1) * TERRAIN_CELL;
+export const TERRAIN_Z1 = TERRAIN_Z0 + (TERRAIN_NZ - 1) * TERRAIN_CELL;
+/** is (x, z) over the height field (else it's the deep sea floor) */
+export function inTerrain(x: number, z: number): boolean {
+  return x > TERRAIN_X0 && z > TERRAIN_Z0 && x < TERRAIN_X1 && z < TERRAIN_Z1;
+}
+const CELL = TERRAIN_CELL;
+
+// Nothing is baked up front: a tile of TERRAIN_TILE cells a side is worked out the first time
+// anything asks for a height inside it (the park only pays for the ground near the kid, and
+// loading stays light however big the island is). Each tile bakes a padded patch, so the soft
+// blur and the stamps give exactly the values one whole-grid bake would. Tiles nobody has used
+// for a while are let go (a re-bake gives the same values).
 
 /** cells per tile side (a tile holds TERRAIN_TILE + 1 samples a side, sharing its edges with the next) */
 export const TERRAIN_TILE = 48;
 /** the blur's reach (two passes, one cell each) */
 const PAD = 2;
-const TILES = Math.ceil((TERRAIN_N - 1) / TERRAIN_TILE);
+const TILES_X = Math.ceil((TERRAIN_NX - 1) / TERRAIN_TILE);
+const TILES_Z = Math.ceil((TERRAIN_NZ - 1) / TERRAIN_TILE);
 const TS = TERRAIN_TILE + 1;
-const tiles: (Float32Array | undefined)[] = new Array(TILES * TILES);
+const tiles: (Float32Array | undefined)[] = new Array(TILES_X * TILES_Z);
+const tileUsed = new Float64Array(TILES_X * TILES_Z);
+/** at most this many tiles are kept baked (~10 KB each) */
+const KEEP_TILES = 900;
+let baked = 0;
+let useClock = 0;
 
 interface Stamp {
   x: number;
@@ -149,50 +259,74 @@ function stamps(): Stamp[][] {
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);
   // (each stamp goes in every tile whose padded patch it reaches, keeping the bake order)
-  const b: Stamp[][] = Array.from({ length: TILES * TILES }, () => []);
+  const b: Stamp[][] = Array.from({ length: TILES_X * TILES_Z }, () => []);
   const tw = TERRAIN_TILE * CELL;
   for (const st of list) {
-    const lo = (v: number) => Math.floor((v - st.rOut + TERRAIN_EXTENT) / tw) - 1;
-    const hi = (v: number) => Math.floor((v + st.rOut + TERRAIN_EXTENT) / tw) + 1;
-    for (let tj = Math.max(0, lo(st.z)); tj <= Math.min(TILES - 1, hi(st.z)); tj++)
-      for (let ti = Math.max(0, lo(st.x)); ti <= Math.min(TILES - 1, hi(st.x)); ti++) {
-        const x0 = -TERRAIN_EXTENT + (ti * TERRAIN_TILE - PAD - 1) * CELL;
-        const z0 = -TERRAIN_EXTENT + (tj * TERRAIN_TILE - PAD - 1) * CELL;
-        const x1 = -TERRAIN_EXTENT + (ti * TERRAIN_TILE + TERRAIN_TILE + PAD + 1) * CELL;
-        const z1 = -TERRAIN_EXTENT + (tj * TERRAIN_TILE + TERRAIN_TILE + PAD + 1) * CELL;
+    const lo = (v: number, o: number) => Math.floor((v - st.rOut - o) / tw) - 1;
+    const hi = (v: number, o: number) => Math.floor((v + st.rOut - o) / tw) + 1;
+    for (let tj = Math.max(0, lo(st.z, TERRAIN_Z0)); tj <= Math.min(TILES_Z - 1, hi(st.z, TERRAIN_Z0)); tj++)
+      for (let ti = Math.max(0, lo(st.x, TERRAIN_X0)); ti <= Math.min(TILES_X - 1, hi(st.x, TERRAIN_X0)); ti++) {
+        const x0 = TERRAIN_X0 + (ti * TERRAIN_TILE - PAD - 1) * CELL;
+        const z0 = TERRAIN_Z0 + (tj * TERRAIN_TILE - PAD - 1) * CELL;
+        const x1 = TERRAIN_X0 + (ti * TERRAIN_TILE + TERRAIN_TILE + PAD + 1) * CELL;
+        const z1 = TERRAIN_Z0 + (tj * TERRAIN_TILE + TERRAIN_TILE + PAD + 1) * CELL;
         if (st.x + st.rOut < x0 || st.x - st.rOut > x1 || st.z + st.rOut < z0 || st.z - st.rOut > z1) continue;
-        b[tj * TILES + ti].push(st);
+        b[tj * TILES_X + ti].push(st);
       }
   }
   stampBuckets = b;
   return b;
 }
 
+/** Rainbow Falls' mesa rises out of the west coast; the waterways are carved in; and no other
+ *  inland hollow dips below the waterline (the only inland water is the river, the pool and the
+ *  lake, so you never "swim" on dry grass) — the last step for every sample, on its own */
+function finish(x: number, z: number, h: number): number {
+  const r = Math.hypot(x, z);
+  const inland = 1 - smooth(-7, -2, seaDist(x, z));
+  // (the river, falls and lake are all near the park: far off, skip their maths)
+  const bed = r < ISLAND_R + 60 ? waterBedY(x, z) : null;
+  if (bed !== null) {
+    // inland the beds are shaped exactly (an old hollow mustn't make a deep hole in the
+    // lake's shallows); out by the sea the outlet only ever carves down
+    const carved = Math.min(h, bed);
+    h = waterSdf(x, z) < 0 ? carved + (bed - carved) * inland : carved;
+  }
+  // (the mesa after the carving: its cliffs stand right down into the plunge pool)
+  const m = r < ISLAND_R + 60 ? mesaY(x, z, h) : null;
+  if (m !== null) h = Math.max(h, m);
+  if (inland > 0) {
+    const d = bed === null ? 9 : waterSdf(x, z);
+    const floor = WATER_Y + 0.35 + 0.04 * Math.min(Math.max(d, 0), 6);
+    if (d > 0.4 && h < floor) h += (floor - h) * inland;
+  }
+  return h;
+}
+
 /** bake one tile: its padded patch of the field, levelled, blurred and carved; returns its samples */
 function bakeTile(ti: number, tj: number): Float32Array {
-  const N = TERRAIN_N;
   // the padded patch, in whole-grid indices (clamped to the grid: its outer rim is never blurred)
   const pi0 = Math.max(0, ti * TERRAIN_TILE - PAD);
   const pj0 = Math.max(0, tj * TERRAIN_TILE - PAD);
-  const pi1 = Math.min(N - 1, ti * TERRAIN_TILE + TERRAIN_TILE + PAD);
-  const pj1 = Math.min(N - 1, tj * TERRAIN_TILE + TERRAIN_TILE + PAD);
+  const pi1 = Math.min(TERRAIN_NX - 1, ti * TERRAIN_TILE + TERRAIN_TILE + PAD);
+  const pj1 = Math.min(TERRAIN_NZ - 1, tj * TERRAIN_TILE + TERRAIN_TILE + PAD);
   const W = pi1 - pi0 + 1;
   const H = pj1 - pj0 + 1;
   const raw = new Float32Array(W * H);
   for (let j = 0; j < H; j++)
-    for (let i = 0; i < W; i++) raw[j * W + i] = rawHeight(-TERRAIN_EXTENT + (pi0 + i) * CELL, -TERRAIN_EXTENT + (pj0 + j) * CELL);
+    for (let i = 0; i < W; i++) raw[j * W + i] = rawHeight(TERRAIN_X0 + (pi0 + i) * CELL, TERRAIN_Z0 + (pj0 + j) * CELL);
 
   // level the walkable things: stamp "target height + weight" discs, then blend
   const target = new Float32Array(W * H);
   const weight = new Float32Array(W * H);
-  for (const st of stamps()[tj * TILES + ti]) {
-    const i0 = Math.max(pi0, Math.floor((st.x - st.rOut + TERRAIN_EXTENT) / CELL));
-    const i1 = Math.min(pi1, Math.ceil((st.x + st.rOut + TERRAIN_EXTENT) / CELL));
-    const j0 = Math.max(pj0, Math.floor((st.z - st.rOut + TERRAIN_EXTENT) / CELL));
-    const j1 = Math.min(pj1, Math.ceil((st.z + st.rOut + TERRAIN_EXTENT) / CELL));
+  for (const st of stamps()[tj * TILES_X + ti]) {
+    const i0 = Math.max(pi0, Math.floor((st.x - st.rOut - TERRAIN_X0) / CELL));
+    const i1 = Math.min(pi1, Math.ceil((st.x + st.rOut - TERRAIN_X0) / CELL));
+    const j0 = Math.max(pj0, Math.floor((st.z - st.rOut - TERRAIN_Z0) / CELL));
+    const j1 = Math.min(pj1, Math.ceil((st.z + st.rOut - TERRAIN_Z0) / CELL));
     for (let j = j0; j <= j1; j++)
       for (let i = i0; i <= i1; i++) {
-        const d = Math.hypot(-TERRAIN_EXTENT + i * CELL - st.x, -TERRAIN_EXTENT + j * CELL - st.z);
+        const d = Math.hypot(TERRAIN_X0 + i * CELL - st.x, TERRAIN_Z0 + j * CELL - st.z);
         if (d > st.rOut) continue;
         const w = 1 - smooth(st.rIn, st.rOut, d);
         const k = (j - pj0) * W + (i - pi0);
@@ -217,81 +351,127 @@ function bakeTile(ti: number, tj: number): Float32Array {
       }
     out.set(tmp);
   }
-  // Rainbow Falls' mesa rises out of the west coast; the waterways are carved in; and no other
-  // inland hollow dips below the waterline (the only inland water is the river, the pool and the
-  // lake, so you never "swim" on dry grass)
   const tile = new Float32Array(TS * TS).fill(DEEP_FLOOR);
   for (let j = 0; j < TS; j++) {
     const gj = tj * TERRAIN_TILE + j;
-    if (gj > N - 1) break;
+    if (gj > TERRAIN_NZ - 1) break;
     for (let i = 0; i < TS; i++) {
       const gi = ti * TERRAIN_TILE + i;
-      if (gi > N - 1) break;
-      const x = -TERRAIN_EXTENT + gi * CELL;
-      const z = -TERRAIN_EXTENT + gj * CELL;
-      let h = out[(gj - pj0) * W + (gi - pi0)];
-      const r = Math.hypot(x, z);
-      const coast = coastR(Math.atan2(x, z));
-      const inland = 1 - smooth(coast - 7, coast - 2, r);
-      const bed = waterBedY(x, z);
-      if (bed !== null) {
-        // inland the beds are shaped exactly (an old hollow mustn't make a deep hole in the
-        // lake's shallows); out by the sea the outlet only ever carves down
-        const carved = Math.min(h, bed);
-        h = waterSdf(x, z) < 0 ? carved + (bed - carved) * inland : carved;
-      }
-      // (the mesa after the carving: its cliffs stand right down into the plunge pool)
-      const m = mesaY(x, z, h);
-      if (m !== null) h = Math.max(h, m);
-      if (inland > 0) {
-        const d = bed === null ? 9 : waterSdf(x, z);
-        const floor = WATER_Y + 0.35 + 0.04 * Math.min(Math.max(d, 0), 6);
-        if (d > 0.4 && h < floor) h += (floor - h) * inland;
-      }
-      tile[j * TS + i] = h;
+      if (gi > TERRAIN_NX - 1) break;
+      tile[j * TS + i] = finish(TERRAIN_X0 + gi * CELL, TERRAIN_Z0 + gj * CELL, out[(gj - pj0) * W + (gi - pi0)]);
     }
   }
   return tile;
 }
 
+// ── which tiles the island's ground covers: the land and its reef. The rest of the rectangle is
+// open deep sea (about half of it): never baked — it's DEEP_FLOOR, drawn by the deep sea floor
+// (lib/park/world/sea/deepFloor.ts) along with the other islands' slopes ──
+let cover: Uint8Array | null = null;
+const DEEP_TILE = new Float32Array(TS * TS).fill(DEEP_FLOOR);
+function coverGrid(): Uint8Array {
+  if (cover) return cover;
+  const c = new Uint8Array(TILES_X * TILES_Z);
+  const tw = TERRAIN_TILE * CELL;
+  // (a tile is covered if any of it, padding and all, is within the reef's reach of the coast — the
+  // reef wall ends 46 m out — checked at points across it, with a margin for the blur and the
+  // coast's wobble between them)
+  const reach = 46 + 6 + (PAD + 1) * CELL;
+  for (let tj = 0; tj < TILES_Z; tj++)
+    for (let ti = 0; ti < TILES_X; ti++) {
+      let hit = false;
+      for (let v = 0; v <= 6 && !hit; v++)
+        for (let u = 0; u <= 6 && !hit; u++) {
+          const x = TERRAIN_X0 + (ti + u / 6) * tw;
+          const z = TERRAIN_Z0 + (tj + v / 6) * tw;
+          if (seaDist(x, z) < reach + tw / 12) hit = true;
+        }
+      if (hit) c[tj * TILES_X + ti] = 1;
+    }
+  cover = c;
+  return c;
+}
+/** the cover grid, for the shaders: one byte per tile (1 = the island's ground is drawn there),
+ *  tile (ti, tj) spanning x from TERRAIN_X0 + ti * size (and z likewise) */
+export function terrainCoverGrid(): { data: Uint8Array; nx: number; nz: number; size: number } {
+  return { data: coverGrid(), nx: TILES_X, nz: TILES_Z, size: TERRAIN_TILE * CELL };
+}
+/** is the island's ground (land or reef) drawn at (x, z)? (else it's the open deep sea floor) */
+export function terrainCovers(x: number, z: number): boolean {
+  if (!inTerrain(x, z)) return false;
+  const tw = TERRAIN_TILE * CELL;
+  return coverGrid()[Math.floor((z - TERRAIN_Z0) / tw) * TILES_X + Math.floor((x - TERRAIN_X0) / tw)] === 1;
+}
+
 function tileAt(ti: number, tj: number): Float32Array {
-  const k = tj * TILES + ti;
+  const k = tj * TILES_X + ti;
+  if (!coverGrid()[k]) return DEEP_TILE;
   let t = tiles[k];
+  tileUsed[k] = ++useClock;
   if (!t) {
+    if (baked >= KEEP_TILES) evict();
     t = bakeTile(ti, tj);
     tiles[k] = t;
+    baked++;
   }
   return t;
 }
-
-/** how many of the field's tiles are baked so far (load-cost checks) */
-export function terrainTilesBaked(): number {
-  let n = 0;
-  for (const t of tiles) if (t) n++;
-  return n;
+/** let the least recently used quarter of the tiles go */
+function evict() {
+  const used: number[] = [];
+  for (let k = 0; k < tiles.length; k++) if (tiles[k]) used.push(tileUsed[k]);
+  used.sort((a, b) => a - b);
+  const cut = used[Math.floor(used.length / 4)];
+  for (let k = 0; k < tiles.length; k++)
+    if (tiles[k] && tileUsed[k] <= cut) {
+      tiles[k] = undefined;
+      baked--;
+    }
+  lastK = -1;
 }
 
-/** the grid's cell size (world units) */
-export const TERRAIN_CELL = CELL;
+/** Bake ahead: up to `max` of the not-yet-baked tiles within `r` of (x, z), nearest first, so the
+ *  ground near the kid is ready before anything needs it (call it with spare time each frame).
+ *  Returns how many it baked. */
+export function terrainPrefetch(x: number, z: number, r: number, max = 1): number {
+  const tw = TERRAIN_TILE * CELL;
+  const c = coverGrid();
+  const ti0 = Math.max(0, Math.floor((x - r - TERRAIN_X0) / tw));
+  const ti1 = Math.min(TILES_X - 1, Math.floor((x + r - TERRAIN_X0) / tw));
+  const tj0 = Math.max(0, Math.floor((z - r - TERRAIN_Z0) / tw));
+  const tj1 = Math.min(TILES_Z - 1, Math.floor((z + r - TERRAIN_Z0) / tw));
+  let made = 0;
+  while (made < max) {
+    let best = -1;
+    let bd = Infinity;
+    for (let tj = tj0; tj <= tj1; tj++)
+      for (let ti = ti0; ti <= ti1; ti++) {
+        const k = tj * TILES_X + ti;
+        if (!c[k] || tiles[k]) continue;
+        const d = Math.hypot(TERRAIN_X0 + (ti + 0.5) * tw - x, TERRAIN_Z0 + (tj + 0.5) * tw - z);
+        if (d < r + tw * 0.71 && d < bd) {
+          bd = d;
+          best = k;
+        }
+      }
+    if (best < 0) break;
+    tileAt(best % TILES_X, Math.floor(best / TILES_X));
+    made++;
+  }
+  return made;
+}
+
+/** how many of the field's tiles are baked right now (load-cost checks) */
+export function terrainTilesBaked(): number {
+  return baked;
+}
 
 /** the height at grid sample (i, j) — DEEP_FLOOR off the grid */
 export function terrainSample(i: number, j: number): number {
-  if (i < 0 || j < 0 || i > TERRAIN_N - 1 || j > TERRAIN_N - 1) return DEEP_FLOOR;
-  const ti = Math.min(TILES - 1, Math.floor(i / TERRAIN_TILE));
-  const tj = Math.min(TILES - 1, Math.floor(j / TERRAIN_TILE));
+  if (i < 0 || j < 0 || i > TERRAIN_NX - 1 || j > TERRAIN_NZ - 1) return DEEP_FLOOR;
+  const ti = Math.min(TILES_X - 1, Math.floor(i / TERRAIN_TILE));
+  const tj = Math.min(TILES_Z - 1, Math.floor(j / TERRAIN_TILE));
   return tileAt(ti, tj)[(j - tj * TERRAIN_TILE) * TS + (i - ti * TERRAIN_TILE)];
-}
-
-let grid: Float32Array | null = null;
-/** the whole height grid at once (row-major, TERRAIN_N x TERRAIN_N, z rows / x columns). It bakes
- *  every tile: for tests and offline tools only — the park reads the field through groundY() */
-export function terrainGrid(): Float32Array {
-  if (grid) return grid;
-  const N = TERRAIN_N;
-  const g = new Float32Array(N * N);
-  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) g[j * N + i] = terrainSample(i, j);
-  grid = g;
-  return g;
 }
 
 // (a one-tile memo: most lookups land in the same tile as the last one)
@@ -300,17 +480,16 @@ let lastT: Float32Array = new Float32Array(TS * TS);
 
 /** ground height at (x, z) — everything that stands on the island uses this */
 export function groundY(x: number, z: number): number {
-  const N = TERRAIN_N;
-  const fx = (x + TERRAIN_EXTENT) / CELL;
-  const fz = (z + TERRAIN_EXTENT) / CELL;
-  if (!(fx >= 0 && fz >= 0 && fx < N - 1 && fz < N - 1)) return DEEP_FLOOR;
+  const fx = (x - TERRAIN_X0) / CELL;
+  const fz = (z - TERRAIN_Z0) / CELL;
+  if (!(fx >= 0 && fz >= 0 && fx < TERRAIN_NX - 1 && fz < TERRAIN_NZ - 1)) return DEEP_FLOOR;
   const i = Math.floor(fx);
   const j = Math.floor(fz);
   const ti = (i / TERRAIN_TILE) | 0;
   const tj = (j / TERRAIN_TILE) | 0;
-  const tk = tj * TILES + ti;
+  const tk = tj * TILES_X + ti;
   let g = lastT;
-  if (tk !== lastK) {
+  if (tk !== lastK || !tiles[tk]) {
     g = tileAt(ti, tj);
     lastK = tk;
     lastT = g;
@@ -319,6 +498,28 @@ export function groundY(x: number, z: number): number {
   const v = fz - j;
   const k = (j - tj * TERRAIN_TILE) * TS + (i - ti * TERRAIN_TILE);
   return (g[k] * (1 - u) + g[k + 1] * u) * (1 - v) + (g[k + TS] * (1 - u) + g[k + TS + 1] * u) * v;
+}
+
+/** The ground's height at (x, z) worked out on the spot (no tiles baked): everything but the soft
+ *  blur, so it's within a few centimetres of groundY() — for far-off ground and maps. */
+export function groundYFar(x: number, z: number): number {
+  if (!terrainCovers(x, z)) return DEEP_FLOOR;
+  let h = rawHeight(x, z);
+  const ti = Math.floor((x - TERRAIN_X0) / CELL / TERRAIN_TILE);
+  const tj = Math.floor((z - TERRAIN_Z0) / CELL / TERRAIN_TILE);
+  let w = 0;
+  let target = 0;
+  for (const st of stamps()[Math.min(TILES_Z - 1, tj) * TILES_X + Math.min(TILES_X - 1, ti)]) {
+    const d = Math.hypot(x - st.x, z - st.z);
+    if (d > st.rOut) continue;
+    const s = 1 - smooth(st.rIn, st.rOut, d);
+    if (s > w) {
+      w = s;
+      target = st.h;
+    }
+  }
+  h += (target - h) * w;
+  return finish(x, z, h);
 }
 
 /** how steep the ground is at (x, z): 0 flat .. 1 cliff (for rock vs grass colouring) */

@@ -32,7 +32,8 @@ import {
   frostSeaFloorY,
   frostSlideSplash,
 } from "./frostIsland";
-import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, WRAP_R } from "./terrain";
+import { DEEP_FLOOR, WATER_Y, WRAP_R, terrainCovers } from "./terrain";
+import { seaDist } from "./island";
 import { SKY_ISLANDS } from "./skyIslands";
 import { ISLAND_R } from "./island";
 import { VILLAGE_ISLAND, VILLAGE_SEA_R } from "./villageIsland";
@@ -64,11 +65,15 @@ describe("Frostpeak Isle (the snowy penguin island)", () => {
     const d = hyp(I.x, I.z);
     expect(I.r).toBeGreaterThanOrEqual(60);
     expect(I.r).toBeLessThanOrEqual(80);
-    // about (400, 240)
-    expect(hyp(I.x - 400, I.z - 240)).toBeLessThan(25);
-    const gx = Math.max(-TERRAIN_EXTENT, Math.min(TERRAIN_EXTENT, I.x));
-    const gz = Math.max(-TERRAIN_EXTENT, Math.min(TERRAIN_EXTENT, I.z));
-    expect(hyp(I.x - gx, I.z - gz)).toBeGreaterThan(FROST_SEA_R + 1);
+    // out in the southern sea, about (950, 900)
+    expect(hyp(I.x - 950, I.z - 900)).toBeLessThan(25);
+    const SR = FROST_SEA_R;
+    // (clear of the island's own ground — its land and reef — and well off its coast)
+    for (let k = 0; k < 96; k++) {
+      const a = (k / 96) * Math.PI * 2;
+      for (const f of [0, 0.5, 1]) expect(terrainCovers(I.x + Math.sin(a) * SR * f, I.z + Math.cos(a) * SR * f)).toBe(false);
+    }
+    expect(seaDist(I.x, I.z) - SR).toBeGreaterThan(80);
     expect(d - FROST_SEA_R).toBeGreaterThan(ISLAND_R + 80);
     expect(d + FROST_SEA_R).toBeLessThan(WRAP_R - 60);
     expect(hyp(I.x - VILLAGE_ISLAND.x, I.z - VILLAGE_ISLAND.z)).toBeGreaterThan(FROST_SEA_R + VILLAGE_SEA_R + 50);

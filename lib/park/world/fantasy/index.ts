@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import { grassMask, type GrassMask } from "./mask";
 import { buildTerrainWindows } from "./terrainWindow";
+import { buildWilds, type Wilds } from "./wilds";
 import { planFantasy, SPECIES, type FantasyPlan, type FreeFn } from "./placement";
 import { buildGrassField } from "./grass";
 import { buildGiantTreeGeometry, buildMushroomClusterGeometry, buildTreeGeometry, tintFor } from "./trees";
@@ -35,6 +36,8 @@ export interface FantasyWorld {
   plan: FantasyPlan;
   /** numbers for perf reporting */
   stats: { blades: number; trees: number; rocks: number; crystals: number; ruins: number; islands: number; meshes: number };
+  /** the Wildlands' trees and boulders, streamed round the player (./wilds.ts) */
+  wilds: Wilds;
   /** the grass mask (CPU copy) — pass to buildTerrainMesh({ mask }) to paint bare earth under trails */
   mask: GrassMask;
   /** the floating islands (registry/skyIslands.ts): opened chests, found discoveries (a found
@@ -118,6 +121,11 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
     });
     finish(im);
   }
+
+  // ── the Wildlands beyond the park: forests, groves and boulders, streamed round the player ──
+  const wilds = buildWilds(foliageMat, { lowQuality: low });
+  disposables.push(wilds);
+  group.add(...wilds.meshes);
 
   // ── the Glow Forest: giant ancient trees + glowing mushroom clusters + light shafts ──
   if (plan.giants.length) {
@@ -231,6 +239,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
     group,
     plan,
     mask,
+    wilds,
     sky: {
       setOpened: (ids) => sky.setOpened(ids),
       setSpotsFound: (ids) => sky.setSpotsFound(ids),
@@ -247,6 +256,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
       U.uPulse.value = glow;
       U.uFocus.value.set(focus.x, focus.z);
       win.update(focus.x, focus.z);
+      wilds.update(focus);
       sky.update(t);
     },
     dispose() {

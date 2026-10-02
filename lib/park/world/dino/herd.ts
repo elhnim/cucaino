@@ -261,7 +261,7 @@ export interface HerdPlan {
 }
 export const HERD_PLANS: HerdPlan[] = ([
   { id: "brachio-a", species: "brachio", n: [3, 2], young: [1, 0], day: ["grove-n", "plains-mid", "grove-w", "plains-ne"], water: ["river-mid"], rest: ["grove-n"], travel: 1.3 },
-  { id: "brachio-b", species: "brachio", n: [3, 0], day: ["grove-e", "savanna-e", "savanna-w"], water: ["river-s"], rest: ["grove-e"], travel: 1.3 },
+  { id: "brachio-b", species: "brachio", n: [3, 0], day: ["grove-e", "savanna-s", "savanna-w", "savanna-e"], water: ["river-s"], rest: ["grove-e"], travel: 1.3 },
   { id: "trike-a", species: "trike", n: [5, 3], young: [2, 1], day: ["plains-mid", "plains-ne", "plains-far"], water: ["ford"], rest: ["wood-e"], travel: 2.3 },
   { id: "trike-b", species: "trike", n: [4, 0], young: [1, 0], day: ["savanna-s", "savanna-w", "savanna-e"], water: ["ford", "river-e"], rest: ["wood-s"], travel: 2.3 },
   { id: "para", species: "para", n: [7, 4], day: ["plains-nw", "plains-mid", "plains-far", "savanna-n"], water: ["ford"], rest: ["wood-n"], travel: 2.6 },
@@ -417,6 +417,8 @@ export interface Herd {
   /** which day zone is next, how long until it moves on */
   next: number;
   dwell: number;
+  /** heading for bed already (it set off for its woods in the late dusk) */
+  bed: boolean;
   /** on its way (not yet arrived) */
   moving: boolean;
   /** stampeding away from (fx, fz) for this long */
@@ -969,6 +971,7 @@ export function makeSim(low: boolean): DinoSim {
       phase: -1,
       next: Math.floor(rng() * Math.max(1, plan.day.length)),
       dwell: 10 + rng() * 40,
+      bed: false,
       moving: false,
       flee: 0,
       fx: 0,
@@ -1209,6 +1212,9 @@ export function stepSim(sim: DinoSim, dtIn: number, t: number, hour: number, kx:
   sim.roarCool -= dt;
   sim.showCool -= dt;
   const phase = dayPhase(hour);
+  // (bedtime starts in the late dusk, after the evening drink: the herds set off for their woods
+  // then, so they're there and lying down when night falls — some have a long way to go)
+  SIM_BEDTIME = hour >= 19.25 || hour < 5;
   for (let hi = 0; hi < sim.herds.length; hi++) stepHerd(sim, sim.herds[hi], DTB.d1, phase);
   const A = sim.animals;
   for (let i = 0; i < A.length; i++) capsule(A[i]);
@@ -1433,6 +1439,10 @@ function stepHerd(sim: DinoSim, h: Herd, dt: number, phase: number) {
       else if (phase === 3 && P.rest?.length) want = zoneIx(P.rest[0]);
       else want = freePasture(sim, h);
       h.dwell = 30 + rnd(h) * 40;
+    } else if (SIM_BEDTIME && !h.bed && P.rest?.length) {
+      h.bed = true;
+      want = zoneIx(P.rest[0]);
+      h.dwell = 30 + rnd(h) * 40;
     } else if (phase === 1 && !h.moving && h.dwell <= 0) {
       // (grazed this patch: on to the next pasture — one no other herd is on)
       h.next++;
@@ -1465,9 +1475,10 @@ function stepHerd(sim: DinoSim, h: Herd, dt: number, phase: number) {
     }
     return;
   }
+  if (!SIM_BEDTIME) h.bed = false;
   if (!h.moving) {
-    // (settled: shuffle aside if another herd crowds in)
-    if (herdRepel(sim, h)) {
+    // (settled: shuffle aside if another herd crowds in — not at night: they sleep side by side)
+    if (phase !== 3 && herdRepel(sim, h)) {
       const nx = h.cx + _rep.x * 0.6 * dt;
       const nz = h.cz + _rep.z * 0.6 * dt;
       DQ[0] = nx;
@@ -2027,6 +2038,16 @@ function stepWalker(sim: DinoSim, a: Animal, dt: number, t: number, night: boole
       case WALK: {
         speedWant = a.run ? def.run : def.walk;
         const d = Math.sqrt((a.tx - a.x) * (a.tx - a.x) + (a.tz - a.z) * (a.tz - a.z));
+        // (at night, near its herd in the woods: if it can't get right to its spot — a tree in the
+        // way — it lies down where it is instead of shuffling about all night)
+        if (night && settled && a.rank !== 0 && !P.home && rnd(a) < dt * 0.4) {
+          const dh = Math.sqrt((homeX - a.x) * (homeX - a.x) + (homeZ - a.z) * (homeZ - a.z));
+          if (dh < 7 + size * 2) {
+            a.state = REST;
+            a.timer = 20 + rnd(a) * 30;
+            break;
+          }
+        }
         if (d < 0.6 + size * 0.3 || a.timer <= 0) {
           if (a.tree >= 0) {
             a.state = SPECIAL;
@@ -2111,8 +2132,9 @@ function stepWalker(sim: DinoSim, a: Animal, dt: number, t: number, night: boole
   // the kid's in the way: giants stop and let them pass; the others step aside, round them
   let steerX = 0;
   let steerZ = 0;
-  const personal = def.personal * (a.baby ? 0.4 : 1);
-  if (personal > 0 && kid.near) {
+  // (everyone keeps at least a step off the kid — even the little curious ones that come to sniff)
+  const personal = Math.max((def.personal || 0) * (a.baby ? 0.4 : 1), KID_R + 0.4);
+  if (kid.near) {
     _cp.qx = kid.x;
     _cp.qz = kid.z;
     capDist(a);
@@ -2155,6 +2177,27 @@ function stepWalker(sim: DinoSim, a: Animal, dt: number, t: number, night: boole
   a.mvZ = steerZ;
   moveOnGround(sim, a, dt, settled);
   waitForKid = false;
+  // (and whatever it was doing, it never ends a step inside the kid: a little one heading home
+  // through the spot the kid stands on goes round them)
+  if (kid.near && !def.giant && dK < 6) {
+    _cp.qx = kid.x;
+    _cp.qz = kid.z;
+    capDist(a);
+    const gap = KID_R + 0.3 - _cp.d;
+    if (gap > 0) {
+      const ox = a.x - kid.x;
+      const oz = a.z - kid.z;
+      const ol = Math.sqrt(ox * ox + oz * oz);
+      const ux = ol > 1e-3 ? ox / ol : Math.sin(a.yaw + Math.PI / 2);
+      const uz = ol > 1e-3 ? oz / ol : Math.cos(a.yaw + Math.PI / 2);
+      a.x += ux * gap;
+      a.z += uz * gap;
+      a.cax += ux * gap;
+      a.caz += uz * gap;
+      a.cbx += ux * gap;
+      a.cbz += uz * gap;
+    }
+  }
   // (getting nowhere — trapped in a corner of the coast, or behind a tree? then shake free)
   {
     const d = Math.sqrt((a.x - homeX) * (a.x - homeX) + (a.z - homeZ) * (a.z - homeZ));
@@ -2708,6 +2751,8 @@ function keepsApart(a: Animal): boolean {
 }
 /** this step's raptors and prey (see DinoSim) */
 let SIM_RAPTORS: Animal[] = [];
+/** (set by stepSim each step: it's bedtime — the late dusk or the night) */
+let SIM_BEDTIME = false;
 let SIM_PREY: Animal[] = [];
 /** a raptor or a prey animal turning: its new body (a's capsule now) mustn't swing closer than HARD_GAP to the other kind than its old one (a.oax..obz) was */
 function swingApart(a: Animal): boolean {

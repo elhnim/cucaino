@@ -6,7 +6,7 @@
 // every repeated thing is instanced and every update loop is allocation-free.
 import * as THREE from "three";
 import { fxMaterial, makeUniforms } from "../fantasy/shaders";
-import { POND, coastR } from "../../registry/island";
+import { POND, coastR, parkShoreA } from "../../registry/island";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { makeSwimmer, swim, type SwimStyle, type Swimmer } from "../sea/wander";
 import {
@@ -222,7 +222,8 @@ export function buildStorybook(scene: THREE.Scene, opts: { free: FreeFn; lowQual
   const br = rngOf(9191);
   const boats: { s: Swimmer; home: { x: number; z: number; r: number }; style: SwimStyle; sail: boolean; slot: number; scale: number }[] = [];
   for (let i = 0; i < nSea; i++) {
-    const a = (i / nSea) * Math.PI * 2 + 0.4 + br() * 0.5;
+    // (out on the park's own sea)
+    const a = parkShoreA((i + 0.2 + br() * 0.6) / nSea);
     const d = coastR(a) + 30 + br() * 10;
     const x = Math.sin(a) * d;
     const z = Math.cos(a) * d;

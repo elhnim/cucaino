@@ -48,6 +48,8 @@ export interface BuiltPark {
   pathPoints: THREE.Vector3[];
   /** the island's ground, streamed in chunks round the kid (taps are raycast against it) */
   ground: TerrainChunks;
+  /** a Wildlands trunk or boulder within `r` of (x, z) (the kid bumps into them) */
+  wildTrunkAt(x: number, z: number, r: number): { x: number; z: number; r: number } | null;
   /** Star Shards + Sky Rings (the engine drives them with the kid's position) */
   quests3d: Quests3D;
   /** the storybook dressing (dense forest, sheep, windmills, balloons, boats, clouds, misty
@@ -720,6 +722,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     lands: LANDS,
     pathPoints,
     ground,
+    wildTrunkAt: (x, z, r) => fantasy.wilds.trunkAt(x, z, r),
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
     obstacles: [...fantasy.obstacles, ...SEA_FOOTPRINTS, ...waterways.obstacles, ...jungle.obstacles, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES, ...DINO_OBSTACLES],
     quests3d,

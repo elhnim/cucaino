@@ -6,9 +6,9 @@
 //   order against the clock; the next ring glows brightest.
 // Positions are deterministic; which shards a kid has found is kept by the app (per device).
 import * as THREE from "three";
-import { groundY, terrainGrid, TERRAIN_EXTENT, TERRAIN_N } from "../registry/terrain";
+import { groundY, groundYFar, TERRAIN_CELL } from "../registry/terrain";
 import { LANDS, PLACES } from "../registry/places";
-import { coastR, nearTrail } from "../registry/island";
+import { coastR, nearTrail, parkShoreA } from "../registry/island";
 import type { FantasyPlan } from "./fantasy/placement";
 
 export const SHARD_COUNT = 30;
@@ -35,9 +35,12 @@ export function shardSpots(plan: FantasyPlan): ShardSpot[] {
   // floating islands first (the big "you need to fly" goals)
   for (const isl of plan.islands) push(isl.x, isl.y + 3, isl.z, "sky island");
   // mountain peaks and hilltops: local maxima of the terrain
-  const g = terrainGrid();
-  const N = TERRAIN_N;
-  const cell = (TERRAIN_EXTENT * 2) / (N - 1);
+  // (over the park's own land: worked out on the spot, without baking the ground)
+  const N = 320;
+  const cell = TERRAIN_CELL;
+  const E = 200;
+  const g = new Float32Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) g[j * N + i] = groundYFar(-E + i * cell, -E + j * cell);
   const maxima: { x: number; z: number; h: number }[] = [];
   for (let j = 6; j < N - 6; j += 3)
     for (let i = 6; i < N - 6; i += 3) {
@@ -45,7 +48,7 @@ export function shardSpots(plan: FantasyPlan): ShardSpot[] {
       if (h < 5) continue;
       let top = true;
       for (let dj = -6; dj <= 6 && top; dj += 2) for (let di = -6; di <= 6; di += 2) if ((di || dj) && g[(j + dj) * N + i + di] > h) top = false;
-      if (top) maxima.push({ x: -TERRAIN_EXTENT + i * cell, z: -TERRAIN_EXTENT + j * cell, h });
+      if (top) maxima.push({ x: -E + i * cell, z: -E + j * cell, h });
     }
   maxima.sort((a, b) => b.h - a.h);
   for (const m of maxima.slice(0, 7)) push(m.x, m.h + 1.6, m.z, m.h > 16 ? "peak" : "hilltop");
@@ -55,7 +58,8 @@ export function shardSpots(plan: FantasyPlan): ShardSpot[] {
   for (const c of plan.crystals.filter((_, i) => i % 3 === 0)) push(c.x + 1.5, groundY(c.x + 1.5, c.z) + 1.4, c.z, "crystals");
   // hidden coves along the beach
   for (let k = 0; k < 8; k++) {
-    const a = (k / 8) * Math.PI * 2 + 0.35;
+    // (along the park's own shore)
+    const a = parkShoreA((k + 0.5) / 8);
     const r = coastR(a) - 4;
     const x = Math.sin(a) * r;
     const z = Math.cos(a) * r;

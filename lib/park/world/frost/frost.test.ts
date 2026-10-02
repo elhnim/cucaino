@@ -41,15 +41,19 @@ describe("Frostpeak Isle rendering", { timeout: 60_000 }, () => {
     const aur = () => ((aurora.material as THREE.ShaderMaterial).uniforms.uAurora.value as number);
     f.update(1 / 30, 1, { kid: new THREE.Vector3(FROST_ISLAND.x - FROST_HIDE_D - 20, 0, FROST_ISLAND.z), glow: 1, hour: 22, under: false });
     expect(group.visible).toBe(false);
-    f.update(1 / 30, 1.1, { kid: new THREE.Vector3(0, 0, 0), glow: 0, hour: 12, under: false });
+    // Frostpeak moved far out from the plaza for the 10x island (it's ~1.3 km away now, well past
+    // FROST_HIDE_D), so "shows from nearby" means actually nearby the isle, not the park's origin
+    f.update(1 / 30, 1.1, { kid: new THREE.Vector3(FROST_ISLAND.x - 300, 0, FROST_ISLAND.z), glow: 0, hour: 12, under: false });
     expect(group.visible).toBe(true);
     const near = new THREE.Vector3(FROST_COLONY.x, 2, FROST_COLONY.z);
     f.update(1 / 30, 1.2, { kid: near, glow: 0, hour: 12, under: false });
     expect(aur()).toBe(0);
     f.update(1 / 30, 1.3, { kid: near, glow: 1, hour: 22, under: false });
     expect(aur()).toBeGreaterThan(0.9);
-    // (from the park's own island it's too far away to see)
-    f.update(1 / 30, 1.4, { kid: new THREE.Vector3(0, 0, 0), glow: 1, hour: 22, under: false });
+    // too far from the isle to see its aurora clearly, but still just inside FROST_HIDE_D (so the
+    // aurora uniform is actually refreshed rather than left stale from the "near" update above) —
+    // the park's own origin is now ~1.3 km off, well past FROST_HIDE_D entirely
+    f.update(1 / 30, 1.4, { kid: new THREE.Vector3(FROST_ISLAND.x - 470, 0, FROST_ISLAND.z), glow: 1, hour: 22, under: false });
     expect(aur()).toBeLessThan(0.3);
     f.dispose();
   });

@@ -13,7 +13,7 @@
 //   B_WET     inland water: the meadow lakes (the sea's beaches don't count)
 //   B_SHORE   dry ground right at the edge of the pond, the stream or a lake (drinking spots)
 //   B_JUNGLE  under the rainforest's canopy (lib/park/registry/jungle.ts)
-import { ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, coastR } from "../../registry/island";
+import { ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, seaDist } from "../../registry/island";
 import { LANDS, PLACES } from "../../registry/places";
 import { zoneBounds } from "../../builder/rules";
 import { WATER_Y, groundY, slopeAt } from "../../registry/terrain";
@@ -133,8 +133,7 @@ function lowest(x: number, z: number): number {
 
 /** is dry, walkable island ground here (the rule the grid bakes, for one point) */
 export function dryLandAt(x: number, z: number): boolean {
-  const r = Math.hypot(x, z);
-  if (r > coastR(Math.atan2(x, z)) - 2.5) return false;
+  if (seaDist(x, z) > -2.5) return false;
   if (groundY(x, z) < WATER_Y + 0.3) return false;
   if (Math.hypot(x - POND.x, z - POND.z) < POND.r + 0.3) return false;
   if (waterSdf(x, z) < 0.35) return false;
@@ -176,15 +175,15 @@ export function buildWalkGrid(covered: Uint8Array | null, obstacles: readonly { 
       let b = 0;
       if (pd < POND.r - 0.5) b |= B_POND;
       if (sd < STREAM_WIDTH / 2 || (nearS && waterSdf(x, z) < 0 && groundY(x, z) < WATER_Y)) b |= B_STREAM;
-      const coast = coastR(Math.atan2(x, z));
+      const shore = seaDist(x, z);
       const low = lowest(x, z);
       const lf = fieldAt(f.land, x, z);
       // (near a land's edge the 2 m distance field is coarse: check the real shapes)
-      const land = r < coast - 2.5 && low > WATER_Y + 0.4 && pd > POND.r + 0.3 && waterSdf(x, z) > 0.35 && lf > 0 && (lf > 5 || !nearLand(x, z));
+      const land = shore < -2.5 && low > WATER_Y + 0.4 && pd > POND.r + 0.3 && waterSdf(x, z) > 0.35 && lf > 0 && (lf > 5 || !nearLand(x, z));
       if (land) {
         b |= B_LAND;
         if (waterSdf(x, z) < 2.6) b |= B_BANK;
-      } else if (r < coast - 8 && groundY(x, z) < WATER_Y - 0.05) b |= B_WET;
+      } else if (shore < -8 && groundY(x, z) < WATER_Y - 0.05) b |= B_WET;
       const g = gridIndex(x, z);
       if (!covered || g < 0 || !covered[g]) b |= B_OPEN;
       if (fieldAt(f.trail, x, z) < 2.1) b |= B_TRAIL;

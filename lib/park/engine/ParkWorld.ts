@@ -1316,6 +1316,19 @@ export class ParkWorld {
         pos.z = o.z + (dz / d) * o.r;
       }
     }
+    // the Wildlands' trunks and boulders
+    if (!aloft && !this.onSky && !this.gliding) {
+      const kr = this.mount ? 0.9 : 0.45;
+      for (let k = 0; k < 2; k++) {
+        const t = this.park.wildTrunkAt(pos.x, pos.z, kr);
+        if (!t) break;
+        const dx = pos.x - t.x;
+        const dz = pos.z - t.z;
+        const d = Math.hypot(dx, dz) || 1;
+        pos.x = t.x + (dx / d) * (t.r + kr);
+        pos.z = t.z + (dz / d) * (t.r + kr);
+      }
+    }
     // the rainforest's undergrowth is too thick to push through (and nobody climbs the falls' cliffs):
     // slide along its edge
     if (!aloft && !this.onSky && !this.gliding && !this.launch && !this.sky) pushOutOfThicket(pos, this.mount ? 0.9 : 0.55);
@@ -2085,9 +2098,15 @@ export class ParkWorld {
       const ahead = moving ? 3 : 1.2;
       const lx = pos.x + Math.sin(kid.facing) * ahead;
       const lz = pos.z + Math.cos(kid.facing) * ahead;
-      this.lookAtPt.lerp(new THREE.Vector3(lx, pos.y + seatY + 1.2, lz), Math.min(1, dt * 3));
+      // (after a jump — the world wrap, a ride far across the island — snap rather than ease the
+      // whole way: an easing camera hundreds of metres behind would see past the sky)
+      const lookWant = new THREE.Vector3(lx, pos.y + seatY + 1.2, lz);
+      if (this.lookAtPt.distanceTo(lookWant) > 60) this.lookAtPt.copy(lookWant);
+      else this.lookAtPt.lerp(lookWant, Math.min(1, dt * 3));
       // ease an un-lifted camera position, then add the hill lift on top (so the lift can't feed back)
-      this.camBase.lerp(new THREE.Vector3(this.lookAtPt.x, this.lookAtPt.y - 1.2 - seatY * 0.5, this.lookAtPt.z).add(off), Math.min(1, dt * 3.5));
+      const baseWant = new THREE.Vector3(this.lookAtPt.x, this.lookAtPt.y - 1.2 - seatY * 0.5, this.lookAtPt.z).add(off);
+      if (this.camBase.distanceTo(baseWant) > 60) this.camBase.copy(baseWant);
+      else this.camBase.lerp(baseWant, Math.min(1, dt * 3.5));
       this.camera.position.copy(this.camBase);
       // keep the view clear over hills: march from the kid to the camera and lift the camera
       // until the line of sight clears the ground (and never let it dip into a hill)

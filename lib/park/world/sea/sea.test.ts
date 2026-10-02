@@ -3,13 +3,13 @@ import { abyssFloorY } from "../../registry/abyss";
 import { frostGroundY, frostSeaFloorY } from "../../registry/frostIsland";
 import { dinoSeaFloorY, dinoShoreDist } from "../../registry/dinoIsland";
 import * as THREE from "three";
-import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, WRAP_R, groundY, wrapWorld } from "../../registry/terrain";
+import { DEEP_FLOOR, TERRAIN_X0, TERRAIN_X1, TERRAIN_Z1, WATER_Y, WRAP_R, groundY, terrainCovers, wrapWorld } from "../../registry/terrain";
 import { rngOf } from "../fantasy/noise";
 import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, seaFloorY, shiftSwimmers, swim, trackFocus, wrapAngle, type SwimStyle } from "./wander";
 import { BREACH, CRUISE, EV_BLOW, EV_DRIP, EV_ENTER, EV_EXIT, FLUKE, SURFACE, WHALE_STYLE, bodyToWorld, directWhales, makeWhale, makeWhaleDirector, noseY, startMode, stepWhale, tailY, whaleLen, type Whale } from "./whales";
 import { WHALE_GIRTH, blowholeLocal, whaleGeometry } from "./whaleGeometry";
 import { seaDisc } from "../ocean";
-import { villageSeaFloorY } from "../../registry/villageIsland";
+import { villageGroundY, villageSeaFloorY } from "../../registry/villageIsland";
 import { makeVisit, startVisit, stepVisit } from "./visits";
 
 const OPEN: SwimStyle = { speed: [3, 5], turn: 0.25, wander: 0.05, depth: [2, 4], clear: 2, need: 10, look: 30, climb: 1, bank: 2 };
@@ -24,22 +24,37 @@ describe("the boundless sea floor", () => {
     for (let i = 0; i < 400; i++) {
       const a = r() * Math.PI * 2;
       const d = 300 + r() * 900;
+      const x = Math.sin(a) * d;
+      const z = Math.cos(a) * d;
       // (except Coralcove Isle's slopes, which rise out of the deep, and the Midnight Rift's crack)
-      if (villageSeaFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
-      if (abyssFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
-      if (frostSeaFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null || frostGroundY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
-      if (dinoSeaFloorY(Math.sin(a) * d, Math.cos(a) * d) !== null) continue;
-      const y = seaFloorY(Math.sin(a) * d, Math.cos(a) * d);
+      if (villageSeaFloorY(x, z) !== null) continue;
+      if (abyssFloorY(x, z) !== null) continue;
+      if (frostSeaFloorY(x, z) !== null || frostGroundY(x, z) !== null) continue;
+      if (dinoSeaFloorY(x, z) !== null) continue;
+      // (the main island itself: now 10x across and joined onto the huge Wildlands, so 300-1200 m
+      //  from the plaza is often still dry land, not open sea — terrainCovers says where its ground,
+      //  park or Wildlands alike, is actually drawn)
+      if (terrainCovers(x, z)) continue;
+      const y = seaFloorY(x, z);
       expect(y).toBeGreaterThan(DEEP_FLOOR - 1);
       expect(y).toBeLessThan(DEEP_FLOOR + 1);
     }
   });
   it("has no step or cliff where the grid ends", () => {
     for (let k = 0; k < 200; k++) {
-      const u = -TERRAIN_EXTENT + (k / 199) * TERRAIN_EXTENT * 2;
-      expect(Math.abs(seaFloorY(u, TERRAIN_EXTENT + 0.2) - seaFloorY(u, TERRAIN_EXTENT - 0.8))).toBeLessThan(0.8);
-      let prev = seaFloorY(u, TERRAIN_EXTENT);
-      for (let z = TERRAIN_EXTENT; z < TERRAIN_EXTENT + 20; z += 0.5) {
+      // (along the field's southern edge)
+      const u = TERRAIN_X0 + (k / 199) * (TERRAIN_X1 - TERRAIN_X0);
+      // (the field's now big enough that its southern edge runs right past Coralcove Isle's own
+      //  jetty — a real deck at a real height, not a seam in the terrain field — so skip the
+      //  stretch a satellite island's ground or slopes reach into and sample a clean run of it)
+      let touchesIsland = false;
+      for (let z = TERRAIN_Z1 - 2; z < TERRAIN_Z1 + 20 && !touchesIsland; z += 2) {
+        if (villageGroundY(u, z) !== null || villageSeaFloorY(u, z) !== null || frostSeaFloorY(u, z) !== null || frostGroundY(u, z) !== null || dinoSeaFloorY(u, z) !== null) touchesIsland = true;
+      }
+      if (touchesIsland) continue;
+      expect(Math.abs(seaFloorY(u, TERRAIN_Z1 + 0.2) - seaFloorY(u, TERRAIN_Z1 - 0.8))).toBeLessThan(0.8);
+      let prev = seaFloorY(u, TERRAIN_Z1);
+      for (let z = TERRAIN_Z1; z < TERRAIN_Z1 + 20; z += 0.5) {
         const y = seaFloorY(u, z);
         expect(Math.abs(y - prev)).toBeLessThan(0.6);
         prev = y;
@@ -75,6 +90,10 @@ describe("roaming", () => {
       // start out at sea, heading straight for the beach
       // (not from Dino Isle's side: out west its slopes come within ~260 m of the main island)
       if (dinoShoreDist(Math.sin(a) * 260, Math.cos(a) * 260) < 80) continue;
+      // (the island's grown ~10x across and joined onto the Wildlands, so most headings at 260 m
+      //  from the plaza are dry land now, not open sea — only the park's own shore arc still has
+      //  water out here; skip any heading that doesn't actually start at sea)
+      if (seaDepth(Math.sin(a) * 260, Math.cos(a) * 260) < OPEN.need) continue;
       const s = makeSwimmer(Math.sin(a) * 260, -3, Math.cos(a) * 260, a + Math.PI, 100 + k, 4);
       let minDepth = Infinity;
       for (let t = 0; t < 120; t += dt) {
@@ -104,15 +123,19 @@ describe("roaming", () => {
   it("respawns out of sight around the focus, mostly ahead, in deep enough water, passing close", () => {
     const r = rngOf(11);
     const s = makeSwimmer(0, 0, 0, 0, 1);
-    const focus = { x: 420, z: 0 };
+    // (420, 0) used to be well out in the open sea off the old little island; now that heading
+    // (east) runs straight into the Wildlands, so the focus and its direction of travel are moved
+    // to due south of the plaza instead — still comfortably inside the park's own open sea (the
+    // only stretch of coast with a beach to be "mostly ahead, away from" any more)
+    const focus = { x: 0, z: 300 };
     for (let i = 0; i < 200; i++) {
-      respawn(s, OPEN, focus, 1, 0, r, 150, 230, 1.0);
+      respawn(s, OPEN, focus, 0, 1, r, 150, 230, 1.0);
       const d = Math.sqrt(dist2(s, focus));
       expect(d).toBeGreaterThanOrEqual(149.9);
       expect(d).toBeLessThanOrEqual(230.1);
       expect(seaDepth(s.x, s.z)).toBeGreaterThanOrEqual(OPEN.need);
-      // ahead: within the arc of the direction of travel (+x)
-      expect(Math.abs(wrapAngle(Math.atan2(s.x - focus.x, s.z - focus.z) - Math.PI / 2))).toBeLessThanOrEqual(1.0 + 1e-6);
+      // ahead: within the arc of the direction of travel (+z, south)
+      expect(Math.abs(wrapAngle(Math.atan2(s.x - focus.x, s.z - focus.z) - 0))).toBeLessThanOrEqual(1.0 + 1e-6);
       // heading: its path passes within ~half rMin of the focus
       const fx = Math.sin(s.yaw);
       const fz = Math.cos(s.yaw);
@@ -194,8 +217,11 @@ describe("giant whales", () => {
   });
   it("keep to the open ocean (never the lagoon), and never touch the sea floor", () => {
     const ws = pod();
-    // (a lap of the open ocean round the main island — out west past Dino Isle's shelf too)
-    simulate(ws, 1500, (t, o) => ((o.x = Math.sin(t * 0.01) * 300), (o.z = Math.cos(t * 0.01) * 300), (o.y = 0)), false, () => {
+    // a lap of the open ocean right round the island: a radius of 300 used to clear the old little
+    // island easily, but the Wildlands (registry/island.ts) now reaches out to about 2.8 km from the
+    // plaza at its farthest, so the lap has to be wide enough to clear that too (3000 still comes
+    // well inside WRAP_R, so there's no world-wrap to worry about along the way)
+    simulate(ws, 1500, (t, o) => ((o.x = Math.sin(t * 0.01) * 3000), (o.z = Math.cos(t * 0.01) * 3000), (o.y = 0)), false, () => {
       for (const w of ws) {
         expect(seaDepth(w.x, w.z)).toBeGreaterThan(13);
         expect(w.y).toBeGreaterThan(seaFloorY(w.x, w.z) + 1);

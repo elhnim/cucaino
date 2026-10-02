@@ -10,7 +10,7 @@
 //
 // Pure data + maths, deterministic, no three.js. Built lazily once (tested in jungle.test.ts).
 import { LANDS, PLACES } from "./places";
-import { TRAIL_POINTS, coastR } from "./island";
+import { TRAIL_POINTS, seaDist } from "./island";
 import { smoothstep, type P2 } from "./geom2d";
 import { FALLS, LAKE, MESA, lakeRadius, mesaCliff, mesaRadius, waterSdf } from "./waterways";
 
@@ -50,8 +50,7 @@ export function jungleK(x: number, z: number): number {
   let k = 0;
   for (const b of JUNGLE_BLOBS) k = Math.max(k, 1 - smoothstep(b.r - 6, b.r + 2, Math.hypot(x - b.x, z - b.z) + n));
   if (k <= 0) return 0;
-  const r = Math.hypot(x, z);
-  k *= 1 - smoothstep(coastR(Math.atan2(x, z)) - 14, coastR(Math.atan2(x, z)) - 9, r);
+  k *= 1 - smoothstep(-14, -9, seaDist(x, z));
   // every land keeps a meadow round it (Pet Meadow, Friends Café, the Golf Green ...)
   for (const l of LANDS) k *= smoothstep(l.radius + 3, l.radius + 6.5, Math.hypot(x - l.x, z - l.z) + n * 0.3);
   // the lake's shore stays open meadow

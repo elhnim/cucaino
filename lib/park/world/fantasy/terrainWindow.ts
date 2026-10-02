@@ -5,7 +5,7 @@
 // their lazily baked tiles — whenever the focus wanders far enough from the window's middle.
 // The shaders turn world xz into window uv with the uniforms here (TERRAIN_GLSL, MASK_GLSL).
 import * as THREE from "three";
-import { TERRAIN_CELL, TERRAIN_EXTENT, terrainSample } from "../../registry/terrain";
+import { TERRAIN_CELL, TERRAIN_X0, TERRAIN_Z0, terrainSample } from "../../registry/terrain";
 import { MASK_HALF, MASK_TILE, maskPx, maskTile } from "./mask";
 
 /** the height window, in grid samples a side */
@@ -64,16 +64,29 @@ export function buildTerrainWindows(maskN: number, maskWin: number): TerrainWind
     uTerrCell: { value: TERRAIN_CELL },
     uTerrN: { value: HW },
   };
-  let hi0 = NaN;
-  let hj0 = NaN;
-  const fillHeights = (x: number, z: number) => {
-    const ci = Math.round((x + TERRAIN_EXTENT) / TERRAIN_CELL);
-    const cj = Math.round((z + TERRAIN_EXTENT) / TERRAIN_CELL);
-    hi0 = ci - HW / 2;
-    hj0 = cj - HW / 2;
-    for (let j = 0; j < HW; j++) for (let i = 0; i < HW; i++) hData[j * HW + i] = THREE.DataUtils.toHalfFloat(terrainSample(hi0 + i, hj0 + j));
-    height.uTerrO.value.set(-TERRAIN_EXTENT + hi0 * TERRAIN_CELL, -TERRAIN_EXTENT + hj0 * TERRAIN_CELL);
+  // (a refill is worked out into a spare buffer a few rows a frame, then swapped in whole: the old
+  // window stays up meanwhile — the focus is still well inside it)
+  let hPend: { i0: number; j0: number; row: number; buf: Uint16Array } | null = null;
+  const hSpare = new Uint16Array(HW * HW);
+  const startHeights = (x: number, z: number) => {
+    const ci = Math.round((x - TERRAIN_X0) / TERRAIN_CELL);
+    const cj = Math.round((z - TERRAIN_Z0) / TERRAIN_CELL);
+    hPend = { i0: ci - HW / 2, j0: cj - HW / 2, row: 0, buf: hSpare };
+  };
+  /** carry on with a height refill until `deadline`; true once it's swapped in */
+  const stepHeights = (deadline: number) => {
+    const P = hPend!;
+    while (P.row < HW) {
+      const j = P.row;
+      for (let i = 0; i < HW; i++) P.buf[j * HW + i] = THREE.DataUtils.toHalfFloat(terrainSample(P.i0 + i, P.j0 + j));
+      P.row++;
+      if (P.row < HW && performance.now() > deadline) return false;
+    }
+    hData.set(P.buf);
+    height.uTerrO.value.set(TERRAIN_X0 + P.i0 * TERRAIN_CELL, TERRAIN_Z0 + P.j0 * TERRAIN_CELL);
     hTex.needsUpdate = true;
+    hPend = null;
+    return true;
   };
 
   // ── the grass mask: maskWin² RGBA8, pixel (i, j) = the mask's pixel (mi0 + i, mj0 + j) ──
@@ -93,21 +106,29 @@ export function buildTerrainWindows(maskN: number, maskWin: number): TerrainWind
   };
   let mi0 = NaN;
   let mj0 = NaN;
-  const fillMask = (x: number, z: number) => {
-    // (whole tiles: the window starts on a tile edge)
-    const ti0 = Math.round((x + MASK_HALF) / px / T - MW / T / 2);
-    const tj0 = Math.round((z + MASK_HALF) / px / T - MW / T / 2);
-    if (ti0 * T === mi0 && tj0 * T === mj0) return;
-    mi0 = ti0 * T;
-    mj0 = tj0 * T;
-    const nt = MW / T;
-    for (let tj = 0; tj < nt; tj++)
-      for (let ti = 0; ti < nt; ti++) {
-        const t = maskTile(maskN, ti0 + ti, tj0 + tj);
-        for (let j = 0; j < T; j++) mData.set(t.subarray(j * T * 4, (j + 1) * T * 4), ((tj * T + j) * MW + ti * T) * 4);
-      }
+  let mPend: { ti0: number; tj0: number; k: number } | null = null;
+  const mSpare = new Uint8Array(MW * MW * 4);
+  const nt = MW / T;
+  /** the window's tile origin for a focus (whole tiles: the window starts on a tile edge) */
+  const maskOrigin = (x: number, z: number) => [Math.round((x + MASK_HALF) / px / T - nt / 2), Math.round((z + MASK_HALF) / px / T - nt / 2)];
+  /** carry on with a mask refill until `deadline`; true once it's swapped in */
+  const stepMask = (deadline: number) => {
+    const P = mPend!;
+    while (P.k < nt * nt) {
+      const ti = P.k % nt;
+      const tj = Math.floor(P.k / nt);
+      const t = maskTile(maskN, P.ti0 + ti, P.tj0 + tj);
+      for (let j = 0; j < T; j++) mSpare.set(t.subarray(j * T * 4, (j + 1) * T * 4), ((tj * T + j) * MW + ti * T) * 4);
+      P.k++;
+      if (P.k < nt * nt && performance.now() > deadline) return false;
+    }
+    mData.set(mSpare);
+    mi0 = P.ti0 * T;
+    mj0 = P.tj0 * T;
     mask.uMaskO.value.set(-MASK_HALF + mi0 * px, -MASK_HALF + mj0 * px);
     mTex.needsUpdate = true;
+    mPend = null;
+    return true;
   };
 
   let cx = NaN;
@@ -116,18 +137,25 @@ export function buildTerrainWindows(maskN: number, maskWin: number): TerrainWind
     height,
     mask,
     update(x, z) {
-      // (the mask follows tile by tile — a cheap copy of cached tiles — so its window can stay
-      // small; the heights' window is wide and re-centres now and then)
-      const m0 = mi0;
-      const n0 = mj0;
-      fillMask(x, z);
-      let moved = m0 !== mi0 || n0 !== mj0;
-      if (!(Math.abs(x - cx) < RECENTRE && Math.abs(z - cz) < RECENTRE)) {
+      // (the first time, all at once; after that a little each frame, within ~1.5 ms)
+      // (…or all at once after a jump — the world wrap, a ride somewhere far — that left the
+      // grass's reach off the edge of a window)
+      const first = cx !== cx;
+      const deadline = first ? Infinity : performance.now() + 1.5;
+      let moved = false;
+      // the mask follows tile by tile (mostly a copy of cached tiles), so its window stays small
+      const [ti0, tj0] = maskOrigin(x, z);
+      if ((ti0 * T !== mi0 || tj0 * T !== mj0) && !(mPend && mPend.ti0 === ti0 && mPend.tj0 === tj0)) mPend = { ti0, tj0, k: 0 };
+      const mOff = Math.max(Math.abs(x - (-MASK_HALF + mi0 * px + (MW * px) / 2)), Math.abs(z - (-MASK_HALF + mj0 * px + (MW * px) / 2)));
+      if (mPend && stepMask(mOff === mOff && mOff < (MW * px) / 2 - 62 ? deadline : Infinity)) moved = true;
+      // the heights' window is wide and re-centres now and then
+      if (!hPend && !(Math.abs(x - cx) < RECENTRE && Math.abs(z - cz) < RECENTRE)) {
         cx = x;
         cz = z;
-        fillHeights(x, z);
-        moved = true;
+        startHeights(x, z);
       }
+      const hOff = Math.max(Math.abs(x - (height.uTerrO.value.x + (HW * TERRAIN_CELL) / 2)), Math.abs(z - (height.uTerrO.value.y + (HW * TERRAIN_CELL) / 2)));
+      if (hPend && stepHeights(first || !(hOff < (HW * TERRAIN_CELL) / 2 - 62) ? Infinity : Math.max(deadline, performance.now() + 0.8))) moved = true;
       return moved;
     },
     dispose() {

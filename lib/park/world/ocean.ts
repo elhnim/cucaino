@@ -11,7 +11,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { makeSparkTexture } from "./atmosphere";
 import { getToonRamp } from "../assets/loader";
-import { ISLAND_R, coastR } from "../registry/island";
+import { COAST_GLSL, ISLAND_R, coastR, parkShoreA } from "../registry/island";
 import { WATER_Y, groundY } from "../registry/terrain";
 import { VILLAGE_CALM_GLSL } from "../registry/villageIsland";
 import { FROST_CALM_GLSL } from "../registry/frostIsland";
@@ -23,6 +23,8 @@ import { dist2, follow, makeFocusTracker, makeSwimmer, respawn, seaDepth, swim, 
 
 export const BEACH_IN = ISLAND_R; // where grass meets the sand (plus the coast wobble)
 export const SHORE_R = ISLAND_R + 14; // where the sand meets the water
+/** the beach things and the sea life by the park start along the park's own shore */
+const parkSeaA = parkShoreA;
 
 /** bend a ring/disc geometry (lying in XY before rotation) so its edge follows the natural coastline */
 export function wobbleToCoast(geo: THREE.BufferGeometry, minR = 0) {
@@ -80,15 +82,15 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   let seed = 77;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   for (let i = 0; i < 70; i++) {
-    const a = rnd() * Math.PI * 2;
-    const rad = (BEACH_IN + 2 + rnd() * (SHORE_R - BEACH_IN - 1)) * (coastR(a) / ISLAND_R);
+    const a = parkSeaA(rnd());
+    const rad = coastR(a) + 2 + rnd() * (SHORE_R - BEACH_IN - 1);
     mm.compose(new THREE.Vector3(Math.sin(a) * rad, groundY(Math.sin(a) * rad, Math.cos(a) * rad) + 0.02, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 0.5, 1.3).multiplyScalar(0.6 + rnd() * 0.8));
     shells.setMatrixAt(i, mm);
     shells.setColorAt(i, new THREE.Color(shellCols[i % shellCols.length]));
   }
   for (let i = 0; i < 40; i++) {
-    const a = rnd() * Math.PI * 2;
-    const rad = (BEACH_IN + 3 + rnd() * (SHORE_R - BEACH_IN - 2)) * (coastR(a) / ISLAND_R);
+    const a = parkSeaA(rnd());
+    const rad = coastR(a) + 3 + rnd() * (SHORE_R - BEACH_IN - 2);
     mm.compose(new THREE.Vector3(Math.sin(a) * rad, groundY(Math.sin(a) * rad, Math.cos(a) * rad) + 0.05, Math.cos(a) * rad), qq.setFromAxisAngle(up, rnd() * 6), new THREE.Vector3(1, 1, 1).multiplyScalar(OCEAN_K.starfish * (0.7 + rnd() * 0.6)));
     stars.setMatrixAt(i, mm);
     stars.setColorAt(i, new THREE.Color(starCols[i % starCols.length]));
@@ -124,11 +126,13 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         ${VILLAGE_CALM_GLSL}
         ${FROST_CALM_GLSL}
         ${DINO_CALM_GLSL}
+        ${COAST_GLSL}
         void main() {
           vec4 w = modelMatrix * vec4( position, 1.0 );
           float r = length( w.xz );
+          float sd = islandSeaDist( w.xz );
           // (calm over Coralcove's reef too, so its waterline stays put on the beach)
-          float shoreDamp = smoothstep( ${SHORE_R.toFixed(1)}, ${(SHORE_R + 25).toFixed(1)}, r ) * villageCalm( w.xz ) * frostCalm( w.xz ) * dinoCalm( w.xz );
+          float shoreDamp = smoothstep( ${(SHORE_R - ISLAND_R).toFixed(1)}, ${(SHORE_R - ISLAND_R + 25).toFixed(1)}, sd ) * villageCalm( w.xz ) * frostCalm( w.xz ) * dinoCalm( w.xz );
           float wave = seaWave( w.xz, uTime );
           // slope of the swell (for the sky reflection)
           float e = 1.5;
@@ -143,6 +147,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         }`,
       fragmentShader: /* glsl */ `
         uniform float uTime; uniform float uGlow; uniform float uShore; uniform vec3 uFogColor; uniform float uFogNear; uniform float uFogFar;
+        ${COAST_GLSL}
         varying float vR; varying vec2 vXZ; varying float vWave; varying float vDist; varying vec3 vN; varying vec3 vW;
         float hash( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
         float vnoise( vec2 p ) {
@@ -150,12 +155,13 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
           return mix( mix( hash( i ), hash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( hash( i + vec2( 0.0, 1.0 ) ), hash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
         }
         void main() {
-          float ang = atan( vXZ.x, vXZ.y );
-          float coastK = 1.0 + ( sin( ang * 4.0 + 0.5 ) * 5.0 + sin( ang * 9.0 + 2.0 ) * 2.5 ) / ${ISLAND_R.toFixed(1)};
           // (under the island: the terrain and the beach own that)
-          if ( vR < ${(SHORE_R - 6).toFixed(1)} * coastK ) discard;
-          float shore = uShore * coastK;
-          float depth = smoothstep( shore, shore + 90.0, vR );
+          // (vRs: how far out from the coast, as if round the old little island — so the shore
+          // colours, foam and shallows follow the real coast everywhere)
+          float vRs = islandSeaDist( vXZ ) + ${ISLAND_R.toFixed(1)};
+          if ( vRs < ${(SHORE_R - 6).toFixed(1)} ) discard;
+          float shore = uShore;
+          float depth = smoothstep( shore, shore + 90.0, vRs );
           // (linear colours: the output pass brightens them into sRGB)
           vec3 shallow = mix( vec3( 0.05, 0.52, 0.55 ), vec3( 0.04, 0.2, 0.4 ), uGlow );
           vec3 deep = mix( vec3( 0.07, 0.3, 0.78 ), vec3( 0.03, 0.05, 0.24 ), uGlow );
@@ -202,21 +208,21 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
           float cap = step( 0.93, wh ) * wshape * smoothstep( 0.35, 0.95, vWave ) * depth * ( 1.0 - smoothstep( 1.0, 3.0, fw ) );
           col = mix( col, vec3( 0.96, 0.99, 1.0 ) * mix( 1.0, 0.45, uGlow ), cap * 0.8 );
           // foam lapping at the shore
-          float foam = smoothstep( shore + 3.5 + sin( uTime * 1.3 + vXZ.x * 0.2 ) * 1.2, shore, vR );
+          float foam = smoothstep( shore + 3.5 + sin( uTime * 1.3 + vXZ.x * 0.2 ) * 1.2, shore, vRs );
           col = mix( col, vec3( 1.0, 0.98, 0.96 ), foam * 0.85 );
           // glowing plankton near the shore and on crests at twilight
           vec2 pq = vXZ * 1.6;
           float pk = step( 0.9, hash( floor( pq ) + floor( uTime * 0.5 ) ) ) * ( 1.0 - smoothstep( 0.05, 0.3, length( fract( pq ) - 0.5 ) ) );
-          float near = 1.0 - smoothstep( shore + 2.0, shore + 45.0, vR );
+          float near = 1.0 - smoothstep( shore + 2.0, shore + 45.0, vRs );
           col += uGlow * pk * ( 0.4 + near ) * vec3( 0.3, 1.0, 0.95 ) * 0.7 * glintK;
           float fog = smoothstep( uFogNear, uFogFar, vDist );
           col = mix( col, uFogColor, fog );
           // clear lagoon water near the beach (you can see the sand and the reef below); out at sea you
           // can see a little way down close by (a whale rising under you), but it's deep blue beyond
-          float clear = 1.0 - smoothstep( shore + 2.0, shore + 34.0, vR );
+          float clear = 1.0 - smoothstep( shore + 2.0, shore + 34.0, vRs );
           // (only looking steeply down: at grazing angles the view would run past the deep floor)
           float seeDown = mix( 0.6, 1.0, max( 1.0 - smoothstep( 0.25, 0.55, V.y ), smoothstep( 60.0, 110.0, vDist ) ) );
-          float open = smoothstep( shore + 44.0, shore + 62.0, vR );
+          float open = smoothstep( shore + 44.0, shore + 62.0, vRs );
           gl_FragColor = vec4( col, mix( mix( 0.95, seeDown, open ), 0.82, clear ) + foam * 0.3 + cap * 0.1 );
         }`,
     }),
@@ -246,7 +252,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const jellies: { x: number; y: number; z: number; s: number; ph: number; sky: boolean; drift: number; sw: Swimmer }[] = [];
   for (let i = 0; i < nJ; i++) {
     const sky = i >= nSea;
-    const a = rnd() * Math.PI * 2;
+    const a = sky ? rnd() * Math.PI * 2 : parkSeaA(rnd());
     const rad = sky ? Math.sqrt(rnd()) * opts.skyJellies.radius : SHORE_R + 8 + rnd() * 70;
     const x = (sky ? opts.skyJellies.x : 0) + Math.sin(a) * rad;
     const z = (sky ? opts.skyJellies.z : 0) + Math.cos(a) * rad;
@@ -301,7 +307,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   mantas.frustumCulled = false;
   const MANTA: SwimStyle = { speed: [2, 3.2], turn: 0.25, wander: 0.05, depth: [0.3, 0.6], clear: 1.5, need: 4, look: 20, climb: 0.5, bank: 1.2 };
   const mantaState = Array.from({ length: mantas.count }, (_, i) => {
-    const a = rnd() * 6.28;
+    const a = parkSeaA(rnd());
     const r = SHORE_R + 24 + rnd() * 70;
     return { sw: makeSwimmer(Math.sin(a) * r, 0, Math.cos(a) * r, a + (i % 2 ? 1 : -1) * Math.PI / 2, 60 + i, 2.5), ph: rnd() * 10 };
   });
@@ -311,7 +317,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   const DOLPHIN: SwimStyle = { speed: [5, 7.5], turn: 0.3, wander: 0.05, depth: [1, 1.4], clear: 1.5, need: 5, look: 26, climb: 1, bank: 1.5 };
   const perPod = dolphins.count / 2;
   const pods = [0, 1].map((p) => {
-    const a = p === 0 ? 1 : 4;
+    const a = p === 0 ? -0.5 : -1.7;
     const r = SHORE_R + 32 + p * 16;
     const lead = makeSwimmer(Math.sin(a) * r, -1.2, Math.cos(a) * r, a + (p ? -1 : 1) * Math.PI / 2, 80 + p * 10, 6);
     const members = Array.from({ length: perPod }, (_, k) => (k === 0 ? lead : makeSwimmer(lead.x - Math.sin(lead.yaw) * 3.6 * k, -1.2, lead.z - Math.cos(lead.yaw) * 3.6 * k, lead.yaw, 81 + p * 10 + k, 6)));
@@ -322,7 +328,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
   turtles.frustumCulled = false;
   const TURTLE: SwimStyle = { speed: [0.5, 0.9], turn: 0.25, wander: 0.05, depth: [0.3, 0.6], clear: 1, need: 2.5, look: 8, climb: 0.3, bank: 0.6 };
   const turtleState = Array.from({ length: turtles.count }, (_, i) => {
-    const a = rnd() * 6.28;
+    const a = parkSeaA(rnd());
     const r = SHORE_R + 12 + rnd() * 40;
     return { sw: makeSwimmer(Math.sin(a) * r, 0, Math.cos(a) * r, a + (rnd() < 0.5 ? -1 : 1) * Math.PI / 2, 100 + i, 0.7), ph: rnd() * 10 };
   });

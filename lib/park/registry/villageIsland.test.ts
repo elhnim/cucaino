@@ -23,7 +23,8 @@ import {
   villageNode,
   villageSeaFloorY,
 } from "./villageIsland";
-import { DEEP_FLOOR, TERRAIN_EXTENT, WATER_Y, WRAP_R } from "./terrain";
+import { DEEP_FLOOR, WATER_Y, WRAP_R, terrainCovers } from "./terrain";
+import { seaDist } from "./island";
 import { SKY_ISLANDS } from "./skyIslands";
 import { ISLAND_R } from "./island";
 
@@ -46,14 +47,19 @@ describe("Coralcove Isle (the village island)", () => {
 
   it("sits far out at sea, clear of the main island's grid, the sky islands and the world wrap", () => {
     const d = hyp(I.x, I.z);
-    expect(d).toBeGreaterThanOrEqual(360);
-    expect(d).toBeLessThanOrEqual(420);
+    // (out in the southern sea, south-south-east of the park)
+    expect(d).toBeGreaterThanOrEqual(680);
+    expect(d).toBeLessThanOrEqual(760);
     expect(I.r).toBeGreaterThanOrEqual(45);
     expect(I.r).toBeLessThanOrEqual(70);
-    // the submerged slopes don't reach the main island's height grid
-    const gx = Math.max(-TERRAIN_EXTENT, Math.min(TERRAIN_EXTENT, I.x));
-    const gz = Math.max(-TERRAIN_EXTENT, Math.min(TERRAIN_EXTENT, I.z));
-    expect(hyp(I.x - gx, I.z - gz)).toBeGreaterThan(VILLAGE_SEA_R + 1);
+    // the submerged slopes don't reach the main island's ground
+    const SR = VILLAGE_SEA_R;
+    // (clear of the island's own ground — its land and reef — and well off its coast)
+    for (let k = 0; k < 96; k++) {
+      const a = (k / 96) * Math.PI * 2;
+      for (const f of [0, 0.5, 1]) expect(terrainCovers(I.x + Math.sin(a) * SR * f, I.z + Math.cos(a) * SR * f)).toBe(false);
+    }
+    expect(seaDist(I.x, I.z) - SR).toBeGreaterThan(80);
     expect(d - VILLAGE_SEA_R).toBeGreaterThan(ISLAND_R + 80);
     // and never touch the wrap edge
     expect(d + VILLAGE_SEA_R).toBeLessThan(WRAP_R - 60);

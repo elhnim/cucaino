@@ -3,7 +3,7 @@
 // floating islands in the sky. Pure + deterministic (no three.js) so it's unit tested: nothing
 // lands on trails, the stream, the pond, the plaza, places or the Dream Park (via `free`), and
 // everything sits on the terrain (groundY).
-import { ISLAND_R, TRAIL_WIDTH, coastR, nearStream, nearTrail } from "../../registry/island";
+import { ISLAND_R, TRAIL_WIDTH, nearStream, nearTrail, seaDist } from "../../registry/island";
 import { LANDS, PLACES } from "../../registry/places";
 import { groundY, slopeAt } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
@@ -139,7 +139,7 @@ export function defaultFantasyFree(): FreeFn {
   return (x, z, pad) => {
     const r = Math.hypot(x, z);
     if (r < 12 + pad) return false; // the plaza and its benches
-    if (r > coastR(Math.atan2(x, z)) - 6 - pad) return false; // the beach
+    if (seaDist(x, z) > -6 - pad) return false; // the beach
     if (x > zb.minX - pad - 1 && x < zb.maxX + pad + 1 && z > zb.minZ - pad - 1 && z < zb.maxZ + pad + 1) return false;
     if (nearTrail(x, z, TRAIL_WIDTH / 2 + pad + 0.6)) return false;
     if (nearStream(x, z, pad + 1.2)) return false;
