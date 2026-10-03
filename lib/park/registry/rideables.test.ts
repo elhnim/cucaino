@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { STATIONS, nearRail } from "./railway";
 import { DRAGON_BREED_IDS } from "../characters/mounts";
-import { DRAGON_PAD, DRAGON_ROOST, RIDEABLE_SPOTS, placeClearance, rideableKeepOut, strollable, trailInfo } from "./rideables";
+import { DRAGON_PAD, DRAGON_ROOST, RIDEABLE_SPOTS, ROOST_NEAR, placeClearance, rideableKeepOut, strollable, trailInfo } from "./rideables";
 import { MOUNT_CAPS, RIDEABLE_KINDS, mountLean, type MountKind } from "../characters/mounts";
 import { PLACES, SPAWN } from "./places";
 import { TRAIL_POINTS, TRAIL_WIDTH, coastR, nearStream } from "./island";
@@ -162,7 +162,8 @@ describe("rideable spots", () => {
   it("the Dragon Roost is a few steps from where kids start, with its sign by the trail", () => {
     const r = of("dragon").find((s) => s.id === "dragon-roost")!;
     expect(r).toBeTruthy();
-    expect(Math.hypot(r.x - SPAWN.x, r.z - SPAWN.z)).toBeLessThan(30);
+    expect(Math.hypot(r.x - ROOST_NEAR.x, r.z - ROOST_NEAR.z)).toBeLessThan(30);
+    expect(Math.hypot(r.x - SPAWN.x, r.z - SPAWN.z)).toBeLessThan(45);
     expect(DRAGON_ROOST.x).toBeCloseTo(r.x, 5);
     expect(DRAGON_ROOST.z).toBeCloseTo(r.z, 5);
     const sg = DRAGON_ROOST.sign;

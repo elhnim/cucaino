@@ -232,6 +232,38 @@ describe("giant whales", () => {
       }
     });
   }, 30_000); // (a long simulation: give it room when the whole suite runs in parallel)
+  it("stay out at sea while the kid walks deep into the Wildlands (never left up on the land)", () => {
+    const ws = pod();
+    // from the park's shore, a walk up into the Wildlands' heart and on to the Great Lake
+    simulate(ws, 900, (t, o) => {
+      const u = Math.min(1, t / 600);
+      o.x = 120 + (1300 - 120) * u;
+      o.z = -60 + (-700 + 60) * u;
+      o.y = 0;
+    }, false, () => {
+      for (const w of ws) {
+        expect(seaDepth(w.x, w.z), `${w.kind} @ ${w.x.toFixed(0)},${w.z.toFixed(0)}`).toBeGreaterThan(2);
+        expect(w.y).toBeLessThan(WATER_Y + 12);
+      }
+    });
+  }, 30_000);
+  it("respawning round a kid far inland leaves a swimmer at sea, and fetches one off the land", () => {
+    const r = rngOf(5);
+    const st: SwimStyle = { ...WHALE_STYLE.blue };
+    const inland = { x: 1133, z: -823 };
+    const s = makeSwimmer(-600, WATER_Y - 6, 400, 0, 1);
+    respawn(s, st, { x: -600, z: 400 }, 0, 0, r, 210, 290);
+    const x0 = s.x;
+    const z0 = s.z;
+    respawn(s, st, inland, 0, 0, r, 210, 290);
+    expect([s.x, s.z]).toEqual([x0, z0]);
+    // one stranded up on the land walks all the way back out to the sea
+    s.x = 1000;
+    s.z = -700;
+    respawn(s, st, inland, 0, 0, r, 210, 290);
+    expect(seaDepth(s.x, s.z)).toBeGreaterThan(st.need);
+    expect(s.y).toBeLessThan(WATER_Y);
+  });
   it("surface to blow, lift their flukes and dive — and humpbacks breach", () => {
     const ws = pod();
     const modes = new Set<string>();

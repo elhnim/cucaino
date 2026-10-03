@@ -10,7 +10,7 @@
 // next to (never on) a trail, clear of every building and its door, off the stream, the Dream Park
 // grid and the Sky Coaster track. Tested in rideables.test.ts.
 import type { DragonBreed, MountKind } from "../characters/mounts";
-import { LANDS, PLACES, SKY_LOOP_N, SPAWN, skyLoopXZ } from "./places";
+import { LANDS, PLACES, SKY_LOOP_N, skyLoopXZ } from "./places";
 import { HILLS, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, TRAIL_WIDTH, coastR, seaDist } from "./island";
 import { WATER_Y, groundY, slopeAt } from "./terrain";
 import { zoneBounds } from "../builder/rules";
@@ -356,12 +356,15 @@ export interface DragonRoost {
   f: { x: number; z: number };
 }
 let roost: DragonRoost | null = null;
+/** the Roost is the open ground nearest here (the plaza's south trail) */
+export const ROOST_NEAR = { x: 0, z: 20 };
 /** where the Roost's loungers lie, as (u, f) from the yard's middle (u: toward the trail) */
 export const ROOST_LOUNGE = { puffwing: [-5.4, -1.5], zippit: [4.6, -3.5] } as const;
 
 {
-  // 1. the Dragon Roost: the open ground nearest where kids start, a few steps off a plaza trail
-  const r = dragonGround(SPAWN.x, SPAWN.z, [8, 13], 45, (x, z) => Math.hypot(x, z) > 22);
+  // 1. the Dragon Roost: open ground by the plaza's south trail (a short walk from where kids
+  //    start, outside their cottage), a few steps off the trail
+  const r = dragonGround(ROOST_NEAR.x, ROOST_NEAR.z, [8, 13], 45, (x, z) => Math.hypot(x, z) > 22);
   if (!r) throw new Error("rideables: no open ground for the Dragon Roost");
   const y = groundY(r.x, r.z) + ROOST_LIFT;
   // (the keep-clear covers the whole yard and its boulder ring: no tree grows inside it)

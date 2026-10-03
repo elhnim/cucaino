@@ -323,29 +323,44 @@ export function respawn(s: Swimmer, st: SwimStyle, focus: { x: number; z: number
   let z = focus.z;
   // a little deeper than it strictly needs (the deep plain is ~21.75 m, give or take the dunes)
   const want = Math.min(st.need * 1.3, st.need + 3);
-  for (let k = 0; k < 20; k++) {
-    // (ahead of the focus first; then all round it — out west, Dino Isle can fill the whole arc ahead)
-    const a = k < 10 ? base + (rnd() * 2 - 1) * spread : rnd() * TAU;
-    const r = rMin + rnd() * (rMax - rMin);
-    x = focus.x + Math.sin(a) * r;
-    z = focus.z + Math.cos(a) * r;
-    // (deep here, and deep enough on the way in towards the focus: a big whale turning up on the
-    //  rim of an island's slopes, heading in, can't turn away in time)
-    const ux = (focus.x - x) / r;
-    const uz = (focus.z - z) / r;
-    const ok = seaDepth(x, z) >= want && seaDepth(x + ux * st.look * 0.5, z + uz * st.look * 0.5) >= st.need && seaDepth(x + ux * st.look, z + uz * st.look) >= st.need;
-    // (the tries from any side must have open water all the way in, too)
-    if (ok && (k < 10 || (seaDepth(x + ux * r * 0.25, z + uz * r * 0.25) >= st.need && seaDepth(x + ux * r * 0.5, z + uz * r * 0.5) >= st.need && seaDepth(x + ux * r * 0.75, z + uz * r * 0.75) >= st.need))) break;
-    if (k === 19) {
-      // everywhere nearby is shallow (we're by the island): follow the coast's distance gradient
-      // out to sea, step by step (a straight line from the plaza doesn't work any more now the
-      // Wildlands has made the coast a huge, lopsided shape instead of a circle round the origin —
-      // heading further along a bearing that happens to point into the Wildlands would only run
-      // deeper inland, never reach the sea)
-      for (let j = 0; j < 80 && seaDepth(x, z) < want; j++) {
-        const out = awayFromCoast(x, z);
-        x += Math.sin(out) * 8;
-        z += Math.cos(out) * 8;
+  const walkOutToSea = () => {
+    // (far enough to cross the whole island if it has to: the Wildlands are ~3 km across)
+    for (let j = 0; j < 600 && seaDepth(x, z) < want; j++) {
+      const out = awayFromCoast(x, z);
+      const step = Math.max(8, -seaDist(x, z) * 0.5);
+      x += Math.sin(out) * step;
+      z += Math.cos(out) * step;
+    }
+  };
+  // the focus is so far inland (the kid out in the Wildlands) that nowhere in reach of it is sea:
+  // leave the swimmer out at sea where it is (callers ask every frame while the kid's that far
+  // off), only fetching one that's somehow on land back out to the water
+  if (seaDist(focus.x, focus.z) < -rMax) {
+    if (seaDepth(s.x, s.z) >= st.need) return;
+    x = s.x;
+    z = s.z;
+    walkOutToSea();
+  } else {
+    for (let k = 0; k < 20; k++) {
+      // (ahead of the focus first; then all round it — out west, Dino Isle can fill the whole arc ahead)
+      const a = k < 10 ? base + (rnd() * 2 - 1) * spread : rnd() * TAU;
+      const r = rMin + rnd() * (rMax - rMin);
+      x = focus.x + Math.sin(a) * r;
+      z = focus.z + Math.cos(a) * r;
+      // (deep here, and deep enough on the way in towards the focus: a big whale turning up on the
+      //  rim of an island's slopes, heading in, can't turn away in time)
+      const ux = (focus.x - x) / r;
+      const uz = (focus.z - z) / r;
+      const ok = seaDepth(x, z) >= want && seaDepth(x + ux * st.look * 0.5, z + uz * st.look * 0.5) >= st.need && seaDepth(x + ux * st.look, z + uz * st.look) >= st.need;
+      // (the tries from any side must have open water all the way in, too)
+      if (ok && (k < 10 || (seaDepth(x + ux * r * 0.25, z + uz * r * 0.25) >= st.need && seaDepth(x + ux * r * 0.5, z + uz * r * 0.5) >= st.need && seaDepth(x + ux * r * 0.75, z + uz * r * 0.75) >= st.need))) break;
+      if (k === 19) {
+        // everywhere nearby is shallow (we're by the island): follow the coast's distance gradient
+        // out to sea, step by step (a straight line from the plaza doesn't work any more now the
+        // Wildlands has made the coast a huge, lopsided shape instead of a circle round the origin —
+        // heading further along a bearing that happens to point into the Wildlands would only run
+        // deeper inland, never reach the sea)
+        walkOutToSea();
       }
     }
   }

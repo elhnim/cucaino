@@ -193,6 +193,8 @@ function blobShadow(size: number) {
   return m;
 }
 
+type HopNear = { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number; breed?: DragonBreed };
+
 export class ParkWorld {
   readonly quality: QualityTier;
   private renderer: THREE.WebGLRenderer;
@@ -299,7 +301,14 @@ export class ParkWorld {
   /** the world ride we're on (bikes, unicorns … are found round the world, not summoned) */
   private rideId: string | null = null;
   private prevFacing = 0;
-  private hopNear: { id: string; kind: MountKind; label: string; x: number; y: number; z: number; yaw: number; breed?: DragonBreed } | null = null;
+  private hopNear: HopNear | null = null;
+  // the last ride the HUD's "Hop on" offered and when (the button is refreshed a few times a
+  // second, the nearest ride every frame: a tap honours what the button showed if it's still close)
+  private hopLast: HopNear | null = null;
+  private hopLastT = -Infinity;
+  // a dragon making friends after "Say hi": once it's done, the kid climbs straight on
+  private bondRide: HopNear | null = null;
+  private hopStyle: { accent?: string; skin?: MountSkin } = {};
   /** parked dragons we've already told the kid about (once each per visit) */
   private dragonHints = new Set<string>();
   /** on skis or on the chairlift: the joystick steers the skis (or does nothing on the lift) */
@@ -783,7 +792,7 @@ export class ParkWorld {
       this.dream = dream;
       this.kid = kid;
       kid.root.position.set(SPAWN.x, 0, SPAWN.z);
-      kid.facing = Math.PI;
+      kid.facing = Math.atan2(-SPAWN.x, -SPAWN.z); // (towards the plaza)
       this.scene.add(kid.root);
       if (pet) {
         this.pet = pet;
@@ -1602,6 +1611,8 @@ export class ParkWorld {
         // a dragon that doesn't know the kid yet: say hello first
         if (n.kind === "dragon" && !this.bondedDragons.has(n.id)) h.label = `\u{1F91A} Say hi to ${DRAGON_BREEDS[n.breed ?? "roostwarden"].name}`;
         this.hopNear = h;
+        this.hopLast = Object.assign(this.hopLast ?? { ...h }, h);
+        this.hopLastT = this.time;
       } else this.hopNear = null;
       if (this.bondSync) {
         this.bondSync = false;
@@ -1615,8 +1626,17 @@ export class ParkWorld {
         this.bondedDragons.add(bondId);
         this.opts.onDragonBond?.(bondId);
         const nm = DRAGON_BREEDS[RIDEABLE_SPOTS.find((q) => q.id === bondId)?.breed ?? "roostwarden"].name;
-        this.opts.onRideHint?.(`\u{1F496} ${nm} is your friend now! Tap Fly to take off`);
-        kid.rig?.play("cheer", true);
+        // the kid said hi to ride it: friends now, so climb on and off we go
+        const b = this.bondRide?.id === bondId ? this.rideStill(this.bondRide, 8) : null;
+        this.bondRide = null;
+        if (b && !this.mount && !this.sky && !this.ride) {
+          this.hopNear = b;
+          this.opts.onRideHint?.(`\u{1F496} ${nm} is your friend now! Up we go: hold \u25B2 to fly higher, \u25BC to swoop down`);
+          this.hopOn(this.hopStyle.accent, this.hopStyle.skin);
+        } else {
+          this.opts.onRideHint?.(`\u{1F496} ${nm} is your friend now! Tap Fly to take off`);
+          kid.rig?.play("cheer", true);
+        }
       }
       // point out a parked dragon close by (once each), and a manta that's come to a diving kid
       // (on foot: how far the kid has walked, for the hints' wait)
@@ -2472,25 +2492,41 @@ export class ParkWorld {
     return this.dragonFx;
   }
 
+  /** `h` where it is now, if it's still free to climb on and within `r` of the kid, else null */
+  private rideStill(h: HopNear, r: number): HopNear | null {
+    const p = this.park?.rides.peek(h.id);
+    const kp = this.kid?.root.position;
+    if (!p || !kp || (p.state !== "idle" && p.state !== "waiting")) return null;
+    if (Math.hypot(p.x - kp.x, p.z - kp.z) > r || Math.abs(p.y - kp.y) > 4.5) return null;
+    return { ...h, x: p.x, y: p.y, z: p.z, yaw: p.yaw };
+  }
+
   get hopTarget(): { kind: MountKind; label: string } | null {
     return this.hopNear ? { kind: this.hopNear.kind, label: this.hopNear.label } : null;
   }
 
   /** Hop onto the ride that's close by (bikes, cars, unicorns, dragons, mantas, whales, dolphins). */
   hopOn(accent?: string, skin?: MountSkin): MountKind | null {
-    const n = this.hopNear;
-    if (!n || !this.park || !this.kid || this.mount || this.sky || this.ride) return null;
-    // a dragon the kid hasn't met: hold out a hand; it sniffs, nuzzles, and you're friends
+    if (!this.park || !this.kid || this.mount || this.sky || this.ride) return null;
+    // (the ride the button showed, if the nearest one has just changed under the kid's thumb)
+    const n = this.hopNear ?? (this.time - this.hopLastT < 2.5 && this.hopLast ? this.rideStill(this.hopLast, 7) : null);
+    if (!n) return null;
+    this.hopStyle = { accent, skin };
+    // a dragon the kid hasn't met: hold out a hand; it sniffs, nuzzles, and you're friends (then
+    // the kid climbs on)
     if (n.kind === "dragon" && !this.bondedDragons.has(n.id)) {
-      if (this.park.rides.bond(n.id)) {
-        const kp = this.kid.root.position;
-        this.kid.facing = Math.atan2(n.x - kp.x, n.z - kp.z);
-        this.kid.root.rotation.y = this.kid.facing;
-        this.kid.rig?.play("wave", true);
-        this.walkTarget = null;
-        this.walkQueue = [];
-        this.opts.onRideHint?.(`\u{1F91A} Hold out your hand and stay still... ${DRAGON_BREEDS[n.breed ?? "roostwarden"].name} is a little shy`);
+      if (!this.park.rides.bond(n.id)) {
+        this.opts.onRideHint?.(`\u{1F409} ${DRAGON_BREEDS[n.breed ?? "roostwarden"].name} is busy right now. Try again in a moment!`);
+        return null;
       }
+      this.bondRide = { ...n };
+      const kp = this.kid.root.position;
+      this.kid.facing = Math.atan2(n.x - kp.x, n.z - kp.z);
+      this.kid.root.rotation.y = this.kid.facing;
+      this.kid.rig?.play("wave", true);
+      this.walkTarget = null;
+      this.walkQueue = [];
+      this.opts.onRideHint?.(`\u{1F91A} Hold out your hand and stay still... ${DRAGON_BREEDS[n.breed ?? "roostwarden"].name} is a little shy`);
       this.hopNear = null;
       return null;
     }
@@ -3104,6 +3140,13 @@ export class ParkWorld {
     this.endLift();
     const p = this.allPlaces().find((x) => x.id === placeId);
     if (!p || !this.kid) return;
+    if (placeId === "my-home") {
+      // (out beside the cottage where they started, in view of the camera)
+      this.kid.root.position.set(SPAWN.x, 0, SPAWN.z);
+      this.kid.facing = Math.atan2(-SPAWN.x, -SPAWN.z);
+      this.nearPlace = null;
+      return;
+    }
     const dir = new THREE.Vector3(-p.x, 0, -p.z).normalize();
     this.kid.root.position.set(p.x, 0, p.z).addScaledVector(dir, p.doorRadius + 1);
     this.kid.facing = Math.atan2(dir.x, dir.z);

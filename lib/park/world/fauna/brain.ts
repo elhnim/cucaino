@@ -334,18 +334,21 @@ export function passable(env: FaunaEnv, a: Agent, x: number, z: number): boolean
   if (p && inPaddock(p, x, z, -0.7)) return false; // everyone else stays outside the fence
   if (roams) {
     // the big ones need room either side (no trunks, water or keep-clear ground under them), and
-    // head room: the giants keep out from under every crown, the deer and roos under low ones
-    if (a.cls > 0) {
-      const head = a.cls === C_GIANT ? CLASS_HEAD[C_GIANT] : a.head + 0.25;
-      if (headroomAt(env.g, x, z) < head) return false;
-      const c = CLEAR[a.cls] * 0.8;
-      for (let k = 0; k < 8; k += 2) {
-        const bx = x + DIRS[k] * c;
-        const bz = z + DIRS[k + 1] * c;
-        const bb = bitsAt(env.g, bx, bz);
-        if ((bb & (B_LAND | B_BLOCK | B_KEEP)) !== B_LAND) return false;
-        if (a.cls === C_GIANT && headroomAt(env.g, bx, bz) < head) return false;
-      }
+    // head room: the giants keep out from under every crown, the deer and roos under low ones.
+    // Every roamer needs this same side-clearance (the roaming map's cellOk/spotOk/segmentOk ask
+    // for it even of the small class) — skip it only for headroom, which small roamers duck under
+    // freely, or a hedgehog, fox, wombat or echidna could walk itself into a nook between trunks
+    // the roaming map doesn't recognise, and never find its way back out (nearestNode would never
+    // see a reachable node from in there).
+    const head = a.cls === C_GIANT ? CLASS_HEAD[C_GIANT] : a.head + 0.25;
+    if (a.cls > 0 && headroomAt(env.g, x, z) < head) return false;
+    const c = CLEAR[a.cls] * 0.8;
+    for (let k = 0; k < 8; k += 2) {
+      const bx = x + DIRS[k] * c;
+      const bz = z + DIRS[k + 1] * c;
+      const bb = bitsAt(env.g, bx, bz);
+      if ((bb & (B_LAND | B_BLOCK | B_KEEP)) !== B_LAND) return false;
+      if (a.cls === C_GIANT && headroomAt(env.g, bx, bz) < head) return false;
     }
     return true;
   }

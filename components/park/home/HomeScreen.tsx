@@ -8,6 +8,7 @@
 // own 3D reactions (the pet trots to its bowl, naps in its bed ...).
 import dynamic from "next/dynamic";
 import { HomeSpeech } from "./HomeSpeech";
+import { Joystick } from "@/components/game/Joystick";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { buyHomeItem, saveHome, type HomeData } from "@/lib/actions/home";
 import { getHomeItem, isStyle } from "@/lib/park/home/catalog";
@@ -292,6 +293,7 @@ export function HomeScreen({
   };
 
   const startEditing = () => {
+    ride.setMove(0, 0);
     ride.setEditing(true);
     setRoom(ride.viewedRoom);
     setEditing(true);
@@ -353,6 +355,7 @@ export function HomeScreen({
             </div>
           </div>
           {msg && <div style={toast}>{msg}</div>}
+          <Joystick onChange={(x, y) => ride.setMove(x, y)} />
           <div style={walkDock}>
             <GameButton variant="primary" onClick={startEditing}>
               🎨 Decorate
@@ -449,7 +452,8 @@ const walkDock: React.CSSProperties = {
   flexWrap: "wrap",
   gap: 10,
   zIndex: 25,
-  padding: "0 12px",
+  // (clear of the joystick, bottom-right)
+  padding: "0 170px 0 12px",
 };
 const petTile: React.CSSProperties = {
   border: "1.5px solid rgba(160,190,255,0.22)",

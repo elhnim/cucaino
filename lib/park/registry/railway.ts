@@ -1,4 +1,4 @@
-// The Wildlands Railway: a steam railway loop from Park Station (just past the park's north-east
+// The Wildlands Railway: a steam railway loop from Park Station (at the park's north-east
 // edge) out across the Wildlands and back — along the foothills under the Great Ridge to the Great
 // Falls, over a trestle bridge across the Wild River to the Great Lake's north shore, on to the Lone
 // Peak, south to the Sunny Plains, over the outlet and home. Five stations; the train stops at
@@ -21,8 +21,14 @@ export interface Station {
 }
 
 const CTRL: P2[] = [
-  [185, -115],
-  [300, -190],
+  // (Park Station at the park's north-east edge, by Market Street and the Book Nook; the line
+  // loops round behind it and heads out)
+  [160, -50],
+  [112, -80],
+  [92, -104],
+  [112, -142],
+  [190, -172],
+  [300, -205],
   [430, -262],
   [560, -330],
   [690, -405],
@@ -48,8 +54,8 @@ const CTRL: P2[] = [
   [720, 290],
   [540, 210],
   [390, 120],
-  [280, 30],
-  [215, -50],
+  [285, 35],
+  [215, -22],
 ];
 /** the loop, sampled every ~3 units (closed: the last point runs back to the first) */
 export const RAIL_POINTS: P2[] = smooth(CTRL, 3, true);
@@ -139,7 +145,7 @@ export const PLATFORM_OFF = 4.2;
 export const PLATFORM = { len: 22, depth: 4.2 };
 
 const STATION_DEFS: { id: string; name: string; emoji: string; at: P2; blurb: string }[] = [
-  { id: "park-station", name: "Park Station", emoji: "🎡", at: [185, -115], blurb: "All aboard for the Wildlands!" },
+  { id: "park-station", name: "Park Station", emoji: "🎡", at: [128, -68], blurb: "All aboard for the Wildlands!" },
   { id: "falls-station", name: "Great Falls", emoji: "💦", at: [950, -640], blurb: "The Great Falls and the rainforest." },
   { id: "lake-station", name: "Great Lake", emoji: "🏖️", at: [1430, -588], blurb: "Sandy beaches and a huge lake to swim in." },
   { id: "peak-station", name: "Lone Peak", emoji: "🏔️", at: [1765, -310], blurb: "The tall snowy Lone Peak." },

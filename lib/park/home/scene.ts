@@ -118,6 +118,8 @@ export interface HomeController {
    */
   speech(): { text: string; x: number; y: number } | null;
   setSpeechHud(on: boolean): void;
+  /** the joystick: x right, y up the screen (into the room), each -1..1 */
+  setMove(x: number, y: number): void;
 }
 
 export type HomeRide = Ride & HomeController;
@@ -534,6 +536,10 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
   let kidRoute: { x: number; z: number }[] = [];
   let kidArrive: (() => void) | null = null;
   let kidRoom: RoomId = roomAt(kidPos.x);
+  // the joystick (x right, z towards the camera); the front door opens when you push into it,
+  // once you've stepped away from it after coming in
+  const kidMove = { x: 0, z: 0 };
+  let doorArmed = false;
 
   const petPos = new THREE.Vector3(SPAWN.x + 1.2, 0, SPAWN.z + 0.8);
   let petFace = 0;
@@ -970,8 +976,34 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
       }
     }
 
-    // kid walking
-    if (kidRoute.length) {
+    // kid walking: the joystick first (sliding along furniture and walls), else the tapped route
+    const mv = Math.hypot(kidMove.x, kidMove.z);
+    if (mv > 0.1 && !editing) {
+      const k = Math.min(1, mv);
+      const step = KID_SPEED * k * dt;
+      const ux = kidMove.x / mv;
+      const uz = kidMove.z / mv;
+      const free = (x: number, z: number) => {
+        if (x < -9.3 || x > 9.3 || z < -3.8 || z > 3.8) return false;
+        // (the kid's front edge too, so they stop at furniture rather than half in it)
+        const a = worldToGlobal(x + ux * 0.3, z + uz * 0.3);
+        const b = worldToGlobal(x, z);
+        return !blocked[a.row * GRID_W + a.c] && !blocked[b.row * GRID_W + b.c];
+      };
+      const nx = kidPos.x + ux * step;
+      const nz = kidPos.z + uz * step;
+      if (free(nx, nz)) kidPos.set(nx, 0, nz);
+      else if (free(nx, kidPos.z)) kidPos.x = nx;
+      else if (free(kidPos.x, nz)) kidPos.z = nz;
+      kidFacing = Math.atan2(ux, uz);
+      const dDoor = Math.hypot(kidPos.x - DOOR_FRONT.x, kidPos.z - DOOR_FRONT.z);
+      if (dDoor > 1.6) doorArmed = true;
+      if (doorArmed && dDoor < 0.7 && uz < -0.5) {
+        doorArmed = false;
+        kidMove.x = kidMove.z = 0;
+        emit({ type: "exit" });
+      }
+    } else if (kidRoute.length) {
       const tgt = kidRoute[0];
       const dx = tgt.x - kidPos.x;
       const dz = tgt.z - kidPos.z;
@@ -1271,6 +1303,14 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
   for (const c of scene.children) own.add(c);
 
   const ride: HomeRide = {
+    setMove(x: number, y: number) {
+      kidMove.x = x;
+      kidMove.z = -y;
+      if (Math.hypot(x, y) > 0.1) {
+        kidRoute = [];
+        kidArrive = null;
+      }
+    },
     scene,
     spawnPoint: new THREE.Vector3(SPAWN.x, 0, SPAWN.z),
     bounds: 1000,

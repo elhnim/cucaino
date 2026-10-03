@@ -511,7 +511,12 @@ export const PLACES: PlaceDef[] = [
   },
 ];
 
-export const SPAWN = { x: 0, z: 20 };
+/** where the kid starts (and comes out when they leave home): right beside their cottage, on the
+ *  camera's side of it so they're in view, just clear of its door */
+export const SPAWN = (() => {
+  const h = PLACES.find((p) => p.id === "my-home")!;
+  return { x: h.x + h.doorRadius + 1.5, z: h.z + 1 };
+})();
 
 export function getPlace(id: string): PlaceDef | undefined {
   return PLACES.find((p) => p.id === id);

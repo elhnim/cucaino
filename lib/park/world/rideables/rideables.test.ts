@@ -358,6 +358,32 @@ describe("buildRideables", () => {
     w.dispose();
   });
 
+  it("the whale and the dolphin never come onto land, whatever the kid does along any coast", () => {
+    const scene = new THREE.Scene();
+    const w = buildRideables(scene, {});
+    let t = 0;
+    let worst = Infinity;
+    let where = "";
+    // a kid swimming along the shore (the park's and the Wildlands'), in and out of the water, then
+    // up the beach — the sea friends come, follow, wait and swim off all the while
+    for (const a of [-2, -0.5, 0.3, 1.2, 2.2, 3]) {
+      for (let i = 0; i < 1200; i++) {
+        const u = a + Math.sin(i / 300) * 0.05;
+        const k0 = atSea(u, i % 400 < 300 ? 18 + (i % 300) * 0.1 : 2);
+        const kid = V(k0.x, WATER_Y - 0.6, k0.z);
+        w.update(0.1, (t += 0.1), { kid, under: false, atSea: i % 400 < 300, glow: 0 });
+        for (const id of ["whale-sea", "dolphin-sea"]) {
+          const p = w.peek(id)!;
+          if (p.state === "away" || p.state === "taken") continue;
+          const d = seaDepth(p.x, p.z);
+          if (d < worst) ((worst = d), (where = `${id} ${p.state} @ ${p.x.toFixed(0)},${p.z.toFixed(0)} (heading ${a})`));
+        }
+      }
+    }
+    expect(worst, where).toBeGreaterThan(1);
+    w.dispose();
+  });
+
   it("a kid diving in deep water is visited by a manta within ~40 s, beside them at their depth", () => {
     const scene = new THREE.Scene();
     const w = buildRideables(scene, {});

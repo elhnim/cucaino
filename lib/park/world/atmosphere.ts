@@ -57,7 +57,7 @@ const TWILIGHT = pal("#0c0a34", "#2c1a66", "#a8469f", "#1d1650", "#7d82e8", "#2a
 
 /** One full park day (day and night) lasts this long. */
 export const PARK_DAY_SECONDS = 15 * 60;
-/** The park's time of day (0..24) at a given moment: a fast day on a shared clock. */
+/** The park's time of day (0..24) `nowMs` into a visit: a fast day that starts at 8 am. */
 export function parkHour(nowMs: number): number {
   return ((nowMs / 1000 / PARK_DAY_SECONDS) * 24 + 8) % 24;
 }
@@ -105,9 +105,10 @@ export function buildAtmosphere(
 ): Atmosphere {
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(d: T) => (disposables.push(d), d);
-  // a whole day (dawn -> day -> golden hour -> glowing night) every PARK_DAY_SECONDS, on a shared
-  // clock so everyone's park is at the same time of day
-  const hourNow = opts.hour ?? (() => parkHour(Date.now()));
+  // a whole day (day -> golden hour -> glowing night -> dawn) every PARK_DAY_SECONDS, starting each
+  // visit in the morning (parkHour(0) is 8 am) so play always begins in daylight
+  const t0 = Date.now();
+  const hourNow = opts.hour ?? (() => parkHour(Date.now() - t0));
 
   // ── sky dome: gradient + twinkling stars that come out as it glows ──
   const skyMat = track(

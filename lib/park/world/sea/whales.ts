@@ -8,6 +8,7 @@
 // (respawning them out of sight when left far behind) and now and then sends one to meet you: it
 // surfaces or breaches near you, or — when you're diving — glides past at your depth.
 import { WATER_Y } from "../../registry/terrain";
+import { seaDist } from "../../registry/island";
 import { smoothstep } from "../fantasy/noise";
 import { climbTo, desiredTurn, dist2, makeSwimmer, respawn, seaDepth, seaFloorY, shallowAhead, swerve, targetY, wiggle, wrapAngle, type FocusTracker, type Swimmer, type SwimStyle } from "./wander";
 
@@ -305,12 +306,15 @@ export const whaleHidden = (w: Whale) => w.mode === CRUISE && w.y + w.girth * 1.
  */
 export function directWhales(whales: Whale[], d: WhaleDirector, f: FocusTracker, focusY: number, under: boolean, dt: number, rnd: () => number): number {
   const focus = f;
+  // the kid's well inland (out in the Wildlands): the whales just carry on out at sea — none is
+  // fetched round them or sent to meet them (it would only run aground heading for the kid)
+  const inland = seaDist(f.x, f.z) < -40;
   let nearest = Infinity;
   for (let i = 0; i < whales.length; i++) {
     const w = whales[i];
     const d2 = dist2(w, focus);
     nearest = Math.min(nearest, d2);
-    if ((d2 > 320 * 320 && whaleHidden(w) && w.cue < 0) || d2 > 470 * 470) {
+    if (!inland && ((d2 > 320 * 320 && whaleHidden(w) && w.cue < 0) || d2 > 470 * 470)) {
       respawn(w, WHALE_STYLE[w.kind], focus, f.vx, f.vz, rnd, 210, 290, 1.2);
       w.mode = CRUISE;
       w.cue = -1;
@@ -328,6 +332,10 @@ export function directWhales(whales: Whale[], d: WhaleDirector, f: FocusTracker,
   }
   d.enc -= dt;
   if (d.enc > 0) return -1;
+  if (inland) {
+    d.enc = 5;
+    return -1;
+  }
   // only in (or over) deep water, and when no whale is already close. A diving kid out over the
   // deep gets a fly-by every 20-35 s (the water is clear: they see it coming)
   const deep = seaDepth(f.x, f.z);

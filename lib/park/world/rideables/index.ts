@@ -24,7 +24,7 @@ import { GARDENS, atSea as seaPoint } from "../underwater/plan";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { skyBob, skyTopY } from "../../registry/skyIslands";
 import { villageGroundY } from "../../registry/villageIsland";
-import { seaDepth, seaFloorY } from "../sea/wander";
+import { awayFromCoast, seaDepth, seaFloorY } from "../sea/wander";
 import { MANTA_CALL, SEA_FIRST_CALL, SEA_ROOT_Y, angleTo, keepGap, mantaDepth, pickMantaCall, pickSeaCall, sideGap, turnTowards, type MantaCall, type SeaCall } from "./plan";
 
 type RideKind = Exclude<MountKind, "pony">;
@@ -642,6 +642,26 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       r.speed = swim;
       return;
     }
+    // (never onto land or into the shallows, whatever it's doing: it turns back out to sea instead;
+    // one that somehow ends up stranded slips away and comes back later)
+    const minD = isW ? 5 : 2.5;
+    if (seaDepth(r.x, r.z) < 1) {
+      r.state = AWAY;
+      r.timer = 8;
+      return;
+    }
+    const px = r.x;
+    const pz = r.z;
+    seaMove(r, dt, t, kid, atSea, isW, surf, swim);
+    if (r.state !== AWAY && seaDepth(r.x, r.z) < minD && seaDepth(r.x, r.z) < seaDepth(px, pz)) {
+      r.x = px;
+      r.z = pz;
+      r.yaw = turnTowards(r.yaw, awayFromCoast(px, pz), 1.5, dt);
+      r.speed *= 0.5;
+    }
+  };
+
+  const seaMove = (r: Ride, dt: number, t: number, kid: THREE.Vector3, atSea: boolean, isW: boolean, surf: number, swim: number) => {
     if (r.state === COMING) {
       // (a big whale cruises in quicker while it's still well off, then glides the last stretch)
       const far = Math.hypot(r.tx - r.x, r.tz - r.z);
@@ -686,7 +706,9 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
     }
     if (r.state === LEAVING) {
       r.timer -= dt;
-      const away = Math.atan2(r.x - kid.x, r.z - kid.z);
+      // away from the kid, out to sea (straight out if away-from-the-kid runs towards the shore)
+      let away = Math.atan2(r.x - kid.x, r.z - kid.z);
+      if (seaDepth(r.x + Math.sin(away) * 20, r.z + Math.cos(away) * 20) < (isW ? 8 : 4)) away = awayFromCoast(r.x, r.z);
       r.yaw = turnTowards(r.yaw, away, 0.8, dt);
       r.speed += (swim * 1.1 - r.speed) * Math.min(1, dt);
       r.x += Math.sin(r.yaw) * r.speed * dt;
