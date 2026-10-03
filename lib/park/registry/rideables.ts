@@ -197,11 +197,16 @@ for (const st of STATIONS.slice(1)) {
     made++;
   }
 }
-// ── and a dragon at the Great Falls and at the Lone Peak (befriend it, fly off over the Wildlands) ──
-for (const [sid, breed] of [
+// ── and a dragon waiting at every station, just past the platform: get off the train, befriend it
+//    and fly off (over the Wildlands, or home) ──
+export const STATION_DRAGONS = [
+  ["park-station", "puffwing"],
   ["falls-station", "zippit"],
+  ["lake-station", "sparkspike"],
   ["peak-station", "skyfin"],
-] as const) {
+  ["plains-station", "roostwarden"],
+] as const;
+for (const [sid, breed] of STATION_DRAGONS) {
   const st = STATIONS.find((s) => s.id === sid)!;
   const p = railAt(st.s);
   let best: { x: number; z: number; s: number } | null = null;
@@ -377,17 +382,8 @@ export const ROOST_LOUNGE = { puffwing: [-5.4, -1.5], zippit: [4.6, -3.5] } as c
   const u = { x: (tx - r.x) / d, z: (tz - r.z) / d };
   const f = { x: -u.z, z: u.x };
   roost = { id: "dragon-roost", x: r.x, z: r.z, y, r: ROOST_R, sign: { x: sx, z: sz, y: groundY(sx, sz) }, u, f };
-  // two dragons lounging in the yard, side by side with the Roostwarden (who lies along the yard's
-  // long axis, f): a Puffwing napping on the warm rocks at the back, a Zippit flitting about at the
-  // front. Spaced so their whole bodies (true size) stay clear of each other and of the perches,
-  // trough and banner (lib/park/world/rideables keeps them apart as they move about too).
-  const lounge = (id: string, breed: DragonBreed, du: number, df: number, yaw: number) => {
-    const x = r.x + u.x * du + f.x * df;
-    const z = r.z + u.z * du + f.z * df;
-    add({ id, kind: "dragon", breed, x, z, yaw, y: groundY(x, z), lounge: true, clear: 0 }, 5);
-  };
-  lounge("dragon-roost-puffwing", "puffwing", ROOST_LOUNGE.puffwing[0], ROOST_LOUNGE.puffwing[1], Math.atan2(f.x, f.z));
-  lounge("dragon-roost-zippit", "zippit", ROOST_LOUNGE.zippit[0], ROOST_LOUNGE.zippit[1], Math.atan2(u.x, u.z) - 0.6);
+  // (the other dragons live out on their own round the island — on the hills, at the harbour and
+  //  at every railway station — not all together here)
 
   // 2. two more: on gentle grassy hills (or open meadows) a short stroll off the trails, spread
   // round the island (far from each other and from the Roost) so there's always one not far away

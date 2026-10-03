@@ -26,7 +26,7 @@ describe("rideable spots", () => {
     expect(of("car").length).toBeLessThanOrEqual(4);
     expect(of("unicorn").length).toBeGreaterThanOrEqual(4);
     expect(of("unicorn").length).toBeLessThanOrEqual(6);
-    expect(of("dragon").length).toBe(7);
+    expect(of("dragon").length).toBe(5);
     expect(of("manta").length).toBeGreaterThanOrEqual(4);
     expect(of("manta").length).toBeLessThanOrEqual(6);
     // sea friends come to you, they're never parked
@@ -71,8 +71,9 @@ describe("rideable spots", () => {
     }
   });
 
-  it("a dragon waits at the Great Falls and at the Lone Peak, on open, level ground off the track", () => {
-    for (const sid of ["falls-station", "peak-station"]) {
+  it("a dragon waits at every station (so a kid getting off the train can fly), on open, level ground off the track", () => {
+    expect(STATIONS.length).toBe(5);
+    for (const sid of STATIONS.map((s) => s.id)) {
       const d = RIDEABLE_SPOTS.find((q) => q.id === `dragon-wild-${sid}`)!;
       expect(d, sid).toBeTruthy();
       expect(d.kind).toBe("dragon");
@@ -148,15 +149,11 @@ describe("rideable spots", () => {
     expect(new Set(alone.map((d) => d.breed)).size).toBe(alone.length);
   });
 
-  it("two dragons lounge in the Roost's yard, on open ground clear of the trail", () => {
-    const lz = of("dragon").filter((s) => s.lounge);
-    expect(lz.length).toBe(2);
-    for (const s of lz) {
-      expect(Math.hypot(s.x - DRAGON_ROOST.x, s.z - DRAGON_ROOST.z), s.id).toBeLessThan(DRAGON_ROOST.r);
-      expect(trailInfo(s.x, s.z).d, s.id).toBeGreaterThan(TRAIL_WIDTH / 2 + 2);
-      expect(placeClearance(s.x, s.z), s.id).toBeGreaterThan(4);
-      expect(slopeAt(s.x, s.z), s.id).toBeLessThan(0.3);
-    }
+  it("the dragons live apart, spread round the island (only the Roostwarden at the Roost)", () => {
+    const ds = RIDEABLE_SPOTS.filter((s) => s.kind === "dragon" && !s.sky);
+    expect(ds.filter((s) => Math.hypot(s.x - DRAGON_ROOST.x, s.z - DRAGON_ROOST.z) < DRAGON_ROOST.r + 20).map((s) => s.id)).toEqual(["dragon-roost"]);
+    for (let i = 0; i < ds.length; i++)
+      for (let j = i + 1; j < ds.length; j++) expect(Math.hypot(ds[i].x - ds[j].x, ds[i].z - ds[j].z), `${ds[i].id} / ${ds[j].id}`).toBeGreaterThan(40);
   });
 
   it("the Dragon Roost is a few steps from where kids start, with its sign by the trail", () => {

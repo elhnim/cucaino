@@ -1515,7 +1515,7 @@ function buildRoostGeometry(): THREE.BufferGeometry {
     wg.translate(-0.3, 0, 0);
     part(wg, "#e8475e", [p[0] + R0.u.x * 0.12, p[1], p[2] + R0.u.z * 0.12], 4.05);
   }
-  // warm napping rocks round the Puffwing's spot
+  // warm napping rocks at the back of the yard (where dragons visiting the Roost like to doze)
   {
     // (an oval round its whole body, a step clear of it)
     const [hl, hw, off] = mountBody("dragon", "puffwing");

@@ -71,7 +71,7 @@ describe("dragon shapes and poses", () => {
 describe("dragons keep their room", () => {
   it("pure: two overlapping dragons and a post are pushed apart", () => {
     const a = foot("dragon-roost", 0, 0, 0);
-    const b = foot("dragon-roost-puffwing", 1.5, 1, 0.4);
+    const b = foot("dragon-hill-1", 1.5, 1, 0.4);
     const post = { x: -1.2, z: 2, r: 0.5 };
     expect(dragonOverlap(a, b)).toBeGreaterThan(1);
     for (let i = 0; i < 6; i++) separateDragons([a, b], [post], 0.4);
@@ -80,10 +80,10 @@ describe("dragons keep their room", () => {
     expect(propOverlap(b, post)).toBeLessThan(-0.3);
   });
 
-  it("at the Roost: no two dragons overlap and none stands in the perches, trough or banner (a minute of their lives, a kid about)", () => {
+  it("at the Roost: the Roostwarden never stands in the perches, trough or banner (a minute of its life, a kid about)", () => {
     const scene = new THREE.Scene();
     const w = buildRideables(scene, {});
-    const ids = ["dragon-roost", "dragon-roost-puffwing", "dragon-roost-zippit"];
+    const ids = ["dragon-roost"];
     const props = roostObstacles();
     const kid = V(DRAGON_ROOST.x + 30, groundY(DRAGON_ROOST.x + 30, DRAGON_ROOST.z), DRAGON_ROOST.z);
     let worst = -9;
@@ -116,26 +116,17 @@ describe("which dragon the kid means", () => {
     expect(facedGap(1.2, 0, 0, 0, 0, 3)).toBeLessThan(facedGap(0.8, 0, 0, 0, 0, -3));
   });
 
-  it("at the Roost, standing nearer the Puffwing but facing the Roostwarden: Say hi to the Roostwarden (and the ring is on it)", () => {
+  it("at the Roost, standing beside the Roostwarden: Say hi to the Roostwarden (and the ring is on it)", () => {
     const scene = new THREE.Scene();
     const w = buildRideables(scene, {});
-    const rw = w.peek("dragon-roost")!;
-    const pw = w.peek("dragon-roost-puffwing")!;
-    // between them, a little nearer the Puffwing
-    const [rhl, rhw] = mountBody("dragon", "roostwarden");
-    void rhl;
-    const [, phw] = mountBody("dragon", "puffwing");
-    const pu = -5.4 + phw + 0.7;
-    expect(pu).toBeLessThan(-rhw - 0.7);
-    const p = roost(pu, 0.4);
+    // beside its flank
+    const [, rhw] = mountBody("dragon", "roostwarden");
+    const p = roost(-rhw - 0.9, 0.4);
     const kid = V(p.x, groundY(p.x, p.z), p.z);
     w.update(0.05, 0.05, { kid, under: false, atSea: false, glow: 0 });
     const towardRw = Math.atan2(DRAGON_ROOST.u.x, DRAGON_ROOST.u.z);
-    expect(w.nearest(kid)!.id).toBe("dragon-roost-puffwing");
+    expect(w.nearest(kid)!.id).toBe("dragon-roost");
     expect(w.nearest(kid, undefined, towardRw)!.id).toBe("dragon-roost");
-    expect(w.nearest(kid, undefined, towardRw + Math.PI)!.id).toBe("dragon-roost-puffwing");
-    void rw;
-    void pw;
     // the highlight follows the target
     w.setTarget("dragon-roost");
     w.update(0.05, 0.1, { kid, under: false, atSea: false, glow: 0 });
