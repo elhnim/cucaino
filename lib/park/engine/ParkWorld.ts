@@ -2457,6 +2457,7 @@ export class ParkWorld {
     const out = this.afloat;
     out.length = 0;
     if (this.park) for (const b of this.park.rides.seaBodies()) out.push(b);
+    if (this.park) for (const b of this.park.fishingBoats.seaBodies()) out.push(b);
     let n = 0;
     forEachBigSea((b) => {
       // (a whale or an orca with its back up near the surface)

@@ -24,6 +24,7 @@ import { WILD_FALLS, WILD_LAKE_OUTLINE, WILD_OUTLET_POINTS, WILD_RIVER_POINTS, w
 import { CART_ROAD } from "@/lib/park/registry/cartRoad";
 import { BOAT_ROUTE } from "@/lib/park/registry/trade";
 import { TRADERS, allTraderStates } from "@/lib/park/world/trade/plan";
+import { allFishingBoatStates } from "@/lib/park/world/sea/fishingBoatsPlan";
 
 type Pose = NonNullable<ReturnType<ParkWorld["getPose"]>>;
 
@@ -350,6 +351,7 @@ export function MiniMap({
   const [tab, setTab] = useState<"park" | "island" | "world">("park");
   const [rides, setRides] = useState<RidePin[]>([]);
   const [tradeDots, setTradeDots] = useState<{ id: string; x: number; z: number; mode: "cart" | "boat" }[]>([]);
+  const [fishDots, setFishDots] = useState<{ id: string; x: number; z: number }[]>([]);
   const last = useRef("");
 
   // poll the engine ~8x a second; only re-render when something visibly moved
@@ -374,6 +376,9 @@ export function MiniMap({
           .filter((s) => s.atPostId === null)
           .map((s) => ({ id: s.id, x: s.x, z: s.z, mode: TRADERS.find((t) => t.id === s.id)!.mode }));
         setTradeDots(dots);
+        // fishing boats: little dots out at sea, on the World tab only (also cheap: a dozen pure
+        // function calls, same clock)
+        setFishDots(allFishingBoatStates(clockT).map((s) => ({ id: s.id, x: s.x, z: s.z })));
       }
     }, 125);
     return () => window.clearInterval(id);
@@ -441,7 +446,7 @@ export function MiniMap({
         style={miniBtn}
         aria-label="Open the park map"
       >
-        <MapSvg pose={pose} size={typeof window !== "undefined" && window.innerWidth < 520 ? 96 : 128} pins={pins} rides={rides} tradeDots={tradeDots} />
+        <MapSvg pose={pose} size={typeof window !== "undefined" && window.innerWidth < 520 ? 96 : 128} pins={pins} rides={rides} tradeDots={tradeDots} fishDots={fishDots} />
         <span style={hereTag}>{here ? `${here.emoji} ${here.name}` : "🍭 Park trails"}</span>
       </button>
       {big && (
@@ -465,7 +470,7 @@ export function MiniMap({
                 ✕
               </button>
             </div>
-            <MapSvg pose={pose} size={0} labels tab={tab} onLand={goTo} onPin={goToPin} onDest={goToDestination} onRide={goToRide} hereId={here?.id} pins={pins} rides={rides} tradeDots={tradeDots} />
+            <MapSvg pose={pose} size={0} labels tab={tab} onLand={goTo} onPin={goToPin} onDest={goToDestination} onRide={goToRide} hereId={here?.id} pins={pins} rides={rides} tradeDots={tradeDots} fishDots={fishDots} />
           </div>
         </div>
       )}
@@ -486,6 +491,7 @@ function MapSvg({
   onRide,
   tab = "park",
   tradeDots = [],
+  fishDots = [],
 }: {
   pose: Pose;
   size: number;
@@ -503,6 +509,8 @@ function MapSvg({
   onRide?: (r: RidePin) => void;
   /** carts and boats on the move, read off plan.ts's pure traderStateAtTime() (Island tab only) */
   tradeDots?: { id: string; x: number; z: number; mode: "cart" | "boat" }[];
+  /** fishing boats out at sea, read off fishingBoatsPlan.ts's pure fishingBoatStateAtTime() (World tab only) */
+  fishDots?: { id: string; x: number; z: number }[];
 }) {
   const globe = tab === "world";
   const island = tab === "island";
@@ -555,6 +563,11 @@ function MapSvg({
               </text>
             </g>
           )}
+          {/* little fishing boats out working the seas */}
+          {globe &&
+            fishDots.map((fd) => (
+              <circle key={fd.id} cx={fd.x} cy={fd.z} r={2.2 * u} fill="#f2ede0" stroke="#4a4440" strokeWidth={0.7 * u} pointerEvents="none" />
+            ))}
           {/* the far islands, the floating mountains and the Abyss (not on the Island tab: a couple
               sit close enough to the big island to land inside its frame, which would read as part
               of it — they belong on the World tab instead) */}

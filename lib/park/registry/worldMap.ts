@@ -114,7 +114,7 @@ export const ISLAND_DESTINATIONS: MapDestination[] = [
   ...STATIONS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: s.blurb })),
   // Wildlands settlements (registry/settlements.ts): one pin each, tappable and dragon-flyable just
   // like a station — new settlements need nothing added here, they just appear
-  ...SETTLEMENTS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: `${s.clan}'s home, on the Great Lake's shore.` })),
+  ...SETTLEMENTS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: `${s.name}, home of ${s.clan}.` })),
 ];
 
 /** mountains labelled on the Island tab (not themselves destinations — the Lone Peak already has

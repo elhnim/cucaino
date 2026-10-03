@@ -46,6 +46,8 @@ export const GOODS: Good[] = [
   { id: "pearls", name: "pearls", emoji: "🦪", color: "#dfeaf0" },
   { id: "coconut", name: "coconut", emoji: "🥥", color: "#8a5a36" },
   { id: "fruit", name: "fruit", emoji: "🍎", color: "#e0503c" },
+  { id: "wool", name: "yak wool", emoji: "🧶", color: "#d9c9a8" },
+  { id: "cheese", name: "mountain cheese", emoji: "🧀", color: "#f0c457" },
 ];
 const GOODS_BY_ID = new Map(GOODS.map((g) => [g.id, g]));
 export const goodOf = (id: string): Good => GOODS_BY_ID.get(id) ?? GOODS[0];
@@ -126,19 +128,26 @@ const coralcoveDock: P2 = (() => {
   return offshoreOf([CORAL_DOCK_POINT.x, CORAL_DOCK_POINT.z], [CORAL_DOCK_POINT.x + ux * 100, CORAL_DOCK_POINT.z + uz * 100], SAIL_DRAFT, avoid, worldSeaDepth, 70);
 })();
 
+// Every Wildlands settlement with a `trade` field joins the network automatically, just by being
+// in SETTLEMENTS — a new one (Treetop, Highstone, …) needs nothing added here. Lakeside alone also
+// gets a cart road and a dock (its own SettlementDef has a pier and sits on the Lakeside<->Market
+// cart road); the others reach the network by train and on foot (registry/footpaths.ts), which only
+// need a `stationId` — already on every SettlementDef.
+const SETTLEMENT_POSTS: TradePost[] = SETTLEMENTS.filter((s): s is typeof s & { trade: { makes: string[]; wants: string[] } } => !!s.trade).map((s) => ({
+  id: s.id,
+  name: s.name,
+  emoji: s.emoji,
+  x: s.x,
+  z: s.z,
+  makes: s.trade.makes,
+  wants: s.trade.wants,
+  road: s.id === "lakeside" ? LAKESIDE_ROAD_END : undefined,
+  dock: s.id === "lakeside" ? lakesideDock : undefined,
+  stationId: s.stationId,
+}));
+
 export const TRADE_POSTS: TradePost[] = [
-  {
-    id: "lakeside",
-    name: LAKESIDE.name,
-    emoji: LAKESIDE.emoji,
-    x: LAKESIDE.x,
-    z: LAKESIDE.z,
-    makes: LAKESIDE.trade.makes,
-    wants: LAKESIDE.trade.wants,
-    road: LAKESIDE_ROAD_END,
-    dock: lakesideDock,
-    stationId: "lake-station",
-  },
+  ...SETTLEMENT_POSTS,
   {
     id: "market",
     name: "Market Street",
@@ -200,6 +209,13 @@ export const TRADE_ROUTES: TradeRoute[] = [
   routeOf("cart-lakeside-market", "lakeside", "market", "cart", [...CART_ROAD.points].reverse()),
   routeOf("boat-lakeside-coralcove", "lakeside", "coralcove", "boat", BOAT_ROUTE),
   routeOf("train-lakeside-market", "lakeside", "market", "train", []),
+  // Treetop and Highstone are station villages too (world/trade/plan.ts's train-riding traders walk
+  // village <-> their own station on registry/footpaths.ts, then ride the loop to the other end) —
+  // a "train" route never carries its own polyline (the single train's own run drives it; see
+  // world/trade/index.ts), same as the original Park<->Lake link above
+  routeOf("train-treetop-lakeside", "treetop", "lakeside", "train", []),
+  routeOf("train-highstone-market", "highstone", "market", "train", []),
+  routeOf("train-treetop-highstone", "treetop", "highstone", "train", []),
 ];
 export const tradeRouteOf = (id: string): TradeRoute | undefined => TRADE_ROUTES.find((r) => r.id === id);
 

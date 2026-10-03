@@ -15,7 +15,8 @@
 // collision and the Island destinations all come from this one list.
 import { seaDist } from "./island";
 import { nearRail, STATIONS } from "./railway";
-import { WILD_LAKE, wildLakeRadius, wildWaterSdf } from "./wildWater";
+import { WILD_FALLS, WILD_LAKE, wildLakeRadius, wildRainforestK, wildWaterSdf } from "./wildWater";
+import { LONE_PEAK, footprintStats, rawHeight, smoothedHeight } from "./landform";
 
 /** kept in step with terrain.ts WATER_Y (registry/settlements.ts must not import terrain.ts: that
  *  would be circular, since terrain.ts's stamps() reads SETTLEMENTS to level their ground) */
@@ -35,6 +36,27 @@ function rngOf(seed: number): () => number {
 }
 const TAU = Math.PI * 2;
 
+/** is the WHOLE footprint of radius `r` round (cx, cz) gentle and flat enough for a village pad,
+ *  checked on the REAL, unlevelled ground (registry/landform.ts's footprintStats — this runs at
+ *  site-search time, before terrain.ts's stamps ever level anything)? Every hut, work spot and
+ *  pasture has to fit inside this one genuinely gentle disc — no cliff is allowed to run through or
+ *  above any part of the village, not even its rim. Calibrated against what the real terrain near
+ *  the Great Falls and the Lone Peak actually offers (settlements.test.ts checks the chosen sites
+ *  against these same numbers): a village sited this way is necessarily a little smaller than one
+ *  that merely levels a disc wherever it lands — see TREETOP_RADIUS / HIGHSTONE_RADIUS. */
+/** the height a settlement's pad is levelled to (terrain.ts stamps() uses this same function): the
+ *  real smoothed ground at its centre. (Lakeside's lake-shore pad sits a touch lower than the bank,
+ *  0.6 of it, so its shore huts and pier meet the water; up in the hills the pad must follow the
+ *  ground itself, or levelling digs the village into a pit walled by rock.) */
+export function settlePadHeight(style: SettlementStyle, x: number, z: number): number {
+  return Math.max(smoothedHeight(x, z) * (style === "lakeside" ? 0.6 : 1), SETTLE_WATER_Y + 0.6);
+}
+
+function footprintOk(cx: number, cz: number, r: number, maxSlope = 0.4, maxRelief = 7): boolean {
+  const s = footprintStats(cx, cz, r);
+  return s.maxSlope <= maxSlope && s.relief <= maxRelief;
+}
+
 // ── the shape of one settlement ──
 
 export interface SettlementHut {
@@ -45,13 +67,53 @@ export interface SettlementHut {
   size: number;
   /** a stilt house standing right at the waterline (Lakeside's shore huts), not a land hut */
   shore?: boolean;
+  /** how high this hut's own floor sits above the ground (Treetop's treehouses, up a giant trunk) —
+   *  omitted (0) for every ground-level hut (Lakeside's reed huts, Highstone's cottages) */
+  elev?: number;
 }
+/** a static grazing animal (Highstone's yaks and goats): no SettlementDef fields move it — it just
+ *  idles in place (a slow head-dip/sway, worked out from its own seed + the clock) — so it can be a
+ *  plain obstacle like a hut, no per-frame simulation needed */
+export interface SettlementFauna {
+  id: string;
+  kind: "yak" | "goat";
+  x: number;
+  z: number;
+  yaw: number;
+  scale: number;
+}
+/** a walkable deck above the ground: a straight sloped walk (a:ramp foot -> b:platform, or a level
+ *  rope bridge platform -> platform) or a round platform itself. Generalises SettlementPier (kept
+ *  as its own field for Lakeside's water-crossing one — this is the same idea for decks that don't
+ *  cross water, e.g. Treetop's treehouse platforms and the ramp/bridge between them). */
+export interface SettlementDeckLine {
+  kind: "line";
+  ax: number;
+  az: number;
+  ay: number;
+  bx: number;
+  bz: number;
+  by: number;
+  half: number;
+  tag: "ramp" | "bridge";
+}
+export interface SettlementDeckCircle {
+  kind: "circle";
+  x: number;
+  z: number;
+  y: number;
+  r: number;
+}
+export type SettlementDeckPiece = SettlementDeckLine | SettlementDeckCircle;
 export interface SettlementProp {
   kind: string;
   x: number;
   z: number;
   yaw: number;
   scale: number;
+  /** an optional height hint a particular prop kind can use however it likes (Treetop's giant trees
+   *  read it as the treehouse elevation their own canopy should clear) — omitted everywhere else */
+  elev?: number;
 }
 export interface SettlementNode {
   id: string;
@@ -146,6 +208,14 @@ export interface SettlementDef {
   pier: SettlementPier | null;
   /** a couple of loop paths canoes paddle on the water near the village (local-offset points) */
   canoeLoops: { x: number; z: number }[][];
+  /** static grazing animals (Highstone's yaks/goats) — empty for every settlement without any */
+  fauna: SettlementFauna[];
+  /** walkable platforms/ramps/bridges above the ground (Treetop's treehouses) — empty elsewhere */
+  decks: SettlementDeckPiece[];
+  /** extra area terrain.ts should level flush with the settlement's own shared pad height, beyond
+   *  any one hut/work spot's own stamp (Highstone's yak pasture, which reaches further out) — empty
+   *  for every settlement that doesn't need one */
+  levelPatches: { x: number; z: number; rIn: number; rOut: number }[];
   /** what this settlement trades (registry/trade.ts turns this into a TRADE_POST automatically —
    *  a new settlement joins the trade network just by filling this in, nothing else to wire up) */
   trade?: { makes: string[]; wants: string[] };
@@ -529,11 +599,591 @@ function generateLakeside(): SettlementDef {
     obstacles,
     pier,
     canoeLoops,
+    fauna: [],
+    decks: [],
+    levelPatches: [],
     trade: { makes: ["fish", "baskets"], wants: ["shells", "bread", "fruit"] },
   };
 }
 
-export const SETTLEMENTS: SettlementDef[] = [generateLakeside()];
+// ── siting Treetop: a deterministic search in the rainforest round the Great Falls, close to its
+// station (registry/wildWater.ts's wildRainforestK says what counts as rainforest), dry and clear
+// of the river/pool and the rail ──
+
+const FALLS_STATION = STATIONS.find((s) => s.id === "falls-station")!;
+if (!FALLS_STATION) throw new Error("settlements: no falls-station in the railway registry");
+
+/** Treetop's own footprint radius (kept in step with generateTreetop's `radius`, needed here before
+ *  that function runs — the site search must check the ground THIS wide is gentle enough). Smaller
+ *  than a village sited on a merely-levelled disc would need: a genuinely flat ~48 m clearing is
+ *  what the rainforest near the Great Falls actually offers within an easy walk of the station. */
+const TREETOP_RADIUS = 24;
+
+function findTreetopSite(): { x: number; z: number } {
+  let best: { x: number; z: number; score: number } | null = null;
+  for (let a = 0; a < TAU; a += 0.04) {
+    for (let rad = 60; rad <= 220; rad += 4) {
+      const x = FALLS_STATION.x + Math.sin(a) * rad;
+      const z = FALLS_STATION.z + Math.cos(a) * rad;
+      if (seaDist(x, z) > -40) continue;
+      if (nearRail(x, z, 10)) continue;
+      if (wildWaterSdf(x, z) < 12) continue; // dry, and well clear of the river/pool
+      // settlements built within ~550 units of each other (lib/park/world/settlements/index.ts's
+      // BUILD_R) would both stream in at once, busting the per-village draw-call budget — keep
+      // every village's own station-side search well clear of Lakeside's
+      if (Math.hypot(x - SITE.x, z - SITE.z) < 600) continue;
+      const k = wildRainforestK(x, z);
+      if (k < 0.6) continue;
+      // a real, flat forest floor the whole clearing's width — not a levelled patch of a hillside
+      if (!footprintOk(x, z, TREETOP_RADIUS)) continue;
+      const toPool = Math.hypot(x - WILD_FALLS.pool.x, z - WILD_FALLS.pool.z);
+      // lush (high k), not too far a walk from the station, and a glimpse of the falls' pool
+      const score = k * 24 - rad * 0.03 - toPool * 0.015;
+      if (!best || score > best.score) best = { x, z, score };
+    }
+  }
+  if (!best) throw new Error("settlements: no treetop site found near the Great Falls");
+  return { x: Math.round(best.x * 10) / 10, z: Math.round(best.z * 10) / 10 };
+}
+const TREETOP_SITE = findTreetopSite();
+
+// ── Treetop: the Canopy Folk's treehouse village ──
+
+function generateTreetop(): SettlementDef {
+  const r = rngOf(31415);
+  const cx = TREETOP_SITE.x;
+  const cz = TREETOP_SITE.z;
+  const radius = TREETOP_RADIUS;
+  // the village's levelled ground: the real (smoothed) natural height at its centre — exactly what
+  // terrain.ts levels the pad to (registry/landform.ts, no import cycle), so the walkable decks
+  // below sit on it
+  const padHeight = settlePadHeight("treehouse", cx, cz);
+
+  // ── the giant rainforest trees: four round the clearing, two of them joined by a reachable
+  // platform/ramp/bridge, the other two just for the look of the place (and bed, come nightfall) ──
+  const TREE_A = [0.5, 2.35, 3.95, 5.3];
+  const TREE_R = [9, 10.5, 8.5, 11.5];
+  const TREE_ELEV = [8.5, 9.4, 11.5, 13.2];
+  const huts: SettlementHut[] = TREE_A.map((a, i) => {
+    const x = cx + Math.sin(a) * TREE_R[i];
+    const z = cz + Math.cos(a) * TREE_R[i];
+    const yaw = Math.atan2(cx - x, cz - z); // door/ladder facing the fire
+    return { x, z, yaw, kind: "treehouse-round", size: 2.2 + (i % 2) * 0.3, elev: TREE_ELEV[i] };
+  });
+
+  // ── the ground clearing: the fire, a ring of log drums, a garden of giant leaves and flowers ──
+  const fire = { x: cx, z: cz };
+  const props: SettlementProp[] = [];
+  props.push({ kind: "firepit", x: fire.x, z: fire.z, yaw: 0, scale: 1 });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * TAU;
+    props.push({ kind: "drumlog", x: fire.x + Math.sin(a) * 3.3, z: fire.z + Math.cos(a) * 3.3, yaw: a + Math.PI, scale: 1 });
+  }
+  const gardenA = 4.6;
+  const garden = { x: cx + Math.sin(gardenA) * 5.5, z: cz + Math.cos(gardenA) * 5.5 };
+  for (let i = 0; i < 7; i++) {
+    const a = gardenA + (i - 3) * 0.28;
+    props.push({ kind: "gardenleaf", x: garden.x + Math.sin(a) * 2, z: garden.z + Math.cos(a) * 2, yaw: a, scale: 0.8 + r() * 0.5 });
+  }
+  // the giant trees' trunks and canopies themselves
+  for (const h of huts) props.push({ kind: "giant-tree", x: h.x, z: h.z, yaw: h.yaw, scale: h.size, elev: h.elev });
+  // banana bunches and woven baskets dotted round the clearing
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * TAU + 0.7;
+    props.push({ kind: "banana-bunch", x: cx + Math.sin(a) * 4, z: cz + Math.cos(a) * 4, yaw: a, scale: 1 });
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU + 2.1;
+    props.push({ kind: "basket", x: cx + Math.sin(a) * 3.3, z: cz + Math.cos(a) * 3.3, yaw: a, scale: 1 });
+  }
+  // a spot to weave baskets, under the trees
+  const weaveA = 1.7;
+  const weaveSpot = { x: cx + Math.sin(weaveA) * 4.6, z: cz + Math.cos(weaveA) * 4.6 };
+  props.push({ kind: "basket", x: weaveSpot.x, z: weaveSpot.z, yaw: weaveA, scale: 1.2 });
+  const fruitA = 3.1;
+  const fruitSpot = { x: cx + Math.sin(fruitA) * 5.2, z: cz + Math.cos(fruitA) * 5.2 };
+  // the chase play spot
+  const chase = { x: cx + Math.sin(0) * 6.7, z: cz + Math.cos(0) * 6.7 };
+
+  // ── decks: a ramp up from the ground to tree A's platform, a rope bridge across to tree B's ──
+  const A = huts[0];
+  const B = huts[1];
+  // kept in step with world/settlements/props.ts's own treehousePorchR (the cabin's rendered porch
+  // radius) — a walkable platform always lines up exactly with the cabin built on it
+  const platR = (h: SettlementHut) => 1.85 * h.size * 1.08;
+  const rampOutA = A.yaw + Math.PI;
+  const rampBaseA = { x: A.x + Math.sin(rampOutA) * (platR(A) + 4), z: A.z + Math.cos(rampOutA) * (platR(A) + 4) };
+  const decks: SettlementDeckPiece[] = [
+    { kind: "circle", x: A.x, z: A.z, y: padHeight + A.elev!, r: platR(A) },
+    { kind: "circle", x: B.x, z: B.z, y: padHeight + B.elev!, r: platR(B) },
+    { kind: "line", ax: rampBaseA.x, az: rampBaseA.z, ay: padHeight, bx: A.x, bz: A.z, by: padHeight + A.elev!, half: 1.1, tag: "ramp" },
+    { kind: "line", ax: A.x, az: A.z, ay: padHeight + A.elev!, bx: B.x, bz: B.z, by: padHeight + B.elev!, half: 0.85, tag: "bridge" },
+  ];
+
+  // lanterns and glowing flowers along the ground paths, and up on both platforms
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * TAU + 0.3;
+    props.push({ kind: "lantern", x: fire.x + Math.sin(a) * 4.6, z: fire.z + Math.cos(a) * 4.6, yaw: 0, scale: 1 });
+  }
+  for (const h of [A, B]) props.push({ kind: "lantern", x: h.x + h.size * 0.6, z: h.z + h.size * 0.6, yaw: 0, scale: 1 });
+
+  // ── the path graph: a hub at the fire, a spoke to every tree's base (villagers climb up out of
+  // sight — the platforms/bridge are for the kid, not simulated as part of anyone's walk) ──
+  const nodes: SettlementNode[] = [{ id: "fire", x: fire.x, z: fire.z }];
+  const edges: [number, number][] = [];
+  const addNode = (id: string, x: number, z: number) => {
+    nodes.push({ id, x, z });
+    return nodes.length - 1;
+  };
+  huts.forEach((h, i) => {
+    const doorX = h.x + Math.sin(h.yaw + Math.PI) * 1.4;
+    const doorZ = h.z + Math.cos(h.yaw + Math.PI) * 1.4;
+    const idx = addNode(`home-${i}`, doorX, doorZ);
+    edges.push([0, idx]);
+  });
+  const weaveIdx = addNode("weave", weaveSpot.x, weaveSpot.z);
+  edges.push([0, weaveIdx]);
+  const fruitIdx = addNode("fruit", fruitSpot.x, fruitSpot.z);
+  edges.push([0, fruitIdx]);
+  const gardenIdx = addNode("garden", garden.x, garden.z);
+  edges.push([0, gardenIdx]);
+  const chaseIdx = addNode("chase", chase.x, chase.z);
+  edges.push([0, chaseIdx]);
+
+  const work: SettlementWorkSpot[] = [
+    { id: "fire", x: fire.x, z: fire.z, face: 0, sit: true },
+    { id: "weave", x: weaveSpot.x, z: weaveSpot.z, face: weaveA + Math.PI, sit: true },
+    { id: "fruit", x: fruitSpot.x, z: fruitSpot.z, face: fruitA + Math.PI },
+    { id: "garden", x: garden.x, z: garden.z, face: gardenA + Math.PI },
+    { id: "chase", x: chase.x, z: chase.z, face: 0 },
+  ];
+
+  // ── the Canopy Folk: ~11, greens/orange/magenta/yellow cloth and flower crowns ──
+  const S = (from: number, act: SettlementAct, spot?: string): SettlementSlot => ({ from, act, spot });
+  interface RosterEntry {
+    id: string;
+    name: string;
+    kid?: boolean;
+    elder?: boolean;
+    talk?: boolean;
+    home: number;
+    sched: SettlementSlot[];
+    pair?: number;
+    look?: Partial<Pick<SettlementVillagerDef, "skin" | "hair" | "cloth" | "hairStyle" | "body">>;
+  }
+  const ROSTER: RosterEntry[] = [
+    { id: "canopy-elder", name: "Elder Fern", elder: true, talk: true, home: 2, sched: [S(0, "home"), S(6.5, "sit", "fire"), S(10, "wander"), S(13, "sit", "fire"), S(16, "look", "fruit"), S(18.3, "drum", "fire"), S(23, "home")], look: { hairStyle: 2, body: 2 } },
+    { id: "mango", name: "Mango", talk: true, home: 0, sched: [S(0, "home"), S(5.5, "nets", "fruit"), S(9.5, "wander"), S(12, "nets", "fruit"), S(16.4, "nets", "fruit"), S(18.5, "dance", "fire"), S(22.3, "home")] },
+    { id: "reed-weaver", name: "Palma", talk: true, home: 1, sched: [S(0, "home"), S(6, "nets", "weave"), S(10.4, "nets", "weave"), S(13.6, "nets", "weave"), S(18.4, "dance", "fire"), S(22, "home")], look: { body: 3 } },
+    { id: "tambo", name: "Tambo the Drummer", talk: true, home: 3, sched: [S(0, "home"), S(8, "wander"), S(12, "drum", "fire"), S(15, "wander"), S(17.8, "drum", "fire"), S(22.6, "home")], look: { hairStyle: 1 } },
+    { id: "wren", name: "Wren", kid: true, talk: true, pair: 0, home: 0, sched: [S(0, "home"), S(7.5, "chase", "chase"), S(11, "wander"), S(14, "chase", "chase"), S(18.2, "dance", "fire"), S(21, "home")] },
+    { id: "sorrel", name: "Sorrel", kid: true, talk: true, pair: 1, home: 1, sched: [S(0, "home"), S(7.8, "chase", "chase"), S(11.2, "wander"), S(14.3, "chase", "chase"), S(18.3, "dance", "fire"), S(21.2, "home")], look: { hairStyle: 0 } },
+    { id: "cacao", name: "Cacao", home: 2, sched: [S(0, "home"), S(6.2, "cook", "garden"), S(10.5, "wander"), S(14.5, "cook", "garden"), S(18.1, "dance", "fire"), S(22.1, "home")] },
+    { id: "liana", name: "Liana", home: 3, sched: [S(0, "home"), S(6.6, "nets", "weave"), S(9.4, "wander"), S(13.2, "nets", "weave"), S(17, "wander"), S(18.5, "dance", "fire"), S(22.5, "home")] },
+    { id: "tamarind", name: "Tamarind", home: 0, sched: [S(0, "home"), S(7, "cook", "garden"), S(11.5, "wander"), S(15.4, "cook", "garden"), S(18.7, "dance", "fire"), S(22.7, "home")], look: { body: 1 } },
+    { id: "sloth-watcher", name: "Moss", home: 1, sched: [S(0, "home"), S(6.2, "look", "fruit"), S(10, "wander"), S(13.5, "look", "fruit"), S(17.3, "wander"), S(18.6, "dance", "fire"), S(22.3, "home")] },
+    { id: "toucan-watcher", name: "Pip", home: 2, sched: [S(0, "home"), S(7.3, "wander"), S(9.8, "nets", "fruit"), S(12.6, "wander"), S(16, "nets", "weave"), S(18.2, "dance", "fire"), S(22, "home")] },
+  ];
+  const SKINS_N = 7;
+  const HAIRS_N = 8;
+  const CLOTHS_N = 7;
+  const roster: SettlementVillagerDef[] = ROSTER.map((e, i) => {
+    const seed = 6000 + i * 151;
+    const rnd = rngOf(seed);
+    const jitter = e.talk ? 0 : (rnd() - 0.5) * 0.6;
+    const schedule = e.sched.map((s, k) => ({ ...s, from: k === 0 ? s.from : Math.max(0, Math.min(23.9, s.from + jitter)) }));
+    const look = e.look ?? {};
+    return {
+      id: e.id,
+      name: e.name,
+      home: e.home,
+      kid: !!e.kid,
+      elder: !!e.elder,
+      seed,
+      schedule,
+      skin: look.skin ?? i % SKINS_N,
+      hair: look.hair ?? (i * 3 + 2) % HAIRS_N,
+      cloth: look.cloth ?? (i * 5 + 1) % CLOTHS_N,
+      hairStyle: look.hairStyle ?? (e.kid ? i % 2 : i % 3),
+      body: look.body ?? (e.elder ? 2 : 0),
+      talk: e.talk ? e.id : undefined,
+      pair: e.pair ?? i % 2,
+    };
+  });
+
+  const talk: SettlementTalkLines[] = [
+    {
+      id: "canopy-elder",
+      name: "Elder Fern",
+      lines: [
+        "Welcome to Treetop! We've lived up these giant trees for as long as anyone can remember.",
+        "Half of all the world's plants and animals live in rainforests just like this one!",
+        "It rains and rains here — over two metres a year! That's why everything grows so big.",
+        "A rainforest has layers: the forest floor, the shady understory, the leafy canopy, and the tall emergents on top.",
+      ],
+    },
+    {
+      id: "mango",
+      name: "Mango",
+      lines: [
+        "I climb for fruit every morning — mangoes, bananas, whatever's ripe!",
+        "Fruit bats and toucans spread seeds as they eat, so new trees grow far from the old one.",
+        "The Great Falls' spray drifts all the way here and waters our garden!",
+      ],
+    },
+    {
+      id: "reed-weaver",
+      name: "Palma",
+      lines: [
+        "I weave baskets from palm leaves, up here on my platform.",
+        "Poison dart frogs are tiny and bright — their colours warn everyone else to stay away.",
+        "Many medicines people use come from rainforest plants. This forest is a giant pharmacy!",
+      ],
+    },
+    {
+      id: "tambo",
+      name: "Tambo the Drummer",
+      lines: ["Come drum with us round the fire! Our log drums carry right up through the canopy.", "A sloth moves so slowly that moss grows right on its fur!", "Join the circle tonight — the whole village dances when the drums start."],
+    },
+    {
+      id: "wren",
+      name: "Wren",
+      lines: ["Race you up the ramp to the platform!", "Sorrel's scared of the rope bridge, but I love it!", "Toucans have huge colourful beaks, but they're surprisingly light!"],
+    },
+    {
+      id: "sorrel",
+      name: "Sorrel",
+      lines: ["I am NOT scared of the bridge, Wren just goes first!", "I found a frog as bright as a candy wrapper — didn't touch it though!", "Watch the canopy — that's where all the parrots chatter in the morning."],
+    },
+  ];
+
+  const activities: SettlementActivitySpot[] = [{ id: "drumming", x: fire.x, z: fire.z + 1.6, r: 3.4, label: "Join the drums", emoji: "\u{1F941}" }];
+
+  const obstacles: SettlementObstacle[] = [...huts.map((h) => ({ x: h.x, z: h.z, r: h.size * 1.6 })), { x: fire.x, z: fire.z, r: 1.9 }];
+
+  return {
+    id: "treetop",
+    name: "Treetop",
+    clan: "the Canopy Folk",
+    emoji: "\u{1F412}",
+    style: "treehouse",
+    x: cx,
+    z: cz,
+    radius,
+    padHeight,
+    stationId: "falls-station",
+    huts,
+    props,
+    nodes,
+    edges,
+    work,
+    roster,
+    talk,
+    activities,
+    obstacles,
+    pier: null,
+    canoeLoops: [],
+    fauna: [],
+    decks,
+    levelPatches: [],
+    trade: { makes: ["fruit", "baskets"], wants: ["fish", "shells", "wool"] },
+  };
+}
+
+// ── siting Highstone: a deterministic search on a real, gentle shelf near the Lone Peak, below the
+// snow line, close to Lone Peak Station — scored on the REAL terrain (registry/landform.ts), not an
+// approximation ──
+
+const PEAK_STATION = STATIONS.find((s) => s.id === "peak-station")!;
+if (!PEAK_STATION) throw new Error("settlements: no peak-station in the railway registry");
+/** the heading from the station out towards the peak itself, so the village can sit between them
+ *  (the peak towering behind it, seen from the open slopes) */
+const A_PEAK = Math.atan2(LONE_PEAK.x - PEAK_STATION.x, LONE_PEAK.z - PEAK_STATION.z);
+/** Highstone's own footprint radius (kept in step with generateHighstone's `radius`) — smaller than
+ *  a village sited on a merely-levelled disc would need (see TREETOP_RADIUS's own comment): a
+ *  genuinely flat ~56 m shelf is what the slopes near the Lone Peak actually offer */
+const HIGHSTONE_RADIUS = 28;
+/** a healthy margin under the ~72-unit snow line (lib/park/world/fantasy/terrainMesh.ts) */
+const SNOW_LINE_MARGIN = 58;
+
+function findHighstoneSite(): { x: number; z: number } {
+  let best: { x: number; z: number; score: number } | null = null;
+  // a full sweep round the station (not just toward the peak): a genuinely flat shelf is scarce
+  // enough near the Lone Peak that insisting on one particular heading too often finds nothing at
+  // all — "the peak towering behind" is a scoring preference below, not a hard requirement
+  for (let a = 0; a < TAU; a += 0.02) {
+    for (let rad = 40; rad <= 200; rad += 4) {
+      const x = PEAK_STATION.x + Math.sin(a) * rad;
+      const z = PEAK_STATION.z + Math.cos(a) * rad;
+      if (seaDist(x, z) > -40) continue;
+      if (nearRail(x, z, 10)) continue;
+      if (wildWaterSdf(x, z) < 8) continue;
+      // keep well clear of Lakeside's and Treetop's own build radius (see findTreetopSite) — the
+      // Lone Peak and Great Lake stations sit only ~440 apart, so this is the tightest margin the
+      // geometry allows (still comfortably over BUILD_R = 550)
+      if (Math.hypot(x - SITE.x, z - SITE.z) < 570) continue;
+      if (Math.hypot(x - TREETOP_SITE.x, z - TREETOP_SITE.z) < 570) continue;
+      const h = rawHeight(x, z);
+      if (h > SNOW_LINE_MARGIN) continue;
+      // a real, flat shelf the whole village's width — not a levelled patch of a steep flank (the
+      // very bug an earlier, approximated version of this search let through)
+      if (!footprintOk(x, z, HIGHSTONE_RADIUS)) continue;
+      const towardPeak = Math.abs(((a - A_PEAK + Math.PI) % TAU) - Math.PI);
+      const score = -Math.abs(rad - 95) * 0.05 - towardPeak * 3;
+      if (!best || score > best.score) best = { x, z, score };
+    }
+  }
+  if (!best) throw new Error("settlements: no highstone site found near the Lone Peak");
+  return { x: Math.round(best.x * 10) / 10, z: Math.round(best.z * 10) / 10 };
+}
+const HIGHSTONE_SITE = findHighstoneSite();
+
+// ── Highstone: the Peakfolk's mountain village ──
+
+function generateHighstone(): SettlementDef {
+  const r = rngOf(27182);
+  const cx = HIGHSTONE_SITE.x;
+  const cz = HIGHSTONE_SITE.z;
+  const radius = HIGHSTONE_RADIUS;
+  const padHeight = settlePadHeight("mountain", cx, cz);
+  const inlandA = A_PEAK + Math.PI; // away from the peak, out towards the open slopes
+
+  // ── cottages: a loose ring, varied radii and headings, like Lakeside's land huts ──
+  const huts: SettlementHut[] = [];
+  const GAP = 4.8;
+  const fitsHuts = (x: number, z: number, size: number, gap: number) => huts.every((h) => Math.hypot(h.x - x, h.z - z) > (h.size + size) * 1.15 + gap);
+  for (const gap of [GAP, GAP * 0.7, GAP * 0.45, GAP * 0.25, 0]) {
+    let placed = huts.length;
+    for (let tries = 0; placed < 7 && tries < 600; tries++) {
+      const a = r() * TAU;
+      const rad = 6 + r() * 10;
+      const size = 0.9 + r() * 0.3;
+      const x = cx + Math.sin(a) * rad;
+      const z = cz + Math.cos(a) * rad;
+      if (!fitsHuts(x, z, size, gap)) continue;
+      const yaw = Math.atan2(cx - x, cz - z);
+      huts.push({ x, z, yaw, kind: "stone-cottage", size });
+      placed++;
+    }
+    if (placed >= 7) break;
+  }
+
+  // ── the hearth, firewood, a water trough, bunting strung cottage to cottage ──
+  const fire = { x: cx, z: cz };
+  const props: SettlementProp[] = [];
+  props.push({ kind: "firepit", x: fire.x, z: fire.z, yaw: 0, scale: 1 });
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * TAU;
+    props.push({ kind: "bench", x: fire.x + Math.sin(a) * 3.1, z: fire.z + Math.cos(a) * 3.1, yaw: a + Math.PI, scale: 1 });
+  }
+  const troughA = inlandA + 0.6;
+  const trough = { x: cx + Math.sin(troughA) * 6, z: cz + Math.cos(troughA) * 6 };
+  props.push({ kind: "trough", x: trough.x, z: trough.z, yaw: troughA, scale: 1 });
+  for (let i = 0; i < 3; i++) {
+    const a = inlandA - 0.9 + i * 0.35;
+    props.push({ kind: "firewood", x: cx + Math.sin(a) * 7, z: cz + Math.cos(a) * 7, yaw: a, scale: 1 });
+  }
+  // bunting strung between neighbouring cottages (reuses the boardwalk encoding: x/z = one end,
+  // yaw = heading to the other, scale = the gap between them)
+  for (let i = 0; i < huts.length; i++) {
+    const a = huts[i];
+    const b = huts[(i + 1) % huts.length];
+    const d = Math.hypot(b.x - a.x, b.z - a.z);
+    if (d > 12) continue;
+    props.push({ kind: "bunting", x: a.x, z: a.z, yaw: Math.atan2(b.x - a.x, b.z - a.z), scale: d });
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * TAU + 0.5;
+    props.push({ kind: "lantern", x: fire.x + Math.sin(a) * 4.4, z: fire.z + Math.cos(a) * 4.4, yaw: 0, scale: 1 });
+  }
+
+  // ── the craft hut and its loom, facing the pasture ──
+  const loomA = inlandA + 2.0;
+  const loomSpot = { x: cx + Math.sin(loomA) * 9, z: cz + Math.cos(loomA) * 9 };
+  props.push({ kind: "loom", x: loomSpot.x, z: loomSpot.z, yaw: loomA + Math.PI, scale: 1 });
+
+  // ── the yak pasture: a fenced oval out past the cottages, 5 yaks and 2 goats grazing ──
+  const pastureA = inlandA - 2.1;
+  const pasture = { x: cx + Math.sin(pastureA) * 16, z: cz + Math.cos(pastureA) * 16, r: 8.5 };
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * TAU;
+    props.push({ kind: "fencepost", x: pasture.x + Math.sin(a) * pasture.r, z: pasture.z + Math.cos(a) * pasture.r, yaw: a, scale: 1 });
+  }
+  const fauna: SettlementFauna[] = [];
+  const YAK_N = 5;
+  for (let i = 0; i < YAK_N; i++) {
+    const a = (i / YAK_N) * TAU + 0.4;
+    const rad = pasture.r * (0.35 + 0.4 * r());
+    fauna.push({ id: `yak-${i}`, kind: "yak", x: pasture.x + Math.sin(a) * rad, z: pasture.z + Math.cos(a) * rad, yaw: r() * TAU, scale: 0.95 + r() * 0.15 });
+  }
+  for (let i = 0; i < 2; i++) {
+    const a = (i / 2) * TAU + 2.6;
+    const rad = pasture.r * 0.85;
+    fauna.push({ id: `goat-${i}`, kind: "goat", x: pasture.x + Math.sin(a) * rad, z: pasture.z + Math.cos(a) * rad, yaw: r() * TAU, scale: 0.55 });
+  }
+
+  // the chase play spot, and a herding watch spot by the fence
+  const chase = { x: cx + Math.sin(inlandA) * 7, z: cz + Math.cos(inlandA) * 7 };
+  const herdSpot = { x: pasture.x + Math.sin(pastureA + Math.PI) * (pasture.r + 2), z: pasture.z + Math.cos(pastureA + Math.PI) * (pasture.r + 2) };
+
+  // ── the path graph ──
+  const nodes: SettlementNode[] = [{ id: "fire", x: fire.x, z: fire.z }];
+  const edges: [number, number][] = [];
+  const addNode = (id: string, x: number, z: number) => {
+    nodes.push({ id, x, z });
+    return nodes.length - 1;
+  };
+  huts.forEach((h, i) => {
+    const doorX = h.x - Math.sin(h.yaw) * (h.size * 1.3);
+    const doorZ = h.z - Math.cos(h.yaw) * (h.size * 1.3);
+    const idx = addNode(`home-${i}`, doorX, doorZ);
+    edges.push([0, idx]);
+  });
+  const loomIdx = addNode("loom", loomSpot.x, loomSpot.z);
+  edges.push([0, loomIdx]);
+  const herdIdx = addNode("herd", herdSpot.x, herdSpot.z);
+  edges.push([loomIdx, herdIdx]);
+  const chaseIdx = addNode("chase", chase.x, chase.z);
+  edges.push([0, chaseIdx]);
+
+  const work: SettlementWorkSpot[] = [
+    { id: "fire", x: fire.x, z: fire.z, face: 0, sit: true },
+    { id: "loom", x: loomSpot.x, z: loomSpot.z, face: loomA + Math.PI, sit: true },
+    { id: "herd", x: herdSpot.x, z: herdSpot.z, face: pastureA },
+    { id: "chase", x: chase.x, z: chase.z, face: 0 },
+  ];
+
+  // ── the Peakfolk: ~11, warm reds/deep blue/purple/mustard, knitted-cap hair colours ──
+  const S = (from: number, act: SettlementAct, spot?: string): SettlementSlot => ({ from, act, spot });
+  interface RosterEntry {
+    id: string;
+    name: string;
+    kid?: boolean;
+    elder?: boolean;
+    talk?: boolean;
+    home: number;
+    sched: SettlementSlot[];
+    pair?: number;
+    look?: Partial<Pick<SettlementVillagerDef, "skin" | "hair" | "cloth" | "hairStyle" | "body">>;
+  }
+  const ROSTER: RosterEntry[] = [
+    { id: "peak-elder", name: "Elder Crag", elder: true, talk: true, home: 0, sched: [S(0, "home"), S(6.5, "sit", "fire"), S(10, "wander"), S(13, "sit", "fire"), S(16, "look", "herd"), S(18.3, "sit", "fire"), S(23, "home")], look: { hairStyle: 2, body: 2 } },
+    { id: "shale", name: "Shale", talk: true, home: 1, sched: [S(0, "home"), S(5.6, "look", "herd"), S(9.5, "wander"), S(12, "look", "herd"), S(16.4, "look", "herd"), S(18.5, "dance", "fire"), S(22.3, "home")] },
+    { id: "flax", name: "Flax", talk: true, home: 2, sched: [S(0, "home"), S(6, "nets", "loom"), S(10.4, "nets", "loom"), S(13.6, "nets", "loom"), S(18.4, "dance", "fire"), S(22, "home")], look: { body: 3 } },
+    { id: "pipit", name: "Pipit the Piper", talk: true, home: 3, sched: [S(0, "home"), S(8, "wander"), S(12, "drum", "fire"), S(15, "wander"), S(17.8, "drum", "fire"), S(22.6, "home")], look: { hairStyle: 1 } },
+    { id: "thistle", name: "Thistle", kid: true, talk: true, pair: 0, home: 1, sched: [S(0, "home"), S(7.5, "chase", "chase"), S(11, "wander"), S(14, "chase", "chase"), S(18.2, "dance", "fire"), S(21, "home")] },
+    { id: "bramblet", name: "Fell", kid: true, talk: true, pair: 1, home: 2, sched: [S(0, "home"), S(7.8, "chase", "chase"), S(11.2, "wander"), S(14.3, "chase", "chase"), S(18.3, "dance", "fire"), S(21.2, "home")], look: { hairStyle: 0 } },
+    { id: "cairn", name: "Cairn", home: 3, sched: [S(0, "home"), S(6.2, "cook", "fire"), S(10.5, "wander"), S(14.5, "cook", "fire"), S(18.1, "dance", "fire"), S(22.1, "home")] },
+    { id: "wether", name: "Wether", home: 0, sched: [S(0, "home"), S(6.6, "look", "herd"), S(9.4, "wander"), S(13.2, "look", "herd"), S(17, "wander"), S(18.5, "dance", "fire"), S(22.5, "home")] },
+    { id: "ember", name: "Ember", home: 1, sched: [S(0, "home"), S(7, "cook", "fire"), S(11.5, "wander"), S(15.4, "cook", "fire"), S(18.7, "dance", "fire"), S(22.7, "home")], look: { body: 1 } },
+    { id: "tansy", name: "Tansy", home: 2, sched: [S(0, "home"), S(6.2, "nets", "loom"), S(10, "wander"), S(13.5, "nets", "loom"), S(17.3, "wander"), S(18.6, "dance", "fire"), S(22.3, "home")] },
+    { id: "slate", name: "Slate", home: 3, sched: [S(0, "home"), S(7.3, "wander"), S(9.8, "look", "herd"), S(12.6, "wander"), S(16, "nets", "loom"), S(18.2, "dance", "fire"), S(22, "home")] },
+  ];
+  const SKINS_N = 7;
+  const HAIRS_N = 8;
+  const CLOTHS_N = 7;
+  const roster: SettlementVillagerDef[] = ROSTER.map((e, i) => {
+    const seed = 8000 + i * 151;
+    const rnd = rngOf(seed);
+    const jitter = e.talk ? 0 : (rnd() - 0.5) * 0.6;
+    const schedule = e.sched.map((s, k) => ({ ...s, from: k === 0 ? s.from : Math.max(0, Math.min(23.9, s.from + jitter)) }));
+    const look = e.look ?? {};
+    return {
+      id: e.id,
+      name: e.name,
+      home: e.home % Math.max(1, huts.length),
+      kid: !!e.kid,
+      elder: !!e.elder,
+      seed,
+      schedule,
+      skin: look.skin ?? i % SKINS_N,
+      hair: look.hair ?? (i * 3 + 2) % HAIRS_N,
+      cloth: look.cloth ?? (i * 5 + 1) % CLOTHS_N,
+      hairStyle: look.hairStyle ?? (e.kid ? i % 2 : i % 3),
+      body: look.body ?? (e.elder ? 2 : 0),
+      talk: e.talk ? e.id : undefined,
+      pair: e.pair ?? i % 2,
+    };
+  });
+
+  const talk: SettlementTalkLines[] = [
+    {
+      id: "peak-elder",
+      name: "Elder Crag",
+      lines: [
+        "Welcome to Highstone! We've herded yaks on these slopes for generations.",
+        "The air gets thinner and colder the higher you climb — that's why the peak wears snow all year.",
+        "Mount Everest is the tallest mountain above the sea — about 8,849 metres high!",
+        "We terrace our slopes into little steps, so the soil stays put and our crops can grow.",
+      ],
+    },
+    {
+      id: "shale",
+      name: "Shale",
+      lines: [
+        "Our yaks have thick shaggy coats and big lungs — just right for the thin mountain air.",
+        "Yak wool is wonderfully warm. We spin it, weave it, and wear it all winter.",
+        "A glacier is really a river of ice — it moves, just far too slowly to see.",
+      ],
+    },
+    {
+      id: "flax",
+      name: "Flax",
+      lines: ["I spin yak wool into yarn, then weave it at my loom.", "Snow never melts off the very highest peaks — it's simply too cold up there, even in summer.", "Come and try the loom with me — over, under, over, under!"],
+    },
+    {
+      id: "pipit",
+      name: "Pipit the Piper",
+      lines: ["I play my flute by the fire every evening, once the yaks are settled.", "Mountain goats can balance on ledges you'd think no one could stand on!", "Stay for the fire tonight — we love a tune and a dance under the stars."],
+    },
+    {
+      id: "thistle",
+      name: "Thistle",
+      lines: ["Tag! Catch me if you can, round the cottages!", "Fell always loses — he stops to pat the yaks!", "Have you seen the baby yak calves? They're wobblier than the grown-ups."],
+    },
+    {
+      id: "bramblet",
+      name: "Fell",
+      lines: ["I'm not slow, I just like saying hello to the yaks.", "Thistle thinks she's fast, but I know all the shortcuts!", "Watch the goats on the rocks — they never slip, not once!"],
+    },
+  ];
+
+  const activities: SettlementActivitySpot[] = [{ id: "weaving", x: loomSpot.x, z: loomSpot.z, r: 3.2, label: "Weave with the Peakfolk", emoji: "\u{1F9F6}" }];
+
+  const obstacles: SettlementObstacle[] = [...huts.map((h) => ({ x: h.x, z: h.z, r: h.size * 1.5 })), { x: fire.x, z: fire.z, r: 1.9 }, { x: trough.x, z: trough.z, r: 1.1 }, ...fauna.map((f) => ({ x: f.x, z: f.z, r: 0.9 * f.scale }))];
+
+  return {
+    id: "highstone",
+    name: "Highstone",
+    clan: "the Peakfolk",
+    emoji: "\u{1F3D4}\u{FE0F}",
+    style: "mountain",
+    x: cx,
+    z: cz,
+    radius,
+    padHeight,
+    stationId: "peak-station",
+    huts,
+    props,
+    nodes,
+    edges,
+    work,
+    roster,
+    talk,
+    activities,
+    obstacles,
+    pier: null,
+    canoeLoops: [],
+    fauna,
+    decks: [],
+    // the yak pasture reaches out past any one hut/work spot's own stamp radius — level the whole
+    // disc flush with the village's shared pad so the yaks graze on flat ground, not a hillside
+    levelPatches: [{ x: pasture.x, z: pasture.z, rIn: pasture.r + 1, rOut: pasture.r + 3 }],
+    trade: { makes: ["wool", "cheese"], wants: ["fish", "fruit", "bread"] },
+  };
+}
+
+export const SETTLEMENTS: SettlementDef[] = [generateLakeside(), generateTreetop(), generateHighstone()];
 
 // ── helpers shared by the terrain stamp, the engine's push-out collision, the renderer and tests ──
 
@@ -547,23 +1197,40 @@ export const inSettlement = (x: number, z: number, pad = 0): boolean => settleme
 /** every settlement's obstacles, in world coordinates (for the kid's push-out collision) */
 export const SETTLEMENT_OBSTACLES: SettlementObstacle[] = SETTLEMENTS.flatMap((s) => s.obstacles);
 
-/** the walkable deck height of a settlement's pier under (x, z), or null (so a kid can walk out
- *  over the water instead of swimming under it) */
+/** a straight walkable deck's height at (x, z): null if (x, z) isn't over it, else the height,
+ *  sloped linearly from (ax, ay) to (bx, by) (flat when ay === by, exactly a pier's own deckY) */
+function lineDeckY(ax: number, az: number, ay: number, bx: number, bz: number, by: number, half: number, x: number, z: number): number | null {
+  const ux = bx - ax;
+  const uz = bz - az;
+  const L2 = ux * ux + uz * uz || 1;
+  const t = ((x - ax) * ux + (z - az) * uz) / L2;
+  if (t < -0.08 || t > 1.08) return null;
+  const px = ax + ux * t - x;
+  const pz = az + uz * t - z;
+  if (px * px + pz * pz > half * half) return null;
+  return ay + (by - ay) * Math.max(0, Math.min(1, t));
+}
+/** the walkable deck height at (x, z), or null (so a kid can walk out over the water instead of
+ *  swimming under it, or up a treehouse's platform/ramp/bridge instead of walking through the
+ *  trunk) — every settlement's pier (Lakeside) and `decks` (Treetop's platforms/ramp/bridge) */
 export function settlementDeckY(x: number, z: number): number | null {
   let best: number | null = null;
   for (const s of SETTLEMENTS) {
     const p = s.pier;
-    if (!p) continue;
-    if (Math.abs(x - p.ax) > 40 || Math.abs(z - p.az) > 40) continue;
-    const ux = p.bx - p.ax;
-    const uz = p.bz - p.az;
-    const L2 = ux * ux + uz * uz || 1;
-    const t = ((x - p.ax) * ux + (z - p.az) * uz) / L2;
-    if (t < -0.08 || t > 1.08) continue;
-    const px = p.ax + ux * t - x;
-    const pz = p.az + uz * t - z;
-    if (px * px + pz * pz > p.half * p.half) continue;
-    if (best === null || p.deckY > best) best = p.deckY;
+    if (p && Math.abs(x - p.ax) <= 40 + p.half && Math.abs(z - p.az) <= 40 + p.half) {
+      const y = lineDeckY(p.ax, p.az, p.deckY, p.bx, p.bz, p.deckY, p.half, x, z);
+      if (y !== null && (best === null || y > best)) best = y;
+    }
+    for (const d of s.decks) {
+      if (d.kind === "circle") {
+        const dx = x - d.x;
+        const dz = z - d.z;
+        if (dx * dx + dz * dz <= d.r * d.r && (best === null || d.y > best)) best = d.y;
+      } else {
+        const y = lineDeckY(d.ax, d.az, d.ay, d.bx, d.bz, d.by, d.half, x, z);
+        if (y !== null && (best === null || y > best)) best = y;
+      }
+    }
   }
   return best;
 }

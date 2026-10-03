@@ -17,6 +17,7 @@ import { wildRainforestK, wildWaterSdf } from "../../registry/wildWater";
 import { nearRail, stationAt } from "../../registry/railway";
 import { inSettlement } from "../../registry/settlements";
 import { nearCartRoad } from "../../registry/cartRoad";
+import { nearFootpath } from "../../registry/footpaths";
 import { buildClump, buildJungleTree } from "../jungle/geometry";
 import { TREE_DIMS, T_CANOPY, T_FERN, T_GIANT, T_PALM } from "../jungle/plan";
 import type { JungleCut } from "../jungle/cutaway";
@@ -70,7 +71,7 @@ export function wildCell(ci: number, cj: number): WildItem[] {
     return Math.min(1, Math.hypot(dx, dz) / 4 / 1.4);
   };
   // (and off the railway and its platforms)
-  const ok = (x: number, z: number) => Math.hypot(x, z) >= WILD_FROM && seaDist(x, z) < -7 && wildWaterSdf(x, z) > 4 && !nearRail(x, z, 4) && !stationAt(x, z, 8) && !inSettlement(x, z, 6) && !nearCartRoad(x, z, 3);
+  const ok = (x: number, z: number) => Math.hypot(x, z) >= WILD_FROM && seaDist(x, z) < -7 && wildWaterSdf(x, z) > 4 && !nearRail(x, z, 4) && !stationAt(x, z, 8) && !inSettlement(x, z, 6) && !nearCartRoad(x, z, 3) && !nearFootpath(x, z, 3);
   // the rainforest round the Great Falls and along the Wild River: giants, canopy trees, palms and
   // tree ferns over thick undergrowth (true size: you walk under it)
   if (wildRainforestK(cx, cz) > 0.02 || wildRainforestK(x0, z0) > 0.02 || wildRainforestK(x0 + WILD_CELL, z0 + WILD_CELL) > 0.02) {

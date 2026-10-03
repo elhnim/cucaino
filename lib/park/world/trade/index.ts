@@ -14,9 +14,9 @@ import * as THREE from "three";
 import { box, ball, col, cone, cyl, flat, mergeAll, place, pp } from "../village/kit";
 import { fxMaterial, makeUniforms, type FantasyUniforms } from "../fantasy/shaders";
 import { groundY, WATER_Y } from "../../registry/terrain";
-import { TRADE_POSTS, goodOf } from "../../registry/trade";
-import { TRADERS, traderStateAtTime, traderLine, type TraderDef } from "./plan";
-import { STATIONS, type Station } from "../../registry/railway";
+import { TRADE_POSTS, TRADE_ROUTES, tradePostOf, goodOf } from "../../registry/trade";
+import { TRADERS, traderStateAtTime, traderLine, TRAIN_TRADERS, trainTraderStateAtTime, trainTraderLine, trainTraderRiding, type TraderDef } from "./plan";
+import { STATIONS, RAIL_LENGTH, type Station } from "../../registry/railway";
 import { buildCrowd, makeRig, resolveRig, type Anim, type Crowd, type Pose, type Rig, type Tool } from "../village/crowd";
 import { SKINS as TIDEWING_SKINS, HAIRS as TIDEWING_HAIRS, CLOTHS as TIDEWING_CLOTHS, WINGS as TIDEWING_WINGS } from "../village/routine";
 
@@ -53,15 +53,30 @@ const CART_CAP = CART_TRADERS.length;
 const BOAT_CAP = BOAT_TRADERS.length;
 /** 2 crates per travelling trader (cart bed / boat deck), plus a little stall stack (2) per post */
 const CRATE_CAP = TRADERS.length * 2 + TRADE_POSTS.length * 2;
-/** the shared crowd: a driver + a walking escort per cart, 2 crew per boat, a seller per post, up
- *  to 3 riding the train */
-const CROWD_CAP = CART_TRADERS.length * 2 + BOAT_TRADERS.length * 2 + TRADE_POSTS.length + 3;
+/** the shared crowd: a driver + a walking escort per cart, 2 crew per boat, a seller per post, one
+ *  walker per train-riding trader, up to 3 riding the train itself */
+const CROWD_CAP = CART_TRADERS.length * 2 + BOAT_TRADERS.length * 2 + TRADE_POSTS.length + TRAIN_TRADERS.length + 3;
 
-// ── the stretch of track the cart road parallels (Park Station -> Lake Station, the same arc
-// registry/cartRoad.ts follows) — train riders are visible while the train runs this arc ──
-const PARK_S = STATIONS.find((s) => s.id === "park-station")!.s;
-const LAKE_S = STATIONS.find((s) => s.id === "lake-station")!.s;
-const isBetweenParkAndLake = (s: number) => s >= PARK_S && s <= LAKE_S;
+// ── every stretch of track a "train" route's two posts sit either side of (registry/cartRoad.ts's
+// Park<->Lake arc, generalised to any pair of posts with a station — a new settlement joins just by
+// listing a `train` TRADE_ROUTE, nothing here needs to change) — the ambient riders in the first
+// carriage show while the train is actually running any one of these arcs ──
+function stationSOf(postId: string): number {
+  const post = tradePostOf(postId);
+  const st = post?.stationId ? STATIONS.find((s) => s.id === post.stationId) : undefined;
+  if (!st) throw new Error(`trade: post ${postId} has no station for a train route`);
+  return st.s;
+}
+const TRAIN_ARCS: [number, number][] = TRADE_ROUTES.filter((r) => r.mode === "train").map((r) => [stationSOf(r.from), stationSOf(r.to)]);
+/** is `s` on the shorter arc of the loop between sA and sB (wrap-aware) */
+function onArc(sA: number, sB: number, s: number): boolean {
+  const lo = Math.min(sA, sB);
+  const hi = Math.max(sA, sB);
+  const direct = hi - lo;
+  if (direct <= RAIL_LENGTH - direct) return s >= lo && s <= hi;
+  return s >= hi || s <= lo; // the short way wraps past the loop's own start
+}
+const onAnyTrainArc = (s: number) => TRAIN_ARCS.some(([sA, sB]) => onArc(sA, sB, s));
 
 /** every good's colour, as a THREE.Color made once (the crate mesh just re-sets these, no
  *  allocation per frame) */
@@ -202,7 +217,19 @@ const MARKET_PALETTE: Palette = {
   hairs: ["#ff8a3d", "#6a4fd6", "#2fb5a0", "#e85a8a", "#3a8fd9"],
   cloths: ["#ff6fa5", "#5ec8e8", "#ffd24a", "#8a6fe8", "#5ecb7a"],
 };
-const PALETTES: Record<string, Palette> = { lakeside: LAKESIDE_PALETTE, coralcove: CORALCOVE_PALETTE, market: MARKET_PALETTE };
+// the Canopy Folk and the Peakfolk — kept in step with world/settlements/index.ts's own palettes
+// (the same small, deliberate duplication as Lakeside's, above)
+const TREETOP_PALETTE: Palette = {
+  skins: ["#c9955f", "#b87f49", "#d9ab7a", "#a06a3a", "#e0bd8e", "#8c5a34", "#cf9c68"],
+  hairs: ["#2a1f14", "#3a2818", "#1a140e", "#4a3420", "#241a10", "#352619", "#1e1610", "#4a3020"],
+  cloths: ["#3f8a3f", "#ff8a3c", "#e03c8a", "#e8c23c", "#4e9e52", "#2f7a4a", "#6fae3f"],
+};
+const HIGHSTONE_PALETTE: Palette = {
+  skins: ["#e0b088", "#d19a6e", "#c98a5c", "#eac29a", "#b87c52", "#d6a476", "#c08458"],
+  hairs: ["#6e2a2a", "#2a3a6e", "#4a2a6e", "#7a5a1a", "#3a2a2a", "#2a4a5a", "#5a2a3a", "#6a4a1a"],
+  cloths: ["#c0392b", "#2a4a8a", "#6a2a8a", "#c9972a", "#8a2a3a", "#2a6a8a", "#a8582a"],
+};
+const PALETTES: Record<string, Palette> = { lakeside: LAKESIDE_PALETTE, coralcove: CORALCOVE_PALETTE, market: MARKET_PALETTE, treetop: TREETOP_PALETTE, highstone: HIGHSTONE_PALETTE };
 
 interface Look {
   skin: THREE.Color;
@@ -232,6 +259,7 @@ function lookFor(postId: string, seed: number): Look {
 // (its stall-keeper) and three generic ones for whoever happens to be riding the train — all pure,
 // computed once at import time, never reallocated per frame
 const TRADER_LOOK = new Map<string, Look>(TRADERS.map((d) => [d.id, lookFor(d.homeId, seedOf(d.id))]));
+const TRAIN_TRADER_LOOK = new Map<string, Look>(TRAIN_TRADERS.map((d) => [d.id, lookFor(d.homeId, seedOf(d.id) + 11)]));
 const POST_LOOK = new Map<string, Look>(TRADE_POSTS.map((p) => [p.id, lookFor(p.id, seedOf(p.id) + 7)]));
 const TRAIN_LOOKS: Look[] = [lookFor("lakeside", 101), lookFor("market", 202), lookFor("coralcove", 303)];
 
@@ -427,11 +455,36 @@ export function buildTrade(scene: THREE.Scene): TradeSystem {
       b.cartMesh.instanceMatrix.needsUpdate = true;
       b.boatMesh.instanceMatrix.needsUpdate = true;
 
+      // train-riding traders (Treetop/Highstone/Market Street): walking folk on foot between their
+      // village and its own station — invisible while actually aboard the train (the ambient riders
+      // below stand in for them then), visible again the moment they step off the other end
+      const trainStates = TRAIN_TRADERS.map((d) => trainTraderStateAtTime(d, t));
+      TRAIN_TRADERS.forEach((def, i) => {
+        const state = trainStates[i];
+        if (trainTraderRiding(state)) return;
+        const visible = state.atPostId === null || state.phase === "trading-away" || state.phase === "trading-home";
+        if (!visible) return;
+        const baseY = groundY(state.x, state.z);
+        const look = TRAIN_TRADER_LOOK.get(def.id)!;
+        const seed = seedOf(def.id);
+        const walking = state.atPostId === null;
+        placeFolk(b, t, state.x, baseY, state.z, state.yaw, look, walking ? "walk" : "sell", "basket", seed, o.kid, t * 4 + seed, 1);
+        if (!talk) {
+          const d = Math.hypot(state.x - o.kid.x, state.z - o.kid.z);
+          if (d < TALK_R) {
+            const which = Math.floor(t / 5) % 2 === 0 ? 0 : 1;
+            talk = { id: def.id, name: def.name, line: trainTraderLine(def, state, which), emoji: goodOf(state.cargo).emoji };
+          }
+        }
+      });
+
       // a little stall at every post: two crates showing what it makes and what just arrived, and
       // its own seller, swapping goods for whoever's trading there right now
       for (const p of TRADE_POSTS) {
         if (Math.hypot(p.x - o.kid.x, p.z - o.kid.z) > BUILD_R) continue;
-        const incomingState = TRADERS.map((d) => traderStateAtTime(d, t)).find((st) => st.atPostId === p.id && (st.phase === "trading-away" || st.phase === "trading-home"));
+        const incomingState =
+          TRADERS.map((d) => traderStateAtTime(d, t)).find((st) => st.atPostId === p.id && (st.phase === "trading-away" || st.phase === "trading-home")) ??
+          trainStates.find((st) => st.atPostId === p.id && (st.phase === "trading-away" || st.phase === "trading-home"));
         const madeGood = goodOf(p.makes[0]);
         const arrivedGood = goodOf(incomingState ? incomingState.cargo : p.wants[0]);
         const py = groundY(p.x, p.z) + 0.2;
@@ -454,8 +507,9 @@ export function buildTrade(scene: THREE.Scene): TradeSystem {
 
       // train riders: read straight off the live train (its own run is stateful, not plan.ts's
       // pure schedule) — up to 3 of the shared crowd's folk sit in the first carriage while it's
-      // between Park and Lake stations, waving if the kid's close (e.g. watching from a platform).
-      const inRailArc = o.train.at === null && isBetweenParkAndLake(o.train.s);
+      // running any "train" TRADE_ROUTE's own arc, waving if the kid's close (e.g. watching from a
+      // platform). Stands in for every train-riding trader currently "aboard" (above) too.
+      const inRailArc = o.train.at === null && onAnyTrainArc(o.train.s);
       if (inRailArc) {
         o.train.carPose(1, carPoseOut);
         // the carriage's own two benches (steamTrain.ts carriageGeometry) sit fore/aft at local

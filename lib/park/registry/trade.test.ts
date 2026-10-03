@@ -19,8 +19,8 @@ describe("trade: goods", () => {
 });
 
 describe("trade: posts", () => {
-  it("lists all three posts, each with what it makes/wants", () => {
-    expect(TRADE_POSTS.map((p) => p.id).sort()).toEqual(["coralcove", "lakeside", "market"]);
+  it("lists every post, each with what it makes/wants", () => {
+    expect(TRADE_POSTS.map((p) => p.id).sort()).toEqual(["coralcove", "highstone", "lakeside", "market", "treetop"]);
     for (const p of TRADE_POSTS) {
       expect(p.makes.length).toBeGreaterThan(0);
       expect(p.wants.length).toBeGreaterThan(0);
@@ -54,6 +54,9 @@ describe("trade: routes", () => {
     expect(tradeRouteOf("cart-lakeside-market")?.mode).toBe("cart");
     expect(tradeRouteOf("boat-lakeside-coralcove")?.mode).toBe("boat");
     expect(tradeRouteOf("train-lakeside-market")?.mode).toBe("train");
+    expect(tradeRouteOf("train-treetop-lakeside")?.mode).toBe("train");
+    expect(tradeRouteOf("train-highstone-market")?.mode).toBe("train");
+    expect(tradeRouteOf("train-treetop-highstone")?.mode).toBe("train");
   });
   it("cart/boat routes have a positive length that matches their polyline", () => {
     for (const r of TRADE_ROUTES) {

@@ -8,154 +8,22 @@
 // baked lazily, tile by tile, as anything asks for it; far-off ground can use groundYFar(), which
 // works the height out on the spot without baking anything. Pure maths, deterministic, no three.js.
 import { LANDS, PLACES } from "./places";
-import { ISLAND_R, TRAIL_POINTS, coastR, parkCoastR, seaDist } from "./island";
+import { ISLAND_R, TRAIL_POINTS, coastR, seaDist } from "./island";
 import { mesaY, waterBedY, waterSdf } from "./waterways";
 import { wildShelfY } from "./wildWater";
 import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
-import { SETTLEMENTS } from "./settlements";
+import { SETTLEMENTS, settlePadHeight } from "./settlements";
 import { CART_ROAD } from "./cartRoad";
+import { FOOTPATHS } from "./footpaths";
+import { rawHeight, smooth, smoothedHeight } from "./landform";
 
-// ── value noise ──
-function hash(x: number, y: number) {
-  let h = (x * 374761393 + y * 668265263) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-function vnoise(x: number, y: number) {
-  const xi = Math.floor(x);
-  const yi = Math.floor(y);
-  const xf = x - xi;
-  const yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf);
-  const v = yf * yf * (3 - 2 * yf);
-  const a = hash(xi, yi);
-  const b = hash(xi + 1, yi);
-  const c = hash(xi, yi + 1);
-  const d = hash(xi + 1, yi + 1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-function fbm(x: number, y: number, oct = 4) {
-  let s = 0;
-  let amp = 0.5;
-  let f = 1;
-  for (let i = 0; i < oct; i++) {
-    s += amp * vnoise(x * f, y * f);
-    f *= 2.03;
-    amp *= 0.5;
-  }
-  return s;
-}
-const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
+// the natural, unlevelled island (no stamps, no settlements) lives in ./landform.ts — a leaf module
+// registry/settlements.ts (and footpaths.ts) can import too, with no cycle back to this file (whose
+// own stamps() reads SETTLEMENTS). Re-exported here so anything that already imported these from
+// terrain.ts keeps working.
+export { rawHeight, smooth };
 
-/** the park's land (the old little island's shape); `sd` = how far out to sea (negative inland) */
-function parkHeight(x: number, z: number, sd: number): number {
-  // rolling meadow hills
-  let h = (fbm(x / 38 + 11, z / 38 - 7) - 0.45) * 11;
-  // broad swells
-  h += Math.sin(x / 61 + 1.3) * Math.cos(z / 53 - 0.7) * 3.5;
-  // mountains with cliffs rising behind the park to the north (z very negative = north on the map),
-  // shaped as they always were: they fall away where the park's old shore was, down to the
-  // foothills before the Great Ridge rises
-  const north = smooth(0.1, 0.9, (-z - 40) / 90) * smooth(-2, -40, Math.max(sd, Math.hypot(x, z) - parkCoastR(Math.atan2(x, z))));
-  const ridge = Math.pow(fbm(x / 22 + 40, z / 22 + 3, 5), 1.6) * 60;
-  h += north * (14 + ridge);
-  // softer highlands in the far west
-  const west = smooth(0.2, 1, (-x - 70) / 70) * smooth(0, -30, sd);
-  h += west * fbm(x / 30 - 5, z / 30 + 9) * 16;
-  return h * smooth(0, -26, sd);
-}
-
-/** the Great Ridge's spine: from the mountains behind the park away to the north-east */
-const RIDGE: [number, number][] = [
-  [-40, -165],
-  [180, -380],
-  [480, -640],
-  [820, -930],
-  [1150, -1210],
-  [1460, -1470],
-  [1760, -1690],
-];
-const RIDGE_LEN: number[] = (() => {
-  const out = [0];
-  for (let i = 1; i < RIDGE.length; i++) out.push(out[i - 1] + Math.hypot(RIDGE[i][0] - RIDGE[i - 1][0], RIDGE[i][1] - RIDGE[i - 1][1]));
-  return out;
-})();
-const _rp = { d: 0, u: 0 };
-/** distance from (x, z) to the ridge's spine, and how far along it (0..1) */
-function ridgeAt(x: number, z: number): typeof _rp {
-  let best = Infinity;
-  let bu = 0;
-  for (let i = 0; i + 1 < RIDGE.length; i++) {
-    const [ax, az] = RIDGE[i];
-    const bx = RIDGE[i + 1][0] - ax;
-    const bz = RIDGE[i + 1][1] - az;
-    const L2 = bx * bx + bz * bz;
-    const t = Math.min(1, Math.max(0, ((x - ax) * bx + (z - az) * bz) / L2));
-    const d = Math.hypot(x - ax - bx * t, z - az - bz * t);
-    if (d < best) {
-      best = d;
-      bu = (RIDGE_LEN[i] + Math.sqrt(L2) * t) / RIDGE_LEN[RIDGE_LEN.length - 1];
-    }
-  }
-  _rp.d = best;
-  _rp.u = bu;
-  return _rp;
-}
-/** the lone peak out east, and the north-west uplands */
-const LONE_PEAK = { x: 1980, z: -520, r: 260, h: 95 };
-const UPLANDS = { x: 380, z: -1500, r: 520, h: 26 };
-
-/** the Wildlands' land: plains, the Great Ridge, the lone peak and the uplands */
-function wildHeight(x: number, z: number, sd: number): number {
-  // broad rolling plains (dry land: the base sits well above the sea) with smaller hills on them
-  let h = 7 + (fbm(x / 230 + 31, z / 230 - 17) - 0.45) * 30 + (fbm(x / 64 - 9, z / 64 + 4) - 0.45) * 9;
-  // the Great Ridge: a long range of crags and snowy peaks, highest along its middle
-  const rp = ridgeAt(x, z);
-  const width = 85 + fbm(x / 300 + 4, z / 300 - 8) * 70;
-  const along = Math.pow(Math.sin(Math.PI * Math.min(1, rp.u * 1.08)), 0.6);
-  const crest = 30 + along * (55 + fbm(x / 160 - 3, z / 160 + 6) * 50);
-  const k = Math.exp(-((rp.d / width) ** 2));
-  const crag = 1 - Math.abs(2 * fbm(x / 46 + 13, z / 46 - 21, 5) - 1);
-  h += k * (crest + crag * crag * 30 * (0.4 + along));
-  // the lone peak (a tall cone with gullies down its flanks)
-  const ld = Math.hypot(x - LONE_PEAK.x, z - LONE_PEAK.z) / LONE_PEAK.r;
-  if (ld < 1.6) h += LONE_PEAK.h * Math.exp(-ld * ld * 2.2) * (0.85 + 0.3 * fbm(x / 35 + 2, z / 35 - 2, 3));
-  // the north-west uplands: a high rolling plateau with a steep edge
-  const ud = Math.hypot(x - UPLANDS.x, z - UPLANDS.z) / UPLANDS.r;
-  h += UPLANDS.h * (1 - smooth(0.75, 1.0, ud + (fbm(x / 120, z / 120) - 0.5) * 0.3));
-  // down to the coast through wide lowlands
-  return h * smooth(0, -70, sd);
-}
-
-/** the wild land before anything is levelled */
-function rawHeight(x: number, z: number): number {
-  const r = Math.hypot(x, z);
-  const sd = seaDist(x, z);
-  // the park's land near the plaza, the Wildlands' beyond (blended over a wide band)
-  const wPark = 1 - smooth(190, 340, r);
-  let h = wPark > 0 ? parkHeight(x, z, sd) * wPark : 0;
-  if (wPark < 1) h += wildHeight(x, z, sd) * (1 - wPark);
-  // under the sea: a shallow sandy lagoon, a reef shelf with coral mounds, and a drop-off wall
-  // into the deep blue
-  const d = sd;
-  if (d > 10) h -= seabedDrop(x, z, d);
-  return h;
-}
-
-/** how far the sea floor sits below the beach, `d` metres out from the grass line */
-function seabedDrop(x: number, z: number, d: number): number {
-  const lagoon = smooth(12, 24, d) * 3.2; // ~-3 m: bright sand, snorkelling depth
-  const shelf = smooth(24, 34, d) * 3.8; // ~-7 m: the reef shelf
-  const wall = smooth(37, 46, d) * 15; // ~-22 m: the deep blue beyond the reef
-  // coral mounds and sand ripples on the lagoon floor and the shelf
-  const mounds = smooth(16, 26, d) * (1 - smooth(36, 43, d)) * (fbm(x / 9 + 3, z / 9 - 8) - 0.45) * 5;
-  const ripples = smooth(12, 20, d) * Math.sin(x * 0.7 + Math.sin(z * 0.13) * 3) * 0.12;
-  return lagoon + shelf + wall - mounds - ripples;
-}
 /** the deepest sea floor (past the reef wall, and off the edge of the height field) */
 export const DEEP_FLOOR = -22;
 /** the sea's surface height (the water mesh's resting level) */
@@ -278,31 +146,30 @@ function stamps(): Stamp[][] {
   stamp(0, 0, 13, 24, 0);
   // Wildlands settlements: the ground under the fire/plaza, every hut and every work spot but the
   // fishing one (its pier crosses the real shore on purpose, sloping down to the water like any
-  // beach) is gently levelled — like a trail, each spot settles to a SMOOTHED version of its own
-  // natural height (not one flat height for the whole village, which left a sunken-looking disc
-  // where the land naturally rises away from the shore; the smoothing, not a single shared number,
-  // is what keeps neighbouring huts from stepping against each other), with its own small,
-  // soft-edged clearing so the kid can still see where one dooryard ends and the grass begins.
-  // Never below the waterline; a stilt hut right at the water gets a lower floor than one further
-  // up the bank (registry/settlements.ts).
-  const smoothSample = (x: number, z: number) => {
-    let s = sample(x, z) * 2;
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      s += sample(x + Math.sin(a) * 3.5, z + Math.cos(a) * 3.5);
-    }
-    return s / 8;
-  };
+  // beach) is gently levelled to ONE shared pad height per settlement (registry/landform.ts's
+  // smoothedHeight at the settlement's own centre) — every hut and work spot settling to the SAME
+  // number, not its own local sample, is what keeps neighbouring huts from stepping against each
+  // other (a village is sited somewhere the real ground is already gentle — registry/settlements.ts
+  // — so one shared pad reads as natural, not a sunken disc). Never below the waterline; a stilt
+  // hut right at the water keeps its own lower floor (it's sited BY the shore on purpose, where the
+  // land is falling away to the lake, so it needs its own locally-smoothed height, not the pad's).
   for (const st of SETTLEMENTS) {
-    stampLazy(st.x, st.z, 7, 22, () => Math.max(smoothSample(st.x, st.z) * 0.6, WATER_Y + 0.6));
+    const padH = () => settlePadHeight(st.style, st.x, st.z);
+    stampLazy(st.x, st.z, 7, 22, padH);
     for (const hut of st.huts) {
-      const floor = hut.shore ? WATER_Y + 0.45 : WATER_Y + 0.6;
-      stampLazy(hut.x, hut.z, hut.size + 2.6, hut.size + (hut.shore ? 13 : 11), () => Math.max(smoothSample(hut.x, hut.z) * (hut.shore ? 0.75 : 0.6), floor));
+      if (hut.shore) {
+        stampLazy(hut.x, hut.z, hut.size + 2.6, hut.size + 13, () => Math.max(smoothedHeight(hut.x, hut.z) * 0.75, WATER_Y + 0.45));
+      } else {
+        stampLazy(hut.x, hut.z, hut.size + 2.6, hut.size + 11, padH);
+      }
     }
     for (const w of st.work) {
       if (w.id === "fishing") continue;
-      stampLazy(w.x, w.z, 3.2, 14, () => Math.max(smoothSample(w.x, w.z) * 0.6, WATER_Y + 0.6));
+      stampLazy(w.x, w.z, 3.2, 14, padH);
     }
+    // any extra area a settlement wants levelled flush with its own pad (Highstone's yak pasture,
+    // which reaches further out than any one hut/work spot's own stamp) — registry/settlements.ts
+    for (const lp of st.levelPatches) stampLazy(lp.x, lp.z, lp.rIn, lp.rOut, padH);
   }
   // the Lakeside <-> Market Street cart road (registry/cartRoad.ts): levelled gently like a trail,
   // each point settling to a SMOOTHED version of its own natural height (not sampled until its
@@ -316,8 +183,11 @@ function stamps(): Stamp[][] {
   // whatever the land is already doing)
   for (const [x, z] of CART_ROAD.points) {
     if (LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius + 10)) continue;
-    stampLazy(x, z, 2.2, 11, () => Math.max(smoothSample(x, z), WATER_Y + 0.5));
+    stampLazy(x, z, 2.2, 11, () => Math.max(smoothedHeight(x, z), WATER_Y + 0.5));
   }
+  // every other settlement's own footpath to its station (registry/footpaths.ts) — narrower than
+  // the cart road (a kid's and a trader's own walk, not a cart's), same lazy local-smoothed levelling
+  for (const fp of FOOTPATHS) for (const [x, z] of fp.points) stampLazy(x, z, 1.6, 8, () => Math.max(smoothedHeight(x, z), WATER_Y + 0.5));
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);
   // (each stamp goes in every tile whose padded patch it reaches, keeping the bake order)

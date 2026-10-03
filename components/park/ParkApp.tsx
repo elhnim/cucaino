@@ -58,6 +58,8 @@ import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 // Every building panel loads on demand, never in the park's first download.
 const HomeScreen = dynamic(() => import("./home/HomeScreen").then((m) => m.HomeScreen), { ssr: false });
 const FishingGame = dynamic(() => import("./FishingGame").then((m) => m.FishingGame), { ssr: false });
+const DrumGame = dynamic(() => import("./DrumGame").then((m) => m.DrumGame), { ssr: false });
+const WeaveGame = dynamic(() => import("./WeaveGame").then((m) => m.WeaveGame), { ssr: false });
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const WizardSheet = dynamic(() => import("./wizards/WizardSheet").then((m) => m.WizardSheet), { ssr: false });
 const BookOfWisdom = dynamic(() => import("./wizards/BookOfWisdom").then((m) => m.BookOfWisdom), { ssr: false });
@@ -270,7 +272,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [railOffer, setRailOffer] = useState<{ name: string; emoji: string; waiting: boolean } | null>(null);
   // a settlement activity the kid is standing at (Lakeside's pier: "Go fishing"), and the one open
   const [activityOffer, setActivityOffer] = useState<{ settlement: string; id: string; label: string; emoji: string } | null>(null);
-  const [fishing, setFishing] = useState<{ night: boolean } | null>(null);
+  // the settlement activity open now (fishing at Lakeside, drumming at Treetop, weaving at Highstone)
+  const [fishing, setFishing] = useState<{ id: string; night: boolean } | null>(null);
   const [railStop, setRailStop] = useState<{ name: string; emoji: string } | null>(null);
   const [onTrain, setOnTrain] = useState(false);
   // Frostpeak's ski run: skis on offer at the start hut, the chairlift at the bottom
@@ -1408,11 +1411,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               active
               style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 96, borderRadius: 20 }}
               onClick={() => {
-                if (activityOffer.id !== "fishing") return;
+                if (!["fishing", "drumming", "weaving"].includes(activityOffer.id)) return;
                 playSfx("tap");
                 worldRef.current?.setMove(0, 0);
                 worldRef.current?.setInputEnabled(false);
-                setFishing({ night: !!worldRef.current?.isNight });
+                setFishing({ id: activityOffer.id, night: !!worldRef.current?.isNight });
               }}
               aria-label={activityOffer.label}
             >
@@ -1798,17 +1801,15 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           </div>
         </div>
       )}
-      {fishing && (
-        <FishingGame
-          open
-          kidId={kidId}
-          night={fishing.night}
-          onClose={() => {
+      {fishing &&
+        (() => {
+          const close = () => {
             setFishing(null);
             worldRef.current?.setInputEnabled(true);
-          }}
-        />
-      )}
+          };
+          const Game = fishing.id === "drumming" ? DrumGame : fishing.id === "weaving" ? WeaveGame : FishingGame;
+          return <Game open kidId={kidId} night={fishing.night} onClose={close} />;
+        })()}
       {home && (
         <HomeScreen
           kidId={kidId}

@@ -135,6 +135,22 @@ describe("a settlement's villagers' day (generic routine, run on Lakeside)", () 
     expect(stepSettlement(def, sim, DT, t, 9.5, { x: pike.x + 40, z: pike.z }, talk)).toBe(-1);
   });
 
+  for (const other of SETTLEMENTS.filter((s) => s.id !== def.id)) {
+    it(`${other.id}: the generic routine also runs a whole day without NaNs or infinities`, () => {
+      const sim = makeSettlementSim(other);
+      const talk: TalkOut = { id: "", name: "", line: "", emoji: "" };
+      let t = 0;
+      let bad = 0;
+      for (let k = 0; k < DAY / DT; k++) {
+        t += DT;
+        const hour = hourAt(t, 5);
+        stepSettlement(other, sim, DT, t, hour, null, talk);
+        for (const v of sim.villagers) if (!Number.isFinite(v.x + v.z + v.y + v.yaw)) bad++;
+      }
+      expect(bad).toBe(0);
+    });
+  }
+
   it("nobody walks through the Park kid", () => {
     const sim = makeSettlementSim(def);
     let t = run(sim, 12, 10);

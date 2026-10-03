@@ -113,7 +113,7 @@ export function craftGlassMaterial(): THREE.ShaderMaterial {
 
 // ── shapes ──
 
-interface Part {
+export interface Part {
   g: THREE.BufferGeometry;
   c: string;
 }
@@ -122,9 +122,11 @@ interface Part {
  * A boat hull lofted from cross-sections, open on top: outer skin (in colour bands from the
  * gunwale down), a see-through-proof inner skin, a gunwale rail, a flat floor (or deck) at
  * `floorY`, and optional closed decks over parts of it. u = 0 is the stern (a flat transom when
- * width(0) > 0), u = 1 the bow.
+ * width(0) > 0), u = 1 the bow. Exported so world/sea/fishingBoats.ts can loft its own (unskinned,
+ * instanced) little trawler hull from the very same cross-section math — a proper curved, tapered
+ * hull instead of boxes, with no skeleton/skinning involved.
  */
-function hull(o: {
+export function hull(o: {
   len: number;
   beam: number;
   width: (u: number) => number;
