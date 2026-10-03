@@ -122,21 +122,35 @@ function bucketSegments(pts: P2[]): number[][] {
 }
 const RIVER_B = bucketSegments(WILD_RIVER_POINTS);
 const OUTLET_B = bucketSegments(WILD_OUTLET_POINTS);
-const _np = { d: 0, i: 0, u: 0 };
+// (fields start as the kinds they'll hold: d and u are fractions, i an int)
+const _np = { d: 0.5, i: 0, u: 0.5 };
+const WX0 = WILD_WATER_BOUNDS.x0;
+const WZ0 = WILD_WATER_BOUNDS.z0;
 /** nearest point on `pts` to (x, z) (as nearestOnPolyline), or d = Infinity when none is within SEARCH */
-function nearestBucketed(pts: P2[], B: number[][], x: number, z: number): typeof _np {
-  _np.d = Infinity;
-  _np.i = 0;
-  _np.u = 0;
-  const bi = Math.floor((x - WILD_WATER_BOUNDS.x0) / BUCKET);
-  const bj = Math.floor((z - WILD_WATER_BOUNDS.z0) / BUCKET);
-  if (bi < 0 || bj < 0 || bi >= BNX || bj >= BNZ) return _np;
+function nearestBucketed(f: Float64Array, B: number[][], x: number, z: number): typeof _np {
+  // (written for the optimiser — this is the hottest loop in baking the water: the bucket index is
+  //  range-checked as a float, then truncated, so it's always a small int; the points are one flat
+  //  Float64Array, not little [x, z] arrays of mixed kinds; the result is written once, at the end.
+  //  Before, it kept bailing out of its optimised code and gave up, making every later bake of the
+  //  Wildlands' water several times slower)
+  const fx = (x - WX0) / BUCKET;
+  const fz = (z - WZ0) / BUCKET;
+  if (!(fx >= 0 && fz >= 0 && fx < BNX && fz < BNZ)) {
+    _np.d = Infinity;
+    _np.i = 0;
+    _np.u = 0;
+    return _np;
+  }
+  const list = B[(fz | 0) * BNX + (fx | 0)];
   let best = Infinity;
-  for (const i of B[bj * BNX + bi]) {
-    const ax = pts[i][0];
-    const az = pts[i][1];
-    const ex = pts[i + 1][0] - ax;
-    const ez = pts[i + 1][1] - az;
+  let bi = 0;
+  let bu = 0;
+  for (let k = 0; k < list.length; k++) {
+    const i = list[k];
+    const ax = f[i * 2];
+    const az = f[i * 2 + 1];
+    const ex = f[i * 2 + 2] - ax;
+    const ez = f[i * 2 + 3] - az;
     const l2 = ex * ex + ez * ez || 1;
     const u = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2));
     const dx = ax + ex * u - x;
@@ -144,13 +158,18 @@ function nearestBucketed(pts: P2[], B: number[][], x: number, z: number): typeof
     const d = dx * dx + dz * dz;
     if (d < best) {
       best = d;
-      _np.i = i;
-      _np.u = u;
+      bi = i;
+      bu = u;
     }
   }
   _np.d = Math.sqrt(best);
+  _np.i = bi;
+  _np.u = bu;
   return _np;
 }
+const flatOf = (pts: P2[]) => Float64Array.from(pts.flatMap((p) => [p[0], p[1]]));
+const RIVER_F = flatOf(WILD_RIVER_POINTS);
+const OUTLET_F = flatOf(WILD_OUTLET_POINTS);
 
 /** the raw shapes at (x, z): signed distance to the water's edge, the body, and the current */
 function shapeAt(x: number, z: number, out: { sdf: number; body: number; fx: number; fz: number; depth: number }) {
@@ -192,8 +211,8 @@ function shapeAt(x: number, z: number, out: { sdf: number; body: number; fx: num
   }
   // the river and the outlet: along their lines, flowing downstream
   for (const [pts, len, half, b, speed, B] of [
-    [WILD_RIVER_POINTS, riverLen, wildRiverHalfWidth, B_RIVER, 1.25, RIVER_B],
-    [WILD_OUTLET_POINTS, outletLen, outletHalfWidth, B_OUTLET, 1.0, OUTLET_B],
+    [RIVER_F, riverLen, wildRiverHalfWidth, B_RIVER, 1.25, RIVER_B],
+    [OUTLET_F, outletLen, outletHalfWidth, B_OUTLET, 1.0, OUTLET_B],
   ] as const) {
     const n = nearestBucketed(pts, B, x, z);
     if (n.d === Infinity) continue;
@@ -203,13 +222,15 @@ function shapeAt(x: number, z: number, out: { sdf: number; body: number; fx: num
     if (d < sdf) {
       sdf = d;
       body = b;
-      const a = pts[n.i];
-      const c = pts[Math.min(pts.length - 1, n.i + 1)];
-      const l = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1;
+      const ia = n.i * 2;
+      const ic = Math.min(pts.length / 2 - 1, n.i + 1) * 2;
+      const ex = pts[ic] - pts[ia];
+      const ez = pts[ic + 1] - pts[ia + 1];
+      const l = Math.hypot(ex, ez) || 1;
       // (fastest mid-stream)
       const k = speed * (0.35 + 0.65 * Math.max(0, 1 - (n.d / h) ** 2));
-      fx = ((c[0] - a[0]) / l) * k;
-      fz = ((c[1] - a[1]) / l) * k;
+      fx = (ex / l) * k;
+      fz = (ez / l) * k;
       // wadeable at the edges, deep enough to swim mid-stream
       depth = Math.min(2.4, 0.35 - d * 0.42);
     }
@@ -359,7 +380,7 @@ export function wildShelfY(x: number, z: number, ground: number): number | null 
 /** 0..1: the rainforest — round the falls and the shelf, and in a broad band along the upper river */
 export function wildRainforestK(x: number, z: number): number {
   if (!inWildWater(x, z)) return 0;
-  const n = nearestBucketed(WILD_RIVER_POINTS, RIVER_B, x, z);
+  const n = nearestBucketed(RIVER_F, RIVER_B, x, z);
   const s = n.d === Infinity ? 1 : riverLen[n.i] / WILD_RIVER_LENGTH;
   // (the band narrows toward the lake, where the plains open out)
   const band = 1 - smoothstep(55 + 70 * (1 - s), 85 + 90 * (1 - s), n.d);

@@ -3,10 +3,11 @@ import { ISLAND_CENTER, ISLAND_DESTINATIONS, ISLAND_LANDMARKS, ISLAND_VIEW, WORL
 import { TERRAIN_X0, TERRAIN_X1, TERRAIN_Z0, TERRAIN_Z1, WRAP_R } from "./terrain";
 import { seaDist } from "./island";
 import { STATIONS } from "./railway";
+import { SETTLEMENTS } from "./settlements";
 
 describe("the big island's map destinations (the Island tab)", () => {
-  it("has one destination per railway station, each on dry land, each unique", () => {
-    expect(ISLAND_DESTINATIONS.length).toBe(STATIONS.length);
+  it("has one destination per railway station and per settlement, each on dry land, each unique", () => {
+    expect(ISLAND_DESTINATIONS.length).toBe(STATIONS.length + SETTLEMENTS.length);
     const ids = new Set<string>();
     for (const dest of ISLAND_DESTINATIONS) {
       expect(ids.has(dest.id), `duplicate id ${dest.id}`).toBe(false);

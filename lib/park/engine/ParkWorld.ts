@@ -50,6 +50,7 @@ import { stationAt, type Station } from "../registry/railway";
 import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../registry/jungle";
 import { waterSdf } from "../registry/waterways";
 import { VILLAGE_ISLAND } from "../registry/villageIsland";
+import { settlementAt } from "../registry/settlements";
 import { FROST_ISLAND } from "../registry/frostIsland";
 import { makeKidSlide, petSlidePose, slideName, slideSplashS, stepKidSlide, type KidSlide } from "../world/frost/kidSlide";
 import { makeKidSki, stepKidSki, type KidSki } from "../world/frost/kidSki";
@@ -106,7 +107,7 @@ export interface ParkWorldOptions {
   /** landed on a floating mountain (id, "land") or stepped off an edge ("glide", id null) */
   onSkyIsland?: (id: string | null, what: "land" | "glide") => void;
   /** a Coralcove villager says something to the kid (null = nobody talking now) */
-  onVillageTalk?: (talk: { id: string; name: string; line: string } | null) => void;
+  onVillageTalk?: (talk: { id: string; name: string; line: string; emoji?: string } | null) => void;
   /** arrived at Coralcove Isle for the first time this visit */
   onVillage?: (name: string, clan: string) => void;
   /** discovered something on a floating mountain (a cave, a nest, a rune circle solved …) */
@@ -346,6 +347,7 @@ export class ParkWorld {
   private dinoSpot: string | null = null;
   private metDino = false;
   private metVillage = false;
+  private metSettlements = new Set<string>();
   /** flung by a sky cannon towards another island: from -> to over `dur` seconds */
   private launch: { fx: number; fy: number; fz: number; tx: number; tz: number; to: string; t: number; dur: number } | null = null;
   /** a telescope's peek at another island (the camera looks there for a moment) */
@@ -1664,6 +1666,12 @@ export class ParkWorld {
       this.metVillage = true;
       this.opts.onVillage?.(VILLAGE_ISLAND.name, VILLAGE_ISLAND.clan);
     }
+    // a Wildlands settlement: say hello the first time the kid walks into it
+    const settlementHere = settlementAt(pos.x, pos.z, 12);
+    if (settlementHere && !this.metSettlements.has(settlementHere.id)) {
+      this.metSettlements.add(settlementHere.id);
+      this.opts.onVillage?.(settlementHere.name, settlementHere.clan);
+    }
 
     // discoveries on the floating mountains
     if (this.onSky && !this.launch) {
@@ -2865,6 +2873,17 @@ export class ParkWorld {
     const p = this.kid.root.position;
     const st = stationAt(p.x, p.z, 1.5);
     return st ? { name: st.name, emoji: st.emoji, waiting: this.trainWait === st } : null;
+  }
+  /** Standing at a settlement's activity spot, on foot (the HUD offers e.g. "Go fishing"); null off
+   *  foot (riding, flying, on the train...) or nowhere near one. */
+  get activityOffer(): { settlement: string; id: string; label: string; emoji: string } | null {
+    if (!this.park || !this.kid || this.sky || this.mount || this.ride || this.building) return null;
+    return this.park.activityOffer;
+  }
+  /** Is it night in the park right now (the twilight glow is up)? For 2D overlays that draw the
+   *  same time of day as the 3D world (e.g. the fishing pier at night). */
+  get isNight(): boolean {
+    return (this.park?.atmosphere.glow ?? 0) > 0.5;
   }
   /** On the train, standing at a station: where (the HUD offers "Get off here") */
   get railStop(): { name: string; emoji: string } | null {

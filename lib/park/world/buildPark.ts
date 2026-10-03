@@ -38,6 +38,8 @@ import { rideableKeepOut } from "../registry/rideables";
 import { buildStorybook, type Storybook } from "./storybook";
 import { buildVillage } from "./village";
 import { VILLAGE_OBSTACLES } from "../registry/villageIsland";
+import { buildSettlements, type ActivityOffer } from "./settlements";
+import { SETTLEMENT_OBSTACLES } from "../registry/settlements";
 import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
 
@@ -65,8 +67,14 @@ export interface BuiltPark {
   fauna: Fauna;
   /** bikes, cars, unicorns, dragons and mantas waiting round the world to be ridden (the engine drives it) */
   rides: Rideables;
-  /** a Coralcove villager with something to say to the kid right now (null when nobody's near) */
-  villageTalk: { id: string; name: string; line: string } | null;
+  /** a villager with something to say to the kid right now (Coralcove's Tidewing Folk or a
+   *  Wildlands settlement's folk, whichever is near — a settlement's talk wins when both would
+   *  apply, which in practice never happens, the islands being so far apart); `emoji` is the
+   *  clan's own emoji (Coralcove has none: the bubble falls back to 🧚) */
+  villageTalk: { id: string; name: string; line: string; emoji?: string } | null;
+  /** something to do at a settlement the kid's standing at, on foot (the fishing spot at
+   *  Lakeside's pier) — the engine's `activityOffer` getter also requires being on foot */
+  activityOffer: ActivityOffer | null;
   /** the floating mountains' chests, discoveries and rune-stone puzzles */
   skyChests: FantasyWorld["sky"];
   /** the Sky Coaster: its track and where its train is (the engine drives it while you ride) */
@@ -601,6 +609,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── Coralcove Isle, far out at sea: the Tidewing Folk's villages ──
   const village = buildVillage(scene, { lowQuality: opts.lowQuality });
   disposables.push(village);
+  // ── Wildlands settlements: Lakeside, the Reedling Folk's fishing village on the Great Lake
+  //    (streamed in round the kid, like the trees and the wildlife — nothing built at spawn) ──
+  const settlements = buildSettlements(scene, { lowQuality: opts.lowQuality });
+  disposables.push(settlements);
   // ── rides waiting round the world: bikes, buggies, unicorns, dragons, mantas (and sea friends) ──
   const worldRides = buildRideables(scene, { lowQuality: opts.lowQuality });
   disposables.push(worldRides);
@@ -738,13 +750,14 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     wildlife,
     wildTrunkAt: (x, z, r) => fantasy.wilds.trunkAt(x, z, r),
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
-    obstacles: [...fantasy.obstacles, ...SEA_FOOTPRINTS, ...waterways.obstacles, ...jungle.obstacles, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES, ...DINO_OBSTACLES],
+    obstacles: [...fantasy.obstacles, ...SEA_FOOTPRINTS, ...waterways.obstacles, ...jungle.obstacles, ...(storybook?.obstacles ?? []), ...VILLAGE_OBSTACLES, ...FROST_OBSTACLES, ...DINO_OBSTACLES, ...SETTLEMENT_OBSTACLES],
     quests3d,
     underwater,
     skyTrain,
     skyChests: fantasy.sky,
     storybook,
     villageTalk: null,
+    activityOffer: null,
     rides: worldRides,
     fauna,
     abyss,
@@ -760,7 +773,12 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       storybook?.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       fauna.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour });
-      built.villageTalk = village.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour }).talk;
+      const villageTalk = village.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour }).talk;
+      const settleOut = settlements.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow, hour: atmosphere.hour });
+      // a settlement's folk win when they've something to say (the islands are far enough apart
+      // that both are never near at once); Coralcove's bubble has no clan emoji of its own
+      built.villageTalk = settleOut.talk ?? villageTalk;
+      built.activityOffer = settleOut.activity;
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {
         const top = skyTopY(sp.x, sp.z, t);

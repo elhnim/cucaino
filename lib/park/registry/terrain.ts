@@ -13,6 +13,7 @@ import { mesaY, waterBedY, waterSdf } from "./waterways";
 import { wildShelfY } from "./wildWater";
 import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
+import { SETTLEMENTS } from "./settlements";
 
 // ── value noise ──
 function hash(x: number, y: number) {
@@ -234,13 +235,20 @@ interface Stamp {
   rIn: number;
   rOut: number;
   h: number;
+  /** (a height worked out only when a tile it reaches is first baked: NaN until then) */
+  hf?: () => number;
 }
+/** a stamp's target height (lazy ones are worked out the first time they're needed) */
+const stampH = (st: Stamp) => (st.hf ? ((st.h = st.hf()), (st.hf = undefined), st.h) : st.h);
 /** every levelling stamp, in bake order (the strongest wins; on a tie the first), bucketed by tile */
 let stampBuckets: Stamp[][] | null = null;
 function stamps(): Stamp[][] {
   if (stampBuckets) return stampBuckets;
   const list: Stamp[] = [];
   const stamp = (x: number, z: number, rIn: number, rOut: number, h: number) => list.push({ x, z, rIn, rOut, h });
+  // (lazy: far out in the Wildlands, sampling the natural ground there means working out the land
+  //  and its water, which the park itself never needs — so only when a tile there is first baked)
+  const stampLazy = (x: number, z: number, rIn: number, rOut: number, hf: () => number) => list.push({ x, z, rIn, rOut, h: NaN, hf });
   const sample = (x: number, z: number) => rawHeight(x, z);
   // trails: follow the land softly, so paths roll with the hills but never get steep
   for (const pts of TRAIL_POINTS) {
@@ -267,6 +275,34 @@ function stamps(): Stamp[][] {
   }
   for (const p of PLACES) if (!p.sky) stamp(p.x, p.z, p.radius + 2, p.radius + 7, landH[p.land] ?? 0);
   stamp(0, 0, 13, 24, 0);
+  // Wildlands settlements: the ground under the fire/plaza, every hut and every work spot but the
+  // fishing one (its pier crosses the real shore on purpose, sloping down to the water like any
+  // beach) is gently levelled — like a trail, each spot settles to a SMOOTHED version of its own
+  // natural height (not one flat height for the whole village, which left a sunken-looking disc
+  // where the land naturally rises away from the shore; the smoothing, not a single shared number,
+  // is what keeps neighbouring huts from stepping against each other), with its own small,
+  // soft-edged clearing so the kid can still see where one dooryard ends and the grass begins.
+  // Never below the waterline; a stilt hut right at the water gets a lower floor than one further
+  // up the bank (registry/settlements.ts).
+  const smoothSample = (x: number, z: number) => {
+    let s = sample(x, z) * 2;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      s += sample(x + Math.sin(a) * 3.5, z + Math.cos(a) * 3.5);
+    }
+    return s / 8;
+  };
+  for (const st of SETTLEMENTS) {
+    stampLazy(st.x, st.z, 7, 22, () => Math.max(smoothSample(st.x, st.z) * 0.6, WATER_Y + 0.6));
+    for (const hut of st.huts) {
+      const floor = hut.shore ? WATER_Y + 0.45 : WATER_Y + 0.6;
+      stampLazy(hut.x, hut.z, hut.size + 2.6, hut.size + (hut.shore ? 13 : 11), () => Math.max(smoothSample(hut.x, hut.z) * (hut.shore ? 0.75 : 0.6), floor));
+    }
+    for (const w of st.work) {
+      if (w.id === "fishing") continue;
+      stampLazy(w.x, w.z, 3.2, 14, () => Math.max(smoothSample(w.x, w.z) * 0.6, WATER_Y + 0.6));
+    }
+  }
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);
   // (each stamp goes in every tile whose padded patch it reaches, keeping the bake order)
@@ -406,7 +442,7 @@ function bakeTile(ti: number, tj: number): Float32Array {
         const k = (j - pj0) * W + (i - pi0);
         if (w > weight[k]) {
           // the strongest stamp wins (a land beats the trail running into it)
-          target[k] = st.h;
+          target[k] = stampH(st);
           weight[k] = w;
         }
       }
@@ -589,7 +625,7 @@ export function groundYFar(x: number, z: number): number {
     const s = 1 - smooth(st.rIn, st.rOut, d);
     if (s > w) {
       w = s;
-      target = st.h;
+      target = stampH(st);
     }
   }
   h += (target - h) * w;

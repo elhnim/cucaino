@@ -24,37 +24,13 @@ import {
   villageSeaFloorY,
   villageWork,
 } from "../../registry/villageIsland";
-import { addFolkInstanceAttrs, folkDepthMaterial, folkMaterial, trisOf } from "./kit";
+import { trisOf } from "./kit";
 import { buildPropsGeometry } from "./props";
 import { buildGroundGeometry, buildWater, seaWave } from "./terrain";
 import { buildFx } from "./fx";
-import {
-  BODY_APRON,
-  BODY_DRESS,
-  BODY_ROBE,
-  BODY_TUNIC,
-  HAND_TOOLS,
-  HIP,
-  LEG_X,
-  LIMB_ARM,
-  LIMB_LEG,
-  NECK,
-  SHOULDER,
-  TOOL_IDS,
-  WING_GULL,
-  WING_ROOT,
-  WING_SPRITE,
-  buildBody,
-  buildCanoe,
-  buildCrab,
-  buildGull,
-  buildHead,
-  buildLimb,
-  buildPup,
-  buildTools,
-  buildWing,
-} from "./folk";
-import { CLOTHS, HAIRS, SKINS, WINGS, makeSim, stepVillage, type Pose, type TalkOut, type VillagerState } from "./routine";
+import { TOOL_IDS, WING_GULL, buildCanoe, buildCrab, buildGull, buildPup } from "./folk";
+import { BODY_VARIANTS, buildCrowd, folkInstance, makeRig, resolveRig, type Rig } from "./crowd";
+import { CLOTHS, HAIRS, SKINS, WINGS, makeSim, stepVillage, type TalkOut, type VillagerState } from "./routine";
 
 export interface Village {
   update(dt: number, t: number, o: { kid: THREE.Vector3; glow: number; hour: number }): { talk: { id: string; name: string; line: string } | null };
@@ -77,242 +53,7 @@ const smooth = (a: number, b: number, x: number) => {
   return u * u * (3 - 2 * u);
 };
 
-/** the joint angles one pose resolves to (reused) */
-interface Rig {
-  hipY: number;
-  bob: number;
-  lean: number;
-  roll: number;
-  yawAdd: number;
-  headYaw: number;
-  headPitch: number;
-  headRoll: number;
-  aLs: number;
-  aLr: number;
-  aRs: number;
-  aRr: number;
-  lLs: number;
-  lRs: number;
-  lSpread: number;
-  flap: number;
-}
-
-function resolveRig(p: Pose, v: VillagerState, t: number, r: Rig): void {
-  const sd = v.def.seed;
-  const ph = (sd % 97) * 0.37;
-  r.hipY = HIP;
-  r.bob = Math.sin(t * 2 + ph) * 0.012;
-  r.lean = v.def.elder ? 0.12 : 0;
-  r.roll = 0;
-  r.yawAdd = 0;
-  r.headYaw = p.look * 0.85 + Math.sin(t * 0.5 + ph) * 0.15;
-  r.headPitch = Math.sin(t * 0.7 + ph) * 0.05;
-  r.headRoll = Math.sin(t * 0.9 + ph * 2) * 0.06;
-  r.aLs = Math.sin(t * 1.3 + ph) * 0.05;
-  r.aRs = -r.aLs;
-  r.aLr = 0.08;
-  r.aRr = 0.08;
-  r.lLs = 0;
-  r.lRs = 0;
-  r.lSpread = 0;
-  r.flap = 0.18 + Math.sin(t * 7 + ph) * 0.12;
-  const c = p.cycle;
-  switch (p.anim) {
-    case "walk": {
-      const g = p.gait;
-      r.lLs = Math.sin(c) * 0.62 * g;
-      r.lRs = -r.lLs;
-      r.aLs = -Math.sin(c) * 0.5 * g;
-      r.aRs = -r.aLs;
-      r.bob = Math.abs(Math.cos(c)) * 0.06 * g;
-      r.roll = Math.sin(c) * 0.06 * g;
-      r.flap = 0.3 + Math.sin(t * 10 + ph) * 0.2;
-      break;
-    }
-    case "run": {
-      const g = Math.max(0.6, p.gait);
-      r.lLs = Math.sin(c) * 0.95 * g;
-      r.lRs = -r.lLs;
-      r.aLs = -Math.sin(c) * 0.95 * g;
-      r.aRs = -r.aLs;
-      r.aLr = r.aRr = 0.3;
-      r.bob = Math.abs(Math.cos(c)) * 0.13 * g;
-      r.lean = 0.16;
-      r.roll = Math.sin(c) * 0.05;
-      r.flap = 0.5 + Math.sin(t * 16 + ph) * 0.35;
-      break;
-    }
-    case "sit":
-    case "story": {
-      r.hipY = 0.58;
-      r.lLs = r.lRs = 1.45;
-      r.aLs = r.aRs = 0.45;
-      r.aLr = r.aRr = -0.1;
-      if (p.anim === "story") {
-        // telling a tale: big arm gestures, looking round the circle
-        r.aRs = 0.9 + Math.sin(t * 2.2 + ph) * 0.5;
-        r.aRr = 0.5 + Math.sin(t * 1.7) * 0.4;
-        r.aLs = 0.7 + Math.sin(t * 1.9 + 1) * 0.4;
-        r.aLr = 0.3 + Math.sin(t * 1.3 + 2) * 0.3;
-        r.headYaw += Math.sin(t * 0.6) * 0.5;
-      }
-      break;
-    }
-    case "fish":
-    case "sit-edge": {
-      r.hipY = 0.12;
-      r.lLs = 0.55 + Math.sin(t * 2.1 + ph) * 0.25;
-      r.lRs = 0.55 - Math.sin(t * 2.1 + ph) * 0.25;
-      r.aRs = 1.05 + Math.max(0, Math.sin(t * 0.4 + ph) - 0.85) * 3;
-      r.aLs = 0.95;
-      r.aLr = -0.25;
-      r.aRr = -0.05;
-      r.headPitch = 0.12;
-      break;
-    }
-    case "drum":
-    case "sit-ground": {
-      r.hipY = 0.14;
-      r.lLs = r.lRs = 1.45;
-      r.lSpread = 0.35;
-      const beat = t * 7.5 + ph;
-      r.aLs = 0.85 + Math.max(0, Math.sin(beat)) * 0.45;
-      r.aRs = 0.85 + Math.max(0, Math.sin(beat + Math.PI)) * 0.45;
-      r.aLr = r.aRr = 0.25;
-      r.bob = Math.abs(Math.sin(beat * 0.5)) * 0.03;
-      r.headPitch = Math.sin(beat) * 0.08;
-      r.headRoll = Math.sin(beat * 0.5) * 0.1;
-      break;
-    }
-    case "sweep": {
-      r.aLs = r.aRs = 0.6;
-      r.aLr = -0.2;
-      r.aRr = -0.1;
-      r.yawAdd = Math.sin(t * 2.6 + ph) * 0.35;
-      r.lean = 0.12;
-      r.headPitch = 0.15;
-      break;
-    }
-    case "bake": {
-      const k = Math.sin(t * 1.4 + ph);
-      r.aLs = r.aRs = 1.3 + k * 0.15;
-      r.aLr = r.aRr = -0.15;
-      r.lean = 0.08 + Math.max(0, k) * 0.1;
-      r.headPitch = 0.1;
-      break;
-    }
-    case "sell": {
-      r.aRs = 0.7 + Math.sin(t * 2.3 + ph) * 0.35;
-      r.aRr = 0.35;
-      r.aLs = 0.5;
-      r.headPitch = Math.sin(t * 3 + ph) * 0.08;
-      // now and then: holding something up for the shoppers to see
-      if (Math.sin(t * 0.35 + ph) > 0.8) r.aRs = 2.2;
-      break;
-    }
-    case "garden": {
-      const k = Math.sin(t * 3.2 + ph);
-      r.lean = 0.45;
-      r.aLs = r.aRs = 0.95 + k * 0.4;
-      r.aLr = -0.15;
-      r.aRr = -0.1;
-      r.bob = -0.04 + Math.abs(k) * 0.02;
-      r.headPitch = 0.3;
-      break;
-    }
-    case "wash": {
-      const k = Math.sin(t * 1.8 + ph);
-      r.aLs = 2.5 + k * 0.2;
-      r.aRs = 2.5 - k * 0.2;
-      r.aLr = r.aRr = 0.25;
-      r.headPitch = -0.3;
-      r.bob = Math.max(0, k) * 0.03;
-      break;
-    }
-    case "light": {
-      r.aRs = 0.9;
-      r.aLs = 0.9;
-      r.aLr = -0.3;
-      r.headPitch = -0.35;
-      break;
-    }
-    case "flute": {
-      r.aLs = r.aRs = 1.35;
-      r.aLr = r.aRr = -0.45;
-      r.roll = Math.sin(t * 1.5 + ph) * 0.08;
-      r.bob = Math.abs(Math.sin(t * 1.5 + ph)) * 0.03;
-      r.headRoll = Math.sin(t * 1.5 + ph) * 0.12;
-      break;
-    }
-    case "dance": {
-      const k = t * 4.6 + ph;
-      r.bob = Math.abs(Math.sin(k)) * 0.24;
-      r.aLr = 1.95 + Math.sin(k) * 0.4;
-      r.aRr = 1.95 - Math.sin(k) * 0.4;
-      r.aLs = r.aRs = 0.35;
-      r.lLs = Math.max(0, Math.sin(k)) * 0.5;
-      r.lRs = Math.max(0, -Math.sin(k)) * 0.5;
-      r.roll = Math.sin(k * 0.5) * 0.14;
-      r.headRoll = Math.sin(k * 0.5) * 0.15;
-      r.flap = 0.5 + Math.sin(t * 18 + ph) * 0.4;
-      break;
-    }
-    case "turn": {
-      const k = t * 6;
-      r.aRs = 1.0 + Math.cos(k) * 0.5;
-      r.aRr = 0.35 + Math.sin(k) * 0.35;
-      r.aLs = 0.3;
-      r.bob = Math.abs(Math.sin(k)) * 0.02;
-      break;
-    }
-    case "jump": {
-      const k = t * 6;
-      const up = Math.max(0, Math.sin(k));
-      r.bob = up * 0.42;
-      r.lLs = r.lRs = up * 0.5;
-      r.aLr = r.aRr = 0.9 + up * 0.5;
-      r.flap = 0.4 + up * 0.6;
-      break;
-    }
-    case "talk": {
-      r.aRs = 0.8 + Math.sin(t * 3.4 + ph) * 0.3;
-      r.aRr = 0.45 + Math.sin(t * 2.3) * 0.2;
-      r.headPitch = Math.sin(t * 4.5) * 0.08;
-      break;
-    }
-    case "look": {
-      r.aRs = 1.85;
-      r.aRr = 0.4;
-      r.headPitch = -0.12;
-      r.headYaw += Math.sin(t * 0.35 + ph) * 0.5;
-      break;
-    }
-    case "nets": {
-      const k = Math.sin(t * 2.6 + ph);
-      r.aLs = 1.05 + k * 0.2;
-      r.aRs = 1.05 - k * 0.2;
-      r.aLr = r.aRr = -0.1;
-      r.headPitch = 0.15;
-      break;
-    }
-    default:
-      break;
-  }
-  // waving at the Park kid (the free hand; or the right one)
-  if (p.wave > 0.01) {
-    const left = p.tool !== "none" && HAND_TOOLS.has(TOOL_IDS[p.tool]);
-    // (out to the side and up, so the hand clears the big head)
-    const wv = 2.0 + Math.sin(t * 10 + ph) * 0.38;
-    if (left) {
-      r.aLr += (wv - r.aLr) * p.wave;
-      r.aLs += (0.45 - r.aLs) * p.wave;
-    } else {
-      r.aRr += (wv - r.aRr) * p.wave;
-      r.aRs += (0.45 - r.aRs) * p.wave;
-    }
-    r.headRoll += Math.sin(t * 5 + ph) * 0.08 * p.wave;
-  }
-}
+// (Rig + resolveRig now live in ./crowd, shared with every settlement's folk)
 
 export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean }): Village {
   const low = !!opts.lowQuality;
@@ -350,39 +91,25 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
   // ── the folk ──
   const sim = makeSim();
   const N = sim.villagers.length;
-  const FU = { uGlowK: { value: 0.1 } };
-  const folkMat = track(folkMaterial(FU));
-  const depthMat = track(folkDepthMaterial());
-  const inst = (name: string, geo: THREE.BufferGeometry, count: number, shadow: boolean) => {
-    track(geo);
-    const m = new THREE.InstancedMesh(geo, folkMat, count);
-    m.name = name;
-    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    m.castShadow = shadow && !low;
-    m.customDepthMaterial = depthMat;
-    m.boundingSphere = sphere;
-    const a = addFolkInstanceAttrs(m);
-    group.add(m);
-    return { m, ...a };
-  };
-  const bodies = inst("village-bodies", buildBody(low), N, true);
-  const heads = inst("village-heads", buildHead(low), N, true);
-  const limbs = inst("village-limbs", buildLimb(), N * 4, true);
   // (true size, against the 2.26-unit Park kid = a 1.4 m ten-year-old: 1 m = 1.6 units)
   //   beach crab ~0.3 m across its claws (model 1.02)   gull ~0.55 m long (model 0.84)
   //   the bubblepups are seal pups, ~0.8 m (model 1.42 at 0.9: already true)
   const CRAB_K = (1.6 * 0.3) / 1.02;
   const GULL_K = (1.6 * 0.55) / 0.84;
   const nGull = low ? 5 : 8;
-  const wings = inst("village-wings", buildWing(), N * 2 + nGull * 2, false);
-  const tools = inst("village-tools", buildTools(), N + 1, true);
+  // (the shared crowd module: bodies/heads/limbs/wings/tools, posed by resolveRig — Coralcove's
+  // gulls share its wings mesh and the skipping rope shares its tools mesh, so both get extra room)
+  const crowd = track(buildCrowd(group, N, { lowQuality: low, name: "village", wingCapacity: N * 2 + nGull * 2, toolCapacity: N + 1, boundingSphere: sphere }));
+  const folkMat = crowd.folkMat;
+  const depthMat = crowd.depthMat;
+  const FU = crowd.glow;
   const nCrab = low ? 5 : 10;
   const nPup = low ? 3 : 5;
   const nBoat = low ? 3 : 4;
-  const crabs = inst("village-crabs", buildCrab(), nCrab, false);
-  const pups = inst("village-pups", buildPup(), nPup, false);
-  const gulls = inst("village-gulls", buildGull(), nGull, false);
-  const boats = inst("village-boats", buildCanoe(), nBoat, true);
+  const crabs = track(folkInstance(group, folkMat, depthMat, buildCrab(), nCrab, { name: "village-crabs", lowQuality: low, boundingSphere: sphere }));
+  const pups = track(folkInstance(group, folkMat, depthMat, buildPup(), nPup, { name: "village-pups", lowQuality: low, boundingSphere: sphere }));
+  const gulls = track(folkInstance(group, folkMat, depthMat, buildGull(), nGull, { name: "village-gulls", lowQuality: low, boundingSphere: sphere }));
+  const boats = track(folkInstance(group, folkMat, depthMat, buildCanoe(), nBoat, { name: "village-boats", shadow: true, lowQuality: low, boundingSphere: sphere }));
 
   // looks: per villager colours
   const skin = sim.villagers.map((v) => new THREE.Color(SKINS[v.def.skin]));
@@ -390,7 +117,7 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
   const cloth = sim.villagers.map((v) => new THREE.Color(CLOTHS[v.def.cloth]));
   const wingC = sim.villagers.map((v) => new THREE.Color(WINGS[v.def.wing]));
   const scaleOf = sim.villagers.map((v) => (v.def.kid ? 0.7 : v.def.elder ? 0.92 : 1) * (0.96 + ((v.def.seed * 13) % 9) / 100));
-  const bodyVar = sim.villagers.map((v) => [BODY_TUNIC, BODY_DRESS, BODY_ROBE, BODY_APRON][v.def.body] ?? BODY_TUNIC);
+  const bodyVar = sim.villagers.map((v) => BODY_VARIANTS[v.def.body] ?? BODY_VARIANTS[0]);
 
   // ── fx ──
   const XU = {
@@ -409,11 +136,10 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
   scene.add(group);
 
   // ── scratch (allocation-free update) ──
-  const rig: Rig = { hipY: 0, bob: 0, lean: 0, roll: 0, yawAdd: 0, headYaw: 0, headPitch: 0, headRoll: 0, aLs: 0, aLr: 0, aRs: 0, aRr: 0, lLs: 0, lRs: 0, lSpread: 0, flap: 0 };
+  const rig: Rig = makeRig();
   const mRoot = new THREE.Matrix4();
   const mLocal = new THREE.Matrix4();
   const mOut = new THREE.Matrix4();
-  const mArmR = new THREE.Matrix4();
   const e = new THREE.Euler();
   const q = new THREE.Quaternion();
   const vp = new THREE.Vector3();
@@ -428,7 +154,7 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
     return out.compose(vp.set(px, py, pz), q.setFromEuler(e), vs.set(sx, sy, sz));
   };
 
-  const setInst = (o: ReturnType<typeof inst>, i: number, m: THREE.Matrix4, c: THREE.Color, b: THREE.Color | null, sel: number) => {
+  const setInst = (o: { m: THREE.InstancedMesh; colB: THREE.InstancedBufferAttribute; sel: THREE.InstancedBufferAttribute }, i: number, m: THREE.Matrix4, c: THREE.Color, b: THREE.Color | null, sel: number) => {
     o.m.setMatrixAt(i, m);
     o.m.setColorAt(i, c);
     if (b) o.colB.setXYZ(i, b.r, b.g, b.b);
@@ -539,7 +265,7 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
 
   let visible = true;
   const FOG_U = [WU, XU];
-  const ALL = [bodies, heads, limbs, wings, tools, crabs, pups, gulls, boats];
+  const ALL = [crabs, pups, gulls, boats];
 
   return {
     update(dtIn, t, o) {
@@ -571,11 +297,8 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
       const talker = stepVillage(sim, dtIn, t, o.hour, near ? o.kid : null, talk);
       if (talker >= 0) result.talk = talk;
 
-      let nb = 0;
-      let nl = 0;
-      let nw = 0;
-      let nt = 0;
       let baking = false;
+      crowd.begin();
       for (let i = 0; i < N; i++) {
         const v = sim.villagers[i];
         const p = v.pose;
@@ -583,46 +306,17 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
         // (low quality: the extra strollers aren't drawn; everyone with a job or a line still is)
         if (low && v.def.role === "villager") continue;
         if (v.act === "bake" && p.anim === "bake") baking = true;
-        resolveRig(p, v, t, rig);
-        const s = scaleOf[i];
-        // root = the hips
-        local(v.x - X0, v.y + (rig.hipY + rig.bob) * s, v.z - Z0, rig.lean, v.yaw + rig.yawAdd, rig.roll, s, s, s, mRoot);
-        setInst(bodies, nb, mRoot, cloth[i], skin[i], bodyVar[i]);
-        // head
-        mOut.multiplyMatrices(mRoot, local(0, NECK, 0, rig.headPitch, rig.headYaw, rig.headRoll, 1, 1, 1, mLocal));
-        setInst(heads, nb, mOut, hair[i], skin[i], v.def.hairStyle);
-        // arms (left +x is the villager's left: facing +z, left is +x)
-        mOut.multiplyMatrices(mRoot, local(SHOULDER.x, SHOULDER.y, 0, -rig.aLs, 0, rig.aLr, 1, 1, 1, mLocal));
-        setInst(limbs, nl++, mOut, cloth[i], skin[i], LIMB_ARM);
-        mArmR.multiplyMatrices(mRoot, local(-SHOULDER.x, SHOULDER.y, 0, -rig.aRs, 0, -rig.aRr, 1, 1, 1, mLocal));
-        setInst(limbs, nl++, mArmR, cloth[i], skin[i], LIMB_ARM);
-        // legs
-        mOut.multiplyMatrices(mRoot, local(LEG_X, 0, 0, -rig.lLs, 0, rig.lSpread, 1, 1, 1, mLocal));
-        setInst(limbs, nl++, mOut, cloth[i], skin[i], LIMB_LEG);
-        mOut.multiplyMatrices(mRoot, local(-LEG_X, 0, 0, -rig.lRs, 0, -rig.lSpread, 1, 1, 1, mLocal));
-        setInst(limbs, nl++, mOut, cloth[i], skin[i], LIMB_LEG);
-        // wings (the left one mirrored)
-        for (let sd = 1; sd >= -1; sd -= 2) {
-          mOut.multiplyMatrices(mRoot, local(sd * WING_ROOT.x, WING_ROOT.y, WING_ROOT.z, 0.15, sd * (0.55 + rig.flap), sd * 0.2, sd, 1, 1, mLocal));
-          setInst(wings, nw++, mOut, wingC[i], null, WING_SPRITE);
-        }
-        // the tool in hand
-        const tool = TOOL_IDS[p.tool];
-        if (tool !== TOOL_IDS.none && tool !== TOOL_IDS.rope) {
-          if (HAND_TOOLS.has(tool)) mOut.copy(mArmR);
-          else if (tool === TOOL_IDS.pole && p.anim === "light") mOut.multiplyMatrices(mRoot, local(0, 0, 0, 0.45, 0, 0, 1, 1, 1, mLocal));
-          else mOut.copy(mRoot);
-          setInst(tools, nt++, mOut, cloth[i], skin[i], tool);
-        }
+        resolveRig(p, v.def.seed, v.def.elder, t, rig);
+        crowd.place({ x: v.x - X0, y: v.y, z: v.z - Z0, yaw: v.yaw, scale: scaleOf[i], anim: p.anim, rig, bodyVariant: bodyVar[i], hairStyle: v.def.hairStyle, cloth: cloth[i], skin: skin[i], hair: hair[i], wing: wingC[i], tool: p.tool });
         if (p.tool === "rope" && p.anim === "turn") {
-          // the skipping rope, turning between the two turners
+          // the skipping rope, turning between the two turners — a fixed prop, not held in anyone's
+          // hand, so it's appended directly rather than through place()
           const hy = (villageGroundY(skipSpot.x, skipSpot.z) ?? v.y) + 0.72;
           // (the rope's x runs along the turners' line: world x; it spins about that line)
           e.set(t * 6, 0, 0, "YXZ");
           mOut.compose(vp.set(skipSpot.x - X0, hy, skipSpot.z - Z0), q.setFromEuler(e), vs.set(1.65, 0.7, 1));
-          setInst(tools, nt++, mOut, cloth[i], skin[i], TOOL_IDS.rope);
+          crowd.extraTool(mOut, cloth[i], skin[i], TOOL_IDS.rope);
         }
-        nb++;
       }
 
       // ── crabs scuttle sideways along the beach (and hurry off if you get close) ──
@@ -713,7 +407,7 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
         for (let sd = 1; sd >= -1; sd -= 2) {
           if (flap < -0.5) mOut.multiplyMatrices(mRoot, local(sd * 0.08, 0.08, -0.05, 0, sd * 1.35, sd * 0.2, sd * 0.45, 1, 0.8, mLocal));
           else mOut.multiplyMatrices(mRoot, local(sd * 0.1, 0.06, 0, 0, 0, sd * flap, sd, 1, 1, mLocal));
-          setInst(wings, nw++, mOut, gullWingC, null, WING_GULL);
+          crowd.extraWing(mOut, gullWingC, WING_GULL);
         }
       }
 
@@ -733,11 +427,7 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
         setInst(boats, i, mOut, b.hull, b.sail, -1);
       }
 
-      bodies.m.count = nb;
-      heads.m.count = nb;
-      limbs.m.count = nl;
-      wings.m.count = nw;
-      tools.m.count = nt;
+      crowd.end();
       for (let k = 0; k < ALL.length; k++) {
         const o2 = ALL[k];
         o2.m.instanceMatrix.needsUpdate = true;
@@ -757,7 +447,6 @@ export function buildVillage(scene: THREE.Scene, opts: { lowQuality?: boolean })
     dispose() {
       scene.remove(group);
       for (const d of disposables) d.dispose();
-      for (const o2 of ALL) o2.m.dispose();
     },
   };
 }

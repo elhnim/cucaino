@@ -21,6 +21,11 @@ import {
   villageRng,
   type VillageWorkSpot,
 } from "../../registry/villageIsland";
+// Pose/Anim/Tool and the rig they resolve to now live in ./crowd (shared with every settlement's
+// folk); re-exported here so nothing importing them from "./routine" has to change.
+import { TOOLS, type Anim, type Pose, type Tool } from "./crowd";
+export { TOOLS };
+export type { Anim, Pose, Tool };
 
 const TAU = Math.PI * 2;
 const wrapA = (a: number) => a - Math.round(a / TAU) * TAU;
@@ -48,33 +53,6 @@ export type Act =
   | "skip-jump"
   | "splash"
   | "light";
-
-export type Tool = "none" | "rod" | "broom" | "drum" | "flute" | "tray" | "pole" | "hoe" | "basket" | "rope";
-export const TOOLS: Tool[] = ["none", "rod", "broom", "drum", "flute", "tray", "pole", "hoe", "basket", "rope"];
-
-export type Anim =
-  | "stand"
-  | "walk"
-  | "run"
-  | "sit"
-  | "sit-edge"
-  | "sit-ground"
-  | "sweep"
-  | "bake"
-  | "sell"
-  | "garden"
-  | "wash"
-  | "light"
-  | "flute"
-  | "dance"
-  | "turn"
-  | "jump"
-  | "talk"
-  | "look"
-  | "nets"
-  | "story"
-  | "drum"
-  | "fish";
 
 /** one schedule slot: from this hour, do `act` (at work spot `spot`, if it has one) */
 export interface Slot {
@@ -291,19 +269,7 @@ export function buildRoutes(): Routes {
 }
 
 // ── per-villager state + pose ──
-
-export interface Pose {
-  anim: Anim;
-  /** walk/run cycle phase (radians) and how much of it shows (0..1) */
-  cycle: number;
-  gait: number;
-  /** 0..1: waving at the Park kid */
-  wave: number;
-  /** yaw of the head relative to the body (looking at the kid) */
-  look: number;
-  tool: Tool;
-  hidden: boolean;
-}
+// (Pose is now ./crowd's; re-exported above)
 
 export const enum Phase {
   Hidden = 0,

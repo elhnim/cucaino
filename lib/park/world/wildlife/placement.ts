@@ -6,6 +6,7 @@ import { WILD_FROM } from "../fantasy/wilds";
 import { seaDist } from "../../registry/island";
 import { groundYFar } from "../../registry/terrain";
 import { nearRail, stationAt } from "../../registry/railway";
+import { inSettlement } from "../../registry/settlements";
 import { WILD_LAKE, wildLakeRadius, wildRainforestK, wildWaterSdf } from "../../registry/wildWater";
 import { WS_DEER, WS_DUCK, WS_ELEPHANT, WS_EAGLE, WS_GIRAFFE, WS_GOAT, WS_KANGAROO, WS_PARROT, WS_ZEBRA, WILD_SPECIES_DEFS, type WAnimal, type WHerd, rnd01, xorshift } from "./types";
 
@@ -129,6 +130,7 @@ export function herdCell(ci: number, cj: number): WHerd[] {
   if (seaDist(cx, cz) > -16) return [];
   if (wildWaterSdf(cx, cz) < 22) return [];
   if (nearRail(cx, cz, 18) || stationAt(cx, cz, 24)) return [];
+  if (inSettlement(cx, cz, 30)) return [];
   if (wildRainforestK(cx, cz) > 0.15) return [];
   const h = groundYFar(cx, cz);
   if (h < 1 || h > 70) return [];

@@ -57,6 +57,7 @@ import { readWisdom, addWisdom } from "@/lib/park/wizards/wisdomBook";
 
 // Every building panel loads on demand, never in the park's first download.
 const HomeScreen = dynamic(() => import("./home/HomeScreen").then((m) => m.HomeScreen), { ssr: false });
+const FishingGame = dynamic(() => import("./FishingGame").then((m) => m.FishingGame), { ssr: false });
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const WizardSheet = dynamic(() => import("./wizards/WizardSheet").then((m) => m.WizardSheet), { ssr: false });
 const BookOfWisdom = dynamic(() => import("./wizards/BookOfWisdom").then((m) => m.BookOfWisdom), { ssr: false });
@@ -260,13 +261,16 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [swim, setSwim] = useState<{ under: boolean } | null>(null);
   const [onCoaster, setOnCoaster] = useState(false);
   // a Coralcove villager talking to the kid
-  const [villageTalk, setVillageTalk] = useState<{ name: string; line: string } | null>(null);
+  const [villageTalk, setVillageTalk] = useState<{ name: string; line: string; emoji?: string } | null>(null);
   // floating mountains: the one you're flying over (to land on), and the treasures found
   const [landName, setLandName] = useState<string | null>(null);
   // Frostpeak's penguin slides: the chute whose start arch the kid is standing at
   const [slideOffer, setSlideOffer] = useState<string | null>(null);
   // the Wildlands Railway: on a platform (call the train), aboard at a stop (get off here), riding
   const [railOffer, setRailOffer] = useState<{ name: string; emoji: string; waiting: boolean } | null>(null);
+  // a settlement activity the kid is standing at (Lakeside's pier: "Go fishing"), and the one open
+  const [activityOffer, setActivityOffer] = useState<{ settlement: string; id: string; label: string; emoji: string } | null>(null);
+  const [fishing, setFishing] = useState<{ night: boolean } | null>(null);
   const [railStop, setRailStop] = useState<{ name: string; emoji: string } | null>(null);
   const [onTrain, setOnTrain] = useState(false);
   // Frostpeak's ski run: skis on offer at the start hut, the chairlift at the bottom
@@ -610,7 +614,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             if (on) toast("🎢 Hold on tight! Round the whole island we go!");
           },
           onWrap: () => toast("🌍 All the way round the world — and back to Cucaino Island!"),
-          onVillageTalk: (t) => setVillageTalk(t ? { name: t.name, line: t.line } : null),
+          onVillageTalk: (t) => setVillageTalk(t ? { name: t.name, line: t.line, emoji: t.emoji } : null),
           onVillage: (name, clan) => {
             playSfx("win");
             toast(`🏝️ You found ${name}, home of ${clan}! Say hello to the villagers`);
@@ -934,6 +938,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setHopTarget((cur) => (cur?.label === ht?.label && cur?.kind === ht?.kind ? cur : ht));
       const so = worldRef.current?.slideOffer ?? null;
       setSlideOffer((cur) => (cur === so ? cur : so));
+      const ao = worldRef.current?.activityOffer ?? null;
+      setActivityOffer((cur) => (cur?.id === ao?.id && cur?.settlement === ao?.settlement ? cur : ao));
       const ro = worldRef.current?.railOffer ?? null;
       setRailOffer((cur) => (cur?.name === ro?.name && cur?.waiting === ro?.waiting ? cur : ro));
       const rs = worldRef.current?.railStop ?? null;
@@ -1209,7 +1215,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     playSfx("sparkle");
   };
 
-  const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf || !!home;
+  const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf || !!home || !!fishing;
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const questsLeft = Math.max(0, data.tasksToday.total - done);
@@ -1396,6 +1402,23 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               </RoundButton>
             </>
           )}
+          {activityOffer && !riding && (
+            <RoundButton
+              size={62}
+              active
+              style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 96, borderRadius: 20 }}
+              onClick={() => {
+                if (activityOffer.id !== "fishing") return;
+                playSfx("tap");
+                worldRef.current?.setMove(0, 0);
+                worldRef.current?.setInputEnabled(false);
+                setFishing({ night: !!worldRef.current?.isNight });
+              }}
+              aria-label={activityOffer.label}
+            >
+              {`${activityOffer.emoji} ${activityOffer.label}`}
+            </RoundButton>
+          )}
           {railOffer && !riding && (
             <RoundButton
               size={62}
@@ -1474,7 +1497,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {villageTalk && !busy && (
         <div style={{ position: "fixed", left: "50%", transform: "translateX(-50%)", bottom: "calc(max(20px, env(safe-area-inset-bottom)) + 240px)", zIndex: 23, maxWidth: "min(92vw, 420px)", pointerEvents: "none" }}>
           <div style={{ background: "rgba(255,250,240,0.96)", color: "#2a2340", borderRadius: 18, padding: "10px 14px", boxShadow: "0 6px 20px rgba(0,0,0,0.3)", border: `2px solid ${alpha(C.gold, 0.8)}`, fontWeight: 800, fontSize: 15, lineHeight: 1.35 }}>
-            <div style={{ fontSize: 12, fontWeight: 900, color: "#8a5a10", letterSpacing: 0.5, marginBottom: 2 }}>🧚 {villageTalk.name}</div>
+            <div style={{ fontSize: 12, fontWeight: 900, color: "#8a5a10", letterSpacing: 0.5, marginBottom: 2 }}>{villageTalk.emoji ?? "🧚"} {villageTalk.name}</div>
             {villageTalk.line}
           </div>
         </div>
@@ -1774,6 +1797,17 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             <GameButton onClick={leaveRide}>🎡 Back to the park</GameButton>
           </div>
         </div>
+      )}
+      {fishing && (
+        <FishingGame
+          open
+          kidId={kidId}
+          night={fishing.night}
+          onClose={() => {
+            setFishing(null);
+            worldRef.current?.setInputEnabled(true);
+          }}
+        />
       )}
       {home && (
         <HomeScreen

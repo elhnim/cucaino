@@ -25,6 +25,7 @@ import { DINO_DECKS, dinoGroundY } from "./dinoIsland";
 import { ABYSS } from "./abyss";
 import { STATIONS } from "./railway";
 import { WILD_LAKE } from "./wildWater";
+import { settlementDeckY } from "./settlements";
 import { boatClearance } from "../world/rideables/craft";
 
 /** a walkable plank deck: a straight walk from a to b (half = half its width) sloping ya -> yb, or a round deck (r) */
@@ -386,6 +387,9 @@ export function worldFloorY(x: number, z: number): number {
   // the footbridges over the main island's river and the lake's outlet
   const b = bridgeDeckY(x, z) ?? fordStoneY(x, z);
   if (b !== null) return Math.max(b, baseFloorY(x, z));
+  // a Wildlands settlement's own pier (registry/settlements.ts), walking out over real water
+  const s = settlementDeckY(x, z);
+  if (s !== null) return Math.max(s, baseFloorY(x, z));
   return baseFloorY(x, z);
 }
 

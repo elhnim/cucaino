@@ -12,6 +12,7 @@ import { zoneBounds } from "../../builder/rules";
 import { smoothstep } from "./noise";
 import { RAIL_POINTS, STATIONS } from "../../registry/railway";
 import { WILD_WATER_BOUNDS, inWildWater, wildWaterSdf } from "../../registry/wildWater";
+import { SETTLEMENTS } from "../../registry/settlements";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
  *  any i, j (the mask reaches over the whole island, tile by tile). Its resolution `n` is the
@@ -74,6 +75,21 @@ function discs(): Disc[] {
   for (const p of PLACES) {
     const r = Math.max(p.radius, 1.5);
     carve(p.x, p.z, r + 0.8, r + 2.4);
+  }
+  // Wildlands settlements: packed earth under the fire plaza, a worn dooryard at every hut, and a
+  // trodden path along every stretch between them (registry/settlements.ts) — the very same
+  // trail-coloured DIRT a real path gets (terrainMesh.ts groundColor)
+  for (const st of SETTLEMENTS) {
+    carve(st.x, st.z, 7, 14);
+    for (const hut of st.huts) carve(hut.x, hut.z, hut.size + 0.6, hut.size + 3.2);
+    for (const w of st.work) carve(w.x, w.z, 2.2, 5);
+    for (const [a, b] of st.edges) {
+      const na = st.nodes[a];
+      const nb = st.nodes[b];
+      const d = Math.hypot(nb.x - na.x, nb.z - na.z);
+      const steps = Math.max(1, Math.round(d / 2.6));
+      for (let k = 0; k <= steps; k++) carve(na.x + ((nb.x - na.x) * k) / steps, na.z + ((nb.z - na.z) * k) / steps, 0.9, 2.4);
+    }
   }
   // lands: tidy, shorter lawns (not bare)
   for (const l of LANDS) {

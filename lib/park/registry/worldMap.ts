@@ -8,6 +8,7 @@ import { ABYSS } from "./abyss";
 import { FROST_ISLAND } from "./frostIsland";
 import { DINO_ISLAND, dinoOutline } from "./dinoIsland";
 import { STATIONS } from "./railway";
+import { SETTLEMENTS } from "./settlements";
 
 export interface WorldPlace {
   id: string;
@@ -109,7 +110,12 @@ export interface MapDestination {
   z: number;
   blurb: string;
 }
-export const ISLAND_DESTINATIONS: MapDestination[] = STATIONS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: s.blurb }));
+export const ISLAND_DESTINATIONS: MapDestination[] = [
+  ...STATIONS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: s.blurb })),
+  // Wildlands settlements (registry/settlements.ts): one pin each, tappable and dragon-flyable just
+  // like a station — new settlements need nothing added here, they just appear
+  ...SETTLEMENTS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: `${s.clan}'s home, on the Great Lake's shore.` })),
+];
 
 /** mountains labelled on the Island tab (not themselves destinations — the Lone Peak already has
  *  its own station marker, so only the long Great Ridge needs a label of its own) */
