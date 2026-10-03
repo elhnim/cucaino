@@ -13,7 +13,7 @@
 //     fishing at the stream and turtles plodding across the trails
 import { LANDS } from "../../registry/places";
 import { BRIDGES, ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS } from "../../registry/island";
-import { LAKE, LAKE_OUTLINE, riverAt } from "../../registry/waterways";
+import { LAKE, LAKE_OUTLINE, riverAt, waterSdf } from "../../registry/waterways";
 import { groundY } from "../../registry/terrain";
 import { fieldAt, openFields, rngOf, type FreeFn, type Meadow, type Rng } from "../storybook/plan";
 import { B_BANK, B_BLOCK, B_KEEP, B_LAND, B_OPEN, B_TRAIL, bitsAt, shareAround, slopeOf, type WalkGrid } from "./ground";
@@ -525,19 +525,29 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     const pets = LANDS.find((l) => l.id === "pets");
     const cx = paddock ? paddock.x : pets ? pets.x : -60;
     const cz = paddock ? paddock.z : pets ? pets.z : 30;
-    let best: { x: number; z: number; s: number } | null = null;
-    for (let d = paddock ? Math.max(paddock.hw, paddock.hd) + 4 : (pets?.radius ?? 10) + 8; d < 70 && !best; d += 2)
-      for (let k = 0; k < 24; k++) {
-        const a = (k / 24) * TAU + d;
-        const x = cx + Math.sin(a) * d;
-        const z = cz + Math.cos(a) * d;
-        if (paddock && inPaddock(paddock, x, z, -4)) continue;
-        if (!landOk(g, 0.35, true)(x, z) || !roomy(x, z, 3.4, 3) || !free(x, z, 1.6)) continue;
-        if (shareAround(g, x, z, 4, B_LAND | B_OPEN) < 0.6) continue;
-        if ((opts.flocks ?? []).some((fl) => Math.hypot(fl.x - x, fl.z - z) < fl.r + 8)) continue;
-        const s = Math.hypot(x - cx, z - cz) + slopeOf(g, x, z) * 20;
-        if (!best || s < best.s) best = { x, z, s };
-      }
+    // the sheep and chickens come home here but roam tens of metres round it (the herd's home
+    // range below is 55 m) — a yard that's merely clear of water within its own few metres can
+    // still back straight onto a lake or the stream a short walk further out, so try first for a
+    // site with real room off the shore, and only fall back to the tighter check if the ground
+    // near the paddock genuinely never offers that (a small island, a tight cove)
+    const findFarm = (shoreClear: number) => {
+      let found: { x: number; z: number; s: number } | null = null;
+      for (let d = paddock ? Math.max(paddock.hw, paddock.hd) + 4 : (pets?.radius ?? 10) + 8; d < 70 && !found; d += 2)
+        for (let k = 0; k < 24; k++) {
+          const a = (k / 24) * TAU + d;
+          const x = cx + Math.sin(a) * d;
+          const z = cz + Math.cos(a) * d;
+          if (paddock && inPaddock(paddock, x, z, -4)) continue;
+          if (!landOk(g, 0.35, true)(x, z) || !roomy(x, z, 3.4, 3) || !free(x, z, 1.6)) continue;
+          if (shareAround(g, x, z, 4, B_LAND | B_OPEN) < 0.6) continue;
+          if (waterSdf(x, z) < shoreClear) continue;
+          if ((opts.flocks ?? []).some((fl) => Math.hypot(fl.x - x, fl.z - z) < fl.r + 8)) continue;
+          const s = Math.hypot(x - cx, z - cz) + slopeOf(g, x, z) * 20;
+          if (!found || s < found.s) found = { x, z, s };
+        }
+      return found;
+    };
+    const best = findFarm(20) ?? findFarm(0);
     if (best) {
       farm = { x: best.x, z: best.z, yaw: Math.atan2(cx - best.x, cz - best.z) };
       note("farm", farm.x, farm.z);
@@ -1061,7 +1071,7 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     spots.forEach((s, i) => {
       note("frog", s.x, s.z);
       // a touch bigger (true size within the test's margin)
-      const a = add(K_FROG, R_NONE, s.x, s.z, sized(K_FROG, false, 1.07), V_FROG, greens[i % greens.length]);
+      const a = add(K_FROG, R_NONE, s.x, s.z, sized(K_FROG, false, 1.06), V_FROG, greens[i % greens.length]);
       a.yaw = s.yaw;
       a.hr = 1.6;
       a.cx = s.x + Math.sin(s.yaw) * 0.6;

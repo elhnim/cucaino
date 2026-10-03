@@ -118,6 +118,7 @@ import {
   TUNE,
   inPaddock,
   paddockPoint,
+  trueScale,
   type Agent,
   type KidSense,
   type Paddock,
@@ -333,6 +334,11 @@ export function passable(env: FaunaEnv, a: Agent, x: number, z: number): boolean
   } else if (T.open && !(b & B_OPEN)) return false;
   if (p && inPaddock(p, x, z, -0.7)) return false; // everyone else stays outside the fence
   if (roams) {
+    // tagging along right behind the kid (a lamb, a joey, a kit), it's left the roaming map
+    // altogether — the kid walks it wherever the kid itself can go, not wherever the whole grown
+    // herd's roam graph says there's room, or it can get stuck hunting for herd-sized clearance at
+    // the very edge of the ground it's allowed on, falling further and further behind
+    if (a.st === S_FOLLOW) return true;
     // the big ones need room either side (no trunks, water or keep-clear ground under them), and
     // head room: the giants keep out from under every crown, the deer and roos under low ones.
     // Every roamer needs this same side-clearance (the roaming map's cellOk/spotOk/segmentOk ask
@@ -342,7 +348,12 @@ export function passable(env: FaunaEnv, a: Agent, x: number, z: number): boolean
     // see a reachable node from in there).
     const head = a.cls === C_GIANT ? CLASS_HEAD[C_GIANT] : a.head + 0.25;
     if (a.cls > 0 && headroomAt(env.g, x, z) < head) return false;
-    const c = CLEAR[a.cls] * 0.8;
+    // a youngster (a lamb, a joey, a chick) is built smaller than the class's clearance assumes —
+    // let it need only as much room either side as its own small body does, so it isn't wedged at a
+    // gap its grown-up herd (and the roaming map) fits through but it, tagging along off the graph
+    // behind its mother, would get boxed in trying to match
+    const grown = Math.min(1, Math.max(0.5, a.s / trueScale(a.kind)));
+    const c = CLEAR[a.cls] * grown * 0.8;
     for (let k = 0; k < 8; k += 2) {
       const bx = x + DIRS[k] * c;
       const bz = z + DIRS[k + 1] * c;
@@ -1928,6 +1939,12 @@ function stepChicken(env: FaunaEnv, a: Agent, kid: KidSense, dt: number, t: numb
       }
       case S_WALK: {
         a.tm -= dt;
+        // a chick's mother doesn't wait for it: keep its target over her own walk too, not just
+        // where she stood when it set out, or a long walk cycle can let her amble off far ahead
+        if (L) {
+          a.tx = L.x + a.sx;
+          a.tz = L.z + a.sz;
+        }
         const r = goTo(env, a, a.tx, a.tz, L ? clamp(Math.hypot(a.tx - a.x, a.tz - a.z) * 1.5, 0.2, T.run) : T.walk, dt);
         if (r < 0 || r < 0.25 || a.tm <= 0) {
           a.st = S_IDLE;
@@ -1952,8 +1969,10 @@ function stepChicken(env: FaunaEnv, a: Agent, kid: KidSense, dt: number, t: numb
             a.tm = 1.8;
           } else {
             if (L) {
-              a.tx = L.x + (rnd(a) - 0.5) * 0.9;
-              a.tz = L.z + (rnd(a) - 0.5) * 0.9;
+              a.sx = (rnd(a) - 0.5) * 0.9;
+              a.sz = (rnd(a) - 0.5) * 0.9;
+              a.tx = L.x + a.sx;
+              a.tz = L.z + a.sz;
             } else pickWander(env, a, 0);
             a.st = S_WALK;
             a.tm = 10;
