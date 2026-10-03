@@ -13,6 +13,7 @@ import { smoothstep } from "./noise";
 import { RAIL_POINTS, STATIONS } from "../../registry/railway";
 import { WILD_WATER_BOUNDS, inWildWater, wildWaterSdf } from "../../registry/wildWater";
 import { SETTLEMENTS } from "../../registry/settlements";
+import { CART_ROAD } from "../../registry/cartRoad";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
  *  any i, j (the mask reaches over the whole island, tile by tile). Its resolution `n` is the
@@ -91,6 +92,9 @@ function discs(): Disc[] {
       for (let k = 0; k <= steps; k++) carve(na.x + ((nb.x - na.x) * k) / steps, na.z + ((nb.z - na.z) * k) / steps, 0.9, 2.4);
     }
   }
+  // the Lakeside <-> Market Street cart road (registry/cartRoad.ts): the same trail-coloured dirt a
+  // park trail gets, just a touch narrower (a cart, not a crowd, wears this one in)
+  for (const [x, z] of CART_ROAD.points) carve(x, z, 1.6, 3.4);
   // lands: tidy, shorter lawns (not bare)
   for (const l of LANDS) {
     if (l.id === "forest") continue;

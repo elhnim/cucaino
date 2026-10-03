@@ -14,6 +14,7 @@ import { wildShelfY } from "./wildWater";
 import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
 import { SETTLEMENTS } from "./settlements";
+import { CART_ROAD } from "./cartRoad";
 
 // ── value noise ──
 function hash(x: number, y: number) {
@@ -302,6 +303,20 @@ function stamps(): Stamp[][] {
       if (w.id === "fishing") continue;
       stampLazy(w.x, w.z, 3.2, 14, () => Math.max(smoothSample(w.x, w.z) * 0.6, WATER_Y + 0.6));
     }
+  }
+  // the Lakeside <-> Market Street cart road (registry/cartRoad.ts): levelled gently like a trail,
+  // each point settling to a SMOOTHED version of its own natural height (not sampled until its
+  // tile is actually baked — the road runs most of its length out in the Wildlands, and nothing
+  // there should cost anything until the kid is close enough to see it). Skip the stretch already
+  // inside a land's own flat terrace (it heads straight for Market Street's) — stamping both there
+  // would just have the two fight over the same ground.
+  // (no height is scaled down here, unlike a park trail's gentle *0.55: out in the Wildlands the
+  // land itself rolls a lot more, and shrinking it would cut a cliff-like step at the road's
+  // edge — a wide, soft blend (rOut 11) just lets the road follow a locally-smoothed version of
+  // whatever the land is already doing)
+  for (const [x, z] of CART_ROAD.points) {
+    if (LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius + 10)) continue;
+    stampLazy(x, z, 2.2, 11, () => Math.max(smoothSample(x, z), WATER_Y + 0.5));
   }
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);

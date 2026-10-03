@@ -1357,6 +1357,7 @@ export class ParkWorld {
       // (and the big animals: the park's and the Wildlands')
       this.park.fauna.pushKid(pos, kr, pos.y);
       this.park.wildlife.pushKid(pos, kr, pos.y);
+      this.park.trade.pushKid(pos, kr, pos.y);
       for (let k = 0; k < 2; k++) {
         const t = this.park.wildTrunkAt(pos.x, pos.z, kr);
         if (!t) break;
@@ -3142,6 +3143,13 @@ export class ParkWorld {
       this.play(this.pet, "gesture-positive", true);
       this.burst(this.pet.root.position.clone().setY(1.2), 40);
     }
+  }
+
+  /** The world's own clock (seconds since this visit began) — same `t` the park's `update()` runs
+   *  on, so the mini map can place things whose position is a function of it (travelling traders:
+   *  world/trade/plan.ts) without drifting out of step with the 3D world. */
+  getClockT(): number {
+    return this.time;
   }
 
   /** Where the kid (and pet) are and which way the view faces — for the HUD mini map. */

@@ -21,6 +21,9 @@ const TERRAIN_EXTENT = 200;
 import { ISLAND_CENTER, ISLAND_DESTINATIONS, ISLAND_LANDMARKS, ISLAND_VIEW, WORLD_EDGE, WORLD_PLACES, type MapDestination, type WorldPlace } from "@/lib/park/registry/worldMap";
 import { RAIL_POINTS, STATIONS } from "@/lib/park/registry/railway";
 import { WILD_FALLS, WILD_LAKE_OUTLINE, WILD_OUTLET_POINTS, WILD_RIVER_POINTS, wildRainforestK, wildRiverHalfWidth } from "@/lib/park/registry/wildWater";
+import { CART_ROAD } from "@/lib/park/registry/cartRoad";
+import { BOAT_ROUTE } from "@/lib/park/registry/trade";
+import { TRADERS, allTraderStates } from "@/lib/park/world/trade/plan";
 
 type Pose = NonNullable<ReturnType<ParkWorld["getPose"]>>;
 
@@ -159,6 +162,9 @@ const WILD_LAKE_PATH = d(WILD_LAKE_OUTLINE, true);
 const WILD_OUTLET_PATH = d(WILD_OUTLET_POINTS);
 /** the railway loop, drawn as a dashed track on the Island tab */
 const RAIL_PATH = d(RAIL_POINTS, true);
+/** the traders' own routes, drawn faintly on the Island tab: a dirt cart road, a boat route */
+const CART_ROAD_PATH = d(CART_ROAD.points);
+const BOAT_ROUTE_PATH = d(BOAT_ROUTE);
 /** the destinations a kid can tap on the Island tab (the five stations), plus the mountains it
  *  just labels (the Great Ridge, the Lone Peak's summit) */
 const ISLAND_PINS: MapDestination[] = ISLAND_DESTINATIONS;
@@ -343,6 +349,7 @@ export function MiniMap({
   const [big, setBig] = useState(false);
   const [tab, setTab] = useState<"park" | "island" | "world">("park");
   const [rides, setRides] = useState<RidePin[]>([]);
+  const [tradeDots, setTradeDots] = useState<{ id: string; x: number; z: number; mode: "cart" | "boat" }[]>([]);
   const last = useRef("");
 
   // poll the engine ~8x a second; only re-render when something visibly moved
@@ -358,6 +365,15 @@ export function MiniMap({
       if (key !== last.current) {
         last.current = key;
         setPose(p);
+      }
+      // travelling traders: cheap (a handful of pure function calls) — small moving dots on the
+      // Island tab, same clock the 3D world runs on so they never drift out of step with it
+      const clockT = world.current?.getClockT();
+      if (clockT !== undefined) {
+        const dots = allTraderStates(clockT)
+          .filter((s) => s.atPostId === null)
+          .map((s) => ({ id: s.id, x: s.x, z: s.z, mode: TRADERS.find((t) => t.id === s.id)!.mode }));
+        setTradeDots(dots);
       }
     }, 125);
     return () => window.clearInterval(id);
@@ -425,7 +441,7 @@ export function MiniMap({
         style={miniBtn}
         aria-label="Open the park map"
       >
-        <MapSvg pose={pose} size={typeof window !== "undefined" && window.innerWidth < 520 ? 96 : 128} pins={pins} rides={rides} />
+        <MapSvg pose={pose} size={typeof window !== "undefined" && window.innerWidth < 520 ? 96 : 128} pins={pins} rides={rides} tradeDots={tradeDots} />
         <span style={hereTag}>{here ? `${here.emoji} ${here.name}` : "🍭 Park trails"}</span>
       </button>
       {big && (
@@ -449,7 +465,7 @@ export function MiniMap({
                 ✕
               </button>
             </div>
-            <MapSvg pose={pose} size={0} labels tab={tab} onLand={goTo} onPin={goToPin} onDest={goToDestination} onRide={goToRide} hereId={here?.id} pins={pins} rides={rides} />
+            <MapSvg pose={pose} size={0} labels tab={tab} onLand={goTo} onPin={goToPin} onDest={goToDestination} onRide={goToRide} hereId={here?.id} pins={pins} rides={rides} tradeDots={tradeDots} />
           </div>
         </div>
       )}
@@ -469,6 +485,7 @@ function MapSvg({
   rides = [],
   onRide,
   tab = "park",
+  tradeDots = [],
 }: {
   pose: Pose;
   size: number;
@@ -484,6 +501,8 @@ function MapSvg({
   /** rides to find (dragons, manta reefs, docks, unicorns) */
   rides?: RidePin[];
   onRide?: (r: RidePin) => void;
+  /** carts and boats on the move, read off plan.ts's pure traderStateAtTime() (Island tab only) */
+  tradeDots?: { id: string; x: number; z: number; mode: "cart" | "boat" }[];
 }) {
   const globe = tab === "world";
   const island = tab === "island";
@@ -601,6 +620,13 @@ function MapSvg({
               )}
               {/* the railway: a dashed track round the whole loop */}
               <path d={RAIL_PATH} fill="none" stroke="#8a5a34" strokeOpacity={0.85} strokeWidth={2.4 * u} strokeDasharray={`${3 * u} ${2.6 * u}`} strokeLinecap="round" />
+              {/* the traders' own routes, faint: a dirt road and a boat route */}
+              <path d={CART_ROAD_PATH} fill="none" stroke="#9a7a4a" strokeOpacity={0.55} strokeWidth={1.8 * u} strokeLinecap="round" strokeLinejoin="round" />
+              <path d={BOAT_ROUTE_PATH} fill="none" stroke="#e8f0ea" strokeOpacity={0.6} strokeWidth={1.4 * u} strokeDasharray={`${1.2 * u} ${2 * u}`} strokeLinecap="round" />
+              {/* carts and boats on the move */}
+              {tradeDots.map((td) => (
+                <circle key={td.id} cx={td.x} cy={td.z} r={2.6 * u} fill={td.mode === "cart" ? "#c97a3c" : "#3a7aa8"} stroke="#ffffff" strokeWidth={0.8 * u} />
+              ))}
             </g>
           )}
           {/* the park, highlighted on the Island tab so it stands out from the wider Wildlands */}

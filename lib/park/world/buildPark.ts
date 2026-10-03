@@ -40,6 +40,7 @@ import { buildVillage } from "./village";
 import { VILLAGE_OBSTACLES } from "../registry/villageIsland";
 import { buildSettlements, type ActivityOffer } from "./settlements";
 import { SETTLEMENT_OBSTACLES } from "../registry/settlements";
+import { buildTrade, type TradeSystem } from "./trade";
 import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
 
@@ -56,6 +57,9 @@ export interface BuiltPark {
   wildlife: Wildlife;
   /** the Wildlands Railway: its track, stations and train (the engine rides it) */
   railway: Railway;
+  /** travelling traders: carts and a boat carrying goods between the trade posts (the engine
+   *  pushes the kid off their road like any other obstacle) */
+  trade: TradeSystem;
   /** a Wildlands trunk or boulder within `r` of (x, z) (the kid bumps into them) */
   wildTrunkAt(x: number, z: number, r: number): { x: number; z: number; r: number } | null;
   /** Star Shards + Sky Rings (the engine drives them with the kid's position) */
@@ -613,6 +617,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   //    (streamed in round the kid, like the trees and the wildlife — nothing built at spawn) ──
   const settlements = buildSettlements(scene, { lowQuality: opts.lowQuality });
   disposables.push(settlements);
+  // ── travelling traders: carts and a boat carrying goods between Lakeside, Market Street and
+  //    Coralcove (streamed round the kid, like the settlements) ──
+  const trade = buildTrade(scene);
+  disposables.push(trade);
   // ── rides waiting round the world: bikes, buggies, unicorns, dragons, mantas (and sea friends) ──
   const worldRides = buildRideables(scene, { lowQuality: opts.lowQuality });
   disposables.push(worldRides);
@@ -747,6 +755,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     railway,
+    trade,
     wildlife,
     wildTrunkAt: (x, z, r) => fantasy.wilds.trunkAt(x, z, r),
     // (the shipwreck and sunken temple too: swim round them, and the camera slides in past them)
@@ -775,9 +784,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       fauna.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour });
       const villageTalk = village.update(dt, t, { kid: focus ?? new THREE.Vector3(), glow: atmosphere.glow, hour: atmosphere.hour }).talk;
       const settleOut = settlements.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow, hour: atmosphere.hour });
+      const tradeOut = trade.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow, hour: atmosphere.hour, train: { at: railway.train.at, s: railway.train.s, carPose: railway.carPose } });
       // a settlement's folk win when they've something to say (the islands are far enough apart
       // that both are never near at once); Coralcove's bubble has no clan emoji of its own
-      built.villageTalk = settleOut.talk ?? villageTalk;
+      built.villageTalk = settleOut.talk ?? villageTalk ?? tradeOut.talk;
       built.activityOffer = settleOut.activity;
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {

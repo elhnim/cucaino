@@ -146,6 +146,9 @@ export interface SettlementDef {
   pier: SettlementPier | null;
   /** a couple of loop paths canoes paddle on the water near the village (local-offset points) */
   canoeLoops: { x: number; z: number }[][];
+  /** what this settlement trades (registry/trade.ts turns this into a TRADE_POST automatically —
+   *  a new settlement joins the trade network just by filling this in, nothing else to wire up) */
+  trade?: { makes: string[]; wants: string[] };
 }
 
 // ── siting Lakeside: a deterministic search near the Great Lake's north/north-west shore, close to
@@ -526,6 +529,7 @@ function generateLakeside(): SettlementDef {
     obstacles,
     pier,
     canoeLoops,
+    trade: { makes: ["fish", "baskets"], wants: ["shells", "bread", "fruit"] },
   };
 }
 
