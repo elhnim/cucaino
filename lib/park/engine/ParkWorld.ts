@@ -50,7 +50,7 @@ import { stationAt, type Station } from "../registry/railway";
 import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../registry/jungle";
 import { waterSdf } from "../registry/waterways";
 import { VILLAGE_ISLAND } from "../registry/villageIsland";
-import { settlementAt } from "../registry/settlements";
+import { settlementAt, settlementDeckY } from "../registry/settlements";
 import { FROST_ISLAND } from "../registry/frostIsland";
 import { makeKidSlide, petSlidePose, slideName, slideSplashS, stepKidSlide, type KidSlide } from "../world/frost/kidSlide";
 import { makeKidSki, stepKidSki, type KidSki } from "../world/frost/kidSki";
@@ -163,6 +163,15 @@ const worldFloor = (x: number, z: number) => worldFloorY(x, z);
 const seaDepth = (x: number, z: number) => WATER_Y - worldFloor(x, z);
 /** the ground (or sea floor) under (x, z) */
 const floorY0 = (x: number, z: number) => worldFloor(x, z);
+/** a walkway step the kid can take from deck height `fromY`: the deck height at (x, z) if there's
+ *  walkway there at about that level (or the ground's right there too — the walkway's foot), else
+ *  null (it would be a step off the edge) */
+function raisedDeckAt(x: number, z: number, fromY: number): number | null {
+  const y = settlementDeckY(x, z);
+  if (y !== null && Math.abs(y - fromY) < 0.9) return y;
+  const g = groundY(x, z);
+  return Math.abs(g - fromY) < 0.9 ? g : null;
+}
 const CAM_OFFSET = new THREE.Vector3(0, 12, 14);
 const MAX_DT = 1 / 20;
 
@@ -240,6 +249,9 @@ export class ParkWorld {
   private routing = false;
   // ── riding: a mount the kid (and pet) sit on; fliers climb to `altTarget` ──
   private mount: MountRig | null = null;
+  // where the kid stood last frame when up on a raised settlement walkway (a treehouse platform,
+  // its ramp, a rope bridge): the walkways have invisible railings — see raisedDeckAt
+  private deckPrev = { on: false, x: 0, z: 0, y: 0 };
   private alt = 0;
   private altTarget = 0;
   private flyInput = 0;
@@ -1381,6 +1393,27 @@ export class ParkWorld {
         pos.z = p.z + (dz / d) * p.radius;
       }
     }
+    // raised walkways (Treetop's platforms, ramp and rope bridges) have invisible railings: up on one,
+    // a step that would take the kid off its side isn't taken (they slide along the edge instead) —
+    // they leave only where it meets the ground or another walkway, never by toppling off
+    if (!this.mount && !this.onSky && !this.gliding && !aloft) {
+      const dp = this.deckPrev;
+      if (dp.on && raisedDeckAt(pos.x, pos.z, dp.y) === null) {
+        if (raisedDeckAt(pos.x, dp.z, dp.y) !== null) pos.z = dp.z;
+        else if (raisedDeckAt(dp.x, pos.z, dp.y) !== null) pos.x = dp.x;
+        else {
+          pos.x = dp.x;
+          pos.z = dp.z;
+        }
+        this.walkTarget = null;
+        this.walkQueue = [];
+      }
+      const y = settlementDeckY(pos.x, pos.z);
+      dp.on = y !== null && y > groundY(pos.x, pos.z) + 0.8;
+      dp.x = pos.x;
+      dp.z = pos.z;
+      dp.y = y ?? 0;
+    } else this.deckPrev.on = false;
     turnTowards(kid, dt);
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
     const floorY = worldFloor(pos.x, pos.z);
