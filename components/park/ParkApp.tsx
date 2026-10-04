@@ -77,6 +77,7 @@ const FriendsPanel = dynamic(() => import("@/components/game/panels/FriendsPanel
 const QuizHubPanel = dynamic(() => import("@/components/game/panels/QuizHubPanel").then((m) => m.QuizHubPanel), { ssr: false });
 const QuizGamePanel = dynamic(() => import("@/components/game/panels/QuizGamePanel").then((m) => m.QuizGamePanel), { ssr: false });
 const DressUpPanel = dynamic(() => import("./DressUpPanel").then((m) => m.DressUpPanel), { ssr: false });
+const KartRace = dynamic(() => import("./KartRace"), { ssr: false });
 
 // start fetching three.js + the engine as soon as this module evaluates (parallel to hydration)
 prefetchPark();
@@ -144,6 +145,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [panel, setPanel] = useState<{ kind: Panel; placeId?: string } | null>(null);
   const [quizBank, setQuizBank] = useState<string | null>(null);
   const [page, setPage] = useState<{ src: string; title: string } | null>(null);
+  const [kartsOpen, setKartsOpen] = useState(false);
   const [pet, setPet] = useState<Pet | null>(data.pet);
   // ── habit loop: streak + daily chest (server), and the pet growing with every quest ──
   const [habits, setHabits] = useState<HabitState | null>(null);
@@ -338,6 +340,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
         return;
       }
       if (place.action === "none") return;
+      if (place.action === "karts") {
+        setKartsOpen(true);
+        return;
+      }
       if (place.action === "build") {
         enterBuildRef.current();
         return;
@@ -1219,7 +1225,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     playSfx("sparkle");
   };
 
-  const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf || !!home || !!fishing;
+  const busy = !!panel || !!quizBank || !!page || !!coaster || !!golf || !!home || !!fishing || kartsOpen;
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const questsLeft = Math.max(0, data.tasksToday.total - done);
@@ -1811,6 +1817,18 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           const Game = fishing.id === "drumming" ? DrumGame : fishing.id === "weaving" ? WeaveGame : fishing.id === "market" ? MarketGame : FishingGame;
           return <Game open kidId={kidId} night={fishing.night} onClose={close} />;
         })()}
+      {kartsOpen && (
+        <KartRace
+          world={worldRef.current}
+          familyId={data.kid.familyId}
+          kid={{ kidId, name: data.kid.name, animal: animal?.id ?? "animal-fox", colour: theme.accent }}
+          onClose={() => {
+            setKartsOpen(false);
+            worldRef.current?.setInputEnabled(true);
+          }}
+          onToast={toast}
+        />
+      )}
       {home && (
         <HomeScreen
           kidId={kidId}
@@ -2034,6 +2052,7 @@ const ASK_TEXT: Partial<Record<PlaceAction, { q: (label: string) => string; go: 
   "money-town": { q: () => "Play Money Town?", go: "Let's play! 💰" },
   bank: { q: () => "Visit the Bank?", go: "Let's go! 🏦" },
   golf: { q: () => "Play Candy Golf?", go: "Tee off! ⛳" },
+  karts: { q: () => "Race at Cucaino Karts?", go: "🏎️ Race!" },
   wizard: { q: (l) => `Talk to ${l}?`, go: "Hello! 👋" },
   build: { q: () => "Build your Dream Park?", go: "Let's build! 🔨" },
   parent: { q: () => "Go to the grown-ups' area?", go: "OK →" },
@@ -2060,6 +2079,7 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   "money-town": "The family money board game",
   wizard: "A wizard with a lesson for you today ✨",
   golf: "18 holes of candy mini golf",
+  karts: "3 laps round the circuit — against siblings, ghosts or computer karts",
   retro: "20 classic-style pixel games",
   bank: "Real-money investing (grown-ups switch it on)",
   parent: "A grown-up PIN is needed",

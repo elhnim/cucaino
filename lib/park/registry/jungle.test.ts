@@ -134,6 +134,11 @@ describe("the rainforest and its thicket", { timeout: 60000 }, () => {
     }
     for (const p of PLACES) {
       if (p.sky) continue;
+      // Cucaino Karts sits 170-300 m out near Park Station (registry/kartTrack.ts) — outside this
+      // grid's own 158-radius domain (the park's rainforest/thicket area), reached instead by its
+      // own footpath + the railway, like every Wildlands settlement; registry/kartTrack.test.ts and
+      // jungle-adjacent registries cover ITS reachability, not this local thicket-walk grid
+      if (p.land === "karts") continue;
       let ok = false;
       const R = Math.max(p.doorRadius, p.radius + 0.6);
       for (let dz = -R; dz <= R && !ok; dz += 0.5)

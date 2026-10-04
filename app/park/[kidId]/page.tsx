@@ -24,6 +24,7 @@ export default async function ParkPage({ params }: { params: Promise<{ kidId: st
   const data: ParkInitialData = {
     kid: {
       id: kid.id,
+      familyId: kid.familyId,
       name: kid.name,
       avatar: kid.avatar,
       themeId: kid.themeId,

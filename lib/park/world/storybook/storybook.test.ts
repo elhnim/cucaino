@@ -48,7 +48,11 @@ describe("open fields", () => {
     const f = openFields();
     const [tx, tz] = TRAIL_POINTS[0][0];
     expect(fieldAt(f.trail, tx, tz)).toBe(0);
-    for (const l of LANDS) expect(fieldAt(f.land, l.x, l.z)).toBe(0);
+    // Cucaino Karts' "karts" land sits 170-300 m out near Park Station (registry/kartTrack.ts) —
+    // well outside this field's own grid (the park's near-in meadows/forest), so it's excluded here
+    // the same way code that treats LANDS as "the park" would also treat it as its own, separate,
+    // kart-specific registry/kartTrack.ts site rather than a near-in storybook land
+    for (const l of LANDS.filter((l) => l.id !== "karts")) expect(fieldAt(f.land, l.x, l.z)).toBe(0);
     expect(fieldAt(f.trail, tx + 20, tz)).toBeGreaterThan(fieldAt(f.trail, tx + 4, tz));
     expect(gridIndex(9999, 0)).toBe(-1);
   });

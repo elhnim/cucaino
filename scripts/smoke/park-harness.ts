@@ -22,13 +22,38 @@ const world = new ParkWorld(document.getElementById("app")!, {
 (window as unknown as Record<string, unknown>).__park = world;
 (window as unknown as Record<string, unknown>).__THREE = THREE;
 
-// rides, for poking in devtools: __rides.coaster(n) / __rides.golf()
+// rides, for poking in devtools: __rides.coaster(n) / __rides.golf() / __rides.kart()
 import { buildQuizCoaster } from "../../lib/park/rides/quizCoaster";
 import { buildMiniGolfInterior } from "../../lib/game3d/interiors/minigolf";
+import { buildKartRaceInterior, type KartRaceControl } from "../../lib/game3d/interiors/karts";
 const coasterCtl: { resume?: (c: boolean) => void } = {};
+const kartCtl: KartRaceControl = { steer: 0, brake: false };
 (window as unknown as Record<string, unknown>).__rides = {
   ctl: coasterCtl,
   coaster: (n = 4) => world.enterRide(buildQuizCoaster(n, (i) => console.log("[ride] gate", i), () => console.log("[ride] finish"), coasterCtl)),
   golfCtl: {} as { skip?: () => void },
   golf: (from = 0) => world.enterRide((a) => buildMiniGolfInterior(a, (e) => console.log("[ride] golf", JSON.stringify(e)), (window as unknown as { __rides: { golfCtl: object } }).__rides.golfCtl, { from })),
+  kartCtl,
+  // `autopilot: true` drives the human seat with ai.ts's own steering instead of kartCtl, so a
+  // scripted run (no real kid tapping ◀/▶) still races round the circuit and reaches the finish —
+  // KartRace.tsx never passes this; a real kid always drives their own kart.
+  kart: (opts: { aiOnly?: boolean; autopilot?: boolean } = {}) =>
+    world.enterRide((a) =>
+      buildKartRaceInterior(
+        a,
+        (e) => console.log("[ride] kart", JSON.stringify(e)),
+        kartCtl,
+        {
+          trackId: "cucaino-karts",
+          laps: 3,
+          kid: { kidId: "smoke-kid", name: "Smoke Kid", animal: "animal-fox", colour: "#ff5fa8" },
+          ghosts: opts.aiOnly
+            ? []
+            : [
+                { kidId: "ghost-1", name: "Mia", animal: "animal-bunny", colour: "#6fc3ff", trackId: "cucaino-karts", lapMs: 32000, samples: [] },
+              ],
+          autopilot: opts.autopilot,
+        },
+      ),
+    ),
 };

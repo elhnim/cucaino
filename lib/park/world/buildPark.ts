@@ -44,6 +44,7 @@ import { buildTrade, type TradeSystem } from "./trade";
 import { buildFishingBoats, type FishingBoatsSystem } from "./sea/fishingBoats";
 import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
+import { buildKartTrack } from "./karts";
 
 export interface BuiltPark {
   /** meshes that can be tapped, tagged with userData.placeId */
@@ -638,6 +639,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── the Wildlands Railway (streamed: track sections and stations are built as the kid nears) ──
   const railway = buildRailway(scene, { lowQuality: opts.lowQuality });
   disposables.push(railway);
+  // ── Cucaino Karts: a go-kart circuit just outside the park, near Park Station (static — a
+  //    circuit this size is nowhere near the streamed Wildlands settlements' budget) ──
+  scene.add(buildKartTrack());
   // (streamed round the kid: only the chunks in view are built, the near ones finely)
   const ground = track(buildTerrainChunks({ lowQuality: opts.lowQuality, mask: fantasy.mask }));
   scene.add(ground.group);

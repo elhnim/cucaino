@@ -5,6 +5,9 @@ import type { ThemeId } from "@/lib/domain/types";
 export interface ParkInitialData {
   kid: {
     id: string;
+    /** needed client-side for the go-kart track's live race link (lib/park/karts/net.ts),
+     *  whose Realtime channel is scoped per family */
+    familyId: string;
     name: string;
     avatar: string;
     themeId: ThemeId;

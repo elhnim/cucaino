@@ -17,6 +17,8 @@ import { SETTLEMENTS, settlePadHeight } from "./settlements";
 import { CART_ROAD } from "./cartRoad";
 import { FOOTPATHS } from "./footpaths";
 import { rawHeight, smooth, smoothedHeight } from "./landform";
+import { kartTrackWorld, KART_PAD_HEIGHT } from "./kartTrack";
+import { TRACK_WIDTH } from "../karts/track";
 
 // the natural, unlevelled island (no stamps, no settlements) lives in ./landform.ts — a leaf module
 // registry/settlements.ts (and footpaths.ts) can import too, with no cycle back to this file (whose
@@ -138,10 +140,25 @@ function stamps(): Stamp[][] {
   // lands, places, plaza, Dream Park: flat terraces
   const landH: Record<string, number> = {};
   for (const l of LANDS) {
+    // Cucaino Karts is a long thin loop with a big natural infield, not a compact cluster of
+    // buildings like every other land here — levelling the WHOLE land disc flat (radius 95, out to
+    // 105) reached all the way to Park Station and starved it of the gentle ground its own dragon
+    // needs. Its ground is levelled separately, in a narrow band that follows the actual track (see
+    // the kart track stamps below), so this land contributes no disc of its own.
+    if (l.id === "karts") {
+      landH[l.id] = KART_PAD_HEIGHT;
+      continue;
+    }
     const h = l.id === "gate" ? 0 : sample(l.x, l.z) * 0.45;
     landH[l.id] = h;
     stamp(l.x, l.z, l.radius + 1, l.radius + 10, h);
   }
+  // Cucaino Karts: the outdoor scenery is a flat ribbon mesh at a fixed world Y
+  // (lib/park/world/karts/index.ts, like mini golf's own room floor), so the real ground under it
+  // is levelled the same way the railway levels under its own track — a narrow band following the
+  // loop, not a disc, so it never floats over a dip, digs into a rise, or crowds out anything sited
+  // nearby on the real ground.
+  for (const pt of kartTrackWorld().points) stamp(pt.x, pt.z, TRACK_WIDTH / 2 + 3, TRACK_WIDTH / 2 + 11, KART_PAD_HEIGHT);
   for (const p of PLACES) if (!p.sky) stamp(p.x, p.z, p.radius + 2, p.radius + 7, landH[p.land] ?? 0);
   stamp(0, 0, 13, 24, 0);
   // Wildlands settlements: the ground under the fire/plaza, every hut and every work spot but the

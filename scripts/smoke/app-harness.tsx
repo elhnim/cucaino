@@ -12,7 +12,7 @@ import { WIZARDS, todaysLesson, dayNumber } from "../../lib/park/wizards";
 
 const q = new URLSearchParams(location.search);
 const data: ParkInitialData = {
-  kid: { id: "smoke-kid", name: "Maymay", avatar: "🦌", themeId: "garden", pointsBalance: 5, currentStreak: 2, tourSeen: q.get("tour") !== "1", totalStarsEarned: Number(q.get("stars") ?? 140) },
+  kid: { id: "smoke-kid", familyId: "smoke-family", name: "Maymay", avatar: "🦌", themeId: "garden", pointsBalance: 5, currentStreak: 2, tourSeen: q.get("tour") !== "1", totalStarsEarned: Number(q.get("stars") ?? 140) },
   pet: null,
   tasksToday: { total: Number(q.get("quests") ?? 4), done: Number(q.get("done") ?? 0) },
 };
