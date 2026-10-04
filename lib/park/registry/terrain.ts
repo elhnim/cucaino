@@ -169,7 +169,7 @@ function stamps(): Stamp[][] {
     }
     // any extra area a settlement wants levelled flush with its own pad (Highstone's yak pasture,
     // which reaches further out than any one hut/work spot's own stamp) — registry/settlements.ts
-    for (const lp of st.levelPatches) stampLazy(lp.x, lp.z, lp.rIn, lp.rOut, padH);
+    for (const lp of st.levelPatches) stampLazy(lp.x, lp.z, lp.rIn, lp.rOut, lp.h !== undefined ? () => lp.h! : padH);
   }
   // the Lakeside <-> Market Street cart road (registry/cartRoad.ts): levelled gently like a trail,
   // each point settling to a SMOOTHED version of its own natural height (not sampled until its

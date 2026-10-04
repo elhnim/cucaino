@@ -83,6 +83,13 @@ function discs(): Disc[] {
   // trail-coloured DIRT a real path gets (terrainMesh.ts groundColor)
   for (const st of SETTLEMENTS) {
     carve(st.x, st.z, 7, 14);
+    // Sunnybrook's cobbled square + streets: a continuous town floor the whole way out (not just
+    // narrow treads between huts), so paving reads solid, not a dirt/grass patchwork — the actual
+    // cobble TINT is terrainMesh.ts's groundColor() (it checks settlementAt().style === "town");
+    // this just clears the grass over the same footprint
+    // (the built-up square + streets reach about 3/4 of the town's own radius — the rest, further
+    // out, is fields on purpose; see registry/town.ts's `fieldInner`)
+    if (st.style === "town") carve(st.x, st.z, st.radius * 0.76, st.radius * 0.8);
     for (const hut of st.huts) carve(hut.x, hut.z, hut.size + 0.6, hut.size + 3.2);
     for (const w of st.work) carve(w.x, w.z, 2.2, 5);
     for (const [a, b] of st.edges) {

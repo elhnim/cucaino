@@ -17,6 +17,10 @@ import { seaDist } from "./island";
 import { nearRail, STATIONS } from "./railway";
 import { WILD_FALLS, WILD_LAKE, wildLakeRadius, wildRainforestK, wildWaterSdf } from "./wildWater";
 import { LONE_PEAK, footprintStats, rawHeight, smoothedHeight } from "./landform";
+// Sunnybrook (the market town) is generated in its own file, same discipline as every
+// generate<Style>() below — a deterministic site search steered clear of the others (town.ts can't
+// import SETTLEMENTS itself: that would be circular, since this is the file that builds it).
+import { generateTown } from "./town";
 
 /** kept in step with terrain.ts WATER_Y (registry/settlements.ts must not import terrain.ts: that
  *  would be circular, since terrain.ts's stamps() reads SETTLEMENTS to level their ground) */
@@ -76,7 +80,7 @@ export interface SettlementHut {
  *  plain obstacle like a hut, no per-frame simulation needed */
 export interface SettlementFauna {
   id: string;
-  kind: "yak" | "goat";
+  kind: "yak" | "goat" | "sheep";
   x: number;
   z: number;
   yaw: number;
@@ -129,8 +133,11 @@ export interface SettlementWorkSpot {
   sit?: boolean;
 }
 /** what a Lakeside (or later, any settlement's) villager can be doing — each maps onto one of the
- *  shared crowd module's Anim poses (world/village/crowd.ts), so no new rigging is ever needed */
-export type SettlementAct = "home" | "wander" | "fish" | "nets" | "cook" | "dance" | "drum" | "chase" | "look" | "sit";
+ *  shared crowd module's Anim poses (world/village/crowd.ts), so no new rigging is ever needed.
+ *  "sell" / "busk" / "light" were added for Sunnybrook (a market seller at a stall, a street
+ *  musician, a lamplighter) — all three reuse Anim/Tool combinations crowd.ts already had rigging
+ *  for (sell, flute, light+pole) but no settlement had used yet */
+export type SettlementAct = "home" | "wander" | "fish" | "nets" | "cook" | "dance" | "drum" | "chase" | "look" | "sit" | "sell" | "busk" | "light";
 export interface SettlementSlot {
   from: number;
   act: SettlementAct;
@@ -212,10 +219,14 @@ export interface SettlementDef {
   fauna: SettlementFauna[];
   /** walkable platforms/ramps/bridges above the ground (Treetop's treehouses) — empty elsewhere */
   decks: SettlementDeckPiece[];
-  /** extra area terrain.ts should level flush with the settlement's own shared pad height, beyond
-   *  any one hut/work spot's own stamp (Highstone's yak pasture, which reaches further out) — empty
-   *  for every settlement that doesn't need one */
-  levelPatches: { x: number; z: number; rIn: number; rOut: number }[];
+  /** extra area terrain.ts should level, beyond any one hut/work spot's own stamp (Highstone's yak
+   *  pasture, which reaches further out) — empty for every settlement that doesn't need one. Levels
+   *  flush with the settlement's own shared pad height UNLESS `h` gives its own target height (the
+   *  pasture reaches well past the huts, onto ground that may sit a fair bit higher/lower than the
+   *  pad — forcing it flush would squeeze that whole height difference into just this patch's own
+   *  rIn-to-rOut ring, however wide, and still read as a little cliff; its own locally-smoothed
+   *  height keeps the ramp to the pad gentle without giving up a flat pasture floor) */
+  levelPatches: { x: number; z: number; rIn: number; rOut: number; h?: number }[];
   /** what this settlement trades (registry/trade.ts turns this into a TRADE_POST automatically —
    *  a new settlement joins the trade network just by filling this in, nothing else to wire up) */
   trade?: { makes: string[]; wants: string[] };
@@ -298,6 +309,11 @@ function generateLakeside(): SettlementDef {
   const inlandA = SITE.a + Math.PI; // away from the lake
   const huts: SettlementHut[] = [];
   const GAP = 4.6; // the least a hut's edge may come to its neighbour's
+  // a real, walk-up-to-able hut, not a dollhouse: its own ridge comes out ~3.5-4.5 m tall (1 m ≈
+  // 1.6 world units; a 1.4 m child kid stands 2.26 units tall) — world/settlements/styles/
+  // lakeside.ts's buildHut is written entirely in terms of `size`, so scaling it here scales the
+  // whole hut (and, via the obstacle/spacing maths above, keeps collision and spacing in step)
+  const LAKESIDE_HUT_SCALE = 1.7;
 
   // the lake's edge wobbles (bays, points), so a hut's radius is pulled in, step by step, until
   // the ground under it is dry with at least `margin` to spare — the centre itself is always dry
@@ -322,7 +338,7 @@ function generateLakeside(): SettlementDef {
       for (let tries = 0; placed < count && tries < 600; tries++) {
         const a = angleBase + (r() - 0.5) * angleSpread;
         const rad = radMin + r() * (radMax - radMin);
-        const size = 0.82 + r() * 0.35;
+        const size = (0.82 + r() * 0.35) * LAKESIDE_HUT_SCALE;
         const { x, z } = dryPoint(a, rad, margin);
         if (!fitsHuts(x, z, size, gap)) continue;
         const yaw = Math.atan2(cx - x, cz - z); // face back towards the fire / the lake
@@ -382,6 +398,23 @@ function generateLakeside(): SettlementDef {
   // the heron lookout perch, right at the shore
   const perchPt = shoreNear(toShore * 0.95);
   props.push({ kind: "perch", x: perchPt.x + sidewaysOf.x * 3, z: perchPt.z + sidewaysOf.z * 3, yaw: SITE.a, scale: 1 });
+
+  // a boat up on trestles, half-mended, tucked in among the beached canoes
+  const repairPt = shoreNear(toShore * 0.78);
+  props.push({ kind: "boat-repair", x: repairPt.x + sidewaysOf.x * -8, z: repairPt.z + sidewaysOf.z * -8, yaw: SITE.a + Math.PI / 2, scale: 1 });
+
+  // a reed bed and a scatter of lily pads along the waterline, between the huts and the open water —
+  // soft life at the shore instead of bare sand running straight into the cluster
+  for (let i = 0; i < 3; i++) {
+    const p = shoreNear(toShore * (0.15 + i * 0.1));
+    const side = (i % 2 ? 1 : -1) * (13 + i);
+    props.push({ kind: "reedbed", x: p.x + sidewaysOf.x * side, z: p.z + sidewaysOf.z * side, yaw: 0, scale: 1 + r() * 0.4 });
+  }
+  for (let i = 0; i < 5; i++) {
+    const p = shoreNear(toShore * (0.55 + i * 0.07));
+    const side = (i % 2 ? 1 : -1) * (15 + i * 2);
+    props.push({ kind: "lilypad", x: p.x + sidewaysOf.x * side, z: p.z + sidewaysOf.z * side, yaw: r(), scale: 0.8 + r() * 0.5 });
+  }
 
   // ── the pier: from just inland of the shore, straight out over the water, with the fishing spot
   // at its tip ──
@@ -705,19 +738,24 @@ function generateTreetop(): SettlementDef {
   // the chase play spot
   const chase = { x: cx + Math.sin(0) * 6.7, z: cz + Math.cos(0) * 6.7 };
 
-  // ── decks: a ramp up from the ground to tree A's platform, a rope bridge across to tree B's ──
+  // ── decks: a ramp up from the ground to tree A's platform, a rope bridge across to tree B's, and
+  // a SECOND rope bridge on from B to tree C's (D stays ambient — just for the look of the place,
+  // and bed, come nightfall) ──
   const A = huts[0];
   const B = huts[1];
-  // kept in step with world/settlements/props.ts's own treehousePorchR (the cabin's rendered porch
-  // radius) — a walkable platform always lines up exactly with the cabin built on it
+  const C = huts[2];
+  // kept in step with world/settlements/styles/treetop.ts's own treehousePorchR (the cabin's
+  // rendered porch radius) — a walkable platform always lines up exactly with the cabin built on it
   const platR = (h: SettlementHut) => 1.85 * h.size * 1.08;
   const rampOutA = A.yaw + Math.PI;
   const rampBaseA = { x: A.x + Math.sin(rampOutA) * (platR(A) + 4), z: A.z + Math.cos(rampOutA) * (platR(A) + 4) };
   const decks: SettlementDeckPiece[] = [
     { kind: "circle", x: A.x, z: A.z, y: padHeight + A.elev!, r: platR(A) },
     { kind: "circle", x: B.x, z: B.z, y: padHeight + B.elev!, r: platR(B) },
+    { kind: "circle", x: C.x, z: C.z, y: padHeight + C.elev!, r: platR(C) },
     { kind: "line", ax: rampBaseA.x, az: rampBaseA.z, ay: padHeight, bx: A.x, bz: A.z, by: padHeight + A.elev!, half: 1.1, tag: "ramp" },
     { kind: "line", ax: A.x, az: A.z, ay: padHeight + A.elev!, bx: B.x, bz: B.z, by: padHeight + B.elev!, half: 0.85, tag: "bridge" },
+    { kind: "line", ax: B.x, az: B.z, ay: padHeight + B.elev!, bx: C.x, bz: C.z, by: padHeight + C.elev!, half: 0.85, tag: "bridge" },
   ];
 
   // lanterns and glowing flowers along the ground paths, and up on both platforms
@@ -948,16 +986,21 @@ function generateHighstone(): SettlementDef {
   const padHeight = settlePadHeight("mountain", cx, cz);
   const inlandA = A_PEAK + Math.PI; // away from the peak, out towards the open slopes
 
-  // ── cottages: a loose ring, varied radii and headings, like Lakeside's land huts ──
+  // ── cottages: a loose ring, varied radii and headings, like Lakeside's land huts — a real,
+  // walk-up-to-able cottage, not a dollhouse: its own ridge comes out ~3.5-4.5 m tall (1 m ≈ 1.6
+  // world units; a 1.4 m child kid stands 2.26 units tall), so `size` (the renderer's one scale
+  // knob — world/settlements/styles/mountain.ts's buildCottage is written entirely in terms of it)
+  // is picked a good deal bigger than the old dollhouse-scale 0.9-1.2 ──
+  const HIGHSTONE_HUT_SCALE = 1.9;
   const huts: SettlementHut[] = [];
-  const GAP = 4.8;
+  const GAP = 3.2;
   const fitsHuts = (x: number, z: number, size: number, gap: number) => huts.every((h) => Math.hypot(h.x - x, h.z - z) > (h.size + size) * 1.15 + gap);
   for (const gap of [GAP, GAP * 0.7, GAP * 0.45, GAP * 0.25, 0]) {
     let placed = huts.length;
     for (let tries = 0; placed < 7 && tries < 600; tries++) {
       const a = r() * TAU;
-      const rad = 6 + r() * 10;
-      const size = 0.9 + r() * 0.3;
+      const rad = 9 + r() * 13;
+      const size = (0.9 + r() * 0.3) * HIGHSTONE_HUT_SCALE;
       const x = cx + Math.sin(a) * rad;
       const z = cz + Math.cos(a) * rad;
       if (!fitsHuts(x, z, size, gap)) continue;
@@ -1002,9 +1045,36 @@ function generateHighstone(): SettlementDef {
   const loomSpot = { x: cx + Math.sin(loomA) * 9, z: cz + Math.cos(loomA) * 9 };
   props.push({ kind: "loom", x: loomSpot.x, z: loomSpot.z, yaw: loomA + Math.PI, scale: 1 });
 
-  // ── the yak pasture: a fenced oval out past the cottages, 5 yaks and 2 goats grazing ──
-  const pastureA = inlandA - 2.1;
-  const pasture = { x: cx + Math.sin(pastureA) * 16, z: cz + Math.cos(pastureA) * 16, r: 8.5 };
+  // the well (with its own little roof) and a small bell tower, right in the square, tucked into
+  // the gaps between the ring of benches round the fire (not on top of one)
+  const wellA = 0.52;
+  props.push({ kind: "well", x: cx + Math.sin(wellA) * 4.6, z: cz + Math.cos(wellA) * 4.6, yaw: 0, scale: 1 });
+  const bellA = 2.62;
+  props.push({ kind: "belltower", x: cx + Math.sin(bellA) * 4.8, z: cz + Math.cos(bellA) * 4.8, yaw: 0, scale: 1 });
+  props.push({ kind: "cheeserack", x: loomSpot.x + Math.sin(loomA + 1.2) * 2.6, z: loomSpot.z + Math.cos(loomA + 1.2) * 2.6, yaw: loomA, scale: 1 });
+
+  // a couple of terraced vegetable beds (cabbages, pumpkins) walled in stone, out towards the open
+  // slopes where the sun reaches them
+  const gardenA = inlandA + 1.25;
+  for (let i = 0; i < 2; i++) {
+    const gx = cx + Math.sin(gardenA) * (11 + i * 1.6);
+    const gz = cz + Math.cos(gardenA) * (11 + i * 1.6);
+    props.push({ kind: "gardenbed", x: gx, z: gz, yaw: gardenA + Math.PI / 2, scale: 2.2 });
+  }
+
+  // ── the yak pasture: a fenced oval out past the cottages, 5 yaks, 2 goats and 3 sheep grazing ──
+  // picked (not just "away from the peak") by checking the REAL terrain's own slope all round the
+  // pasture's footprint — `inlandA`'s own heading happens to point the pasture straight at a real,
+  // quite steep little slope just past its fence (up to ~0.65 — well past the ~0.3 where rock
+  // colouring kicks in), which no amount of levelPatch blending can hide without just moving the
+  // problem further out; this heading's surroundings are genuinely gentle the whole way out past
+  // the levelled ring, so it reads as pasture, not a cliff edge
+  const pastureA = 4.614;
+  // pulled in a little closer to the village centre (real, already-validated-gentle ground), and
+  // levelled with a much wider soft ramp (see the levelPatch below) — the old narrow 2-unit ramp
+  // squeezed the pad-to-natural height gap into so short a run that it read as an artificial little
+  // cliff (rock colouring kicks in past ~0.3 slope), not a grassy pasture
+  const pasture = { x: cx + Math.sin(pastureA) * 15, z: cz + Math.cos(pastureA) * 15, r: 8.5 };
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * TAU;
     props.push({ kind: "fencepost", x: pasture.x + Math.sin(a) * pasture.r, z: pasture.z + Math.cos(a) * pasture.r, yaw: a, scale: 1 });
@@ -1020,6 +1090,11 @@ function generateHighstone(): SettlementDef {
     const a = (i / 2) * TAU + 2.6;
     const rad = pasture.r * 0.85;
     fauna.push({ id: `goat-${i}`, kind: "goat", x: pasture.x + Math.sin(a) * rad, z: pasture.z + Math.cos(a) * rad, yaw: r() * TAU, scale: 0.55 });
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU + 1.3;
+    const rad = pasture.r * (0.3 + 0.35 * r());
+    fauna.push({ id: `sheep-${i}`, kind: "sheep", x: pasture.x + Math.sin(a) * rad, z: pasture.z + Math.cos(a) * rad, yaw: r() * TAU, scale: 0.7 + r() * 0.1 });
   }
 
   // the chase play spot, and a herding watch spot by the fence
@@ -1178,12 +1253,12 @@ function generateHighstone(): SettlementDef {
     decks: [],
     // the yak pasture reaches out past any one hut/work spot's own stamp radius — level the whole
     // disc flush with the village's shared pad so the yaks graze on flat ground, not a hillside
-    levelPatches: [{ x: pasture.x, z: pasture.z, rIn: pasture.r + 1, rOut: pasture.r + 3 }],
+    levelPatches: [{ x: pasture.x, z: pasture.z, rIn: pasture.r + 1, rOut: pasture.r + 7 }],
     trade: { makes: ["wool", "cheese"], wants: ["fish", "fruit", "bread"] },
   };
 }
 
-export const SETTLEMENTS: SettlementDef[] = [generateLakeside(), generateTreetop(), generateHighstone()];
+export const SETTLEMENTS: SettlementDef[] = [generateLakeside(), generateTreetop(), generateHighstone(), generateTown([SITE, TREETOP_SITE, HIGHSTONE_SITE])];
 
 // ── helpers shared by the terrain stamp, the engine's push-out collision, the renderer and tests ──
 

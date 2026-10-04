@@ -51,7 +51,7 @@ describe("Wildlands settlements, streamed", () => {
     expect(scene.children.length).toBe(0);
   });
 
-  for (const id of ["treetop", "highstone"]) {
+  for (const id of ["treetop", "highstone", "town"]) {
     it(`${id}: builds within the draw-call budget at its own centre, offers its activity, and tears down far away`, () => {
       const scene = new THREE.Scene();
       const s = buildSettlements(scene, {});
@@ -95,6 +95,47 @@ describe("Wildlands settlements, streamed", () => {
     let t = 0;
     for (let k = 0; k < 60; k++) s.update(1 / 20, (t += 1 / 20), { kid: new THREE.Vector3(def.x, 2, def.z), glow: 0, hour: 10 });
     expect(meshStats(scene)).toBeGreaterThan(0);
+    s.dispose();
+  });
+
+  it("Sunnybrook's clock hands follow the park hour and the windmill's sails keep spinning (its own small moving meshes, not the merged props)", () => {
+    const scene = new THREE.Scene();
+    const s = buildSettlements(scene, {});
+    const def = SETTLEMENTS.find((x) => x.id === "town")!;
+    const findByName = (name: string) => {
+      let found: THREE.Object3D | null = null;
+      scene.traverse((o) => {
+        if (o.name === name) found = o;
+      });
+      return found as THREE.Mesh | null;
+    };
+    let t = 0;
+    // settle in at hour 6
+    for (let k = 0; k < 20; k++) s.update(1 / 20, (t += 1 / 20), { kid: new THREE.Vector3(def.x, 2, def.z), glow: 0, hour: 6 });
+    const hour6 = findByName("town-clock-hour")!.rotation.z;
+    const sails6 = findByName("town-windmill-sails")!.rotation.z;
+    // move on to hour 15 (not 12 hours later — a 12-hour dial would read the same — so the hour
+    // hand must have visibly swept; the sails, driven by elapsed time not the hour, kept turning)
+    for (let k = 0; k < 20; k++) s.update(1 / 20, (t += 1 / 20), { kid: new THREE.Vector3(def.x, 2, def.z), glow: 0, hour: 15 });
+    const hour15 = findByName("town-clock-hour")!.rotation.z;
+    const sails15 = findByName("town-windmill-sails")!.rotation.z;
+    expect(hour15).not.toBeCloseTo(hour6, 3);
+    expect(sails15).not.toBeCloseTo(sails6, 3);
+    s.dispose();
+  });
+
+  it("Sunnybrook's market stall activity offers the right id/label right at its stall, not elsewhere", () => {
+    const scene = new THREE.Scene();
+    const s = buildSettlements(scene, {});
+    const def = SETTLEMENTS.find((x) => x.id === "town")!;
+    const act = def.activities.find((a) => a.id === "market")!;
+    expect(act).toBeTruthy();
+    let t = 0;
+    let res = s.update(1 / 20, (t += 1 / 20), { kid: new THREE.Vector3(def.x, 2, def.z), glow: 0, hour: 10 });
+    expect(res.activity).toBeNull();
+    for (let k = 0; k < 30; k++) res = s.update(1 / 20, (t += 1 / 20), { kid: new THREE.Vector3(act.x, 2, act.z), glow: 0, hour: 10 });
+    expect(res.activity?.id).toBe("market");
+    expect(res.activity?.label).toBe("Run a market stall");
     s.dispose();
   });
 });

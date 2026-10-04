@@ -216,6 +216,11 @@ export const TRADE_ROUTES: TradeRoute[] = [
   routeOf("train-treetop-lakeside", "treetop", "lakeside", "train", []),
   routeOf("train-highstone-market", "highstone", "market", "train", []),
   routeOf("train-treetop-highstone", "treetop", "highstone", "train", []),
+  // Sunnybrook (the market town, near Sunny Plains Station): the network's hub — linked by train to
+  // its rail neighbour Highstone and on to Market Street, same "train route carries no polyline"
+  // convention as every other station-to-station link above
+  routeOf("train-highstone-town", "highstone", "town", "train", []),
+  routeOf("train-town-market", "town", "market", "train", []),
 ];
 export const tradeRouteOf = (id: string): TradeRoute | undefined => TRADE_ROUTES.find((r) => r.id === id);
 

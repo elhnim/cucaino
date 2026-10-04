@@ -36,8 +36,11 @@ const ACT_ANIM: Record<SettlementAct, Anim> = {
   chase: "run",
   look: "look",
   sit: "sit",
+  sell: "sell",
+  busk: "flute",
+  light: "light",
 };
-const ACT_TOOL: Partial<Record<SettlementAct, Tool>> = { fish: "rod", cook: "tray", drum: "drum" };
+const ACT_TOOL: Partial<Record<SettlementAct, Tool>> = { fish: "rod", cook: "tray", drum: "drum", sell: "basket", busk: "flute", light: "pole" };
 const FIRE_DANCE_R = 4.2;
 const PLAY_R = 2.2;
 const WALK = 1.3;

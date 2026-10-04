@@ -60,6 +60,7 @@ const HomeScreen = dynamic(() => import("./home/HomeScreen").then((m) => m.HomeS
 const FishingGame = dynamic(() => import("./FishingGame").then((m) => m.FishingGame), { ssr: false });
 const DrumGame = dynamic(() => import("./DrumGame").then((m) => m.DrumGame), { ssr: false });
 const WeaveGame = dynamic(() => import("./WeaveGame").then((m) => m.WeaveGame), { ssr: false });
+const MarketGame = dynamic(() => import("./MarketGame").then((m) => m.MarketGame), { ssr: false });
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const WizardSheet = dynamic(() => import("./wizards/WizardSheet").then((m) => m.WizardSheet), { ssr: false });
 const BookOfWisdom = dynamic(() => import("./wizards/BookOfWisdom").then((m) => m.BookOfWisdom), { ssr: false });
@@ -1411,7 +1412,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               active
               style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 96, borderRadius: 20 }}
               onClick={() => {
-                if (!["fishing", "drumming", "weaving"].includes(activityOffer.id)) return;
+                if (!["fishing", "drumming", "weaving", "market"].includes(activityOffer.id)) return;
                 playSfx("tap");
                 worldRef.current?.setMove(0, 0);
                 worldRef.current?.setInputEnabled(false);
@@ -1807,7 +1808,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             setFishing(null);
             worldRef.current?.setInputEnabled(true);
           };
-          const Game = fishing.id === "drumming" ? DrumGame : fishing.id === "weaving" ? WeaveGame : FishingGame;
+          const Game = fishing.id === "drumming" ? DrumGame : fishing.id === "weaving" ? WeaveGame : fishing.id === "market" ? MarketGame : FishingGame;
           return <Game open kidId={kidId} night={fishing.night} onClose={close} />;
         })()}
       {home && (

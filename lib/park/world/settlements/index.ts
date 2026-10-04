@@ -6,18 +6,23 @@
 //
 // Cheap by construction: nothing is built until the kid is within BUILD_R of a settlement, and it's
 // torn down again past DISPOSE_R (the kid starts the visit ~1.5 km from the nearest one). Once
-// built, a settlement is ≤ 6 draw calls (one merged mesh for every hut/prop/pier, a handful of
-// instanced meshes for its folk, shared with Coralcove's rig — world/village/crowd.ts — and one
-// instanced mesh for its canoes), deterministic, allocation-free per frame.
+// built, a settlement stays well under the budget (world/settlements/index.test.ts caps it at 12
+// draw calls): one merged mesh for every hut/prop/pier, a handful of instanced meshes for its folk
+// (shared with Coralcove's rig — world/village/crowd.ts), one instanced mesh for its canoes/fauna,
+// and one more for its small life (critters.ts) — deterministic, allocation-free per frame.
 import * as THREE from "three";
 import { fxMaterial, makeUniforms } from "../fantasy/shaders";
 import { SETTLEMENTS, settlementDeckY, type SettlementDef } from "../../registry/settlements";
 import { groundY } from "../../registry/terrain";
 import { buildCanoe } from "../village/folk";
 import { BODY_VARIANTS, buildCrowd, folkInstance, makeRig, resolveRig, type Crowd, type FolkMeshHandle, type Rig } from "../village/crowd";
-import { buildLakesidePropsGeometry, buildMountainPropsGeometry, buildTreetopPropsGeometry, buildYakGeometry } from "./props";
+import { buildLakesidePropsGeometry } from "./styles/lakeside";
+import { buildTreetopPropsGeometry } from "./styles/treetop";
+import { buildMountainPropsGeometry, buildYakGeometry } from "./styles/mountain";
+import { buildTownMoving, buildTownPropsGeometry, type TownMoving } from "./styles/town";
 import { makeSettlementSim, stepSettlement, type SettlementSim, type TalkOut } from "./routine";
 import { buildCanopy, type Canopy } from "./canopy";
+import { buildCrittersGeometry, critterGroundY, makeCritters, stepCritters, type CritterState } from "./critters";
 
 /** every clan's own palette, keyed by settlement id (falls back to the Reedling Folk's earthy
  *  reed-green below if a new settlement doesn't list one — never happens, but keeps this total) */
@@ -44,10 +49,19 @@ const HIGHSTONE_PALETTE: ClanPalette = {
   hairs: ["#6e2a2a", "#2a3a6e", "#4a2a6e", "#7a5a1a", "#3a2a2a", "#2a4a5a", "#5a2a3a", "#6a4a1a"],
   cloths: ["#c0392b", "#2a4a8a", "#6a2a8a", "#c9972a", "#8a2a3a", "#2a6a8a", "#a8582a"],
 };
-const PALETTE_OF: Record<string, ClanPalette> = { lakeside: LAKESIDE_PALETTE, treetop: TREETOP_PALETTE, highstone: HIGHSTONE_PALETTE };
+/** the Sunflower Folk — bright yellows, sky blues, poppy reds, leaf greens */
+const TOWN_PALETTE: ClanPalette = {
+  skins: ["#e0b088", "#d19a6e", "#c98a5c", "#eac29a", "#b87c52", "#d6a476", "#c08458"],
+  hairs: ["#c9972a", "#7a5a2a", "#4a3420", "#2a2420", "#8a5a2c", "#6e4a2a", "#5a3a22", "#3a2a18"],
+  cloths: ["#f7d774", "#8fc7e8", "#e8705f", "#7fb86a", "#f0905a", "#9a5a9a", "#e6e2c8"],
+};
+const PALETTE_OF: Record<string, ClanPalette> = { lakeside: LAKESIDE_PALETTE, treetop: TREETOP_PALETTE, highstone: HIGHSTONE_PALETTE, town: TOWN_PALETTE };
 /** yaks/goats: shaggy browns, blacks and creams (goats a touch paler) */
 const YAK_COLORS = ["#6e4a2e", "#2a221c", "#e8ddc4", "#4a3824"];
 const GOAT_COLORS = ["#e8e2d4", "#c9c2b0"];
+/** sheep share the yak's own geometry (a shaggy quadruped reads fine as either) — just a creamier
+ *  wool colour and a touch smaller, no new mesh or draw call needed */
+const SHEEP_COLORS = ["#f5f0e0", "#e8e2d0", "#fbf7ec"];
 
 export interface SettlementTalkOut {
   id: string;
@@ -98,8 +112,14 @@ interface BuiltSettlement {
   canoeState: CanoeState[];
   fauna: FolkMeshHandle | null;
   faunaState: FaunaState[];
+  /** small life: chickens, a cat, ducks (Lakeside), a dog, butterflies (Treetop) — null for a
+   *  settlement whose style has none picked for it (never happens today, every style gets a dog) */
+  critters: FolkMeshHandle | null;
+  critterState: CritterState[];
   /** Treetop's giant-tree crowns (layered, see-through near the kid/camera) — null everywhere else */
   canopy: Canopy | null;
+  /** Sunnybrook's clock hands + windmill sails (its own tiny unmerged meshes) — null everywhere else */
+  moving: TownMoving | null;
   propsMesh: THREE.Mesh;
   propMat: THREE.Material;
   PU: ReturnType<typeof makeUniforms>;
@@ -117,6 +137,8 @@ function buildPropsFor(def: SettlementDef, low: boolean): THREE.BufferGeometry {
       return buildTreetopPropsGeometry(def);
     case "mountain":
       return buildMountainPropsGeometry(def);
+    case "town":
+      return buildTownPropsGeometry(def, low);
     case "lakeside":
     default:
       return buildLakesidePropsGeometry(def, low);
@@ -158,16 +180,19 @@ function buildOne(scene: THREE.Scene, def: SettlementDef, low: boolean): BuiltSe
   });
   const canoes = canoeState.length ? folkInstance(group, crowd.folkMat, crowd.depthMat, buildCanoe(), canoeState.length, { name: `${def.id}-canoes`, shadow: true, lowQuality: low }) : null;
 
-  // static grazers (Highstone's yaks/goats): idle in place, sharing the crowd's own material
-  const faunaState: FaunaState[] = def.fauna.map((f, i) => ({
-    x: f.x,
-    z: f.z,
-    yaw: f.yaw,
-    scale: f.scale,
-    color: new THREE.Color((f.kind === "goat" ? GOAT_COLORS : YAK_COLORS)[i % (f.kind === "goat" ? GOAT_COLORS.length : YAK_COLORS.length)]),
-    seed: i * 37 + (f.kind === "goat" ? 500 : 0),
-  }));
+  // static grazers (Highstone's yaks/goats/sheep): idle in place, sharing the crowd's own material
+  // (sheep reuse the very same geometry as yaks — just a creamier colour and a touch smaller)
+  const faunaColorsOf = (kind: string) => (kind === "goat" ? GOAT_COLORS : kind === "sheep" ? SHEEP_COLORS : YAK_COLORS);
+  const faunaState: FaunaState[] = def.fauna.map((f, i) => {
+    const cs = faunaColorsOf(f.kind);
+    return { x: f.x, z: f.z, yaw: f.yaw, scale: f.scale, color: new THREE.Color(cs[i % cs.length]), seed: i * 37 + (f.kind === "goat" ? 500 : f.kind === "sheep" ? 900 : 0) };
+  });
   const fauna = faunaState.length ? folkInstance(group, crowd.folkMat, crowd.depthMat, buildYakGeometry(), faunaState.length, { name: `${def.id}-fauna`, shadow: true, lowQuality: low }) : null;
+
+  // small life: chickens, a cat, ducks (Lakeside only), a dog, butterflies (Treetop only) — one
+  // instanced mesh, sharing the crowd's own material (no new draw-call TYPE, same as canoes/fauna)
+  const critterState: CritterState[] = makeCritters(def);
+  const critters = critterState.length ? folkInstance(group, crowd.folkMat, crowd.depthMat, buildCrittersGeometry(), critterState.length, { name: `${def.id}-critters`, shadow: !low, lowQuality: low }) : null;
 
   // Treetop's giant-tree crowns: their own small mesh (layered tiers, faded near the kid/camera via
   // the jungle's own see-through cut), sharing the village's wind-sway uniforms (PU)
@@ -181,7 +206,11 @@ function buildOne(scene: THREE.Scene, def: SettlementDef, low: boolean): BuiltSe
         )
       : null;
 
-  return { group, def, sim, crowd, canoes, canoeState, fauna, faunaState, canopy, propsMesh, propMat, PU, skin, hair, cloth, scaleOf, bodyVar };
+  // Sunnybrook's clock hands + windmill sails: their own tiny unmerged meshes (need their own
+  // per-frame rotation), sharing the village's wind/glow uniforms (PU) like the canopy above
+  const moving = def.style === "town" ? buildTownMoving(group, def, low, PU) : null;
+
+  return { group, def, sim, crowd, canoes, canoeState, fauna, faunaState, critters, critterState, canopy, moving, propsMesh, propMat, PU, skin, hair, cloth, scaleOf, bodyVar };
 }
 
 function disposeOne(b: BuiltSettlement) {
@@ -189,7 +218,9 @@ function disposeOne(b: BuiltSettlement) {
   b.crowd.dispose();
   b.canoes?.dispose();
   b.fauna?.dispose();
+  b.critters?.dispose();
   b.canopy?.dispose();
+  b.moving?.dispose();
   b.propsMesh.geometry.dispose();
   b.propMat.dispose();
 }
@@ -248,6 +279,9 @@ export function buildSettlements(scene: THREE.Scene, opts: { lowQuality?: boolea
         // ── Treetop's giant-tree crowns: feed the kid's position so leaves near the kid/camera fade ──
         b.canopy?.update(o.kid);
 
+        // ── Sunnybrook's clock hands (follow the park hour) and windmill sails (spin steadily) ──
+        b.moving?.update(t, o.hour);
+
         // ── canoes: pulled up on the sand, or paddling a slow loop over the lake ──
         if (b.canoes) {
           const canoes = b.canoes;
@@ -304,6 +338,28 @@ export function buildSettlements(scene: THREE.Scene, opts: { lowQuality?: boolea
           if (fauna.m.instanceColor) fauna.m.instanceColor.needsUpdate = true;
           fauna.colB.needsUpdate = true;
           fauna.sel.needsUpdate = true;
+        }
+
+        // ── small life: chickens pecking, a cat asleep, ducks paddling, a dog trotting (and
+        // ambling over when the kid's close), butterflies looping over the flowers ──
+        if (b.critters) {
+          stepCritters(b.critterState, dt, t, { x: o.kid.x, z: o.kid.z });
+          const critters = b.critters;
+          for (let i = 0; i < b.critterState.length; i++) {
+            const c = b.critterState[i];
+            const y = critterGroundY(c);
+            e.set(0, c.yaw, c.roll, "YXZ");
+            m4.compose(vpos.set(c.x, y, c.z), q.setFromEuler(e), vscale.set(c.scale, c.scale, c.scale));
+            critters.m.setMatrixAt(i, m4);
+            critters.m.setColorAt(i, c.color);
+            critters.colB.setXYZ(i, 1, 1, 1);
+            critters.sel.setX(i, c.kind);
+          }
+          critters.m.count = b.critterState.length;
+          critters.m.instanceMatrix.needsUpdate = true;
+          if (critters.m.instanceColor) critters.m.instanceColor.needsUpdate = true;
+          critters.colB.needsUpdate = true;
+          critters.sel.needsUpdate = true;
         }
 
         // ── something to do here: the fishing spot at the end of the pier ──
