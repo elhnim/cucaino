@@ -29,37 +29,44 @@ export interface KartTrack {
   boostPads: { s: number; len: number }[];
   /** starting grid slots, behind the line (negative s), alternating sides like a real grid */
   grid: { s: number; lateral: number }[];
+  /** the road's own bend radius (m) at each centerline point (huge on the straights) */
+  radius: Float64Array;
 }
 
-export const TRACK_WIDTH = 15;
+export const TRACK_WIDTH = 11;
 /** how far outside the road edge the soft wall (tyres/hay) actually stops a kart */
-export const WALL_MARGIN = 2.4;
+export const WALL_MARGIN = 2.6;
 
-/** the hand-laid loop, in local space (start/finish at the origin, heading +x): a back straight
- *  and a front straight on opposite sides of a compact loop (so no feature on one can ever read
- *  as crossing the other), a sweeping right-hander at the east end, a tight hairpin at the west
- *  end, and a flowing esses + a short chicane along the front straight — kept tight (a ~64 m
- *  footprint radius) so the whole circuit fits the real site just outside the park, not a
- *  wide-open stadium. Fed through the same closed Catmull-Rom smooth() every other trail/road in
- *  the park uses, so it reads as one continuous flowing road, not a join-the-dots shape. */
+/** the hand-laid loop, in local space (centred on the origin, so the site's own centre is the
+ *  circuit's middle; the start/finish line is on the south straight, heading +x): a long start straight, a fast double-left at the east end, a flick down into the
+ *  infield and round a tight hairpin, a run north, a long sweeping left round the west end and a
+ *  final left back onto the straight. ~480 m a lap; every stretch of road is at least 13 m clear
+ *  of any other (measured), so nothing ever reads as crossing. Fed through the same closed
+ *  Catmull-Rom smooth() every other trail/road in the park uses. */
 const RAW: P2[] = [
-  [0, -31.2], // 0: start/finish, back straight begins, heading +x
-  [48, -31.2], // 1: back straight (a boost pad lives here)
-  [86.4, -31.2], // 2: back straight ends, into the sweeper
-  [103.2, -16.8], // 3: sweeper
-  [108, 2.4], // 4: sweeper's apex, the loop's eastmost point
-  [103.2, 21.6], // 5: sweeper
-  [84, 33.6], // 6: sweeper exit, easing towards the front straight
-  [88.8, 40.8], // 7: esses, kick one way
-  [74.4, 45.6], // 8: esses, kick back
-  [55.2, 38.4], // 9: settled onto the front straight
-  [36, 44.4], // 10: chicane, kink right
-  [19.2, 31.2], // 11: chicane, kink left
-  [2.4, 36], // 12: resettled, running up to the hairpin
-  [-12, 24], // 13: hairpin entry
-  [-19.2, 0], // 14: hairpin tip, the loop's westmost point
-  [-9.6, -19.2], // 15: hairpin exit
-  [4.8, -28.8], // 16: back onto the back straight's line, closing the loop
+  [-37, -43], // 0: start/finish
+  [3, -43], // 1: main straight (boost pad)
+  [45, -43], // 2: braking zone
+  [68, -39], // 3: turn 1
+  [79, -23], // 4
+  [79, -3], // 5: turn 2
+  [71, 13], // 6
+  [53, 21], // 7: short back straight (boost pad)
+  [33, 21], // 8
+  [17, 11], // 9: the flick into the infield
+  [7, -5], // 10
+  [-3, -17], // 11: hairpin entry
+  [-15, -17], // 12: hairpin
+  [-23, -5], // 13: hairpin exit
+  [-25, 15], // 14: the run north (boost pad)
+  [-31, 33], // 15
+  [-45, 43], // 16: the long west sweeper
+  [-65, 41], // 17
+  [-77, 25], // 18
+  [-81, 3], // 19
+  [-79, -19], // 20
+  [-73, -35], // 21: final corner
+  [-59, -43], // 22: back onto the straight
 ];
 
 function buildCenterline(): { points: P2[]; cum: Float64Array; length: number } {
@@ -68,8 +75,25 @@ function buildCenterline(): { points: P2[]; cum: Float64Array; length: number } 
   return { points, cum, length: cum[cum.length - 1] };
 }
 
-/** nearest raw waypoint's position along the smoothed lap (used only to anchor corner zones to
- *  the hand-laid shape above, so moving a waypoint keeps its corner zone with it) */
+/** how tight the road is at each centerline point: the radius (m) of the circle through it and
+ *  its neighbours ~7 m either side (huge on the straights) */
+function buildRadii(points: P2[]): Float64Array {
+  const n = points.length;
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = points[(i - 3 + n) % n];
+    const b = points[i];
+    const c = points[(i + 3) % n];
+    const A = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const B = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    const C = Math.hypot(c[0] - a[0], c[1] - a[1]);
+    const area = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / 2;
+    out[i] = area < 1e-6 ? 1e6 : Math.min(1e6, (A * B * C) / (4 * area));
+  }
+  return out;
+}
+
+/** nearest raw waypoint's position along the smoothed lap */
 function sOfWaypoint(points: P2[], cum: Float64Array, w: P2): number {
   const { i, u } = nearestOnPolyline(points, w[0], w[1]);
   return cum[i] + (cum[i + 1] - cum[i]) * u;
@@ -77,25 +101,25 @@ function sOfWaypoint(points: P2[], cum: Float64Array, w: P2): number {
 
 function buildTrack(): KartTrack {
   const { points, cum, length } = buildCenterline();
+  const radius = buildRadii(points);
   const sAt = (idx: number) => sOfWaypoint(points, cum, RAW[idx]);
-  const rawCorners: TrackCorner[] = [
-    { kind: "sweeper", s0: sAt(2) - 8, s1: sAt(6) + 6 },
-    { kind: "esses", s0: sAt(6) + 6, s1: sAt(9) - 4 },
-    { kind: "chicane", s0: sAt(9) - 4, s1: sAt(12) + 6 },
-    // (the hairpin's exit waypoint is only ~30 m before the finish line — just room enough for the
-    // starting grid behind it, so this zone stops right at the exit, not past it)
-    { kind: "hairpin", s0: sAt(13) - 8, s1: sAt(15) },
+  // (corner zones are for the scenery — kerb colours, tyre walls, hay bales — and the map; the
+  // driving itself reads the road's real curvature, not these labels)
+  const corners: TrackCorner[] = [
+    { kind: "sweeper", s0: sAt(2), s1: sAt(7) },
+    { kind: "chicane", s0: sAt(8), s1: sAt(11) },
+    { kind: "hairpin", s0: sAt(11), s1: sAt(14) - 6 },
+    { kind: "esses", s0: sAt(15), s1: sAt(18) },
+    { kind: "sweeper", s0: sAt(18), s1: sAt(22) },
   ];
-  const corners: TrackCorner[] = rawCorners.map((c) => ({ ...c, s0: ((c.s0 % length) + length) % length, s1: ((c.s1 % length) + length) % length }));
   const boostPads = [
-    { s: sAt(1), len: 10 }, // down the back straight
-    { s: sAt(6) + 12, len: 8 }, // blasting out of the sweeper
-    { s: sAt(12) + 10, len: 8 }, // out of the chicane, onto the run to the hairpin
+    { s: sAt(1), len: 9 }, // down the main straight
+    { s: sAt(7) + 9, len: 8 }, // the short back straight
+    { s: sAt(14), len: 8 }, // the run north out of the hairpin
   ];
-  // the grid sits behind the line, on the short straight between the hairpin's exit and the
-  // finish (~30 m) — kept well clear of both so no kart starts already mid-corner
-  const grid = [0, 1, 2, 3].map((i) => ({ s: -(6 + i * 7), lateral: i % 2 === 0 ? -2.6 : 2.6 }));
-  return { points, cum, length, width: TRACK_WIDTH, corners, boostPads, grid };
+  // the grid sits behind the line on the main straight (the final corner is ~22 m further back)
+  const grid = [0, 1, 2, 3].map((i) => ({ s: -(10 + i * 4.2), lateral: i % 2 === 0 ? -2.3 : 2.3 }));
+  return { points, cum, length, width: TRACK_WIDTH, corners, boostPads, grid, radius };
 }
 
 let _track: KartTrack | null = null;
@@ -145,7 +169,8 @@ export function trackAt(track: KartTrack, s: number, out: TrackSample = { x: 0, 
 export interface NearestOnTrack {
   /** distance along the lap of the nearest centerline point */
   s: number;
-  /** signed distance from the centerline: positive = to the right of travel, negative = left */
+  /** signed distance from the centerline: positive = to the LEFT of the way the road runs (the
+   *  point sits at centre + (-dz, dx) * lateral for road direction (dx, dz)), negative = right */
   lateral: number;
   /** plain distance to the centerline (|lateral|, roughly) */
   d: number;
@@ -193,6 +218,57 @@ export function nearestOnTrack(track: KartTrack, x: number, z: number): NearestO
   const lateral = sign * d;
   const s = track.cum[bi] + (track.cum[bi + 1] - track.cum[bi]) * bu;
   return { s, lateral, d };
+}
+
+/** the nearest point on the track to (x, z) searched only near where the kart already was (`sPrev`,
+ *  +/- `window` metres of road) — so a kart that's off on the grass between two stretches of road
+ *  never "jumps" to the other stretch (that's what used to hand out free laps). Falls back to the
+ *  whole-track search if nothing in the window is within `maxD`. */
+export function nearestOnTrackNear(track: KartTrack, x: number, z: number, sPrev: number, window = 45, maxD = 40): NearestOnTrack {
+  const n = track.points.length;
+  const { i: i0 } = trackIndexAt(track, sPrev);
+  const span = Math.max(4, Math.ceil(window / (track.length / n)));
+  let best = Infinity;
+  let bi = i0;
+  let bu = 0;
+  for (let k = -span; k <= span; k++) {
+    const i = (((i0 + k) % n) + n) % n;
+    const a = track.points[i];
+    const b = track.points[(i + 1) % n];
+    const ex = b[0] - a[0];
+    const ez = b[1] - a[1];
+    const l2 = ex * ex + ez * ez || 1;
+    const u = Math.max(0, Math.min(1, ((x - a[0]) * ex + (z - a[1]) * ez) / l2));
+    const dx = a[0] + ex * u - x;
+    const dz = a[1] + ez * u - z;
+    const d = dx * dx + dz * dz;
+    if (d < best) {
+      best = d;
+      bi = i;
+      bu = u;
+    }
+  }
+  if (best > maxD * maxD) return nearestOnTrack(track, x, z);
+  const a = track.points[bi];
+  const b = track.points[(bi + 1) % n];
+  const ex = b[0] - a[0];
+  const ez = b[1] - a[1];
+  const l = Math.hypot(ex, ez) || 1;
+  const px = x - (a[0] + ex * bu);
+  const pz = z - (a[1] + ez * bu);
+  const d = Math.sqrt(best);
+  const sign = (ex / l) * pz - (ez / l) * px >= 0 ? 1 : -1;
+  return { s: track.cum[bi] + (track.cum[bi + 1] - track.cum[bi]) * bu, lateral: sign * d, d };
+}
+
+/** the tightest bend (smallest radius, m) on the road between s0 and s0 + ahead */
+export function tightestAhead(track: KartTrack, s0: number, ahead: number): number {
+  const n = track.points.length;
+  const step = track.length / n;
+  const { i } = trackIndexAt(track, s0);
+  let r = 1e6;
+  for (let k = 0; k * step <= ahead; k++) r = Math.min(r, track.radius[(i + k) % n]);
+  return r;
 }
 
 /** 0..1 fraction of the lap completed at distance s (wrapping) */

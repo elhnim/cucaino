@@ -1,59 +1,114 @@
 import { describe, expect, it } from "vitest";
 import { buildKartTrackShape, trackAt } from "./track";
-import { gridStartState, stepKart } from "./physics";
-import { aiInput, type AiProfile } from "./ai";
+import { gridStartState, stepKart, type KartInput, type KartPhysState } from "./physics";
+import { aiInput, aiPower, type AiProfile } from "./ai";
 
 const track = buildKartTrackShape();
-const toWorld = (p: { x: number; z: number }) => p;
+const id = (p: { x: number; z: number }) => p;
+const DT = 1 / 60;
 
-function driveLaps(profile: AiProfile, laps: number, maxSteps = 20000) {
-  let s = gridStartState(track, toWorld, 0);
-  for (let i = 0; i < maxSteps; i++) {
-    if (s.lap > laps) return { state: s, steps: i };
-    const input = aiInput(s, track, profile);
-    s = stepKart(s, input, track, 1 / 30);
+function race(profile: AiProfile, laps: number, power = aiPower(profile)) {
+  let s = gridStartState(track, id, 0);
+  let t = 0;
+  let grass = 0;
+  let walls = 0;
+  let rescues = 0;
+  while (s.lap <= laps && t < 300) {
+    s = stepKart(s, aiInput(s, track, profile), track, DT, [], { power });
+    t += DT;
+    if (s.offTrack) grass += DT;
+    if (s.wallHit > 0.05) walls++;
+    if (s.rescued) rescues++;
   }
-  return { state: s, steps: maxSteps };
+  return { s, t, grass, walls, rescues };
 }
 
 describe("kart AI", () => {
-  it("completes 3 laps at easy, medium and hard skill without getting stuck", () => {
-    for (const skill of [0.1, 0.5, 0.95]) {
-      const { state, steps } = driveLaps({ skill, seed: 1 }, 3);
-      expect(state.lap).toBeGreaterThan(3);
-      expect(steps).toBeLessThan(20000);
+  it("drives 3 clean laps at easy, medium and hard: on the road, off the walls, never rescued", () => {
+    for (const skill of [0.3, 0.55, 0.8, 1]) {
+      const r = race({ skill, seed: 11 }, 3);
+      expect(r.s.lap, `skill ${skill}`).toBe(4);
+      expect(r.grass, `skill ${skill}`).toBeLessThan(2.5);
+      expect(r.walls, `skill ${skill}`).toBe(0);
+      expect(r.rescues, `skill ${skill}`).toBe(0);
     }
   });
 
-  it("different seeds drive different (but all valid) lines", () => {
-    const a = driveLaps({ skill: 0.5, seed: 1 }, 1);
-    const b = driveLaps({ skill: 0.5, seed: 99 }, 1);
-    expect(a.state.lap).toBeGreaterThan(1);
-    expect(b.state.lap).toBeGreaterThan(1);
+  it("a better driver is quicker, and all of them are a touch slower than a kid who drives well (the kid's kart is the fastest)", () => {
+    const easy = race({ skill: 0.3, seed: 11 }, 3).t;
+    const medium = race({ skill: 0.55, seed: 29 }, 3).t;
+    const hard = race({ skill: 0.8, seed: 47 }, 3).t;
+    expect(medium).toBeLessThan(easy);
+    expect(hard).toBeLessThan(medium);
+    expect(easy - hard).toBeGreaterThan(2);
+    expect(easy - hard).toBeLessThan(14);
+    // the same best driver in the kid's own full-power kart beats them all
+    const best = race({ skill: 1, seed: 3 }, 3, 1).t;
+    expect(best).toBeLessThan(hard);
+    // …and a race is about a minute
+    expect(hard).toBeGreaterThan(50);
+    expect(easy).toBeLessThan(80);
   });
 
-  it("a higher skill profile is never dramatically slower than a lower one", () => {
-    const easy = driveLaps({ skill: 0.1, seed: 2 }, 2).steps;
-    const hard = driveLaps({ skill: 0.95, seed: 2 }, 2).steps;
-    expect(hard).toBeLessThanOrEqual(easy * 1.05);
+  it("different drivers pick different lines across the road", () => {
+    const lat = (seed: number) => {
+      let s = gridStartState(track, id, 0);
+      for (let i = 0; i < 60 * 6; i++) s = stepKart(s, aiInput(s, track, { skill: 0.6, seed }), track, DT, [], { power: 0.9 });
+      return s.lateral;
+    };
+    const lats = [11, 29, 47, 5, 90].map(lat);
+    expect(Math.max(...lats) - Math.min(...lats)).toBeGreaterThan(1.2);
   });
 
-  it("the rubber band only ever costs an AI a LITTLE time (it keeps racing)", () => {
-    let s = gridStartState(track, toWorld, 1);
-    for (let i = 0; i < 12000; i++) {
-      // deliberately miles ahead of an imaginary kid — heavy rubber-band braking
-      const input = aiInput(s, track, { skill: 0.7, seed: 5 }, { deltaToKid: 500 });
-      s = stepKart(s, input, track, 1 / 30);
-      if (s.lap > 2) break;
+  it("steers round a kart that's just ahead in its lane", () => {
+    const s = gridStartState(track, id, 0);
+    const moving: KartPhysState = { ...s, speed: 14 };
+    const fx = Math.sin(s.yaw);
+    const fz = Math.cos(s.yaw);
+    const clear = aiInput(moving, track, { skill: 0.6, seed: 4 });
+    const blocked = aiInput(moving, track, { skill: 0.6, seed: 4 }, { deltaToKid: 0, others: [{ x: s.x + fx * 5 + fz * 0.6, z: s.z + fz * 5 - fx * 0.6 }] });
+    // the kart ahead sits a little to our right: we steer further left than we otherwise would
+    expect(blocked.steer).toBeLessThan(clear.steer);
+  });
+
+  it("the rubber band keeps the race close: well ahead of the kid it eases off, well behind it tries harder — by a little", () => {
+    const p: AiProfile = { skill: 0.55, seed: 29 };
+    const level = aiPower(p, { deltaToKid: 0 });
+    const ahead = aiPower(p, { deltaToKid: 120 });
+    const behind = aiPower(p, { deltaToKid: -150 });
+    expect(ahead).toBeLessThan(level);
+    expect(behind).toBeGreaterThan(level);
+    expect(level - ahead).toBeLessThanOrEqual(0.1 + 1e-9);
+    expect(behind - level).toBeLessThanOrEqual(0.06 + 1e-9);
+    // never faster than the kid's own kart
+    expect(aiPower({ skill: 1, seed: 1 }, { deltaToKid: -999 })).toBeLessThanOrEqual(1);
+  });
+
+  it("brakes for the hairpin (arrives at a speed the kart can turn at) and is flat out on the straight", () => {
+    const profile: AiProfile = { skill: 0.8, seed: 47 };
+    let s = gridStartState(track, id, 0);
+    let minInHairpin = Infinity;
+    let maxOnStraight = 0;
+    const hairpin = track.corners.find((c) => c.kind === "hairpin")!;
+    let t = 0;
+    while (s.lap <= 2 && t < 120) {
+      s = stepKart(s, aiInput(s, track, profile), track, DT, [], { power: aiPower(profile) });
+      t += DT;
+      if (s.lap === 2) {
+        if (s.sLocal > hairpin.s0 && s.sLocal < hairpin.s1) minInHairpin = Math.min(minInHairpin, s.speed);
+        if (s.sLocal > 15 && s.sLocal < 60) maxOnStraight = Math.max(maxOnStraight, s.speed);
+      }
     }
-    expect(s.lap).toBeGreaterThan(2);
+    expect(minInHairpin).toBeLessThan(17);
+    expect(minInHairpin).toBeGreaterThan(8);
+    expect(maxOnStraight).toBeGreaterThan(20);
   });
 
-  it("is deterministic: the same profile and context always steers the same way", () => {
-    const at = trackAt(track, 40);
-    const s = { x: at.x, z: at.z, yaw: Math.atan2(at.dx, at.dz), speed: 10, lap: 1, sLocal: 40, distTotal: 40, offTrackT: 0, boostT: 0, boostCooldownT: 0 };
-    const a = aiInput(s, track, { skill: 0.6, seed: 42 }, { deltaToKid: 10 });
-    const b = aiInput(s, track, { skill: 0.6, seed: 42 }, { deltaToKid: 10 });
+  it("is deterministic: the same state, profile and context always gives the same input", () => {
+    const s = { ...gridStartState(track, id, 2), speed: 12 };
+    const a: KartInput = aiInput(s, track, { skill: 0.5, seed: 9 }, { deltaToKid: 30 });
+    const b: KartInput = aiInput(s, track, { skill: 0.5, seed: 9 }, { deltaToKid: 30 });
     expect(a).toEqual(b);
+    void trackAt;
   });
 });

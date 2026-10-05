@@ -817,7 +817,7 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     for (let i = 0; i < n; i++) {
       const p = nearOk(w.x + (r() - 0.5) * 5, w.z + (r() - 0.5) * 5, 3, landOk(g, 0.4), r) ?? { x: w.x, z: w.z };
       // a hair bigger (true size well within the test's margin)
-      const a = add(K_RABBIT, R_NONE, p.x, p.z, sized(K_RABBIT, false, 1.02), 0, rabbitCoats[(wi * 3 + i) % rabbitCoats.length]);
+      const a = add(K_RABBIT, R_NONE, p.x, p.z, sized(K_RABBIT, false), 0, rabbitCoats[(wi * 3 + i) % rabbitCoats.length]);
       const hole = hs[i % hs.length];
       a.hx = w.x;
       a.hz = w.z;

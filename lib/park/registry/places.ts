@@ -118,7 +118,7 @@ export const LANDS: LandDef[] = [
   // importing it back here would be a live circular read, not just a circular import — see that
   // file's header). kartTrack.test.ts is the single source of truth for the real numbers; if it
   // ever moves the site, update this literal to match (places.test.ts checks the two stay in sync).
-  { id: "karts", name: "Cucaino Karts", emoji: "🏎️", x: 165.8, z: -102.6, radius: 95, ground: "#c7c4bc" },
+  { id: "karts", name: "Cucaino Karts", emoji: "🏎️", x: 229.8, z: -85, radius: 95, ground: "#c7c4bc" },
 ];
 
 export const PLACES: PlaceDef[] = [
@@ -530,8 +530,8 @@ export const PLACES: PlaceDef[] = [
     land: "karts",
     // the pit garage door — exactly lib/park/world/karts/index.ts's kartDoorWorld() (copied, not
     // imported: see the "karts" land's own comment above). places.test.ts checks the two match.
-    x: 161.5,
-    z: -120.8,
+    x: 245.6,
+    z: -38.4,
     radius: 6,
     doorRadius: 9,
     action: "karts",

@@ -15,6 +15,8 @@ import { WILD_WATER_BOUNDS, inWildWater, wildWaterSdf } from "../../registry/wil
 import { SETTLEMENTS } from "../../registry/settlements";
 import { CART_ROAD } from "../../registry/cartRoad";
 import { FOOTPATHS } from "../../registry/footpaths";
+import { kartTrackWorld } from "../../registry/kartTrack";
+import { TRACK_WIDTH } from "../../karts/track";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
  *  any i, j (the mask reaches over the whole island, tile by tile). Its resolution `n` is the
@@ -105,6 +107,8 @@ function discs(): Disc[] {
   for (const [x, z] of CART_ROAD.points) carve(x, z, 1.6, 3.4);
   // every other settlement's own footpath to its station — a kid's and a trader's own worn dirt walk
   for (const fp of FOOTPATHS) for (const [x, z] of fp.points) carve(x, z, 1.1, 2.6);
+  // the go-kart circuit's asphalt and kerbs (registry/kartTrack.ts): no grass or flowers on the road
+  for (const pt of kartTrackWorld().points) carve(pt.x, pt.z, TRACK_WIDTH / 2 + 1.2, TRACK_WIDTH / 2 + 2.6);
   // lands: tidy, shorter lawns (not bare)
   for (const l of LANDS) {
     if (l.id === "forest") continue;

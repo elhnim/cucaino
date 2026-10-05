@@ -105,8 +105,8 @@ export function findKartTrackSite(): KartTrackSite {
  *  the search and checks it still lands exactly here — the search itself samples the real ground
  *  at thousands of candidates x rotations and is far too slow to run on every park load, same
  *  reasoning as registry/town.ts's TOWN_SITE) */
-export const KART_SITE = { x: 165.8, z: -102.6 };
-export const KART_ROTATION = 6.021;
+export const KART_SITE = { x: 229.8, z: -85 };
+export const KART_ROTATION = 3.665;
 
 /** the track's own shared "pad" height — like a settlement's settlePadHeight, ONE height for the
  *  whole loop, so a long thin circuit (660 units round) reads as a real, smoothly graded race track

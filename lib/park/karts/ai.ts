@@ -1,86 +1,98 @@
-// Cucaino Karts: the computer drivers. A simple pure-pursuit autopilot (aim a little way down the
-// centerline, steer towards it) with a personality wobble so four AI karts don't drive in an
-// identical single-file line, braking a little early into the sharp stuff, and a gentle rubber
-// band so a kid wins often but not always. Pure function of (state, track, profile, context): no
-// three.js, no Math.random — any "personality" noise is a deterministic hash of the kart's own
-// seed and where it is on the lap, so the same race always plays out the same way.
-import { cornerAt, nearestOnTrack, trackAt, type KartTrack } from "./track";
-import { CORNER_SPEED_CAP, type KartInput, type KartPhysState } from "./physics";
+// Cucaino Karts: the computer drivers. They drive the SAME kart with the same physics as the kid —
+// they just look down the road: aim at a point a little way ahead on their own racing line, read
+// how tight the road gets, and dab the brake so they arrive at each bend at a speed the kart can
+// actually turn at. Each has a personality (a favourite side of the road, a skill) and they steer
+// round a kart that's in the way. A gentle rubber band keeps the race close: a driver well ahead
+// of the kid eases off a little, one well behind tries a little harder (never by cheating the
+// physics — only through its kart's `power`, see aiPower).
+//
+// Pure function of (state, track, profile, context): no three.js, no Math.random.
+import { tightestAhead, trackAt, type KartTrack } from "./track";
+import { cornerSpeed, type KartInput, type KartPhysState } from "./physics";
 
 export interface AiProfile {
-  /** 0 (easy) .. 1 (hard): longer lookahead, tighter steering, brakes later and less often */
+  /** 0 (easy) .. 1 (hard): looks further ahead, brakes later, carries more speed */
   skill: number;
-  /** picks this driver's own personality wobble (and racing line bias) — any integer */
+  /** picks this driver's own line across the road — any integer */
   seed: number;
 }
 
 export interface AiContext {
-  /** this AI's track distance minus the kid's own (metres): positive = the AI is ahead. Only used
-   *  to rubber-band how often it dabs the brake into corners — never changes its top speed. */
+  /** this AI's race distance minus the kid's own (metres): positive = the AI is ahead */
   deltaToKid: number;
+  /** the other karts (to steer round one that's just ahead) */
+  others?: { x: number; z: number }[];
 }
 
 const NO_CONTEXT: AiContext = { deltaToKid: 0 };
 
-/** a tiny deterministic hash (0..1), the same little trick rngOf()-style seeds use elsewhere in
- *  the registry, but stateless: same (seed, bucket) always gives the same number */
 function hash01(seed: number, bucket: number): number {
   let h = (seed * 374761393 + bucket * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-/** drives one AI kart for a tick: aims a little way down the track (with a small, steady personal
- *  offset so four AI karts spread across the road rather than stacking single-file), brakes a
- *  touch early for the sharp stuff, and eases off the throttle a little when well clear of the
- *  kid out front (the rubber band — it only ever costs it a little speed, never stops it racing). */
+const wrapPi = (a: number) => {
+  let d = a % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+};
+
+/** this driver's top-speed multiplier right now: its own skill, nudged by the rubber band so the
+ *  race stays close to the kid (well ahead -> eases off up to 10%; well behind -> up to 6% more) */
+export function aiPower(profile: AiProfile, ctx: AiContext = NO_CONTEXT): number {
+  const skill = Math.max(0, Math.min(1, profile.skill));
+  const base = 0.84 + skill * 0.1; // 0.84 (easy) .. 0.94 (hard): the kid's own kart (1.0) is the fastest
+  const d = ctx.deltaToKid;
+  const band = d > 12 ? -Math.min(0.1, (d - 12) / 400) : d < -18 ? Math.min(0.06, (-d - 18) / 500) : 0;
+  return base + band;
+}
+
+/** drives one AI kart for a tick */
 export function aiInput(state: KartPhysState, track: KartTrack, profile: AiProfile, ctx: AiContext = NO_CONTEXT): KartInput {
   const skill = Math.max(0, Math.min(1, profile.skill));
-  const near = nearestOnTrack(track, state.x, state.z);
-  const lookahead = 7 + skill * 7 + state.speed * 0.35;
-  // a steady per-corner lane offset (not time-based, so it doesn't twitch frame to frame): this
-  // driver's own line drifts towards the inside of whatever corner is coming up, like a real
-  // racing line, scaled down for a lower-skill driver (who hugs the centre more nervously)
-  const bucket = Math.floor((state.sLocal + lookahead) / 10);
-  const wobble = (hash01(profile.seed, bucket) - 0.5) * 2; // -1..1, steady across a ~10 m stretch
-  const laneBias = wobble * (track.width / 2 - 3) * (0.35 + skill * 0.35);
-  const aheadCorner = cornerAt(track, state.sLocal + lookahead);
-  const insideSign = aheadCorner ? Math.sign(wobble || 1) : 0;
-  const targetLateral = aheadCorner ? insideSign * Math.abs(laneBias) * -1 : laneBias * 0.3;
+  const half = track.width / 2;
+  const speed = Math.max(0, state.speed);
 
-  const at = trackAt(track, state.sLocal + lookahead);
-  const nx = at.dz;
-  const nz = -at.dx;
-  const targetX = at.x + nx * targetLateral;
-  const targetZ = at.z + nz * targetLateral;
-
-  const toTargetYaw = Math.atan2(targetX - state.x, targetZ - state.z);
-  let diff = toTargetYaw - state.yaw;
-  while (diff > Math.PI) diff -= Math.PI * 2;
-  while (diff < -Math.PI) diff += Math.PI * 2;
-  const steerGain = 1.5 + skill * 1.1;
-  const steer = Math.max(-1, Math.min(1, diff * steerGain));
-
-  // brake a touch early for a sharp corner coming up, if carrying too much speed into it — a
-  // higher-skill driver brakes later and less (it judges the corner better)
-  let brake = false;
-  const soonCorner = cornerAt(track, state.sLocal + 4 + state.speed * 0.25);
-  if (soonCorner) {
-    const safe = CORNER_SPEED_CAP[soonCorner.kind] * (1.05 + skill * 0.35);
-    if (state.speed > safe) brake = true;
+  // ── where to aim: a point down the road on this driver's own line ──
+  const look = 6 + speed * (0.5 + skill * 0.16);
+  // (its favourite side, steady for a whole stretch of road so it never twitches)
+  const lane = (hash01(profile.seed, Math.floor((state.sLocal + look) / 60)) - 0.5) * 2 * (half - 2.2) * 0.75;
+  let targetLat = lane;
+  // steer round a kart that's just ahead in our lane
+  if (ctx.others) {
+    const fx = Math.sin(state.yaw);
+    const fz = Math.cos(state.yaw);
+    for (const o of ctx.others) {
+      const dx = o.x - state.x;
+      const dz = o.z - state.z;
+      const ahead = dx * fx + dz * fz;
+      const side = dx * fz - dz * fx; // + = it's to our right
+      if (ahead > 0.5 && ahead < 9 && Math.abs(side) < 2.6) {
+        targetLat += (side >= 0 ? -1 : 1) * 2.8;
+        break;
+      }
+    }
   }
-  // off the road: steer harder back towards the track instead of braking (a brake with no grip to
-  // bite does nothing useful; getting back on the tarmac is what actually matters)
-  if (Math.abs(near.lateral) > track.width / 2) brake = false;
+  targetLat = Math.max(-(half - 1.6), Math.min(half - 1.6, targetLat));
+  const at = trackAt(track, state.sLocal + look);
+  const tx = at.x + at.dz * targetLat;
+  const tz = at.z - at.dx * targetLat;
+  const diff = wrapPi(Math.atan2(tx - state.x, tz - state.z) - state.yaw);
+  const steer = Math.max(-1, Math.min(1, diff * (2.1 + skill * 0.9)));
 
-  // the rubber band: well clear of the kid out front, this driver dabs the brake now and then
-  // (never while actually mid-corner-correction above, and never below a speed where tapping the
-  // brake would just stall it dead in one spot forever — the ease is a trim off the top, not a
-  // way to get stuck) so a confident kid can pull away for real
-  if (!brake && ctx.deltaToKid > 25 && state.speed > CORNER_SPEED_CAP.hairpin * 1.2) {
-    const easeChance = Math.min(0.3, (ctx.deltaToKid - 25) / 200);
-    if (hash01(profile.seed + 7919, Math.floor(state.sLocal / 6)) < easeChance) brake = true;
-  }
-
+  // ── how fast can we take what's coming? brake to arrive at the bend at that speed ──
+  // (look as far ahead as it takes to shed the extra speed: v^2 / (2 * braking) plus a margin)
+  const brakeDist = 5 + (speed * speed) / (2 * 22);
+  const tight = tightestAhead(track, state.sLocal + 2, brakeDist);
+  // the road's own width lets a kart take a bend wider than the centreline's radius
+  const usable = tight + half * (0.45 + skill * 0.35);
+  const safe = cornerSpeed(usable) * (0.9 + skill * 0.1);
+  let brake = speed > safe + 1.2;
+  // off the road: no braking — get back on
+  if (state.offTrack) brake = false;
+  // badly off line (about to run wide): lift
+  if (!brake && Math.abs(diff) > 0.7 && speed > 12) brake = true;
   return { steer, brake };
 }

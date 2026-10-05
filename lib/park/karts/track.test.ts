@@ -42,9 +42,34 @@ describe("kart track geometry", () => {
     expect(worst).toBeGreaterThan(TRACK_WIDTH * 0.55);
   });
 
-  it("reports a consistent width", () => {
-    expect(track.width).toBeGreaterThanOrEqual(14);
-    expect(track.width).toBeLessThanOrEqual(16);
+  it("is a proper kart road: about five karts wide (a 15 m road made the corners meaningless)", () => {
+    expect(track.width).toBeGreaterThanOrEqual(10);
+    expect(track.width).toBeLessThanOrEqual(12);
+  });
+
+  it("is a real circuit: ~480 m, one true hairpin, several medium bends and a long straight", () => {
+    expect(track.length).toBeGreaterThan(440);
+    expect(track.length).toBeLessThan(540);
+    const r = Array.from(track.radius);
+    expect(Math.min(...r)).toBeGreaterThan(9); // nothing a kart can't turn
+    expect(Math.min(...r)).toBeLessThan(14); // …but a real hairpin
+    // a straight of at least 60 m (radius huge the whole way)
+    const step = track.length / track.points.length;
+    let run = 0;
+    let best = 0;
+    for (let i = 0; i < r.length * 2; i++) {
+      run = r[i % r.length] > 200 ? run + step : 0;
+      best = Math.max(best, run);
+    }
+    expect(best).toBeGreaterThan(60);
+    // at least four separate bends tighter than 25 m
+    let bends = 0;
+    let inBend = false;
+    for (const v of r) {
+      if (v < 25 && !inBend) bends++;
+      inBend = v < 25;
+    }
+    expect(bends).toBeGreaterThanOrEqual(4);
   });
 
   it("trackAt and nearestOnTrack round-trip (on the centerline, lateral ~0)", () => {
