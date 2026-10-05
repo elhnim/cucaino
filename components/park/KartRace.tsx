@@ -1,8 +1,8 @@
 "use client";
 
 // Cucaino Karts: the race screen — the start screen (pick how fast the others are, invite a sibling
-// who's at the track, or just Race!), the driving HUD (big steer buttons, brake, place, laps, a
-// little track map, "wrong way!") and the podium. Mounted by ParkApp.tsx when the kid taps
+// who's at the track, or just Race!), the driving HUD (slide a finger anywhere to steer, tap to use
+// an item; place, laps, coins, a little track map, "wrong way!") and the podium. Mounted by ParkApp.tsx when the kid taps
 // "🏎️ Race!" at the go-karts door; the race itself runs as a ride (lib/game3d/interiors/karts.ts)
 // through ParkWorld.enterRide, like mini golf. Styled with the park's own UI tokens (ui/theme.ts).
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -12,6 +12,9 @@ import { createKartStore } from "@/lib/park/karts/store";
 import { useKartNet } from "@/lib/park/karts/net";
 import { buildKartTrackShape } from "@/lib/park/karts/track";
 import type { GhostLap, KartNetMsg, KartRacer } from "@/lib/park/karts/types";
+import { ITEM_EMOJI, ITEM_NAME, KART_ITEMS, MAX_COINS } from "@/lib/park/karts/items";
+import { createKartAudio, type KartAudio } from "@/lib/park/karts/sound";
+import { MAX_SPEED } from "@/lib/park/karts/physics";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { C, FONT, PARK_CSS, alpha, glass } from "./ui/theme";
 import { GameButton } from "./ui/GameButton";
@@ -20,7 +23,7 @@ type Peer = KartRacer & { atTrack: boolean };
 type Difficulty = "easy" | "medium" | "hard";
 
 /** (a new id whenever the circuit's shape changes: old best laps and ghosts belong to the old road) */
-const TRACK_ID = "cucaino-karts-2";
+const TRACK_ID = "cucaino-karts-3";
 const LAPS = 3;
 
 const FACTS = [
@@ -106,7 +109,9 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
   const [newBest, setNewBest] = useState(false);
   const [leaderboard, setLeaderboard] = useState<{ kidId: string; name: string; animal: string; lapMs: number }[]>([]);
   const [confirmExit, setConfirmExit] = useState(false);
-  const [pressed, setPressed] = useState<{ left: boolean; right: boolean; brake: boolean }>({ left: false, right: false, brake: false });
+  const [hint, setHint] = useState(false);
+  const audioRef = useRef<KartAudio | null>(null);
+  const wheelRef = useRef<HTMLDivElement | null>(null);
   const [fact] = useState(() => FACTS[Math.floor(Math.random() * FACTS.length)]);
 
   const ctlRef = useRef<KartRaceControl>({ steer: 0, brake: false, assist: 1 });
@@ -160,13 +165,40 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
         window.setTimeout(() => setGo(false), 900);
       } else if (e.type === "hud") {
         setHud(e);
+        audioRef.current?.setEngine(e.speed / (MAX_SPEED * 2.4), e.boost);
       } else if (e.type === "fx") {
-        if (e.kind === "boost") playSfx("sparkle");
+        const a = audioRef.current;
+        if (e.kind === "boost") a?.play("boost");
         else if (e.kind === "finalLap") {
           playSfx("coin");
           flash("🏁 Final lap!", "gold", 2000);
         } else if (e.kind === "overtake") playSfx("coin");
         else if (e.kind === "rescue") flash("🛟 Back on the track!", "cyan", 1300);
+        else if (e.kind === "wall") a?.play("wall");
+        else if (e.kind === "coin") a?.play("coin");
+        else if (e.kind === "itemGet") a?.play("itemGet");
+        else if (e.kind === "use" && e.item) {
+          a?.play(e.item);
+          flash(e.item === "rocket" ? "🚀 Whoosh!" : e.item === "banana" ? "🍌 Banana away!" : e.item === "shield" ? "🫧 Bubble on!" : "⭐ Star power!", e.item === "star" ? "gold" : "cyan", 1200);
+        } else if (e.kind === "spin") {
+          a?.play("spin");
+          flash("🌀 Whoa — slipped!", "gold", 1300);
+        } else if (e.kind === "shieldPop") {
+          a?.play("pop");
+          flash("🫧 Pop! Saved by the bubble", "good", 1300);
+        } else if (e.kind === "gotcha") {
+          a?.play("gotcha");
+          flash(`🎯 Got ${e.name ?? "them"}!`, "good", 1300);
+        } else if (e.kind === "jump") {
+          a?.play("jump");
+          flash("🤸 Wheee!", "cyan", 900);
+        } else if (e.kind === "land") a?.play("land");
+        else if (e.kind === "drift1") a?.play("drift1");
+        else if (e.kind === "drift2") a?.play("drift2");
+        else if (e.kind === "miniBoost") {
+          a?.play("miniBoost");
+          flash("⚡ Drift boost!", "gold", 900);
+        }
       } else if (e.type === "lap") {
         if (e.isBest) {
           flash(`✨ Best lap! ${fmtMs(e.lapMs)}`, "good", 2200);
@@ -182,6 +214,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
           }
         } else flash(`Lap ${fmtMs(e.lapMs)}`, "cyan", 1500);
       } else if (e.type === "finish") {
+        audioRef.current?.quiet();
         setResults(e.results);
         const mine = e.results.find((r) => r.kind === "human" && r.racer.kidId === kid.kidId);
         playSfx(mine && mine.position <= 3 ? "win" : "coin");
@@ -213,7 +246,13 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
       setConfirmExit(false);
       ctlRef.current.steer = 0;
       ctlRef.current.brake = false;
+      ctlRef.current.useItem = false;
       ctlRef.current.assist = prefsRef.current.assist ? 1 : 0;
+      // (made here, inside the Race! tap, so the browser lets it play)
+      audioRef.current?.dispose();
+      audioRef.current = createKartAudio();
+      setHint(true);
+      window.setTimeout(() => setHint(false), 9000);
       net?.setAtTrack(true);
       const ghosts = live ? [] : await storeRef.current.ghosts(TRACK_ID).catch(() => []);
       const familyGhosts = ghosts.filter((g) => g.kidId !== kid.kidId);
@@ -227,6 +266,8 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
           liveGrid: live,
           fact,
           difficulty: prefsRef.current.difficulty,
+          // (smoke harness only: lets an automated run drive a whole race)
+          autopilot: typeof window !== "undefined" && !!(window as unknown as { __kartAuto?: boolean }).__kartAuto,
         }),
       );
     },
@@ -281,6 +322,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
     return () => {
       net?.setAtTrack(false);
       world?.exitRide();
+      audioRef.current?.dispose();
       if (bannerTimer.current) window.clearTimeout(bannerTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -300,40 +342,74 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
     // the host sends "start" once it sees our accept — we just wait for it
   };
 
-  // ── driving controls: two big buttons (each keeps its own finger even if it slides off), the
-  //    brake, and the keyboard (arrows / A D to steer, space or ↓ to brake) ──
+  // ── driving controls: ONE finger. Put it down anywhere and slide left or right to steer (the
+  //    further, the harder; lift it to go straight); a quick tap uses the item. The keyboard works
+  //    too (arrows / A D steer, space or ↓ brakes, ↑ / Enter uses the item). ──
   const held = useRef({ left: false, right: false, brake: false });
+  const swipe = useRef<{ id: number | null; anchor: number; x0: number; t0: number; moved: number }>({ id: null, anchor: 0, x0: 0, t0: 0, moved: 0 });
+  const showSteer = (v: number) => {
+    if (wheelRef.current) wheelRef.current.style.transform = `rotate(${(v * 75).toFixed(1)}deg)`;
+  };
   const applyHeld = useCallback(() => {
     const h = held.current;
     ctlRef.current.steer = (h.right ? 1 : 0) - (h.left ? 1 : 0);
     ctlRef.current.brake = h.brake;
-    setPressed({ ...h });
+    showSteer(ctlRef.current.steer);
   }, []);
-  const hold = (key: "left" | "right" | "brake") => ({
+  const fireItem = useCallback(() => {
+    ctlRef.current.useItem = true;
+  }, []);
+  const swipeHandlers = {
     onPointerDown: (e: React.PointerEvent) => {
       e.preventDefault();
+      const sw = swipe.current;
+      if (sw.id !== null) {
+        fireItem(); // a second finger: that's a tap
+        return;
+      }
       (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-      held.current[key] = true;
+      swipe.current = { id: e.pointerId, anchor: e.clientX, x0: e.clientX, t0: performance.now(), moved: 0 };
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const sw = swipe.current;
+      if (sw.id !== e.pointerId) return;
+      // full lock is a short slide; slide further and the anchor comes with the finger, so
+      // sliding back the other way answers straight away
+      const full = Math.max(44, Math.min(84, window.innerWidth * 0.075));
+      let dx = e.clientX - sw.anchor;
+      if (dx > full) sw.anchor = e.clientX - full;
+      else if (dx < -full) sw.anchor = e.clientX + full;
+      dx = e.clientX - sw.anchor;
+      sw.moved = Math.max(sw.moved, Math.abs(e.clientX - sw.x0));
+      const raw = Math.max(-1, Math.min(1, dx / full));
+      const v = Math.abs(raw) < 0.14 ? 0 : raw;
+      ctlRef.current.steer = v;
+      showSteer(v);
+      if (sw.moved > 24) setHint(false);
+    },
+    onPointerUp: (e: React.PointerEvent) => {
+      const sw = swipe.current;
+      if (sw.id !== e.pointerId) return;
+      if (sw.moved < 14 && performance.now() - sw.t0 < 340) fireItem();
+      swipe.current = { id: null, anchor: 0, x0: 0, t0: 0, moved: 0 };
       applyHeld();
     },
-    onPointerUp: () => {
-      held.current[key] = false;
-      applyHeld();
-    },
-    onPointerCancel: () => {
-      held.current[key] = false;
-      applyHeld();
-    },
-    onLostPointerCapture: () => {
-      held.current[key] = false;
+    onPointerCancel: (e: React.PointerEvent) => {
+      if (swipe.current.id !== e.pointerId) return;
+      swipe.current = { id: null, anchor: 0, x0: 0, t0: 0, moved: 0 };
       applyHeld();
     },
     onContextMenu: (e: React.MouseEvent) => e.preventDefault(),
-  });
+  };
   useEffect(() => {
     if (stage !== "race") return;
     const set = (e: KeyboardEvent, down: boolean) => {
       const k = e.key;
+      if (down && !e.repeat && (k === "ArrowUp" || k === "w" || k === "W" || k === "Enter")) {
+        e.preventDefault();
+        fireItem();
+        return;
+      }
       const key = k === "ArrowLeft" || k === "a" || k === "A" ? "left" : k === "ArrowRight" || k === "d" || k === "D" ? "right" : k === " " || k === "ArrowDown" || k === "s" || k === "S" ? "brake" : null;
       if (!key) return;
       e.preventDefault();
@@ -349,7 +425,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
       window.removeEventListener("keyup", up);
       held.current = { left: false, right: false, brake: false };
     };
-  }, [stage, applyHeld]);
+  }, [stage, applyHeld, fireItem]);
 
   const atTrackPeers = peers.filter((p) => p.atTrack);
   const racing = stage === "race" && !results;
@@ -395,7 +471,14 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
               </>
             ) : (
               <>
-                <div style={lead}>{LAPS} laps round the track. Your kart goes by itself — you steer!</div>
+                <div style={lead}>{LAPS} laps round the track. Your kart goes by itself — slide your finger left or right to steer!</div>
+                <div style={legend}>
+                  <span>🎁 Drive through a box, then tap to use it</span>
+                  <span>
+                    {KART_ITEMS.map((it) => `${ITEM_EMOJI[it]} ${ITEM_NAME[it]}`).join("  ")}
+                  </span>
+                  <span>🪙 Coins make you faster · ⚡ hold a turn for a drift boost</span>
+                </div>
                 {bestLap !== null && <div style={chipLine}>⏱️ Your best lap: {fmtMs(bestLap)}</div>}
 
                 <div style={label}>The other racers are…</div>
@@ -456,10 +539,22 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
       {/* ───────────── driving HUD ───────────── */}
       {racing && (
         <>
+          <div style={swipeLayer} {...swipeHandlers} aria-label="Slide left or right to steer, tap to use your item" />
+          {hud?.star && <div style={starFrame} />}
           <div style={topBar}>
-            <div style={{ ...glass({ edge: "gold", fill: C.panel }), ...placeBox }}>
-              <span style={{ ...placeText, color: PLACE_COLOUR[Math.max(0, Math.min(3, place - 1))] }}>{place ? ordinal(place) : "—"}</span>
-              <span style={placeOf}>of {hud?.total ?? 4}</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+              <div style={{ ...glass({ edge: "gold", fill: C.panel }), ...placeBox }}>
+                <span style={{ ...placeText, color: PLACE_COLOUR[Math.max(0, Math.min(3, place - 1))] }}>{place ? ordinal(place) : "—"}</span>
+                <span style={placeOf}>of {hud?.total ?? 4}</span>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <span key={hud?.coins ?? 0} style={{ ...glass({ edge: "soft", fill: C.panel }), ...chip, color: C.goldHi }}>
+                  🪙 {hud?.coins ?? 0}
+                  <span style={{ color: C.dim, fontSize: 12 }}>/{MAX_COINS}</span>
+                </span>
+                {hud?.shield && <span style={{ ...glass({ edge: "cyan", fill: C.panel }), ...chip }}>🫧</span>}
+                {hud?.star && <span style={{ ...glass({ edge: "gold", fill: C.panel }), ...chip, animation: "kart-pulse 0.5s ease-in-out infinite" }}>⭐</span>}
+              </div>
             </div>
             <div style={{ ...glass({ edge: "cyan", fill: C.panel }), ...lapBox }}>
               <div style={lapText}>
@@ -514,14 +609,38 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
             <span style={speedUnit}>{hud?.boost ? "🔥 BOOST" : "km/h"}</span>
           </div>
 
-          <button type="button" {...hold("left")} style={{ ...steerBtn, left: "max(14px, env(safe-area-inset-left))", ...(pressed.left ? steerOn : null) }} aria-label="Steer left">
-            ◀
-          </button>
-          <button type="button" {...hold("right")} style={{ ...steerBtn, right: "max(14px, env(safe-area-inset-right))", ...(pressed.right ? steerOn : null) }} aria-label="Steer right">
-            ▶
-          </button>
-          <button type="button" {...hold("brake")} style={{ ...brakeBtn, ...(pressed.brake ? brakeOn : null) }} aria-label="Brake">
-            🛑 Brake
+          {hint && !hud?.wrongWay && (
+            <div style={hintWrap}>
+              <div style={hintBox}>
+                <span style={{ display: "inline-block", animation: "kart-slide 1.3s ease-in-out infinite" }}>👆</span> Slide left or right to steer
+              </div>
+            </div>
+          )}
+
+          <div style={wheelWrap} aria-hidden>
+            <div ref={wheelRef} style={{ ...wheel, boxShadow: hud?.drift === 2 ? `0 0 26px 6px ${alpha("#ffa23c", 0.9)}` : hud?.drift === 1 ? `0 0 22px 5px ${alpha("#6fd0ff", 0.9)}` : wheel.boxShadow }}>
+              <svg viewBox="0 0 100 100" width="100%" height="100%">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#ffffff" strokeWidth="11" opacity="0.92" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#2a2c44" strokeWidth="5" />
+                <path d="M50 50 L14 42 M50 50 L86 42 M50 50 L50 90" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" opacity="0.92" />
+                <circle cx="50" cy="50" r="11" fill={C.gold} stroke="#ffffff" strokeWidth="3" />
+                <rect x="46" y="4" width="8" height="10" rx="2" fill={C.danger} />
+              </svg>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              fireItem();
+            }}
+            style={{ ...itemBtn, ...(hud?.item && !hud.rolling ? itemReady : null), opacity: hud?.item ? 1 : 0.55 }}
+            aria-label={hud?.item ? `Use your ${ITEM_NAME[hud.item]}` : "No item yet"}
+          >
+            <span style={{ fontSize: "clamp(40px, 10vw, 58px)", lineHeight: 1 }}>{hud?.item ? (hud.rolling ? ITEM_EMOJI[KART_ITEMS[Math.floor((hud.lapMs ?? 0) / 90) % KART_ITEMS.length]] : ITEM_EMOJI[hud.item]) : "🎁"}</span>
+            <span style={itemLabel}>{hud?.item ? (hud.rolling ? "…" : "TAP!") : "item"}</span>
           </button>
 
           {confirmExit && (
@@ -554,6 +673,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
                   <div style={{ fontSize: 54, lineHeight: 1 }}>{p === 1 ? "🏆" : p === 2 ? "🥈" : p === 3 ? "🥉" : "🏁"}</div>
                   <div style={title}>{p === 1 ? "You won!" : p <= 3 ? `${ordinal(p)} place!` : "You finished!"}</div>
                   {newBest && bestLap !== null && <div style={{ ...chipLine, background: alpha(C.success, 0.22), color: C.success }}>✨ New best lap: {fmtMs(bestLap)}</div>}
+                  {!!hud?.coins && <div style={chipLine}>🪙 {hud.coins} coins collected</div>}
                 </>
               );
             })()}
@@ -633,51 +753,41 @@ const bannerWrap: CSSProperties = { position: "absolute", top: "calc(max(10px, e
 const bannerBox: CSSProperties = { fontFamily: FONT.display, fontSize: 24, color: C.ink, padding: "7px 20px", borderRadius: 99, boxShadow: "0 6px 20px rgba(0,0,0,0.35)", animation: "kart-pop 0.4s cubic-bezier(.2,1.4,.4,1)" };
 const wrongWay: CSSProperties = { fontFamily: FONT.display, fontSize: "clamp(26px, 6vw, 44px)", color: "#ffffff", background: C.danger, padding: "10px 24px", borderRadius: 22, boxShadow: "0 8px 26px rgba(0,0,0,0.45)", animation: "kart-pulse 0.7s ease-in-out infinite" };
 
-const speedo: CSSProperties = { position: "absolute", bottom: "calc(max(16px, env(safe-area-inset-bottom)) + 74px)", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "baseline", gap: 5, pointerEvents: "none", textShadow: "0 2px 0 rgba(0,0,0,0.45)" };
+const speedo: CSSProperties = { position: "absolute", bottom: "calc(max(16px, env(safe-area-inset-bottom)) + 92px)", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "baseline", gap: 5, pointerEvents: "none", textShadow: "0 2px 0 rgba(0,0,0,0.45)" };
 const speedNum: CSSProperties = { fontFamily: FONT.display, fontSize: 34, lineHeight: 1 };
 const speedUnit: CSSProperties = { fontSize: 12, fontWeight: 900, color: C.dim };
 
-const steerBtn: CSSProperties = {
+const swipeLayer: CSSProperties = { position: "absolute", inset: 0, pointerEvents: "auto", touchAction: "none", WebkitTapHighlightColor: "transparent", cursor: "grab" };
+const starFrame: CSSProperties = { position: "absolute", inset: 0, pointerEvents: "none", boxShadow: "inset 0 0 60px 18px rgba(255, 225, 77, 0.55)", animation: "kart-rainbow 1.2s linear infinite" };
+const chip: CSSProperties = { borderRadius: 99, padding: "3px 11px", fontFamily: FONT.display, fontSize: 19, lineHeight: 1.2, display: "inline-flex", alignItems: "baseline", gap: 3, animation: "kart-pop 0.3s cubic-bezier(.2,1.4,.4,1)" };
+const legend: CSSProperties = { display: "flex", flexDirection: "column", gap: 3, fontSize: 13, fontWeight: 800, color: C.dim, lineHeight: 1.3, background: C.card, borderRadius: 14, padding: "8px 12px", width: "100%" };
+const hintWrap: CSSProperties = { position: "absolute", left: 0, right: 0, top: "24%", display: "flex", justifyContent: "center", pointerEvents: "none" };
+const hintBox: CSSProperties = { fontFamily: FONT.display, fontSize: "clamp(20px, 4.6vw, 30px)", color: "#ffffff", background: alpha("#1a1a2e", 0.72), padding: "9px 22px", borderRadius: 99, boxShadow: "0 6px 20px rgba(0,0,0,0.35)" };
+const wheelWrap: CSSProperties = { position: "absolute", left: "50%", bottom: "max(12px, env(safe-area-inset-bottom))", transform: "translateX(-50%)", pointerEvents: "none" };
+const wheel: CSSProperties = { width: "clamp(58px, 12vw, 84px)", height: "clamp(58px, 12vw, 84px)", borderRadius: "50%", transition: "transform 0.06s linear, box-shadow 0.15s", boxShadow: "0 6px 16px rgba(0,0,0,0.35)" };
+const itemBtn: CSSProperties = {
   position: "absolute",
+  right: "max(14px, env(safe-area-inset-right))",
   bottom: "max(16px, env(safe-area-inset-bottom))",
-  width: "clamp(96px, 24vw, 148px)",
-  height: "clamp(96px, 24vw, 148px)",
-  borderRadius: "50%",
+  width: "clamp(92px, 22vw, 132px)",
+  height: "clamp(92px, 22vw, 132px)",
+  borderRadius: 28,
   border: `3px solid ${alpha("#ffffff", 0.85)}`,
-  background: `radial-gradient(circle at 35% 30%, ${alpha("#ffffff", 0.34)}, ${alpha("#7d8cff", 0.3)} 70%)`,
+  background: `radial-gradient(circle at 35% 30%, ${alpha("#ffffff", 0.3)}, ${alpha("#7d8cff", 0.3)} 70%)`,
   color: "#ffffff",
-  fontSize: "clamp(40px, 10vw, 62px)",
-  lineHeight: 1,
-  fontWeight: 900,
-  textShadow: "0 3px 0 rgba(0,0,0,0.35)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 2,
   boxShadow: "0 8px 22px rgba(0,0,0,0.35)",
   pointerEvents: "auto",
   cursor: "pointer",
   touchAction: "none",
   WebkitTapHighlightColor: "transparent",
 };
-const steerOn: CSSProperties = { background: `radial-gradient(circle at 35% 30%, ${alpha(C.goldHi, 0.95)}, ${alpha(C.goldDeep, 0.85)} 75%)`, color: C.ink, transform: "scale(0.94)", textShadow: "none" };
-const brakeBtn: CSSProperties = {
-  position: "absolute",
-  bottom: "max(18px, env(safe-area-inset-bottom))",
-  left: "50%",
-  transform: "translateX(-50%)",
-  minWidth: 132,
-  height: 56,
-  padding: "0 18px",
-  borderRadius: 99,
-  border: `2.5px solid ${alpha("#ffffff", 0.8)}`,
-  background: alpha(C.dangerDeep, 0.82),
-  color: "#ffffff",
-  fontFamily: FONT.display,
-  fontSize: 20,
-  boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
-  pointerEvents: "auto",
-  cursor: "pointer",
-  touchAction: "none",
-  WebkitTapHighlightColor: "transparent",
-};
-const brakeOn: CSSProperties = { background: C.danger, transform: "translateX(-50%) scale(0.95)" };
+const itemReady: CSSProperties = { background: `radial-gradient(circle at 35% 30%, ${alpha(C.goldHi, 0.95)}, ${alpha(C.goldDeep, 0.85)} 75%)`, animation: "kart-pulse 0.6s ease-in-out infinite", boxShadow: `0 0 26px ${alpha(C.gold, 0.8)}` };
+const itemLabel: CSSProperties = { fontFamily: FONT.display, fontSize: 15, letterSpacing: 0.5, textShadow: "0 2px 0 rgba(0,0,0,0.4)" };
 
 const resultRow: CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 14, background: C.card, fontSize: 16 };
 const resultMe: CSSProperties = { background: alpha(C.gold, 0.2), boxShadow: `inset 0 0 0 2px ${alpha(C.gold, 0.7)}` };
@@ -685,5 +795,7 @@ const resultMe: CSSProperties = { background: alpha(C.gold, 0.2), boxShadow: `in
 const KART_CSS = `
 @keyframes kart-pop { from { transform: scale(1.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes kart-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes kart-slide { 0%,100% { transform: translateX(-16px); } 50% { transform: translateX(16px); } }
+@keyframes kart-rainbow { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 `;

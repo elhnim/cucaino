@@ -154,6 +154,7 @@ describe("the rainforest and its thicket", { timeout: 60000 }, () => {
     for (const pts of TRAIL_POINTS)
       for (const [x, z] of pts.filter((_, i) => i % 4 === 0)) {
         if (WATER_Y - worldFloorY(x, z) > SWIM_DEPTH) continue;
+        if (Math.hypot(x, z) > 156) continue; // (the kart track's trail runs on out of this grid's 158 m domain, like its door above)
         const k = Math.floor(z + TG_HALF) * N + Math.floor(x + TG_HALF);
         expect(seen[k] === 1 || seen[k + 1] === 1 || seen[k + N] === 1, `trail ${x.toFixed(0)},${z.toFixed(0)}`).toBe(true);
       }

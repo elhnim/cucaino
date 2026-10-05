@@ -16,15 +16,15 @@ describe("kart track site", () => {
     expect(found.rotation).toBeCloseTo(KART_ROTATION, 2);
   });
 
-  it("sits 170-300 m from the plaza", () => {
+  it("sits 190-360 m from the plaza", () => {
     const d = Math.hypot(KART_SITE.x, KART_SITE.z);
-    expect(d).toBeGreaterThanOrEqual(170);
-    expect(d).toBeLessThanOrEqual(300);
+    expect(d).toBeGreaterThanOrEqual(190);
+    expect(d).toBeLessThanOrEqual(360);
   });
 
-  it("sits within 120 m of Park Station", () => {
+  it("sits within 190 m of Park Station", () => {
     const d = Math.hypot(KART_SITE.x - PARK_STATION.x, KART_SITE.z - PARK_STATION.z);
-    expect(d).toBeLessThanOrEqual(120);
+    expect(d).toBeLessThanOrEqual(190);
   });
 
   it("the whole track footprint clears every OTHER park place by 40 m (the kart track's own land/door are naturally right beside it, not obstacles to themselves)", () => {

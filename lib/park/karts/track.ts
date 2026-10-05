@@ -38,35 +38,46 @@ export const TRACK_WIDTH = 11;
 export const WALL_MARGIN = 2.6;
 
 /** the hand-laid loop, in local space (centred on the origin, so the site's own centre is the
- *  circuit's middle; the start/finish line is on the south straight, heading +x): a long start straight, a fast double-left at the east end, a flick down into the
- *  infield and round a tight hairpin, a run north, a long sweeping left round the west end and a
- *  final left back onto the straight. ~480 m a lap; every stretch of road is at least 13 m clear
- *  of any other (measured), so nothing ever reads as crossing. Fed through the same closed
- *  Catmull-Rom smooth() every other trail/road in the park uses. */
+ *  circuit's middle; the start/finish line is on the south straight, heading +x): a long start
+ *  straight, a fast double-left at the east end, a short back straight, a flick down into the
+ *  infield and round a tight hairpin, a run north, a snaking S out to the east, a tight turn-around
+ *  at the north-east corner, the long north straight back west, a big sweeping left round the west
+ *  end and a final left onto the start straight. ~790 m a lap (about 38 s); every stretch of road
+ *  is at least 22 m (centre to centre) from any other, so nothing ever reads as crossing. Fed
+ *  through the same closed Catmull-Rom smooth() every other trail/road in the park uses. */
 const RAW: P2[] = [
-  [-37, -43], // 0: start/finish
-  [3, -43], // 1: main straight (boost pad)
-  [45, -43], // 2: braking zone
-  [68, -39], // 3: turn 1
-  [79, -23], // 4
-  [79, -3], // 5: turn 2
-  [71, 13], // 6
-  [53, 21], // 7: short back straight (boost pad)
-  [33, 21], // 8
-  [17, 11], // 9: the flick into the infield
-  [7, -5], // 10
-  [-3, -17], // 11: hairpin entry
-  [-15, -17], // 12: hairpin
-  [-23, -5], // 13: hairpin exit
-  [-25, 15], // 14: the run north (boost pad)
-  [-31, 33], // 15
-  [-45, 43], // 16: the long west sweeper
-  [-65, 41], // 17
-  [-77, 25], // 18
-  [-81, 3], // 19
-  [-79, -19], // 20
-  [-73, -35], // 21: final corner
-  [-59, -43], // 22: back onto the straight
+  [-42, -68], // 0: start/finish
+  [0, -68], // 1: main straight (boost pad)
+  [47, -68], // 2: braking zone
+  [72, -62], // 3: turn 1
+  [85, -44], // 4
+  [85, -21], // 5: turn 2
+  [77, -2], // 6
+  [58, 7], // 7: short back straight (boost pad)
+  [34, 7], // 8
+  [17, -4], // 9: the flick into the infield
+  [7, -21], // 10
+  [-4, -36], // 11: hairpin entry
+  [-19, -42], // 12: hairpin
+  [-31, -32], // 13: hairpin exit
+  [-32, -13], // 14: the run north (boost pad)
+  [-25, 7], // 15: the S
+  [-8, 22], // 16
+  [17, 27], // 17
+  [43, 32], // 18
+  [66, 29], // 19: into the north-east turn-around
+  [82, 39], // 20
+  [84, 56], // 21
+  [70, 68], // 22
+  [43, 66], // 23: the north straight
+  [9, 60], // 24: (boost pad)
+  [-30, 54], // 25
+  [-59, 46], // 26: the long west sweeper
+  [-78, 27], // 27
+  [-85, 4], // 28
+  [-83, -21], // 29
+  [-76, -47], // 30: final corner
+  [-63, -63], // 31: back onto the straight
 ];
 
 function buildCenterline(): { points: P2[]; cum: Float64Array; length: number } {
@@ -106,16 +117,18 @@ function buildTrack(): KartTrack {
   // (corner zones are for the scenery — kerb colours, tyre walls, hay bales — and the map; the
   // driving itself reads the road's real curvature, not these labels)
   const corners: TrackCorner[] = [
-    { kind: "sweeper", s0: sAt(2), s1: sAt(7) },
+    { kind: "sweeper", s0: sAt(2), s1: sAt(6) },
     { kind: "chicane", s0: sAt(8), s1: sAt(11) },
     { kind: "hairpin", s0: sAt(11), s1: sAt(14) - 6 },
-    { kind: "esses", s0: sAt(15), s1: sAt(18) },
-    { kind: "sweeper", s0: sAt(18), s1: sAt(22) },
+    { kind: "esses", s0: sAt(15), s1: sAt(19) },
+    { kind: "hairpin", s0: sAt(19) + 4, s1: sAt(23) - 6 },
+    { kind: "sweeper", s0: sAt(26), s1: sAt(31) },
   ];
   const boostPads = [
     { s: sAt(1), len: 9 }, // down the main straight
-    { s: sAt(7) + 9, len: 8 }, // the short back straight
+    { s: sAt(7) + 6, len: 8 }, // the short back straight
     { s: sAt(14), len: 8 }, // the run north out of the hairpin
+    { s: sAt(24), len: 9 }, // the north straight
   ];
   // the grid sits behind the line on the main straight (the final corner is ~22 m further back)
   const grid = [0, 1, 2, 3].map((i) => ({ s: -(10 + i * 4.2), lateral: i % 2 === 0 ? -2.3 : 2.3 }));

@@ -109,7 +109,7 @@ describe("kart physics: steering", () => {
 });
 
 describe("kart physics: a kid can always get round", () => {
-  it("a driver who just follows the road laps cleanly: no grass, no walls, no rescues, ~20 s a lap", () => {
+  it("a driver who just follows the road laps cleanly: no grass, no walls, no rescues, ~33 s a lap", () => {
     let s = gridStartState(track, id, 0);
     let t = 0;
     let grass = 0;
@@ -123,14 +123,14 @@ describe("kart physics: a kid can always get round", () => {
       if (s.rescued) rescues++;
     }
     expect(s.lap).toBe(3);
-    expect(t).toBeGreaterThan(30);
-    expect(t).toBeLessThan(52);
+    expect(t).toBeGreaterThan(55);
+    expect(t).toBeLessThan(80);
     expect(grass).toBeLessThan(1.5);
     expect(walls).toBe(0);
     expect(rescues).toBe(0);
   });
 
-  it("a small kid (slow reactions, full-lock steering, never brakes) finishes 3 laps in about a minute without a single rescue", () => {
+  it("a small kid (slow reactions, full-lock steering, never brakes) finishes 3 laps in under two minutes without a single rescue", () => {
     for (const react of [0.3, 0.45]) {
       const drive = smallKid(react);
       let s = gridStartState(track, id, 0);
@@ -142,7 +142,7 @@ describe("kart physics: a kid can always get round", () => {
         if (s.rescued) rescues++;
       }
       expect(s.lap, `react ${react}`).toBe(4);
-      expect(t, `react ${react}`).toBeLessThan(80);
+      expect(t, `react ${react}`).toBeLessThan(135);
       expect(rescues, `react ${react}`).toBe(0);
     }
   });
@@ -289,10 +289,10 @@ describe("kart physics: laps can't be fooled", () => {
     let last = s.distTotal;
     let t = 0;
     let lap = s.lap;
-    while (t < 50 && laps < 2) {
+    while (t < 100 && laps < 2) {
       s = stepKart(s, follow(s), track, DT, [], { assist: 1 });
       t += DT;
-      expect(s.distTotal - last).toBeLessThan(1); // never a jump
+      expect(s.distTotal - last).toBeLessThan(1.5); // never a jump (a tick is ~0.5 m; a little more on the inside of a tight bend)
       last = s.distTotal;
       if (s.lap !== lap) {
         laps++;

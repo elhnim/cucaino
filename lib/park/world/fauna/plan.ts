@@ -926,6 +926,7 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     const dir = nearestTrailDir(t.x, t.z);
     const q = { x: 0, y: 0, z: 0 };
     perchOf(t, dir.yaw, q);
+    if (q.y - groundY(q.x, q.z) < 3.2) continue; // (a perch is up in a tree, never a head-high sapling)
     note("kookaburra", t.x, t.z);
     const a = add(K_KOOKABURRA, R_NONE, q.x, q.z, sized(K_KOOKABURRA, false), V_KOOKABURRA, 0xffffff);
     a.y = q.y;
@@ -940,6 +941,7 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
     const dir = nearestTrailDir(t.x, t.z);
     const q = { x: 0, y: 0, z: 0 };
     perchOf(t, dir.yaw, q);
+    if (q.y - groundY(q.x, q.z) < 3.2) continue;
     note("owl", t.x, t.z);
     // a touch bigger (true size within the test's margin) and lighter-coated, since it's only seen
     // against a dark dusk/night canopy

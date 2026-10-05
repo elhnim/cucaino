@@ -10,6 +10,43 @@ import type { AnimalId } from "@/lib/park/assets/loader";
 import { buildChibi, type ChibiRig } from "@/lib/park/characters/chibi";
 import { buildKartTrackShape, nearestOnTrack, trackAt, type KartTrack } from "@/lib/park/karts/track";
 import { gridStartState, stepKart, kartProgress, isWrongWay, MAX_SPEED, type KartPhysState, type KartInput } from "@/lib/park/karts/physics";
+import {
+  addCoin,
+  airHeight,
+  applyShove,
+  bananaDrop,
+  BANANA_LIFE,
+  BANANA_RADIUS,
+  BOX_RADIUS,
+  BOX_RESPAWN,
+  buildKartCourse,
+  canUseItem,
+  COIN_RADIUS,
+  COIN_RESPAWN,
+  crossedRamp,
+  DRIFT_SHOVE,
+  driftTier,
+  funPower,
+  hitKart,
+  inAir,
+  LANDING_SHOVE,
+  MAX_BANANAS,
+  near as nearXZ,
+  newKartFun,
+  ROCKET_SHOVE,
+  rollItem,
+  SPIN_TIME,
+  STAR_TOUCH,
+  stepDrift,
+  takeBox,
+  takeOff,
+  tickFun,
+  useItem,
+  type HitResult,
+  type KartCourse,
+  type KartFun,
+  type KartItem,
+} from "@/lib/park/karts/items";
 import { aiInput, aiPower, type AiProfile } from "@/lib/park/karts/ai";
 import { createRace, dropKart, isRaceOver, positionOf, positions, raceResults, updateKartProgress, type RaceResult, type RaceState } from "@/lib/park/karts/race";
 import { GhostRecorder, ghostLapMs, replayAt } from "@/lib/park/karts/ghost";
@@ -18,6 +55,7 @@ import { buildGrandstand, buildPitGarage } from "@/lib/park/world/karts";
 import { buildForestTree, buildCloud } from "@/lib/park/world/storybook/geometry";
 import { TREE_KINDS, LEAF_GREENS, PINE_GREENS, isPine } from "@/lib/park/world/storybook/plan";
 import { rngOf, noise2 } from "@/lib/park/world/fantasy/noise";
+import { buildKartScenery } from "./kartScenery";
 import type { Interior } from "./types";
 
 const identity = (p: { x: number; z: number }) => p;
@@ -32,6 +70,10 @@ const SPARK_COLOR = new THREE.Color(0xfff2a0);
 const SMOKE_COLOR = new THREE.Color(0xe9e6f0);
 const FLAME_COLOR_A = new THREE.Color(0xff9a3c);
 const FLAME_COLOR_B = new THREE.Color(0xffe066);
+const DRIFT_BLUE = new THREE.Color(0x6fd0ff);
+const DRIFT_ORANGE = new THREE.Color(0xffa23c);
+const COIN_COLOR = new THREE.Color(0xffe066);
+const BUBBLE_COLOR = new THREE.Color(0xa8ecff);
 const CONFETTI_COLORS = [0xff5fa8, 0xffd23f, 0x5ee6a8, 0x6cc6ff, 0xc38bff, 0xff9a52].map((c) => new THREE.Color(c));
 
 export type KartSeat =
@@ -65,9 +107,23 @@ export type KartRaceEvent =
       wrongWay: boolean;
       /** every kart's place round the lap (0..1) for the little track map */
       dots: { id: string; u: number; me: boolean; colour: string }[];
+      /** the item in the kid's slot (null = empty) and whether it's still rolling */
+      item: KartItem | null;
+      rolling: boolean;
+      coins: number;
+      shield: boolean;
+      star: boolean;
+      /** drift sparks so far: 0 none, 1 blue, 2 orange */
+      drift: number;
     }
   /** little moments for sounds: a wall touched, a boost pad, put back on the road, the last lap */
-  | { type: "fx"; kind: "wall" | "boost" | "rescue" | "finalLap" | "overtake" | "overtaken" }
+  | {
+      type: "fx";
+      kind: "wall" | "boost" | "rescue" | "finalLap" | "overtake" | "overtaken" | "itemGet" | "coin" | "spin" | "shieldPop" | "gotcha" | "jump" | "land" | "drift1" | "drift2" | "miniBoost" | "use";
+      /** which item (itemGet / use), or who (gotcha) */
+      item?: KartItem;
+      name?: string;
+    }
   | { type: "lap"; lapMs: number; isBest: boolean; ghost?: GhostLap }
   | { type: "finish"; results: (RaceResult & { racer: KartRacer; kind: KartSeat["kind"] })[] }
   | { type: "peerLeft"; kidId: string };
@@ -79,6 +135,8 @@ export interface KartRaceControl {
   brake: boolean;
   /** 0..1: the steering helper for little hands (default 1 = on) */
   assist?: number;
+  /** the HUD sets this when the kid taps the item button; the race takes it and clears it */
+  useItem?: boolean;
   /** the HUD calls this to leave early (e.g. an "Exit" button) */
   requestExit?: () => void;
 }
@@ -105,31 +163,6 @@ export interface KartRaceOptions {
 
 function toonMat(color: number, extra: Partial<THREE.MeshToonMaterialParameters> = {}) {
   return new THREE.MeshToonMaterial({ color, gradientMap: getToonRamp(), ...extra });
-}
-
-function ribbon(points: [number, number][], width: number, color: number, y: number): THREE.Mesh {
-  const n = points.length;
-  const pos: number[] = [];
-  for (let i = 0; i <= n; i++) {
-    const a = points[i % n];
-    const b = points[(i + 1) % n];
-    const dx = b[0] - a[0];
-    const dz = b[1] - a[1];
-    const l = Math.hypot(dx, dz) || 1;
-    const px = (dz / l) * (width / 2);
-    const pz = (-dx / l) * (width / 2);
-    pos.push(a[0] - px, y, a[1] - pz, a[0] + px, y, a[1] + pz);
-  }
-  const idx: number[] = [];
-  for (let i = 0; i < n; i++) {
-    const a = i * 2;
-    idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  return new THREE.Mesh(geo, toonMat(color, { side: THREE.DoubleSide }));
 }
 
 function buildKerbs(shape: KartTrack): THREE.Group {
@@ -232,7 +265,7 @@ function buildStartGantry(shape: KartTrack): { group: THREE.Group; lamps: THREE.
 // per-frame cost is the particle pools and the gentle cloud drift) — a handful of draw calls on
 // top of the track itself, nowhere near the park's own streamed-settlement budget. ──
 
-const TRACK_RADIUS = 70; // the circuit's own local footprint (buildKartTrackShape's ~64 m radius) + a margin
+const TRACK_RADIUS = 114; // the circuit's own local footprint (buildKartTrackShape's ~101 m radius) + a margin
 
 /** a big inverted dome, vertex-coloured from a pale horizon up to a deeper blue overhead — reads
  *  as a gradient sky without a shader, and the park's existing fog does the rest of the depth work */
@@ -284,8 +317,9 @@ function buildClouds(): { group: THREE.Group; geos: THREE.BufferGeometry[] } {
 /** the ground: a flat inner disc (under the whole track + infield + grandstand/pit), then a ring
  *  of gentle rolling hills further out, both with a little grass-tone variation so it never reads
  *  as one flat green. Purely decorative height (the kart's own physics never samples this mesh). */
-function buildGround(): THREE.Group {
+function buildGround(grassTex: THREE.Texture): THREE.Group {
   const group = new THREE.Group();
+  const STRIPE = 15; // one light + one dark mown stripe every 15 m
   const GREENS = [new THREE.Color(0x7fc26a), new THREE.Color(0x8fd179), new THREE.Color(0x6cae5c)];
   const tint = (x: number, z: number) => {
     const n = noise2(x * 0.035, z * 0.035, 5);
@@ -305,9 +339,12 @@ function buildGround(): THREE.Group {
       col[i * 3 + 2] = c.b;
     }
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: getToonRamp() }));
+    const uv = geo.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getX(i) / STRIPE, pos.getY(i) / STRIPE);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, map: grassTex, gradientMap: getToonRamp() }));
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = -0.02;
+    mesh.receiveShadow = true;
     group.add(mesh);
   }
   // rolling hills beyond it, rising gently with distance (height is pure decoration — see above)
@@ -318,6 +355,7 @@ function buildGround(): THREE.Group {
     const angSegs = 48;
     const pos: number[] = [];
     const col: number[] = [];
+    const uvs: number[] = [];
     const idx: number[] = [];
     for (let ri = 0; ri <= ringSegs; ri++) {
       const t = ri / ringSegs;
@@ -329,6 +367,7 @@ function buildGround(): THREE.Group {
         const h = Math.max(0, t - 0.04) / 0.96;
         const y = h * (2.2 + noise2(x * 0.012, z * 0.012, 17) * 7 * h) + Math.max(0, noise2(x * 0.05, z * 0.05, 3) - 0.5) * 1.4 * h;
         pos.push(x, y, z);
+        uvs.push(x / STRIPE, -z / STRIPE);
         const c = tint(x, z);
         col.push(c.r, c.g, c.b);
       }
@@ -345,9 +384,10 @@ function buildGround(): THREE.Group {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(idx);
     geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: getToonRamp() }));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ vertexColors: true, map: grassTex, gradientMap: getToonRamp() }));
     mesh.position.y = -0.02;
     group.add(mesh);
   }
@@ -478,44 +518,6 @@ function buildBunting(shape: KartTrack): THREE.Group {
         flag.position.set(lx + (f === 0 ? -0.55 : 0), 2.5, lz);
         flag.rotation.y = Math.atan2(at.dx, at.dz) + (side > 0 ? 0 : Math.PI);
         g.add(flag);
-      }
-    }
-  }
-  return g;
-}
-
-/** tyre stacks AND a few hay bales outside the hairpin/chicane, in the race's own local space
- *  (the outdoor version — lib/park/world/karts/index.ts's buildTyreWalls — bakes in a toWorld
- *  offset, so it can't be reused directly here; this is the same look, undisplaced). */
-function buildTyreAndHay(shape: KartTrack): THREE.Group {
-  const g = new THREE.Group();
-  const tyreGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.42, 12);
-  const tyreA = toonMat(0x2b2b32);
-  const tyreB = toonMat(0xf4f0e6);
-  const hayGeo = new THREE.BoxGeometry(1.7, 1.1, 1.1);
-  const hayMat = toonMat(0xe8c86a);
-  const half = shape.width / 2;
-  let hayCount = 0;
-  for (const c of shape.corners) {
-    if (c.kind !== "hairpin" && c.kind !== "chicane") continue;
-    const mid = c.s1 > c.s0 ? (c.s0 + c.s1) / 2 : c.s0;
-    for (let off = -7; off <= 7; off += 3.2) {
-      const s = mid + off;
-      const at = trackAt(shape, s);
-      for (let row = 0; row < 2; row++) {
-        const lx = at.x + at.dz * (half + 1.6 + row * 0.85);
-        const lz = at.z - at.dx * (half + 1.6 + row * 0.85);
-        const tyre = new THREE.Mesh(tyreGeo, Math.round(off / 3.2 + row) % 2 === 0 ? tyreA : tyreB);
-        tyre.position.set(lx, 0.21 + row * 0.42, lz);
-        g.add(tyre);
-      }
-      if (hayCount++ % 3 === 0) {
-        const hx = at.x + at.dz * (half + 3.15);
-        const hz = at.z - at.dx * (half + 3.15);
-        const hay = new THREE.Mesh(hayGeo, hayMat);
-        hay.position.set(hx, 0.55, hz);
-        hay.rotation.y = Math.atan2(at.dx, at.dz);
-        g.add(hay);
       }
     }
   }
@@ -949,7 +951,170 @@ function poseOf(kart: KartPhysState, track: KartTrack, t: number): KartPose {
   return { t: round(t, 0), x: round(kart.x, 2), z: round(kart.z, 2), yaw: round(kart.yaw, 3), speed: round(kart.speed, 2), lap: kart.lap, progress: round(kartProgress(track, kart), 3) };
 }
 
+/** the fun layer's own props: spinning "?" item boxes, gold coins, dropped bananas and the jump ramp */
+function buildFunProps(track: KartTrack, course: KartCourse) {
+  const group = new THREE.Group();
+  // item boxes: a rainbow cube with a big "?" on every face
+  const cv = document.createElement("canvas");
+  cv.width = 128;
+  cv.height = 128;
+  const c = cv.getContext("2d")!;
+  const grad = c.createLinearGradient(0, 0, 128, 128);
+  ["#ff5fa8", "#ffb03f", "#ffe14d", "#5ee6a8", "#6cc6ff", "#c38bff"].forEach((col, i, a) => grad.addColorStop(i / (a.length - 1), col));
+  c.fillStyle = grad;
+  c.fillRect(0, 0, 128, 128);
+  c.lineWidth = 10;
+  c.strokeStyle = "rgba(255,255,255,0.9)";
+  c.strokeRect(5, 5, 118, 118);
+  c.fillStyle = "#ffffff";
+  c.font = "900 96px system-ui, sans-serif";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.lineWidth = 8;
+  c.strokeStyle = "rgba(40,20,80,0.55)";
+  c.strokeText("?", 64, 70);
+  c.fillText("?", 64, 70);
+  const boxTex = new THREE.CanvasTexture(cv);
+  boxTex.colorSpace = THREE.SRGBColorSpace;
+  const boxGeo = new THREE.BoxGeometry(1.3, 1.3, 1.3);
+  const boxMat = new THREE.MeshBasicMaterial({ map: boxTex, transparent: true, opacity: 0.93 });
+  const boxes = course.boxes.map((b) => {
+    const m = new THREE.Mesh(boxGeo, boxMat);
+    m.position.set(b.x, 1.3, b.z);
+    group.add(m);
+    return m;
+  });
+  // coins: one instanced mesh, each stood on edge and spinning
+  const coinGeo = new THREE.CylinderGeometry(0.58, 0.58, 0.13, 16);
+  coinGeo.rotateX(Math.PI / 2);
+  const coinCv = document.createElement("canvas");
+  coinCv.width = 128;
+  coinCv.height = 128;
+  {
+    const k = coinCv.getContext("2d")!;
+    const g = k.createRadialGradient(52, 46, 6, 64, 64, 64);
+    g.addColorStop(0, "#fff6b8");
+    g.addColorStop(0.55, "#ffd23f");
+    g.addColorStop(1, "#f0a012");
+    k.fillStyle = g;
+    k.fillRect(0, 0, 128, 128);
+    k.strokeStyle = "#c97a00";
+    k.lineWidth = 9;
+    k.beginPath();
+    k.arc(64, 64, 50, 0, Math.PI * 2);
+    k.stroke();
+    // a star in the middle
+    k.fillStyle = "#fff8d0";
+    k.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const rr = i % 2 ? 15 : 34;
+      k.lineTo(64 + Math.cos(a) * rr, 64 + Math.sin(a) * rr);
+    }
+    k.closePath();
+    k.fill();
+  }
+  const coinTex = new THREE.CanvasTexture(coinCv);
+  coinTex.colorSpace = THREE.SRGBColorSpace;
+  const coinRim = new THREE.MeshBasicMaterial({ color: 0xe89a10 });
+  const coinMat = new THREE.MeshBasicMaterial({ map: coinTex });
+  const coins = new THREE.InstancedMesh(coinGeo, [coinRim, coinMat, coinMat], course.coins.length);
+  coins.frustumCulled = false;
+  group.add(coins);
+  // bananas: a small pool of curved yellow peels lying on the road
+  const bananaGeo = new THREE.TorusGeometry(0.52, 0.19, 7, 12, Math.PI * 1.15);
+  bananaGeo.rotateX(Math.PI / 2);
+  const bananaMat = toonMat(0xffe14d);
+  const bananaTipGeo = new THREE.SphereGeometry(0.13, 6, 5);
+  const bananaTipMat = toonMat(0x6b4a1d);
+  const bananas = Array.from({ length: MAX_BANANAS }, () => {
+    const g = new THREE.Group();
+    g.add(new THREE.Mesh(bananaGeo, bananaMat));
+    for (const a of [0, Math.PI * 1.15]) {
+      const tip = new THREE.Mesh(bananaTipGeo, bananaTipMat);
+      tip.position.set(Math.cos(a) * 0.52, 0, -Math.sin(a) * 0.52);
+      g.add(tip);
+    }
+    g.visible = false;
+    group.add(g);
+    return g;
+  });
+  // the jump ramp: a striped wedge right across the road, its lip at course.ramp.s
+  const RAMP_H = 0.75;
+  const half = track.width / 2 - 0.3;
+  const len = course.ramp.len;
+  const at = trackAt(track, course.ramp.s);
+  const ramp = new THREE.Group();
+  ramp.position.set(at.x - at.dx * len, 0, at.z - at.dz * len);
+  ramp.rotation.y = Math.atan2(at.dx, at.dz);
+  const stripes = 8;
+  const rampGeos: THREE.BufferGeometry[] = [];
+  const rampMats = [toonMat(0x3fa9ff, { side: THREE.DoubleSide }), toonMat(0xffd23f, { side: THREE.DoubleSide })];
+  for (let i = 0; i < stripes; i++) {
+    const x0 = -half + (i / stripes) * half * 2;
+    const x1 = -half + ((i + 1) / stripes) * half * 2;
+    const g = new THREE.BufferGeometry();
+    // a wedge: flat at z = 0, RAMP_H tall at z = len (slope on top, a wall at the back, two sides)
+    const v = [x0, 0, 0, x1, 0, 0, x0, RAMP_H, len, x1, RAMP_H, len, x0, 0, len, x1, 0, len];
+    g.setAttribute("position", new THREE.Float32BufferAttribute(v, 3));
+    g.setIndex([0, 2, 1, 1, 2, 3, 2, 4, 3, 3, 4, 5, 0, 4, 2, 1, 3, 5]);
+    g.computeVertexNormals();
+    rampGeos.push(g);
+    ramp.add(new THREE.Mesh(g, rampMats[i % 2]));
+  }
+  group.add(ramp);
+  const _m = new THREE.Matrix4();
+  const _q = new THREE.Quaternion();
+  const _p = new THREE.Vector3();
+  const _s = new THREE.Vector3();
+  const _up = new THREE.Vector3(0, 1, 0);
+  return {
+    group,
+    bananas,
+    rampH: RAMP_H,
+    /** t = seconds; boxOff/coinOff = the respawn timers (> 0 = taken, hidden) */
+    update(t: number, boxOff: Float32Array, coinOff: Float32Array) {
+      boxes.forEach((m, i) => {
+        m.visible = boxOff[i] <= 0;
+        m.rotation.y = t * 1.6 + i;
+        m.rotation.x = t * 0.9 + i * 0.5;
+        m.position.y = 1.3 + Math.sin(t * 2.4 + i) * 0.14;
+      });
+      for (let i = 0; i < course.coins.length; i++) {
+        const cn = course.coins[i];
+        _q.setFromAxisAngle(_up, t * 3 + i * 0.6);
+        _p.set(cn.x, 0.95 + Math.sin(t * 3 + i) * 0.08, cn.z);
+        _s.setScalar(coinOff[i] > 0 ? 0.0001 : 1);
+        coins.setMatrixAt(i, _m.compose(_p, _q, _s));
+      }
+      coins.instanceMatrix.needsUpdate = true;
+    },
+    dispose() {
+      boxTex.dispose();
+      boxGeo.dispose();
+      boxMat.dispose();
+      coinGeo.dispose();
+      coinMat.dispose();
+      coinRim.dispose();
+      coinTex.dispose();
+      bananaGeo.dispose();
+      bananaMat.dispose();
+      bananaTipGeo.dispose();
+      bananaTipMat.dispose();
+      for (const g of rampGeos) g.dispose();
+      for (const m of rampMats) m.dispose();
+    },
+  };
+}
+
 interface Racer {
+  /** items, coins, drift charge, the jump (lib/park/karts/items.ts) */
+  fun: KartFun;
+  /** (computer karts) the race-clock time at which it'll use the item it's holding */
+  useAt: number;
+  /** the bubble shield and the star glow round the kart (shown/hidden each frame) */
+  bubble: THREE.Mesh;
+  glow: THREE.Mesh;
   id: string;
   meta: KartRacer;
   seat: KartSeat;
@@ -974,9 +1139,19 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
 
   const hemi = new THREE.HemisphereLight(0xffffff, 0x6a8a55, 1.0);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+  const sun = new THREE.DirectionalLight(0xfff1d6, 1.25);
   sun.position.set(60, 90, 40);
-  scene.add(sun);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.left = -42;
+  sun.shadow.camera.right = 42;
+  sun.shadow.camera.top = 42;
+  sun.shadow.camera.bottom = -42;
+  sun.shadow.camera.near = 10;
+  sun.shadow.camera.far = 260;
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.04;
+  scene.add(sun, sun.target);
 
   // ── the world around the circuit: sky, hills, grass, trees, a hazy skyline (see the helpers
   // above) — so the ride feels like racing through the park, not a void ──
@@ -984,18 +1159,19 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
   const clouds = buildClouds();
   scene.add(clouds.group);
   disposeGeos.push(...clouds.geos);
-  scene.add(buildGround());
+  // (the road, barriers, boards, arches, flags, balloons, sun and the karts' blob shadows)
+  const scenery = buildKartScenery(track, 4);
+  scene.add(scenery.group);
+  scene.add(buildGround(scenery.grassTex));
   scene.add(buildHorizonProps());
 
-  scene.add(ribbon(track.points, track.width, 0x4a4a55, 0.0));
-  scene.add(ribbon(track.points, 0.3, 0xf4e8c8, 0.02));
   scene.add(buildKerbs(track));
   scene.add(buildBoostArrows(track));
-  scene.add(buildTyreAndHay(track));
   scene.add(buildBunting(track));
   const arrowBoards = buildArrowBoards(track);
   scene.add(arrowBoards.group);
   const { group: gantry, lamps: gantryLamps } = buildStartGantry(track);
+  gantry.traverse((o) => ((o as THREE.Mesh).castShadow = true));
   scene.add(gantry);
 
   // the grandstand (facing the line from the first sweeper) and the pit garage (off the home
@@ -1036,11 +1212,33 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
   const speedLineGroup = new THREE.Group();
   speedLineGroup.renderOrder = 999;
   const speedLines = Array.from({ length: 8 }, (_, i) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 1.5), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.007, 0.5 + (i % 3) * 0.22), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
     speedLineGroup.add(m);
     return m;
   });
+  speedLineGroup.visible = false; // (they read as glitchy bars at the screen edge; the FOV kick + sparks carry the speed)
   scene.add(speedLineGroup);
+
+  // ── the fun layer: item boxes, coins, bananas, the jump ──
+  const course = buildKartCourse(track);
+  const funProps = buildFunProps(track, course);
+  scene.add(funProps.group);
+  const boxOff = new Float32Array(course.boxes.length);
+  const coinOff = new Float32Array(course.coins.length);
+  interface LiveBanana {
+    id: string;
+    x: number;
+    z: number;
+    age: number;
+    owner: string;
+  }
+  let bananaList: LiveBanana[] = [];
+  let bananaSeq = 0;
+  const bubbleGeo = new THREE.SphereGeometry(1.75, 18, 12);
+  const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xbff2ff, transparent: true, opacity: 0.17, depthWrite: false });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffe14d, transparent: true, opacity: 0.38, depthWrite: false, blending: THREE.AdditiveBlending });
+  let funClock = 0;
+  let kidAirY = 0;
 
   // ── grid: the kid, then (if not a live race) ghosts, then AI to fill to 4 ──
   let grid: KartGridEntry[];
@@ -1067,15 +1265,30 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
     const start = gridStartState(track, identity, i);
     const ghostFlag = seat.kind === "ghost" || seat.kind === "remote";
     const mesh = buildKartMesh(entry.racer.colour, entry.racer.animal, i + 1, ghostFlag);
+    mesh.group.rotation.order = "YXZ"; // (so the jump's nose-up pitch is about the kart's own axle)
+    if (!ghostFlag) mesh.group.traverse((o) => ((o as THREE.Mesh).castShadow = true));
     mesh.group.position.set(start.x, 0, start.z);
     mesh.group.rotation.y = start.yaw;
     scene.add(mesh.group);
+    const bubble = new THREE.Mesh(bubbleGeo, bubbleMat);
+    bubble.position.y = 0.95;
+    bubble.visible = false;
+    mesh.group.add(bubble);
+    const glow = new THREE.Mesh(bubbleGeo, glowMat.clone());
+    glow.position.y = 0.95;
+    glow.scale.setScalar(0.92);
+    glow.visible = false;
+    mesh.group.add(glow);
     if (ghostFlag) {
       const tag = labelTag(entry.racer.name);
       tag.position.set(0, 2.2, 0);
       mesh.group.add(tag);
     }
     return {
+      fun: newKartFun(),
+      useAt: 0,
+      bubble,
+      glow,
       id: entry.racer.kidId,
       meta: entry.racer,
       seat,
@@ -1141,6 +1354,17 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
         buf.push(m.pose);
         if (buf.length > 12) buf.shift();
         remoteBuffer.set(m.kidId, buf);
+      } else if (m.type === "item") {
+        // the other tablet's kart: its bananas land on our road too, and we show its star/bubble/spin
+        const r = racers.find((x) => x.id === m.kidId);
+        if (m.ev === "banana" && m.id && m.x !== undefined && m.z !== undefined) addBanana({ id: m.id, x: m.x, z: m.z, age: 0, owner: m.kidId });
+        else if (m.ev === "eat" && m.id) bananaList = bananaList.filter((b) => b.id !== m.id);
+        else if (m.ev === "fx" && r && r.seat.kind === "remote") {
+          if (m.fx === "star") r.fun = { ...r.fun, starT: 6 };
+          else if (m.fx === "shield") r.fun = { ...r.fun, shieldT: 12 };
+          else if (m.fx === "pop") r.fun = { ...r.fun, shieldT: 0 };
+          else if (m.fx === "spin") r.fun = { ...r.fun, spinT: SPIN_TIME };
+        }
       } else if (m.type === "leave" || m.type === "finish") {
         const r = racers.find((x) => x.id === (m as { kidId: string }).kidId);
         if (r && m.type === "leave") {
@@ -1150,6 +1374,41 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
         }
       }
     });
+  }
+
+  function addBanana(b: LiveBanana) {
+    bananaList.push(b);
+    if (bananaList.length > MAX_BANANAS) bananaList.shift();
+  }
+  const sendItem = (m: { ev: "banana" | "eat" | "fx"; id?: string; x?: number; z?: number; fx?: "star" | "shield" | "spin" | "pop" }) => {
+    if (opts.net) opts.net.send({ type: "item", raceId: opts.trackId, kidId: kidRacer.id, ...m });
+  };
+  const burst = (pool: ParticlePool, x: number, y: number, z: number, n: number, speed: number, life: number, color: THREE.Color | THREE.Color[]) => {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * TAU;
+      const col = Array.isArray(color) ? color[i % color.length] : color;
+      pool.spawn(x, y, z, Math.cos(a) * speed * (0.4 + Math.random()), 1 + Math.random() * speed * 0.6, Math.sin(a) * speed * (0.4 + Math.random()), life * (0.7 + Math.random() * 0.6), col);
+    }
+  };
+  /** a banana or a star kart got `r`: spin it (or pop its bubble); `by` = whose doing it was */
+  function hitRacer(r: Racer, f: KartFun, by: string | null): KartFun {
+    const h: { fun: KartFun; result: HitResult } = hitKart(f);
+    if (h.result === "spin") {
+      r.kart = { ...r.kart, speed: r.kart.speed * 0.35, boostT: 0 };
+      burst(dustPool, r.kart.x, 0.5, r.kart.z, 16, 4, 0.6, SMOKE_COLOR);
+      burst(confettiPool, r.kart.x, 1, r.kart.z, Math.min(6, f.coins * 2), 3, 0.8, COIN_COLOR);
+      if (r.isKid) {
+        onEvent({ type: "fx", kind: "spin" });
+        sendItem({ ev: "fx", fx: "spin" });
+      } else if (by === kidRacer.id) onEvent({ type: "fx", kind: "gotcha", name: r.meta.name });
+    } else if (h.result === "shield") {
+      burst(sparkPool, r.kart.x, 1, r.kart.z, 18, 5, 0.5, BUBBLE_COLOR);
+      if (r.isKid) {
+        onEvent({ type: "fx", kind: "shieldPop" });
+        sendItem({ ev: "fx", fx: "pop" });
+      }
+    }
+    return h.fun;
   }
 
   const AUTOPILOT_PROFILE: AiProfile = { skill: 0.8, seed: 3 };
@@ -1173,6 +1432,12 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
     for (const r of racers) r.mesh.chibi.dispose();
     for (const g of disposeGeos) g.dispose();
     arrowBoards.dispose();
+    funProps.dispose();
+    scenery.dispose();
+    bubbleGeo.dispose();
+    bubbleMat.dispose();
+    glowMat.dispose();
+    for (const r of racers) (r.glow.material as THREE.Material).dispose();
     dustPool.points.geometry.dispose();
     (dustPool.points.material as THREE.Material).dispose();
     sparkPool.points.geometry.dispose();
@@ -1227,6 +1492,13 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
           r.mesh.group.position.set(r.kart.x, 0, r.kart.z);
           r.mesh.group.rotation.y = r.kart.yaw;
         }
+        funClock += dt;
+        funProps.update(funClock, boxOff, coinOff);
+        scenery.update(funClock);
+        racers.forEach((r, i) => scenery.blob(i, r.kart.x, r.kart.z, 0, !r.dropped));
+        sun.position.set(kidRacer.kart.x + 46, 80, kidRacer.kart.z + 30);
+        sun.target.position.set(kidRacer.kart.x, 0, kidRacer.kart.z);
+        ctl.useItem = false;
         if (countdownT <= 0) phase = "racing";
         return;
       }
@@ -1265,20 +1537,117 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
         r.kart = { ...r.kart, x: pose.x, z: pose.z, yaw: pose.yaw, speed: pose.speed, lap: pose.lap, sLocal: pose.progress * track.length, distTotal: (pose.lap - 1) * track.length + pose.progress * track.length };
       }
 
+      // ── the fun layer's own clocks: boxes and coins come back, bananas go off after a while ──
+      funClock += dt;
+      for (let i = 0; i < boxOff.length; i++) if (boxOff[i] > 0) boxOff[i] -= dt;
+      for (let i = 0; i < coinOff.length; i++) if (coinOff[i] > 0) coinOff[i] -= dt;
+      for (const b of bananaList) b.age += dt;
+      bananaList = bananaList.filter((b) => b.age < BANANA_LIFE);
+      const wantUse = !!ctl.useItem;
+      ctl.useItem = false;
+
       for (const r of racers) {
         if (r.dropped) continue;
         const prevLap = r.kart.lap;
         const prevBoostT = r.kart.boostT;
         let visSteer = 0;
         if (r.seat.kind === "human" || r.seat.kind === "ai") {
-          const input = cornerAwareInput(r);
+          const wasAir = inAir(r.fun);
+          let f = tickFun(r.fun, dt);
+          let input = cornerAwareInput(r);
+          if (f.spinT > 0) input = { steer: 0, brake: false }; // (spinning: nobody's driving)
           const others = racers.filter((o) => o !== r && !o.dropped && o.seat.kind !== "ghost").map((o) => ({ x: o.kart.x, z: o.kart.z }));
           const tune =
             r.seat.kind === "ai"
-              ? { power: aiPower(r.seat.profile, { deltaToKid: r.kart.distTotal - kidRacer.kart.distTotal }) }
-              : { power: kidFinishT >= 0 ? 0.6 : 1, assist: opts.autopilot ? 0 : (ctl.assist ?? 1) };
+              ? { power: aiPower(r.seat.profile, { deltaToKid: r.kart.distTotal - kidRacer.kart.distTotal }) * funPower(f) }
+              : { power: (kidFinishT >= 0 ? 0.6 : 1) * funPower(f), assist: opts.autopilot ? 0 : (ctl.assist ?? 1) };
+          const sPrev = r.kart.sLocal;
           r.kart = stepKart(r.kart, input, track, dt, others, tune);
           visSteer = r.kart.steer;
+          const racingOn = !(r.isKid && kidFinishT >= 0);
+
+          // the jump: off the ramp's lip, and a little shove when the wheels touch down again
+          if (wasAir && !inAir(f)) {
+            r.kart = applyShove(r.kart, LANDING_SHOVE[0], LANDING_SHOVE[1]);
+            burst(dustPool, r.kart.x, 0.2, r.kart.z, 10, 3, 0.45, SMOKE_COLOR);
+            if (r.isKid) onEvent({ type: "fx", kind: "land" });
+          }
+          if (!inAir(f) && crossedRamp(course, track.length, sPrev, r.kart.sLocal, r.kart.speed)) {
+            f = takeOff(f, r.kart.speed);
+            if (r.isKid) onEvent({ type: "fx", kind: "jump" });
+          }
+
+          // drift boost (the kid's own kart): hold a turn for sparks, straighten up for the boost
+          if (r.seat.kind === "human" && racingOn && !opts.autopilot) {
+            const tierBefore = driftTier(f);
+            const d = stepDrift(f, input.steer, r.kart.speed, r.kart.offTrack, dt);
+            f = d.fun;
+            if (d.released) {
+              const sh = DRIFT_SHOVE[d.released - 1];
+              r.kart = applyShove(r.kart, sh[0], sh[1]);
+              onEvent({ type: "fx", kind: "miniBoost" });
+            } else if (driftTier(f) > tierBefore) onEvent({ type: "fx", kind: driftTier(f) === 2 ? "drift2" : "drift1" });
+          }
+
+          // item boxes
+          for (let i = 0; i < course.boxes.length; i++) {
+            const b = course.boxes[i];
+            if (boxOff[i] > 0 || !nearXZ(r.kart.x, r.kart.z, b.x, b.z, BOX_RADIUS)) continue;
+            boxOff[i] = BOX_RESPAWN;
+            burst(confettiPool, b.x, 1.3, b.z, 14, 4, 0.5, CONFETTI_COLORS);
+            if (!f.held && racingOn) {
+              const item = rollItem(positionOf(raceState, r.id), racers.length, Math.random());
+              f = takeBox(f, item);
+              r.useAt = raceClockMs + 1800 + Math.random() * 3500;
+              if (r.isKid) onEvent({ type: "fx", kind: "itemGet", item });
+            }
+          }
+          // coins (the kid's)
+          if (r.isKid && racingOn) {
+            for (let i = 0; i < course.coins.length; i++) {
+              const cn = course.coins[i];
+              if (coinOff[i] > 0 || !nearXZ(r.kart.x, r.kart.z, cn.x, cn.z, COIN_RADIUS)) continue;
+              coinOff[i] = COIN_RESPAWN;
+              f = addCoin(f);
+              burst(sparkPool, cn.x, 1, cn.z, 6, 3, 0.35, COIN_COLOR);
+              onEvent({ type: "fx", kind: "coin" });
+            }
+          }
+          // bananas on the road, and star karts to bump into (not while flying over them)
+          if (!inAir(f)) {
+            for (const b of bananaList) {
+              if (b.age < 0.35 || b.age >= BANANA_LIFE || !nearXZ(r.kart.x, r.kart.z, b.x, b.z, BANANA_RADIUS)) continue;
+              if (f.safeT > 0 && b.owner === r.id) continue;
+              f = hitRacer(r, f, b.owner);
+              b.age = BANANA_LIFE; // gone
+              if (opts.net) sendItem({ ev: "eat", id: b.id });
+            }
+            for (const o of racers) {
+              if (o === r || o.dropped || o.fun.starT <= 0 || f.starT > 0) continue;
+              if (nearXZ(r.kart.x, r.kart.z, o.kart.x, o.kart.z, STAR_TOUCH)) f = hitRacer(r, f, o.id);
+            }
+          }
+          // use the item: the kid taps the button; a computer kart waits a moment, then uses it
+          const use = r.seat.kind === "human" ? (wantUse && racingOn) || (!!opts.autopilot && f.held !== null && raceClockMs >= r.useAt) : f.held !== null && raceClockMs >= r.useAt;
+          if (use && canUseItem(f)) {
+            const u = useItem(f);
+            f = u.fun;
+            if (u.item === "rocket") {
+              r.kart = applyShove(r.kart, ROCKET_SHOVE[0], ROCKET_SHOVE[1]);
+              burst(flamePool, r.kart.x, 0.5, r.kart.z, 12, 3, 0.4, [FLAME_COLOR_A, FLAME_COLOR_B]);
+            } else if (u.item === "banana") {
+              const at = bananaDrop(r.kart);
+              const id = `${r.id}-${bananaSeq++}`;
+              addBanana({ id, x: at.x, z: at.z, age: 0, owner: r.id });
+              if (r.isKid) sendItem({ ev: "banana", id, x: Math.round(at.x * 10) / 10, z: Math.round(at.z * 10) / 10 });
+            } else if (u.item === "shield") {
+              if (r.isKid) sendItem({ ev: "fx", fx: "shield" });
+            } else if (u.item === "star") {
+              if (r.isKid) sendItem({ ev: "fx", fx: "star" });
+            }
+            if (r.isKid && u.item) onEvent({ type: "fx", kind: "use", item: u.item });
+          }
+          r.fun = f;
           if (r.isKid) {
             if (r.kart.wallHit > 0.25) onEvent({ type: "fx", kind: "wall" });
             if (r.kart.rescued) onEvent({ type: "fx", kind: "rescue" });
@@ -1299,6 +1668,7 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
             r.kart = { ...r.kart, x: pose.x, z: pose.z, yaw: pose.yaw, speed: pose.speed, lap: loop + 1, sLocal: pose.progress * track.length, distTotal: loop * track.length + pose.progress * track.length };
           }
         }
+        if (r.seat.kind === "remote") r.fun = tickFun(r.fun, dt);
         // (remote karts were already updated above, interpolated from remoteBuffer)
         updateKartProgress(raceState, r.id, r.kart.distTotal, r.kart.lap, raceClockMs);
         if (r.kart.lap > prevLap && r.isKid) {
@@ -1313,8 +1683,26 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
           }
           onEvent({ type: "lap", lapMs, isBest, ghost });
         }
-        r.mesh.group.position.set(r.kart.x, 0, r.kart.z);
-        r.mesh.group.rotation.y = r.kart.yaw;
+        // up the ramp, through the air (nose up, then down), and round and round when spun
+        const air = airHeight(r.fun);
+        let rampLift = 0;
+        if (!inAir(r.fun) && r.kart.speed > 0) {
+          const into = r.kart.sLocal - (course.ramp.s - course.ramp.len);
+          if (into > 0 && into < course.ramp.len) rampLift = (into / course.ramp.len) * funProps.rampH;
+        }
+        const spinU = r.fun.spinT > 0 ? 1 - r.fun.spinT / SPIN_TIME : 0;
+        r.mesh.group.position.set(r.kart.x, air + rampLift, r.kart.z);
+        r.mesh.group.rotation.y = r.kart.yaw + spinU * TAU * 2;
+        r.mesh.group.rotation.x = inAir(r.fun) ? -0.3 * Math.cos((r.fun.airT / r.fun.airDur) * Math.PI) : rampLift > 0 ? -0.22 : 0;
+        if (r.isKid) kidAirY = air + rampLift;
+        r.bubble.visible = r.fun.shieldT > 0;
+        if (r.bubble.visible) r.bubble.scale.setScalar(1 + Math.sin(funClock * 5) * 0.04);
+        r.glow.visible = r.fun.starT > 0;
+        if (r.glow.visible) {
+          (r.glow.material as THREE.MeshBasicMaterial).color.setHSL((funClock * 1.6) % 1, 1, 0.6);
+          r.glow.scale.setScalar(0.92 + Math.sin(funClock * 14) * 0.07);
+          if (Math.random() < 0.6) sparkPool.spawn(r.kart.x + (Math.random() - 0.5) * 2, 0.4 + Math.random() * 1.6, r.kart.z + (Math.random() - 0.5) * 2, 0, 1.5, 0, 0.4, CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)]);
+        }
         r.mesh.chibi.update(dt, r.kart.speed);
 
         // ── the kart's own "feel": wheels that steer and roll, a driver that leans into turns,
@@ -1335,6 +1723,13 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
           // sliding through a corner: tyre smoke off the back wheels
           dustPool.spawn(r.kart.x - fwd.x * 1.1, 0.12, r.kart.z - fwd.z * 1.1, (Math.random() - 0.5) * 1.2, 0.7 + Math.random() * 0.6, (Math.random() - 0.5) * 1.2, 0.35 + Math.random() * 0.2, SMOKE_COLOR);
         }
+        const tier = driftTier(r.fun);
+        if (tier > 0) {
+          // drift sparks under the back wheels: blue, then orange
+          const sx = Math.cos(r.kart.yaw) * 0.75;
+          const sz = -Math.sin(r.kart.yaw) * 0.75;
+          for (const side of [-1, 1]) sparkPool.spawn(r.kart.x - fwd.x * 1.1 + sx * side, 0.15, r.kart.z - fwd.z * 1.1 + sz * side, (Math.random() - 0.5) * 3 - fwd.x * 2, 1.2 + Math.random() * 1.8, (Math.random() - 0.5) * 3 - fwd.z * 2, 0.22 + Math.random() * 0.15, tier === 2 ? DRIFT_ORANGE : DRIFT_BLUE);
+        }
         if (r.kart.wallHit > 0.05) {
           // touching the tyre wall: sparks (more the harder the hit)
           const n = 1 + Math.round(r.kart.wallHit * 5);
@@ -1351,6 +1746,20 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
         }
       }
 
+      funProps.update(funClock, boxOff, coinOff);
+      scenery.update(funClock);
+      racers.forEach((r, i) => scenery.blob(i, r.kart.x, r.kart.z, r.mesh.group.position.y, !r.dropped));
+      sun.position.set(kidRacer.kart.x + 46, 80, kidRacer.kart.z + 30);
+      sun.target.position.set(kidRacer.kart.x, 0, kidRacer.kart.z);
+      funProps.bananas.forEach((m, i) => {
+        const b = bananaList[i];
+        m.visible = !!b && b.age < BANANA_LIFE;
+        if (b) {
+          m.position.set(b.x, 0.22, b.z);
+          m.rotation.y = i * 1.3;
+          m.scale.setScalar(Math.min(1, 0.3 + b.age * 3));
+        }
+      });
       camTarget.set(kidRacer.kart.x, 0, kidRacer.kart.z);
       dustPool.update(dt);
       sparkPool.update(dt);
@@ -1380,6 +1789,12 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
           boost: kidRacer.kart.boostT > 0,
           wrongWay: isWrongWay(kidRacer.kart),
           dots: racers.filter((r) => !r.dropped).map((r) => ({ id: r.id, u: kartProgress(track, r.kart), me: r.isKid, colour: r.meta.colour })),
+          item: kidRacer.fun.held,
+          rolling: kidRacer.fun.rollT > 0,
+          coins: kidRacer.fun.coins,
+          shield: kidRacer.fun.shieldT > 0,
+          star: kidRacer.fun.starT > 0,
+          drift: driftTier(kidRacer.fun),
         });
       }
 
@@ -1432,14 +1847,14 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
       // behind and a little above the kart: close enough to feel fast, high enough that a small
       // kid can see the bend coming
       const back = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(7.4);
-      const desired = new THREE.Vector3(camTarget.x + back.x, 3.3, camTarget.z + back.z);
+      const desired = new THREE.Vector3(camTarget.x + back.x, 3.3 + kidAirY * 0.6, camTarget.z + back.z);
       if (!camPlaced) {
         // (the first frame: start right behind the kart, never swooping in from wherever the park's
         // own camera happened to be)
         camPlaced = true;
         cam.position.copy(desired);
       } else cam.position.lerp(desired, Math.min(1, dt * 6));
-      const lookAt = new THREE.Vector3(camTarget.x + Math.sin(yaw) * 7, 0.7, camTarget.z + Math.cos(yaw) * 7);
+      const lookAt = new THREE.Vector3(camTarget.x + Math.sin(yaw) * 7, 0.7 + kidAirY * 0.45, camTarget.z + Math.cos(yaw) * 7);
       cam.lookAt(lookAt);
       // bank into the turn with the kart, and zoom in a touch with speed/on a boost
       cam.rotateZ(kidRacer.mesh.lean * 0.35);
@@ -1458,11 +1873,11 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
       speedLines.forEach((m, i) => {
         const side = i % 2 === 0 ? -1 : 1;
         const row = Math.floor(i / 2);
-        const ox = side * (0.62 + row * 0.16);
-        const oy = -0.18 + row * 0.12;
+        const ox = side * (0.5 + row * 0.2);
+        const oy = -0.3 + row * 0.19;
         m.position.copy(cam.position).addScaledVector(forward, 1.1).addScaledVector(xAxis, ox).addScaledVector(yAxis, oy);
         m.quaternion.copy(cam.quaternion);
-        (m.material as THREE.MeshBasicMaterial).opacity = linesK * (0.25 + 0.5 * ((i * 37) % 7) / 7);
+        (m.material as THREE.MeshBasicMaterial).opacity = linesK * (0.2 + 0.35 * ((i * 37) % 7) / 7);
       });
     },
     dispose,

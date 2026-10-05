@@ -45,9 +45,9 @@ describe("kart AI", () => {
     // the same best driver in the kid's own full-power kart beats them all
     const best = race({ skill: 1, seed: 3 }, 3, 1).t;
     expect(best).toBeLessThan(hard);
-    // …and a race is about a minute
-    expect(hard).toBeGreaterThan(50);
-    expect(easy).toBeLessThan(80);
+    // …and a race is a bit under two minutes
+    expect(hard).toBeGreaterThan(85);
+    expect(easy).toBeLessThan(125);
   });
 
   it("different drivers pick different lines across the road", () => {

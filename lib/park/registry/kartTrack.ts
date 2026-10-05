@@ -67,8 +67,8 @@ export interface KartTrackSite {
   rotation: number;
 }
 
-/** a deterministic search for the track's site: 170-300 m from the plaza (clearly outside the
- *  park proper), within 120 m of Park Station (an easy walk), with the WHOLE track footprint
+/** a deterministic search for the track's site: 190-360 m from the plaza (clearly outside the
+ *  park proper), within 190 m of Park Station (an easy walk), with the WHOLE track footprint
  *  (not just its centre) clear of every park place, the railway, the cart road, the trails and
  *  the water, on real ground gentle enough that levelling it reads as natural, not dug out. The
  *  circuit's own footprint (~65 m across) is big enough that the CENTRE clearing everything isn't
@@ -78,11 +78,11 @@ export function findKartTrackSite(): KartTrackSite {
   const samples = footprintSamples();
   let best: { x: number; z: number; rotation: number; score: number } | null = null;
   for (let a = 0; a < TAU; a += 0.025) {
-    for (let rad = 170; rad <= 300; rad += 5) {
+    for (let rad = 190; rad <= 360; rad += 5) {
       const x = Math.sin(a) * rad;
       const z = Math.cos(a) * rad;
       const distToStation = Math.hypot(x - PARK_STATION!.x, z - PARK_STATION!.z);
-      if (distToStation > 120) continue;
+      if (distToStation > 190) continue;
       const faceStation = Math.atan2(PARK_STATION!.x - x, PARK_STATION!.z - z);
       for (let ri = 0; ri < 24; ri++) {
         const rot = (ri / 24) * TAU;
@@ -92,7 +92,7 @@ export function findKartTrackSite(): KartTrackSite {
         // footpath in — built from this same site — stays short and makes sense on the ground)
         let misalign = Math.abs(rot - faceStation) % TAU;
         if (misalign > Math.PI) misalign = TAU - misalign;
-        const score = -distToStation * 0.6 - Math.abs(rad - 230) * 0.15 - misalign * 12;
+        const score = -distToStation * 0.6 - Math.abs(rad - 260) * 0.15 - misalign * 12;
         if (!best || score > best.score) best = { x, z, rotation: rot, score };
       }
     }
@@ -105,8 +105,8 @@ export function findKartTrackSite(): KartTrackSite {
  *  the search and checks it still lands exactly here — the search itself samples the real ground
  *  at thousands of candidates x rotations and is far too slow to run on every park load, same
  *  reasoning as registry/town.ts's TOWN_SITE) */
-export const KART_SITE = { x: 229.8, z: -85 };
-export const KART_ROTATION = 3.665;
+export const KART_SITE = { x: 279.2, z: -95.4 };
+export const KART_ROTATION = 6.021;
 
 /** the track's own shared "pad" height — like a settlement's settlePadHeight, ONE height for the
  *  whole loop, so a long thin circuit (660 units round) reads as a real, smoothly graded race track
@@ -156,4 +156,4 @@ export function nearKartTrack(x: number, z: number, pad = 0): boolean {
 /** the whole site's outer radius (track footprint + run-off + a little more) — for anything that
  *  just wants a single cheap "is this anywhere near the kart track" disc test (the map pin, far
  *  keep-out checks) instead of nearKartTrack()'s exact-to-the-road one */
-export const KART_SITE_RADIUS = 95;
+export const KART_SITE_RADIUS = 120;

@@ -5,8 +5,8 @@ describe("kart track geometry", () => {
   const track = buildKartTrackShape();
 
   it("is closed and reasonably long for a kid-sized circuit", () => {
-    expect(track.length).toBeGreaterThan(350);
-    expect(track.length).toBeLessThan(520);
+    expect(track.length).toBeGreaterThan(700);
+    expect(track.length).toBeLessThan(880);
     const first = track.points[0];
     const last = track.points[track.points.length - 1];
     // the loop closes back to (near) its start — smooth(..., closed=true) wraps round, so the gap
@@ -47,9 +47,9 @@ describe("kart track geometry", () => {
     expect(track.width).toBeLessThanOrEqual(12);
   });
 
-  it("is a real circuit: ~480 m, one true hairpin, several medium bends and a long straight", () => {
-    expect(track.length).toBeGreaterThan(440);
-    expect(track.length).toBeLessThan(540);
+  it("is a real circuit: ~790 m (about 38 s a lap), a true hairpin, several medium bends and a long straight", () => {
+    expect(track.length).toBeGreaterThan(740);
+    expect(track.length).toBeLessThan(840);
     const r = Array.from(track.radius);
     expect(Math.min(...r)).toBeGreaterThan(9); // nothing a kart can't turn
     expect(Math.min(...r)).toBeLessThan(14); // …but a real hairpin

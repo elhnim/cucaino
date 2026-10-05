@@ -8,6 +8,8 @@ export type KartNetMsg =
   | { type: "start"; raceId: string; startAt: number /* epoch ms, ~4 s ahead, for a shared countdown */; grid: string[] /* kidIds in grid order */; laps: number }
   | { type: "pose"; raceId: string; kidId: string; pose: KartPose }
   | { type: "finish"; raceId: string; kidId: string; totalMs: number; bestLapMs: number }
+  /** the fun layer (lib/park/karts/items.ts): a banana dropped / eaten, or a kart's star / bubble / spin to show */
+  | { type: "item"; raceId: string; kidId: string; ev: "banana" | "eat" | "fx"; id?: string; x?: number; z?: number; fx?: "star" | "shield" | "spin" | "pop" }
   | { type: "leave"; raceId?: string; kidId: string };
 export interface KartNet {
   /** family kids currently in the park and whether they're at the track (updates live) */
