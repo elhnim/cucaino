@@ -158,6 +158,10 @@ export function makeCritters(def: SettlementDef): CritterState[] {
     const bakery = def.huts.find((h) => h.kind === "shop-bakery");
     if (bakery) add(CRITTER_KIND.cat, bakery.x + Math.sin(bakery.yaw) * (bakery.size * 1.3 + 0.5), bakery.z + Math.cos(bakery.yaw) * (bakery.size * 1.3 + 0.5), CAT_COLORS, 0.9);
     add(CRITTER_KIND.dog, def.x, def.z, DOG_COLORS, 1);
+  } else if (def.style === "basecamp") {
+    // a camp dog patrolling the tents — real expedition base camps always have one; no chickens or
+    // a sleeping cat this high up the mountain
+    add(CRITTER_KIND.dog, def.x, def.z, DOG_COLORS, 1.05);
   }
   return out;
 }

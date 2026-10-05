@@ -14,30 +14,71 @@ const WL = -0.25;
 
 // ── the Great Falls: a rocky shelf on the ridge's flank, the lip, the pool below ──
 export const WILD_SHELF = { x: 965, z: -805, top: 44 } as const;
-/** the shelf's outline radius toward heading a (atan2(dx, dz) from its centre) */
-export function wildShelfRadius(a: number): number {
-  return 44 + 5 * Math.sin(3 * a + 0.7) + 3 * Math.sin(5 * a + 2.1);
-}
 /** the falls pour off the shelf's south-east side, toward the plains */
 const FALLS_A = 0.83;
+/** Victoria Falls' real character: not one spout but a long curved brow, wider the further round
+ *  from the original (unchanged) main lip at FALLS_A — two more promontories bulge out further
+ *  along the same brow (SECTION_DA), each hosting its own curtain (see WILD_FALLS_SECTIONS), with
+ *  rocky islands perched where they meet. Both bumps are ~0 right at FALLS_A, so the original lip,
+ *  the pool and everything measured from them (Treetop's siting included) doesn't move a unit. */
+function shelfBulge(da: number): number {
+  const bump = (center: number, sigma: number, amp: number) => amp * Math.exp(-((da - center) ** 2) / (2 * sigma * sigma));
+  return bump(0.46, 0.16, 30) + bump(0.85, 0.16, 22);
+}
+/** the shelf's outline radius toward heading a (atan2(dx, dz) from its centre) */
+export function wildShelfRadius(a: number): number {
+  return 44 + 5 * Math.sin(3 * a + 0.7) + 3 * Math.sin(5 * a + 2.1) + shelfBulge(a - FALLS_A);
+}
 const lipR = wildShelfRadius(FALLS_A) - 0.8;
-/** the pool at the foot of the cliff, right where the water lands */
-const POOL_R = 19;
-const POOL_C = { x: WILD_SHELF.x + Math.sin(FALLS_A) * (lipR + 5 + POOL_R * 0.55), z: WILD_SHELF.z + Math.cos(FALLS_A) * (lipR + 5 + POOL_R * 0.55) };
+/** the extra falls sections' headings, offset from the original FALLS_A (their own promontories
+ *  on the widened brow — see shelfBulge) */
+const SECTION_DA = [0, 0.46, 0.85] as const;
+/** rocky islands between the sections, at the saddle headings between them */
+const ISLAND_DA = [0.23, 0.655] as const;
+/** the pool at the foot of the cliff, right where the water lands (wide enough that every
+ *  section's own spray lands in it, not just the original single lip's). Its centre is placed
+ *  using the ORIGINAL (pre-widening) radius, so growing the pool doesn't push its near edge — and
+ *  everything sited off it, Treetop included — any further from the lip. */
+const POOL_CENTER_R = 19;
+const POOL_R = 24;
+const POOL_C = { x: WILD_SHELF.x + Math.sin(FALLS_A) * (lipR + 5 + POOL_CENTER_R * 0.55), z: WILD_SHELF.z + Math.cos(FALLS_A) * (lipR + 5 + POOL_CENTER_R * 0.55) };
 export const WILD_FALLS = {
   lip: { x: WILD_SHELF.x + Math.sin(FALLS_A) * lipR, z: WILD_SHELF.z + Math.cos(FALLS_A) * lipR, y: WILD_SHELF.top - 1.4 },
   heading: FALLS_A,
-  width: 16,
-  widthBottom: 22,
+  width: 34,
+  widthBottom: 40,
   pool: { x: POOL_C.x, z: POOL_C.z, r: POOL_R },
   /** where the spring rises on the shelf (the channel runs from here to the lip) */
   spring: { x: WILD_SHELF.x + Math.sin(FALLS_A) * 8, z: WILD_SHELF.z + Math.cos(FALLS_A) * 8 },
 } as const;
-/** how wide the shelf's cliff band is (steepest where the falls pour over) */
+/** one falls section's lip, right on the shelf's own rim at its heading (so it always sits on real
+ *  rock, however the brow bulges) */
+function sectionLip(da: number) {
+  const a = FALLS_A + da;
+  const r = wildShelfRadius(a) - 0.8;
+  return { x: WILD_SHELF.x + Math.sin(a) * r, z: WILD_SHELF.z + Math.cos(a) * r, y: WILD_SHELF.top - 1.4, heading: a };
+}
+/** Victoria Falls is one very wide curtain in several sections (Devil's Cataract, Main Falls,
+ *  Horseshoe Falls…), separated by rocky islands (WILD_FALLS_ISLANDS) — the main (unchanged) section
+ *  first, so every test and site search keyed on WILD_FALLS itself still means exactly what it did */
+export const WILD_FALLS_SECTIONS: { lip: { x: number; y: number; z: number }; heading: number; width: number; widthBottom: number; spring: { x: number; z: number } }[] = SECTION_DA.map((da, i) => {
+  const L = sectionLip(da);
+  const spring = { x: WILD_SHELF.x + Math.sin(L.heading) * 8, z: WILD_SHELF.z + Math.cos(L.heading) * 8 };
+  const w = i === 0 ? WILD_FALLS.width : 30 + i * 6;
+  return { lip: { x: L.x, y: L.y, z: L.z }, heading: L.heading, width: w, widthBottom: w + 6, spring };
+});
+/** the rocky islands between the sections, poking out of the lip — just a placement + size hint
+ *  for the art (props.ts / the falls' renderer); the terrain under them is the same clifftop rock */
+export const WILD_FALLS_ISLANDS: { x: number; z: number; r: number }[] = ISLAND_DA.map((da) => {
+  const L = sectionLip(da);
+  return { x: L.x, z: L.z, r: 5.5 };
+});
+/** how wide the shelf's cliff band is (steepest where the falls pour over): a long sheer brow, not
+ *  one narrow spot — Victoria Falls pours off a wide curved edge, not a single point */
 function shelfCliff(a: number): number {
   // (sheer where the falls pour over, so the water clears the rock all the way down)
   const toFalls = Math.cos(a - FALLS_A);
-  return 9 - 7.4 * smoothstep(0.82, 0.97, toFalls);
+  return 9 - 7.4 * smoothstep(0.55, 0.85, toFalls);
 }
 /** signed distance (approximate, radial) from the shelf's top edge: < 0 on top */
 export function wildShelfEdgeDist(x: number, z: number): number {
@@ -46,10 +87,25 @@ export function wildShelfEdgeDist(x: number, z: number): number {
   return Math.hypot(dx, dz) - wildShelfRadius(Math.atan2(dx, dz));
 }
 
-// ── the Wild River: the pool to the lake ──
+// ── the Wild River: the pool to the lake, cutting the Batoka Gorge on its way out ──
+const FALLS_DIR = { x: Math.sin(FALLS_A), z: Math.cos(FALLS_A) };
+const FALLS_PERP = { x: Math.cos(FALLS_A), z: -Math.sin(FALLS_A) };
+/** a point `d` units downstream of the pool (along the falls' own heading) and `s` units to the
+ *  side of it — how the gorge's zig-zag is laid out, whichever way the pool itself sits */
+function along(d: number, s: number): P2 {
+  return [POOL_C.x + FALLS_DIR.x * d + FALLS_PERP.x * s, POOL_C.z + FALLS_DIR.z * d + FALLS_PERP.z * s];
+}
+/** how far downstream (arc-length, s) the Batoka Gorge's steep, narrow, deep character reaches —
+ *  wildBedY, wildRiverHalfWidth and shapeAt's depth bonus all taper it out over the same distance,
+ *  so the narrow slot, the tall rock walls and the extra depth all let go together */
+export const GORGE_REACH = 130;
 const RIVER_CTRL: P2[] = [
-  [POOL_C.x + Math.sin(FALLS_A) * 12, POOL_C.z + Math.cos(FALLS_A) * 12],
-  [1072, -700],
+  along(12, 0),
+  // the gorge's famous tight zig-zags, right out of the plunge pool
+  along(28, 9),
+  along(50, -12),
+  along(74, 10),
+  along(91.5, -5.2), // rejoins the valley's old downstream drift
   [1100, -672],
   [1126, -646],
   [1150, -598],
@@ -61,10 +117,56 @@ const RIVER_CTRL: P2[] = [
 export const WILD_RIVER_POINTS: P2[] = smooth(RIVER_CTRL, 4);
 const riverLen = cumLength(WILD_RIVER_POINTS);
 export const WILD_RIVER_LENGTH = riverLen[riverLen.length - 1];
-/** the river's half width at distance s along it: a broad river, wider at its mouths */
+/** the river's half width at distance s along it: a narrow slot through the Batoka Gorge right out
+ *  of the pool, opening into a broad river as the valley widens, wider again at the lake's mouth */
 export function wildRiverHalfWidth(s: number): number {
   const u = s / WILD_RIVER_LENGTH;
-  return 8 + 1.2 * Math.sin(s * 0.03 + 0.4) + 0.6 * Math.sin(s * 0.11) + 2.5 * (1 - smoothstep(0, 0.1, u)) + 3 * smoothstep(0.85, 1, u);
+  const base = 8 + 1.2 * Math.sin(s * 0.03 + 0.4) + 0.6 * Math.sin(s * 0.11);
+  const gorge = 3.8 * (1 - smoothstep(0, GORGE_REACH, s));
+  return base - gorge + 3 * smoothstep(0.85, 1, u);
+}
+
+// ── the Victoria Falls Bridge: a steel arch spanning the gorge downstream of the falls, rim to rim,
+// high above the narrow river (true size: the real bridge sits ~300 m downstream — here, a short
+// walk down the gorge-top path). Sited where the gorge's own rock walls (wildGorgeWallY, below)
+// genuinely tower on both banks — y0/y1 are each bank's own rim height there, not an arbitrary
+// number, so the deck actually meets the clifftop instead of floating over flat ground on stilts. ──
+export const VIC_BRIDGE = { x: 1034.34, z: -753.78, heading: 2.2794, span: 44, half: 2.3, y0: 39.5, y1: 42, rise: 1 } as const;
+/** a short viewpoint path along the gorge's far rim (the bank opposite the shelf, reached by
+ *  crossing the bridge) — walk it and see the whole wide curtain across the chasm, spray and
+ *  rainbow included. Each point doubles as a wooden sign spot (wonders.ts's viewpoints) */
+export const VIC_VIEW_PATH: { x: number; z: number }[] = [
+  { x: 1051.0, z: -768.1 }, // right by the bridge's far landing
+  { x: 1062.1, z: -752.8 }, // further along the rim: all three sections framed together
+];
+/** the bridge's deck height at (x, z) (null off it) — the same arched-line shape as the park's own
+ *  footbridges (registry/island.ts's bridgeDeckY), kept local since this one isn't trail-generated */
+export function wildBridgeDeckY(x: number, z: number): number | null {
+  const b = VIC_BRIDGE;
+  const dx = x - b.x;
+  const dz = z - b.z;
+  const along = dx * Math.sin(b.heading) + dz * Math.cos(b.heading);
+  const side = dx * Math.cos(b.heading) - dz * Math.sin(b.heading);
+  if (Math.abs(side) > b.half + 0.15 || Math.abs(along) > b.span / 2) return null;
+  const u = along / b.span + 0.5;
+  return b.y0 + (b.y1 - b.y0) * u + Math.sin(u * Math.PI) * b.rise;
+}
+/** keep the rainforest's trees off the bridge's own footprint and the rocky islands between the
+ *  falls' sections (both reach well above typical ground cover — nothing should grow through them,
+ *  or block the view of them) */
+export function nearFallsStructures(x: number, z: number, pad = 0): boolean {
+  const b = VIC_BRIDGE;
+  const dx = x - b.x;
+  const dz = z - b.z;
+  const along = dx * Math.sin(b.heading) + dz * Math.cos(b.heading);
+  const side = dx * Math.cos(b.heading) - dz * Math.sin(b.heading);
+  // wide clearance (a giant rainforest tree's canopy reaches ~16 units out from its own trunk —
+  // keeping just the trunk off the deck still lets its canopy poke through the arch overhead)
+  if (Math.abs(side) <= b.half + 17 + pad && Math.abs(along) <= b.span / 2 + 17 + pad) return true;
+  for (const isl of WILD_FALLS_ISLANDS) if (Math.hypot(x - isl.x, z - isl.z) < isl.r + 17 + pad) return true;
+  // the clifftop right behind each section's own lip: a clear view of the curtain from the plateau
+  for (const s of WILD_FALLS_SECTIONS) if (Math.hypot(x - s.lip.x, z - s.lip.z) < s.widthBottom * 0.6 + pad) return true;
+  return false;
 }
 
 // ── the Great Lake ──
@@ -231,8 +333,10 @@ function shapeAt(x: number, z: number, out: { sdf: number; body: number; fx: num
       const k = speed * (0.35 + 0.65 * Math.max(0, 1 - (n.d / h) ** 2));
       fx = (ex / l) * k;
       fz = (ez / l) * k;
-      // wadeable at the edges, deep enough to swim mid-stream
-      depth = Math.min(2.4, 0.35 - d * 0.42);
+      // wadeable at the edges, deep enough to swim mid-stream — deeper still through the narrow,
+      // sheer-walled gorge right out of the pool
+      const gorgeBonus = b === B_RIVER ? 4.6 * (1 - smoothstep(0, GORGE_REACH, s)) : 0;
+      depth = Math.min(2.4 + gorgeBonus, 0.35 - d * 0.42);
     }
   }
   out.sdf = sdf;
@@ -347,10 +451,82 @@ export function wildBedY(x: number, z: number): number | null {
   if (d > 95) return null;
   if (d < 0) return WL - lerp4(_l.t!.depth);
   const lake = wildWaterBody(x, z) === B_LAKE;
+  // right by the pool and the first stretch of river: the narrow, DEEP Batoka Gorge, with sheer
+  // rock walls towering on both sides (not a gentle grassy bank) — smoothly back to the ordinary
+  // valley sides further downstream. Measured along the river itself (arc-length s), not straight-
+  // line distance from the pool, so the gorge's own tight zig-zags don't fold a bend's far wall back
+  // onto its near one.
+  let gorgeK = 0;
+  if (!lake) {
+    const n = nearestBucketed(RIVER_F, RIVER_B, x, z);
+    if (n.d !== Infinity) {
+      const s = riverLen[n.i] + (riverLen[Math.min(riverLen.length - 1, n.i + 1)] - riverLen[n.i]) * n.u;
+      gorgeK = 1 - smoothstep(0, GORGE_REACH, s);
+    }
+  }
   // the bank just proud of the water, then the valley sides: gentle by the lake (its beaches),
-  // a little steeper along the river, then up to meet the land
-  const near = lake ? d * 0.07 : d * 0.12;
-  return WL + 0.35 + near + Math.max(0, d - (lake ? 26 : 14)) * (lake ? 0.22 : 0.36) + Math.max(0, d - 55) * 0.45;
+  // a sheer rocky chasm along the gorge (tall enough for a real bridge to cross high above it),
+  // an ordinary wooded valley side further downstream
+  const near = lake ? d * 0.07 : d * (0.12 + gorgeK * 1.35);
+  const breakAt = lake ? 26 : 14 - gorgeK * 10;
+  const breakSlope = (lake ? 0.22 : 0.36) + gorgeK * 2.7;
+  return WL + 0.35 + near + Math.max(0, d - breakAt) * breakSlope + Math.max(0, d - 55) * 0.45;
+}
+
+/** the Batoka Gorge's own rock walls: real tall rim-to-rim cliffs flanking the river's first
+ *  stretch out of the pool (not just a carved-down hollow — `waterBedY` can only ever carve DOWN
+ *  from the natural terrain, so a gorge genuinely tall enough for a bridge needs ground RAISED
+ *  either side of the narrow channel, the same idea as the shelf's own cliff: a flattish rim,
+ *  sheer sides down to the water, easing back into the ordinary wooded valley beyond). Only ever
+ *  raises the ground (terrain.ts takes max(ground, this)), and only within the gorge's own reach. */
+export function wildGorgeWallY(x: number, z: number, ground: number): number | null {
+  if (!inWildWater(x, z)) return null;
+  let d = Infinity;
+  let top = 0;
+  // the river's own narrow gorge, downstream of the pool
+  {
+    const n = nearestBucketed(RIVER_F, RIVER_B, x, z);
+    if (n.d !== Infinity) {
+      const s = riverLen[n.i] + (riverLen[Math.min(riverLen.length - 1, n.i + 1)] - riverLen[n.i]) * n.u;
+      const k = 1 - smoothstep(0, GORGE_REACH, s);
+      if (k > 0.02) {
+        const dd = n.d - wildRiverHalfWidth(s);
+        if (dd < d) {
+          d = dd;
+          top = 9 + k * 35; // close to the shelf's 44 right by the pool, easing to ordinary ground by GORGE_REACH
+        }
+      }
+    }
+  }
+  // the plunge pool's own rim — the same tall, sheer character, right where the curtain lands
+  {
+    const P = WILD_FALLS.pool;
+    const dd = Math.hypot(x - P.x, z - P.z) - P.r;
+    if (dd < d) {
+      d = dd;
+      top = 41;
+    }
+  }
+  if (d === Infinity) return null;
+  const PLATEAU = 50;
+  if (d > PLATEAU) return null;
+  const CLIFF = 11;
+  if (d <= CLIFF) {
+    const u = Math.max(0, d) / CLIFF;
+    const fall = u < 0.5 ? smoothstep(0, 0.5, u) * 0.55 : 0.55 + smoothstep(0.5, 1, u) * 0.45;
+    return ground + (top - ground) * fall;
+  }
+  const ease = 1 - smoothstep(PLATEAU * 0.55, PLATEAU, d);
+  return ground + (top - ground) * ease;
+}
+/** keep the rainforest's TALL trees (giants, canopy, palms) off the clifftop viewpoint path and the
+ *  clifftop right behind each section's own lip, so there's a clear sightline across the chasm at
+ *  the whole curtain — low ferns and flowering undergrowth still grow right up to the edge, so it
+ *  stays lush. (wilds.ts forces any tree it would place here down to a fern instead.) */
+export function fallsKeepLow(x: number, z: number): boolean {
+  for (const s of WILD_FALLS_SECTIONS) if (Math.hypot(x - s.lip.x, z - s.lip.z) < 38) return true;
+  for (const p of VIC_VIEW_PATH) if (Math.hypot(x - p.x, z - p.z) < 34) return true;
+  return false;
 }
 
 /** the falls' shelf ground (null = not on or by it): a lumpy rocky top, cliffs round it */
@@ -358,7 +534,7 @@ export function wildShelfY(x: number, z: number, ground: number): number | null 
   const dx = x - WILD_SHELF.x;
   const dz = z - WILD_SHELF.z;
   const r = Math.hypot(dx, dz);
-  if (r > 70) return null;
+  if (r > 95) return null;
   const a = Math.atan2(dx, dz);
   const R = wildShelfRadius(a);
   const cliff = shelfCliff(a);

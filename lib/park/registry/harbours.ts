@@ -24,7 +24,7 @@ import { FROST_BERGS, FROST_FLOES, FROST_ISLAND, FROST_OBSTACLES, FROST_SWIMS, F
 import { DINO_DECKS, dinoGroundY } from "./dinoIsland";
 import { ABYSS } from "./abyss";
 import { STATIONS } from "./railway";
-import { WILD_LAKE } from "./wildWater";
+import { WILD_LAKE, wildBridgeDeckY } from "./wildWater";
 import { settlementDeckY } from "./settlements";
 import { boatClearance } from "../world/rideables/craft";
 
@@ -390,6 +390,9 @@ export function worldFloorY(x: number, z: number): number {
   // a Wildlands settlement's own pier (registry/settlements.ts), walking out over real water
   const s = settlementDeckY(x, z);
   if (s !== null) return Math.max(s, baseFloorY(x, z));
+  // the Victoria Falls Bridge, high over the Batoka Gorge
+  const vb = wildBridgeDeckY(x, z);
+  if (vb !== null) return Math.max(vb, baseFloorY(x, z));
   return baseFloorY(x, z);
 }
 

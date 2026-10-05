@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SETTLEMENTS, inSettlement, settlementAt, settlementDeckY, SETTLEMENT_OBSTACLES } from "./settlements";
+import { SETTLEMENTS, inSettlement, settlementAt, settlementDeckY, SETTLEMENT_OBSTACLES, findLakesideSite, findTreetopSite, findHighstoneSite } from "./settlements";
 import { seaDist } from "./island";
 import { nearRail, STATIONS } from "./railway";
 import { wildRainforestK, wildWaterSdf } from "./wildWater";
@@ -212,5 +212,34 @@ describe("settlements: the Wildlands' villages and towns", () => {
         const b = SETTLEMENTS[j];
         expect(Math.hypot(a.x - b.x, a.z - b.z), `${a.id} / ${b.id}`).toBeGreaterThan(560);
       }
+  });
+
+  // Lakeside/Treetop/Highstone sites are stored as frozen numbers (TOWN_SITE's own pattern — see
+  // town.ts/kartTrack.ts), not re-derived from a live search at module load: a later terrain change
+  // (a new mountain, a new valley — e.g. Mount Everest added to the Great Ridge) must never be able
+  // to silently move a village just by changing which spot registry/landform.ts's rawHeight() scores
+  // best. These three re-run each site's own deterministic search (still exported, still exercised)
+  // and check it reproduces the frozen numbers exactly — if a genuinely intended terrain change ever
+  // moves the best site, this is the test that should fail first, and the frozen constant is the one
+  // place to update (with a reason), not a silent drift.
+  describe("village sites stay frozen (re-running the search still lands on the stored numbers)", () => {
+    it("Lakeside", () => {
+      const found = findLakesideSite();
+      const s = SETTLEMENTS.find((x) => x.id === "lakeside")!;
+      expect(found.x).toBe(s.x);
+      expect(found.z).toBe(s.z);
+    });
+    it("Treetop", () => {
+      const found = findTreetopSite();
+      const s = SETTLEMENTS.find((x) => x.id === "treetop")!;
+      expect(found.x).toBe(s.x);
+      expect(found.z).toBe(s.z);
+    });
+    it("Highstone", () => {
+      const found = findHighstoneSite();
+      const s = SETTLEMENTS.find((x) => x.id === "highstone")!;
+      expect(found.x).toBe(s.x);
+      expect(found.z).toBe(s.z);
+    });
   });
 });

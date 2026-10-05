@@ -154,6 +154,33 @@ export function PromptCard({ icon, title, hint, no, yes, onNo, onYes }: { icon: 
   );
 }
 
+/** A Natural Wonder's fact card: icon + place name, the true fact, one "Got it!" dismiss button.
+ *  Used both for a wonder's first-discovery fact and for its wooden info signs (keeps the two
+ *  consistent — see lib/park/registry/wonders.ts). */
+export function FactCard({ icon, title, subtitle, fact, onClose }: { icon: string; title: string; subtitle?: string; fact: string; onClose: () => void }) {
+  return (
+    <div style={promptWrap}>
+      <div style={{ ...glass({ edge: "gold", fill: "rgba(18,16,44,0.9)", width: 1.5 }), ...factCard }} className="gp-popin">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <IconChip color={C.gold} size={54} style={{ fontSize: 30 }}>
+            {icon}
+          </IconChip>
+          <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+            <div style={{ ...display(19, C.text), textShadow: "0 2px 0 rgba(0,0,0,0.35)" }}>{title}</div>
+            {subtitle && <div style={{ fontWeight: 800, fontSize: 12, color: C.dim, marginTop: 2 }}>{subtitle}</div>}
+          </div>
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.4, color: C.text, marginTop: 10 }}>{fact}</div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <GameButton variant="primary" small onClick={onClose}>
+            Got it!
+          </GameButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const portraitBtn: CSSProperties = {
   position: "relative",
   width: 60,
@@ -281,4 +308,10 @@ const promptCard: CSSProperties = {
   flexWrap: "wrap",
   borderRadius: 20,
   padding: "12px 14px",
+};
+const factCard: CSSProperties = {
+  pointerEvents: "auto",
+  width: "min(420px, calc(100vw - 24px))",
+  borderRadius: 20,
+  padding: "14px 16px",
 };

@@ -81,8 +81,10 @@ const RIDGE_LEN: number[] = (() => {
   return out;
 })();
 const _rp = { d: 0, u: 0 };
-/** distance from (x, z) to the ridge's spine, and how far along it (0..1) */
-function ridgeAt(x: number, z: number): typeof _rp {
+/** distance from (x, z) to the Great Ridge's own spine, and how far along it (0..1) — exported so
+ *  landform.test.ts can check Mount Everest's summit genuinely sits ON the ridge, not just somewhere
+ *  in the Wildlands */
+export function ridgeAt(x: number, z: number): typeof _rp {
   let best = Infinity;
   let bu = 0;
   for (let i = 0; i + 1 < RIDGE.length; i++) {
@@ -105,6 +107,24 @@ function ridgeAt(x: number, z: number): typeof _rp {
 export const LONE_PEAK = { x: 1980, z: -520, r: 260, h: 95 };
 const UPLANDS = { x: 380, z: -1500, r: 520, h: 26 };
 
+/** Mount Everest: riding the Great Ridge's own crest at u≈0.75 (well clear of the Great Falls/
+ *  Treetop end of the ridge and of the Lone Peak/Highstone further east — registry/everest.ts's own
+ *  site search checks the real distances), a sharp, craggy massif added ON TOP of the ridge's usual
+ *  crest height (`wildHeight` below) so it reads as the ridge's own tallest summit, not a separate
+ *  hill stuck beside it. `h` is picked so the total summit height clears the ridge's own highest
+ *  crest (~160) and LONE_PEAK (95) by a wide, unmistakable margin — see landform.test.ts's "Everest
+ *  is the island's tallest point by a clear margin". Frozen as plain numbers like LONE_PEAK — this
+ *  constant IS the site (registry/everest.ts imports it rather than re-deriving a summit position). */
+export const EVEREST_PEAK = { x: 1293, z: -1328, r: 330, h: 205 };
+/** Mount Everest's TRUE summit: the real local maximum of rawHeight() near EVEREST_PEAK. The peak's
+ *  own additive bump (below) is centred at EVEREST_PEAK, but the Great Ridge's own crest underneath
+ *  it pulls the actual highest point a little way off-centre, so this is frozen separately (the same
+ *  "search once, freeze the number" discipline as every settlement site — see landform.test.ts).
+ *  Kept here, not in registry/everest*.ts, so anything wanting "where exactly is the top of the
+ *  island" (the summit flag, the climb's final view, the Island map pin) can read it without pulling
+ *  in the settlements module graph. */
+export const EVEREST_SUMMIT = { x: 1287.3, z: -1307.3, height: 323.3 };
+
 /** the Wildlands' land: plains, the Great Ridge, the lone peak and the uplands */
 function wildHeight(x: number, z: number, sd: number): number {
   // broad rolling plains (dry land: the base sits well above the sea) with smaller hills on them
@@ -120,6 +140,23 @@ function wildHeight(x: number, z: number, sd: number): number {
   // the lone peak (a tall cone with gullies down its flanks)
   const ld = Math.hypot(x - LONE_PEAK.x, z - LONE_PEAK.z) / LONE_PEAK.r;
   if (ld < 1.6) h += LONE_PEAK.h * Math.exp(-ld * ld * 2.2) * (0.85 + 0.3 * fbm(x / 35 + 2, z / 35 - 2, 3));
+  // Mount Everest: a sharp pyramid summit riding the ridge's own crest. `core` is a clean, strictly
+  // radial falloff (steep near the top, per the real mountain's own profile) — its own maximum sits
+  // exactly at EVEREST_PEAK, which landform.test.ts relies on (the registered site IS the true
+  // summit, not an approximation of wherever noise happens to peak). Craggy rock ridges/faces are
+  // layered on as a small ADDITIVE texture, strictly bounded below `core` itself and fading to
+  // nothing at the very top (smooth(0.12,0.5,ed)) and again out past the shoulders
+  // (1-smooth(0.9,1.4,ed)) — real rock detail on the slopes, never strong enough to out-bid the
+  // centre for the summit itself.
+  const ed = Math.hypot(x - EVEREST_PEAK.x, z - EVEREST_PEAK.z) / EVEREST_PEAK.r;
+  if (ed < 1.4) {
+    const core = Math.exp(-Math.pow(ed, 1.9) * 2.6);
+    const ea = Math.atan2(x - EVEREST_PEAK.x, z - EVEREST_PEAK.z);
+    const faces = 0.5 + 0.5 * Math.cos(ea * 3 + 1.1);
+    const crag = 1 - Math.abs(2 * fbm(x / 40 + 21, z / 40 - 33, 5) - 1);
+    const texture = smooth(0.12, 0.5, ed) * (1 - smooth(0.9, 1.4, ed)) * (0.22 * faces + 0.3 * crag);
+    h += EVEREST_PEAK.h * core * (1 + texture);
+  }
   // the north-west uplands: a high rolling plateau with a steep edge
   const ud = Math.hypot(x - UPLANDS.x, z - UPLANDS.z) / UPLANDS.r;
   h += UPLANDS.h * (1 - smooth(0.75, 1.0, ud + (fbm(x / 120, z / 120) - 0.5) * 0.3));

@@ -13,12 +13,13 @@ import { buildRockGeometry } from "./stones";
 import { fbm2, noise2, rngOf } from "./noise";
 import { groundYFar } from "../../registry/terrain";
 import { ISLAND_R, seaDist } from "../../registry/island";
-import { wildRainforestK, wildWaterSdf } from "../../registry/wildWater";
+import { fallsKeepLow, nearFallsStructures, wildRainforestK, wildWaterSdf } from "../../registry/wildWater";
 import { nearRail, stationAt } from "../../registry/railway";
 import { inSettlement } from "../../registry/settlements";
 import { nearCartRoad } from "../../registry/cartRoad";
 import { nearFootpath } from "../../registry/footpaths";
 import { KART_SITE, KART_SITE_RADIUS } from "../../registry/kartTrack";
+import { nearGlacier } from "../everestDecor";
 import { buildClump, buildJungleTree } from "../jungle/geometry";
 import { TREE_DIMS, T_CANOPY, T_FERN, T_GIANT, T_PALM } from "../jungle/plan";
 import type { JungleCut } from "../jungle/cutaway";
@@ -81,6 +82,8 @@ export function wildCell(ci: number, cj: number): WildItem[] {
     !inSettlement(x, z, 6) &&
     !nearCartRoad(x, z, 3) &&
     !nearFootpath(x, z, 3) &&
+    !nearFallsStructures(x, z, 5) && // the Victoria Falls Bridge and the falls' own rocky islands
+    !nearGlacier(x, z, 3) && // Everest's own glacier ribbon and icefall — no forest growing through the ice
     Math.hypot(x - KART_SITE.x, z - KART_SITE.z) > KART_SITE_RADIUS; // Cucaino Karts' whole site, no trees
   // the rainforest round the Great Falls and along the Wild River: giants, canopy trees, palms and
   // tree ferns over thick undergrowth (true size: you walk under it)
@@ -94,7 +97,9 @@ export function wildCell(ci: number, cj: number): WildItem[] {
       if (h < 0.5) continue;
       if (slopeAt(x, z) > 0.6) continue;
       const u = r();
-      const type = u < 0.1 ? T_GIANT : u < 0.45 ? T_CANOPY : u < 0.75 ? T_PALM : T_FERN;
+      // the clifftop viewpoints across the chasm from the falls stay clear of tall trees (the view
+      // is the point) — low ferns and flowering undergrowth only, so it still reads as rainforest
+      const type = fallsKeepLow(x, z) ? T_FERN : u < 0.1 ? T_GIANT : u < 0.45 ? T_CANOPY : u < 0.75 ? T_PALM : T_FERN;
       const s = 0.8 + r() * 0.35;
       const room = TREE_DIMS[type].crownR * s * (type === T_GIANT ? 0.85 : 0.7);
       if (out.some((t) => isJungle(t.kind) && Math.hypot(t.x - x, t.z - z) < Math.max(room, TREE_DIMS[t.kind - J0].crownR * t.s * 0.5))) continue;

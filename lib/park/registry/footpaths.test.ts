@@ -7,7 +7,7 @@ import { wildWaterSdf } from "./wildWater";
 describe("footpaths: a settlement's own walk to its station", () => {
   it("has one for every settlement with a station except Lakeside (its cart road already passes its station)", () => {
     const ids = FOOTPATHS.map((f) => f.settlementId).sort();
-    expect(ids).toEqual(["highstone", "town", "treetop"]);
+    expect(ids).toEqual(["basecamp", "highstone", "town", "treetop"]);
   });
 
   it("each one runs from just outside its village to its own station, and names the right station", () => {

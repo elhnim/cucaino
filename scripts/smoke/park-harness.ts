@@ -57,3 +57,10 @@ const kartCtl: KartRaceControl = { steer: 0, brake: false };
       ),
     ),
 };
+
+// Climb Everest! walks the REAL mountain, not a separate ride scene — poke it directly on __park:
+//   __park.boardClimb()                board at Base Camp's trailhead
+//   __park.setClimbProgress(0.5)        jump the (eased) target anywhere on the route, 0..1
+//   __park.climbPhase                   "climbing" | "summit" | "flyDown" | null
+//   __park.startClimbFlyDown()          (once at the summit) the helicopter swoop back down
+//   __park.leaveClimb()                 leave early — a safe return to Base Camp

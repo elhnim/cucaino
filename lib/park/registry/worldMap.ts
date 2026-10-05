@@ -9,6 +9,7 @@ import { FROST_ISLAND } from "./frostIsland";
 import { DINO_ISLAND, dinoOutline } from "./dinoIsland";
 import { STATIONS } from "./railway";
 import { SETTLEMENTS } from "./settlements";
+import { WONDERS } from "./wonders";
 
 export interface WorldPlace {
   id: string;
@@ -115,6 +116,8 @@ export const ISLAND_DESTINATIONS: MapDestination[] = [
   // Wildlands settlements (registry/settlements.ts): one pin each, tappable and dragon-flyable just
   // like a station — new settlements need nothing added here, they just appear
   ...SETTLEMENTS.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, x: s.x, z: s.z, blurb: `${s.name}, home of ${s.clan}.` })),
+  // the Natural Wonders of the World (registry/wonders.ts): one pin each, tappable and dragon-flyable
+  ...WONDERS.map((w) => ({ id: w.id, name: w.name, emoji: w.emoji, x: w.x, z: w.z, blurb: w.blurb })),
 ];
 
 /** mountains labelled on the Island tab (not themselves destinations — the Lone Peak already has

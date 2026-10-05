@@ -21,12 +21,15 @@ import { LONE_PEAK, footprintStats, rawHeight, smoothedHeight } from "./landform
 // generate<Style>() below — a deterministic site search steered clear of the others (town.ts can't
 // import SETTLEMENTS itself: that would be circular, since this is the file that builds it).
 import { generateTown } from "./town";
+// Everest Base Camp (the "Climb Everest!" wonder) is likewise generated in its own file, same
+// discipline as town.ts — see lib/park/registry/everestBaseCamp.ts.
+import { generateBaseCamp } from "./everestBaseCamp";
 
 /** kept in step with terrain.ts WATER_Y (registry/settlements.ts must not import terrain.ts: that
  *  would be circular, since terrain.ts's stamps() reads SETTLEMENTS to level their ground) */
 export const SETTLE_WATER_Y = -0.25;
 
-export type SettlementStyle = "lakeside" | "treehouse" | "mountain" | "town";
+export type SettlementStyle = "lakeside" | "treehouse" | "mountain" | "town" | "basecamp";
 
 /** a seeded xorshift rng (0..1), the same little generator villageIsland.ts uses */
 function rngOf(seed: number): () => number {
@@ -251,7 +254,7 @@ function distToWater(x0: number, z0: number, dx: number, dz: number, maxD = 70):
   return maxD;
 }
 
-function findLakesideSite(): { x: number; z: number; a: number } {
+export function findLakesideSite(): { x: number; z: number; a: number } {
   let best: { x: number; z: number; a: number; score: number } | null = null;
   // the station sits almost due north of the lake (A_STATION), a hair east of it; sweep from there
   // round towards the north-west (d > 0 rotates west, per the sin/cos heading convention below), so
@@ -291,7 +294,13 @@ function findLakesideSite(): { x: number; z: number; a: number } {
 
 // ── Lakeside: the Reedling Folk's fishing village ──
 
-const SITE = findLakesideSite();
+// Frozen as stored numbers (TOWN_SITE's own pattern — see settlements.test.ts's "sites stay frozen"
+// block): re-running findLakesideSite() at module load would re-score every candidate against
+// WHATEVER the terrain (registry/landform.ts) looks like right now, so any later terrain change
+// (e.g. a new peak or valley added for a natural wonder) could silently pick a different "best" spot
+// and move the whole village. Captured once from the live search before Mount Everest was added to
+// the Great Ridge; settlements.test.ts re-runs findLakesideSite() and checks it still lands here.
+const SITE = { x: 1462.1, z: -550.5, a: 2.9528270112242874 };
 /** the lakeward direction (towards the water) from the village's centre */
 const SHORE_DIR = { x: -Math.sin(SITE.a), z: -Math.cos(SITE.a) };
 
@@ -652,7 +661,7 @@ if (!FALLS_STATION) throw new Error("settlements: no falls-station in the railwa
  *  what the rainforest near the Great Falls actually offers within an easy walk of the station. */
 const TREETOP_RADIUS = 24;
 
-function findTreetopSite(): { x: number; z: number } {
+export function findTreetopSite(): { x: number; z: number } {
   let best: { x: number; z: number; score: number } | null = null;
   for (let a = 0; a < TAU; a += 0.04) {
     for (let rad = 60; rad <= 220; rad += 4) {
@@ -678,7 +687,9 @@ function findTreetopSite(): { x: number; z: number } {
   if (!best) throw new Error("settlements: no treetop site found near the Great Falls");
   return { x: Math.round(best.x * 10) / 10, z: Math.round(best.z * 10) / 10 };
 }
-const TREETOP_SITE = findTreetopSite();
+// Frozen as stored numbers — same reasoning as SITE above (settlements.test.ts re-runs
+// findTreetopSite() and checks it still lands here).
+const TREETOP_SITE = { x: 891.8, z: -745.1 };
 
 // ── Treetop: the Canopy Folk's treehouse village ──
 
@@ -944,7 +955,7 @@ const HIGHSTONE_RADIUS = 28;
 /** a healthy margin under the ~72-unit snow line (lib/park/world/fantasy/terrainMesh.ts) */
 const SNOW_LINE_MARGIN = 58;
 
-function findHighstoneSite(): { x: number; z: number } {
+export function findHighstoneSite(): { x: number; z: number } {
   let best: { x: number; z: number; score: number } | null = null;
   // a full sweep round the station (not just toward the peak): a genuinely flat shelf is scarce
   // enough near the Lone Peak that insisting on one particular heading too often finds nothing at
@@ -974,7 +985,9 @@ function findHighstoneSite(): { x: number; z: number } {
   if (!best) throw new Error("settlements: no highstone site found near the Lone Peak");
   return { x: Math.round(best.x * 10) / 10, z: Math.round(best.z * 10) / 10 };
 }
-const HIGHSTONE_SITE = findHighstoneSite();
+// Frozen as stored numbers — same reasoning as SITE above (settlements.test.ts re-runs
+// findHighstoneSite() and checks it still lands here).
+const HIGHSTONE_SITE = { x: 1961.6, z: -273.7 };
 
 // ── Highstone: the Peakfolk's mountain village ──
 
@@ -1258,7 +1271,7 @@ function generateHighstone(): SettlementDef {
   };
 }
 
-export const SETTLEMENTS: SettlementDef[] = [generateLakeside(), generateTreetop(), generateHighstone(), generateTown([SITE, TREETOP_SITE, HIGHSTONE_SITE])];
+export const SETTLEMENTS: SettlementDef[] = [generateLakeside(), generateTreetop(), generateHighstone(), generateTown([SITE, TREETOP_SITE, HIGHSTONE_SITE]), generateBaseCamp()];
 
 // ── helpers shared by the terrain stamp, the engine's push-out collision, the renderer and tests ──
 

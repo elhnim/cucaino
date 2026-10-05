@@ -51,7 +51,7 @@ describe("Wildlands settlements, streamed", () => {
     expect(scene.children.length).toBe(0);
   });
 
-  for (const id of ["treetop", "highstone", "town"]) {
+  for (const id of ["treetop", "highstone", "town", "basecamp"]) {
     it(`${id}: builds within the draw-call budget at its own centre, offers its activity, and tears down far away`, () => {
       const scene = new THREE.Scene();
       const s = buildSettlements(scene, {});

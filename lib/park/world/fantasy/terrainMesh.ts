@@ -8,6 +8,7 @@ import { beachK, mesaEdgeDist, waterSdf } from "../../registry/waterways";
 import { wildShelfEdgeDist } from "../../registry/wildWater";
 import { groundY, slopeAt } from "../../registry/terrain";
 import { settlementAt } from "../../registry/settlements";
+import { EVEREST_PEAK } from "../../registry/landform";
 
 /** the one-piece mesh covers the park's own square */
 const TERRAIN_EXTENT = 200;
@@ -37,6 +38,14 @@ const MESA_A = col("#7a5e4a");
 const MESA_B = col("#5c4a40");
 const MESA_DARK = col("#3e3430");
 const MESA_MOSS = col("#3f7a2e");
+// Mount Everest reads unmistakably from afar: a clean, neutral dark-grey rock (never the general
+// ROCK_DARK's purple cast — the owner's own note) and a crisp, bright snow line well above it —
+// scoped tightly to its own massif (see the `everestW` falloff below) so Highstone, the Lone Peak
+// and every other steep slope on the island keeps its ordinary look, untouched.
+const EVEREST_ROCK_A = col("#5c5c64");
+const EVEREST_ROCK_B = col("#47474e");
+const EVEREST_ROCK_DARK = col("#2b2b31");
+const EVEREST_SNOW = col("#f6faff");
 const BED_SAND = col("#cdb88a");
 const BED_MUD = col("#6f7a4a");
 const BED_DEEP = col("#3a5a4c");
@@ -62,6 +71,24 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
   const snowLine = 24 + 48 * smoothstep(260, 520, Math.hypot(x, z));
   const snow = smoothstep(snowLine, snowLine + 5, h + n2 * 3) * (1 - smoothstep(0.75, 0.95, slope));
   out.lerp(SNOW, snow);
+  // Mount Everest's own local override (see EVEREST_ROCK_A's comment above)
+  const everestD = Math.hypot(x - EVEREST_PEAK.x, z - EVEREST_PEAK.z) / EVEREST_PEAK.r;
+  if (everestD < 1.6) {
+    const everestW = 1 - smoothstep(1.0, 1.6, everestD);
+    if (everestW > 0) {
+      const everestRockAmt = smoothstep(0.26, 0.48, slope);
+      if (everestRockAmt > 0) {
+        const band2 = 0.5 + 0.5 * Math.sin(h * 0.45 + n1 * 2.2);
+        const erock = mix(EVEREST_ROCK_A, EVEREST_ROCK_B, band2, new THREE.Color()).lerp(EVEREST_ROCK_DARK, smoothstep(0.62, 1, slope) * 0.55);
+        out.lerp(erock, everestRockAmt * everestW);
+      }
+      // a crisp, high snow line (Everest's own summit, not the general Wildlands one) with a
+      // little streaky variation so it reads as snowfields, not one flat cap
+      const everestSnowLine = 215 + n1 * 18;
+      const everestSnow = smoothstep(everestSnowLine, everestSnowLine + 14, h) * (1 - smoothstep(0.82, 0.98, slope));
+      out.lerp(EVEREST_SNOW, everestSnow * everestW);
+    }
+  }
   // bare earth where the grass is carved away (trails, plaza, around places) — optional
   if (mask && paths) {
     const bare = (1 - maskAt(mask, x, z)) * terrainGrassFactor(x, z, h, slope);

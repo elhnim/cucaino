@@ -45,6 +45,8 @@ import { buildFishingBoats, type FishingBoatsSystem } from "./sea/fishingBoats";
 import { buildHeartOfIsland, buildQuestBoard, buildGiftChest, plateSprite, type Landmark } from "./landmarks";
 import { buildSkyLife } from "./skyLife";
 import { buildKartTrack } from "./karts";
+import { buildEverestDecor } from "./everestDecor";
+import { buildEverestClimbDecor } from "./everestClimbDecor";
 
 export interface BuiltPark {
   /** meshes that can be tapped, tagged with userData.placeId */
@@ -642,6 +644,15 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── Cucaino Karts: a go-kart circuit just outside the park, near Park Station (static — a
   //    circuit this size is nowhere near the streamed Wildlands settlements' budget) ──
   scene.add(buildKartTrack());
+  // ── Mount Everest's own small hand-built touches (the summit flag, the glacier, the Khumbu
+  //    Icefall) — the mountain's shape itself is just the ordinary height-field terrain, see
+  //    everestDecor.ts (and terrainMesh.ts's Everest-local colour override) ──
+  const everest = buildEverestDecor(scene);
+  disposables.push(everest);
+  // the Climb Everest route's own small streamed decorations (camps, ladders, ridge rope) —
+  // see everestClimbDecor.ts
+  const everestClimbDecor = buildEverestClimbDecor(scene);
+  disposables.push(everestClimbDecor);
   // (streamed round the kid: only the chunks in view are built, the near ones finely)
   const ground = track(buildTerrainChunks({ lowQuality: opts.lowQuality, mask: fantasy.mask }));
   scene.add(ground.group);
@@ -803,6 +814,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       // that both are never near at once); Coralcove's bubble has no clan emoji of its own
       built.villageTalk = settleOut.talk ?? villageTalk ?? tradeOut.talk ?? fishOut.talk;
       built.activityOffer = settleOut.activity;
+      everest.update(t);
+      everestClimbDecor.update(dt, t, { kid: focus ?? origin0 });
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {
         const top = skyTopY(sp.x, sp.z, t);

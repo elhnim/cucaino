@@ -10,7 +10,7 @@
 import { LANDS, PLACES } from "./places";
 import { ISLAND_R, TRAIL_POINTS, coastR, seaDist } from "./island";
 import { mesaY, waterBedY, waterSdf } from "./waterways";
-import { wildShelfY } from "./wildWater";
+import { wildGorgeWallY, wildShelfY } from "./wildWater";
 import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
 import { SETTLEMENTS, settlePadHeight } from "./settlements";
@@ -307,6 +307,9 @@ function finish(x: number, z: number, h: number): number {
   // (the mesa after the carving: its cliffs stand right down into the plunge pool)
   const m = r < ISLAND_R + 60 ? mesaY(x, z, h) : wildShelfY(x, z, h);
   if (m !== null) h = Math.max(h, m);
+  // the Batoka Gorge's own tall rock walls, flanking the river's narrow first stretch (Agent V)
+  const gw = wildGorgeWallY(x, z, h);
+  if (gw !== null) h = Math.max(h, gw);
   if (inland > 0) {
     const d = bed === null ? 9 : waterSdf(x, z);
     const floor = WATER_Y + 0.35 + 0.04 * Math.min(Math.max(d, 0), 6);

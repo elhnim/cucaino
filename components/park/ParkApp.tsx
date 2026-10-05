@@ -42,7 +42,7 @@ import { C, FONT, PARK_CSS, alpha, cardStyle, display, glass } from "./ui/theme"
 import { GameButton } from "./ui/GameButton";
 import { GameDialog } from "./ui/GameDialog";
 import { IconChip } from "./ui/IconChip";
-import { PlayerBadge, WalletBar, QuestBanner, RoundButton, Toast, PromptCard } from "./ui/Hud";
+import { PlayerBadge, WalletBar, QuestBanner, RoundButton, Toast, PromptCard, FactCard } from "./ui/Hud";
 import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
 import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
@@ -61,6 +61,7 @@ const FishingGame = dynamic(() => import("./FishingGame").then((m) => m.FishingG
 const DrumGame = dynamic(() => import("./DrumGame").then((m) => m.DrumGame), { ssr: false });
 const WeaveGame = dynamic(() => import("./WeaveGame").then((m) => m.WeaveGame), { ssr: false });
 const MarketGame = dynamic(() => import("./MarketGame").then((m) => m.MarketGame), { ssr: false });
+const EverestClimb = dynamic(() => import("./EverestClimb").then((m) => m.EverestClimb), { ssr: false });
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const WizardSheet = dynamic(() => import("./wizards/WizardSheet").then((m) => m.WizardSheet), { ssr: false });
 const BookOfWisdom = dynamic(() => import("./wizards/BookOfWisdom").then((m) => m.BookOfWisdom), { ssr: false });
@@ -275,6 +276,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [railOffer, setRailOffer] = useState<{ name: string; emoji: string; waiting: boolean } | null>(null);
   // a settlement activity the kid is standing at (Lakeside's pier: "Go fishing"), and the one open
   const [activityOffer, setActivityOffer] = useState<{ settlement: string; id: string; label: string; emoji: string } | null>(null);
+  // a Natural Wonder's wooden info sign close by ("📖 Read the sign"), and the fact card on screen
+  // (a discovery's first fact, or a sign's) — lib/park/registry/wonders.ts
+  const [signOffer, setSignOffer] = useState<{ wonder: string; realPlace: string; emoji: string; fact: string } | null>(null);
+  const [wonderFact, setWonderFact] = useState<{ icon: string; title: string; subtitle?: string; fact: string } | null>(null);
   // the settlement activity open now (fishing at Lakeside, drumming at Treetop, weaving at Highstone)
   const [fishing, setFishing] = useState<{ id: string; night: boolean } | null>(null);
   const [railStop, setRailStop] = useState<{ name: string; emoji: string } | null>(null);
@@ -629,6 +634,11 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             playSfx("win");
             toast(`🏝️ You found ${name}, home of ${clan}! Say hello to the villagers`);
           },
+          onWonder: (def) => {
+            playSfx("win");
+            toast(`🌍 You found a Natural Wonder of the World: ${def.name}!`);
+            window.setTimeout(() => setWonderFact({ icon: def.emoji, title: def.name, subtitle: def.realPlace, fact: def.facts[0] }), 1700);
+          },
           onSkyIsland: (id, what) => {
             if (what === "glide") toast("🍃 Wheee — floating gently down!");
             else toast(`🏝️ You landed on ${skyIslandById(id ?? "")?.name ?? "a floating mountain"}! Can you find its treasure chest?`);
@@ -950,6 +960,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setSlideOffer((cur) => (cur === so ? cur : so));
       const ao = worldRef.current?.activityOffer ?? null;
       setActivityOffer((cur) => (cur?.id === ao?.id && cur?.settlement === ao?.settlement ? cur : ao));
+      const wso = worldRef.current?.signOffer ?? null;
+      setSignOffer((cur) => (cur?.wonder === wso?.wonder && cur?.fact === wso?.fact ? cur : wso));
       const ro = worldRef.current?.railOffer ?? null;
       setRailOffer((cur) => (cur?.name === ro?.name && cur?.waiting === ro?.waiting ? cur : ro));
       const rs = worldRef.current?.railStop ?? null;
@@ -1418,7 +1430,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               active
               style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 96, borderRadius: 20 }}
               onClick={() => {
-                if (!["fishing", "drumming", "weaving", "market"].includes(activityOffer.id)) return;
+                if (!["fishing", "drumming", "weaving", "market", "climb-everest"].includes(activityOffer.id)) return;
                 playSfx("tap");
                 worldRef.current?.setMove(0, 0);
                 worldRef.current?.setInputEnabled(false);
@@ -1427,6 +1439,20 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               aria-label={activityOffer.label}
             >
               {`${activityOffer.emoji} ${activityOffer.label}`}
+            </RoundButton>
+          )}
+          {signOffer && !activityOffer && !riding && (
+            <RoundButton
+              size={62}
+              active
+              style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 96, borderRadius: 20 }}
+              onClick={() => {
+                playSfx("tap");
+                setWonderFact({ icon: signOffer.emoji, title: signOffer.wonder, subtitle: signOffer.realPlace, fact: signOffer.fact });
+              }}
+              aria-label="Read the sign"
+            >
+              📖 Read the sign
             </RoundButton>
           )}
           {railOffer && !riding && (
@@ -1617,6 +1643,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             enterPlace(p);
           }}
         />
+      )}
+
+      {wonderFact && (
+        <FactCard icon={wonderFact.icon} title={wonderFact.title} subtitle={wonderFact.subtitle} fact={wonderFact.fact} onClose={() => setWonderFact(null)} />
       )}
 
       {building && (
@@ -1814,6 +1844,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             setFishing(null);
             worldRef.current?.setInputEnabled(true);
           };
+          if (fishing.id === "climb-everest") return <EverestClimb open world={worldRef.current} kidId={kidId} kidName={data.kid.name} animalId={animal?.id} onClose={close} />;
           const Game = fishing.id === "drumming" ? DrumGame : fishing.id === "weaving" ? WeaveGame : fishing.id === "market" ? MarketGame : FishingGame;
           return <Game open kidId={kidId} night={fishing.night} onClose={close} />;
         })()}

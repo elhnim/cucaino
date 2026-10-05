@@ -20,6 +20,7 @@ import { buildLakesidePropsGeometry } from "./styles/lakeside";
 import { buildTreetopPropsGeometry } from "./styles/treetop";
 import { buildMountainPropsGeometry, buildYakGeometry } from "./styles/mountain";
 import { buildTownMoving, buildTownPropsGeometry, type TownMoving } from "./styles/town";
+import { buildBaseCampPropsGeometry } from "./styles/basecamp";
 import { makeSettlementSim, stepSettlement, type SettlementSim, type TalkOut } from "./routine";
 import { buildCanopy, type Canopy } from "./canopy";
 import { buildCrittersGeometry, critterGroundY, makeCritters, stepCritters, type CritterState } from "./critters";
@@ -55,7 +56,14 @@ const TOWN_PALETTE: ClanPalette = {
   hairs: ["#c9972a", "#7a5a2a", "#4a3420", "#2a2420", "#8a5a2c", "#6e4a2a", "#5a3a22", "#3a2a18"],
   cloths: ["#f7d774", "#8fc7e8", "#e8705f", "#7fb86a", "#f0905a", "#9a5a9a", "#e6e2c8"],
 };
-const PALETTE_OF: Record<string, ClanPalette> = { lakeside: LAKESIDE_PALETTE, treetop: TREETOP_PALETTE, highstone: HIGHSTONE_PALETTE, town: TOWN_PALETTE };
+/** the Climbers' Guild — bright puffy-jacket colours (reds/oranges/blues/yellows), easy to spot
+ *  against snow, same as any real expedition's kit */
+const BASECAMP_PALETTE: ClanPalette = {
+  skins: ["#d9b98a", "#c9a476", "#e8caa0", "#b88c5e", "#f0d6ab", "#a97b52", "#8a5a3a"],
+  hairs: ["#2a1f18", "#4a3420", "#1a140e", "#5a3a22", "#241a10", "#3a2818", "#6e4a2a", "#1e1610"],
+  cloths: ["#c0392b", "#e8893c", "#2a6a8a", "#f2c23d", "#8a2a8a", "#2a9d8f", "#d94f6e"],
+};
+const PALETTE_OF: Record<string, ClanPalette> = { lakeside: LAKESIDE_PALETTE, treetop: TREETOP_PALETTE, highstone: HIGHSTONE_PALETTE, town: TOWN_PALETTE, basecamp: BASECAMP_PALETTE };
 /** yaks/goats: shaggy browns, blacks and creams (goats a touch paler) */
 const YAK_COLORS = ["#6e4a2e", "#2a221c", "#e8ddc4", "#4a3824"];
 const GOAT_COLORS = ["#e8e2d4", "#c9c2b0"];
@@ -139,6 +147,8 @@ function buildPropsFor(def: SettlementDef, low: boolean): THREE.BufferGeometry {
       return buildMountainPropsGeometry(def);
     case "town":
       return buildTownPropsGeometry(def, low);
+    case "basecamp":
+      return buildBaseCampPropsGeometry(def);
     case "lakeside":
     default:
       return buildLakesidePropsGeometry(def, low);

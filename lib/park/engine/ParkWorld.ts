@@ -51,6 +51,11 @@ import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../regi
 import { waterSdf } from "../registry/waterways";
 import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { settlementAt, settlementDeckY } from "../registry/settlements";
+import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
+import { wildBridgeDeckY } from "../registry/wildWater";
+import { BASE_CAMP_SITE } from "../registry/everestBaseCamp";
+import { climbHeadingAtU, climbPointAtU } from "../registry/everestRoute";
+import { EVEREST_SUMMIT } from "../registry/landform";
 import { FROST_ISLAND } from "../registry/frostIsland";
 import { makeKidSlide, petSlidePose, slideName, slideSplashS, stepKidSlide, type KidSlide } from "../world/frost/kidSlide";
 import { makeKidSki, stepKidSki, type KidSki } from "../world/frost/kidSki";
@@ -110,6 +115,9 @@ export interface ParkWorldOptions {
   onVillageTalk?: (talk: { id: string; name: string; line: string; emoji?: string } | null) => void;
   /** arrived at Coralcove Isle for the first time this visit */
   onVillage?: (name: string, clan: string) => void;
+  /** walked within discovery range of a Natural Wonder of the World (./registry/wonders.ts) for the
+   *  first time: a big "you found it!" toast, then its first fact */
+  onWonder?: (def: WonderDef) => void;
   /** discovered something on a floating mountain (a cave, a nest, a rune circle solved …) */
   onSkySpot?: (spot: SkySpot) => void;
   /** opened a floating mountain's treasure chest */
@@ -167,13 +175,22 @@ const floorY0 = (x: number, z: number) => worldFloor(x, z);
  *  walkway there at about that level (or the ground's right there too — the walkway's foot), else
  *  null (it would be a step off the edge) */
 function raisedDeckAt(x: number, z: number, fromY: number): number | null {
-  const y = settlementDeckY(x, z);
+  const y = settlementDeckY(x, z) ?? wildBridgeDeckY(x, z);
   if (y !== null && Math.abs(y - fromY) < 0.9) return y;
   const g = groundY(x, z);
   return Math.abs(g - fromY) < 0.9 ? g : null;
 }
 const CAM_OFFSET = new THREE.Vector3(0, 12, 14);
 const MAX_DT = 1 / 20;
+/** soft, alpha-blended atmospheric effects (mist, spray plumes, a rainbow — see falls.ts) go on this
+ *  render layer as well as the default one: the diorama's ink-outline pass reads a colour jump
+ *  anywhere a soft translucent shape fades against its background, drawing an unwanted outline
+ *  round it, so each frame also renders just this layer alone into a small mask (renderFxMask) that
+ *  the outline pass checks and skips over — the objects themselves still render normally, in the
+ *  same pass as everything else, so they're depth-tested and composited exactly as before. Any new
+ *  soft/additive fx should follow the same convention: `thing.layers.set(FX_NO_OUTLINE_LAYER)`
+ *  instead of leaving it on the default layer (the camera sees both, so it still renders). */
+export const FX_NO_OUTLINE_LAYER = 1;
 
 interface Actor {
   root: THREE.Group;
@@ -282,6 +299,13 @@ export class ParkWorld {
   /** standing on a station's platform, waiting for the train we called */
   private trainWait: Station | null = null;
   private trainPose = { x: 0, y: 0, z: 0, yaw: 0 };
+  // ── Climb Everest!: walked on the REAL mountain (registry/everestRoute.ts), not a separate scene —
+  // same idea as the train, just following a hiking route instead of the rails. `u` is the displayed
+  // (eased) progress; `targetU` is what the HUD last set (climbing/logic.ts's overallProgress());
+  // `phase` carries the kid from the climb itself into the summit's orbiting celebration and then the
+  // helicopter swoop back to Base Camp.
+  private climb: { u: number; targetU: number; phase: "climbing" | "summit" | "flyDown"; timer: number; guide: ChibiRig | null } | null = null;
+  private climbSnow: THREE.Points | null = null;
   // ── Frostpeak's penguin slides: the kid tobogganing down a chute (null = not), the chute whose start
   // the kid is standing at (-1), how far the lying kid's belly sits below its middle, the flop (0..1) ──
   private slide: KidSlide | null = null;
@@ -360,6 +384,7 @@ export class ParkWorld {
   private metDino = false;
   private metVillage = false;
   private metSettlements = new Set<string>();
+  private metWonders = new Set<string>();
   /** flung by a sky cannon towards another island: from -> to over `dur` seconds */
   private launch: { fx: number; fy: number; fz: number; tx: number; tz: number; to: string; t: number; dur: number } | null = null;
   /** a telescope's peek at another island (the camera looks there for a moment) */
@@ -409,6 +434,10 @@ export class ParkWorld {
   private qualityStep = 0;
   /** the diorama look draws the scene here first (HDR colour + its own depth) so outlines can read depth */
   private sceneRT: THREE.WebGLRenderTarget | null = null;
+  /** a second, tiny render of just the FX_NO_OUTLINE_LAYER objects alone, so the outline pass knows
+   *  where to skip them (see FX_NO_OUTLINE_LAYER, renderFxMask) */
+  private fxMaskRT: THREE.WebGLRenderTarget | null = null;
+  private fxMaskClear = new THREE.Color();
   /** "diorama": ink outlines, stepped colour and chunky pixels; "smooth": the plain filmic render */
   private look: "diorama" | "smooth";
 
@@ -438,15 +467,21 @@ export class ParkWorld {
         depth.type = THREE.UnsignedIntType;
         this.sceneRT = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthTexture: depth });
         this.composer.addPass(new TexturePass(this.sceneRT.texture));
+        // soft, alpha-blended fx (mist, spray plumes, a rainbow — FX_NO_OUTLINE_LAYER) render into
+        // the main pass as normal (so they're still depth-tested and composited correctly), but are
+        // ALSO captured alone here so the outline pass can skip drawing a line round their fading
+        // edges, which it would otherwise read as a colour jump
+        this.fxMaskRT = new THREE.WebGLRenderTarget(1, 1);
       } else this.composer.addPass(new RenderPass(this.scene, this.camera));
       this.bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.55, 0.6, 1.02); // only HDR magic (>1) blooms, not white signs
       this.composer.addPass(this.bloom);
       this.composer.addPass(new OutputPass());
-      if (dio && this.sceneRT) {
-        this.diorama = makeDioramaPass(this.sceneRT.depthTexture!, this.camera);
+      if (dio && this.sceneRT && this.fxMaskRT) {
+        this.diorama = makeDioramaPass(this.sceneRT.depthTexture!, this.camera, this.fxMaskRT.texture);
         this.composer.addPass(this.diorama);
       }
     }
+    this.camera.layers.enable(FX_NO_OUTLINE_LAYER);
     container.appendChild(this.renderer.domElement);
     this.renderer.domElement.style.touchAction = "none";
     Object.assign(this.renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%", display: "block", imageRendering: dio ? "pixelated" : "auto" });
@@ -1076,6 +1111,7 @@ export class ParkWorld {
     if (this.diorama) {
       const pr = this.renderer.getPixelRatio();
       this.sceneRT?.setSize(Math.round(w * pr), Math.round(h * pr));
+      this.fxMaskRT?.setSize(Math.max(1, Math.round((w * pr) / 2)), Math.max(1, Math.round((h * pr) / 2)));
       (this.diorama.uniforms.uRes.value as THREE.Vector2).set(Math.round(w * pr), Math.round(h * pr));
     }
   }
@@ -1197,7 +1233,7 @@ export class ParkWorld {
       vz = 0;
     }
     const moving = Math.hypot(vx, vz) > 0.01;
-    const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && !this.slide && !this.skiLock && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
+    const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && !this.climb && !this.slide && !this.skiLock && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
     const craft = this.mount && isCraft(this.mount.kind) ? this.mount.kind : null;
     if (craft) {
       // boats and subs have momentum: they take a moment to get going, coast when you let go,
@@ -1382,7 +1418,7 @@ export class ParkWorld {
     }
     // the rainforest's undergrowth is too thick to push through (and nobody climbs the falls' cliffs):
     // slide along its edge
-    if (!aloft && !this.onSky && !this.gliding && !this.launch && !this.sky) pushOutOfThicket(pos, this.mount ? 0.9 : 0.55);
+    if (!aloft && !this.onSky && !this.gliding && !this.launch && !this.sky && !this.climb) pushOutOfThicket(pos, this.mount ? 0.9 : 0.55);
     for (const p of aloft || this.gliding ? [] : this.onSky ? this.park.places.filter((q) => q.sky === this.onSky) : this.allPlaces().filter((q) => !q.sky)) {
       if (p.radius <= 0) continue;
       const dx = pos.x - p.x;
@@ -1408,7 +1444,7 @@ export class ParkWorld {
         this.walkTarget = null;
         this.walkQueue = [];
       }
-      const y = settlementDeckY(pos.x, pos.z);
+      const y = settlementDeckY(pos.x, pos.z) ?? wildBridgeDeckY(pos.x, pos.z);
       dp.on = y !== null && y > groundY(pos.x, pos.z) + 0.8;
       dp.x = pos.x;
       dp.z = pos.z;
@@ -1588,6 +1624,7 @@ export class ParkWorld {
     }
 
     if (this.sky) this.tickSky(dt, kid);
+    if (this.climb) this.tickClimb(dt, kid);
     // waiting on a platform: aboard as soon as the train stands there; walk off and it's off
     if (this.trainWait) {
       const st = this.trainWait;
@@ -1630,7 +1667,7 @@ export class ParkWorld {
       }
       const diving = !this.mount && this.wasInSea && this.swimDepth > 1;
       this.park.rides.update(dt, this.time, { kid: pos, under: this.camUnder, atSea, glow: this.park.atmosphere.glow, driven, diving, camera: this.camera });
-      const canHop = !this.mount && !this.sky && !this.launch && !this.gliding && !this.slide && !this.skiLock;
+      const canHop = !this.mount && !this.sky && !this.climb && !this.launch && !this.gliding && !this.slide && !this.skiLock;
       // (measured to the ride's side: a whale or a pirate ship is as easy to reach as a bike; a
       // dragon: the one the kid faces / walks toward)
       const n = canHop ? this.park.rides.nearest(pos, undefined, this.headFacing) : null;
@@ -1665,7 +1702,7 @@ export class ParkWorld {
         // the kid said hi to ride it: friends now, so climb on and off we go
         const b = this.bondRide?.id === bondId ? this.rideStill(this.bondRide, 8) : null;
         this.bondRide = null;
-        if (b && !this.mount && !this.sky && !this.ride) {
+        if (b && !this.mount && !this.sky && !this.climb && !this.ride) {
           this.hopNear = b;
           this.opts.onRideHint?.(`\u{1F496} ${nm} is your friend now! Up we go: hold \u25B2 to fly higher, \u25BC to swoop down`);
           this.hopOn(this.hopStyle.accent, this.hopStyle.skin);
@@ -1705,6 +1742,12 @@ export class ParkWorld {
     if (settlementHere && !this.metSettlements.has(settlementHere.id)) {
       this.metSettlements.add(settlementHere.id);
       this.opts.onVillage?.(settlementHere.name, settlementHere.clan);
+    }
+    // a Natural Wonder of the World: a big "you found it!" the first time the kid walks close
+    const wonderHere = wonderAt(pos.x, pos.z);
+    if (wonderHere && !this.metWonders.has(wonderHere.id)) {
+      this.metWonders.add(wonderHere.id);
+      this.opts.onWonder?.(wonderHere);
     }
 
     // discoveries on the floating mountains
@@ -1886,6 +1929,15 @@ export class ParkWorld {
       this.pet.root.position.set(pp.x, pp.y + 0.75, pp.z);
       this.pet.facing = kid.facing;
       this.pet.root.rotation.y = kid.facing;
+    } else if (this.climb && this.pet) {
+      // snapped right beside the kid every frame (never the normal follow-path logic, which reads
+      // badly against the climb's own eased-but-still-large position steps)
+      const side = kid.facing + Math.PI / 2;
+      const px = kid.root.position.x + Math.sin(side) * 1.4;
+      const pz = kid.root.position.z + Math.cos(side) * 1.4;
+      this.pet.root.position.set(px, groundY(px, pz), pz);
+      this.pet.facing = kid.facing;
+      this.pet.root.rotation.y = kid.facing;
     }
 
     // wandering visitors stroll between path points
@@ -1915,7 +1967,7 @@ export class ParkWorld {
     }
 
     // doors
-    if (this.inputOn && !aloft && !this.sky && !this.gliding && !this.launch && !this.slide && !this.skiLock) {
+    if (this.inputOn && !aloft && !this.sky && !this.climb && !this.gliding && !this.launch && !this.slide && !this.skiLock) {
       let found: PlaceDef | null = null;
       const here = this.onSky
         ? [...this.park.places.filter((p) => p.sky === this.onSky), ...this.wizards.filter((w) => w.island === this.onSky).map((w) => w.place)]
@@ -2061,7 +2113,7 @@ export class ParkWorld {
 
     // the camera drifts round behind the kid as they move, so "forward" is ahead — unless a finger
     // turned the view a moment ago, or they're heading back towards the camera (no sudden spins)
-    if (moving && !this.building && !this.sky && !this.slide && !this.skiLock && !this.ride && this.time - this.userTurnAt > 2.2) {
+    if (moving && !this.building && !this.sky && !this.climb && !this.slide && !this.skiLock && !this.ride && this.time - this.userTurnAt > 2.2) {
       let d = kid.facing + Math.PI - this.camYaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       // strong when heading away from the camera, only a gentle drift when walking sideways
@@ -2115,6 +2167,32 @@ export class ParkWorld {
       const want = new THREE.Vector3(pos.x - tan.x * 10 + sideX * 3.5, pos.y - tan.y * 10 + 6.5, pos.z - tan.z * 10 + sideZ * 3.5);
       this.camera.position.lerp(want, Math.min(1, dt * 5));
       this.camera.lookAt(pos.x + tan.x * 12, pos.y + tan.y * 12 + 0.6, pos.z + tan.z * 12);
+      this.camBase.copy(this.camera.position);
+      this.lookAtPt.copy(pos);
+    } else if (this.climb) {
+      if (this.climb.phase === "summit") {
+        // a slow orbit round the true summit — the island falls away on every side as it circles
+        const ang = this.time * 0.22;
+        const R = 22;
+        const want = new THREE.Vector3(EVEREST_SUMMIT.x + Math.sin(ang) * R, pos.y + 13, EVEREST_SUMMIT.z + Math.cos(ang) * R);
+        this.camera.position.lerp(want, Math.min(1, dt * 1.6));
+        this.camera.lookAt(EVEREST_SUMMIT.x, pos.y - 3, EVEREST_SUMMIT.z);
+      } else if (this.climb.phase === "flyDown") {
+        // the helicopter swoop: high and a little behind, following the kid all the way down
+        const want = new THREE.Vector3(pos.x, pos.y + 17, pos.z + 13);
+        this.camera.position.lerp(want, Math.min(1, dt * 3));
+        this.camera.lookAt(pos.x, pos.y, pos.z);
+      } else {
+        // climbing: chase cam behind and above, same shape as the train/coaster's own
+        const heading = this.kid?.facing ?? 0;
+        const tanX = Math.sin(heading);
+        const tanZ = Math.cos(heading);
+        const sideX = tanZ;
+        const sideZ = -tanX;
+        const want = new THREE.Vector3(pos.x - tanX * 9 + sideX * 3, pos.y + 6, pos.z - tanZ * 9 + sideZ * 3);
+        this.camera.position.lerp(want, Math.min(1, dt * 3.5));
+        this.camera.lookAt(pos.x + tanX * 8, pos.y + 1.2, pos.z + tanZ * 8);
+      }
       this.camBase.copy(this.camera.position);
       this.lookAtPt.copy(pos);
     } else if (this.building) {
@@ -2307,6 +2385,7 @@ export class ParkWorld {
       this.renderer.render(this.scene, this.camera);
       this.renderer.setRenderTarget(null);
     }
+    this.renderFxMask();
     if (this.composer) this.composer.render();
     else this.renderer.render(this.scene, this.camera);
     if (framed) {
@@ -2315,6 +2394,25 @@ export class ParkWorld {
     }
     this.frame = requestAnimationFrame(this.tick);
   };
+
+  /** renders just FX_NO_OUTLINE_LAYER (mist, spray plumes, a rainbow) alone into fxMaskRT, so the
+   *  diorama pass can tell where they are and skip drawing an outline there — the objects themselves
+   *  still render normally in the main pass (both layers), properly depth-tested and composited;
+   *  this is only a mask, so it's fine that it isn't. No-op without a mask target to fill. */
+  private renderFxMask() {
+    if (!this.fxMaskRT) return;
+    this.camera.layers.set(FX_NO_OUTLINE_LAYER);
+    this.renderer.setRenderTarget(this.fxMaskRT);
+    const prevColor = this.fxMaskClear.copy(this.renderer.getClearColor(this.fxMaskClear));
+    const prevAlpha = this.renderer.getClearAlpha();
+    this.renderer.setClearColor(0, 0);
+    this.renderer.clear(true, true, false);
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setClearColor(prevColor, prevAlpha);
+    this.renderer.setRenderTarget(null);
+    this.camera.layers.set(0);
+    this.camera.layers.enable(FX_NO_OUTLINE_LAYER);
+  }
 
   /** at the lodge's viewpoint: swing the camera round behind the kid to frame the whole ski run */
   private frameSkiView(): boolean {
@@ -2915,6 +3013,13 @@ export class ParkWorld {
     if (!this.park || !this.kid || this.sky || this.mount || this.ride || this.building) return null;
     return this.park.activityOffer;
   }
+  /** Standing by a Natural Wonder's wooden info sign, on foot (the HUD offers "📖 Read the sign") */
+  get signOffer(): { wonder: string; realPlace: string; emoji: string; fact: string } | null {
+    if (!this.kid || this.sky || this.mount || this.ride || this.building) return null;
+    const p = this.kid.root.position;
+    const s = wonderSignAt(p.x, p.z, 6);
+    return s ? { wonder: s.wonder.name, realPlace: s.wonder.realPlace, emoji: s.wonder.emoji, fact: s.fact } : null;
+  }
   /** Is it night in the park right now (the twilight glow is up)? For 2D overlays that draw the
    *  same time of day as the 3D world (e.g. the fishing pier at night). */
   get isNight(): boolean {
@@ -2953,6 +3058,146 @@ export class ParkWorld {
     if (this.pet) this.pet.root.position.set(kp.x + 1.2, groundY(kp.x + 1.2, kp.z + 1), kp.z + 1);
     this.burst(kp.clone().setY(kp.y + 1.2), 30);
     return true;
+  }
+
+  // ── Climb Everest!: on the real mountain (registry/everestRoute.ts), the same way the train
+  // walks the real rails — no separate scene. The HUD offers it via the existing settlement
+  // activityOffer (registry/everestBaseCamp.ts's own "climb-everest" activity spot at the
+  // trailhead); boarding/leaving/progress are these few calls. ──
+  /** Climbing right now (any phase) — the HUD hides the joystick, same as onTrain. */
+  get onClimb(): boolean {
+    return !!this.climb;
+  }
+  /** "climbing" under way, "summit" during the celebration (the HUD offers "Fly back down"),
+   *  "flyDown" during the helicopter swoop back to Base Camp; null the rest of the time. */
+  get climbPhase(): "climbing" | "summit" | "flyDown" | null {
+    return this.climb?.phase ?? null;
+  }
+  /** Set off up the mountain from Base Camp's own trailhead. */
+  boardClimb(): boolean {
+    if (!this.kid || this.sky || this.mount || this.ride || this.building || this.climb) return false;
+    this.dismount(true);
+    const start = climbPointAtU(0);
+    const kp = this.kid.root.position;
+    kp.set(start.x, groundY(start.x, start.z), start.z);
+    this.kid.facing = climbHeadingAtU(0);
+    this.kid.root.rotation.y = this.kid.facing;
+    const guide = buildChibi("animal-dog" as AnimalId, { height: 2.0, role: "kid", accent: "#c0392b" });
+    this.scene.add(guide.root);
+    this.climb = { u: 0, targetU: 0, phase: "climbing", timer: 0, guide };
+    this.climbSnow = this.buildClimbSnow();
+    return true;
+  }
+  /** Leave the climb early (the kid tapped the exit before the summit) — a safe, immediate return
+   *  to Base Camp's own trailhead. */
+  leaveClimb(): boolean {
+    if (!this.climb) return false;
+    this.endClimb(true);
+    return true;
+  }
+  /** The HUD calls this after every Climb!/Breathe tap with lib/park/climbing/logic.ts's own
+   *  overallProgress(state) — the route eases towards it rather than jumping, so one tap reads as a
+   *  few roped steps up the mountain. */
+  setClimbProgress(u: number) {
+    if (this.climb) this.climb.targetU = Math.max(0, Math.min(1, u));
+  }
+  /** The HUD's "Fly back down" tap (once the summit celebration has run) — starts the helicopter
+   *  swoop back to Base Camp; the climb ends itself (onClimb -> false) the moment it lands. */
+  startClimbFlyDown(): boolean {
+    if (!this.climb || this.climb.phase === "flyDown") return false;
+    this.climb.phase = "flyDown";
+    this.climb.timer = 0;
+    return true;
+  }
+  private buildClimbSnow(): THREE.Points {
+    const N = 90;
+    const pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) pos.set([(Math.random() - 0.5) * 22, Math.random() * 12, (Math.random() - 0.5) * 22], i * 3);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const mat = new THREE.PointsMaterial({ color: "#ffffff", size: 0.3, transparent: true, opacity: 0.85, depthWrite: false, fog: false });
+    const pts = new THREE.Points(geo, mat);
+    pts.visible = false;
+    this.scene.add(pts);
+    return pts;
+  }
+  private disposeClimbSnow() {
+    if (!this.climbSnow) return;
+    this.scene.remove(this.climbSnow);
+    this.climbSnow.geometry.dispose();
+    (this.climbSnow.material as THREE.Material).dispose();
+    this.climbSnow = null;
+  }
+  private endClimb(returnToBaseCamp: boolean) {
+    if (!this.climb) return;
+    this.climb.guide?.dispose();
+    this.disposeClimbSnow();
+    this.climb = null;
+    if (returnToBaseCamp && this.kid) {
+      const kp = this.kid.root.position;
+      kp.set(BASE_CAMP_SITE.x, groundY(BASE_CAMP_SITE.x, BASE_CAMP_SITE.z), BASE_CAMP_SITE.z);
+      this.kid.root.rotation.y = this.kid.facing;
+    }
+  }
+  private tickClimb(dt: number, kid: Actor) {
+    const c = this.climb;
+    if (!c) return;
+    c.timer += dt;
+    if (c.phase === "climbing") {
+      c.u += (c.targetU - c.u) * Math.min(1, dt * 2.2);
+      const p = climbPointAtU(c.u);
+      const y = groundY(p.x, p.z);
+      kid.root.position.set(p.x, y, p.z);
+      kid.facing = climbHeadingAtU(c.u);
+      kid.root.rotation.y = kid.facing;
+      if (c.guide) {
+        const gu = Math.min(1, c.u + 0.02);
+        const gp = climbPointAtU(gu);
+        c.guide.root.position.set(gp.x, groundY(gp.x, gp.z), gp.z);
+        c.guide.root.rotation.y = climbHeadingAtU(gu);
+        c.guide.update(dt, 2.2);
+      }
+      if (this.climbSnow) {
+        const aboveSnowLine = y > 90;
+        this.climbSnow.visible = aboveSnowLine;
+        if (aboveSnowLine) {
+          this.climbSnow.position.set(p.x, y, p.z);
+          const attr = this.climbSnow.geometry.getAttribute("position") as THREE.BufferAttribute;
+          const arr = attr.array as Float32Array;
+          for (let i = 0; i < arr.length; i += 3) {
+            arr[i + 1] -= dt * 2.2;
+            arr[i] += Math.sin(this.time * 2 + i) * dt * 0.6;
+            if (arr[i + 1] < -2) arr[i + 1] = 10 + Math.random() * 4;
+          }
+          attr.needsUpdate = true;
+        }
+      }
+      if (c.u >= 0.999 && c.targetU >= 0.999) {
+        c.phase = "summit";
+        c.timer = 0;
+        this.burst(kid.root.position.clone().setY(kid.root.position.y + 1.6), 50);
+        this.play(kid, "cheer", true);
+      }
+    } else if (c.phase === "summit") {
+      const y = groundY(EVEREST_SUMMIT.x, EVEREST_SUMMIT.z);
+      kid.root.position.set(EVEREST_SUMMIT.x, y, EVEREST_SUMMIT.z);
+      if (this.climbSnow) {
+        this.climbSnow.visible = true;
+        this.climbSnow.position.set(EVEREST_SUMMIT.x, y, EVEREST_SUMMIT.z);
+      }
+    } else {
+      // flyDown: a quick helicopter swoop straight back to Base Camp's own trailhead
+      const t = Math.min(1, c.timer / 2.2);
+      const from = climbPointAtU(1);
+      const to = climbPointAtU(0);
+      const x = from.x + (to.x - from.x) * t;
+      const z = from.z + (to.z - from.z) * t;
+      const y = groundY(x, z) + Math.sin(t * Math.PI) * 14;
+      kid.root.position.set(x, y, z);
+      if (c.guide) c.guide.root.position.set(x + 2, groundY(x + 2, z + 1), z + 1);
+      if (this.climbSnow) this.climbSnow.visible = false;
+      if (t >= 1) this.endClimb(false); // the lerp already lands exactly at Base Camp
+    }
   }
 
   /** Riding the coaster right now? (the HUD hides the joystick) */

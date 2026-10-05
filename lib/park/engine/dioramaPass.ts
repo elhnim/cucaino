@@ -9,11 +9,12 @@
 import * as THREE from "three";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
-export function makeDioramaPass(depth: THREE.DepthTexture, camera: THREE.PerspectiveCamera): ShaderPass {
+export function makeDioramaPass(depth: THREE.DepthTexture, camera: THREE.PerspectiveCamera, fxMask: THREE.Texture): ShaderPass {
   const pass = new ShaderPass({
     uniforms: {
       tDiffuse: { value: null },
       tDepth: { value: depth },
+      tFxMask: { value: fxMask },
       uRes: { value: new THREE.Vector2(1, 1) },
       uNear: { value: camera.near },
       uFar: { value: camera.far },
@@ -25,7 +26,7 @@ export function makeDioramaPass(depth: THREE.DepthTexture, camera: THREE.Perspec
       varying vec2 vUv;
       void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: /* glsl */ `
-      uniform sampler2D tDiffuse; uniform sampler2D tDepth; uniform vec2 uRes;
+      uniform sampler2D tDiffuse; uniform sampler2D tDepth; uniform sampler2D tFxMask; uniform vec2 uRes;
       uniform float uNear; uniform float uFar; uniform float uLevels; uniform float uInk; uniform float uOn;
       varying vec2 vUv;
       float viewZ(vec2 uv) {
@@ -65,7 +66,12 @@ export function makeDioramaPass(depth: THREE.DepthTexture, camera: THREE.Perspec
         float edgeC = smoothstep(0.12, 0.26, max(abs(luma(c) - luma(cl)), abs(luma(c) - luma(cu))));
         // outlines fade out into the distance and the haze
         float near = 1.0 - smoothstep(150.0, 420.0, d0);
-        float edge = max(edgeD, edgeC * 0.6) * near;
+        // soft, alpha-blended fx (mist, spray plumes, a rainbow — FX_NO_OUTLINE_LAYER) fade against
+        // their background on purpose; without this they'd read as a colour jump and get an ink
+        // line drawn round their edge, so no outline wherever that layer's own mask has coverage
+        // (sampled at the same neighbours as the colour-edge test, so its boundary is covered too)
+        float fx = max(max(texture2D(tFxMask, vUv).a, texture2D(tFxMask, vUv - vec2(px.x, 0.0)).a), max(texture2D(tFxMask, vUv + vec2(0.0, px.y)).a, texture2D(tFxMask, vUv + vec2(px.x, 0.0)).a));
+        float edge = max(edgeD, edgeC * 0.6) * near * (1.0 - fx);
         // stepped colour with a little ordered dither
         float b = bayer4(gl_FragCoord.xy) - 0.5;
         vec3 q = floor(c * uLevels + 0.5 + b * 0.35) / uLevels;
