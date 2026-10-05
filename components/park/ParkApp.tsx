@@ -45,7 +45,8 @@ import { IconChip } from "./ui/IconChip";
 import { PlayerBadge, WalletBar, QuestBanner, RoundButton, Toast, PromptCard, FactCard } from "./ui/Hud";
 import { MoodCheck } from "./MoodCheck";
 import { WelcomeTour } from "./WelcomeTour";
-import { MiniMap, routeToSpot, type MapPin } from "./MiniMap";
+import { MiniMap, routeToSpot, type MapPin } from "./map";
+import { markFound } from "@/lib/park/map/foundSet";
 import { Ambience } from "@/lib/park/audio/ambience";
 import { MOUNTS, MOUNT_CAPS, MOUNT_SKINS, type MountKind, type MountSkin } from "@/lib/park/characters/mounts";
 import { SHARD_COUNT, RING_COUNT } from "@/lib/park/world/quests3d";
@@ -630,14 +631,16 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           },
           onWrap: () => toast("🌍 All the way round the world — and back to Cucaino Island!"),
           onVillageTalk: (t) => setVillageTalk(t ? { name: t.name, line: t.line, emoji: t.emoji } : null),
-          onVillage: (name, clan) => {
+          onVillage: (name, clan, id) => {
             playSfx("win");
             toast(`🏝️ You found ${name}, home of ${clan}! Say hello to the villagers`);
+            if (id) markFound(kidId, id);
           },
           onWonder: (def) => {
             playSfx("win");
             toast(`🌍 You found a Natural Wonder of the World: ${def.name}!`);
             window.setTimeout(() => setWonderFact({ icon: def.emoji, title: def.name, subtitle: def.realPlace, fact: def.facts[0] }), 1700);
+            markFound(kidId, def.id);
           },
           onSkyIsland: (id, what) => {
             if (what === "glide") toast("🍃 Wheee — floating gently down!");
@@ -1350,6 +1353,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           world={worldRef}
           hidden={busy || building}
           pins={mapPins}
+          kidId={kidId}
           onSkyPin={(p) =>
             toast(p.how ? `${p.emoji} ${p.how}` : `🧙 ${p.label} is up on a floating mountain! Hop on the dragon or manta and fly there — then tap "Land"`)
           }

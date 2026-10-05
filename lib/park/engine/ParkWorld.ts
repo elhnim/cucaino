@@ -114,7 +114,7 @@ export interface ParkWorldOptions {
   /** a Coralcove villager says something to the kid (null = nobody talking now) */
   onVillageTalk?: (talk: { id: string; name: string; line: string; emoji?: string } | null) => void;
   /** arrived at Coralcove Isle for the first time this visit */
-  onVillage?: (name: string, clan: string) => void;
+  onVillage?: (name: string, clan: string, id?: string) => void;
   /** walked within discovery range of a Natural Wonder of the World (./registry/wonders.ts) for the
    *  first time: a big "you found it!" toast, then its first fact */
   onWonder?: (def: WonderDef) => void;
@@ -1735,13 +1735,13 @@ export class ParkWorld {
     }
     if (!this.metVillage && Math.hypot(pos.x - VILLAGE_ISLAND.x, pos.z - VILLAGE_ISLAND.z) < VILLAGE_ISLAND.r + 12) {
       this.metVillage = true;
-      this.opts.onVillage?.(VILLAGE_ISLAND.name, VILLAGE_ISLAND.clan);
+      this.opts.onVillage?.(VILLAGE_ISLAND.name, VILLAGE_ISLAND.clan, VILLAGE_ISLAND.id);
     }
     // a Wildlands settlement: say hello the first time the kid walks into it
     const settlementHere = settlementAt(pos.x, pos.z, 12);
     if (settlementHere && !this.metSettlements.has(settlementHere.id)) {
       this.metSettlements.add(settlementHere.id);
-      this.opts.onVillage?.(settlementHere.name, settlementHere.clan);
+      this.opts.onVillage?.(settlementHere.name, settlementHere.clan, settlementHere.id);
     }
     // a Natural Wonder of the World: a big "you found it!" the first time the kid walks close
     const wonderHere = wonderAt(pos.x, pos.z);
@@ -2037,11 +2037,11 @@ export class ParkWorld {
     this.dinoSpot = dn.spot?.id ?? null;
     if (!this.metDino && dinoShoreDist(pos.x, pos.z) < 10) {
       this.metDino = true;
-      this.opts.onVillage?.(DINO_ISLAND.name, "the dinosaurs");
+      this.opts.onVillage?.(DINO_ISLAND.name, "the dinosaurs", DINO_ISLAND.id);
     }
     if (!this.metFrost && Math.hypot(pos.x - FROST_ISLAND.x, pos.z - FROST_ISLAND.z) < FROST_ISLAND.r + 10) {
       this.metFrost = true;
-      this.opts.onVillage?.(FROST_ISLAND.name, "the penguins");
+      this.opts.onVillage?.(FROST_ISLAND.name, "the penguins", FROST_ISLAND.id);
     }
     if (uwr.pearl !== null) {
       this.burst(pos.clone().setY(pos.y + 1.2), 50);
