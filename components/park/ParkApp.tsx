@@ -10,7 +10,7 @@ import { loadPark, prefetchPark } from "@/lib/park/loadPark";
 import { loadParkAnimalChoice, saveParkAnimalChoice, parkAnimalForPet, type ParkAnimal } from "@/lib/park/registry/animals";
 import { isDailyGiftReady, claimDailyGift, DAILY_GIFTS, recordVisit } from "@/lib/game3d/registry/hooks";
 import { isEmbedded, closeWorldWindow } from "@/lib/embed";
-import { playSfx } from "@/lib/audio/sound-manager";
+import { getMuted, playSfx, setMuted } from "@/lib/audio/sound-manager";
 import { startCarouselMusic } from "@/lib/park/world/carouselMusic";
 import { getTheme } from "@/lib/themes/presets";
 import { moodFor, type Pet } from "@/lib/pet/logic";
@@ -271,6 +271,9 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const [swim, setSwim] = useState<{ under: boolean } | null>(null);
   const [onCoaster, setOnCoaster] = useState(false);
   const [onCarousel, setOnCarousel] = useState(false);
+  // the app-wide sound switch (lib/audio/sound-manager; read after mount, it lives in localStorage)
+  const [soundOff, setSoundOff] = useState(false);
+  useEffect(() => setSoundOff(getMuted()), []);
   const carouselMusic = useRef<{ stop(): void } | null>(null);
   // a Coralcove villager talking to the kid
   const [villageTalk, setVillageTalk] = useState<{ name: string; line: string; emoji?: string } | null>(null);
@@ -1340,6 +1343,20 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               { e: "🏝️", t: `Sky treasures · ${skyFound.length}/${SKY_ISLANDS.length}`, on: () => toast(skyFound.length >= SKY_ISLANDS.length ? "🏆 You've opened every sky treasure!" : "🏝️ Each floating mountain hides a treasure chest. Fly up on the dragon or manta, land on top and explore!") },
               { e: "🫧", t: `Sea Pearls · ${pearls.length}/${PEARL_COUNT}`, on: () => toast(pearls.length >= PEARL_COUNT ? "🫧 You found every Sea Pearl!" : "🫧 Sea Pearls glow inside giant clams on the reef, by the shipwreck and the sunken ruins. Swim out past the beach and dive!") },
               { e: "✦", t: `Star Shards · ${shards.length}/${SHARD_COUNT}`, on: () => toast(shards.length >= SHARD_COUNT ? "✦ You found every Star Shard — a true explorer!" : "✦ Star Shards hide on peaks, sky islands, ruins, ancient trees, crystals and coves. Fly to reach the high ones!") },
+              {
+                e: soundOff ? "🔇" : "🔊",
+                t: soundOff ? "Sound: off (tap to turn on)" : "Sound: on (tap to turn off)",
+                on: () => {
+                  const next = !soundOff;
+                  setMuted(next);
+                  setSoundOff(next);
+                  if (next) {
+                    carouselMusic.current?.stop();
+                    carouselMusic.current = null;
+                  }
+                  toast(next ? "🔇 Sound off" : "🔊 Sound on");
+                },
+              },
               { e: "🔄", t: "Switch player", on: () => router.push("/select-kid") },
             ].map((it) => (
               <button

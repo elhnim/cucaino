@@ -192,6 +192,12 @@ const PTS_SPUR_CANYON_B: [number, number, number][] = [[238.1,-586.5,43.68],[238
 /* prettier-ignore */
 const PTS_SPUR_KART: [number, number, number][] = [[150,-112,3.26],[153.5,-118.6,3.39],[158.4,-127.8,3.39],[163.2,-135.5,3.21],[168.6,-139.4,3.48],[170.4,-139.1,3.56]];
 
+// the way in from the park: a short road from Park Station's roundabout down the bank to the park's
+// own edge (inside the park a buggy roams free; from here on it is on the road network) — without
+// it a kid driving out of the park met the Wildlands' "roads only" rule with no road to be on
+/* prettier-ignore */
+const PTS_SPUR_PARK: [number, number, number][] = [[150,-112,3.26],[145.3,-109.5,3.2],[140.7,-107,2.9],[136,-104.5,2.35],[131.3,-102,1.75],[126.7,-99.5,1.15],[122,-97,0.6]];
+
 /** the 11 road "junction hubs" every spur and the ring itself meet at — also every road's own
  *  anchor height (matches the leg arrays' own first/last y exactly; frozen together so a drifted
  *  leg or a drifted junction can never silently disagree — roads.test.ts checks both). */
@@ -237,6 +243,7 @@ export const ROAD_SEGMENTS: RoadSeg[] = [
   { id: "spur-highstone-b", road: "spur-highstone", kind: "road", points: mk(PTS_SPUR_HIGHSTONE_B) },
   { id: "spur-basecamp", road: "spur-basecamp", kind: "road", points: mk(PTS_SPUR_BASECAMP) },
   { id: "spur-kart", road: "spur-kart", kind: "road", points: mk(PTS_SPUR_KART) },
+  { id: "spur-park", road: "spur-park", kind: "road", points: mk(PTS_SPUR_PARK) },
   { id: "spur-canyon-a", road: "spur-canyon", kind: "road", points: mk(PTS_SPUR_CANYON_A) },
   { id: "spur-canyon-b", road: "spur-canyon", kind: "road", points: mk(PTS_SPUR_CANYON_B) },
   { id: "spur-treetop", road: "spur-treetop", kind: "road", points: mk(PTS_SPUR_TREETOP) },
@@ -305,7 +312,7 @@ export const CAR_PARKS: CarPark[] = [
 ];
 
 export const ROAD_JUNCTIONS: RoadJunction[] = [
-  { id: "j-h0", x: H0.x, z: H0.z, y: H0.y, signs: [{ label: "Great Falls 💦", heading: 0.1 }, { label: "Sunny Plains 🌻", heading: 1.2 }, { label: "Cucaino Karts 🏎️", heading: 2.5 }, { label: "Grand Canyon 🏜️", heading: 3.0 }] },
+  { id: "j-h0", x: H0.x, z: H0.z, y: H0.y, signs: [{ label: "Great Falls 💦", heading: 0.1 }, { label: "Sunny Plains 🌻", heading: 1.2 }, { label: "Cucaino Karts 🏎️", heading: 2.5 }, { label: "Grand Canyon 🏜️", heading: 3.0 }, { label: "Cucaino Park 🎡", heading: -1.08 }] },
   { id: "j-east", x: HJ.x, z: HJ.z, y: HJ.y, signs: [{ label: "Park Station 🎡", heading: -1.27 }, { label: "Sunny Plains 🌻", heading: 0.45 }, { label: "Great Falls 💦", heading: -3.11 }] },
   { id: "j-h1", x: H1.x, z: H1.z, y: H1.y, signs: [{ label: "Park Station 🎡", heading: -0.45 }, { label: "Great Lake 🏖️", heading: 2 }, { label: "Treetop 🌳", heading: 3.1 }] },
   { id: "j-h2", x: H2.x, z: H2.z, y: H2.y, signs: [{ label: "Great Falls 💦", heading: -1.59 }, { label: "Lone Peak 🏔️", heading: 1.72 }, { label: "Everest Base Camp ⛰️", heading: 2.82 }] },

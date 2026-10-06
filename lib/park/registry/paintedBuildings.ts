@@ -28,6 +28,9 @@ export const PAINTED_BUILDINGS: PaintedBuilding[] = [
   { place: "prize-shop", art: "prize-shop", w: 6.6, h: 4.4, d: 4.4, roofRise: 1.7, front: "front-refined", trim: "#f6ead8" },
   { place: "bank", art: "bank", w: 5.4, h: 3.6, d: 3.6, roofRise: 1.2, trim: "#efe6d2" },
   { place: "pet-house", art: "pet-house", w: 5.7, h: 3.8, d: 3.8, roofRise: 1.7, trim: "#f4f1e6" },
+  // (a three-storey tower: its pictures are 2:3)
+  { place: "friends-tower", art: "friends-cafe", w: 4.2, h: 6.3, d: 4.2, roofRise: 1.5, trim: "#f6efd8" },
+  { place: "ride-station", art: "ride-station", w: 6.3, h: 4.2, d: 4.2, roofRise: 1.2, trim: "#f3e6cf" },
 ];
 
 export const paintedBuildingFor = (placeId: string): PaintedBuilding | undefined => PAINTED_BUILDINGS.find((b) => b.place === placeId);

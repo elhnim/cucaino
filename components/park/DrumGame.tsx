@@ -6,6 +6,7 @@
 // order (no time pressure at all). Patterns grow from 2 to ~8 hits across levels. Mistakes are
 // gentle — just a "listen again" and the same pattern replays. A free-play Jam mode is always one
 // tap away. All the drum sounds are synthesised live with the Web Audio API — no audio files.
+import { getMuted } from "@/lib/audio/sound-manager";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DRUM_FACTS } from "@/lib/park/registry/drumFacts";
 import {
@@ -290,7 +291,8 @@ const FLOWERS: { x: number; y: number; color: string }[] = [
 type WebAudioCtx = AudioContext;
 
 function getAudioCtx(ref: React.MutableRefObject<WebAudioCtx | null>): WebAudioCtx | null {
-  if (typeof window === "undefined") return null;
+  // (the app's sound switch silences the drums too)
+  if (typeof window === "undefined" || getMuted()) return null;
   try {
     if (!ref.current) {
       const Ctor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
