@@ -14,6 +14,8 @@ import { wildGorgeWallY, wildShelfY } from "./wildWater";
 import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
 import { SETTLEMENTS, settlePadHeight } from "./settlements";
+import { paricutinY } from "./paricutin";
+import { CANYON_FOOTPATH, grandCanyonGroundY, nearGrandCanyon } from "./grandCanyon";
 import { CART_ROAD } from "./cartRoad";
 import { FOOTPATHS } from "./footpaths";
 import { rawHeight, smooth, smoothedHeight } from "./landform";
@@ -205,6 +207,16 @@ function stamps(): Stamp[][] {
   // every other settlement's own footpath to its station (registry/footpaths.ts) — narrower than
   // the cart road (a kid's and a trader's own walk, not a cart's), same lazy local-smoothed levelling
   for (const fp of FOOTPATHS) for (const [x, z] of fp.points) stampLazy(x, z, 1.6, 8, () => Math.max(smoothedHeight(x, z), WATER_Y + 0.5));
+  // the Grand Canyon's own footpath in from Park Station (registry/grandCanyon.ts's
+  // CANYON_FOOTPATH — it has to go round the Great Ridge's own south-western tail, not through it,
+  // so it's authored separately from the settlements' short footpaths.ts walks). Stops short of the
+  // canyon's own footprint: the rim there is already gentle, carved ground (grandCanyonGroundY,
+  // above) — levelling it again with the natural, pre-carve smoothedHeight would dig a pit right at
+  // the trailhead.
+  for (const [x, z] of CANYON_FOOTPATH) {
+    if (nearGrandCanyon(x, z, 40)) continue;
+    stampLazy(x, z, 1.6, 8, () => Math.max(smoothedHeight(x, z), WATER_Y + 0.5));
+  }
   const dz = { cx: DREAM_ZONE.x0 + (DREAM_ZONE.cols * DREAM_ZONE.cell) / 2, cz: DREAM_ZONE.z0 + (DREAM_ZONE.rows * DREAM_ZONE.cell) / 2 };
   stamp(dz.cx, dz.cz, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75, DREAM_ZONE.cols * DREAM_ZONE.cell * 0.75 + 8, landH.dream ?? 0);
   // (each stamp goes in every tile whose padded patch it reaches, keeping the bake order)
@@ -310,6 +322,15 @@ function finish(x: number, z: number, h: number): number {
   // the Batoka Gorge's own tall rock walls, flanking the river's narrow first stretch (Agent V)
   const gw = wildGorgeWallY(x, z, h);
   if (gw !== null) h = Math.max(h, gw);
+  // Parícutin: the cinder cone + its lava field apron, raised the same way
+  const pv = paricutinY(x, z, h);
+  if (pv !== null) h = Math.max(h, pv);
+  // the Grand Canyon: its own plateau raise, carved down by the main gorge, its two side canyons
+  // and the buttes (Agent G) — a full replacement of the sample, not a min()/max(), since nothing
+  // else out in the high north-western uplands reaches this far (registry/grandCanyon.ts's
+  // findGrandCanyonSite keeps it clear of everything else with a wide margin)
+  const gc = grandCanyonGroundY(x, z, h);
+  if (gc !== null) h = gc;
   if (inland > 0) {
     const d = bed === null ? 9 : waterSdf(x, z);
     const floor = WATER_Y + 0.35 + 0.04 * Math.min(Math.max(d, 0), 6);

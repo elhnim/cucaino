@@ -5,9 +5,12 @@
 // wildWater.ts, none of which import terrain.ts, so it stays safely acyclic).
 //
 // Lakeside doesn't need one of these: its cart road (./cartRoad.ts) already runs a level crossing
-// right past Great Lake Station on its way in. Every OTHER settlement with a `stationId` gets a
-// plain village-edge -> station path here, walked by the kid and by the new train-riding traders
-// (world/trade/plan.ts).
+// right past Great Lake Station on its way in. Canyon Rim Outpost doesn't either: the Great Ridge
+// sits squarely between it and ANY station, so a straight village-edge -> station line here would
+// cut straight through the mountains — its own footpath (registry/grandCanyon.ts's
+// CANYON_FOOTPATH) goes round the ridge's own south-western tail instead, authored by hand. Every
+// OTHER settlement with a `stationId` gets a plain village-edge -> station path here, walked by the
+// kid and by the new train-riding traders (world/trade/plan.ts).
 //
 // Pure data + maths, deterministic, no three.js.
 import { nearestOnPolyline, smooth, type P2 } from "./geom2d";
@@ -39,7 +42,7 @@ export interface SettlementFootpath {
   points: P2[];
 }
 
-export const FOOTPATHS: SettlementFootpath[] = SETTLEMENTS.filter((s) => s.stationId && s.id !== "lakeside").map((s) => {
+export const FOOTPATHS: SettlementFootpath[] = SETTLEMENTS.filter((s) => s.stationId && s.id !== "lakeside" && s.id !== "canyon-outpost").map((s) => {
   const st = STATIONS.find((x) => x.id === s.stationId);
   if (!st) throw new Error(`footpaths: ${s.id} names a station that doesn't exist (${s.stationId})`);
   const dx = st.x - s.x;

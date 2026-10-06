@@ -47,6 +47,9 @@ import { buildSkyLife } from "./skyLife";
 import { buildKartTrack } from "./karts";
 import { buildEverestDecor } from "./everestDecor";
 import { buildEverestClimbDecor } from "./everestClimbDecor";
+import { buildParicutinDecor } from "./paricutinDecor";
+import { buildGrandCanyonDecor } from "./grandCanyonDecor";
+import { CANYON_OPEN } from "../registry/grandCanyon";
 
 export interface BuiltPark {
   /** meshes that can be tapped, tagged with userData.placeId */
@@ -653,6 +656,17 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // see everestClimbDecor.ts
   const everestClimbDecor = buildEverestClimbDecor(scene);
   disposables.push(everestClimbDecor);
+  // Parícutin's own small hand-built touches (the crater's glow, the ash plume, the half-buried
+  // church) — the cone's shape itself is the ordinary height-field terrain, see
+  // registry/paricutin.ts's paricutinY and terrainMesh.ts's Parícutin-local colour override
+  const paricutinDecor = buildParicutinDecor(scene);
+  disposables.push(paricutinDecor);
+  // the Grand Canyon's own small hand-built touches (the watchtower, the Skywalk, the rim lodge,
+  // the river, the desert scatter, the condors) — the canyon's shape itself is the ordinary
+  // height-field terrain, see registry/grandCanyon.ts's grandCanyonGroundY and terrainMesh.ts's
+  // Grand-Canyon-local colour override
+  const grandCanyonDecor = CANYON_OPEN ? buildGrandCanyonDecor(scene) : null;
+  if (grandCanyonDecor) disposables.push(grandCanyonDecor);
   // (streamed round the kid: only the chunks in view are built, the near ones finely)
   const ground = track(buildTerrainChunks({ lowQuality: opts.lowQuality, mask: fantasy.mask }));
   scene.add(ground.group);
@@ -816,6 +830,8 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       built.activityOffer = settleOut.activity;
       everest.update(t);
       everestClimbDecor.update(dt, t, { kid: focus ?? origin0 });
+      paricutinDecor.update(dt, t, atmosphere.glow, focus ?? origin0);
+      grandCanyonDecor?.update(dt, t);
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {
         const top = skyTopY(sp.x, sp.z, t);

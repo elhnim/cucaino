@@ -3,6 +3,8 @@
 // add a new one here and the discovery toast, fact signs and the Island map pin all just follow (see
 // `onWonder` in lib/park/engine/ParkWorld.ts, the toast + fact card in components/park/ParkApp.tsx,
 // and registry/worldMap.ts's ISLAND_DESTINATIONS). Pure data, no three.js.
+import { CANYON_OPEN, CANYON_TRAILHEAD, CANYON_VIEWPOINTS } from "./grandCanyon";
+
 export interface WonderDef {
   id: string;
   name: string;
@@ -21,7 +23,7 @@ export interface WonderDef {
   viewpoints?: { x: number; z: number }[];
 }
 
-export const WONDERS: WonderDef[] = [
+const ALL_WONDERS: WonderDef[] = [
   {
     id: "victoria-falls",
     name: "Victoria Falls",
@@ -75,7 +77,61 @@ export const WONDERS: WonderDef[] = [
       { x: 1512, z: -905 }, // the trail in from Great Lake Station, with the whole peak in view
     ],
   },
+  {
+    id: "grand-canyon",
+    name: "Grand Canyon",
+    emoji: "\u{1F3DC}\u{FE0F}",
+    realPlace: "Arizona, USA",
+    // the rim trailhead (registry/grandCanyon.ts's CANYON_TRAILHEAD), where the footpath from Park
+    // Station arrives and "Ride the Mule Trail" is offered — the canyon itself (CANYON_SITE) is
+    // 300+ units further on, far too big to use as a single discovery point
+    x: CANYON_TRAILHEAD.x,
+    z: CANYON_TRAILHEAD.z,
+    r: 140,
+    blurb: "An immense, mile-deep gorge carved by the Colorado River through millions of years of layered rock.",
+    facts: [
+      "The Grand Canyon is about 446 km long and up to 1.8 km deep.",
+      "The Colorado River carved it over millions of years — one tiny grain of sand at a time.",
+      "Its rock layers are like pages of a history book — the bottom ones are nearly 2 billion years old.",
+      "California condors, among the world's biggest flying birds, soar over the canyon on rising warm air.",
+      "It's in Arizona, USA, and became a national park in 1919.",
+      "Bighorn sheep live right on its steep cliffs, bounding from ledge to ledge.",
+      "A Skywalk with a see-through glass floor lets you look straight down into the gorge!",
+    ],
+    viewpoints: CANYON_VIEWPOINTS,
+  },
+  {
+    id: "paricutin",
+    name: "Parícutin",
+    emoji: "\u{1F30B}",
+    realPlace: "Michoacán, Mexico",
+    // Dionisio's farmstead (registry/paricutin.ts's PARICUTIN_FARM_SITE), at the volcano's own foot
+    // — kept as a plain number rather than an import, like Victoria Falls/Everest above: paricutin.ts
+    // sits in the same settlement-registry import cycle as registry/settlements.ts, so importing it
+    // here would risk the module-order trap settlements.ts's own comments warn about. "Climb to the
+    // crater!" at the trailhead is the guided walk up (lib/park/climbing/volcanoLogic.ts)
+    x: 1115.5,
+    z: 25.4,
+    r: 150,
+    blurb: "A volcano born in a farmer's cornfield in 1943 — scientists watched a mountain grow from nothing.",
+    facts: [
+      "Parícutin grew out of a cornfield in Mexico in 1943 — scientists watched a volcano being born!",
+      "In its first year it grew to about 336 m tall.",
+      "It erupted for nine years, until 1952, reaching about 424 m tall.",
+      "Lava buried two villages, but everyone had time to leave safely.",
+      "A church tower still pokes out of the hardened lava today.",
+      "It's a cinder cone: a hill built from bits of lava that cooled as they fell.",
+      "It sits in Michoacán, Mexico — part of a long chain of volcanoes across the country.",
+    ],
+    viewpoints: [
+      { x: 1093.57, z: 23.7 }, // the farm's own trailhead, the whole cone rising ahead
+      { x: 916.14, z: 9.97 }, // the crater rim, looking right down into the glowing bowl
+      { x: 846.81, z: 128.34 }, // out in the lava field, by the half-buried church towers
+    ],
+  },
 ];
+/** the wonders built into the world right now (the Grand Canyon waits behind CANYON_OPEN) */
+export const WONDERS: WonderDef[] = ALL_WONDERS.filter((w) => CANYON_OPEN || w.id !== "grand-canyon");
 
 /** find a wonder by id (undefined if none) */
 export function wonderById(id: string): WonderDef | undefined {

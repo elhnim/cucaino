@@ -162,6 +162,16 @@ export function makeCritters(def: SettlementDef): CritterState[] {
     // a camp dog patrolling the tents — real expedition base camps always have one; no chickens or
     // a sleeping cat this high up the mountain
     add(CRITTER_KIND.dog, def.x, def.z, DOG_COLORS, 1.05);
+  } else if (def.style === "farm") {
+    // Dionisio's farmyard: chickens scratching round the farmhouse and barn, a cat asleep on the
+    // farmhouse step, a farm dog patrolling — the classic farmyard trio
+    for (let i = 0; i < Math.min(4, def.huts.length * 2); i++) {
+      const h = def.huts[i % def.huts.length];
+      add(CRITTER_KIND.chicken, h.x + (rnd() - 0.5) * 3.4, h.z + (rnd() - 0.5) * 3.4, CHICKEN_COLORS, 0.85 + rnd() * 0.3);
+    }
+    const farmhouse = def.huts.find((h) => h.kind === "farmhouse") ?? def.huts[0];
+    if (farmhouse) add(CRITTER_KIND.cat, farmhouse.x + Math.sin(farmhouse.yaw) * (farmhouse.size * 1.3 + 0.4), farmhouse.z + Math.cos(farmhouse.yaw) * (farmhouse.size * 1.3 + 0.4), CAT_COLORS, 0.9);
+    add(CRITTER_KIND.dog, def.x, def.z, DOG_COLORS, 1);
   }
   return out;
 }

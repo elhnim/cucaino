@@ -25,6 +25,7 @@ import { DINO_DECKS, dinoGroundY } from "./dinoIsland";
 import { ABYSS } from "./abyss";
 import { STATIONS } from "./railway";
 import { WILD_LAKE, wildBridgeDeckY } from "./wildWater";
+import { grandCanyonDeckY } from "./grandCanyon";
 import { settlementDeckY } from "./settlements";
 import { boatClearance } from "../world/rideables/craft";
 
@@ -393,6 +394,9 @@ export function worldFloorY(x: number, z: number): number {
   // the Victoria Falls Bridge, high over the Batoka Gorge
   const vb = wildBridgeDeckY(x, z);
   if (vb !== null) return Math.max(vb, baseFloorY(x, z));
+  // the Grand Canyon's watchtower and Skywalk
+  const gc = grandCanyonDeckY(x, z);
+  if (gc !== null) return Math.max(gc, baseFloorY(x, z));
   return baseFloorY(x, z);
 }
 

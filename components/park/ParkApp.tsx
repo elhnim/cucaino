@@ -63,6 +63,8 @@ const DrumGame = dynamic(() => import("./DrumGame").then((m) => m.DrumGame), { s
 const WeaveGame = dynamic(() => import("./WeaveGame").then((m) => m.WeaveGame), { ssr: false });
 const MarketGame = dynamic(() => import("./MarketGame").then((m) => m.MarketGame), { ssr: false });
 const EverestClimb = dynamic(() => import("./EverestClimb").then((m) => m.EverestClimb), { ssr: false });
+const VolcanoClimb = dynamic(() => import("./VolcanoClimb").then((m) => m.VolcanoClimb), { ssr: false });
+const CanyonRide = dynamic(() => import("./CanyonRide").then((m) => m.CanyonRide), { ssr: false });
 const PetCareSheet = dynamic(() => import("./pet/PetCareSheet").then((m) => m.PetCareSheet), { ssr: false });
 const WizardSheet = dynamic(() => import("./wizards/WizardSheet").then((m) => m.WizardSheet), { ssr: false });
 const BookOfWisdom = dynamic(() => import("./wizards/BookOfWisdom").then((m) => m.BookOfWisdom), { ssr: false });
@@ -1434,7 +1436,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               active
               style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 96, borderRadius: 20 }}
               onClick={() => {
-                if (!["fishing", "drumming", "weaving", "market", "climb-everest"].includes(activityOffer.id)) return;
+                if (!["fishing", "drumming", "weaving", "market", "climb-everest", "climb-paricutin", "grand-canyon-ride"].includes(activityOffer.id)) return;
                 playSfx("tap");
                 worldRef.current?.setMove(0, 0);
                 worldRef.current?.setInputEnabled(false);
@@ -1849,6 +1851,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
             worldRef.current?.setInputEnabled(true);
           };
           if (fishing.id === "climb-everest") return <EverestClimb open world={worldRef.current} kidId={kidId} kidName={data.kid.name} animalId={animal?.id} onClose={close} />;
+          if (fishing.id === "climb-paricutin") return <VolcanoClimb open world={worldRef.current} kidId={kidId} kidName={data.kid.name} animalId={animal?.id} onClose={close} />;
+          if (fishing.id === "grand-canyon-ride") return <CanyonRide open world={worldRef.current} kidId={kidId} kidName={data.kid.name} animalId={animal?.id} onClose={close} />;
           const Game = fishing.id === "drumming" ? DrumGame : fishing.id === "weaving" ? WeaveGame : fishing.id === "market" ? MarketGame : FishingGame;
           return <Game open kidId={kidId} night={fishing.night} onClose={close} />;
         })()}

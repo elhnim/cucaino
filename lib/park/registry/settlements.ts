@@ -24,12 +24,21 @@ import { generateTown } from "./town";
 // Everest Base Camp (the "Climb Everest!" wonder) is likewise generated in its own file, same
 // discipline as town.ts — see lib/park/registry/everestBaseCamp.ts.
 import { generateBaseCamp } from "./everestBaseCamp";
+// Dionisio Pulido's farmstead, at the foot of Parícutin (the "Climb to the crater!" wonder) — same
+// discipline again, see lib/park/registry/paricutin.ts.
+import { generateFarm } from "./paricutin";
+// Canyon Rim Outpost (the "Ride the Mule Trail!" wonder-activity), at the Grand Canyon's own
+// trailhead — same discipline as everestBaseCamp.ts/paricutin.ts: a settlement (so the existing
+// activityOffer plumbing just works) generated in grandCanyon.ts's own file, which this file imports
+// (never the other way — grandCanyon.ts's own findGrandCanyonSite() deliberately avoids importing
+// SETTLEMENTS back, exactly like town.ts never imports it either, to keep this acyclic).
+import { CANYON_OPEN, generateCanyonOutpost } from "./grandCanyon";
 
 /** kept in step with terrain.ts WATER_Y (registry/settlements.ts must not import terrain.ts: that
  *  would be circular, since terrain.ts's stamps() reads SETTLEMENTS to level their ground) */
 export const SETTLE_WATER_Y = -0.25;
 
-export type SettlementStyle = "lakeside" | "treehouse" | "mountain" | "town" | "basecamp";
+export type SettlementStyle = "lakeside" | "treehouse" | "mountain" | "town" | "basecamp" | "farm";
 
 /** a seeded xorshift rng (0..1), the same little generator villageIsland.ts uses */
 function rngOf(seed: number): () => number {
@@ -1271,7 +1280,7 @@ function generateHighstone(): SettlementDef {
   };
 }
 
-export const SETTLEMENTS: SettlementDef[] = [generateLakeside(), generateTreetop(), generateHighstone(), generateTown([SITE, TREETOP_SITE, HIGHSTONE_SITE]), generateBaseCamp()];
+export const SETTLEMENTS: SettlementDef[] = [generateLakeside(), generateTreetop(), generateHighstone(), generateTown([SITE, TREETOP_SITE, HIGHSTONE_SITE]), generateBaseCamp(), generateFarm(), ...(CANYON_OPEN ? [generateCanyonOutpost()] : [])];
 
 // ── helpers shared by the terrain stamp, the engine's push-out collision, the renderer and tests ──
 

@@ -17,6 +17,8 @@ import { CART_ROAD } from "../../registry/cartRoad";
 import { FOOTPATHS } from "../../registry/footpaths";
 import { kartTrackWorld } from "../../registry/kartTrack";
 import { TRACK_WIDTH } from "../../karts/track";
+import { canyonDesertK, CANYON_FOOTPATH } from "../../registry/grandCanyon";
+import { paricutinFootprintWeight } from "../../registry/paricutin";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
  *  any i, j (the mask reaches over the whole island, tile by tile). Its resolution `n` is the
@@ -40,6 +42,8 @@ export function terrainGrassFactor(x: number, z: number, h: number, slope: numbe
   let v = smoothstep(-2.5, -8, seaDist(x, z)); // sand at the shore
   v *= 1 - smoothstep(0.34, 0.56, slope); // rock shows on steep ground
   v *= 1 - smoothstep(30, 44, h); // thin out towards the peaks
+  v *= 1 - canyonDesertK(x, z); // the Grand Canyon's own footprint: dry desert, no grass at all
+  v *= 1 - paricutinFootprintWeight(x, z); // Parícutin's own footprint: bare cinder/lava, no grass
   return v;
 }
 
@@ -107,6 +111,8 @@ function discs(): Disc[] {
   for (const [x, z] of CART_ROAD.points) carve(x, z, 1.6, 3.4);
   // every other settlement's own footpath to its station — a kid's and a trader's own worn dirt walk
   for (const fp of FOOTPATHS) for (const [x, z] of fp.points) carve(x, z, 1.1, 2.6);
+  // the Grand Canyon's own footpath in from Park Station (registry/grandCanyon.ts)
+  for (const [x, z] of CANYON_FOOTPATH) carve(x, z, 1.1, 2.6);
   // the go-kart circuit's asphalt and kerbs (registry/kartTrack.ts): no grass or flowers on the road
   for (const pt of kartTrackWorld().points) carve(pt.x, pt.z, TRACK_WIDTH / 2 + 1.2, TRACK_WIDTH / 2 + 2.6);
   // lands: tidy, shorter lawns (not bare)

@@ -59,7 +59,7 @@ export function EverestClimb({ open, onClose, world, kidId, kidName, animalId }:
     flyingRef.current = false;
     const arrived = justArrivedCamp(s);
     setArrivedCard(arrived ? { icon: arrived.emoji, title: arrived.name, fact: arrived.fact } : null);
-    world.boardClimb();
+    world.boardClimb("everest");
     return () => {
       world.leaveClimb();
     };

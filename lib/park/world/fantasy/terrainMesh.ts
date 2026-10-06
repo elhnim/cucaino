@@ -9,6 +9,8 @@ import { wildShelfEdgeDist } from "../../registry/wildWater";
 import { groundY, slopeAt } from "../../registry/terrain";
 import { settlementAt } from "../../registry/settlements";
 import { EVEREST_PEAK } from "../../registry/landform";
+import { canyonFootprintWeight, CANYON_BAND_STOPS, CANYON_BAND_WOBBLE, CANYON_TERRAIN_BAND_EDGE } from "../../registry/grandCanyon";
+import { PARICUTIN_CONE, LAVA_FIELD_OUT, CRATER_U, paricutinFootprintWeight } from "../../registry/paricutin";
 
 /** the one-piece mesh covers the park's own square */
 const TERRAIN_EXTENT = 200;
@@ -46,6 +48,51 @@ const EVEREST_ROCK_A = col("#5c5c64");
 const EVEREST_ROCK_B = col("#47474e");
 const EVEREST_ROCK_DARK = col("#2b2b31");
 const EVEREST_SNOW = col("#f6faff");
+// the Grand Canyon's own local override: HEIGHT-keyed horizontal strata (so the bands line up
+// across the whole canyon, like the real thing's own layered rock — never xz-keyed, which would
+// scatter them into a patchwork) — red, orange, cream and purple-brown cycling up the cliffs
+// (canyonStrataT), a dusty desert tan on the flatter terraces/rim (never grass-green: real Tonto
+// Platform and the Esplanade are dry, dusty benches), red soil right at the rim's edge. Scoped
+// tightly to the canyon's own footprint (canyonFootprintWeight), blending out at the edge exactly
+// like Everest's own override above.
+/** registry/grandCanyon.ts's CANYON_BAND_STOPS, pre-built into real THREE.Color objects once (not
+ *  per vertex — the hex strings there are the single source of truth; the cliff-wall shader in
+ *  world/grandCanyonDecor.ts reads the exact same stops via CANYON_BAND_GLSL) */
+const CANYON_BAND_COLORS = CANYON_BAND_STOPS.map((s) => col(s.color));
+const _canyonBand = new THREE.Color();
+// Parícutin's own local override (polish round 2: the first pass read as "muddy dark red/black
+// blotches" — never again): a dark GREY-BROWN cinder cone with only subtle value variation (no
+// hue-shifted patches) and a ring of rust red confined to right round the crater's own rim (a
+// continuous, monotonic function of radius, never a periodic band — safe from the steep-slope
+// aliasing Everest/the Grand Canyon's own height-banded strata would suffer here), and a distinct,
+// near-SOLID BLACK lava field apron with only the faintest rough-texture variation — no warm
+// streaks baked into the ground colour at all; the warm glow is a separate, animated decor layer
+// (world/paricutinDecor.ts's crater glow + crack vents), never part of the static palette, so this
+// reads as one crisp, distinct black field, not a blotchy gradient. Never grass inside its own
+// footprint (PARICUTIN_CONE.r * LAVA_FIELD_OUT), with a CRISP (not blotchy) cut back to ordinary
+// farmland right at the edge (paricutinFootprintWeight's own narrow fade).
+// (round 2's first re-check: against the near-solid-black lava apron at the cone's own foot, the
+// original #5e5349/#453c34 pair crushed to the same near-black under toon shading on the unlit
+// side, so the whole mountain read as one flat dark smear with no peak standing out — lightened
+// well clear of the lava's own near-black so the cone itself always reads as a lighter, warmer
+// grey-brown shape rising OUT of the black field, even unlit/in shadow)
+const PARICUTIN_CINDER = col("#8c7f6b");
+const PARICUTIN_CINDER_DARK = col("#564a3d"); // round 3: darker grey-brown base (more "cinder", less "beige lump")
+const PARICUTIN_RUST = col("#a1583c");
+const PARICUTIN_GULLY = col("#453a30"); // dark weathered grooves running down the flank
+const PARICUTIN_SCREE_RED = col("#6e3528"); // the crater bowl's own inner-wall banding: dark red
+const PARICUTIN_SCREE_GREY = col("#5a564e"); //   ...alternating with grey scree
+// round 3: the lava field was "a flat, featureless pure-black void — reads as a rendering hole, not
+// lava" — a real dark charcoal-grey now, with warm (ember-tinted) patches worked in via noise, never
+// a flat #000. The decor layer (world/paricutinDecor.ts) adds the rock chunks, glowing cracks and
+// steam on top; this is just the base ground colour under/around them.
+// round 4's own re-check: "the field itself near-black brown" with rocks that didn't read against
+// it — lightened a notch so it sits clearly LIGHTER than the rocks' own shaded facets
+// (world/paricutinDecor.ts's buildFacetedRockGeometry, #443a33..#73665a), so the rocks' dark sides
+// read as distinct shapes against the ground rather than blending into one black mass.
+const PARICUTIN_LAVA = col("#584d42");
+const PARICUTIN_LAVA_LIGHT = col("#6b5d4f");
+const PARICUTIN_LAVA_WARM = col("#7a4e30");
 const BED_SAND = col("#cdb88a");
 const BED_MUD = col("#6f7a4a");
 const BED_DEEP = col("#3a5a4c");
@@ -55,10 +102,23 @@ const PEBBLE = col("#a8a090");
 export function groundColor(x: number, z: number, h: number, slope: number, out: THREE.Color, mask?: GrassMask, paths = false): THREE.Color {
   const n1 = fbm2(x / 40 + 3, z / 40 - 5, 3, 2);
   const n2 = noise2(x / 13, z / 13, 7);
+  // the Grand Canyon's own footprint weight, computed up front (not just down by its own override
+  // block below) so the grass blend itself can be damped by it: previously the grass pattern's own
+  // high-contrast dark-green/teal blotches (from n1/n2 just below) were computed completely blind to
+  // the canyon, then linearly blended toward the desert band colour by canyonW lower down — in the
+  // wide canyonW transition ring (canyonFootprintWeight's own ~165-unit-wide falloff) that let a
+  // stray GRASS_DARK blotch show through at, say, 50% strength right next to a plain GRASS_A patch
+  // at the same 50% strength, reading as a patchy two-tone "camouflage" smear — worst exactly on the
+  // canyon's own flat benches/rim, where there's no slope-driven rock term to mask it. Fading the
+  // grass pattern's own contrast out as canyonW rises (grassK) means the little grass that does leak
+  // through the blend is a flat, quiet green rather than its own blotchy self — a soft, even colour
+  // on both sides of the blend, not two conflicting patterns fighting for the same pixels.
+  const canyonW = canyonFootprintWeight(x, z);
+  const grassK = 1 - canyonW * 0.92;
   // meadow: lush green, patches of sun-kissed yellow-green and cool teal
   mix(GRASS_A, GRASS_B, smoothstep(0.45, 0.72, n1), out);
-  out.lerp(GRASS_C, smoothstep(0.5, 0.8, n2) * 0.55);
-  out.lerp(GRASS_DARK, smoothstep(0.35, 0.1, n2) * 0.4);
+  out.lerp(GRASS_C, smoothstep(0.5, 0.8, n2) * 0.55 * grassK);
+  out.lerp(GRASS_DARK, smoothstep(0.35, 0.1, n2) * 0.4 * grassK);
   // rock on steep ground (strata bands), snow on the peaks
   const rockAmt = smoothstep(0.3, 0.52, slope);
   if (rockAmt > 0) {
@@ -87,6 +147,103 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
       const everestSnowLine = 215 + n1 * 18;
       const everestSnow = smoothstep(everestSnowLine, everestSnowLine + 14, h) * (1 - smoothstep(0.82, 0.98, slope));
       out.lerp(EVEREST_SNOW, everestSnow * everestW);
+    }
+  }
+  // the Grand Canyon's own local override: the real stratigraphy (registry/grandCanyon.ts's
+  // CANYON_BAND_STOPS — Vishnu at the bottom up to the Kaibab cap), a function of WORLD HEIGHT
+  // ONLY so the bands line up perfectly horizontally across the whole canyon (never xz-keyed,
+  // which would scatter them into a patchwork) — applied on the cliffs AND the flat benches alike
+  // (a real Tonto Platform/Esplanade bench is coloured by its own layer, not a generic "desert"),
+  // with a touch of xz noise (<1 unit of height) so the boundary reads as organic rock, not a
+  // ruled line. The vertex-coloured mesh itself is too coarse to hold a crisp edge on a
+  // near-vertical cliff (a single triangle can span most of one band, so Gouraud interpolation
+  // blurs it into a diagonal smear) — world/grandCanyonDecor.ts's cliff-wall decor redraws the
+  // dramatic faces as their own geometry with a per-FRAGMENT banded shader instead; this terrain
+  // colour is what shows between/behind that decor and from far away. (canyonW itself was already
+  // computed up top, alongside grassK, so the grass blend above could be damped by it too.)
+  if (canyonW > 0) {
+    const wobble = (n1 - 0.5) * 2 * CANYON_BAND_WOBBLE;
+    _canyonBand.copy(CANYON_BAND_COLORS[0]);
+    for (let i = 1; i < CANYON_BAND_STOPS.length; i++) {
+      const stop = CANYON_BAND_STOPS[i];
+      // round 8: CANYON_TERRAIN_BAND_EDGE (7, not the wall decor's own crisp 1.6) — see its own
+      // docstring. A flat bench's own vertices rarely differ by more than a few units, so the old
+      // narrow edge was a de-facto hard threshold here — a single colour swatch with a jagged
+      // (per-vertex) boundary, not a blend. This one spans most of the real gap between stops.
+      _canyonBand.lerp(CANYON_BAND_COLORS[i], smoothstep(stop.h - CANYON_TERRAIN_BAND_EDGE, stop.h + CANYON_TERRAIN_BAND_EDGE, h + wobble));
+    }
+    // round 8: "a red plastic sheet" — a flat bench used to read as one dead-flat colour swatch
+    // (the old within-band streak was only n1 at up to 8%, barely visible against a huge uniform
+    // area). Two layered noises now: a slower one (n1, matching the band-wobble's own field, so
+    // the streaking and the band edges feel like the same rock) and a faster one (n2, the same
+    // ~13-unit field the grass/rock blends already use elsewhere in this function) for finer
+    // texture — together reading as real rock variation, not a sheet, at up to 22% darkening. A
+    // small flat 6% darken on top of that: the canyon's own benches/floor are a little duskier
+    // than the sun-blasted open desert the same palette implies at full brightness.
+    const darken = smoothstep(0.3, 0.85, n1) * 0.16 + smoothstep(0.35, 0.8, n2) * 0.12;
+    _canyonBand.multiplyScalar(1 - Math.min(0.3, darken) - 0.06);
+    out.lerp(_canyonBand, canyonW);
+  }
+  // Parícutin's own local override (see PARICUTIN_CINDER's comment above). The cone's flanks are
+  // genuinely steep (a real cinder cone's own angle of repose), so — unlike Everest's/the Grand
+  // Canyon's own height-banded strata above — any colour term keyed to HEIGHT aliases badly there
+  // (a few vertices span a big height range on a steep face, so a periodic height-band reads as
+  // jagged, flickering chevrons instead of a smooth stripe). Every term here is keyed to WORLD (x,
+  // z) position, or to `paricD` (radius, a smooth MONOTONIC function of position — not periodic,
+  // so it never aliases either), which varies smoothly across the mesh regardless of how steep it
+  // is.
+  const paricD = Math.hypot(x - PARICUTIN_CONE.x, z - PARICUTIN_CONE.z) / PARICUTIN_CONE.r;
+  if (paricD < LAVA_FIELD_OUT) {
+    const paricW = paricutinFootprintWeight(x, z);
+    if (paricW > 0) {
+      if (paricD <= 1) {
+        // the cone's own cinder slopes: a darker grey-brown base (round 3: "a smooth beige-brown
+        // lump" — this reads more like real cinder now) with only a subtle value variation
+        const cinder = mix(PARICUTIN_CINDER, PARICUTIN_CINDER_DARK, smoothstep(0.38, 0.62, n1), new THREE.Color());
+        // streaks running down from the rim: a quasi-random pattern keyed on ANGLE (theta) — cheap
+        // trig, no actual randomness, and safe from the steep-slope aliasing a HEIGHT-keyed band
+        // would suffer (round 2's own lesson) since it never depends on h. Two independent streak
+        // fields: warm rust (the real mountain's own oxidised streaks) and darker "gully" grooves
+        // (erosion channels) — different frequencies/phases so they don't line up and read as one
+        // repeating pattern.
+        const theta = Math.atan2(x - PARICUTIN_CONE.x, z - PARICUTIN_CONE.z);
+        const rustStreak = Math.sin(theta * 9 + 1.3) * 0.5 + Math.sin(theta * 17 - 0.6) * 0.3 + Math.sin(theta * 5 + 2.4) * 0.2;
+        const rustMask = smoothstep(0.35, 0.72, rustStreak * 0.5 + 0.5);
+        const gullyStreak = Math.sin(theta * 13 - 2.1) * 0.5 + Math.sin(theta * 23 + 1.1) * 0.3 + Math.sin(theta * 7 - 0.4) * 0.2;
+        const gullyMask = smoothstep(0.4, 0.78, gullyStreak * 0.5 + 0.5);
+        // rust streaks start right at the rim and fade out by mid-flank (a real drip-down stain,
+        // not a band all the way to the base); gullies (erosion grooves) reach further down, almost
+        // to the base, the way real weathered scree channels do
+        const fromRim = Math.max(0, paricD - CRATER_U) / (1 - CRATER_U);
+        const rustReach = 1 - smoothstep(0.32, 0.62, fromRim);
+        const gullyReach = 1 - smoothstep(0.55, 0.92, fromRim);
+        cinder.lerp(PARICUTIN_GULLY, gullyMask * gullyReach * 0.55);
+        cinder.lerp(PARICUTIN_RUST, rustMask * rustReach * 0.6);
+        // the crater's own inner wall: banded dark red / grey scree, a function of bowl-depth `t`
+        // (monotonic — never periodic/height-keyed, so it can't alias even on the bowl's own steep
+        // inner slope) — distinct from the outer flank's streaky cinder
+        if (paricD <= CRATER_U) {
+          const t = paricD / CRATER_U; // 0 at the floor, 1 at the rim
+          const band = smoothstep(0.18, 0.4, t) * (1 - smoothstep(0.62, 0.84, t)) + smoothstep(0.84, 1, t) * 0.6;
+          const scree = mix(PARICUTIN_SCREE_GREY, PARICUTIN_SCREE_RED, smoothstep(0.3, 0.75, Math.sin(t * 11 + n1 * 2) * 0.5 + 0.5), new THREE.Color());
+          cinder.copy(scree.lerp(cinder, 1 - Math.min(1, band + 0.25)));
+        } else {
+          // right at the rim itself: a tight, bright ring of rust (the oxidised lip every real
+          // cinder cone shows), a smooth monotonic bump in radius
+          const rimK = smoothstep(CRATER_U * 0.78, CRATER_U, paricD) * (1 - smoothstep(CRATER_U * 1.5, CRATER_U * 2.2, paricD));
+          cinder.lerp(PARICUTIN_RUST, rimK * 0.65);
+        }
+        out.lerp(cinder, paricW);
+      } else {
+        // the lava field apron: a real dark charcoal-grey (round 3: "a flat, featureless pure-black
+        // void — reads as a rendering hole, not lava" — never #000 again), with warm ember-tinted
+        // patches worked in via noise so it reads as cooled, textured rock, not a flat void. The
+        // rock chunks, glowing cracks and steam (world/paricutinDecor.ts) sit on top of this.
+        const lava = mix(PARICUTIN_LAVA, PARICUTIN_LAVA_LIGHT, smoothstep(0.4, 0.7, n2), new THREE.Color());
+        const warmPatch = smoothstep(0.62, 0.85, Math.sin(x * 0.07 + z * 0.05) * 0.5 + Math.sin(x * 0.03 - z * 0.08 + 2) * 0.5 + 0.5);
+        lava.lerp(PARICUTIN_LAVA_WARM, warmPatch * 0.4);
+        out.lerp(lava, paricW);
+      }
     }
   }
   // bare earth where the grass is carved away (trails, plaza, around places) — optional

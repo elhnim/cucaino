@@ -21,6 +21,7 @@ import { buildTreetopPropsGeometry } from "./styles/treetop";
 import { buildMountainPropsGeometry, buildYakGeometry } from "./styles/mountain";
 import { buildTownMoving, buildTownPropsGeometry, type TownMoving } from "./styles/town";
 import { buildBaseCampPropsGeometry } from "./styles/basecamp";
+import { buildFarmPropsGeometry } from "./styles/farm";
 import { makeSettlementSim, stepSettlement, type SettlementSim, type TalkOut } from "./routine";
 import { buildCanopy, type Canopy } from "./canopy";
 import { buildCrittersGeometry, critterGroundY, makeCritters, stepCritters, type CritterState } from "./critters";
@@ -63,7 +64,14 @@ const BASECAMP_PALETTE: ClanPalette = {
   hairs: ["#2a1f18", "#4a3420", "#1a140e", "#5a3a22", "#241a10", "#3a2818", "#6e4a2a", "#1e1610"],
   cloths: ["#c0392b", "#e8893c", "#2a6a8a", "#f2c23d", "#8a2a8a", "#2a9d8f", "#d94f6e"],
 };
-const PALETTE_OF: Record<string, ClanPalette> = { lakeside: LAKESIDE_PALETTE, treetop: TREETOP_PALETTE, highstone: HIGHSTONE_PALETTE, town: TOWN_PALETTE, basecamp: BASECAMP_PALETTE };
+/** the Pulido family and their volcanologist guest — earthy farm cottons, a bright red/white for
+ *  fiesta-day colour, straw-gold accents */
+const FARM_PALETTE: ClanPalette = {
+  skins: ["#d6a476", "#c08458", "#e0b088", "#b07048", "#eac29a", "#a56a40", "#cf9868"],
+  hairs: ["#1f1812", "#3a2818", "#241a10", "#4a3420", "#1a140e", "#2a2018", "#5a3a22"],
+  cloths: ["#c0392b", "#f2c23d", "#3f6ea8", "#e8e2d0", "#5a8f3a", "#8a4a2e", "#d94f6e"],
+};
+const PALETTE_OF: Record<string, ClanPalette> = { lakeside: LAKESIDE_PALETTE, treetop: TREETOP_PALETTE, highstone: HIGHSTONE_PALETTE, town: TOWN_PALETTE, basecamp: BASECAMP_PALETTE, "paricutin-farm": FARM_PALETTE };
 /** yaks/goats: shaggy browns, blacks and creams (goats a touch paler) */
 const YAK_COLORS = ["#6e4a2e", "#2a221c", "#e8ddc4", "#4a3824"];
 const GOAT_COLORS = ["#e8e2d4", "#c9c2b0"];
@@ -149,6 +157,8 @@ function buildPropsFor(def: SettlementDef, low: boolean): THREE.BufferGeometry {
       return buildTownPropsGeometry(def, low);
     case "basecamp":
       return buildBaseCampPropsGeometry(def);
+    case "farm":
+      return buildFarmPropsGeometry(def);
     case "lakeside":
     default:
       return buildLakesidePropsGeometry(def, low);

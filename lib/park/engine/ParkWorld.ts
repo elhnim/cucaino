@@ -53,9 +53,9 @@ import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { settlementAt, settlementDeckY } from "../registry/settlements";
 import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
 import { wildBridgeDeckY } from "../registry/wildWater";
-import { BASE_CAMP_SITE } from "../registry/everestBaseCamp";
-import { climbHeadingAtU, climbPointAtU } from "../registry/everestRoute";
-import { EVEREST_SUMMIT } from "../registry/landform";
+import { canyonVisualFloorY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
+import { rawHeight } from "../registry/landform";
+import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
 import { FROST_ISLAND } from "../registry/frostIsland";
 import { makeKidSlide, petSlidePose, slideName, slideSplashS, stepKidSlide, type KidSlide } from "../world/frost/kidSlide";
 import { makeKidSki, stepKidSki, type KidSki } from "../world/frost/kidSki";
@@ -113,7 +113,9 @@ export interface ParkWorldOptions {
   onSkyIsland?: (id: string | null, what: "land" | "glide") => void;
   /** a Coralcove villager says something to the kid (null = nobody talking now) */
   onVillageTalk?: (talk: { id: string; name: string; line: string; emoji?: string } | null) => void;
-  /** arrived at Coralcove Isle for the first time this visit */
+  /** arrived at Coralcove Isle (or another village/settlement/far island) for the first time this
+   *  visit; `id` is its registry id (Coralcove/Dino/Frost pass a stable literal) — the map's
+   *  found-set (lib/park/map/foundSet.ts) uses it to remember the discovery between visits */
   onVillage?: (name: string, clan: string, id?: string) => void;
   /** walked within discovery range of a Natural Wonder of the World (./registry/wonders.ts) for the
    *  first time: a big "you found it!" toast, then its first fact */
@@ -175,7 +177,7 @@ const floorY0 = (x: number, z: number) => worldFloor(x, z);
  *  walkway there at about that level (or the ground's right there too — the walkway's foot), else
  *  null (it would be a step off the edge) */
 function raisedDeckAt(x: number, z: number, fromY: number): number | null {
-  const y = settlementDeckY(x, z) ?? wildBridgeDeckY(x, z);
+  const y = settlementDeckY(x, z) ?? wildBridgeDeckY(x, z) ?? grandCanyonDeckY(x, z);
   if (y !== null && Math.abs(y - fromY) < 0.9) return y;
   const g = groundY(x, z);
   return Math.abs(g - fromY) < 0.9 ? g : null;
@@ -299,12 +301,12 @@ export class ParkWorld {
   /** standing on a station's platform, waiting for the train we called */
   private trainWait: Station | null = null;
   private trainPose = { x: 0, y: 0, z: 0, yaw: 0 };
-  // ── Climb Everest!: walked on the REAL mountain (registry/everestRoute.ts), not a separate scene —
-  // same idea as the train, just following a hiking route instead of the rails. `u` is the displayed
-  // (eased) progress; `targetU` is what the HUD last set (climbing/logic.ts's overallProgress());
-  // `phase` carries the kid from the climb itself into the summit's orbiting celebration and then the
-  // helicopter swoop back to Base Camp.
-  private climb: { u: number; targetU: number; phase: "climbing" | "summit" | "flyDown"; timer: number; guide: ChibiRig | null } | null = null;
+  // ── a guided route climb (Climb Everest!, Climb to the crater!): walked on the REAL mountain
+  // (registry/climbRoutes.ts picks the route — registry/everestRoute.ts or paricutinRoute.ts), not a
+  // separate scene — same idea as the train, just following a hiking route instead of the rails.
+  // `u` is the displayed (eased) progress; `targetU` is what the HUD last set; `phase` carries the
+  // kid from the climb itself into the top's orbiting celebration and then the swoop/hop back down.
+  private climb: { route: ClimbRouteDef; u: number; targetU: number; phase: "climbing" | "summit" | "flyDown"; timer: number; guide: ChibiRig | null } | null = null;
   private climbSnow: THREE.Points | null = null;
   // ── Frostpeak's penguin slides: the kid tobogganing down a chute (null = not), the chute whose start
   // the kid is standing at (-1), how far the lying kid's belly sits below its middle, the flop (0..1) ──
@@ -415,6 +417,18 @@ export class ParkWorld {
   /** 0..1 eased: the camera's dropped down under the rainforest's canopy */
   private forestCam = 0;
   private forestPull = 30;
+  /** 1 = full boom length, down to a short safe length — eased, like camPull/forestPull/uwPull.
+   *  The Grand Canyon's own height field (registry/grandCanyon.ts's grandCanyonGroundY) is
+   *  deliberately softened since round 3 so the streamed terrain mesh never has to hold a
+   *  near-vertical step; the real rock the kid SEES is drawn proud of that, as decor
+   *  (canyonVisualFloorY — the cliff walls and the butte mesas). The normal "keep the view clear
+   *  over hills" lift (below) only ever checks the soft height field, so the chase camera could
+   *  happily end up behind/inside the visual rock whenever the soft ground it's floating above
+   *  doesn't match the crisp wall right next to it — a full screen of the wall's own unlit back
+   *  face, which reads as a black frame. This eases the boom in toward the kid whenever the
+   *  camera-kid sightline would dip inside that visual rock, the same shape as uwPull's own
+   *  "slide in to the last clear point" rather than an instant snap. */
+  private canyonPull = 1;
   private dragging = false;
   private lastDrag: { x: number; y: number } | null = null;
   private pointers = new Map<number, { x: number; y: number }>();
@@ -1444,7 +1458,7 @@ export class ParkWorld {
         this.walkTarget = null;
         this.walkQueue = [];
       }
-      const y = settlementDeckY(pos.x, pos.z) ?? wildBridgeDeckY(pos.x, pos.z);
+      const y = settlementDeckY(pos.x, pos.z) ?? wildBridgeDeckY(pos.x, pos.z) ?? grandCanyonDeckY(pos.x, pos.z);
       dp.on = y !== null && y > groundY(pos.x, pos.z) + 0.8;
       dp.x = pos.x;
       dp.z = pos.z;
@@ -2171,12 +2185,13 @@ export class ParkWorld {
       this.lookAtPt.copy(pos);
     } else if (this.climb) {
       if (this.climb.phase === "summit") {
-        // a slow orbit round the true summit — the island falls away on every side as it circles
+        // a slow orbit round the true top — the island falls away on every side as it circles
         const ang = this.time * 0.22;
-        const R = 22;
-        const want = new THREE.Vector3(EVEREST_SUMMIT.x + Math.sin(ang) * R, pos.y + 13, EVEREST_SUMMIT.z + Math.cos(ang) * R);
+        const R = this.climb.route.summitOrbitR;
+        const top = this.climb.route.pointAtU(1);
+        const want = new THREE.Vector3(top.x + Math.sin(ang) * R, pos.y + 13, top.z + Math.cos(ang) * R);
         this.camera.position.lerp(want, Math.min(1, dt * 1.6));
-        this.camera.lookAt(EVEREST_SUMMIT.x, pos.y - 3, EVEREST_SUMMIT.z);
+        this.camera.lookAt(top.x, pos.y - 3, top.z);
       } else if (this.climb.phase === "flyDown") {
         // the helicopter swoop: high and a little behind, following the kid all the way down
         const want = new THREE.Vector3(pos.x, pos.y + 17, pos.z + 13);
@@ -2295,7 +2310,10 @@ export class ParkWorld {
       else this.camBase.lerp(baseWant, Math.min(1, dt * 3.5));
       this.camera.position.copy(this.camBase);
       // keep the view clear over hills: march from the kid to the camera and lift the camera
-      // until the line of sight clears the ground (and never let it dip into a hill)
+      // until the line of sight clears the ground (and never let it dip into a hill) — the Grand
+      // Canyon's own VISUAL rock (canyonVisualFloorY, standing proud of the softened height field
+      // groundY itself never shows) counts as "ground" here too, cheaply skipped everywhere else
+      // on the island (nearGrandCanyon's own early-out)
       const cp = this.camera.position;
       let lift = 0;
       for (let k = 1; k <= 8; k++) {
@@ -2303,13 +2321,53 @@ export class ParkWorld {
         const sx = this.lookAtPt.x + (cp.x - this.lookAtPt.x) * u;
         const sz = this.lookAtPt.z + (cp.z - this.lookAtPt.z) * u;
         const lineY = this.lookAtPt.y + (cp.y - this.lookAtPt.y) * u;
-        const need = groundY(sx, sz) + 1.4 - lineY;
+        const canyonFloor = nearGrandCanyon(sx, sz) ? canyonVisualFloorY(sx, sz, rawHeight(sx, sz)) : null;
+        const need = Math.max(groundY(sx, sz), canyonFloor ?? -Infinity) + 1.4 - lineY;
         if (need > 0) lift = Math.max(lift, need / u);
       }
       this.camLift += (Math.min(lift, 30) - this.camLift) * Math.min(1, dt * 4);
       cp.y += this.camLift;
-      const under = worldFloor(cp.x, cp.z) + 1.2;
+      const canyonUnderCam = nearGrandCanyon(cp.x, cp.z) ? canyonVisualFloorY(cp.x, cp.z, rawHeight(cp.x, cp.z)) : null;
+      const under = Math.max(worldFloor(cp.x, cp.z), canyonUnderCam ?? -Infinity) + 1.2;
       if (cp.y < under) cp.y = under;
+      // belt and braces for the Grand Canyon specifically: the lift/clamp above keeps the camera
+      // ABOVE the visual rock at its own (x, z), but a sheer wall right beside a narrow gorge can
+      // still sit BETWEEN the kid and a camera that's merely "high enough" — the classic case a
+      // chase camera clips through a wall to one side rather than one directly underneath it. Walk
+      // the actual sightline (not just the vertical lift sweep above, which only raises Y) and ease
+      // the boom itself in toward the kid the moment any sample along it dips inside the rock,
+      // exactly like uwPull's own "slide in to the last clear point" just below — a smooth pull-in,
+      // never an instant snap, and fully skipped (canyonPull eases back to 1) away from the canyon.
+      let canyonClear = 1;
+      if (nearGrandCanyon(pos.x, pos.z, 40) || nearGrandCanyon(cp.x, cp.z, 40)) {
+        const L = this.lookAtPt;
+        // k starts at 2 (20% of the way along), not 1: right beside the kid's own feet the crisp
+        // wall profile (round 8: near-vertical cliff bands, not ramps) can step from floor to full
+        // rim height within a metre or two — a real step a kid can stand right beside — and a k=1
+        // sample there used to read "blocked at the very start", collapsing canyonPull to ~0 and
+        // snapping the camera onto the kid's own face (nose in the dirt, frame full of one flat
+        // colour). Skipping that first tenth means only an obstruction genuinely BETWEEN the kid and
+        // the camera triggers the pull-in; a floor of 0.3 below also means the boom can shrink hard
+        // but never fully vanish onto the kid, so even a genuine near-miss stays a recognisable shot.
+        for (let k = 2; k <= 10; k++) {
+          const u = k / 10;
+          const sx = L.x + (cp.x - L.x) * u;
+          const sy = L.y + (cp.y - L.y) * u;
+          const sz = L.z + (cp.z - L.z) * u;
+          if (!nearGrandCanyon(sx, sz)) continue;
+          const wallY = canyonVisualFloorY(sx, sz, rawHeight(sx, sz));
+          if (wallY !== null && sy < wallY + 1.5) {
+            canyonClear = (k - 1) / 10;
+            break;
+          }
+        }
+        canyonClear = Math.max(canyonClear, 0.3);
+      }
+      this.canyonPull += (canyonClear - this.canyonPull) * Math.min(1, dt * (canyonClear < this.canyonPull ? 8 : 1.5));
+      if (this.canyonPull < 0.999) {
+        const L = this.lookAtPt;
+        cp.set(L.x + (cp.x - L.x) * this.canyonPull, L.y + (cp.y - L.y) * this.canyonPull, L.z + (cp.z - L.z) * this.canyonPull);
+      }
       // the camera never straddles the waterline: it dives with a diving kid (closer in, the sea
       // is murky) and stays above the waves for one paddling at the top
       const kidUnder = pos.y + seatY + headUp < WATER_Y; // head below the surface (paddling sits at WATER_Y - 0.95)
@@ -3060,62 +3118,69 @@ export class ParkWorld {
     return true;
   }
 
-  // ── Climb Everest!: on the real mountain (registry/everestRoute.ts), the same way the train
-  // walks the real rails — no separate scene. The HUD offers it via the existing settlement
-  // activityOffer (registry/everestBaseCamp.ts's own "climb-everest" activity spot at the
-  // trailhead); boarding/leaving/progress are these few calls. ──
+  // ── a guided route climb (Climb Everest!, Climb to the crater!): on the real ground
+  // (registry/climbRoutes.ts), the same way the train walks the real rails — no separate scene. The
+  // HUD offers it via the existing settlement activityOffer (each route's own trailhead activity
+  // spot); boarding/leaving/progress are these few calls, generic over whichever route id is passed
+  // to boardClimb(). ──
   /** Climbing right now (any phase) — the HUD hides the joystick, same as onTrain. */
   get onClimb(): boolean {
     return !!this.climb;
   }
-  /** "climbing" under way, "summit" during the celebration (the HUD offers "Fly back down"),
-   *  "flyDown" during the helicopter swoop back to Base Camp; null the rest of the time. */
+  /** "climbing" under way, "summit" during the celebration (the HUD offers to head back down),
+   *  "flyDown" during the swoop/hop back; null the rest of the time. */
   get climbPhase(): "climbing" | "summit" | "flyDown" | null {
     return this.climb?.phase ?? null;
   }
-  /** Set off up the mountain from Base Camp's own trailhead. */
-  boardClimb(): boolean {
+  /** which route is under way right now (registry/climbRoutes.ts's id), or null */
+  get climbRouteId(): string | null {
+    return this.climb?.route.id ?? null;
+  }
+  /** Set off up a guided route from its own trailhead (routeId: registry/climbRoutes.ts, e.g.
+   *  "everest" or "paricutin"). */
+  boardClimb(routeId: string): boolean {
     if (!this.kid || this.sky || this.mount || this.ride || this.building || this.climb) return false;
+    const route = climbRouteById(routeId);
+    if (!route) return false;
     this.dismount(true);
-    const start = climbPointAtU(0);
+    const start = route.pointAtU(0);
     const kp = this.kid.root.position;
     kp.set(start.x, groundY(start.x, start.z), start.z);
-    this.kid.facing = climbHeadingAtU(0);
+    this.kid.facing = route.headingAtU(0);
     this.kid.root.rotation.y = this.kid.facing;
-    const guide = buildChibi("animal-dog" as AnimalId, { height: 2.0, role: "kid", accent: "#c0392b" });
+    const guide = buildChibi(route.guideAnimal, { height: route.guideHeight, role: "kid", accent: route.guideAccent });
     this.scene.add(guide.root);
-    this.climb = { u: 0, targetU: 0, phase: "climbing", timer: 0, guide };
-    this.climbSnow = this.buildClimbSnow();
+    this.climb = { route, u: 0, targetU: 0, phase: "climbing", timer: 0, guide };
+    this.climbSnow = this.buildClimbSnow(route.ambientColor);
     return true;
   }
-  /** Leave the climb early (the kid tapped the exit before the summit) — a safe, immediate return
-   *  to Base Camp's own trailhead. */
+  /** Leave the climb early (the kid tapped the exit before the top) — a safe, immediate return to
+   *  the route's own trailhead. */
   leaveClimb(): boolean {
     if (!this.climb) return false;
     this.endClimb(true);
     return true;
   }
-  /** The HUD calls this after every Climb!/Breathe tap with lib/park/climbing/logic.ts's own
-   *  overallProgress(state) — the route eases towards it rather than jumping, so one tap reads as a
-   *  few roped steps up the mountain. */
+  /** The HUD calls this after every progress-making tap with the climb's own 0..1 overall progress
+   *  — the route eases towards it rather than jumping, so one tap reads as a few real steps up. */
   setClimbProgress(u: number) {
     if (this.climb) this.climb.targetU = Math.max(0, Math.min(1, u));
   }
-  /** The HUD's "Fly back down" tap (once the summit celebration has run) — starts the helicopter
-   *  swoop back to Base Camp; the climb ends itself (onClimb -> false) the moment it lands. */
+  /** The HUD's "head back down" tap (once the top's celebration has run) — starts the swoop/hop
+   *  back to the trailhead; the climb ends itself (onClimb -> false) the moment it lands. */
   startClimbFlyDown(): boolean {
     if (!this.climb || this.climb.phase === "flyDown") return false;
     this.climb.phase = "flyDown";
     this.climb.timer = 0;
     return true;
   }
-  private buildClimbSnow(): THREE.Points {
+  private buildClimbSnow(color: string): THREE.Points {
     const N = 90;
     const pos = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) pos.set([(Math.random() - 0.5) * 22, Math.random() * 12, (Math.random() - 0.5) * 22], i * 3);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: "#ffffff", size: 0.3, transparent: true, opacity: 0.85, depthWrite: false, fog: false });
+    const mat = new THREE.PointsMaterial({ color, size: 0.3, transparent: true, opacity: 0.85, depthWrite: false, fog: false });
     const pts = new THREE.Points(geo, mat);
     pts.visible = false;
     this.scene.add(pts);
@@ -3128,39 +3193,41 @@ export class ParkWorld {
     (this.climbSnow.material as THREE.Material).dispose();
     this.climbSnow = null;
   }
-  private endClimb(returnToBaseCamp: boolean) {
+  private endClimb(returnToStart: boolean) {
     if (!this.climb) return;
+    const start = this.climb.route.start;
     this.climb.guide?.dispose();
     this.disposeClimbSnow();
     this.climb = null;
-    if (returnToBaseCamp && this.kid) {
+    if (returnToStart && this.kid) {
       const kp = this.kid.root.position;
-      kp.set(BASE_CAMP_SITE.x, groundY(BASE_CAMP_SITE.x, BASE_CAMP_SITE.z), BASE_CAMP_SITE.z);
+      kp.set(start.x, groundY(start.x, start.z), start.z);
       this.kid.root.rotation.y = this.kid.facing;
     }
   }
   private tickClimb(dt: number, kid: Actor) {
     const c = this.climb;
     if (!c) return;
+    const route = c.route;
     c.timer += dt;
     if (c.phase === "climbing") {
       c.u += (c.targetU - c.u) * Math.min(1, dt * 2.2);
-      const p = climbPointAtU(c.u);
+      const p = route.pointAtU(c.u);
       const y = groundY(p.x, p.z);
       kid.root.position.set(p.x, y, p.z);
-      kid.facing = climbHeadingAtU(c.u);
+      kid.facing = route.headingAtU(c.u);
       kid.root.rotation.y = kid.facing;
       if (c.guide) {
         const gu = Math.min(1, c.u + 0.02);
-        const gp = climbPointAtU(gu);
+        const gp = route.pointAtU(gu);
         c.guide.root.position.set(gp.x, groundY(gp.x, gp.z), gp.z);
-        c.guide.root.rotation.y = climbHeadingAtU(gu);
+        c.guide.root.rotation.y = route.headingAtU(gu);
         c.guide.update(dt, 2.2);
       }
       if (this.climbSnow) {
-        const aboveSnowLine = y > 90;
-        this.climbSnow.visible = aboveSnowLine;
-        if (aboveSnowLine) {
+        const aboveAmbientLine = y > route.ambientAbove;
+        this.climbSnow.visible = aboveAmbientLine;
+        if (aboveAmbientLine) {
           this.climbSnow.position.set(p.x, y, p.z);
           const attr = this.climbSnow.geometry.getAttribute("position") as THREE.BufferAttribute;
           const arr = attr.array as Float32Array;
@@ -3179,24 +3246,25 @@ export class ParkWorld {
         this.play(kid, "cheer", true);
       }
     } else if (c.phase === "summit") {
-      const y = groundY(EVEREST_SUMMIT.x, EVEREST_SUMMIT.z);
-      kid.root.position.set(EVEREST_SUMMIT.x, y, EVEREST_SUMMIT.z);
+      const top = route.pointAtU(1);
+      const y = groundY(top.x, top.z);
+      kid.root.position.set(top.x, y, top.z);
       if (this.climbSnow) {
         this.climbSnow.visible = true;
-        this.climbSnow.position.set(EVEREST_SUMMIT.x, y, EVEREST_SUMMIT.z);
+        this.climbSnow.position.set(top.x, y, top.z);
       }
     } else {
-      // flyDown: a quick helicopter swoop straight back to Base Camp's own trailhead
-      const t = Math.min(1, c.timer / 2.2);
-      const from = climbPointAtU(1);
-      const to = climbPointAtU(0);
+      // flyDown: a quick swoop/hop straight back to the trailhead
+      const t = Math.min(1, c.timer / route.descendSeconds);
+      const from = route.pointAtU(1);
+      const to = route.pointAtU(0);
       const x = from.x + (to.x - from.x) * t;
       const z = from.z + (to.z - from.z) * t;
-      const y = groundY(x, z) + Math.sin(t * Math.PI) * 14;
+      const y = groundY(x, z) + Math.sin(t * Math.PI) * route.descendArc;
       kid.root.position.set(x, y, z);
       if (c.guide) c.guide.root.position.set(x + 2, groundY(x + 2, z + 1), z + 1);
       if (this.climbSnow) this.climbSnow.visible = false;
-      if (t >= 1) this.endClimb(false); // the lerp already lands exactly at Base Camp
+      if (t >= 1) this.endClimb(false); // the lerp already lands exactly at the trailhead
     }
   }
 
