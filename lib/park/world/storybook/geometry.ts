@@ -3,7 +3,7 @@
 // sway and per-instance tinting. Everything is faceted (flat per-face normals and colours) so the
 // diorama pass's colour steps and ink lines read as facets, like a painted wooden model.
 import * as THREE from "three";
-import { col, merge, part, type Fx } from "../fantasy/geo";
+import { col, merge, part, weld, type Fx } from "../fantasy/geo";
 import { noise3, rngOf } from "../fantasy/noise";
 import { KIND_LUMPY, KIND_ROUND, KIND_SPIRE, KIND_TALL } from "./plan";
 
@@ -11,9 +11,19 @@ const WHITE = col("#ffffff");
 const WOOD = col("#b07a44");
 const _c = new THREE.Color();
 
-/** a lumpy dodecahedron (12 chunky facets), welded so the lumps stay watertight */
-function lump(cx: number, cy: number, cz: number, rx: number, ry: number, rz: number, seed: number, amount = 0.22, detail = 0): THREE.BufferGeometry {
-  const g = detail > 0 ? new THREE.IcosahedronGeometry(1, detail) : new THREE.DodecahedronGeometry(1, 0);
+/** soft, rounded shading: weld the corners and share one normal between the faces that meet there
+ *  (so a canopy reads as a rounded mass of leaves, not a cut gem) */
+function smooth(g: THREE.BufferGeometry): THREE.BufferGeometry {
+  const w = weld(g);
+  w.computeVertexNormals();
+  const out = w.toNonIndexed();
+  w.dispose();
+  return out;
+}
+
+/** a lumpy ball of leaves (an icosphere: 80 faces, or 20 for `detail` 0), gently lumpy */
+function lump(cx: number, cy: number, cz: number, rx: number, ry: number, rz: number, seed: number, amount = 0.16, detail = 1): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(1, detail);
   g.deleteAttribute("uv");
   g.deleteAttribute("normal");
   const pos = g.attributes.position as THREE.BufferAttribute;
@@ -37,7 +47,7 @@ function ico(cx: number, cy: number, cz: number, rx: number, ry: number, rz: num
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
-    const k = 1 + (noise3(v.x * 1.7 + seed, v.y * 1.7, v.z * 1.7 - seed, 3) - 0.5) * 0.3;
+    const k = 1 + (noise3(v.x * 1.7 + seed, v.y * 1.7, v.z * 1.7 - seed, 3) - 0.5) * 0.2;
     pos.setXYZ(i, cx + v.x * rx * k, cy + v.y * ry * k * (v.y < -0.2 ? 0.8 : 1), cz + v.z * rz * k);
   }
   return g;
@@ -45,24 +55,24 @@ function ico(cx: number, cy: number, cz: number, rx: number, ry: number, rz: num
 
 /** canopy: white-ish facets (the instance colour gives the hue), brighter on top, shaded below */
 function canopy(g: THREE.BufferGeometry, seed: number, top: number, bottom: number, swayFrom = 0.3): THREE.BufferGeometry {
-  const r = rngOf(seed);
+  // (shaded smoothly: lighter on top, darker underneath, with soft dapples that follow the shape —
+  //  never a different flat colour per face, which reads as hard edges)
   return part(
-    g,
+    g.attributes.normal ? g : smooth(g),
     (p, n) => {
       const up = n.y * 0.5 + 0.5;
-      const k = 0.66 + up * 0.36 + (r() - 0.5) * 0.1;
+      const k = 0.66 + up * 0.36 + (noise3(p.x * 1.3 + seed, p.y * 1.3, p.z * 1.3, 9) - 0.5) * 0.12;
       return _c.setScalar(Math.min(1, k));
     },
     (p): Fx => [1, swayFrom + Math.max(0, (p.y - bottom) / Math.max(0.01, top - bottom)) * (1 - swayFrom), 0],
-    { faceted: true, faceColor: true },
   );
 }
 
 function trunk(h: number, r0: number, r1: number, color = "#7b5433"): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(r1, r0, h, 5, 1, true);
+  const g = new THREE.CylinderGeometry(r1, r0, h, 8, 1, true);
   g.translate(0, h / 2, 0);
   const c = col(color);
-  return part(g, (p) => _c.copy(c).multiplyScalar(0.8 + 0.2 * (p.y / h)), [0, 0, 0], { faceted: true });
+  return part(g, (p) => _c.copy(c).multiplyScalar(0.8 + 0.2 * (p.y / h)), [0, 0, 0]);
 }
 
 /**
@@ -72,24 +82,24 @@ function trunk(h: number, r0: number, r1: number, color = "#7b5433"): THREE.Buff
 export function buildForestTree(kind: number, low = false): THREE.BufferGeometry {
   // (the main mass is a 12-facet dodecahedron, the smaller lumps 20-facet icosahedra)
   if (kind === KIND_ROUND) {
-    const parts = [trunk(2.4, 0.3, 0.2), canopy(lump(0, 3.35, 0, 1.85, 1.6, 1.85, 1.3), 11, 5.2, 1.9)];
+    const parts = [trunk(2.4, 0.3, 0.2), canopy(lump(0, 3.35, 0, 1.85, 1.6, 1.85, 1.3, 0.16, low ? 0 : 1), 11, 5.2, 1.9)];
     if (!low) parts.push(canopy(ico(0.55, 4.5, -0.35, 1.05, 0.9, 1.05, 4.1), 12, 5.6, 3.6));
     return merge(parts);
   }
   if (kind === KIND_LUMPY) {
-    const parts = [trunk(2.2, 0.3, 0.2), canopy(lump(0, 3.15, 0, 1.6, 1.4, 1.6, 2.2), 21, 5.4, 1.9), canopy(ico(1.1, 3.55, 0.45, 1.2, 1.05, 1.2, 5.3), 22, 5.4, 1.9)];
+    const parts = [trunk(2.2, 0.3, 0.2), canopy(lump(0, 3.15, 0, 1.6, 1.4, 1.6, 2.2, 0.16, low ? 0 : 1), 21, 5.4, 1.9), canopy(ico(1.1, 3.55, 0.45, 1.2, 1.05, 1.2, 5.3), 22, 5.4, 1.9)];
     if (!low) parts.push(canopy(ico(-0.75, 3.95, -0.6, 1.2, 1.1, 1.2, 7.7), 23, 5.4, 1.9));
     return merge(parts);
   }
   if (kind === KIND_TALL) {
-    const parts = [trunk(2.6, 0.26, 0.17), canopy(lump(0, 3.5, 0, 1.4, 1.25, 1.4, 3.3), 31, 6.4, 2.2), canopy(ico(0.1, 4.85, 0.05, 1.1, 1.1, 1.1, 6.2), 32, 6.4, 2.2)];
+    const parts = [trunk(2.6, 0.26, 0.17), canopy(lump(0, 3.5, 0, 1.4, 1.25, 1.4, 3.3, 0.16, low ? 0 : 1), 31, 6.4, 2.2), canopy(ico(0.1, 4.85, 0.05, 1.1, 1.1, 1.1, 6.2), 32, 6.4, 2.2)];
     if (!low) parts.push(canopy(ico(-0.05, 5.85, -0.05, 0.72, 0.8, 0.72, 8.8), 33, 6.6, 2.2));
     return merge(parts);
   }
   // pines: stacked chunky cones (closed underneath so you never see inside), the tips sway most
   const tiers = kind === KIND_SPIRE ? (low ? 3 : 4) : 3;
   const parts = [trunk(kind === KIND_SPIRE ? 2.2 : 1.8, 0.22, 0.14, "#6a4a30")];
-  const sides = low ? 5 : 6;
+  const sides = low ? 7 : 10;
   const r = rngOf(kind * 97 + 5);
   for (let i = 0; i < tiers; i++) {
     const u = i / (tiers - 1);
@@ -97,6 +107,7 @@ export function buildForestTree(kind: number, low = false): THREE.BufferGeometry
     const rad = (spire ? 1.25 : 1.75) * (1 - u * 0.58);
     const h = (spire ? 2.4 : 2.6) * (1 - u * 0.3);
     const y = (spire ? 1.3 : 1.2) + u * (spire ? 4.2 : 3.4);
+    // (the cone keeps its own rounded normals: a soft fir, not a faceted pyramid)
     const g = new THREE.ConeGeometry(rad, h, sides, 1, false);
     g.deleteAttribute("uv");
     g.rotateY(r() * Math.PI);
@@ -106,7 +117,7 @@ export function buildForestTree(kind: number, low = false): THREE.BufferGeometry
     for (let k = 0; k < pos.count; k++) {
       const px = pos.getX(k);
       const pz = pos.getZ(k);
-      if (Math.hypot(px, pz) > rad * 0.9) pos.setY(k, pos.getY(k) + (noise3(px * 2, i, pz * 2, 7) - 0.5) * 0.35);
+      if (Math.hypot(px, pz) > rad * 0.9) pos.setY(k, pos.getY(k) + (noise3(px * 2, i, pz * 2, 7) - 0.5) * 0.22);
     }
     const top = spire ? 7.6 : 7.0;
     parts.push(canopy(g, 40 + i + kind * 10, top, 1.2, 0.15));

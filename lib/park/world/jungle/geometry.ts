@@ -4,7 +4,7 @@
 // Each tree type is ONE geometry (trunk + buttresses + boughs + crown + epiphytes) for one instanced
 // draw call. Sizes are TRUE size at scale 1 (see ./plan.ts TREE_DIMS).
 import * as THREE from "three";
-import { col, merge, part, taperTube, transform, type Fx } from "../fantasy/geo";
+import { col, merge, part, taperTube, transform, weld, type Fx } from "../fantasy/geo";
 import { noise3, rngOf } from "../fantasy/noise";
 import { TREE_DIMS, T_CANOPY, T_FERN, T_GIANT, T_PALM } from "./plan";
 
@@ -32,12 +32,15 @@ function lump(cx: number, cy: number, cz: number, rx: number, ry: number, rz: nu
 
 /** leaves: white-ish facets (the instance colour gives the green), lighter on top, shaded below */
 function leaves(g: THREE.BufferGeometry, seed: number, y0: number, y1: number, sway = 1, base = 0.62): THREE.BufferGeometry {
-  const r = rngOf(seed);
+  // (smoothly shaded, like the park's trees: see storybook/geometry.ts)
+  const w = weld(g);
+  w.computeVertexNormals();
+  const sm = w.toNonIndexed();
+  w.dispose();
   return part(
-    g,
-    (_p, n) => _c.setScalar(Math.min(1, base + (n.y * 0.5 + 0.5) * 0.38 + (r() - 0.5) * 0.12)),
+    sm,
+    (p, n) => _c.setScalar(Math.min(1, base + (n.y * 0.5 + 0.5) * 0.38 + (noise3(p.x * 0.9 + seed, p.y * 0.9, p.z * 0.9, 9) - 0.5) * 0.14)),
     (p): Fx => [1, sway * Math.max(0.15, Math.min(1, (p.y - y0) / Math.max(0.01, y1 - y0))), 0],
-    { faceted: true, faceColor: true },
   );
 }
 
@@ -53,7 +56,6 @@ function bark(g: THREE.BufferGeometry, mossTo: number, seed: number, sway = 0): 
       return _c.lerp(MOSS, Math.min(0.85, moss));
     },
     (p): Fx => [0, sway * Math.max(0, p.y / 60), 0],
-    { faceted: true, faceColor: true },
   );
 }
 

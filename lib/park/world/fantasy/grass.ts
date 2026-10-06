@@ -25,15 +25,17 @@ export interface GrassLayerDef {
   width: number;
 }
 
+// (true to size: meadow grass about 20-25 cm tall beside a 1.2 m kid, wildflowers a hand across —
+//  1 m is about 1.6 units)
 export function grassLayers(lowQuality: boolean): GrassLayerDef[] {
   return lowQuality
     ? [
-        { count: 9000, patch: 34, radius: 17, inner: 0, segments: 3, height: 0.62, width: 0.2 },
-        { count: 6500, patch: 88, radius: 44, inner: 13, segments: 2, height: 0.8, width: 0.42 },
+        { count: 9000, patch: 34, radius: 17, inner: 0, segments: 3, height: 0.32, width: 0.12 },
+        { count: 6500, patch: 88, radius: 44, inner: 13, segments: 2, height: 0.42, width: 0.26 },
       ]
     : [
-        { count: 30000, patch: 42, radius: 21, inner: 0, segments: 4, height: 0.62, width: 0.14 },
-        { count: 26000, patch: 116, radius: 58, inner: 16, segments: 3, height: 0.78, width: 0.32 },
+        { count: 30000, patch: 42, radius: 21, inner: 0, segments: 4, height: 0.32, width: 0.085 },
+        { count: 26000, patch: 116, radius: 58, inner: 16, segments: 3, height: 0.42, width: 0.2 },
       ];
 }
 
@@ -223,7 +225,7 @@ const FLOWER_VERTEX_BODY = /* glsl */ `
   vec3 lp = position;
   float gT = lp.y;
   lp.y *= gH;
-  lp.xz *= aKind > 0.5 ? gS * 1.3 : gS;
+  lp.xz *= aKind > 0.5 ? gS * 0.62 : gS * 0.7;
   float gRot = aBlade.w;
   float cr = cos( gRot ); float sr = sin( gRot );
   lp.xz = vec2( lp.x * cr - lp.z * sr, lp.x * sr + lp.z * cr );
@@ -247,7 +249,7 @@ function flowerMaterial(U: FantasyUniforms, patch: number, radius: number, win: 
       uPatch: { value: patch },
       uRadius: { value: radius },
       uInner: { value: 0 },
-      uHeight: { value: 0.75 },
+      uHeight: { value: 0.42 },
       uWidth: { value: 1 },
       uTime: U.uTime,
       uGlow: U.uGlow,
