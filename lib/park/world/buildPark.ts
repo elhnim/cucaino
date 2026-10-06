@@ -489,12 +489,13 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const stallKinds: [KitName, string][] = [["coaster", "stall-food"], ["coaster", "stall-drinks"], ["town", "stall-red"], ["town", "stall-green"], ["coaster", "stall-information"], ["town", "cart"]];
   const stallMats = new Map<string, THREE.Matrix4[]>();
   const market = LANDS.find((l) => l.id === "market")!;
-  for (let i = 0; i < 8; i++) {
+  // (six stalls, three a side of a broad street with room to walk between them — eight used to
+  // be packed along a short diagonal in the middle of the land)
+  for (let i = 0; i < 6; i++) {
     const k = stallKinds[i % stallKinds.length];
     const key = `${k[0]}/${k[1]}`;
-    const t = i / 7;
-    const x = market.x + t * 16 - 2;
-    const z = market.z + 9 - t * 14 + (i % 2 ? 5 : -5);
+    const x = market.x + (Math.floor(i / 2) - 1) * 9.5;
+    const z = market.z + (i % 2 ? 6.5 : -6.5);
     if (!stallMats.has(key)) stallMats.set(key, []);
     stallMats.get(key)!.push(m4g(x, 0, z, 2.6, i % 2 ? Math.PI * 0.8 : -Math.PI * 0.2));
   }
