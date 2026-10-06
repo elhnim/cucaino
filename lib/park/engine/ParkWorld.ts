@@ -53,6 +53,7 @@ import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { settlementAt, settlementDeckY } from "../registry/settlements";
 import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
 import { wildBridgeDeckY } from "../registry/wildWater";
+import { roadConfine, roadDeckY, inWildlandsZone, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
 import { canyonVisualFloorY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
 import { rawHeight } from "../registry/landform";
 import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
@@ -169,7 +170,13 @@ const SWIM_DEPTH = 0.9;
 // (Coralcove's land and decks, Frostpeak's and Dino Isle's land, decks and jetties - their
 // under-sea slopes come in through seaFloorY - and the harbours' jetties and the Rift Dock:
 // lib/park/registry/harbours.worldFloorY)
-const worldFloor = (x: number, z: number) => worldFloorY(x, z);
+const worldFloor = (x: number, z: number) => {
+  // the island's road network (Agent R): a bridge deck or a tunnel floor, where either exists —
+  // same fold-in pattern as worldFloorY's own settlement/Victoria-Falls/Grand-Canyon decks
+  const r = roadDeckY(x, z);
+  if (r !== null) return Math.max(r, worldFloorY(x, z));
+  return worldFloorY(x, z);
+};
 const seaDepth = (x: number, z: number) => WATER_Y - worldFloor(x, z);
 /** the ground (or sea floor) under (x, z) */
 const floorY0 = (x: number, z: number) => worldFloor(x, z);
@@ -177,7 +184,7 @@ const floorY0 = (x: number, z: number) => worldFloor(x, z);
  *  walkway there at about that level (or the ground's right there too — the walkway's foot), else
  *  null (it would be a step off the edge) */
 function raisedDeckAt(x: number, z: number, fromY: number): number | null {
-  const y = settlementDeckY(x, z) ?? wildBridgeDeckY(x, z) ?? grandCanyonDeckY(x, z);
+  const y = settlementDeckY(x, z) ?? wildBridgeDeckY(x, z) ?? grandCanyonDeckY(x, z) ?? roadDeckY(x, z);
   if (y !== null && Math.abs(y - fromY) < 0.9) return y;
   const g = groundY(x, z);
   return Math.abs(g - fromY) < 0.9 ? g : null;
@@ -417,6 +424,10 @@ export class ParkWorld {
   /** 0..1 eased: the camera's dropped down under the rainforest's canopy */
   private forestCam = 0;
   private forestPull = 30;
+  /** 0..1 eased: the camera's ducked down and pulled in because the kid is inside one of the
+   *  island's road tunnels (registry/roads.ts's tunnelCeilingAt) — a low, dark bore the normal
+   *  12-up/14-back chase offset would poke straight through */
+  private tunnelCam = 0;
   /** 1 = full boom length, down to a short safe length — eased, like camPull/forestPull/uwPull.
    *  The Grand Canyon's own height field (registry/grandCanyon.ts's grandCanyonGroundY) is
    *  deliberately softened since round 3 so the streamed terrain mesh never has to hold a
@@ -1327,6 +1338,23 @@ export class ParkWorld {
         const depth = seaDepth(pos.x, pos.z);
         const blocked = caps.medium === "land" ? depth > 0.45 : caps.medium === "under" || caps.medium === "sea" ? depth < 2.6 : false;
         if (blocked) {
+          pos.x = px;
+          pos.z = pz;
+        }
+      }
+      // out in the Wildlands, a car is road-bound (registry/roads.ts): trying to leave the road
+      // slides it back along the edge, never a hard stop and never a teleport — the same idea as
+      // the raised decks' own invisible railings a few lines below. Park-island buggies (the
+      // car-gate/rides/dream/golf ones) and the Dino Isle jeeps keep roaming free as they always
+      // have (they never leave the park/Dino Isle anyway — they already can't cross water), but once
+      // ANY car strays out into the Wildlands proper it's held to the road same as a Wildlands jeep.
+      if (caps && caps.medium === "land" && this.mount!.kind === "car" && inWildlandsZone(pos.x, pos.z)) {
+        const c = roadConfine(pos.x, pos.z, px, pz);
+        pos.x = c.x;
+        pos.z = c.z;
+        // the one level crossing's boom: when it's down (the train's within ~8s, registry/
+        // roads.ts's crossingBoomDown), a car stops right at the line rather than driving through
+        if (this.park && levelCrossingBlocks(pos.x, pos.z, this.park.railway.train.s)) {
           pos.x = px;
           pos.z = pz;
         }
@@ -2271,7 +2299,7 @@ export class ParkWorld {
       const inForest = !this.mount && !this.building && underCanopy(pos.x, pos.z) && pos.y > WATER_Y - 0.5;
       this.forestCam += ((inForest ? 1 : 0) - this.forestCam) * Math.min(1, dt * 1.6);
       const fc = this.forestCam * this.forestCam * (3 - 2 * this.forestCam);
-      const pitch = this.camPitch + (Math.min(this.camPitch, 0.3) - this.camPitch) * fc;
+      let pitch = this.camPitch + (Math.min(this.camPitch, 0.3) - this.camPitch) * fc;
       if (fc > 0.001) {
         dist *= 1 - 0.38 * fc;
         // keep the camera over the trail behind the kid rather than deep in the undergrowth
@@ -2287,6 +2315,16 @@ export class ParkWorld {
         }
         this.forestPull += (room - this.forestPull) * Math.min(1, dt * (room < this.forestPull ? 5 : 1.5));
         dist = Math.min(dist, dist + (this.forestPull - dist) * fc);
+      }
+      // inside one of the island's road tunnels (registry/roads.ts's tunnelCeilingAt): the chase
+      // camera ducks down and pulls right in, almost level, so it stays inside the low, dark bore
+      // instead of poking through the lining above — see the hard Y-clamp just after camBase is set
+      const tunnelCeil = tunnelCeilingAt(pos.x, pos.z);
+      this.tunnelCam += ((tunnelCeil !== null ? 1 : 0) - this.tunnelCam) * Math.min(1, dt * 2.2);
+      const tc = this.tunnelCam * this.tunnelCam * (3 - 2 * this.tunnelCam);
+      if (tc > 0.001) {
+        dist *= 1 - 0.75 * tc;
+        pitch += (0.08 - pitch) * tc;
       }
       const fov0 = this.look === "diorama" ? (this.camera.aspect < 0.8 ? 56 : 38) : this.camera.aspect < 0.8 ? 58 : 42;
       const fov = fov0 + 20 * fc + this.camBigFov;
@@ -2330,6 +2368,10 @@ export class ParkWorld {
       const canyonUnderCam = nearGrandCanyon(cp.x, cp.z) ? canyonVisualFloorY(cp.x, cp.z, rawHeight(cp.x, cp.z)) : null;
       const under = Math.max(worldFloor(cp.x, cp.z), canyonUnderCam ?? -Infinity) + 1.2;
       if (cp.y < under) cp.y = under;
+      // hard safety clamp: never let the camera itself end up above a tunnel's own lining, however
+      // the hill-lift above just moved it (checked at the camera's OWN (x, z), not just the kid's)
+      const ceilAtCam = tunnelCeilingAt(cp.x, cp.z);
+      if (ceilAtCam !== null && cp.y > ceilAtCam) cp.y = ceilAtCam;
       // belt and braces for the Grand Canyon specifically: the lift/clamp above keeps the camera
       // ABOVE the visual rock at its own (x, z), but a sheer wall right beside a narrow gorge can
       // still sit BETWEEN the kid and a camera that's merely "high enough" — the classic case a

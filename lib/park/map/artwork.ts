@@ -19,6 +19,7 @@ import { RAIL_POINTS } from "../registry/railway";
 import { WILD_FALLS, WILD_LAKE_OUTLINE, WILD_OUTLET_POINTS, WILD_RIVER_POINTS, wildRainforestK, wildRiverHalfWidth } from "../registry/wildWater";
 import { CART_ROAD } from "../registry/cartRoad";
 import { FOOTPATHS } from "../registry/footpaths";
+import { ROAD_SEGMENTS, BRIDGES as ROAD_BRIDGES, TUNNELS as ROAD_TUNNELS, CAR_PARKS } from "../registry/roads";
 import { EVEREST_SUMMIT, LONE_PEAK } from "../registry/landform";
 // kartTrack.ts (and its own geometry source, karts/track.ts) are plain 2D maths — verified three.js
 // -free the same way every other value import into this module is (see the harbours.ts/trade.ts
@@ -150,6 +151,19 @@ export const CART_ROAD_PATH = d(CART_ROAD.points);
 /** a settlement's own walk to its station (registry/footpaths.ts): dotted brown lines, same family
  *  as the cart road, so every dry-land trade/travel route reads as one coherent "paths" language */
 export const FOOTPATH_PATHS = FOOTPATHS.map((f) => d(f.points));
+// the island's road network (Agent R, registry/roads.ts): every ordinary stretch as its own thin
+// line, plus the bridges/tunnels/car parks as their own little markers — drawn solid (unlike the
+// cart road's dashed dirt track) since this is the island's proper, built road
+export const ROAD_PATHS = ROAD_SEGMENTS.map((seg) => d(seg.points.map((p): P2 => [p.x, p.z])));
+export const ROAD_BRIDGE_LINES: { x1: number; z1: number; x2: number; z2: number; grand: boolean }[] = ROAD_BRIDGES.map((b) => ({
+  x1: b.x - Math.sin(b.heading) * (b.span / 2),
+  z1: b.z - Math.cos(b.heading) * (b.span / 2),
+  x2: b.x + Math.sin(b.heading) * (b.span / 2),
+  z2: b.z + Math.cos(b.heading) * (b.span / 2),
+  grand: b.style === "grand",
+}));
+export const ROAD_TUNNEL_LINES: { x1: number; z1: number; x2: number; z2: number }[] = ROAD_TUNNELS.map((t) => ({ x1: t.x0, z1: t.z0, x2: t.x1, z2: t.z1 }));
+export const ROAD_CAR_PARKS: { id: string; x: number; z: number; name: string }[] = CAR_PARKS.map((cp) => ({ id: cp.id, x: cp.x, z: cp.z, name: cp.serves[0] }));
 
 export { FALLS, JETTY, OUTLET_HALF, WILD_FALLS, BRIDGES };
 

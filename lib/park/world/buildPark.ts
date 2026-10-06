@@ -50,6 +50,7 @@ import { buildEverestClimbDecor } from "./everestClimbDecor";
 import { buildParicutinDecor } from "./paricutinDecor";
 import { buildGrandCanyonDecor } from "./grandCanyonDecor";
 import { CANYON_OPEN } from "../registry/grandCanyon";
+import { buildRoads, type Roads } from "./roads";
 
 export interface BuiltPark {
   /** meshes that can be tapped, tagged with userData.placeId */
@@ -667,6 +668,11 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // Grand-Canyon-local colour override
   const grandCanyonDecor = CANYON_OPEN ? buildGrandCanyonDecor(scene) : null;
   if (grandCanyonDecor) disposables.push(grandCanyonDecor);
+  // the island's road network (Agent R, registry/roads.ts): the long ribbon streams in round the
+  // kid like the railway track; the bridges, tunnels, car parks and junction signs are built once
+  // (there are only a couple of dozen of them)
+  const roads: Roads = buildRoads(scene);
+  disposables.push(roads);
   // (streamed round the kid: only the chunks in view are built, the near ones finely)
   const ground = track(buildTerrainChunks({ lowQuality: opts.lowQuality, mask: fantasy.mask }));
   scene.add(ground.group);
@@ -843,6 +849,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       fantasy.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
       ground.update(focus ?? origin0);
       railway.update(dt, t, focus ?? origin0);
+      roads.update(dt, t, focus ?? origin0, railway.train.s, atmosphere.glow > 0.5);
       wildlife.update(dt, t, { kid: focus ?? origin0, glow: atmosphere.glow, hour: atmosphere.hour });
       for (const l of landmarks) l.update(dt, t, atmosphere.glow);
       lolly.rotation.y += dt * 0.5;

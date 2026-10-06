@@ -19,6 +19,7 @@ import { kartTrackWorld } from "../../registry/kartTrack";
 import { TRACK_WIDTH } from "../../karts/track";
 import { canyonDesertK, CANYON_FOOTPATH } from "../../registry/grandCanyon";
 import { paricutinFootprintWeight } from "../../registry/paricutin";
+import { ROAD_SEGMENTS, ROAD_HALF, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROUNDABOUT_OUTER } from "../../registry/roads";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
  *  any i, j (the mask reaches over the whole island, tile by tile). Its resolution `n` is the
@@ -115,6 +116,26 @@ function discs(): Disc[] {
   for (const [x, z] of CANYON_FOOTPATH) carve(x, z, 1.1, 2.6);
   // the go-kart circuit's asphalt and kerbs (registry/kartTrack.ts): no grass or flowers on the road
   for (const pt of kartTrackWorld().points) carve(pt.x, pt.z, TRACK_WIDTH / 2 + 1.2, TRACK_WIDTH / 2 + 2.6);
+  // the island's road network (Agent R): asphalt + kerb, no grass on the bed, soft verge beyond it.
+  // round 4: a road's RAW points (not the trimmed ribbon — world/roads/index.ts's buildSection cuts
+  // the ribbon back from a roundabout, but this dirt mask used every raw point regardless) can sit
+  // close to a junction's own ring without the ribbon actually being drawn there (a road's stub out
+  // to a roundabout, then its own pre-existing route briefly curving back near the new hub before
+  // straightening away — measured on ring-h2-h3, 20.7 m out at one point, just inside the ring's own
+  // 22 m) — that near point's dirt halo (up to ROAD_HALF+2.6 wide) then bled OUT past the ring's
+  // edge into open grass, a real "earth" patch right by the roundabout with no road ribbon anywhere
+  // near it to explain the dirt. Skip carving any road point sitting inside a ring's own footprint —
+  // the ring draws its own green island there (and its own paved surface on top either way).
+  const nearRoundabout = (x: number, z: number) => ROAD_JUNCTIONS.some((j) => Math.hypot(x - j.x, z - j.z) < ROUNDABOUT_OUTER + 2);
+  for (const seg of ROAD_SEGMENTS) for (const p of seg.points) if (!nearRoundabout(p.x, p.z)) carve(p.x, p.z, ROAD_HALF + 0.4, ROAD_HALF + 2.6);
+  for (const t of TUNNELS) {
+    const n = Math.max(4, Math.round(Math.hypot(t.x1 - t.x0, t.z1 - t.z0) / 8));
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      carve(t.x0 + (t.x1 - t.x0) * u, t.z0 + (t.z1 - t.z0) * u, t.half + 0.4, t.half + 2.6);
+    }
+  }
+  for (const cp of CAR_PARKS) carve(cp.x, cp.z, cp.r - 1.5, cp.r + 3);
   // lands: tidy, shorter lawns (not bare)
   for (const l of LANDS) {
     if (l.id === "forest") continue;

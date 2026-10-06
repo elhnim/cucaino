@@ -208,6 +208,47 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
     ctx.stroke(new Path2D(art.CART_ROAD_PATH));
     for (const fp of art.FOOTPATH_PATHS) ctx.stroke(new Path2D(fp));
     ctx.setLineDash([]);
+    // the island's proper road network (Agent R): a solid dark line (built asphalt, not a dirt
+    // track), bridges picked out brighter (the grand one thicker), tunnels dashed (hidden underground)
+    // a real paved road reads clearly at any zoom: a pale outline first, a dark fill on top (the
+    // same two-pass trick real road maps use so the line never blends into the ground beneath it)
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    const roadPaths = art.ROAD_PATHS.map((rp) => new Path2D(rp));
+    ctx.strokeStyle = "rgba(255,246,222,0.9)";
+    ctx.lineWidth = Math.max(px(4.2), 3.1);
+    for (const p of roadPaths) ctx.stroke(p);
+    ctx.strokeStyle = "#45414a";
+    ctx.lineWidth = Math.max(px(2.6), 1.9);
+    for (const p of roadPaths) ctx.stroke(p);
+    ctx.strokeStyle = "rgba(90,86,94,0.55)";
+    ctx.setLineDash([px(1.1), px(1.8)]);
+    ctx.lineWidth = Math.max(px(2.4), 1.6);
+    for (const tl of art.ROAD_TUNNEL_LINES) {
+      ctx.beginPath();
+      ctx.moveTo(tl.x1, tl.z1);
+      ctx.lineTo(tl.x2, tl.z2);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "#d84a52";
+    for (const bl of art.ROAD_BRIDGE_LINES) {
+      ctx.lineWidth = Math.max(px(bl.grand ? 4.2 : 2.6), bl.grand ? 2.6 : 1.8);
+      ctx.beginPath();
+      ctx.moveTo(bl.x1, bl.z1);
+      ctx.lineTo(bl.x2, bl.z2);
+      ctx.stroke();
+    }
+    for (const cp of art.ROAD_CAR_PARKS) {
+      ctx.fillStyle = "#4a7fd8";
+      ctx.beginPath();
+      ctx.arc(cp.x, cp.z, Math.max(px(3.2), 2.2), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `${Math.max(px(4), 3)}px system-ui`;
+      ctx.textAlign = "center";
+      ctx.fillText("P", cp.x, cp.z + Math.max(px(1.6), 1.1));
+    }
     // the Wildlands' own forests, as little tree-crown clusters (same technique as the park's own
     // rainforest) — only worth the ink once they're not sub-pixel (close/park/island, never World)
     if (band !== "world") {

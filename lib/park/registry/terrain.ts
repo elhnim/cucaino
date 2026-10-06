@@ -16,6 +16,7 @@ import { DREAM_ZONE } from "../builder/rules";
 import { SETTLEMENTS, settlePadHeight } from "./settlements";
 import { paricutinY } from "./paricutin";
 import { CANYON_FOOTPATH, grandCanyonGroundY, nearGrandCanyon } from "./grandCanyon";
+import { ROAD_SEGMENTS, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROAD_BED_INNER, ROAD_BED_OUTER, ROUNDABOUT_OUTER, densifyRoad } from "./roads";
 import { CART_ROAD } from "./cartRoad";
 import { FOOTPATHS } from "./footpaths";
 import { rawHeight, smooth, smoothedHeight } from "./landform";
@@ -207,6 +208,22 @@ function stamps(): Stamp[][] {
   // every other settlement's own footpath to its station (registry/footpaths.ts) — narrower than
   // the cart road (a kid's and a trader's own walk, not a cart's), same lazy local-smoothed levelling
   for (const fp of FOOTPATHS) for (const [x, z] of fp.points) stampLazy(x, z, 1.6, 8, () => Math.max(smoothedHeight(x, z), WATER_Y + 0.5));
+  // the island's road network (registry/roads.ts): a flat bed under every road point (its heights
+  // are frozen there, grade-relaxed once like the railway's), a level disc under each roundabout and
+  // car park, and a trench cut down to each tunnel's floor (the streamed lining roofs it over).
+  // Plain stamps like everything above — where a road meets the railway or a path, whichever wins
+  // the blend wins; the road's ribbon is draped over the ground that results (world/roads), so
+  // nothing here needs to out-rank anything else. Lazy: no cost until a tile out there is baked.
+  for (const seg of ROAD_SEGMENTS) for (const p of densifyRoad(seg.points, 5)) stampLazy(p.x, p.z, ROAD_BED_INNER, ROAD_BED_OUTER, () => p.y);
+  for (const j of ROAD_JUNCTIONS) stampLazy(j.x, j.z, ROUNDABOUT_OUTER + 3, ROUNDABOUT_OUTER + 12, () => j.y);
+  for (const cp of CAR_PARKS) stampLazy(cp.x, cp.z, cp.r + 1, cp.r + 8, () => cp.y);
+  for (const t of TUNNELS) {
+    const n = Math.max(4, Math.round(Math.hypot(t.x1 - t.x0, t.z1 - t.z0) / 4));
+    for (let i = 0; i <= n; i++) {
+      const u = i / n;
+      stampLazy(t.x0 + (t.x1 - t.x0) * u, t.z0 + (t.z1 - t.z0) * u, t.half + 3.9, t.half + 7, () => t.y0 + (t.y1 - t.y0) * u - 0.3);
+    }
+  }
   // the Grand Canyon's own footpath in from Park Station (registry/grandCanyon.ts's
   // CANYON_FOOTPATH — it has to go round the Great Ridge's own south-western tail, not through it,
   // so it's authored separately from the settlements' short footpaths.ts walks). Stops short of the

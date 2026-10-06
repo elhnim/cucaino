@@ -22,6 +22,7 @@ import { KART_SITE, KART_SITE_RADIUS } from "../../registry/kartTrack";
 import { nearGlacier } from "../everestDecor";
 import { nearCanyonFootpath, nearGrandCanyon } from "../../registry/grandCanyon";
 import { nearParicutin } from "../../registry/paricutin";
+import { nearRoad, ROAD_JUNCTIONS, ROUNDABOUT_OUTER, CAR_PARKS, TUNNELS } from "../../registry/roads";
 import { buildClump, buildJungleTree } from "../jungle/geometry";
 import { TREE_DIMS, T_CANOPY, T_FERN, T_GIANT, T_PALM } from "../jungle/plan";
 import type { JungleCut } from "../jungle/cutaway";
@@ -59,6 +60,13 @@ const smooth = (a: number, b: number, x: number) => {
 const isPineKind = (k: number) => k === KIND_PINE || k === KIND_SPIRE;
 
 /** Work out one square's trees and boulders (deterministic, pure). */
+function nearSeg(x: number, z: number, ax: number, az: number, bx: number, bz: number): number {
+  const ex = bx - ax;
+  const ez = bz - az;
+  const u = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez || 1)));
+  return Math.hypot(x - ax - ex * u, z - az - ez * u);
+}
+
 export function wildCell(ci: number, cj: number): WildItem[] {
   const out: WildItem[] = [];
   const x0 = ci * WILD_CELL;
@@ -84,6 +92,11 @@ export function wildCell(ci: number, cj: number): WildItem[] {
     !inSettlement(x, z, 6) &&
     !nearCartRoad(x, z, 3) &&
     !nearFootpath(x, z, 3) &&
+    !nearRoad(x, z, 4) && // the island's road network: no trees in the way of a drive,
+    !ROAD_JUNCTIONS.some((j) => Math.hypot(x - j.x, z - j.z) < ROUNDABOUT_OUTER + 5) && // on a roundabout,
+    !CAR_PARKS.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 4) && // in a car park
+    !TUNNELS.some((t) => nearSeg(x, z, t.x0, t.z0, t.x1, t.z1) < t.half + 11) && // or growing out of a tunnel's roof
+
     !nearFallsStructures(x, z, 5) && // the Victoria Falls Bridge and the falls' own rocky islands
     !nearGlacier(x, z, 3) && // Everest's own glacier ribbon and icefall — no forest growing through the ice
     !nearGrandCanyon(x, z, 90) && // the Grand Canyon's own footprint (+ a wide margin so no stray park tree ever reads as standing on its slopes) — its own desert scatter instead (grandCanyonDecor.ts)

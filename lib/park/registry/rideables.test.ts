@@ -10,11 +10,13 @@ import { SKY_PADS, skyBaseY, skyIslandById, skyWalkable } from "./skyIslands";
 import { seaDepth, seaFloorY } from "../world/sea/wander";
 import { zoneBounds } from "../builder/rules";
 import { DINO_OBSTACLES, DINO_PLAZA, DINO_TRAIL_HALF, dinoGroundY, dinoTrailDistance } from "./dinoIsland";
+import { CAR_PARKS } from "./roads";
 
 /** Dino Isle's safari jeeps (cars parked out on Dino Isle, not the main island: tested on their own below) */
 const isDinoJeep = (s: { id: string }) => s.id.startsWith("jeep-dino");
-/** the jeeps waiting behind the Wildlands Railway's stations (they have their own test below) */
-const isWildJeep = (s: { id: string }) => (s.id.startsWith("jeep-") || s.id.startsWith("dragon-wild-")) && s.id.includes("-station");
+/** the island's road network's own jeeps (Agent R, registry/roads.ts CAR_PARKS) — one car park per
+ *  Wildlands station, settlement, land-bound wonder and the kart track; tested on their own below */
+const isWildJeep = (s: { id: string }) => s.id.startsWith("jeep-cp-") || (s.id.startsWith("dragon-wild-") && s.id.includes("-station"));
 const of = (k: MountKind) => RIDEABLE_SPOTS.filter((s) => s.kind === k && !isDinoJeep(s) && !isWildJeep(s));
 const LAND: MountKind[] = ["bike", "car", "unicorn"];
 
@@ -58,16 +60,25 @@ describe("rideable spots", () => {
     for (const s of [...of("bike"), ...of("car")]) expect(trailInfo(s.x, s.z).d, s.id).toBeLessThan(7.5);
   });
 
-  it("two jeeps wait behind every Wildlands station, on dry, gentle ground beside the platform", () => {
-    for (const st of STATIONS.slice(1)) {
-      const js = RIDEABLE_SPOTS.filter((q) => isWildJeep(q) && q.id.startsWith(`jeep-${st.id}-`));
-      expect(js.length, st.id).toBe(2);
+  it("jeeps wait in every road car park (one per Wildlands station, settlement, wonder and the kart track), on dry ground right there", () => {
+    expect(CAR_PARKS.length).toBeGreaterThanOrEqual(10);
+    for (const cp of CAR_PARKS) {
+      const js = RIDEABLE_SPOTS.filter((q) => isWildJeep(q) && q.id.startsWith(`jeep-${cp.id}-`));
+      expect(js.length, cp.id).toBe(cp.jeeps);
       for (const j of js) {
-        expect(j.kind).toBe("car");
-        expect(Math.hypot(j.x - st.x, j.z - st.z), j.id).toBeLessThan(20);
-        expect(groundY(j.x, j.z)).toBeGreaterThan(WATER_Y + 0.5);
-        expect(nearRail(j.x, j.z, 2)).toBe(false);
+        expect(j.kind, j.id).toBe("car");
+        expect(Math.hypot(j.x - cp.x, j.z - cp.z), j.id).toBeLessThan(cp.r + 2);
+        expect(groundY(j.x, j.z), j.id).toBeGreaterThan(WATER_Y + 0.5);
+        expect(Number.isFinite(j.yaw), j.id).toBe(true);
       }
+    }
+    // the 4 Wildlands stations each get their own car park — round 3: no longer right at the
+    // platform (a roundabout now sits at the road hub there; the car park moved beside the road,
+    // clear of the ring — registry/roads.ts's CAR_PARKS own comment), so this is "this station's
+    // own car park, within a short walk" rather than "at the platform" literally
+    for (const st of STATIONS.slice(1)) {
+      const cp = CAR_PARKS.find((c) => Math.hypot(c.x - st.x, c.z - st.z) < 60);
+      expect(cp, st.id).toBeTruthy();
     }
   });
 

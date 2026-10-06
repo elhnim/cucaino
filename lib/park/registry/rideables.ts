@@ -22,6 +22,7 @@ import { DINO_JEEPS } from "./dinoIsland";
 import { STATIONS, nearRail, railAt } from "./railway";
 import { waterSdf } from "./waterways";
 import { underCanopy, thicketAt } from "./jungle";
+import { CAR_PARKS } from "./roads";
 
 export interface RideableSpot {
   id: string;
@@ -178,23 +179,19 @@ for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream
 // ── the safari jeeps: two buggies parked by the trail at Dino Isle's plaza (registry/dinoIsland) ──
 for (const j of DINO_JEEPS) add({ id: j.id, kind: "car", x: j.x, z: j.z, yaw: j.yaw, y: j.y }, 2.6);
 
-// ── the Wildlands' jeeps: two waiting behind every station out there (off the train, drive off) ──
-for (const st of STATIONS.slice(1)) {
-  const p = railAt(st.s);
-  // (behind the platform, away from the track, parked side by side facing along it)
-  const bx = st.x + p.dz * 9;
-  const bz = st.z - p.dx * 9;
-  const yaw = Math.atan2(p.dx, p.dz);
-  let made = 0;
-  for (const along of [-6, 6, -12, 12, 0]) {
-    if (made >= 2) break;
-    const x = bx + p.dx * along;
-    const z = bz + p.dz * along;
-    const y = groundY(x, z);
-    const sl = Math.hypot(groundY(x + 2, z) - groundY(x - 2, z), groundY(x, z + 2) - groundY(x, z - 2)) / 4;
-    if (y < WATER_Y + 0.5 || sl > 0.18 || nearRail(x, z, 2) || waterSdf(x, z) < 6) continue;
-    add({ id: `jeep-${st.id}-${made}`, kind: "car", x, z, yaw, y }, 2.6);
-    made++;
+// ── the island's road network (Agent R, registry/roads.ts): jeeps waiting in every car park,
+//    parked side by side facing out onto the road — one at every Wildlands railway station, two
+//    more at every settlement's, every land-bound wonder's and the kart track's own car park, so a
+//    kid always finds one wherever the road takes them ──
+for (const cp of CAR_PARKS) {
+  const px = Math.cos(cp.heading);
+  const pz = -Math.sin(cp.heading);
+  for (let i = 0; i < cp.jeeps; i++) {
+    const side = i % 2 === 0 ? 1 : -1;
+    const along = Math.floor(i / 2) * 5.5;
+    const x = cp.x + px * side * Math.min(5.5, cp.r * 0.45) + Math.sin(cp.heading) * along;
+    const z = cp.z + pz * side * Math.min(5.5, cp.r * 0.45) + Math.cos(cp.heading) * along;
+    add({ id: `jeep-${cp.id}-${i}`, kind: "car", x, z, yaw: cp.heading + Math.PI, y: groundY(x, z) }, 2.6);
   }
 }
 // ── and a dragon waiting at every station, just past the platform: get off the train, befriend it
