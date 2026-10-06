@@ -310,6 +310,7 @@ export class ParkWorld {
   /** riding the Sky Coaster — or, with `train`, the Wildlands Railway */
   private sky: { v: number; dist: number; cheered: boolean; train?: boolean; /** riding the carousel: which animal, and the deck's turn when they got on */ carousel?: { seat: number; from: number } } | null = null;
   private carouselPose = { x: 0, y: 0, z: 0, yaw: 0 };
+  private skySeated = false;
   private camWant = new THREE.Vector3();
   /** standing on a station's platform, waiting for the train we called */
   private trainWait: Station | null = null;
@@ -1674,7 +1675,7 @@ export class ParkWorld {
           this.burst(pos.clone().setY(pos.y + 0.6), 24);
         }
       }
-      this.tickActor(kid, dt, undefined, false);
+      this.tickActor(kid, dt, this.sky ? 0 : undefined, false);
     } else {
       if (seaHere > SWIM_DEPTH) {
         // swimming: the up/down buttons swim up and dive; the depth follows gently
@@ -1697,7 +1698,7 @@ export class ParkWorld {
           this.opts.onSwim?.(false);
         }
       }
-      this.tickActor(kid, dt, undefined, false);
+      this.tickActor(kid, dt, this.sky ? 0 : undefined, false);
     }
     // lean into a swim: flat out and kicking under water, head up paddling at the top
     const swimNow = !this.mount && this.wasInSea;
@@ -1716,6 +1717,19 @@ export class ParkWorld {
     }
 
     if (this.sky) this.tickSky(dt, kid);
+    // aboard the train, the coaster or the carousel the kid and their pet SIT (they used to stand
+    // in the carriage running on the spot, since the ride's own speed read as their running)
+    if (!!this.sky !== this.skySeated) {
+      this.skySeated = !!this.sky;
+      const stance = this.skySeated ? "sit" : null;
+      kid.rig?.setStance(stance);
+      this.pet?.rig?.setStance(stance);
+      if (kid.rig) kid.rig.root.position.set(0, this.skySeated ? -SKY_SEAT_DROP : 0, 0);
+      if (this.skySeated) {
+        this.play(kid, "idle");
+        if (this.pet) this.play(this.pet, "idle");
+      }
+    }
     if (this.climb) this.tickClimb(dt, kid);
     // waiting on a platform: aboard as soon as the train stands there; walk off and it's off
     if (this.trainWait) {
@@ -2002,8 +2016,8 @@ export class ParkWorld {
       if (petMoving) pet.facing = Math.atan2(step.x, step.z);
       turnTowards(pet, dt);
       if (this.petMode !== "sleep" && (pet.current === "idle" || pet.current === "walk" || pet.current === "run" || pet.current === ""))
-        this.play(pet, petMoving ? (this.petMode === "fetch" ? "run" : "walk") : "idle");
-      this.tickActor(pet, dt);
+        this.play(pet, petMoving && !this.sky ? (this.petMode === "fetch" ? "run" : "walk") : "idle");
+      this.tickActor(pet, dt, this.sky ? 0 : undefined);
       const head = pet.root.position.y + 1.9;
       if (this.petStatus) this.petStatus.position.set(pet.root.position.x, head + 0.7, pet.root.position.z);
       if (this.petBubble) {
@@ -2013,10 +2027,14 @@ export class ParkWorld {
       if (this.petZzz) this.petZzz.position.set(pet.root.position.x + 0.6, head + 0.4 + Math.sin(this.time * 2) * 0.25, pet.root.position.z);
     }
 
-    // on the coaster (or the train) the pet rides in the car behind
+    // on the train the pet sits beside the kid, in the same carriage; on the coaster, in the car behind
     if (this.sky?.train && this.pet) {
-      this.park.railway.carPose(2, this.trainPose);
-      this.pet.root.position.set(this.trainPose.x, this.trainPose.y + 0.4, this.trainPose.z);
+      this.park.railway.carPose(1, this.trainPose);
+      const sx = Math.cos(this.trainPose.yaw) * 0.5;
+      const sz = -Math.sin(this.trainPose.yaw) * 0.5;
+      kid.root.position.x = this.trainPose.x - sx;
+      kid.root.position.z = this.trainPose.z - sz;
+      this.pet.root.position.set(this.trainPose.x + sx, this.trainPose.y + 0.4, this.trainPose.z + sz);
       this.pet.facing = this.trainPose.yaw;
       this.pet.root.rotation.y = this.trainPose.yaw;
     } else if (this.sky && this.pet) {
@@ -2214,8 +2232,11 @@ export class ParkWorld {
       d = Math.atan2(Math.sin(d), Math.cos(d));
       // strong when heading away from the camera, only a gentle drift when walking sideways
       // (a full-strength follow chased a sideways walk round in circles)
-      const w = 0.22 + 0.78 * Math.max(0, Math.cos(d));
-      if (Math.abs(d) < 2.4) this.camYaw += d * Math.min(1, dt * 1.3 * w);
+      // (driving, the view swings round firmly behind the car as it turns — steering left keeps
+      // turning left, the way a car does; on foot that same strength spun a sideways walk in circles)
+      const driving = this.mount?.kind === "car";
+      const w = driving ? 0.65 + 0.35 * Math.max(0, Math.cos(d)) : 0.22 + 0.78 * Math.max(0, Math.cos(d));
+      if (Math.abs(d) < 2.4) this.camYaw += d * Math.min(1, dt * (driving ? 2.4 : 1.3) * w);
     }
     if (this.slide) {
       // tobogganing: chase cam just behind and a little above, framing the chute ahead
@@ -3780,6 +3801,8 @@ function turnTowards(a: Actor, dt: number) {
 
 /** sitting on the chairlift: how far below the seat the kid's feet-origin hangs (their hips on the seat) */
 const KID_SEAT_DROP = 0.48;
+/** seated on a ride (train, coaster, carousel): how far the kid's body drops onto the seat */
+const SKY_SEAT_DROP = 0.3;
 
 /** the Park kid's skis and poles (bright, chunky; under their feet, facing +z) */
 function buildKidSkis(): THREE.Group {

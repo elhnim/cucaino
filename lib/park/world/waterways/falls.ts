@@ -103,11 +103,16 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
     fog: true,
     uniforms: { ...THREE.UniformsLib.fog, ...U },
     vertexShader: /* glsl */ `
+      uniform float uTime;
       varying vec2 vUv; varying vec3 vW;
       #include <fog_pars_vertex>
       void main() {
         vUv = uv;
         vec4 w = modelMatrix * vec4( position, 1.0 );
+        // the curtain is never still: it sways and billows more the further it has fallen
+        float fv = clamp( uv.y - step( 3.0, uv.y ) * 7.3, 0.0, 1.0 );
+        w.x += sin( uTime * 1.7 + uv.x * 3.1 + fv * 5.0 ) * 0.22 * fv;
+        w.z += cos( uTime * 1.3 + uv.x * 2.3 + fv * 4.0 ) * 0.22 * fv;
         vW = w.xyz;
         vec4 mvPosition = viewMatrix * w;
         gl_Position = projectionMatrix * mvPosition;
@@ -134,6 +139,12 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
         float s2 = vn( vec2( q.x * 2.6 + 1.7, q.y * 1.4 ) );
         // sharp contrast: real dark gaps between the lighter falling streaks, not just "less white"
         float streak = smoothstep( 0.4, 0.58, s1 ) * 0.7 + smoothstep( 0.35, 0.7, s2 ) * 0.3;
+        // surges: now and then a heavier slug of water tips over the lip and you can follow it all
+        // the way down — broad bright bands racing through the streaks
+        float surge = smoothstep( 0.55, 0.8, vn( vec2( u * 1.6 + 2.0, v * 1.1 - uTime * ( 1.5 + v * 1.2 ) ) ) ) * falling;
+        streak = clamp( streak + surge * 0.45, 0.0, 1.0 );
+        // fine spray tearing off the face of the fall
+        streak = max( streak, step( 0.93, vn( vec2( u * 40.0, v * 22.0 - uTime * 9.0 ) ) ) * falling * 0.9 );
         vec3 rock = vec3( 0.14, 0.22, 0.26 );   // dark wet rock, glimpsed through the gaps
         vec3 deepC = vec3( 0.3, 0.56, 0.63 );   // the water's own deep teal, in the darker gaps
         vec3 white = vec3( 0.97, 1.0, 1.0 );
@@ -163,7 +174,7 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
   group.add(sheet);
 
   // ── mist billowing up from the pool and spray glittering off the plunge ──
-  const N = low ? 140 : 300;
+  const N = low ? 220 : 520;
   const seeds = new Float32Array(N * 4);
   for (let i = 0; i < N; i++) {
     const h = (k: number) => {
@@ -190,6 +201,7 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
       #include <fog_pars_vertex>
       void main() {
         float spray = step( 0.62, aSeed.w );
+        vSpray = 0.0;
         float rate = mix( 0.09, 0.55, spray ) * ( 0.8 + aSeed.z * 0.4 );
         float life = fract( uTime * rate + aSeed.x );
         vec3 p = uImpact + uSide * ( aSeed.y - 0.5 ) * uW;
@@ -199,21 +211,30 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
           float tt = life * 1.4;
           p += vel * tt + vec3( 0.0, -9.0 * tt * tt * 0.5, 0.0 );
           vA = ( 1.0 - life ) * step( ${WATER_Y.toFixed(2)} , p.y );
+        } else if ( aSeed.w < 0.26 ) {
+          // water vapour boiling out of the plunge: big soft clouds that hug the pool, roll out
+          // across it in every direction and thin away
+          float ang = aSeed.y * 6.2832 + sin( life * 2.0 + aSeed.z * 6.0 ) * 0.5;
+          vec3 outw = normalize( uDir * ( 0.35 + cos( ang ) ) + uSide * sin( ang ) );
+          p = uImpact + uSide * ( aSeed.y - 0.5 ) * uW * 0.8 + outw * life * ( 5.0 + aSeed.z * 9.0 );
+          p.y += 0.5 + life * ( 1.2 + aSeed.z * 2.2 ) + sin( life * 6.0 + aSeed.x * 6.28 ) * 0.3;
+          vA = sin( life * 3.14159 ) * 0.1;
+          vSpray = -1.0;
         } else {
-          // mist rolling out over the pool and rising
+          // mist rolling out over the pool and rising up the face of the fall
           p += uDir * ( life * ( 6.0 + aSeed.z * 6.0 ) ) + uSide * sin( life * 3.0 + aSeed.y * 6.28 ) * 2.0;
-          p.y += life * ( 4.0 + aSeed.z * 7.0 ) + 0.3;
-          vA = sin( life * 3.14159 ) * 0.075;
+          p.y += life * ( 4.0 + aSeed.z * 9.0 ) + 0.3;
+          vA = sin( life * 3.14159 ) * 0.1;
         }
-        vSpray = spray;
+        if ( vSpray > -0.5 ) vSpray = spray;
         // right up close (standing in the spray) the mist thins out instead of whiting the screen
         // out — the dense plume is for seeing from a respectful distance, not for standing inside
         float camFade = smoothstep( 2.5, 11.0, length( p - uCamPos ) );
         vA *= camFade;
         vec4 mvPosition = viewMatrix * vec4( p, 1.0 );
         gl_Position = projectionMatrix * mvPosition;
-        float size = mix( 1.6 + life * 3.6, 0.28, spray );
-        gl_PointSize = clamp( size * uPx / max( 1.0, -mvPosition.z ), 1.0, 90.0 );
+        float size = vSpray < -0.5 ? 3.2 + life * 5.5 : mix( 1.9 + life * 4.2, 0.28, spray );
+        gl_PointSize = clamp( size * uPx / max( 1.0, -mvPosition.z ), 1.0, 140.0 );
         #include <fog_vertex>
       }`,
     fragmentShader: /* glsl */ `
@@ -224,9 +245,11 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
       void main() {
         vec2 c = gl_PointCoord - 0.5;
         float d = length( c );
-        float soft = 1.0 - smoothstep( mix( 0.1, 0.25, vSpray ), 0.5, d );
-        vec3 col = mix( vec3( 0.96, 0.99, 1.0 ), vec3( 1.0 ), vSpray ) * mix( 1.0, 0.5, uGlow );
-        float a = soft * vA * mix( 1.0, 1.6, vSpray ) * ( 1.0 - fantasyFog() );
+        float sp = max( 0.0, vSpray );
+        // (vapour puffs are softest of all: no hard disc edge, just a blur of white)
+        float soft = vSpray < -0.5 ? pow( max( 0.0, 1.0 - d * 2.0 ), 1.6 ) : 1.0 - smoothstep( mix( 0.1, 0.25, sp ), 0.5, d );
+        vec3 col = mix( vec3( 0.96, 0.99, 1.0 ), vec3( 1.0 ), sp ) * mix( 1.0, 0.5, uGlow );
+        float a = soft * vA * mix( 1.0, 1.6, sp ) * ( 1.0 - fantasyFog() );
         if ( a < 0.01 ) discard;
         gl_FragColor = vec4( col, a );
       }`,
@@ -238,7 +261,7 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
   group.add(mist);
 
   // ── a rainbow in the spray (by day) ──
-  const bowGeo = new THREE.RingGeometry(7, 9.2, low ? 24 : 48, 1, 0, Math.PI);
+  const bowGeo = new THREE.RingGeometry(7, 12.2, low ? 24 : 48, 1, 0, Math.PI);
   const bowMat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -253,15 +276,23 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
       varying vec2 vP;
       vec3 hue( float h ) { return clamp( abs( mod( h * 6.0 + vec3( 0.0, 4.0, 2.0 ), 6.0 ) - 3.0 ) - 1.0, 0.0, 1.0 ); }
       void main() {
-        float r = ( length( vP ) - 7.0 ) / 2.2;
+        float rr = length( vP );
+        float r = ( rr - 7.0 ) / 2.2;
         float band = smoothstep( 0.0, 0.15, r ) * ( 1.0 - smoothstep( 0.85, 1.0, r ) );
+        // the second bow: outside the first, fainter, its colours the other way round, with the
+        // darker band of sky between the two
+        float r2 = ( rr - 10.2 ) / 1.9;
+        float band2 = smoothstep( 0.0, 0.2, r2 ) * ( 1.0 - smoothstep( 0.8, 1.0, r2 ) );
         // (it fades out toward the water at both ends, and shimmers with the drifting spray)
         float ends = smoothstep( 0.0, 3.5, vP.y );
         float shimmer = 0.8 + 0.2 * sin( vP.x * 0.9 + uTime * 1.3 );
         // by day, a full rainbow in the spray; by night, a faint silvery "moonbow" instead of nothing
-        vec3 dayC = hue( 0.82 - r * 0.82 ) * 0.42;
-        vec3 moonC = vec3( 0.82, 0.88, 1.0 ) * 0.22;
-        vec3 c = mix( dayC, moonC, uGlow ) * band * ends * shimmer;
+        // (it shows where there is spray to show it: brightest low in the mist, thinning higher up)
+        float inMist = 0.55 + 0.45 * ( 1.0 - smoothstep( 4.0, 11.0, vP.y ) );
+        vec3 dayC = hue( 0.82 - r * 0.82 ) * 0.78 * inMist;
+        vec3 day2 = hue( 0.0 + r2 * 0.82 ) * 0.2 * inMist;
+        vec3 moonC = vec3( 0.82, 0.88, 1.0 ) * 0.2;
+        vec3 c = ( mix( dayC, moonC, uGlow ) * band + day2 * band2 * ( 1.0 - uGlow ) ) * ends * shimmer;
         gl_FragColor = vec4( c, 1.0 );
       }`,
   });

@@ -105,9 +105,19 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
       attribute vec2 aFlow; attribute vec2 aDepth; attribute float aKind;
       varying vec2 vFlow; varying vec2 vDepth; varying float vKind; varying vec3 vW;
       #include <fog_pars_vertex>
+      uniform float uTime;
       void main() {
         vFlow = aFlow; vDepth = aDepth; vKind = aKind;
         vec4 w = modelMatrix * vec4( position, 1.0 );
+        // the surface itself moves a little: a slow, crossing swell on still water and low standing
+        // waves where the current runs (small enough that swimming and the banks never notice;
+        // nothing right at the shore, so the waterline stays put)
+        float sp = length( aFlow );
+        float open = smoothstep( 0.3, 1.6, aDepth.x );
+        vec2 fd = sp > 0.01 ? aFlow / sp : vec2( 1.0, 0.0 );
+        float swell = sin( w.x * 0.55 + w.z * 0.31 + uTime * 1.1 ) * 0.03 + sin( w.x * -0.27 + w.z * 0.62 - uTime * 0.8 ) * 0.025;
+        float rapid = sin( dot( w.xz, fd ) * 1.25 - uTime * ( 1.6 + sp ) ) * 0.045 * smoothstep( 0.5, 1.6, sp );
+        w.y += ( swell + rapid ) * open;
         vW = w.xyz;
         vec4 mvPosition = viewMatrix * w;
         gl_Position = projectionMatrix * mvPosition;
@@ -143,7 +153,11 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
         vec2 calm = vec2( uTime * 0.05, -uTime * 0.04 );
         vec2 s0 = slope( p - fl * t0 * 1.4 + calm );
         vec2 s1 = slope( p - fl * t1 * 1.4 + calm + 0.37 );
-        vec2 sl = mix( s0, s1, wb ) * ( 0.022 + min( sp, 2.0 ) * 0.03 );
+        // (a breeze crosses still water in patches — "cat's paws" — so the lake is never one even
+        // texture: ruffled here, glassy there, the patches drifting slowly)
+        float gust = vn( vW.xz * 0.055 + vec2( uTime * 0.045, uTime * 0.03 ) );
+        float ruffle = mix( 0.55, 1.5, smoothstep( 0.3, 0.75, gust ) );
+        vec2 sl = mix( s0, s1, wb ) * ( 0.05 * ruffle + min( sp, 2.0 ) * 0.05 );
         vec3 N = normalize( vec3( -sl.x, 1.0, -sl.y ) );
         vec3 V = normalize( cameraPosition - vW );
         bool under = !gl_FrontFacing || cameraPosition.y < vW.y;
@@ -152,6 +166,15 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
         vec3 shallow = mix( vec3( 0.36, 0.74, 0.7 ), vec3( 0.38, 0.7, 0.55 ), step( 0.5, vKind ) );
         vec3 deep = mix( vec3( 0.03, 0.27, 0.36 ), vec3( 0.03, 0.26, 0.24 ), step( 0.5, vKind ) );
         vec3 col = mix( shallow, deep, dk );
+        // sunlight dancing on the bed in the shallows: a net of bright lines that drifts and
+        // re-knits, carried along by the current (by day; fading with depth)
+        {
+          vec2 cq = vW.xz * 0.9 - fl * uTime * 0.25;
+          float ca = abs( vn( cq + vec2( uTime * 0.21, 0.0 ) ) - vn( cq * 1.35 + vec2( 3.7, -uTime * 0.17 ) ) );
+          float cb = abs( vn( cq * 1.9 - vec2( 0.0, uTime * 0.26 ) ) - vn( cq * 2.4 + vec2( uTime * 0.19, 5.1 ) ) );
+          float caustic = pow( 1.0 - min( 1.0, ca * 2.6 ), 7.0 ) * 0.7 + pow( 1.0 - min( 1.0, cb * 2.8 ), 7.0 ) * 0.4;
+          col += vec3( 0.75, 0.95, 0.8 ) * caustic * ( 1.0 - smoothstep( 0.35, 2.0, depth ) ) * smoothstep( 0.03, 0.2, depth ) * 0.55 * ( 1.0 - uGlow );
+        }
         // (clear: you can see the koi from the jetty and the bed in the shallows)
         float alpha = mix( 0.26, mix( 0.6, 0.72, step( 0.5, vKind ) ), dk );
         // the sky mirrored at grazing angles, the sun's glints
@@ -163,12 +186,31 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
         col += vec3( 1.0, 0.96, 0.85 ) * sun * 0.9 * ( 1.0 - uGlow );
         float moon = pow( max( 0.0, dot( R, normalize( vec3( 0.42, 0.3, -0.85 ) ) ) ), 90.0 );
         col += vec3( 0.6, 0.7, 1.0 ) * moon * 0.7 * uGlow;
+        // glitter: a scatter of tiny glints that wink on and off as the ripples tilt, thickest down
+        // the sun's path and in the ruffled patches
+        {
+          vec2 gq = vW.xz * 5.5 + sl * 55.0;
+          float tw = fract( h2( floor( gq ) ) * 7.0 + uTime * ( 0.6 + h2( floor( gq ) + 9.0 ) ) );
+          float glint = step( 0.965, h2( floor( gq ) + 4.0 ) ) * smoothstep( 0.0, 0.12, tw ) * ( 1.0 - smoothstep( 0.12, 0.3, tw ) );
+          vec2 gc = fract( gq ) - 0.5;
+          glint *= 1.0 - smoothstep( 0.05, 0.3, length( gc ) );
+          float path = pow( max( 0.0, dot( R, normalize( vec3( -0.45, 0.7, 0.4 ) ) ) ), 6.0 );
+          col += vec3( 1.0, 0.98, 0.9 ) * glint * ( 0.35 + path * 1.6 ) * ruffle * ( 1.0 - uGlow ) * smoothstep( 0.2, 0.8, depth );
+          alpha = max( alpha, glint * 0.8 );
+        }
         // foam streaks riding the current (stretched along the flow), thicker where it's fast
         vec2 dir = sp > 0.01 ? fl / sp : vec2( 1.0, 0.0 );
         vec2 fp = vec2( dot( vW.xz, dir ), dot( vW.xz, vec2( -dir.y, dir.x ) ) );
         float streak = 0.7 * smoothstep( 0.7, 0.9, vn( vec2( fp.x * 0.22 - uTime * sp * 0.24, fp.y * 1.7 ) ) ) * smoothstep( 0.35, 1.3, sp );
+        // white riffles where the river runs fast: short bands of broken water standing across the
+        // current, flickering as it pours over them
+        vec2 rq = vec2( fp.x * 0.85 - uTime * sp * 0.35, fp.y * 0.55 );
+        float riffle = smoothstep( 0.56, 0.74, vn( rq ) * 0.65 + vn( rq * 2.7 + 1.3 ) * 0.35 ) * smoothstep( 0.9, 1.9, sp ) * ( 0.55 + 0.45 * vn( vW.xz * 2.2 + uTime * 2.0 ) );
+        streak = max( streak, riffle * 0.8 );
         // a lacy line of foam where the water laps the bank
-        float rim = ( 1.0 - smoothstep( 0.1, 0.42, depth ) ) * smoothstep( 0.35, 0.65, vn( vW.xz * 1.3 + uTime * 0.25 ) );
+        // (it breathes in and out, as little waves run up the bank and slide back)
+        float lap = 0.5 + 0.5 * sin( uTime * 1.3 + vn( vW.xz * 0.35 ) * 6.283 );
+        float rim = ( 1.0 - smoothstep( 0.08 + lap * 0.1, 0.36 + lap * 0.2, depth ) ) * smoothstep( 0.3, 0.62, vn( vW.xz * 1.3 + uTime * 0.25 ) );
         // white water churning where the falls land, with rings rolling out over the pool
         float fd = length( vW.xz - uFalls.xz );
         float churn = ( 1.0 - smoothstep( 1.5, 7.5, fd ) ) * ( 0.55 + 0.45 * vn( vW.xz * 0.9 - vec2( uTime * 1.6, 0.0 ) ) );
