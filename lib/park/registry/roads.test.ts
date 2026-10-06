@@ -290,18 +290,21 @@ describe("roads: destinations", () => {
     for (const c of R.CAR_PARKS) expect(kartD(c.x, c.z), `${c.id}`).toBeGreaterThan(c.r + 12);
   });
 
-  it("the junction hubs (H0..H4, the Parícutin waypoint) match the frozen leg endpoints exactly", () => {
-    // H1..H4 are themselves exactly the railway stations; H0 is deliberately pushed just outside
-    // the park's own island (roads must stay out of it)
-    const byId = (id: string) => STATIONS.find((s) => s.id === id)!;
-    for (const [h, id] of [
-      [R.H1, "falls-station"],
-      [R.H2, "lake-station"],
-      [R.H3, "peak-station"],
-      [R.H4, "plains-station"],
-    ] as const) {
-      const st = byId(id);
-      expect(Math.hypot(h.x - st.x, h.z - st.z)).toBeLessThan(0.5);
+  it("every roundabout is a real junction: at least three road legs end exactly at its centre, and each station has one close by", () => {
+    for (const j of R.ROAD_JUNCTIONS) {
+      let legs = 0;
+      for (const seg of R.ROAD_SEGMENTS) for (const e of [seg.points[0], seg.points[seg.points.length - 1]]) if (Math.hypot(e.x - j.x, e.z - j.z) < 0.5) legs++;
+      expect(legs, `${j.id} is not where its roads meet`).toBeGreaterThanOrEqual(3);
+      expect(j.signs.length, `${j.id} signs`).toBeGreaterThanOrEqual(legs);
+    }
+    for (const st of STATIONS) {
+      const d = Math.min(...R.ROAD_JUNCTIONS.map((j) => Math.hypot(j.x - st.x, j.z - st.z)));
+      expect(d, `${st.name} has no roundabout near it`).toBeLessThan(80);
+    }
+    // no road runs along a platform any more (the old hubs sat right on them)
+    for (const st of STATIONS) {
+      if (st.id === "park-station") continue;
+      for (const seg of R.ROAD_SEGMENTS) for (const q of R.densifyRoad(seg.points, 2.5)) expect(Math.hypot(q.x - st.x, q.z - st.z), `${seg.id} runs over ${st.name}'s platform`).toBeGreaterThan(18);
     }
     expect(Math.hypot(R.H0.x, R.H0.z)).toBeGreaterThan(ISLAND_R);
   });
@@ -333,11 +336,13 @@ describe("roads: the Wildlands zone (where a car is road-bound)", () => {
 
 describe("roads: the driving corridor (pure, allocation-free)", () => {
   it("a point on the centre-line stays exactly where it is", () => {
-    const p = R.roadAt(R.H1.x, R.H1.z);
+    const seg = R.ROAD_SEGMENTS.find((q) => q.id === "ring-h1-h2a")!;
+    const c = seg.points[Math.floor(seg.points.length / 2)];
+    const p = R.roadAt(c.x, c.z);
     expect(p.d).toBeLessThan(0.5);
-    const r = R.roadConfine(R.H1.x, R.H1.z, R.H1.x, R.H1.z);
-    expect(r.x).toBeCloseTo(R.H1.x, 1);
-    expect(r.z).toBeCloseTo(R.H1.z, 1);
+    const r = R.roadConfine(c.x, c.z, c.x, c.z);
+    expect(r.x).toBeCloseTo(c.x, 1);
+    expect(r.z).toBeCloseTo(c.z, 1);
   });
 
   it("a step off the road's edge slides back along the edge, never teleporting to the centre", () => {
@@ -411,5 +416,39 @@ describe("roads: the level crossing's boom and the tunnel-camera ceiling", () =>
     const deck = R.roadAt(mx, mz).deckY;
     expect(ceil!).toBeGreaterThan(deck + 3);
     expect(R.tunnelCeilingAt(R.H1.x, R.H1.z)).toBeNull();
+  });
+});
+
+describe("roads: roundabouts are driven round, not across", () => {
+  it("the planted island is never drivable and the ring always is, all the way round", () => {
+    const mid = (R.ROUNDABOUT_INNER + R.ROUNDABOUT_OUTER) / 2;
+    for (const j of R.ROAD_JUNCTIONS) {
+      expect(R.inRoadCorridor(j.x, j.z), `${j.id} centre`).toBe(false);
+      for (let a = 0; a < Math.PI * 2; a += 0.2) {
+        const c = Math.cos(a);
+        const s = Math.sin(a);
+        expect(R.inRoadCorridor(j.x + c * (R.ROUNDABOUT_INNER - 1), j.z + s * (R.ROUNDABOUT_INNER - 1)), `${j.id} island`).toBe(false);
+        expect(R.inRoadCorridor(j.x + c * mid, j.z + s * mid), `${j.id} ring`).toBe(true);
+      }
+    }
+  });
+
+  it("a car driven straight at the island is carried round the ring, never across it", () => {
+    for (const j of R.ROAD_JUNCTIONS) {
+      // start on the ring's west side and keep pushing east (slightly off-axis, as a real thumb is)
+      let x = j.x - (R.ROUNDABOUT_OUTER - 1);
+      let z = j.z + 0.5;
+      let closest = Infinity;
+      for (let i = 0; i < 400 && x < j.x + R.ROUNDABOUT_INNER; i++) {
+        const c = R.roadConfine(x + 0.3, z + 0.01, x, z);
+        x = c.x;
+        z = c.z;
+        closest = Math.min(closest, Math.hypot(x - j.x, z - j.z));
+        expect(R.inRoadCorridor(x, z) || Math.hypot(x - j.x, z - j.z) > R.ROUNDABOUT_INNER, `${j.id} left the road`).toBe(true);
+      }
+      expect(closest, `${j.id} cut across the island`).toBeGreaterThan(R.ROUNDABOUT_INNER);
+      // (it gets at least round to the island's far half — or out along a road that leaves on the way)
+      expect(x, `${j.id} got stuck`).toBeGreaterThan(j.x - 8);
+    }
   });
 });

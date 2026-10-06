@@ -222,22 +222,18 @@ function buildSection(seg: RoadSeg, k: number): THREE.Group {
   // real metre of overlap — the ring itself is built with a touch more height (+0.01, see
   // buildRoundabout) so it draws on top and the seam is never visible.
   const JOIN_OVERLAP = 1;
-  const nearJunction = (p: { x: number; z: number }) => ROAD_JUNCTIONS.some((j) => Math.hypot(p.x - j.x, p.z - j.z) < ROUNDABOUT_OUTER - JOIN_OVERLAP);
-  // round 4: a plain "stop at the first point that's back out of range" scan (tried first) missed a
-  // real case — a road that starts right at a junction can swing back within the ring's own radius a
-  // few points later (its own stub out to the junction, then its pre-existing route curving back
-  // near the new hub before straightening away for good — measured on ring-h2-h3, dipping back to
-  // 20.7 at point 6 after its stub already carried it out to 40 at point 1): the simple scan stopped
-  // trimming at point 1 and left the still-too-close points 2-6 drawn right across the roundabout's
-  // own interior. Scan the WHOLE prefix/suffix instead and trim up to the LAST near point, not the
-  // first point that happens to be far enough away.
-  // (bounded to each half so a road passing close to a DIFFERENT junction at its other end, often
-  // only a few hundred points away in a long section, can never be mistaken for this end's own dip)
-  const mid = pts.length >> 1;
+  // A road is trimmed only at the roundabout it really ends on (its own first / last point): the
+  // start's ring cuts the points before the road has left it, the end's ring the points after it
+  // has arrived — whichever section of the road they fall in (a short last section used to be cut
+  // away whole, leaving a bare gap before the ring).
+  const junctionAt = (p: { x: number; z: number }) => ROAD_JUNCTIONS.find((j) => Math.hypot(p.x - j.x, p.z - j.z) < 1);
+  const inRing = (p: { x: number; z: number }, j: { x: number; z: number }) => Math.hypot(p.x - j.x, p.z - j.z) < ROUNDABOUT_OUTER - JOIN_OVERLAP;
+  const jStart = junctionAt(seg.points[0]);
+  const jEnd = junctionAt(seg.points[seg.points.length - 1]);
   let lo = 0;
-  for (let i = 0; i < mid; i++) if (nearJunction(pts[i])) lo = i + 1;
+  if (jStart) for (let i = 0; i < pts.length; i++) if (inRing(pts[i], jStart)) lo = i + 1;
   let hi = pts.length;
-  for (let i = pts.length - 1; i >= mid; i--) if (nearJunction(pts[i])) hi = i;
+  if (jEnd) for (let i = pts.length - 1; i >= lo; i--) if (inRing(pts[i], jEnd)) hi = i;
   pts = pts.slice(lo, hi);
   if (pts.length < 2) return group;
   // ribbon geometry (UV.v runs along the road so the dashed line tiles sensibly) — 3 vertices across
@@ -286,6 +282,7 @@ function buildSection(seg: RoadSeg, k: number): THREE.Group {
   const lampParts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < raw.length; i += 7) {
     const p = raw[i];
+    if (ROAD_JUNCTIONS.some((j) => Math.hypot(p.x - j.x, p.z - j.z) < ROUNDABOUT_OUTER + 3)) continue; // (no lamp on a ring or its island)
     const h = headingAt(seg, k * SEC + i);
     const side = i % 14 === 0 ? 1 : -1;
     const lx = p.x + Math.cos(h) * side * (ROAD_HALF + 1.1);

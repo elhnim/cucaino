@@ -1350,6 +1350,12 @@ export class ParkWorld {
       // ANY car strays out into the Wildlands proper it's held to the road same as a Wildlands jeep.
       if (caps && caps.medium === "land" && this.mount!.kind === "car" && inWildlandsZone(pos.x, pos.z)) {
         const c = roadConfine(pos.x, pos.z, px, pz);
+        // held to the road (an edge, or a roundabout's island): the jeep points the way it really
+        // goes, so it turns with the ring instead of sliding round it sideways
+        if ((c.x !== pos.x || c.z !== pos.z) && Math.hypot(c.x - px, c.z - pz) > 0.004) {
+          vx = c.x - px;
+          vz = c.z - pz;
+        }
         pos.x = c.x;
         pos.z = c.z;
         // the one level crossing's boom: when it's down (the train's within ~8s, registry/
