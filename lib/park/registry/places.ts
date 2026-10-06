@@ -30,6 +30,7 @@ export type PlaceAction =
   | "retro"
   | "wizard"
   | "skycoaster"
+  | "carousel"
   | "karts"
   | "none";
 
@@ -315,6 +316,21 @@ export const PLACES: PlaceDef[] = [
     ],
   },
 
+  // the Grand Carousel: built by world/carousel.ts (plan: registry/carousel.ts — keep x, z in step),
+  // so it has no kit models of its own; `radius` keeps the kid off the turning deck
+  {
+    id: "carousel",
+    label: "Grand Carousel",
+    emoji: "🎠",
+    land: "rides",
+    x: -64,
+    z: -40,
+    radius: 8.4,
+    doorRadius: 11.5,
+    action: "carousel",
+    signY: 10.2,
+    models: [],
+  },
   {
     id: "sky-coaster",
     label: "Sky Coaster",

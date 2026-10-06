@@ -55,6 +55,7 @@ import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
 import { wildBridgeDeckY } from "../registry/wildWater";
 import { roadConfine, roadDeckY, inWildlandsZone, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
 import { FLY_LAND_R } from "../map/tripMachine";
+import { CAROUSEL, CAROUSEL_RIDE_TURNS } from "../registry/carousel";
 import { canyonVisualFloorY, canyonWalkY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
 import { rawHeight } from "../registry/landform";
 import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
@@ -128,6 +129,8 @@ export interface ParkWorldOptions {
   onSkyTreasure?: (id: string) => void;
   /** boarded (true) or stepped off (false) the Sky Coaster */
   onSkyCoaster?: (riding: boolean) => void;
+  /** hopped on (true) or stepped off (false) the Grand Carousel */
+  onCarousel?: (riding: boolean) => void;
   /** step quality down on devices that keep dropping frames (default true; smoke harnesses turn it off) */
   adaptiveQuality?: boolean;
   /** the finish: "diorama" (default — outlines, stepped colour, chunky pixels) or "smooth" */
@@ -305,7 +308,9 @@ export class ParkWorld {
   private deepHintT = 0;
   // ── the Sky Coaster: riding the train round the island (speed follows the drops) ──
   /** riding the Sky Coaster — or, with `train`, the Wildlands Railway */
-  private sky: { v: number; dist: number; cheered: boolean; train?: boolean } | null = null;
+  private sky: { v: number; dist: number; cheered: boolean; train?: boolean; /** riding the carousel: which animal, and the deck's turn when they got on */ carousel?: { seat: number; from: number } } | null = null;
+  private carouselPose = { x: 0, y: 0, z: 0, yaw: 0 };
+  private camWant = new THREE.Vector3();
   /** standing on a station's platform, waiting for the train we called */
   private trainWait: Station | null = null;
   /** where the kid stood last frame, for the canyon's cliff walls (see the walking code) */
@@ -2249,6 +2254,17 @@ export class ParkWorld {
       if (this.camera.position.y < ground) this.camera.position.y = ground;
       this.camBase.copy(this.camera.position);
       this.lookAtPt.set(pos.x, pos.y + 1.2, pos.z);
+    } else if (this.sky?.carousel) {
+      // on the carousel: the camera rides round with the kid, just outside the deck and a little
+      // ahead of them, under the crown's boards — so the kid, their animal and the painted drum
+      // behind fill the view while the park sweeps past
+      const a = Math.atan2(pos.x - CAROUSEL.x, pos.z - CAROUSEL.z) + 0.42;
+      const r = CAROUSEL.deckR + (this.camera.aspect < 0.8 ? 7.5 : 5.2);
+      this.camWant.set(CAROUSEL.x + Math.sin(a) * r, pos.y + 0.9, CAROUSEL.z + Math.cos(a) * r);
+      this.camera.position.lerp(this.camWant, Math.min(1, dt * 4));
+      this.camera.lookAt(pos.x, pos.y + 0.5, pos.z);
+      this.camBase.copy(this.camera.position);
+      this.lookAtPt.copy(pos);
     } else if (this.sky) {
       // chase cam: behind and above the car, looking down the track
       const tan = this.sky.train ? this.trainTan() : this.park.skyTrain.loop.getTangentAt(this.park.skyTrain.u);
@@ -3137,6 +3153,49 @@ export class ParkWorld {
     return true;
   }
 
+  /** Hop on the Grand Carousel: onto the nearest animal, for a few turns. */
+  rideCarousel(): boolean {
+    if (!this.park || !this.kid || this.ride || this.sky || this.building || this.climb) return false;
+    this.endSlide(false);
+    this.endSki();
+    this.endLift();
+    this.dismount(true);
+    const c = this.park.carousel;
+    const p = this.kid.root.position;
+    this.sky = { v: 0, dist: 0, cheered: false, carousel: { seat: c.nearestSeat(p.x, p.z), from: c.spin } };
+    c.setRiding(true);
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.burst(p.clone().setY(p.y + 1.6), 40);
+    this.opts.onCarousel?.(true);
+    return true;
+  }
+  /** Step off the carousel (the ride's over, or the kid asked to get off). */
+  leaveCarousel(): boolean {
+    if (!this.park || !this.kid || !this.sky?.carousel) return false;
+    const c = this.park.carousel;
+    c.setRiding(false);
+    // down beside the deck, straight out from the animal they were on
+    const P = c.riderPose(this.sky.carousel.seat, this.carouselPose);
+    const dx = P.x - CAROUSEL.x;
+    const dz = P.z - CAROUSEL.z;
+    const l = Math.hypot(dx, dz) || 1;
+    const r = CAROUSEL.deckR + 2.6;
+    this.sky = null;
+    const kp = this.kid.root.position;
+    kp.set(CAROUSEL.x + (dx / l) * r, 0, CAROUSEL.z + (dz / l) * r);
+    kp.y = groundY(kp.x, kp.z);
+    this.kid.facing = Math.atan2(-dx, -dz);
+    if (this.pet) this.pet.root.position.set(kp.x + 1.2, groundY(kp.x + 1.2, kp.z + 1), kp.z + 1);
+    this.burst(kp.clone().setY(kp.y + 1.2), 30);
+    this.opts.onCarousel?.(false);
+    return true;
+  }
+  /** on the carousel right now (the HUD hides the joystick and offers "Hop off") */
+  get onCarousel(): boolean {
+    return !!this.sky?.carousel;
+  }
+
   // ── the Wildlands Railway ──
   private _tan = new THREE.Vector3();
   private trainTan(): THREE.Vector3 {
@@ -3372,6 +3431,28 @@ export class ParkWorld {
 
   private tickSky(dt: number, kid: Actor) {
     const s = this.sky!;
+    if (s.carousel) {
+      // up on a galloper: round with the deck, rising and falling with the animal; the pet rides
+      // the one behind
+      const c = this.park!.carousel;
+      const P = c.riderPose(s.carousel.seat, this.carouselPose);
+      kid.root.position.set(P.x, P.y, P.z);
+      kid.facing = P.yaw;
+      kid.root.rotation.y = P.yaw;
+      if (this.pet) {
+        const Q = c.riderPose((s.carousel.seat + 9) % 10, this.carouselPose);
+        this.pet.root.position.set(Q.x, Q.y, Q.z);
+        this.pet.root.rotation.y = Q.yaw;
+      }
+      const turned = c.spin - s.carousel.from;
+      if (!s.cheered && turned > Math.PI) {
+        s.cheered = true;
+        this.play(kid, "cheer", true);
+        if (this.pet) this.play(this.pet, "cheer", true);
+      }
+      if (turned >= CAROUSEL_RIDE_TURNS * Math.PI * 2) this.leaveCarousel();
+      return;
+    }
     if (s.train) {
       // in the first carriage, behind the engine (the train drives itself: ../world/railway)
       const P = this.trainPose;

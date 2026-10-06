@@ -11,6 +11,7 @@ import { loadParkAnimalChoice, saveParkAnimalChoice, parkAnimalForPet, type Park
 import { isDailyGiftReady, claimDailyGift, DAILY_GIFTS, recordVisit } from "@/lib/game3d/registry/hooks";
 import { isEmbedded, closeWorldWindow } from "@/lib/embed";
 import { playSfx } from "@/lib/audio/sound-manager";
+import { startCarouselMusic } from "@/lib/park/world/carouselMusic";
 import { getTheme } from "@/lib/themes/presets";
 import { moodFor, type Pet } from "@/lib/pet/logic";
 import GameFullscreen from "@/components/games/GameFullscreen";
@@ -269,6 +270,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // swimming in the sea (on foot, or on a manta under the waves): shows the swim up / dive buttons
   const [swim, setSwim] = useState<{ under: boolean } | null>(null);
   const [onCoaster, setOnCoaster] = useState(false);
+  const [onCarousel, setOnCarousel] = useState(false);
+  const carouselMusic = useRef<{ stop(): void } | null>(null);
   // a Coralcove villager talking to the kid
   const [villageTalk, setVillageTalk] = useState<{ name: string; line: string; emoji?: string } | null>(null);
   // floating mountains: the one you're flying over (to land on), and the treasures found
@@ -362,6 +365,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       }
       if (place.action === "skycoaster") {
         worldRef.current?.rideSkyCoaster();
+        return;
+      }
+      if (place.action === "carousel") {
+        worldRef.current?.rideCarousel();
         return;
       }
       if (place.action === "home") {
@@ -626,6 +633,18 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           onTreasure: (id) => treasureRef.current(id),
           onShard: (id) => shardRef.current(id),
           onPearl: (id) => pearlRef.current(id),
+          onCarousel: (on) => {
+            setOnCarousel(on);
+            playSfx(on ? "win" : "tap");
+            if (on) {
+              toast("🎠 Round and round we go!");
+              carouselMusic.current?.stop();
+              carouselMusic.current = startCarouselMusic();
+            } else {
+              carouselMusic.current?.stop();
+              carouselMusic.current = null;
+            }
+          },
           onSkyCoaster: (on) => {
             setOnCoaster(on);
             playSfx(on ? "win" : "tap");
@@ -1391,7 +1410,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
           </button>
         </div>
       )}
-      {ready && !busy && !building && !onCoaster && !onTrain && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
+      {ready && !busy && !building && !onCoaster && !onCarousel && !onTrain && <Joystick onChange={(x, y) => worldRef.current?.setMove(x, y)} />}
       {ready && !busy && !building && (
         <div style={rideBar}>
           {((riding && MOUNT_CAPS[riding.kind].medium !== "land" && MOUNT_CAPS[riding.kind].medium !== "boat" && !riding.landing) || (swim && !riding)) && (
@@ -2073,6 +2092,7 @@ const ASK_TEXT: Partial<Record<PlaceAction, { q: (label: string) => string; go: 
   quests: { q: () => "Check the Quest Board?", go: "Let's see! 📋" },
   home: { q: () => "Go home to your cottage?", go: "Home sweet home! 🏡" },
   skycoaster: { q: () => "Ride the Sky Coaster round the whole island?", go: "All aboard! 🎢" },
+  carousel: { q: () => "Ride the Grand Carousel?", go: "Pick a horse! 🎠" },
   shop: { q: (l) => `Visit the ${l}?`, go: "Let's shop! 🛍️" },
   pet: { q: () => "Visit your pet's home?", go: "Let's go! 🏠" },
   "pet-feed": { q: () => "Give your pet a snack?", go: "Yum! 🍪" },

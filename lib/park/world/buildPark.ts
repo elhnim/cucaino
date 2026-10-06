@@ -17,6 +17,7 @@ import { groundY, slopeAt } from "../registry/terrain";
 import { buildFantasyWorld, type FantasyWorld } from "./fantasy";
 import { buildTerrainChunks, type TerrainChunks } from "./fantasy/terrainChunks";
 import { buildRailway, type Railway } from "./railway";
+import { buildCarousel, type Carousel } from "./carousel";
 import { buildWildlife, type Wildlife } from "./wildlife";
 import { SKY_PADS, skyTopY } from "../registry/skyIslands";
 import { buildQuests3D, type Quests3D } from "./quests3d";
@@ -67,6 +68,8 @@ export interface BuiltPark {
   wildlife: Wildlife;
   /** the Wildlands Railway: its track, stations and train (the engine rides it) */
   railway: Railway;
+  /** the Grand Carousel by Ride Land (the engine seats the kid on it while they ride) */
+  carousel: Carousel;
   /** travelling traders: carts and a boat carrying goods between the trade posts (the engine
    *  pushes the kid off their road like any other obstacle) */
   trade: TradeSystem;
@@ -647,6 +650,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── the Wildlands Railway (streamed: track sections and stations are built as the kid nears) ──
   const railway = buildRailway(scene, { lowQuality: opts.lowQuality });
   disposables.push(railway);
+  // ── the Grand Carousel, just outside Ride Land ──
+  const carousel = buildCarousel(scene, { lowQuality: opts.lowQuality });
+  disposables.push(carousel);
   // ── Cucaino Karts: a go-kart circuit just outside the park, near Park Station (static — a
   //    circuit this size is nowhere near the streamed Wildlands settlements' budget) ──
   scene.add(buildKartTrack());
@@ -815,6 +821,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     pathPoints,
     ground,
     railway,
+    carousel,
     trade,
     fishingBoats,
     wildlife,
@@ -838,6 +845,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     update(dt, t, focus) {
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
       glowFlora.update(dt, t, atmosphere.glow);
+      carousel.update(dt, t, atmosphere.glow);
       ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog, focus);
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);
