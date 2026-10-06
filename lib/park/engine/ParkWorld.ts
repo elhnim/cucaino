@@ -1552,6 +1552,10 @@ export class ParkWorld {
           this.alt += this.flyBase - base;
           this.altTarget += this.flyBase - base;
           this.flyBase = base;
+          // (ground that rises faster than the flier climbs — a cliff, the canyon's rim — must
+          // never leave it below the surface: it rides up over the edge instead)
+          if (this.alt < 0) this.alt = 0;
+          if (!this.landing && this.altTarget < 4) this.altTarget = 4;
         }
         pos.y = base + this.alt;
       } else if (isBoat(m.kind)) {

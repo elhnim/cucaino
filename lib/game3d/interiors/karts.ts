@@ -49,6 +49,7 @@ import {
 } from "@/lib/park/karts/items";
 import { aiInput, aiPower, type AiProfile } from "@/lib/park/karts/ai";
 import { createRace, dropKart, isRaceOver, positionOf, positions, raceResults, updateKartProgress, type RaceResult, type RaceState } from "@/lib/park/karts/race";
+import { isForThisRace } from "@/lib/park/karts/raceFilter";
 import { GhostRecorder, ghostLapMs, replayAt } from "@/lib/park/karts/ghost";
 import type { GhostLap, KartNet, KartNetMsg, KartPose, KartRacer } from "@/lib/park/karts/types";
 import { buildGrandstand, buildPitGarage } from "@/lib/park/world/karts";
@@ -151,7 +152,7 @@ export interface KartRaceOptions {
   net?: KartNet | null;
   /** when racing live, the full agreed grid (kid + remote peers, in grid order) and the shared
    *  countdown target (epoch ms) — pass both together or neither */
-  liveGrid?: { grid: KartGridEntry[]; startAt: number };
+  liveGrid?: { grid: KartGridEntry[]; startAt: number; /** this race's own id (the lobby's invite id): every packet carries it */ raceId?: string };
   fact?: string;
   /** how good the computer drivers are (default "medium") */
   difficulty?: "easy" | "medium" | "hard";
@@ -1341,6 +1342,7 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
   let lastHudMs = -1000;
   let lastSentPoseMs = -1000;
   let netOff: (() => void) | null = null;
+  const liveRaceId = opts.liveGrid?.raceId ?? opts.trackId;
   // a short buffer of each remote kart's recent poses, so it can be rendered ~120 ms behind the
   // network (smoothly interpolated between two real samples) instead of snapping to whatever the
   // last packet said — a kid's own kart never does this; only other people's
@@ -1349,6 +1351,8 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
 
   if (opts.net) {
     netOff = opts.net.onMessage((m: KartNetMsg) => {
+      // (the family's channel carries every race: only this race's own racers' packets count)
+      if (!isForThisRace(m, liveRaceId, racers.map((r) => r.id))) return;
       if (m.type === "pose") {
         const buf = remoteBuffer.get(m.kidId) ?? [];
         buf.push(m.pose);
@@ -1381,7 +1385,7 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
     if (bananaList.length > MAX_BANANAS) bananaList.shift();
   }
   const sendItem = (m: { ev: "banana" | "eat" | "fx"; id?: string; x?: number; z?: number; fx?: "star" | "shield" | "spin" | "pop" }) => {
-    if (opts.net) opts.net.send({ type: "item", raceId: opts.trackId, kidId: kidRacer.id, ...m });
+    if (opts.net) opts.net.send({ type: "item", raceId: liveRaceId, kidId: kidRacer.id, ...m });
   };
   const burst = (pool: ParticlePool, x: number, y: number, z: number, n: number, speed: number, life: number, color: THREE.Color | THREE.Color[]) => {
     for (let i = 0; i < n; i++) {
@@ -1655,7 +1659,7 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
           if (r.seat.kind === "human" && r.recorder) {
             r.recorder.push(poseOf(r.kart, track, raceClockMs));
             if (opts.net && raceClockMs - lastSentPoseMs > 1000 / 15) {
-              opts.net.send({ type: "pose", raceId: opts.trackId, kidId: r.id, pose: poseOf(r.kart, track, raceClockMs) });
+              opts.net.send({ type: "pose", raceId: liveRaceId, kidId: r.id, pose: poseOf(r.kart, track, raceClockMs) });
               lastSentPoseMs = raceClockMs;
             }
           }
@@ -1834,7 +1838,7 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
         });
         if (opts.net) {
           const k = raceState.karts[kidRacer.id];
-          opts.net.send({ type: "finish", raceId: opts.trackId, kidId: kidRacer.id, totalMs: k.finishMs ?? raceClockMs, bestLapMs: k.bestLapMs ?? 0 });
+          opts.net.send({ type: "finish", raceId: liveRaceId, kidId: kidRacer.id, totalMs: k.finishMs ?? raceClockMs, bestLapMs: k.bestLapMs ?? 0 });
         }
         onEvent({ type: "finish", results });
       }

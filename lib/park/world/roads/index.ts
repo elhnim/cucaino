@@ -25,7 +25,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { groundY } from "../../registry/terrain";
 import { groundColor } from "../fantasy/terrainMesh";
 import { rawHeight } from "../../registry/landform";
-import { ROAD_SEGMENTS, ROAD_HALF, ROAD_SURFACE_LIFT, ROUNDABOUT_OUTER, ROUNDABOUT_INNER, densifyRoad, BRIDGES, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, LEVEL_CROSSINGS, crossingBoomDown, type RoadSeg, type RoadBridge, type RoadTunnel, type CarPark } from "../../registry/roads";
+import { ROAD_SEGMENTS, ROAD_HALF, ROAD_SURFACE_LIFT, ROUNDABOUT_OUTER, ROUNDABOUT_INNER, CAR_PARK_HALF_LEN, CAR_PARK_HALF_WIDTH, densifyRoad, trimAtRings, BRIDGES, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, LEVEL_CROSSINGS, crossingBoomDown, type RoadSeg, type RoadBridge, type RoadTunnel, type CarPark } from "../../registry/roads";
 import { nearestRail, railAt, railIndexAt, RAIL_POINTS } from "../../registry/railway";
 import { labelSprite } from "@/lib/game3d/buildingKit";
 
@@ -215,26 +215,10 @@ function buildSection(seg: RoadSeg, k: number): THREE.Group {
   group.name = `road-${seg.id}-${k}`;
   if (raw.length < 2) return group;
   let pts = densifyRoad(raw, 2.5);
-  // every road ends at a roundabout's own outer ring with a real OVERLAP (round 4: a plain trim at
-  // the ring's exact edge left a hairline seam — bare earth between the ribbon's last vertex and the
-  // ring, since the two meshes' edges don't quite land on the same float. Trim 1 unit INSIDE the
-  // ring instead (ROUNDABOUT_OUTER - 1), so the ribbon's last stretch is drawn UNDER the ring with a
-  // real metre of overlap — the ring itself is built with a touch more height (+0.01, see
-  // buildRoundabout) so it draws on top and the seam is never visible.
-  const JOIN_OVERLAP = 1;
-  // A road is trimmed only at the roundabout it really ends on (its own first / last point): the
-  // start's ring cuts the points before the road has left it, the end's ring the points after it
-  // has arrived — whichever section of the road they fall in (a short last section used to be cut
-  // away whole, leaving a bare gap before the ring).
-  const junctionAt = (p: { x: number; z: number }) => ROAD_JUNCTIONS.find((j) => Math.hypot(p.x - j.x, p.z - j.z) < 1);
-  const inRing = (p: { x: number; z: number }, j: { x: number; z: number }) => Math.hypot(p.x - j.x, p.z - j.z) < ROUNDABOUT_OUTER - JOIN_OVERLAP;
-  const jStart = junctionAt(seg.points[0]);
-  const jEnd = junctionAt(seg.points[seg.points.length - 1]);
-  let lo = 0;
-  if (jStart) for (let i = 0; i < pts.length; i++) if (inRing(pts[i], jStart)) lo = i + 1;
-  let hi = pts.length;
-  if (jEnd) for (let i = pts.length - 1; i >= lo; i--) if (inRing(pts[i], jEnd)) hi = i;
-  pts = pts.slice(lo, hi);
+  // every road ends at a roundabout's own outer ring with a real overlap: the ribbon is cut exactly
+  // on a circle one unit inside the ring's edge (registry/roads.ts's trimAtRings), so its last
+  // stretch lies under the ring — which is built a touch higher (see buildRoundabout) and draws on top
+  pts = trimAtRings(seg, pts);
   if (pts.length < 2) return group;
   // ribbon geometry (UV.v runs along the road so the dashed line tiles sensibly) — 3 vertices across
   const pos: number[] = [];
@@ -787,8 +771,8 @@ function buildCarPark(cp: CarPark): THREE.Group {
   group.name = `carpark-${cp.id}`;
   // a rectangular apron (not a radial fan: the PARK_TEX bay stripes are drawn for a straight run,
   // so they read as real painted parking bays, not a distorted wheel), long axis along cp.heading
-  const half = cp.r * 0.82;
-  const len = cp.r * 2.3;
+  const half = cp.r * CAR_PARK_HALF_WIDTH;
+  const len = cp.r * CAR_PARK_HALF_LEN * 2;
   const hx = Math.sin(cp.heading);
   const hz = Math.cos(cp.heading);
   const px = Math.cos(cp.heading);
@@ -1003,7 +987,12 @@ function buildLevelCrossing(c: { x: number; z: number; heading: number }): Level
   mesh.castShadow = true;
   group.add(mesh);
   const lgeo = merge2(lampParts);
-  const lmesh = new THREE.Mesh(lgeo, crossingLampMat);
+  // (each crossing has its OWN lamp material — one shared by all six meant the last crossing in
+  // the update loop decided every crossing's lights — with a red glow: the shared one's emissive
+  // colour was black, so turning its intensity up lit nothing)
+  const lampM = crossingLampMat.clone();
+  lampM.emissive.set("#ff2a1a");
+  const lmesh = new THREE.Mesh(lgeo, lampM);
   lmesh.name = "crossing-lamps";
   group.add(lmesh);
   // the name sign, well clear of the booms and crossbucks (beside the road, facing the approach)
@@ -1022,7 +1011,7 @@ function buildLevelCrossing(c: { x: number; z: number; heading: number }): Level
       targetAngle = down ? 0 : -Math.PI / 2;
       openAngle += (targetAngle - openAngle) * Math.min(1, dt * 1.2);
       for (const p of pivots) p.rotation.z = openAngle;
-      crossingLampMat.emissiveIntensity = down ? (Math.sin(performance.now() / 180) > 0 ? 1.6 : 0.1) : 0;
+      lampM.emissiveIntensity = down || openAngle > -Math.PI / 2 + 0.08 ? (Math.sin(performance.now() / 180) > 0 ? 1.8 : 0.15) : 0;
     },
   };
 }
@@ -1059,23 +1048,53 @@ export function buildRoads(scene: THREE.Scene): Roads {
   }
 
   // ── static, built-once features ──
-  for (const b of BRIDGES) group.add(buildBridge(b));
-  for (const t of TUNNELS) group.add(buildTunnel(t));
-  for (const cp of CAR_PARKS) group.add(buildCarPark(cp));
-  for (const j of ROAD_JUNCTIONS) {
-    group.add(buildRoundabout(j.x, j.z, j.y));
-    group.add(buildJunctionSign(j.x, j.z, j.signs));
-  }
-  const crossingRigs = LEVEL_CROSSINGS.map((c) => {
-    const rig = buildLevelCrossing(c);
-    group.add(rig.group);
-    return { c, rig };
-  });
+  // (each is built the first time the kid comes within sight of it, nearest first and one a frame:
+  // building all of them while the park loaded sampled — and so baked — the ground right round the
+  // island before the first frame)
+  const FEATURE_R = SHOW_R + 230;
+  const crossingRigs: { c: (typeof LEVEL_CROSSINGS)[number]; rig: LevelCrossingRig }[] = [];
+  const pending: { x: number; z: number; build: () => void }[] = [
+    ...BRIDGES.map((b) => ({ x: b.x, z: b.z, build: () => void group.add(buildBridge(b)) })),
+    ...TUNNELS.map((t) => ({ x: (t.x0 + t.x1) / 2, z: (t.z0 + t.z1) / 2, build: () => void group.add(buildTunnel(t)) })),
+    ...CAR_PARKS.map((cp) => ({ x: cp.x, z: cp.z, build: () => void group.add(buildCarPark(cp)) })),
+    ...ROAD_JUNCTIONS.map((j) => ({
+      x: j.x,
+      z: j.z,
+      build: () => {
+        group.add(buildRoundabout(j.x, j.z, j.y));
+        group.add(buildJunctionSign(j.x, j.z, j.signs));
+      },
+    })),
+    ...LEVEL_CROSSINGS.map((c) => ({
+      x: c.x,
+      z: c.z,
+      build: () => {
+        const rig = buildLevelCrossing(c);
+        group.add(rig.group);
+        crossingRigs.push({ c, rig });
+      },
+    })),
+  ];
+  const buildNearestFeature = (focus: THREE.Vector3) => {
+    let best = -1;
+    let bd = FEATURE_R;
+    for (let i = 0; i < pending.length; i++) {
+      // (a tunnel is long: measured generously so its portals are there before the kid is)
+      const d = Math.hypot(pending[i].x - focus.x, pending[i].z - focus.z);
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+    if (best < 0) return;
+    pending.splice(best, 1)[0].build();
+  };
 
   return {
     group,
     update(dt, _t, focus, trainS, night) {
       setLampsNight(night);
+      if (pending.length) buildNearestFeature(focus);
       for (const { c, rig } of crossingRigs) rig.setBoomDown(crossingBoomDown(c, trainS), dt);
       for (const seg of ROAD_SEGMENTS) {
         const mids = secMid.get(seg.id)!;
@@ -1124,8 +1143,15 @@ export function buildRoads(scene: THREE.Scene): Roads {
     dispose() {
       scene.remove(group);
       group.traverse((o) => {
+        // every name sign is a sprite with its own canvas texture and material
+        if (o instanceof THREE.Sprite) {
+          o.material.map?.dispose();
+          o.material.dispose();
+          return;
+        }
         const mm = o as THREE.Mesh;
         if (mm.geometry) mm.geometry.dispose();
+        if (mm.name === "crossing-lamps") (mm.material as THREE.Material).dispose();
       });
       ROAD_TEX.dispose();
       PARK_TEX.dispose();

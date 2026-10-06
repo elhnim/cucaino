@@ -524,6 +524,14 @@ export function terrainTilesBaked(): number {
   return baked;
 }
 
+/** the centre of every tile baked so far (load-cost checks: what did loading the park touch?) */
+export function terrainBakedTileCentres(): { x: number; z: number }[] {
+  const out: { x: number; z: number }[] = [];
+  for (let k = 0; k < tiles.length; k++)
+    if (tiles[k]) out.push({ x: TERRAIN_X0 + ((k % TILES_X) + 0.5) * TERRAIN_TILE * CELL, z: TERRAIN_Z0 + (Math.floor(k / TILES_X) + 0.5) * TERRAIN_TILE * CELL });
+  return out;
+}
+
 /** the height at grid sample (i, j) — DEEP_FLOOR off the grid */
 export function terrainSample(i: number, j: number): number {
   if (i < 0 || j < 0 || i > TERRAIN_NX - 1 || j > TERRAIN_NZ - 1) return DEEP_FLOOR;

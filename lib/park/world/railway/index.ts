@@ -331,6 +331,12 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
       for (const m of sections.values()) m.geometry.dispose();
       for (const g of stationMeshes.values())
         g.traverse((o) => {
+          // (a station's name board is a sprite with its own canvas texture and material)
+          if (o instanceof THREE.Sprite) {
+            o.material.map?.dispose();
+            o.material.dispose();
+            return;
+          }
           const mm = o as THREE.Mesh;
           if (mm.geometry) mm.geometry.dispose();
         });

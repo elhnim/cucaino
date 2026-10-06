@@ -233,7 +233,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
   /** starts the ride — solo (ghosts + computer karts fill the grid) unless `live` is given, in which
    *  case the grid and the shared countdown came from an agreed "start" message */
   const start = useCallback(
-    async (live?: { grid: KartGridEntry[]; startAt: number }) => {
+    async (live?: { grid: KartGridEntry[]; startAt: number; raceId: string }) => {
       if (!world) return;
       setStage("race");
       setWaitingFor(null);
@@ -278,10 +278,10 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
   const racerFor = useCallback((id: string): KartRacer => knownRacers.get(id) ?? { kidId: id, name: "Racer", animal: "animal-fox", colour: "#ff7a59" }, [knownRacers]);
 
   const beginLiveRace = useCallback(
-    (grid: string[], startAt: number) => {
+    (grid: string[], startAt: number, raceId: string) => {
       if (stageRef.current !== "lobby") return; // already racing — a late "start" can't join
       const live: KartGridEntry[] = grid.map((id) => ({ racer: racerFor(id), seat: id === kid.kidId ? { kind: "human" as const } : { kind: "remote" as const } }));
-      void start({ grid: live, startAt });
+      void start({ grid: live, startAt, raceId });
     },
     [kid.kidId, racerFor, start],
   );
@@ -306,10 +306,10 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
         const startAt = Date.now() + 4000;
         const grid = [kid.kidId, m.kidId];
         net.send({ type: "start", raceId: m.raceId, startAt, grid, laps: LAPS });
-        beginLiveRace(grid, startAt);
+        beginLiveRace(grid, startAt, m.raceId);
       } else if (m.type === "start") {
         if (!m.grid.includes(kid.kidId)) return;
-        beginLiveRace(m.grid, m.startAt);
+        beginLiveRace(m.grid, m.startAt, m.raceId);
       }
     });
     return () => {

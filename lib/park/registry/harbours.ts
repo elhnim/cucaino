@@ -91,10 +91,10 @@ const docks: Dock[] = [];
  * A jetty from the beach straight out to sea along heading `a` (radians about +Y): a ramp up from
  * the sand, a level walk, a T-head across the end. Returns the T-head's centre and directions.
  */
-function jetty(dock: string, base: P, a: number, len: number, headHalf: number, deckY: number, half = 1.3) {
+function jetty(dock: string, base: P, a: number, len: number, headHalf: number, deckY: number, half = 1.3, baseY?: number) {
   const dx = Math.sin(a);
   const dz = Math.cos(a);
-  const startY = baseFloorY(base.x, base.z) + 0.03;
+  const startY = (baseY ?? baseFloorY(base.x, base.z)) + 0.03;
   const rampL = Math.max(2.5, Math.min(6, (deckY - startY) * 4.5));
   const r1 = W(base.x + dx * rampL, base.z + dz * rampL);
   const end = W(base.x + dx * len, base.z + dz * len);
@@ -179,13 +179,28 @@ docks.push({ id: "frost-dock", name: "Frostpeak Ice Dock", x: frost.head.x, z: f
 
 // the Great Lake's jetty, out in the Wildlands: from the beach below Great Lake Station straight
 // out over the water to where the boats float (pedalos and a sailboat to potter about the lake in)
-const greatLake: Jetty = (() => {
+// Its site is FROZEN: finding it means sampling the Wildlands' ground, and doing that while this
+// module loads baked eight terrain tiles out by the lake before the park had even opened.
+// harbours.test.ts re-runs the search (greatLakeJettySearch) so a terrain change can't silently
+// leave these numbers behind.
+export const GREAT_LAKE_JETTY = { shore: 52, len: 34.5, startY: 0.348 };
+const greatLakeHeading = () => {
   const st = STATIONS.find((s) => s.id === "lake-station")!;
-  const a = Math.atan2(WILD_LAKE.x - st.x, WILD_LAKE.z - st.z);
+  return { st, a: Math.atan2(WILD_LAKE.x - st.x, WILD_LAKE.z - st.z) };
+};
+/** the real search the frozen numbers came from (tests only: it samples the Wildlands) */
+export function greatLakeJettySearch(): typeof GREAT_LAKE_JETTY {
+  const { st, a } = greatLakeHeading();
   const shore = shoreAlong(st.x, st.z, a, 4, 260);
-  const base = W(st.x + Math.sin(a) * (shore - 4), st.z + Math.cos(a) * (shore - 4));
   const len = 4 + depthAlong(st.x + Math.sin(a) * shore, st.z + Math.cos(a) * shore, a, 2.6, 60);
-  return jetty("great-lake", base, a, len, 6, 1.15, 1.3);
+  const startY = baseFloorY(st.x + Math.sin(a) * (shore - 4), st.z + Math.cos(a) * (shore - 4));
+  return { shore, len, startY };
+}
+const greatLake: Jetty = (() => {
+  const { st, a } = greatLakeHeading();
+  const { shore, len, startY } = GREAT_LAKE_JETTY;
+  const base = W(st.x + Math.sin(a) * (shore - 4), st.z + Math.cos(a) * (shore - 4));
+  return jetty("great-lake", base, a, len, 6, 1.15, 1.3, startY);
 })();
 docks.push({ id: "great-lake", name: "Great Lake Jetty", x: greatLake.head.x, z: greatLake.head.z, style: "candy" });
 
@@ -327,7 +342,7 @@ headNose(dinoJ, "sailboat-dino", "sailboat", "dino", 2.4);
 // the Great Lake: a sailboat and two pedalos (the lake's still, sheltered water)
 headNose(greatLake, "sailboat-greatlake", "sailboat", "great-lake", 2.6);
 headNose(greatLake, "pedalo-greatlake-1", "pedalo", "great-lake", -2.6);
-sideNoseAuto(greatLake, "pedalo-greatlake-2", "pedalo", "great-lake", 1, 0.45);
+sideNose(greatLake, "pedalo-greatlake-2", "pedalo", "great-lake", 0.45, 1); // frozen like the jetty (the test checks it still floats)
 // Frostpeak: a Rocket Boat and a Bubble Sub nose-in at the head
 headNose(frost, "speedboat-frost", "speedboat", "frost-dock", -2.4);
 headNose(frost, "sub-frost", "sub", "frost-dock", 2.2);

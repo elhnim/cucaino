@@ -298,17 +298,8 @@ export const CAR_PARKS: CarPark[] = [
   // are on foot only (fittingly: real Everest Base Camp treks end the same way, walking the last
   // stretch), matching registry/footpaths.ts's own village<->station walks
   { id: "cp-basecamp", x: 1539, z: -1008, y: 7.95, heading: 0.36, r: 13, serves: ["Everest Base Camp", "Mount Everest"], jeeps: 2 },
-  // round 3: moved off the canyon's own carved ground (was inside nearGrandCanyon) to
-  // grandCanyon.ts's own CANYON_TRAILHEAD — a known-safe rim-side approach point, right where the
-  // spur's own last point now lands
-  // round 4: "Canyon Lookout" — the spur now stops well short of the canyon (dropped every point
-  // inside CANYON_REACH+30 = 550 units of CANYON_SITE; this is the last one still outside it, at
-  // 550.5) so nothing here depends on whether the canyon is switched on. Re-frozen straight from
-  // rawHeight() (natural ground) the whole way, same as the rest of the network — this stretch was
-  // already outside the canyon's 520-unit reach even with the canyon on, so round 3's heights here
-  // were never actually canyon-derived. (Round 3 approached from the far south/trailhead side
-  // instead; not kept, see the round-4 report — going all the way round the reach circle to reach
-  // that side wasn't done given time.)
+  // the canyon road's end: up on the plateau, a short walk from the mule trail's rim trailhead
+  // (inside the wonder's reach, off the gorge itself — roadsRail.test.ts checks)
   { id: "cp-canyon", x: 513.3, z: -1717.9, y: 94.96, heading: -1.49, r: 13, serves: ["Grand Canyon"], jeeps: 3 },
   { id: "cp-kart", x: 170.4, z: -139.1, y: 3.56, heading: 1.41, r: 11, serves: ["Cucaino Karts"], jeeps: 2 },
 ];
@@ -322,6 +313,42 @@ export const ROAD_JUNCTIONS: RoadJunction[] = [
   { id: "j-h4", x: H4.x, z: H4.z, y: H4.y, signs: [{ label: "Lone Peak 🏔️", heading: 2.95 }, { label: "Park Station 🎡", heading: -1.54 }, { label: "Sunnybrook 🏪", heading: -0.39 }] },
   { id: "j-parwp", x: PAR_WP.x, z: PAR_WP.z, y: PAR_WP.y, signs: [{ label: "Sunny Plains \u{1F33B}", heading: -2.2 + Math.PI }, { label: "Park Station \u{1F3A1}", heading: -2.45 }, { label: "Parícutin \u{1F30B}", heading: 1.57 }] },
 ];
+
+/** how far inside a ring's outer edge a road's ribbon is carried, so the two always overlap */
+export const RING_JOIN_OVERLAP = 1;
+/**
+ * A stretch of a road's (densified) points with the parts under its own roundabouts cut away: a
+ * road is trimmed only at the ring it really ends on (its first / last point), and the cut lands
+ * EXACTLY on the join circle (ROUNDABOUT_OUTER - RING_JOIN_OVERLAP) — a new point is interpolated
+ * there. Just dropping the samples inside it left the last kept sample up to 2.5 units short of the
+ * ring: a bare strip of ground between the road and the roundabout.
+ */
+export function trimAtRings(seg: RoadSeg, pts: readonly RoadPoint[]): RoadPoint[] {
+  const R = ROUNDABOUT_OUTER - RING_JOIN_OVERLAP;
+  const junctionAt = (p: RoadPoint) => ROAD_JUNCTIONS.find((j) => Math.hypot(p.x - j.x, p.z - j.z) < 1);
+  const jStart = junctionAt(seg.points[0]);
+  const jEnd = junctionAt(seg.points[seg.points.length - 1]);
+  const rad = (p: RoadPoint, j: { x: number; z: number }) => Math.hypot(p.x - j.x, p.z - j.z);
+  // the point where the stretch a -> b crosses the join circle round j (a inside, b outside)
+  const cut = (a: RoadPoint, b: RoadPoint, j: { x: number; z: number }): RoadPoint => {
+    let lo = 0;
+    let hi = 1;
+    for (let i = 0; i < 20; i++) {
+      const t = (lo + hi) / 2;
+      if (Math.hypot(a.x + (b.x - a.x) * t - j.x, a.z + (b.z - a.z) * t - j.z) < R) lo = t;
+      else hi = t;
+    }
+    return { x: a.x + (b.x - a.x) * hi, z: a.z + (b.z - a.z) * hi, y: a.y + (b.y - a.y) * hi };
+  };
+  let lo = 0;
+  if (jStart) for (let i = 0; i < pts.length; i++) if (rad(pts[i], jStart) < R) lo = i + 1;
+  let hi = pts.length;
+  if (jEnd) for (let i = pts.length - 1; i >= lo; i--) if (rad(pts[i], jEnd) < R) hi = i;
+  const out = pts.slice(lo, hi);
+  if (jStart && lo > 0 && lo < pts.length) out.unshift(cut(pts[lo - 1], pts[lo], jStart));
+  if (jEnd && hi < pts.length && hi > 0 && hi > lo) out.push(cut(pts[hi], pts[hi - 1], jEnd));
+  return out;
+}
 
 // ── nearest-road lookups: every segment's points bucketed in a coarse grid (same discipline as
 // registry/railway.ts's nearestRail) ──
@@ -522,6 +549,25 @@ export function roadAt(x: number, z: number): RoadHit {
   return nearestOrdinaryRoad(x, z);
 }
 
+/** a car park's asphalt apron is a rectangle about its centre, long side along its heading: these
+ *  are its half-length and half-width as fractions of the car park's `r` (world/roads draws it from
+ *  the same numbers, so what is drawn and what can be driven on are one shape) */
+export const CAR_PARK_HALF_LEN = 1.15;
+export const CAR_PARK_HALF_WIDTH = 0.82;
+/** a car may stray this far past the apron's edge (the verge between it and the road beside it) */
+const CAR_PARK_VERGE = 2;
+function carParkLocal(cp: CarPark, x: number, z: number) {
+  const dx = x - cp.x;
+  const dz = z - cp.z;
+  return { along: dx * Math.sin(cp.heading) + dz * Math.cos(cp.heading), side: dx * Math.cos(cp.heading) - dz * Math.sin(cp.heading) };
+}
+/** is (x, z) on a car park's apron (or within `pad` of its edge)? */
+export function onCarPark(cp: CarPark, x: number, z: number, pad = CAR_PARK_VERGE): boolean {
+  if (Math.abs(x - cp.x) > cp.r * 1.5 + pad || Math.abs(z - cp.z) > cp.r * 1.5 + pad) return false;
+  const l = carParkLocal(cp, x, z);
+  return Math.abs(l.along) < cp.r * CAR_PARK_HALF_LEN + pad && Math.abs(l.side) < cp.r * CAR_PARK_HALF_WIDTH + pad;
+}
+
 /** the nearest car park within `pad` of (x, z), or null */
 export function carParkAt(x: number, z: number, pad = 0): CarPark | null {
   for (const cp of CAR_PARKS) if (Math.hypot(x - cp.x, z - cp.z) < cp.r + pad) return cp;
@@ -555,8 +601,8 @@ export function inRoadCorridor(x: number, z: number): boolean {
     const { side, along, len } = tunnelLocal(t, x, z);
     if (Math.abs(side) < t.half + ROAD_SHOULDER && along > -2 && along < len + 2) return true;
   }
-  // (a car park's free area reaches a little past its apron, across the verge to the road beside it)
-  for (const cp of CAR_PARKS) if (Math.hypot(x - cp.x, z - cp.z) < cp.r + 3) return true;
+  // (a car park's free area is its apron, and a little past it across the verge to the road beside it)
+  for (const cp of CAR_PARKS) if (onCarPark(cp, x, z)) return true;
   return false;
 }
 
@@ -618,10 +664,13 @@ export function roadConfine(x: number, z: number, prevX: number, prevZ: number):
     take(j.x + ((x - j.x) / d) * r, j.z + ((z - j.z) / d) * r);
   }
   for (const cp of CAR_PARKS) {
-    const d = Math.hypot(x - cp.x, z - cp.z);
-    if (d > cp.r + 60) continue;
-    const r = Math.min(d, cp.r + 3 - EPS);
-    take(cp.x + ((x - cp.x) / (d || 1)) * r, cp.z + ((z - cp.z) / (d || 1)) * r);
+    if (Math.hypot(x - cp.x, z - cp.z) > cp.r + 60) continue;
+    const l = carParkLocal(cp, x, z);
+    const ha = cp.r * CAR_PARK_HALF_LEN + CAR_PARK_VERGE - EPS;
+    const hs = cp.r * CAR_PARK_HALF_WIDTH + CAR_PARK_VERGE - EPS;
+    const al = Math.max(-ha, Math.min(ha, l.along));
+    const sd = Math.max(-hs, Math.min(hs, l.side));
+    take(cp.x + Math.sin(cp.heading) * al + Math.cos(cp.heading) * sd, cp.z + Math.cos(cp.heading) * al - Math.sin(cp.heading) * sd);
   }
   for (const b of BRIDGES) {
     const l = bridgeLocal(b, x, z);
@@ -689,8 +738,8 @@ export const LEVEL_CROSSINGS: LevelCrossing[] = [
 /** registry/railway.ts's RAIL_LENGTH and world/railway/index.ts's own TRAIN_V, copied (leaf-safe:
  *  world/railway/index.ts touches three.js, so its TRAIN_V is copied rather than imported — same
  *  reasoning as every other "copy the number" comment in this file) */
-const RAIL_LENGTH_COPY = 4280.77;
-const TRAIN_V_COPY = 24;
+export const RAIL_LENGTH_COPY = 4280.77;
+export const TRAIN_V_COPY = 24;
 /** is this crossing's boom down right now, given the train's own position (s) along the loop? Down
  *  from ~8 s before the train reaches it until ~3 s after it's cleared (a toy steam train, not a
  *  precise timetable — this is a kid's park, not a real level crossing's exact safety margin). */

@@ -49,7 +49,9 @@ import { buildEverestDecor } from "./everestDecor";
 import { buildEverestClimbDecor } from "./everestClimbDecor";
 import { buildParicutinDecor } from "./paricutinDecor";
 import { buildGrandCanyonDecor } from "./grandCanyonDecor";
-import { CANYON_OPEN } from "../registry/grandCanyon";
+import { CANYON_OPEN, CANYON_SITE } from "../registry/grandCanyon";
+import { EVEREST_PEAK } from "../registry/landform";
+import { PARICUTIN_CONE } from "../registry/paricutin";
 import { buildRoads, type Roads } from "./roads";
 
 export interface BuiltPark {
@@ -651,7 +653,22 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // ── Mount Everest's own small hand-built touches (the summit flag, the glacier, the Khumbu
   //    Icefall) — the mountain's shape itself is just the ordinary height-field terrain, see
   //    everestDecor.ts (and terrainMesh.ts's Everest-local colour override) ──
-  const everest = buildEverestDecor(scene);
+  // (the three wonders' decor is built the first time the kid comes within sight of each, not while
+  // the park loads: every one of them is far beyond the fog from the plaza, and together they were
+  // a good part of a second of work on a tablet before the first frame)
+  const lazyNear = <T extends { dispose(): void }>(at: { x: number; z: number }, within: number, build: () => T) => {
+    let made: T | null = null;
+    return {
+      near(f: THREE.Vector3): T | null {
+        if (!made && Math.hypot(f.x - at.x, f.z - at.z) < within) made = build();
+        return made;
+      },
+      dispose() {
+        made?.dispose();
+      },
+    };
+  };
+  const everest = lazyNear(EVEREST_PEAK, 1100, () => buildEverestDecor(scene));
   disposables.push(everest);
   // the Climb Everest route's own small streamed decorations (camps, ladders, ridge rope) —
   // see everestClimbDecor.ts
@@ -660,13 +677,13 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // Parícutin's own small hand-built touches (the crater's glow, the ash plume, the half-buried
   // church) — the cone's shape itself is the ordinary height-field terrain, see
   // registry/paricutin.ts's paricutinY and terrainMesh.ts's Parícutin-local colour override
-  const paricutinDecor = buildParicutinDecor(scene);
+  const paricutinDecor = lazyNear(PARICUTIN_CONE, 1000, () => buildParicutinDecor(scene));
   disposables.push(paricutinDecor);
   // the Grand Canyon's own small hand-built touches (the watchtower, the Skywalk, the rim lodge,
   // the river, the desert scatter, the condors) — the canyon's shape itself is the ordinary
   // height-field terrain, see registry/grandCanyon.ts's grandCanyonGroundY and terrainMesh.ts's
   // Grand-Canyon-local colour override
-  const grandCanyonDecor = CANYON_OPEN ? buildGrandCanyonDecor(scene) : null;
+  const grandCanyonDecor = CANYON_OPEN ? lazyNear(CANYON_SITE, 1200, () => buildGrandCanyonDecor(scene)) : null;
   if (grandCanyonDecor) disposables.push(grandCanyonDecor);
   // the island's road network (Agent R, registry/roads.ts): the long ribbon streams in round the
   // kid like the railway track; the bridges, tunnels, car parks and junction signs are built once
@@ -834,10 +851,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       // that both are never near at once); Coralcove's bubble has no clan emoji of its own
       built.villageTalk = settleOut.talk ?? villageTalk ?? tradeOut.talk ?? fishOut.talk;
       built.activityOffer = settleOut.activity;
-      everest.update(t);
+      everest.near(focus ?? origin0)?.update(t);
       everestClimbDecor.update(dt, t, { kid: focus ?? origin0 });
-      paricutinDecor.update(dt, t, atmosphere.glow, focus ?? origin0);
-      grandCanyonDecor?.update(dt, t);
+      paricutinDecor.near(focus ?? origin0)?.update(dt, t, atmosphere.glow, focus ?? origin0);
+      grandCanyonDecor?.near(focus ?? origin0)?.update(dt, t);
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {
         const top = skyTopY(sp.x, sp.z, t);

@@ -487,7 +487,7 @@ describe("roads: a car can never leave the network, and is never thrown", () => 
           z = c.z;
           expect(R.inRoadCorridor(x, z), `${seg.id} left the network`).toBe(true);
         }
-        expect(Math.hypot(x - cp.x, z - cp.z), `${seg.id} drove off past ${cp.id}`).toBeLessThan(cp.r + 3.01);
+        expect(R.onCarPark(cp, x, z), `${seg.id} drove off past ${cp.id}`).toBe(true);
       }
     }
   });
@@ -527,6 +527,51 @@ describe("roads: a car can never leave the network, and is never thrown", () => 
       }
       // off to the side of the line beyond a portal there is no road at all
       expect(R.inRoadCorridor(t.x0 - ux * 100 + uz * 3, t.z0 - uz * 100 - ux * 3) && R.roadAt(t.x0 - ux * 100, t.z0 - uz * 100).kind === "tunnel").toBe(false);
+    }
+  });
+});
+
+describe("roads: car parks and ring joins", () => {
+  it("a car park is drivable exactly where its apron is drawn (plus a narrow verge), and nowhere round it", () => {
+    for (const cp of R.CAR_PARKS) {
+      const at = (along: number, side: number) => ({ x: cp.x + Math.sin(cp.heading) * along + Math.cos(cp.heading) * side, z: cp.z + Math.cos(cp.heading) * along - Math.sin(cp.heading) * side });
+      const hl = cp.r * R.CAR_PARK_HALF_LEN;
+      const hw = cp.r * R.CAR_PARK_HALF_WIDTH;
+      // every corner and edge of the apron can be driven on
+      for (const [a, s] of [[hl, hw], [-hl, hw], [hl, -hw], [-hl, -hw], [0, hw], [0, -hw], [hl, 0], [-hl, 0], [0, 0]]) {
+        const p = at(a * 0.99, s * 0.99);
+        expect(R.inRoadCorridor(p.x, p.z), `${cp.id} apron point (${a.toFixed(0)}, ${s.toFixed(0)}) is not drivable`).toBe(true);
+      }
+      // well past the apron's side there is no car park (only a road or ring, if one is there)
+      for (const s of [hw + 4, -hw - 4]) {
+        const p = at(0, s);
+        expect(R.onCarPark(cp, p.x, p.z), `${cp.id} is drivable ${Math.abs(s) - hw} past its side`).toBe(false);
+      }
+      // and it joins the network: some point of the apron or its verge is also on a road or a ring
+      let joined = false;
+      for (let a = -hl - 1.9; a <= hl + 1.9 && !joined; a += 1) for (let s = -hw - 1.9; s <= hw + 1.9; s += 1) {
+        const p = at(a, s);
+        if (R.roadCentreDist(p.x, p.z) < R.ROAD_CORRIDOR_HALF || R.ROAD_JUNCTIONS.some((j) => { const d = Math.hypot(p.x - j.x, p.z - j.z); return d > R.ROUNDABOUT_INNER + 1 && d < R.ROUNDABOUT_OUTER - 1; })) {
+          joined = true;
+          break;
+        }
+      }
+      expect(joined, `${cp.id} does not touch a road`).toBe(true);
+    }
+  });
+
+  it("every road's ribbon is cut exactly on its ring's join circle: no gap, on either leg end", () => {
+    const R_JOIN = R.ROUNDABOUT_OUTER - R.RING_JOIN_OVERLAP;
+    for (const seg of R.ROAD_SEGMENTS) {
+      const pts = R.trimAtRings(seg, R.densifyRoad(seg.points, 2.5));
+      expect(pts.length, seg.id).toBeGreaterThan(1);
+      for (const [end, p] of [[seg.points[0], pts[0]], [seg.points[seg.points.length - 1], pts[pts.length - 1]]] as const) {
+        const j = R.ROAD_JUNCTIONS.find((q) => Math.hypot(q.x - end.x, q.z - end.z) < 1);
+        if (!j) continue;
+        expect(Math.hypot(p.x - j.x, p.z - j.z), `${seg.id} at ${j.id}`).toBeCloseTo(R_JOIN, 2);
+      }
+      // nothing of the ribbon is left under the island
+      for (const p of pts) for (const j of R.ROAD_JUNCTIONS) if (Math.hypot(seg.points[0].x - j.x, seg.points[0].z - j.z) < 1 || Math.hypot(seg.points[seg.points.length - 1].x - j.x, seg.points[seg.points.length - 1].z - j.z) < 1) expect(Math.hypot(p.x - j.x, p.z - j.z), `${seg.id} under ${j.id}`).toBeGreaterThan(R_JOIN - 0.01);
     }
   });
 });

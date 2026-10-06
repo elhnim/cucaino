@@ -102,27 +102,58 @@ export async function createDreamPark(scene: THREE.Scene, assets: ParkAssets): P
   ring.visible = false;
   group.add(ring);
 
+  const keyOf = (p: { piece: string; gx: number; gz: number; r: number }) => `${p.piece}:${p.gx}:${p.gz}:${p.r}`;
+  type Layout = Placed[];
+  let latest: Layout | null = null;
+  let running: Promise<void> | null = null;
+  async function reconcile(layout: Layout) {
+    const want = new Map(layout.map((p) => [p.uid, p]));
+    for (const [uid, item] of placed) {
+      const next = want.get(uid);
+      if (!next || keyOf(next) !== item.key) {
+        group.remove(item.obj);
+        placed.delete(uid);
+      }
+    }
+    for (const p of layout) {
+      if (placed.has(p.uid)) continue;
+      const obj = await spawnPiece(p);
+      if (!obj) continue;
+      // (a newer layout arrived while this model loaded: only keep the piece if it still wants it
+      // exactly here — the next pass handles everything else)
+      if (latest) {
+        const n = latest.find((q) => q.uid === p.uid);
+        if (!n || keyOf(n) !== keyOf(p)) continue;
+      }
+      if (placed.has(p.uid)) continue;
+      group.add(obj);
+      placed.set(p.uid, { obj, piece: p.piece, key: keyOf(p) });
+      pop = { obj, t: 0 };
+    }
+  }
+
   let t = 0;
   return {
     group,
     tappables: () => [...placed.values()].map((p) => p.obj),
-    async setLayout(layout) {
-      const want = new Map(layout.map((p) => [p.uid, p]));
-      for (const [uid, item] of placed) {
-        const next = want.get(uid);
-        if (!next || `${next.piece}:${next.gx}:${next.gz}:${next.r}` !== item.key) {
-          group.remove(item.obj);
-          placed.delete(uid);
-        }
-      }
-      for (const p of layout) {
-        if (placed.has(p.uid)) continue;
-        const obj = await spawnPiece(p);
-        if (!obj) continue;
-        group.add(obj);
-        placed.set(p.uid, { obj, piece: p.piece, key: `${p.piece}:${p.gx}:${p.gz}:${p.r}` });
-        pop = { obj, t: 0 };
-      }
+    // One layout is reconciled at a time, always towards the LATEST one asked for: two overlapping
+    // calls (a quick second edit while a model was still loading) could both see a piece as missing
+    // and add it twice, or an older call could add back a piece a newer layout had removed.
+    setLayout(layout) {
+      latest = layout;
+      if (!running)
+        running = (async () => {
+          try {
+            while (latest) {
+              const l = latest;
+              latest = null;
+              await reconcile(l);
+            }
+          } finally {
+            running = null;
+          }
+        })();
+      return running;
     },
     setGhost(pieceId, x = 0, z = 0, r = 0, ignoreUid) {
       if (!pieceId) {
