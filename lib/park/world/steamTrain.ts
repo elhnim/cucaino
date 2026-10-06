@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { groundY } from "../registry/terrain";
+import { createTrainKit } from "./trainModels";
 
 /** distance between car centres along the track (m) */
 export const CAR_GAP = 5.4;
@@ -174,15 +175,16 @@ export function buildSteamTrain(scene: THREE.Scene, loop: THREE.CatmullRomCurve3
   trestles.castShadow = true;
 
   // ── the train ──
-  const locoGeo = track(locomotiveGeometry());
-  const carGeo = track(carriageGeometry());
+  // (the engine, the open excursion car the kid rides in, then coaches: ./trainModels)
+  const kit = track(createTrainKit({ lowQuality }));
   const cars: THREE.Object3D[] = [];
+  const bodies: THREE.Group[] = [];
   for (let i = 0; i < CAR_COUNT; i++) {
-    const mesh = new THREE.Mesh(i === 0 ? locoGeo : carGeo, vcol);
-    mesh.castShadow = true;
-    mesh.position.y = -0.55; // wheels sit on the rails (the pose point is the rail line)
+    const body = kit.build(i === 0 ? "loco" : i === RIDE_CAR ? "open" : "coach");
+    body.position.y = -0.55; // wheels sit on the rails (the pose point is the rail line)
     const g = new THREE.Group();
-    g.add(mesh);
+    g.add(body);
+    bodies.push(body);
     cars.push(add(g));
   }
 
@@ -201,11 +203,12 @@ export function buildSteamTrain(scene: THREE.Scene, loop: THREE.CatmullRomCurve3
   return {
     cars,
     update(dt, _t, speed) {
+      for (const b of bodies) kit.roll(b, speed * dt);
       // puff faster when the train works hard
       emit -= dt;
       if (emit <= 0) {
         emit = Math.max(0.09, 0.32 - speed * 0.008);
-        chimney.set(0, 3.2 - 0.55, 2.1).applyMatrix4(cars[0].matrixWorld);
+        chimney.set(0, 3.35 - 0.55, 2.05).applyMatrix4(cars[0].matrixWorld);
         const p = pp[next];
         next = (next + 1) % NP;
         p.x = chimney.x;

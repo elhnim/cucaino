@@ -10,7 +10,8 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { groundY, railY } from "../../registry/terrain";
 import { PLATFORM, RAIL_LENGTH, RAIL_POINTS, STATIONS, railAt, type Station } from "../../registry/railway";
-import { CAR_COUNT, CAR_GAP, carriageGeometry, locomotiveGeometry, trestleGeometry } from "../steamTrain";
+import { CAR_COUNT, CAR_GAP, RIDE_CAR, trestleGeometry } from "../steamTrain";
+import { createTrainKit } from "../trainModels";
 import { labelSprite } from "@/lib/game3d/buildingKit";
 
 /** the train's top speed and how hard it speeds up / brakes (units/s, units/s²) */
@@ -197,13 +198,14 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
   }
 
   // ── the train ──
-  const locoGeo = locomotiveGeometry();
-  const carGeo = carriageGeometry();
-  disposables.push(locoGeo, carGeo);
+  // (the engine, the open excursion car the kid rides in, then coaches: ../trainModels)
+  const trainKit = createTrainKit({ lowQuality: low });
+  disposables.push(trainKit);
   const cars: THREE.Object3D[] = [];
+  const bodies: THREE.Group[] = [];
   for (let i = 0; i < CAR_COUNT; i++) {
-    const mesh = new THREE.Mesh(i === 0 ? locoGeo : carGeo, mat);
-    mesh.castShadow = !low;
+    const mesh = trainKit.build(i === 0 ? "loco" : i === RIDE_CAR ? "open" : "coach");
+    bodies.push(mesh);
     mesh.position.y = -0.55;
     const g = new THREE.Group();
     g.add(mesh);
@@ -281,6 +283,7 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
         }
       }
       if (train.s > RAIL_LENGTH) train.s -= RAIL_LENGTH;
+      if (!train.at) for (const b of bodies) trainKit.roll(b, train.v * dt);
       // place the cars (only matters when anyone could see them)
       for (let i = 0; i < CAR_COUNT; i++) {
         carPose(i, pose);
