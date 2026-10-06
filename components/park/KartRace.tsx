@@ -376,14 +376,17 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
       if (sw.id !== e.pointerId) return;
       // full lock is a short slide; slide further and the anchor comes with the finger, so
       // sliding back the other way answers straight away
-      const full = Math.max(44, Math.min(84, window.innerWidth * 0.075));
+      // (a long, gentle slide: full lock used to be 44-84 px, so a small hand movement threw the
+      // kart from side to side)
+      const full = Math.max(110, Math.min(190, window.innerWidth * 0.17));
       let dx = e.clientX - sw.anchor;
       if (dx > full) sw.anchor = e.clientX - full;
       else if (dx < -full) sw.anchor = e.clientX + full;
       dx = e.clientX - sw.anchor;
       sw.moved = Math.max(sw.moved, Math.abs(e.clientX - sw.x0));
       const raw = Math.max(-1, Math.min(1, dx / full));
-      const v = Math.abs(raw) < 0.14 ? 0 : raw;
+      // fine near the middle, firm at the ends: small corrections stay small
+      const v = Math.abs(raw) < 0.08 ? 0 : Math.sign(raw) * Math.pow(Math.abs(raw), 1.5);
       ctlRef.current.steer = v;
       showSteer(v);
       if (sw.moved > 24) setHint(false);
@@ -776,7 +779,7 @@ const bannerWrap: CSSProperties = { position: "absolute", top: "calc(max(10px, e
 const bannerBox: CSSProperties = { fontFamily: FONT.display, fontSize: 24, color: C.ink, padding: "7px 20px", borderRadius: 99, boxShadow: "0 6px 20px rgba(0,0,0,0.35)", animation: "kart-pop 0.4s cubic-bezier(.2,1.4,.4,1)" };
 const wrongWay: CSSProperties = { fontFamily: FONT.display, fontSize: "clamp(26px, 6vw, 44px)", color: "#ffffff", background: C.danger, padding: "10px 24px", borderRadius: 22, boxShadow: "0 8px 26px rgba(0,0,0,0.45)", animation: "kart-pulse 0.7s ease-in-out infinite" };
 
-const speedo: CSSProperties = { position: "absolute", bottom: "calc(max(16px, env(safe-area-inset-bottom)) + 92px)", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "baseline", gap: 5, pointerEvents: "none", textShadow: "0 2px 0 rgba(0,0,0,0.45)" };
+const speedo: CSSProperties = { position: "absolute", bottom: "calc(max(16px, env(safe-area-inset-bottom)) + clamp(120px, 22vw, 166px))", left: "50%", transform: "translateX(-50%)", display: "flex", alignItems: "baseline", gap: 5, pointerEvents: "none", textShadow: "0 2px 0 rgba(0,0,0,0.45)" };
 const speedNum: CSSProperties = { fontFamily: FONT.display, fontSize: 34, lineHeight: 1 };
 const speedUnit: CSSProperties = { fontSize: 12, fontWeight: 900, color: C.dim };
 
@@ -787,10 +790,11 @@ const legend: CSSProperties = { display: "flex", flexDirection: "column", gap: 3
 const hintWrap: CSSProperties = { position: "absolute", left: 0, right: 0, top: "24%", display: "flex", justifyContent: "center", pointerEvents: "none" };
 const hintBox: CSSProperties = { fontFamily: FONT.display, fontSize: "clamp(20px, 4.6vw, 30px)", color: "#ffffff", background: alpha("#1a1a2e", 0.72), padding: "9px 22px", borderRadius: 99, boxShadow: "0 6px 20px rgba(0,0,0,0.35)" };
 const wheelWrap: CSSProperties = { position: "absolute", left: "50%", bottom: "max(12px, env(safe-area-inset-bottom))", transform: "translateX(-50%)", pointerEvents: "none" };
-const wheel: CSSProperties = { width: "clamp(58px, 12vw, 84px)", height: "clamp(58px, 12vw, 84px)", borderRadius: "50%", transition: "transform 0.06s linear, box-shadow 0.15s", boxShadow: "0 6px 16px rgba(0,0,0,0.35)" };
+const wheel: CSSProperties = { width: "clamp(112px, 21vw, 156px)", height: "clamp(112px, 21vw, 156px)", borderRadius: "50%", transition: "transform 0.06s linear, box-shadow 0.15s", boxShadow: "0 6px 16px rgba(0,0,0,0.35)" };
 const itemBtn: CSSProperties = {
   position: "absolute",
-  right: "max(14px, env(safe-area-inset-right))",
+  // (on the LEFT: the left thumb fires the item while the right hand steers)
+  left: "max(14px, env(safe-area-inset-left))",
   bottom: "max(16px, env(safe-area-inset-bottom))",
   width: "clamp(92px, 22vw, 132px)",
   height: "clamp(92px, 22vw, 132px)",

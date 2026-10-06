@@ -56,6 +56,7 @@ import { wildBridgeDeckY } from "../registry/wildWater";
 import { roadConfine, roadDeckY, inWildlandsZone, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
 import { FLY_LAND_R } from "../map/tripMachine";
 import { CAROUSEL, CAROUSEL_RIDE_TURNS } from "../registry/carousel";
+import { newPetBrain, stepPetBrain, type PetBrain } from "../pet/followBrain";
 import { canyonVisualFloorY, canyonWalkY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
 import { rawHeight } from "../registry/landform";
 import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
@@ -311,6 +312,17 @@ export class ParkWorld {
   private sky: { v: number; dist: number; cheered: boolean; train?: boolean; /** riding the carousel: which animal, and the deck's turn when they got on */ carousel?: { seat: number; from: number } } | null = null;
   private carouselPose = { x: 0, y: 0, z: 0, yaw: 0 };
   private skySeated = false;
+  private walkVX = 0;
+  private walkVZ = 0;
+  /** the kid's body lean on foot: forward into a run / back as they pull up, and banking into a turn */
+  private leanX = 0;
+  private leanZ = 0;
+  private leanSpeed = 0;
+  private leanFacing = 0;
+  /** the pet's own body and mind while it is just following its kid (../pet/followBrain) */
+  private petBrain: PetBrain | null = null;
+  private petKid = { x: 0, z: 0, facing: 0, speed: 0 };
+  private petKidLast = new THREE.Vector3(NaN, 0, 0);
   private camWant = new THREE.Vector3();
   /** standing on a station's platform, waiting for the train we called */
   private trainWait: Station | null = null;
@@ -1274,6 +1286,19 @@ export class ParkWorld {
       vx = 0;
       vz = 0;
     }
+    // On foot the kid has a little weight: they ease up to speed, take a step or two to stop, and
+    // curve into a change of direction instead of snapping to it (the stick used to BE the
+    // velocity: full speed on the first frame, a dead stop on the last, instant about-turns).
+    // Quick enough that the controls still feel immediate.
+    if (!this.mount && !this.ride && !this.building) {
+      const want = Math.hypot(vx, vz);
+      const k = 1 - Math.exp(-dt * (want > 0.01 ? 10 : 13));
+      this.walkVX += (vx - this.walkVX) * k;
+      this.walkVZ += (vz - this.walkVZ) * k;
+      if (want <= 0.01 && Math.hypot(this.walkVX, this.walkVZ) < 0.04) this.walkVX = this.walkVZ = 0;
+      vx = this.walkVX;
+      vz = this.walkVZ;
+    } else this.walkVX = this.walkVZ = 0;
     const moving = Math.hypot(vx, vz) > 0.01;
     const swimmingNow = !this.mount && !this.onSky && !this.gliding && !this.sky && !this.climb && !this.slide && !this.skiLock && seaDepth(pos.x, pos.z) > SWIM_DEPTH;
     const craft = this.mount && isCraft(this.mount.kind) ? this.mount.kind : null;
@@ -1711,7 +1736,21 @@ export class ParkWorld {
     const blob = kid.root.children[1];
     if (blob && !this.mount) blob.visible = !swimNow && !this.slide && !this.lifting;
     if (kid.rig && !this.mount && !this.slide && !this.skiLock) {
-      kid.rig.root.rotation.x = this.swimPitch;
+      // (on foot: lean into speeding up, sit back when pulling up, bank into a turn — small, but it is
+      // what makes a run read as a body with weight rather than a figure sliding along)
+      const onFoot = !this.mount && !this.sky && !this.slide && !this.skiLock && !this.climb && !this.wasInSea;
+      const spNow = onFoot ? Math.hypot(this.walkVX, this.walkVZ) : 0;
+      const accel = dt > 0 ? (spNow - this.leanSpeed) / dt : 0;
+      this.leanSpeed = spNow;
+      let turn = Math.atan2(Math.sin(kid.facing - this.leanFacing), Math.cos(kid.facing - this.leanFacing));
+      this.leanFacing = kid.facing;
+      turn = dt > 0 ? Math.max(-6, Math.min(6, turn / dt)) : 0;
+      const wantX = onFoot ? Math.max(-0.12, Math.min(0.2, accel * 0.035 + spNow * 0.07)) : 0;
+      const wantZ = onFoot ? Math.max(-0.2, Math.min(0.2, -turn * 0.045 * spNow)) : 0;
+      this.leanX += (wantX - this.leanX) * Math.min(1, dt * 7);
+      this.leanZ += (wantZ - this.leanZ) * Math.min(1, dt * 6);
+      kid.rig.root.rotation.x = this.swimPitch + this.leanX;
+      if (!this.slide) kid.rig.root.rotation.z = this.leanZ;
       kid.rig.root.position.y = this.swimPitch * 0.45;
       kid.rig.setSwim(swimNow, swimMove);
     }
@@ -1969,11 +2008,27 @@ export class ParkWorld {
       const pet = this.pet;
       let target: THREE.Vector3 | null = null;
       let speed = 3.5;
+      let brainFacing: number | null = null;
       if (this.petMode === "follow") {
-        target =
-          this.idleT > 2
-            ? new THREE.Vector3(pos.x + Math.sin(this.time * 0.9) * 2.4, 0, pos.z + Math.cos(this.time * 0.9) * 2.4)
-            : new THREE.Vector3(pos.x - Math.sin(kid.facing) * 2, 0, pos.z - Math.cos(kid.facing) * 2);
+        // a creature with a body and a mind of its own (../pet/followBrain): at heel on a walk,
+        // settling, pottering and playing when the kid stops
+        const pp = pet.root.position;
+        let b = this.petBrain;
+        // (anything else that moved the pet — a ride, a door, fetch — and it picks up from there)
+        if (!b || Math.hypot(b.x - pp.x, b.z - pp.z) > 0.6) b = this.petBrain = newPetBrain(pp.x, pp.z, pet.root.rotation.y);
+        const K = this.petKid;
+        const moved = Number.isNaN(this.petKidLast.x) || dt <= 0 ? 0 : Math.hypot(pos.x - this.petKidLast.x, pos.z - this.petKidLast.z) / dt;
+        this.petKidLast.copy(pos);
+        K.x = pos.x;
+        K.z = pos.z;
+        K.facing = kid.facing;
+        // (smoothed, and nothing silly from a teleport)
+        K.speed += ((moved > 40 ? 0 : moved) - K.speed) * Math.min(1, dt * 8);
+        const step = stepPetBrain(b, dt, K, Math.random);
+        pp.x = b.x;
+        pp.z = b.z;
+        brainFacing = b.heading;
+        if (step.emote && (pet.current === "idle" || pet.current === "")) this.play(pet, "gesture-positive", true);
       } else if (this.petMode === "goto" && this.petTarget) {
         target = this.petTarget;
         speed = 2.6;
@@ -2012,8 +2067,9 @@ export class ParkWorld {
         pet.root.position.z += (target.z - pet.root.position.z) * k;
       }
       const step = pet.root.position.clone().sub(before);
-      const petMoving = step.length() > 0.01;
-      if (petMoving) pet.facing = Math.atan2(step.x, step.z);
+      const petMoving = step.length() > (brainFacing === null ? 0.01 : dt * 0.35);
+      if (brainFacing !== null) pet.facing = brainFacing;
+      else if (petMoving) pet.facing = Math.atan2(step.x, step.z);
       turnTowards(pet, dt);
       if (this.petMode !== "sleep" && (pet.current === "idle" || pet.current === "walk" || pet.current === "run" || pet.current === ""))
         this.play(pet, petMoving && !this.sky ? (this.petMode === "fetch" ? "run" : "walk") : "idle");

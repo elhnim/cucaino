@@ -1496,6 +1496,19 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               {railOffer.waiting ? "🚂 Coming…" : "🚂 Ride the train"}
             </RoundButton>
           )}
+          {onCarousel && (
+            <RoundButton
+              size={62}
+              active
+              style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 104, borderRadius: 20 }}
+              onClick={() => {
+                if (worldRef.current?.leaveCarousel()) playSfx("tap");
+              }}
+              aria-label="Hop off the carousel"
+            >
+              {"🎠 Hop off"}
+            </RoundButton>
+          )}
           {railStop && (
             <RoundButton
               size={62}

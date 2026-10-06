@@ -85,8 +85,9 @@ const ACCEL_MIN = 5.5; // m/s^2 — so it still pulls away smartly from a stop
 const BRAKE_DECEL = 30;
 const GRASS_DRAG = 16; // how fast the grass pulls it down to GRASS_MAX_SPEED
 const COAST_DOWN = 9; // how fast a boost's extra speed bleeds off afterwards
-/** steering eases toward the input at this rate (full left to full right takes ~0.45 s) */
-const STEER_SLEW = 4.6;
+/** steering eases toward the input at this rate (full left to full right takes ~0.6 s: calmer in
+ *  small hands than the old 0.45 s) */
+const STEER_SLEW = 3.4;
 /** the tightest circle it can turn at a crawl (m), and how much wider that gets per m/s of speed —
  *  at 24 m/s the tightest line is ~21 m radius, at 12 m/s ~13.5 m: the hairpin (11 m radius, 11 m
  *  of road to use) wants you down to about 13 m/s, which hard steering does for you */

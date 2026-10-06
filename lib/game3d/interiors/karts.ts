@@ -1420,7 +1420,10 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
     if (r.seat.kind === "human") {
       // (the smoke test's autopilot — and, once the kid has crossed the line, their victory lap)
       if (opts.autopilot || kidFinishT >= 0) return aiInput(r.kart, track, AUTOPILOT_PROFILE, { deltaToKid: 0 });
-      return { steer: ctl.steer, brake: ctl.brake };
+      // (the HUD's steer is -1 left .. +1 right as the DRIVER sees it; the physics turns a positive
+      // steer toward +x, which is the driver's LEFT seen from behind the kart — sliding right used
+      // to turn the kart left)
+      return { steer: -ctl.steer, brake: ctl.brake };
     }
     if (r.seat.kind === "ai") {
       // rubber-band to the kid's own distance
