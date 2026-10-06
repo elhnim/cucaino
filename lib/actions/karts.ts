@@ -89,13 +89,28 @@ export async function getKartGhosts(trackId: unknown): Promise<GhostLap[]> {
   return (data as { ghost: GhostLap | null }[]).map((r) => r.ghost).filter((g): g is GhostLap => !!g);
 }
 
-/** Best lap per kid in the family, fastest first. */
+/**
+ * The ranking: best lap per kid, fastest first, for every kid in the family AND their accepted
+ * friends (the `kart_leaderboard` function, migration 0053 — it returns only a name, the kart
+ * animal and the time for friends, never their ghost). Falls back to the family's own laps if the
+ * function isn't there.
+ */
 export async function getKartLeaderboard(
   trackId: unknown,
-): Promise<{ kidId: string; name: string; animal: string; lapMs: number }[]> {
+): Promise<{ kidId: string; name: string; animal: string; lapMs: number; friend: boolean }[]> {
   const id = sanitizeTrackId(trackId);
   if (!id) return [];
   const sb = await db();
+  const ranked = await sb.rpc("kart_leaderboard", { p_track: id });
+  if (!ranked.error && Array.isArray(ranked.data)) {
+    return (ranked.data as { kid_id: string; name: string | null; animal: string | null; lap_ms: number; is_friend: boolean }[]).map((r) => ({
+      kidId: r.kid_id,
+      name: r.name ?? "Racer",
+      animal: r.animal ?? "",
+      lapMs: r.lap_ms,
+      friend: !!r.is_friend,
+    }));
+  }
   const { data, error } = await sb
     .from("kart_laps")
     .select("kid_id, lap_ms, ghost")
@@ -107,5 +122,6 @@ export async function getKartLeaderboard(
     name: r.ghost?.name ?? "Racer",
     animal: r.ghost?.animal ?? "",
     lapMs: r.lap_ms,
+    friend: false,
   }));
 }

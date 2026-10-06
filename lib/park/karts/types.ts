@@ -22,5 +22,5 @@ export interface KartNet {
 export interface KartStore {
   saveLap(lap: GhostLap): Promise<void>;          // keeps only each kid's best lap per track
   ghosts(trackId: string): Promise<GhostLap[]>;   // the family's best laps (one per kid)
-  leaderboard(trackId: string): Promise<{ kidId: string; name: string; animal: string; lapMs: number }[]>;
+  leaderboard(trackId: string): Promise<{ kidId: string; name: string; animal: string; lapMs: number; friend?: boolean }[]>;
 }

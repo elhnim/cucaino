@@ -52,6 +52,7 @@ export interface KartRaceProps {
   onToast?: (text: string) => void;
 }
 
+type RankRow = { kidId: string; name: string; animal: string; lapMs: number; friend?: boolean };
 type HudState = Extract<KartRaceEvent, { type: "hud" }>;
 type ResultEntry = Extract<KartRaceEvent, { type: "finish" }>["results"][number];
 
@@ -107,7 +108,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
   const [banner, setBanner] = useState<{ text: string; tone: "gold" | "cyan" | "good" } | null>(null);
   const [results, setResults] = useState<ResultEntry[] | null>(null);
   const [newBest, setNewBest] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<{ kidId: string; name: string; animal: string; lapMs: number }[]>([]);
+  const [leaderboard, setLeaderboard] = useState<RankRow[]>([]);
   const [confirmExit, setConfirmExit] = useState(false);
   const [hint, setHint] = useState(false);
   const audioRef = useRef<KartAudio | null>(null);
@@ -480,6 +481,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
                   <span>🪙 Coins make you faster · ⚡ hold a turn for a drift boost</span>
                 </div>
                 {bestLap !== null && <div style={chipLine}>⏱️ Your best lap: {fmtMs(bestLap)}</div>}
+                <Ranking rows={leaderboard} me={kid.kidId} />
 
                 <div style={label}>The other racers are…</div>
                 <div style={row}>
@@ -693,19 +695,7 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
                 );
               })}
             </div>
-            {leaderboard.length > 0 && (
-              <div style={{ width: "100%" }}>
-                <div style={label}>🏆 Family best laps</div>
-                {leaderboard.slice(0, 5).map((l, i) => (
-                  <div key={l.kidId} style={{ display: "flex", justifyContent: "space-between", padding: "2px 4px", color: l.kidId === kid.kidId ? C.gold : C.text, fontWeight: 800, fontSize: 14 }}>
-                    <span>
-                      {i + 1}. {l.name}
-                    </span>
-                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtMs(l.lapMs)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <Ranking rows={leaderboard} me={kid.kidId} />
             <div style={row}>
               <GameButton variant="primary" big onClick={() => void start()}>
                 🔁 Race again
@@ -721,7 +711,40 @@ export default function KartRace({ world, familyId, kid, onClose, onToast }: Kar
   );
 }
 
+/** the high-score table: every kid in the family and their friends, fastest lap first — the top
+ *  few, and always the kid's own row (with its real rank) even when it's further down */
+function Ranking({ rows, me }: { rows: RankRow[]; me: string }) {
+  if (rows.length === 0) return null;
+  const TOP = 6;
+  const mine = rows.findIndex((r) => r.kidId === me);
+  const shown = rows.slice(0, TOP).map((r, i) => ({ r, rank: i + 1 }));
+  if (mine >= TOP) shown.push({ r: rows[mine], rank: mine + 1 });
+  const anyFriend = rows.some((r) => r.friend);
+  return (
+    <div style={{ width: "100%" }}>
+      <div style={label}>🏆 Fastest laps{anyFriend ? " — family & friends" : ""}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        {shown.map(({ r, rank }, i) => (
+          <div key={r.kidId}>
+            {i === TOP && <div style={{ textAlign: "center", color: C.mute, lineHeight: 0.6 }}>⋮</div>}
+            <div style={{ ...rankRow, ...(r.kidId === me ? rankMe : null) }}>
+              <span style={{ width: 30, textAlign: "left" }}>{rank <= 3 ? medal(rank) : `${rank}.`}</span>
+              <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {r.name}
+                {r.kidId === me ? " (you)" : r.friend ? " 🤝" : ""}
+              </span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtMs(r.lapMs)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── styles (inline, like the rest of the park's HUD — no utility classes) ──
+const rankRow: CSSProperties = { display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 10, background: C.card, color: C.text, fontWeight: 800, fontSize: 14 };
+const rankMe: CSSProperties = { background: alpha(C.gold, 0.2), color: C.goldHi, boxShadow: `inset 0 0 0 1.5px ${alpha(C.gold, 0.6)}` };
 const root: CSSProperties = { position: "fixed", inset: 0, zIndex: 60, pointerEvents: "none", fontFamily: FONT.body, color: C.text, userSelect: "none", WebkitUserSelect: "none", touchAction: "none" };
 const scrim: CSSProperties = { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: C.scrim, padding: 16, pointerEvents: "auto", overflowY: "auto" };
 const card: CSSProperties = { position: "relative", width: "100%", maxWidth: 400, borderRadius: 26, padding: "22px 20px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" };
