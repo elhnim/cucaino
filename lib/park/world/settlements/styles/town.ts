@@ -10,6 +10,7 @@
 // is static geometry. They're built and animated by buildTownMoving(), its own tiny pair of meshes
 // (not merged: they need their own per-frame rotation), sharing the village's wind/glow uniforms so
 // they still fade in with the fog and glow at night like everything else.
+import type { TownHouse } from "./townPainted";
 import * as THREE from "three";
 import type { SettlementDef, SettlementProp } from "../../../registry/settlements";
 import { ball, box, cone, cyl, flat, gem, lump, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -49,12 +50,14 @@ function hash01(x: number, z: number): number {
 /** every real-scale number a building's shell AND its own per-kind accent need, worked out once so
  *  the two always agree (~7.5 m to the ridge, a touch more or less per building for rhythm) */
 function dims(hut: Hut) {
-  const w = widthOf(hut);
+  // (a tall, narrow painted townhouse: its front picture is two wide by three high, so the walls
+  //  are one and a half times the width — a touch more or less from house to house)
+  const w = widthOf(hut) * 0.64;
   const d = depthOf(hut);
-  const heightMul = 0.9 + hash01(hut.x, hut.z) * 0.3;
-  const h1 = 3.0 * M * heightMul;
-  const h2 = 2.5 * M * heightMul;
-  const roofH = 2.1 * M * heightMul;
+  const heightMul = 0.95 + hash01(hut.x, hut.z) * 0.1;
+  const h1 = w * 0.75 * heightMul;
+  const h2 = w * 0.75 * heightMul;
+  const roofH = 1.5 * M;
   const faceA = Math.sin(hut.yaw);
   const faceB = Math.cos(hut.yaw);
   const chimX = hut.x - faceA * w * 0.3;
@@ -74,6 +77,19 @@ function buildBuildingShell(hut: Hut, wall: string, roof: string, seed: number):
   const yaw = hut.yaw;
   const faceA = Math.sin(yaw);
   const faceB = Math.cos(yaw);
+  // the walls, roof, door and windows are the painted building standing here (townPainted below,
+  // put up by ../index.ts): this shell only adds its chimney and the doorstep
+  if (PAINTED) {
+    parts.push(pp(box(0.5 * M, 1.4 * M, 0.5 * M, chimX, chimTopY - 0.7 * M, chimZ, yaw), STONE_D));
+    parts.push(pp(box(1.5 * M, 0.16, 0.5, hut.x + faceA * (d * 0.5 + 0.3), 0.08, hut.z + faceB * (d * 0.5 + 0.3), yaw), STONE_D));
+    void wall;
+    void roof;
+    void seed;
+    void h1;
+    void h2;
+    void roofH;
+    return parts;
+  }
 
   // ground floor
   parts.push(pp(place(box(w, h1, d), hut.x, h1 / 2, hut.z, yaw), (pt, n) => shade(wall, 0.86 + 0.14 * Math.max(0, n.y))));
@@ -123,6 +139,33 @@ function buildBuildingShell(hut: Hut, wall: string, roof: string, seed: number):
 }
 
 const FLOWER_COLORS = ["#ff6fa0", "#ffd24a", "#ff9a4a", "#e05c8a"];
+
+/** Sunnybrook's houses and shops are painted buildings (real artwork on plain walls) */
+const PAINTED = true;
+/** which artwork each shop wears (four townhouse fronts between the eight shops, no two alike side by side) */
+/** (0 the pink bakery front, 1 the blue florist, 2 the yellow toy shop, 3 the timbered bookshop) */
+const SHOP_ART: Record<string, number> = {
+  "shop-post": 3,
+  "shop-general": 2,
+  "shop-bakery": 0,
+  "shop-sweet": 1,
+  "shop-cafe": 3,
+  "shop-toy": 2,
+  "shop-grocer": 1,
+  "shop-cheesewool": 0,
+};
+
+/** the painted buildings of the town: one per house or shop, where its shell would stand
+ *  (`y` is filled in by the caller: the ground under each) */
+export function townPainted(def: SettlementDef): TownHouse[] {
+  if (!PAINTED) return [];
+  return def.huts.map((h, i) => {
+    const { w, d, h1, h2, roofH } = dims(h);
+    const art = SHOP_ART[h.kind] ?? i % 4;
+    // (red tiles on the pink and yellow houses, slate on the blue and the timbered ones)
+    return { x: h.x, y: 0, z: h.z, yaw: h.yaw, w, h: h1 + h2, d, roofRise: roofH, art, roof: art === 0 || art === 2 ? 0 : 1 };
+  });
+}
 
 // ── per-shop signature: a hanging signboard with a theme icon, plus the odd special feature the
 // spec calls out (the bakery's giant pretzel + smoking chimney, the café's umbrellas...) ──
