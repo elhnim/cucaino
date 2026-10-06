@@ -527,6 +527,61 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     }
   };
 
+  // ── from the inside: the cottage is walked through the kid's own eyes, so it needs the parts a
+  //    dollhouse leaves off — a front wall of big windows looking out on the garden, a beamed
+  //    ceiling, and warm lamplight. All of it is hidden while decorating (the overhead view). ──
+  const fpShell = new THREE.Group();
+  fpShell.name = "home-inside";
+  scene.add(fpShell);
+  {
+    const FZ = 4; // the front edge of both rooms
+    const reach = 9.5 + 8 * Math.tan(SIDE_SPLAY) + 0.4; // the splayed side walls' front corners
+    const inside = (g: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) => {
+      const o = addMesh(g, m, x, y, z, fpShell);
+      o.castShadow = false;
+      return o;
+    };
+    // the front wall: a low panelled dado, a deep beam above, piers between four tall windows
+    const wood = toon("#8a5a34");
+    const woodDark = toon("#6b4326");
+    inside(new THREE.BoxGeometry(reach * 2, 0.95, T), trim, 0, 0.475, FZ + T / 2);
+    inside(new THREE.BoxGeometry(reach * 2, 0.06, T + 0.16), wood, 0, 0.98, FZ + T / 2);
+    inside(new THREE.BoxGeometry(reach * 2, WALL_H - 2.95, T), trim, 0, (WALL_H + 2.95) / 2, FZ + T / 2);
+    const piers = [-reach, -6.4, -3.0, 0, 3.0, 6.4, reach];
+    for (const x of piers) inside(new THREE.BoxGeometry(Math.abs(x) === reach ? 1.6 : 0.7, 2.0, T), trim, x, 1.95, FZ + T / 2);
+    for (let i = 0; i + 1 < piers.length; i++) {
+      const a = piers[i];
+      const b = piers[i + 1];
+      const mid = (a + b) / 2;
+      const w = b - a - 0.7;
+      // glazing bars and a sill, glass you can see the garden through
+      inside(new THREE.BoxGeometry(w, 0.07, 0.08), wood, mid, 1.95, FZ + T / 2);
+      inside(new THREE.BoxGeometry(0.07, 2.0, 0.08), wood, mid, 1.95, FZ + T / 2);
+      inside(new THREE.BoxGeometry(w + 0.2, 0.08, T + 0.3), wood, mid, 0.99, FZ + T / 2);
+      inside(new THREE.BoxGeometry(w, 2.0, 0.03), kit.glass(), mid, 1.95, FZ + T / 2 + 0.05);
+      // curtains drawn back at each side, in the kid's own colour, under a little pelmet
+      for (const sg of [-1, 1]) inside(new THREE.BoxGeometry(0.42, 2.25, 0.12), toon(accent), mid + sg * (w / 2 - 0.12), 1.95, FZ - 0.02);
+      inside(new THREE.BoxGeometry(w + 0.5, 0.2, 0.2), toon(lighten(accent, 0.25)), mid, 3.08, FZ - 0.02);
+    }
+    // the ceiling: cream boards with dark beams from back to front, a ridge beam across
+    inside(new THREE.BoxGeometry(reach * 2 + 1, 0.12, 9.4), toon("#fff6e4"), 0, WALL_H + 0.06, 0.1);
+    for (let x = -reach + 1.2; x <= reach - 1; x += 2.6) inside(new THREE.BoxGeometry(0.22, 0.26, 8.6), woodDark, x, WALL_H - 0.13, 0);
+    inside(new THREE.BoxGeometry(reach * 2, 0.3, 0.26), woodDark, 0, WALL_H - 0.15, 0);
+    // a hanging lantern in each room, glowing warm
+    for (const id of ROOM_IDS) {
+      const R = ROOMS[id];
+      const cx = R.x0 + R.cols / 2;
+      inside(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6), woodDark, cx, WALL_H - 0.6, 0);
+      inside(new THREE.SphereGeometry(0.26, 14, 10), kit.glow("#ffe2a8"), cx, WALL_H - 1.05, 0);
+      const lamp = new THREE.PointLight(0xffc98a, night ? 22 : 12, 13, 1.6);
+      lamp.position.set(cx, WALL_H - 1.15, 0);
+      fpShell.add(lamp);
+    }
+  }
+  /** which way the kid is looking, walking through the house in first person */
+  let fpYaw = 0;
+  const EYE = 1.72 * ACTOR_SCALE;
+
   // ── kid + pet ──
   const own = new Set<THREE.Object3D>();
   let kidActor: THREE.Object3D | null = null;
@@ -910,15 +965,42 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     const p = new THREE.Vector3();
     if (hit && def && def.surface !== "rug") p.copy(hit.point);
     else if (!ray.intersectPlane(floorPlane, p)) return;
-    walkKidTo(Math.max(-9.3, Math.min(9.3, p.x)), Math.max(-3.8, Math.min(3.8, p.z)));
+    walkKidTo(Math.max(-8.9, Math.min(8.9, p.x)), Math.max(-3.35, Math.min(3.35, p.z)));
   };
 
   // ── camera ──
   const camPos = new THREE.Vector3(0, 14, 18);
   const camLook = new THREE.Vector3(0, 0.5, 0);
   let camInit = false;
+  let camRef: THREE.PerspectiveCamera | null = null;
+  let camNear0 = -1; // the engine camera's own near plane (put back for the overhead view and on leaving)
   const camera = (cam: THREE.PerspectiveCamera, dt: number) => {
-    // (the framing itself is ./camera.ts homeCamera: tested)
+    fpShell.visible = !editing;
+    if (kidActor) kidActor.visible = editing;
+    const wantNear = editing ? camNear0 : 0.12;
+    camRef = cam;
+    if (camNear0 < 0) camNear0 = cam.near;
+    else if (cam.near !== wantNear) {
+      cam.near = wantNear;
+      cam.updateProjectionMatrix();
+    }
+    if (!editing) {
+      // walking about: through the kid's own eyes, looking a touch down so the floor and what
+      // stands on it stay in view
+      cam.position.set(kidPos.x, EYE, kidPos.z);
+      cam.lookAt(kidPos.x + Math.sin(fpYaw) * 4, EYE - 0.42, kidPos.z + Math.cos(fpYaw) * 4);
+      camPos.copy(cam.position);
+      camLook.set(kidPos.x + Math.sin(fpYaw) * 4, EYE - 0.42, kidPos.z + Math.cos(fpYaw) * 4);
+      camInit = true;
+      if (speechText) {
+        cam.updateMatrixWorld();
+        const v = speechTmp.copy(speechAt).project(cam);
+        speechNdc.x = v.x;
+        speechNdc.y = v.y;
+      }
+      return;
+    }
+    // (decorating: the whole cottage from above — the framing is ./camera.ts homeCamera: tested)
     const portrait = (cam.aspect || 1) < 1.15;
     let focusX = kidPos.x;
     let panLo: number | undefined;
@@ -977,14 +1059,22 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     }
 
     // kid walking: the joystick first (sliding along furniture and walls), else the tapped route
-    const mv = Math.hypot(kidMove.x, kidMove.z);
+    // (first person: the stick's left and right TURN you, up and down walk you forward and back)
+    if (!editing && Math.abs(kidMove.x) > 0.12) {
+      fpYaw -= kidMove.x * 2.1 * dt;
+      kidRoute = [];
+    }
+    const fwd = -kidMove.z;
+    const mv = Math.abs(fwd);
     if (mv > 0.1 && !editing) {
       const k = Math.min(1, mv);
-      const step = KID_SPEED * k * dt;
-      const ux = kidMove.x / mv;
-      const uz = kidMove.z / mv;
+      const step = KID_SPEED * k * dt * (fwd < 0 ? 0.6 : 1);
+      const ux = Math.sin(fpYaw) * Math.sign(fwd);
+      const uz = Math.cos(fpYaw) * Math.sign(fwd);
       const free = (x: number, z: number) => {
-        if (x < -9.3 || x > 9.3 || z < -3.8 || z > 3.8) return false;
+        // (kept a good step back from every wall: the kid's eyes are the camera, and right up
+        // against a wall the view would poke through it)
+        if (x < -8.9 || x > 8.9 || z < -3.35 || z > 3.35) return false;
         // (the kid's front edge too, so they stop at furniture rather than half in it)
         const a = worldToGlobal(x + ux * 0.3, z + uz * 0.3);
         const b = worldToGlobal(x, z);
@@ -995,7 +1085,7 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
       if (free(nx, nz)) kidPos.set(nx, 0, nz);
       else if (free(nx, kidPos.z)) kidPos.x = nx;
       else if (free(kidPos.x, nz)) kidPos.z = nz;
-      kidFacing = Math.atan2(ux, uz);
+      kidFacing = fpYaw;
       const dDoor = Math.hypot(kidPos.x - DOOR_FRONT.x, kidPos.z - DOOR_FRONT.z);
       if (dDoor > 1.6) doorArmed = true;
       if (doorArmed && dDoor < 0.7 && uz < -0.5) {
@@ -1022,6 +1112,10 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
         kidPos.z += (dz / dist) * step;
       }
       if (dist > 0.01) kidFacing = Math.atan2(dx, dz);
+      // (walking to where they tapped: the view turns to face the way they go)
+      fpYaw += Math.atan2(Math.sin(kidFacing - fpYaw), Math.cos(kidFacing - fpYaw)) * Math.min(1, dt * 5);
+    } else if (!editing) {
+      kidFacing = fpYaw;
     }
     playerPos.copy(kidPos);
     const nowRoom = roomAt(kidPos.x);
@@ -1345,6 +1439,11 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     update,
     dispose() {
       endGhost();
+      if (kidActor) kidActor.visible = true; // (hidden while walking the house in first person)
+      if (camRef && camNear0 > 0) {
+        camRef.near = camNear0;
+        camRef.updateProjectionMatrix();
+      }
       for (const e of items.values()) e.built.dispose();
       items.clear();
       for (const p of particles) p.s.material.dispose();
