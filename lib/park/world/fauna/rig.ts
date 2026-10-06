@@ -14,6 +14,9 @@
 //                              eyes no); glow: emissive at night (owls' eyes); mask: 0 always
 //                              drawn, else a bit mask of the variants that show it (bit k =
 //                              variant k), so species sharing a mesh share some parts
+//   aPat   a coat painted per pixel on this part (geometry.ts PO.pat): 1 a giraffe's patches; 2 / 3 /
+//          4 a zebra's stripes across the body / down a leg / round the neck (drawn only on the
+//          horse mesh's zebra variant, 2)
 // Per instance:
 //   iA  (gait phase, stride, head yaw, head pitch)
 //   iB  (ear flick, tail wag, front-right paw raise, variant + 0.9 × hint glow)
@@ -110,7 +113,7 @@ export function rigMaterial(U: RigUniforms): THREE.MeshStandardMaterial {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uEye = U.uEye;
     shader.vertexShader = patchVertex(shader.vertexShader, true)
-      .replace("#include <common>", "#include <common>\nvarying float vFaGlow;\nvarying float vFaHint;")
+      .replace("#include <common>", "#include <common>\nattribute float aPat;\nvarying float vFaGlow;\nvarying float vFaHint;\nvarying float vFaPat;\nvarying vec3 vFaP;")
       .replace(
         "#include <color_vertex>",
         `#if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )
@@ -123,9 +126,46 @@ export function rigMaterial(U: RigUniforms): THREE.MeshStandardMaterial {
           #endif
         #endif
         vFaGlow = aFx.y;
-        vFaHint = fract( iB.w + 0.0001 ) * 1.1;`,
+        vFaHint = fract( iB.w + 0.0001 ) * 1.1;
+        // (the coat pattern is laid out on the animal standing still, so it rides with each limb)
+        vFaP = position;
+        vFaPat = aPat > 1.5 && abs( floor( iB.w + 0.001 ) - 2.0 ) > 0.5 ? 0.0 : aPat;`,
       );
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vFaGlow;\nvarying float vFaHint;\nuniform float uEye;").replace(
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying float vFaGlow;\nvarying float vFaHint;\nvarying float vFaPat;\nvarying vec3 vFaP;\nuniform float uEye;")
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        if ( vFaPat > 0.5 ) {
+          if ( vFaPat < 1.5 ) {
+            // a giraffe: chestnut patches with a pale net of lines between them (cells of scattered
+            // points; a pixel is in the net where its two nearest points are about as near)
+            vec3 g = vFaP * 4.4;
+            vec3 gi = floor( g );
+            vec3 gf = fract( g );
+            float d1 = 9.0; float d2 = 9.0; float hue = 0.0;
+            for ( int ix = -1; ix <= 1; ix++ ) for ( int iy = -1; iy <= 1; iy++ ) for ( int iz = -1; iz <= 1; iz++ ) {
+              vec3 o = vec3( float( ix ), float( iy ), float( iz ) );
+              vec3 c = gi + o;
+              vec3 h = fract( sin( vec3( dot( c, vec3( 127.1, 311.7, 74.7 ) ), dot( c, vec3( 269.5, 183.3, 246.1 ) ), dot( c, vec3( 113.5, 271.9, 124.6 ) ) ) ) * 43758.5453 );
+              vec3 r = o + 0.15 + h * 0.7 - gf;
+              float d = dot( r, r );
+              if ( d < d1 ) { d2 = d1; d1 = d; hue = h.x; } else if ( d < d2 ) { d2 = d; }
+            }
+            float net = sqrt( d2 ) - sqrt( d1 );
+            vec3 patchCol = mix( vec3( 0.56, 0.31, 0.12 ), vec3( 0.7, 0.42, 0.17 ), hue );
+            diffuseColor.rgb = mix( diffuseColor.rgb, patchCol * ( 0.75 + 0.25 * diffuseColor.g ), smoothstep( 0.09, 0.15, net ) );
+          } else {
+            // a zebra: black stripes down the body, round the neck and face, in hoops down the legs
+            float a = vFaPat < 2.5 ? vFaP.z * 23.0 + sin( vFaP.y * 5.0 ) * 0.9 + abs( vFaP.x ) * 2.0
+              : vFaPat < 3.5 ? vFaP.y * 32.0 + vFaP.z * 3.0
+              : ( vFaP.y * 0.89 + vFaP.z * 0.46 ) * 27.0 + abs( vFaP.x ) * 3.0;
+            float st = smoothstep( -0.2, 0.2, sin( a ) );
+            diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.09, 0.075, 0.07 ), st );
+          }
+        }`,
+      )
+      .replace(
       "#include <emissivemap_fragment>",
       `#include <emissivemap_fragment>
         #if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )

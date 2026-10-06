@@ -7,6 +7,7 @@ import { col, merge } from "../fantasy/geo";
 import { noise3 } from "../fantasy/noise";
 import {
   BLACK,
+  PAT_GIRAFFE,
   EAR_L,
   EAR_R,
   HEAD,
@@ -198,34 +199,26 @@ export function buildSafari(): THREE.BufferGeometry {
 
 function giraffeParts(): THREE.BufferGeometry[] {
   const G = only(1);
-  // cream with big patches (the patches take the instance colour)
-  const patch = (p: THREE.Vector3) => noise3(p.x * 2.6 + 3, p.y * 2.6, p.z * 2.6, 9) > 0.5;
-  const coat: Paint = (p, n) => (patch(p) ? _c.set("#ffffff") : _c.set("#f6e7c6")).multiplyScalar(0.82 + 0.18 * (n.y * 0.5 + 0.5));
-  const patched = (g: THREE.BufferGeometry, o: object) => {
-    const out = rp(g, coat, { vm: G, ...o });
-    const pos = out.attributes.position as THREE.BufferAttribute;
-    const fx = out.attributes.aFx as THREE.BufferAttribute;
-    const c = new THREE.Vector3();
-    const v = new THREE.Vector3();
-    for (let f = 0; f < pos.count; f += 3) {
-      c.set(0, 0, 0);
-      for (let k = 0; k < 3; k++) c.add(v.fromBufferAttribute(pos, f + k));
-      c.multiplyScalar(1 / 3);
-      const w = patch(c) ? 1 : 0;
-      for (let k = 0; k < 3; k++) fx.setX(f + k, w);
-    }
-    return out;
-  };
+  // a cream coat; the chestnut patches, each with its pale net of lines between, are painted per
+  // pixel by the material (geometry.ts PO.pat), so they're crisp however few faces there are
+  const coat: Paint = (_p, n) => _c.set("#f3e3bd").multiplyScalar(0.82 + 0.18 * (n.y * 0.5 + 0.5));
+  const patched = (g: THREE.BufferGeometry, o: object) => rp(g, coat, { vm: G, tint: 0.12, pat: PAT_GIRAFFE, ...o });
   const N: V3 = [0, 2.35, 0.55];
   const H = { p: HEAD, piv: N };
   const dark = sh("#4a3626");
   const out: THREE.BufferGeometry[] = [
-    patched(ell(0, 2.15, 0, 0.42, 0.45, 0.75, 1), {}),
-    patched(ell(0, 2.3, 0.5, 0.36, 0.42, 0.32), {}),
+    patched(ell(0, 2.15, 0, 0.42, 0.45, 0.75, 2), {}),
+    // high withers sloping down to the rump, and a deep chest
+    patched(ell(0, 2.36, 0.46, 0.36, 0.46, 0.36, 1), {}),
+    patched(ell(0, 2.05, -0.52, 0.37, 0.4, 0.3, 1), {}),
     // the long neck up to the head (in the head's part, so it bends down to drink and browse)
-    patched(tube([0, 2.35, 0.55], [0, 4.25, 1.25], 0.27, 0.14, 6), H),
-    patched(ell(0, 4.45, 1.35, 0.15, 0.17, 0.27), H),
-    rp(ell(0, 4.36, 1.6, 0.1, 0.1, 0.1), sh("#e9d6b4"), { ...H, vm: G }),
+    patched(tube([0, 2.3, 0.5], [0, 3.3, 0.9], 0.3, 0.2, 8), H),
+    patched(tube([0, 3.3, 0.9], [0, 4.25, 1.25], 0.2, 0.13, 8), H),
+    patched(ell(0, 3.3, 0.9, 0.2, 0.2, 0.2, 1), H),
+    patched(ell(0, 4.45, 1.35, 0.15, 0.17, 0.27, 1), H),
+    // a long tapering muzzle
+    patched(tube([0, 4.42, 1.5], [0, 4.34, 1.78], 0.12, 0.08, 6), H),
+    rp(ell(0, 4.33, 1.8, 0.09, 0.075, 0.08), sh("#d9c3a0"), { ...H, vm: G }),
     ...eyes(0.13, 4.52, 1.42, 0.035, { ...H, vm: G }),
     // ossicones and a dark mane
     ...[-1, 1].map((s) => rp(tube([s * 0.06, 4.58, 1.26], [s * 0.08, 4.86, 1.22], 0.035, 0.03, 4), dark, { ...H, vm: G })),
@@ -244,7 +237,11 @@ function giraffeParts(): THREE.BufferGeometry[] {
   ];
   for (const [p, x, z] of legDef) {
     const L = { p, piv: [x, 1.95, z] as V3, tuck: true };
-    out.push(patched(tube([x, 2.0, z], [x, 0.12, z + 0.02], 0.12, 0.07, 5), L));
+    // (long jointed legs: a knobbly knee half way down, pale socks below it)
+    const kz = z + (z > 0 ? 0.03 : -0.05);
+    out.push(patched(tube([x, 2.0, z], [x, 1.02, kz], 0.13, 0.085, 6), L));
+    out.push(patched(ell(x, 1.02, kz, 0.1, 0.12, 0.1), L));
+    out.push(rp(tube([x, 1.02, kz], [x, 0.12, z + 0.02], 0.08, 0.06, 6), sh("#f1e4c4"), { ...L, vm: G, tint: 0.1 }));
     out.push(rp(box(x, 0.06, z + 0.03, 0.15, 0.12, 0.17), dark, { ...L, vm: G }));
   }
   return out;

@@ -1,9 +1,11 @@
-// Chunky, cute low-poly animals for Cucaino Park, faceted so the diorama pass's ink lines and
-// colour steps read as facets (like the storybook sheep). Every model faces +z, stands on y = 0 at
+// The animals of Cucaino Park: simple shapes, but softly shaded (every rounded part shares its
+// normals across its faces, so a flank reads as a flank, not a cut gem), with jointed legs, and
+// with the coats that need them — a giraffe's patches, a zebra's stripes — painted per pixel by
+// the rig's material (./rig.ts, the `pat` of a part). Every model faces +z, stands on y = 0 at
 // its natural size and carries the vertex rig's attributes (./rig.ts): which part each vertex
 // belongs to (head, legs, ears, tail, wings) and where that part pivots.
 import * as THREE from "three";
-import { col, merge, part } from "../fantasy/geo";
+import { col, merge, part, weld } from "../fantasy/geo";
 import { noise3 } from "../fantasy/noise";
 import { groundY } from "../../registry/terrain";
 import type { FaunaPlan } from "./plan";
@@ -48,6 +50,26 @@ export interface PO {
   tuck?: boolean;
   /** faces whose normal.y is below this are belly (untinted) — use with furBelly() */
   belly?: number;
+  /** a coat painted per pixel by the material (rig.ts): PAT_GIRAFFE patches; on a zebra (the
+   *  horse's variant 2) PAT_STRIPE_Z / _Y / _NECK stripes across the body / down a leg / round the neck */
+  pat?: number;
+}
+export const PAT_GIRAFFE = 1;
+export const PAT_STRIPE_Z = 2;
+export const PAT_STRIPE_Y = 3;
+export const PAT_STRIPE_NECK = 4;
+
+/** soft shading for a rounded part: weld its corners and share one normal between the faces that
+ *  meet there (a box — hooves, a mane's tufts — keeps its crisp faces) */
+function soften(g: THREE.BufferGeometry): { geo: THREE.BufferGeometry; smooth: boolean } {
+  const n = g.index ? g.index.count : g.attributes.position.count;
+  if (n <= 36) return { geo: g, smooth: false };
+  g.deleteAttribute("normal");
+  const w = weld(g.index ? g.toNonIndexed() : g);
+  w.computeVertexNormals();
+  const out = w.toNonIndexed();
+  w.dispose();
+  return { geo: out, smooth: true };
 }
 
 const _c = new THREE.Color();
@@ -62,17 +84,16 @@ const maskOf = (o: PO) => (o.vm !== undefined ? o.vm : !o.v ? 0 : o.v > 0 ? only
 
 /** a rigged, faceted part */
 export function rp(g: THREE.BufferGeometry, paint: Paint, o: PO = {}): THREE.BufferGeometry {
-  const out = part(g, paint, [o.tint ?? 0, o.glow ?? 0, maskOf(o)], { faceted: true, faceColor: true });
+  const soft = soften(g);
+  const out = part(soft.geo, paint, [o.tint ?? 0, o.glow ?? 0, maskOf(o)], soft.smooth ? {} : { faceted: true, faceColor: true });
   const n = out.attributes.position.count;
   if (o.belly !== undefined) {
-    // faces facing down (the belly / chest) keep their own pale colour: no instance tint
+    // what faces down (the belly / chest) keeps its own pale colour: no instance tint
     const nor = out.attributes.normal as THREE.BufferAttribute;
     const fx = out.attributes.aFx as THREE.BufferAttribute;
-    for (let f = 0; f < n; f += 3) {
-      const w = nor.getY(f) < o.belly ? 0 : o.tint ?? 1;
-      for (let k = 0; k < 3; k++) fx.setX(f + k, w);
-    }
+    for (let i = 0; i < n; i++) fx.setX(i, nor.getY(i) < o.belly ? 0 : o.tint ?? 1);
   }
+  out.setAttribute("aPat", new THREE.BufferAttribute(new Float32Array(n).fill(o.pat ?? 0), 1));
   const rig = new Float32Array(n * 4);
   const p2 = new Float32Array(n * 3);
   const pid = (o.p ?? BODY) + (o.tuck ? 16 : 0);
@@ -186,7 +207,14 @@ export function legs(x: number, hipY: number, zf: number, zb: number, r0: number
   for (const [p, lx, lz] of defs) {
     const piv: V3 = [lx, hipY, lz];
     const po = { ...o, p, piv, tuck: true, tint: o.tint ?? 1 };
-    out.push(rp(tube([lx, hipY + r0 * 0.5, lz], [lx, footH * 0.8, lz + 0.01], r0, r1, sides), fur, po));
+    // a jointed leg: a fuller thigh down to a knobbly knee / hock (a touch forward in front, back
+    // behind), then a slim cannon down to the foot
+    const kneeY = footH + (hipY - footH) * 0.47;
+    const kz = lz + (lz >= zb + 1e-6 ? 0.02 : -0.035) * (hipY / 1.0);
+    const rk = (r0 + r1) * 0.5;
+    out.push(rp(tube([lx, hipY + r0 * 0.5, lz], [lx, kneeY, kz], r0, rk * 0.92, sides + 1), fur, po));
+    out.push(rp(ell(lx, kneeY, kz, rk * 1.12, rk * 1.25, rk * 1.12), fur, po));
+    out.push(rp(tube([lx, kneeY, kz], [lx, footH * 0.8, lz + 0.01], rk * 0.86, r1, sides + 1), fur, po));
     if (foot) out.push(rp(box(lx, footH / 2, lz + 0.015, r1 * 2.3, footH, r1 * 2.6), foot, { ...po, tint: 0 }));
   }
   return out;
@@ -259,15 +287,16 @@ export function buildHorse(): THREE.BufferGeometry {
   const dark = sh("#3a2a22");
   const light = sh("#f4eee2");
   const parts: THREE.BufferGeometry[] = [
-    rp(ell(0, 1.2, 0, 0.4, 0.42, 0.82, 1), fur, { tint: 1 }),
-    rp(ell(0, 1.26, 0.58, 0.34, 0.39, 0.3), fur, { tint: 1 }),
-    rp(ell(0, 1.3, -0.56, 0.38, 0.38, 0.34), fur, { tint: 1 }),
-    rp(tube([0, 1.34, 0.66], [0, 1.96, 0.98], 0.24, 0.17, 6), fur, H),
-    rp(ell(0, 2.02, 1.1, 0.16, 0.17, 0.28), fur, H),
+    // (the zebra's stripes are painted on these by the material: see PO.pat)
+    rp(ell(0, 1.2, 0, 0.4, 0.42, 0.82, 1), fur, { tint: 1, pat: PAT_STRIPE_Z }),
+    rp(ell(0, 1.26, 0.58, 0.34, 0.39, 0.3), fur, { tint: 1, pat: PAT_STRIPE_Z }),
+    rp(ell(0, 1.3, -0.56, 0.38, 0.38, 0.34), fur, { tint: 1, pat: PAT_STRIPE_Z }),
+    rp(tube([0, 1.34, 0.66], [0, 1.96, 0.98], 0.24, 0.17, 8), fur, { ...H, pat: PAT_STRIPE_NECK }),
+    rp(ell(0, 2.02, 1.1, 0.16, 0.17, 0.28), fur, { ...H, pat: PAT_STRIPE_NECK }),
     rp(ell(0, 1.9, 1.36, 0.13, 0.13, 0.14), sh("#d9d0c4"), { ...H, tint: 0.55 }),
     ...[-1, 1].map((s) => rp(ell(s * 0.06, 1.88, 1.48, 0.025, 0.03, 0.02), BLACK, { ...H, tint: 0 })),
     ...eyes(0.15, 2.07, 1.14, 0.035, H),
-    ...legs(0.2, 1.02, 0.56, -0.56, 0.1, 0.075, fur, dark, 0.12, 5),
+    ...legs(0.2, 1.02, 0.56, -0.56, 0.1, 0.075, fur, dark, 0.12, 5, { pat: PAT_STRIPE_Y }),
   ];
   // mane (dark on most coats, light on the palomino / greys), forelock and tail
   for (const [v, paint] of [
@@ -282,59 +311,7 @@ export function buildHorse(): THREE.BufferGeometry {
     parts.push(rp(ell(0, 1.06, -0.98, 0.1, 0.42, 0.11, 0, [0.28, 0, 0]), paint, { p: TAIL, piv: [0, 1.46, -0.82], v }));
   }
   for (const s of [-1, 1]) parts.push(rp(cone([s * 0.09, 2.14, 1.0], [s * 0.12, 2.36, 0.96], 0.05, 4), fur, { p: s < 0 ? EAR_L : EAR_R, piv: [s * 0.09, 2.14, 1.0], piv2: N, tint: 1 }));
-  parts.push(...zebraStripes(N));
   return merge(parts);
-}
-
-/** a zebra is a striped horse (variant 2): dark bands round the body, neck, head and legs */
-function zebraStripes(N: V3): THREE.BufferGeometry[] {
-  const ink = sh("#26211e", 0.12);
-  const Z = { vm: only(2) };
-  const out: THREE.BufferGeometry[] = [];
-  // the body's cross-section at z: the three ellipsoids it's made of (cy, rx, ry, cz, rz)
-  const blobs: [number, number, number, number, number][] = [
-    [1.2, 0.4, 0.42, 0, 0.82],
-    [1.26, 0.34, 0.39, 0.58, 0.3],
-    [1.3, 0.38, 0.38, -0.56, 0.34],
-  ];
-  const zs = [-0.8, -0.62, -0.44, -0.26, -0.08, 0.1, 0.28, 0.46, 0.64];
-  zs.forEach((z, i) => {
-    let top = -1e9;
-    let bot = 1e9;
-    let rx = 0;
-    for (const [cy, bx, by, cz, rz] of blobs) {
-      const u = (z - cz) / rz;
-      if (Math.abs(u) >= 1) continue;
-      const k = Math.sqrt(1 - u * u);
-      top = Math.max(top, cy + by * k);
-      bot = Math.min(bot, cy - by * k);
-      rx = Math.max(rx, bx * k);
-    }
-    if (rx <= 0) return;
-    out.push(rp(ell(0, (top + bot) / 2, z, rx * 1.05, ((top - bot) / 2) * 1.04, i % 2 ? 0.05 : 0.065), ink, Z));
-  });
-  // neck and head rings (the neck leans forward ~1.1 rad off the vertical)
-  for (const u of [0.18, 0.45, 0.72]) {
-    const y = 1.34 + (1.96 - 1.34) * u;
-    const z = 0.66 + (0.98 - 0.66) * u;
-    const r = (0.24 + (0.17 - 0.24) * u) * 1.08;
-    out.push(rp(ell(0, y, z, r, r, 0.05, 0, [-1.09, 0, 0]), ink, { ...Z, p: HEAD, piv: N }));
-  }
-  for (const z of [0.98, 1.16]) out.push(rp(ell(0, 2.02 + (z - 1.1) * 0.1, z, 0.17, 0.175, 0.04), ink, { ...Z, p: HEAD, piv: N }));
-  // legs
-  const defs: [number, number, number][] = [
-    [LEG_FL, -0.2, 0.56],
-    [LEG_FR, 0.2, 0.56],
-    [LEG_BL, -0.2, -0.56],
-    [LEG_BR, 0.2, -0.56],
-  ];
-  for (const [p, lx, lz] of defs)
-    for (const [y, r] of [
-      [0.78, 0.106],
-      [0.46, 0.094],
-    ])
-      out.push(rp(ell(lx, y, lz + 0.01, r, 0.035, r), ink, { ...Z, p, piv: [lx, 1.02, lz], tuck: true }));
-  return out;
 }
 
 // ── cows ──
