@@ -238,7 +238,17 @@ for (const f of files) {
     const small = await cropped.clone().resize(mw, mh, { fit: "fill" }).raw().toBuffer();
     const mask = new Uint8Array(mw * mh);
     for (let i = 0; i < mw * mh; i++) mask[i] = small[i * 4 + 3] > ALPHA_ON ? 1 : 0;
-    const ring = simplify(traceOutline(mask, mw, mh), 0.9);
+    // simplified, then rounded off (two passes of corner-cutting): a carved edge, not pixel steps
+    let ring = simplify(traceOutline(mask, mw, mh), 1.1);
+    for (let pass = 0; pass < 2; pass++) {
+      const next = [];
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i];
+        const b = ring[(i + 1) % ring.length];
+        next.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+      }
+      ring = next;
+    }
     // u right 0..1, v UP 0..1 (texture space)
     const outline = ring.map(([x, y]) => [+(x / mw).toFixed(4), +(1 - y / mh).toFixed(4)]);
     // where a rider sits: the top of the back, just behind the middle

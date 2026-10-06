@@ -3,22 +3,105 @@
 import { getMuted } from "@/lib/audio/sound-manager";
 
 // (note names -> semitones from A4)
-const N: Record<string, number> = { C4: -9, D4: -7, E4: -5, F4: -4, G4: -2, A4: 0, B4: 2, C5: 3, D5: 5, E5: 7, F5: 8, G5: 10, A5: 12, C3: -21, F3: -16, G3: -14, G2: -26, C2: -33 };
+const N: Record<string, number> = {
+  C4: -9,
+  D4: -7,
+  E4: -5,
+  F4: -4,
+  G4: -2,
+  A4: 0,
+  B4: 2,
+  C5: 3,
+  D5: 5,
+  E5: 7,
+  F5: 8,
+  G5: 10,
+  A5: 12,
+  C3: -21,
+  F3: -16,
+  G3: -14,
+  G2: -26,
+  C2: -33,
+};
 const hz = (n: string) => 440 * Math.pow(2, N[n] / 12);
 // one bar = three beats; the tune, one entry per beat ("-" holds the note before)
-const TUNE = ["E5", "-", "G5", "C5", "-", "E5", "D5", "E5", "F5", "E5", "-", "-", "D5", "-", "F5", "B4", "-", "D5", "C5", "D5", "E5", "C5", "-", "-", "E5", "-", "G5", "A5", "-", "G5", "F5", "E5", "D5", "G5", "-", "-", "F5", "E5", "D5", "C5", "B4", "D5", "C5", "-", "E5", "C5", "-", "-"];
+const TUNE = [
+  "E5",
+  "-",
+  "G5",
+  "C5",
+  "-",
+  "E5",
+  "D5",
+  "E5",
+  "F5",
+  "E5",
+  "-",
+  "-",
+  "D5",
+  "-",
+  "F5",
+  "B4",
+  "-",
+  "D5",
+  "C5",
+  "D5",
+  "E5",
+  "C5",
+  "-",
+  "-",
+  "E5",
+  "-",
+  "G5",
+  "A5",
+  "-",
+  "G5",
+  "F5",
+  "E5",
+  "D5",
+  "G5",
+  "-",
+  "-",
+  "F5",
+  "E5",
+  "D5",
+  "C5",
+  "B4",
+  "D5",
+  "C5",
+  "-",
+  "E5",
+  "C5",
+  "-",
+  "-",
+];
 // the bass note of each bar, then its chord on beats two and three
 const BARS: [string, string[]][] = [
-  ["C3", ["E4", "G4"]], ["C3", ["E4", "G4"]], ["G3", ["D4", "F4"]], ["C3", ["E4", "G4"]],
-  ["G3", ["D4", "F4"]], ["G3", ["D4", "F4"]], ["C3", ["E4", "G4"]], ["C3", ["E4", "G4"]],
-  ["C3", ["E4", "G4"]], ["F3", ["F4", "A4"]], ["G3", ["D4", "F4"]], ["C3", ["E4", "G4"]],
-  ["G3", ["D4", "F4"]], ["G3", ["D4", "F4"]], ["C3", ["E4", "G4"]], ["C3", ["E4", "G4"]],
+  ["C3", ["E4", "G4"]],
+  ["C3", ["E4", "G4"]],
+  ["G3", ["D4", "F4"]],
+  ["C3", ["E4", "G4"]],
+  ["G3", ["D4", "F4"]],
+  ["G3", ["D4", "F4"]],
+  ["C3", ["E4", "G4"]],
+  ["C3", ["E4", "G4"]],
+  ["C3", ["E4", "G4"]],
+  ["F3", ["F4", "A4"]],
+  ["G3", ["D4", "F4"]],
+  ["C3", ["E4", "G4"]],
+  ["G3", ["D4", "F4"]],
+  ["G3", ["D4", "F4"]],
+  ["C3", ["E4", "G4"]],
+  ["C3", ["E4", "G4"]],
 ];
 const BEAT = 0.3; // seconds
 
 export function startCarouselMusic(): { stop(): void } | null {
   if (typeof window === "undefined" || getMuted()) return null;
-  const AC: typeof AudioContext | undefined = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const AC: typeof AudioContext | undefined =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
   if (!AC) return null;
   let ctx: AudioContext;
   try {
@@ -30,7 +113,13 @@ export function startCarouselMusic(): { stop(): void } | null {
   out.gain.value = 0.0001;
   out.gain.exponentialRampToValueAtTime(0.16, ctx.currentTime + 0.6);
   out.connect(ctx.destination);
-  const note = (f: number, at: number, dur: number, type: OscillatorType, vol: number) => {
+  const note = (
+    f: number,
+    at: number,
+    dur: number,
+    type: OscillatorType,
+    vol: number,
+  ) => {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type;
@@ -62,7 +151,8 @@ export function startCarouselMusic(): { stop(): void } | null {
       }
       const [bass, chord] = BARS[Math.floor(b / 3) % BARS.length];
       if (b % 3 === 0) note(hz(bass), next, BEAT * 0.9, "triangle", 0.34);
-      else for (const c of chord) note(hz(c), next, BEAT * 0.5, "triangle", 0.1);
+      else
+        for (const c of chord) note(hz(c), next, BEAT * 0.5, "triangle", 0.1);
       next += BEAT;
       beat++;
     }

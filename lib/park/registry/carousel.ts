@@ -49,9 +49,23 @@ export interface CarouselSeat {
 const N_ART = Math.max(1, CAROUSEL_MOUNT_ART.length);
 export const CAROUSEL_SEATS: CarouselSeat[] = [
   // the outer ring: ten big gallopers
-  ...Array.from({ length: 10 }, (_, i) => ({ art: i % N_ART, r: 5.75, a: (i / 10) * Math.PI * 2, len: 2.7, phase: (i % 2) * Math.PI, outer: true })),
+  ...Array.from({ length: 10 }, (_, i) => ({
+    art: i % N_ART,
+    r: 5.75,
+    a: (i / 10) * Math.PI * 2,
+    len: 2.7,
+    phase: (i % 2) * Math.PI,
+    outer: true,
+  })),
   // the inner ring: six smaller ones, set between them
-  ...Array.from({ length: 6 }, (_, i) => ({ art: (i * 3 + 5) % N_ART, r: 3.75, a: ((i + 0.5) / 6) * Math.PI * 2, len: 2.25, phase: ((i + 1) % 2) * Math.PI, outer: false })),
+  ...Array.from({ length: 6 }, (_, i) => ({
+    art: (i * 3 + 5) % N_ART,
+    r: 3.75,
+    a: ((i + 0.5) / 6) * Math.PI * 2,
+    len: 2.25,
+    phase: ((i + 1) % 2) * Math.PI,
+    outer: false,
+  })),
 ];
 
 /** an animal's picture height in world units */
@@ -73,19 +87,31 @@ export interface CarouselPose {
 
 /** where seat `i`'s animal is (the bottom-centre of its picture), relative to the carousel's centre
  *  on the ground, once the deck has turned through `spin` radians */
-export function carouselMountPose(i: number, spin: number, out: CarouselPose = { x: 0, y: 0, z: 0, yaw: 0 }): CarouselPose {
+export function carouselMountPose(
+  i: number,
+  spin: number,
+  out: CarouselPose = { x: 0, y: 0, z: 0, yaw: 0 },
+): CarouselPose {
   const s = CAROUSEL_SEATS[i];
   const a = s.a + spin;
   out.x = Math.sin(a) * s.r;
   out.z = Math.cos(a) * s.r;
-  out.y = CAROUSEL.deckY + FEET + BOB + Math.sin(spin * BOBS_PER_TURN + s.phase) * BOB;
+  out.y =
+    CAROUSEL.deckY +
+    FEET +
+    BOB +
+    Math.sin(spin * BOBS_PER_TURN + s.phase) * BOB;
   // it gallops the way the deck turns
   out.yaw = a + Math.PI / 2;
   return out;
 }
 
 /** where a rider sits on seat `i`'s animal (on its saddle), same frame as carouselMountPose */
-export function carouselRiderPose(i: number, spin: number, out: CarouselPose = { x: 0, y: 0, z: 0, yaw: 0 }): CarouselPose {
+export function carouselRiderPose(
+  i: number,
+  spin: number,
+  out: CarouselPose = { x: 0, y: 0, z: 0, yaw: 0 },
+): CarouselPose {
   const s = CAROUSEL_SEATS[i];
   const art = CAROUSEL_MOUNT_ART[s.art];
   carouselMountPose(i, spin, out);
@@ -97,7 +123,11 @@ export function carouselRiderPose(i: number, spin: number, out: CarouselPose = {
 }
 
 /** the outer-ring seat nearest a point given relative to the carousel's centre */
-export function nearestCarouselSeat(x: number, z: number, spin: number): number {
+export function nearestCarouselSeat(
+  x: number,
+  z: number,
+  spin: number,
+): number {
   let best = 0;
   let bd = Infinity;
   const p: CarouselPose = { x: 0, y: 0, z: 0, yaw: 0 };

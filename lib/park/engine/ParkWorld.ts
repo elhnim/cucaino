@@ -2255,14 +2255,20 @@ export class ParkWorld {
       this.camBase.copy(this.camera.position);
       this.lookAtPt.set(pos.x, pos.y + 1.2, pos.z);
     } else if (this.sky?.carousel) {
-      // on the carousel: the camera rides round with the kid, just outside the deck and a little
-      // ahead of them, under the crown's boards — so the kid, their animal and the painted drum
-      // behind fill the view while the park sweeps past
-      const a = Math.atan2(pos.x - CAROUSEL.x, pos.z - CAROUSEL.z) + 0.42;
-      const r = CAROUSEL.deckR + (this.camera.aspect < 0.8 ? 7.5 : 5.2);
-      this.camWant.set(CAROUSEL.x + Math.sin(a) * r, pos.y + 0.9, CAROUSEL.z + Math.cos(a) * r);
-      this.camera.position.lerp(this.camWant, Math.min(1, dt * 4));
-      this.camera.lookAt(pos.x, pos.y + 0.5, pos.z);
+      // on the carousel: through the rider's own eyes — over the animal's head and its brass pole,
+      // rising and falling with it, looking along the way it gallops and a little in towards the
+      // painted drum (the kid's own body is hidden while they ride, see rideCarousel)
+      const yaw = this.kid!.facing;
+      const fx = Math.sin(yaw);
+      const fz = Math.cos(yaw);
+      const cl = Math.hypot(pos.x - CAROUSEL.x, pos.z - CAROUSEL.z) || 1;
+      const inX = (CAROUSEL.x - pos.x) / cl;
+      const inZ = (CAROUSEL.z - pos.z) / cl;
+      // (leaning a little to the inside of the pole, so it frames the view instead of filling it)
+      this.camera.position.set(pos.x - fx * 0.15 + inX * 0.42, pos.y + 1.3, pos.z - fz * 0.15 + inZ * 0.42);
+      // (a circle curves away from straight ahead: looking well in keeps the animal in front, the
+      // inner ring and the painted drum in view, with the park sliding by beyond)
+      this.camera.lookAt(pos.x + fx * 4 + inX * 4.6, pos.y + 0.5, pos.z + fz * 4 + inZ * 4.6);
       this.camBase.copy(this.camera.position);
       this.lookAtPt.copy(pos);
     } else if (this.sky) {
@@ -3164,6 +3170,7 @@ export class ParkWorld {
     const p = this.kid.root.position;
     this.sky = { v: 0, dist: 0, cheered: false, carousel: { seat: c.nearestSeat(p.x, p.z), from: c.spin } };
     c.setRiding(true);
+    this.kid.root.visible = false; // (a first-person ride: see the camera)
     this.walkTarget = null;
     this.walkQueue = [];
     this.burst(p.clone().setY(p.y + 1.6), 40);
@@ -3182,6 +3189,7 @@ export class ParkWorld {
     const l = Math.hypot(dx, dz) || 1;
     const r = CAROUSEL.deckR + 2.6;
     this.sky = null;
+    this.kid.root.visible = true;
     const kp = this.kid.root.position;
     kp.set(CAROUSEL.x + (dx / l) * r, 0, CAROUSEL.z + (dz / l) * r);
     kp.y = groundY(kp.x, kp.z);
@@ -3433,14 +3441,14 @@ export class ParkWorld {
     const s = this.sky!;
     if (s.carousel) {
       // up on a galloper: round with the deck, rising and falling with the animal; the pet rides
-      // the one behind
+      // the one in front
       const c = this.park!.carousel;
       const P = c.riderPose(s.carousel.seat, this.carouselPose);
       kid.root.position.set(P.x, P.y, P.z);
       kid.facing = P.yaw;
       kid.root.rotation.y = P.yaw;
       if (this.pet) {
-        const Q = c.riderPose((s.carousel.seat + 9) % 10, this.carouselPose);
+        const Q = c.riderPose((s.carousel.seat + 1) % 10, this.carouselPose); // (the one in front, where the kid can see it)
         this.pet.root.position.set(Q.x, Q.y, Q.z);
         this.pet.root.rotation.y = Q.yaw;
       }
