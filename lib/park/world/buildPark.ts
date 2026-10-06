@@ -18,6 +18,8 @@ import { buildFantasyWorld, type FantasyWorld } from "./fantasy";
 import { buildTerrainChunks, type TerrainChunks } from "./fantasy/terrainChunks";
 import { buildRailway, type Railway } from "./railway";
 import { buildCarousel, type Carousel } from "./carousel";
+import { buildPaintedBuilding, type PaintedBuildingModel } from "./paintedBuilding";
+import { paintedBuildingFor } from "../registry/paintedBuildings";
 import { buildWildlife, type Wildlife } from "./wildlife";
 import { SKY_PADS, skyTopY } from "../registry/skyIslands";
 import { buildQuests3D, type Quests3D } from "./quests3d";
@@ -357,6 +359,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     g.computeVertexNormals();
     return track(g);
   })();
+  const paintedModels: PaintedBuildingModel[] = [];
   for (const p of PLACES) {
     const group = new THREE.Group();
     group.position.set(p.x, p.sky ? (skyTopY(p.x, p.z, 0)?.y ?? groundY(p.x, p.z)) : groundY(p.x, p.z), p.z);
@@ -410,7 +413,18 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       group.add(special.group);
       tappables.push(special.group);
     }
-    for (const m of skyB ? [] : p.models) {
+    // a painted building takes the place of the kit model it replaces (registry/paintedBuildings.ts)
+    const paintedDef = skyB ? undefined : paintedBuildingFor(p.id);
+    if (paintedDef) {
+      const pb = buildPaintedBuilding(paintedDef, { lowQuality: opts.lowQuality });
+      disposables.push(pb);
+      paintedModels.push(pb);
+      pb.group.traverse((o) => (o.userData.placeId = p.id));
+      group.add(pb.group);
+      if (p.action !== "none") tappables.push(pb.group);
+    }
+    for (const [mi, m] of (skyB ? [] : p.models).entries()) {
+      if (paintedDef && (paintedDef.replaces ?? [0]).includes(mi)) continue;
       const obj = await assets.spawn(m.kit as KitName, m.id);
       obj.traverse((o) => ((o as THREE.Mesh).isMesh && ((o.castShadow = true), (o.receiveShadow = true))));
       obj.scale.setScalar(m.scale * (p.sky ? 1.3 : 1));
@@ -846,6 +860,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       atmosphere.update(dt, t, focus ?? new THREE.Vector3());
       glowFlora.update(dt, t, atmosphere.glow);
       carousel.update(dt, t, atmosphere.glow);
+      for (const pb of paintedModels) pb.setGlow(atmosphere.glow);
       ocean.update(dt, t, atmosphere.glow, scene.fog as THREE.Fog, focus);
       skyLife.update(dt, t, atmosphere.glow);
       birds.update(dt, t, focus ?? new THREE.Vector3(), atmosphere.glow);

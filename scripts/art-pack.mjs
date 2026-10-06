@@ -39,7 +39,8 @@ for (const file of walk(src)) {
     }
   let hasAlpha = false;
   for (let i = 3; i < data.length; i += 4 * 53) if (data[i] < 250) hasAlpha = true;
-  const side = small.has(id) ? SMALL : MAX;
+  // (a `small` name matches the whole id or its ending: "side" covers every building's side wall)
+  const side = [...small].some((n) => id === n || id.endsWith(`-${n}`)) ? SMALL : MAX;
   const k = Math.min(1, side / Math.max(info.width, info.height));
   const w = Math.round(info.width * k);
   const h = Math.round(info.height * k);
