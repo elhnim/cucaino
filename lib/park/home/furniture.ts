@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { badgeTexture, clockFaceTexture, posterTexture } from "./textures";
+import { paintedHomeTexture, badgeTexture, clockFaceTexture, posterTexture } from "./textures";
 
 /** shared materials / textures, owned (and disposed) by the room */
 export interface FurnitureKit {
@@ -147,9 +147,21 @@ function mattress(p: Parts, k: FurnitureKit, y: number, blanket: string) {
   void k;
 }
 
+/** a painted picture as a lit material (see textures.ts paintedHomeTexture); `cut` = it has a
+ *  transparent surround to cut away */
+function painted(k: FurnitureKit, name: string, cut = false): THREE.Material {
+  const m = k.picture(`home-art:${name}`, () => paintedHomeTexture(name)) as THREE.MeshToonMaterial;
+  if (cut) m.alphaTest = 0.5;
+  return m;
+}
+const flat = (w: number, d: number) => new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2);
+
 const BUILDERS: Record<string, Builder> = {
   // ── beds ──
   bed(p, k) {
+    // a patchwork quilt over the blanket
+    p.mesh(flat(1.84, 1.72), painted(k, "quilt"), 0, 0.775, 0.5);
+    p.mesh(new THREE.PlaneGeometry(1.84, 0.2), painted(k, "quilt"), 0, 0.68, 1.376);
     p.box(1.95, 0.32, 2.9, WOOD, 0, 0.32, 0, { r: 0.08 });
     legs(p, 1.9, 2.8, 0.18, WOOD_D, 0.12, 0.07);
     mattress(p, k, 0.58, k.accent);
@@ -202,9 +214,35 @@ const BUILDERS: Record<string, Builder> = {
 
   // ── comfy ──
   "rug-round"(p, k) {
-    p.cyl(0.96, 0.96, 0.035, lighten(k.accent, 0.55), 0, 0.018, 0, { seg: 32 });
-    p.cyl(0.72, 0.72, 0.04, WHITE, 0, 0.022, 0, { seg: 32 });
-    p.cyl(0.46, 0.46, 0.045, lighten(k.accent, 0.25), 0, 0.026, 0, { seg: 28 });
+    // a braided rag rug
+    p.mesh(flat(1.96, 1.96), painted(k, "rug-round", true), 0, 0.03, 0);
+  },
+  "rug-rose"(p, k) {
+    p.mesh(flat(2.94, 1.96), painted(k, "rug-long", true), 0, 0.032, 0);
+  },
+  fireplace(p, k) {
+    // a stone hearth with its chimney breast running up to the ceiling; the fire flickers
+    p.box(2.5, 1.5, 0.5, "#9a8f84", 0, 0.75, -0.2, { r: 0.04 });
+    p.box(2.84, 0.16, 0.86, "#8d8278", 0, 0.08, -0.04, { r: 0.03 });
+    p.box(1.7, 2.4, 0.42, "#f6ead6", 0, 2.6, -0.24, { r: 0.03 });
+    p.mesh(new THREE.PlaneGeometry(2.9, 1.933), painted(k, "fireplace", true), 0, 0.965, 0.07);
+    const glow = p.mesh(new THREE.PlaneGeometry(0.9, 0.6), k.glow("#ff9a3c"), 0, 0.52, 0.08);
+    const gm = (glow.material = (glow.material as THREE.MeshBasicMaterial).clone());
+    gm.transparent = true;
+    gm.opacity = 0.1;
+    gm.blending = THREE.AdditiveBlending;
+    gm.depthWrite = false;
+    const fire = new THREE.PointLight(0xff9a4a, 2.6, 5.5, 1.8);
+    fire.position.set(0, 0.7, 0.9);
+    p.group.add(fire);
+    p.group.userData.extraDispose = () => gm.dispose();
+    return {
+      anim: (t) => {
+        const f = 0.78 + 0.14 * Math.sin(t * 9.1) + 0.08 * Math.sin(t * 23.7 + 1.3);
+        fire.intensity = 2.6 * f;
+        gm.opacity = 0.05 + 0.07 * f;
+      },
+    };
   },
   "rug-rainbow"(p) {
     const cols = ["#ff8f8f", "#ffb36b", "#ffe07a", "#8fe39a", "#8fc9ff"];
@@ -381,29 +419,9 @@ const BUILDERS: Record<string, Builder> = {
     }
   },
   bookshelf(p, k) {
-    p.box(1.9, 2.1, 0.08, WOOD_D, 0, 1.05, -0.36, { r: 0.02 });
-    for (const sx of [-1, 1]) p.box(0.1, 2.1, 0.8, WOOD, sx * 0.9, 1.05, 0, { r: 0.03 });
-    for (let i = 0; i < 4; i++) p.box(1.8, 0.08, 0.76, WOOD, 0, 0.08 + i * 0.64, 0, { r: 0.02 });
-    p.box(1.95, 0.1, 0.82, WOOD, 0, 2.12, 0, { r: 0.03 });
-    const cols = [k.accent, SKY, MINT, BUTTER, LILAC, CORAL, PINK, "#7fd0c4"];
-    for (let s = 0; s < 3; s++) {
-      let x = -0.78;
-      let n = s * 3;
-      while (x < 0.7) {
-        const w = 0.1 + ((n * 7) % 3) * 0.03;
-        const h = 0.38 + ((n * 5) % 4) * 0.04;
-        if ((n + s) % 6 === 5) {
-          x += 0.2;
-          n++;
-          continue;
-        }
-        p.box(w, h, 0.5, cols[n % cols.length], x + w / 2, 0.12 + s * 0.64 + h / 2, 0.02, { r: 0.015, rz: n % 5 === 4 ? 0.2 : 0 });
-        x += w + 0.02;
-        n++;
-      }
-    }
-    p.ball(0.16, BUTTER, 0.55, 2.3, 0);
-    p.box(0.3, 0.2, 0.3, SKY, -0.5, 2.27, 0, { r: 0.04, ry: 0.4 });
+    // a painted dresser of books and toys, on a solid mint carcass
+    p.box(1.5, 2.2, 0.62, "#a9d3b0", 0, 1.1, -0.08, { r: 0.04 });
+    p.mesh(new THREE.PlaneGeometry(1.84, 2.76), painted(k, "bookshelf", true), 0, 1.38, 0.245);
   },
   aquarium(p, k) {
     p.box(1.85, 0.72, 0.72, WOOD, 0, 0.36, 0, { r: 0.05 });

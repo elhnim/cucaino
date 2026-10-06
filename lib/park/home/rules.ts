@@ -110,6 +110,12 @@ export interface HomeLayout {
 export type Owned = Record<string, number>;
 
 export const DEFAULT_STYLES: Record<RoomId, RoomStyle> = {
+  bedroom: { wall: "wp-roses", floor: "fl-wood" },
+  den: { wall: "wp-paws", floor: "fl-wood" },
+};
+/** the plain look every home started with before the painted wallpapers: a stored home still
+ *  wearing exactly this is shown in the new default instead (the old papers stay free to pick) */
+const OLD_DEFAULT_STYLES: Record<RoomId, RoomStyle> = {
   bedroom: { wall: "wp-stripes", floor: "fl-wood" },
   den: { wall: "wp-cream", floor: "fl-checker" },
 };
@@ -536,10 +542,12 @@ export function defaultLayout(): HomeLayout {
       P("s-lamp", "lamp", "bedroom", 8, 0),
       P("s-plant", "plant", "bedroom", 0, 7),
       P("s-poster", "poster-star", "bedroom", 1, 0, 0, "back"),
+      // (a fire on the middle wall, with the pet's bed on the hearth)
+      P("s-fire", "fireplace", "den", 0, 5, 1),
       P("s-petbed", "pet-bed", "den", 1, 5),
       P("s-bowl", "bowl", "den", 4, 0),
       P("s-ball", "pet-ball", "den", 4, 4),
-      P("s-rug2", "rug-round", "den", 3, 3),
+      P("s-rug2", "rug-rose", "den", 3, 2),
       P("s-plant2", "plant", "den", 8, 7),
       P("s-lamp2", "lamp", "den", 0, 0),
     ],
@@ -645,7 +653,9 @@ export function sanitizeLayout(raw: unknown, owned: Owned): HomeLayout {
     accepted.push(p);
   }
   const rooms = readStyles(o.rooms, owned);
-  return { v: 1, placed: accepted, rooms: typeof rooms === "string" ? { bedroom: { ...DEFAULT_STYLES.bedroom }, den: { ...DEFAULT_STYLES.den } } : rooms };
+  const fresh = () => ({ bedroom: { ...DEFAULT_STYLES.bedroom }, den: { ...DEFAULT_STYLES.den } });
+  const untouched = typeof rooms !== "string" && ROOM_IDS.every((id) => rooms[id].wall === OLD_DEFAULT_STYLES[id].wall && rooms[id].floor === OLD_DEFAULT_STYLES[id].floor);
+  return { v: 1, placed: accepted, rooms: typeof rooms === "string" || untouched ? fresh() : rooms };
 }
 
 /** Tolerant read of kid_parks.home_owned. */

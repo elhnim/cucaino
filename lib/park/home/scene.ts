@@ -46,7 +46,7 @@ import {
   type WallId,
 } from "./rules";
 import { homeCamera } from "./camera";
-import { backdropTexture, bubbleTexture, emojiTexture, floorTexture, signTexture, wallpaperTexture, windowViewTexture } from "./textures";
+import { backdropTexture, bubbleTexture, emojiTexture, floorTexture, paintedHomeTexture, signTexture, wallpaperTexture, whenReady, windowViewTexture } from "./textures";
 
 export interface HomePetState {
   hunger: number;
@@ -210,7 +210,18 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     texture,
     picture(key, make) {
       let m = picCache.get(key);
-      if (!m) picCache.set(key, (m = track(new THREE.MeshToonMaterial({ map: texture(key, make), gradientMap: getToonRamp() }))));
+      if (!m) {
+        // (a painted picture is put on once it has arrived, and its piece stays unseen till then)
+        const mat = track(new THREE.MeshToonMaterial({ gradientMap: getToonRamp() }));
+        const tex = texture(key, make);
+        mat.visible = !tex.userData.pending;
+        whenReady(tex, () => {
+          mat.map = tex;
+          mat.visible = true;
+          mat.needsUpdate = true;
+        });
+        picCache.set(key, (m = mat));
+      }
       return m;
     },
   };
@@ -251,7 +262,7 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
   // grassy base + foundation (the cottage is a little diorama on a lawn)
   const grass = addMesh(new THREE.CylinderGeometry(1, 1, 0.5, 40), toon("#a4e3a0"), 0, -0.52, 0.6);
   grass.scale.set(15.5, 1, 8.6);
-  addMesh(new THREE.BoxGeometry(27.2, 0.5, 9.0), toon("#f0d6b0"), 0, -0.25, -0.1);
+  addMesh(new THREE.BoxGeometry(27.2, 0.5, 9.0), toon("#f0d6b0"), 0, -0.27, -0.1); // (its top just under the floors, so the two never flicker)
   addMesh(new THREE.BoxGeometry(27.4, 0.12, 0.3), toon("#e2bf92"), 0, -0.05, 4.35);
   // (outside the splayed side walls: how far out the wall is at z)
   const out = (x: number, z: number) => x + Math.sign(x) * Math.max(0, z + 4.3) * Math.tan(SIDE_SPLAY);
@@ -387,6 +398,25 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
 
   // ── windows (with the park outside) ──
   const viewMats = [0, 1, 2, 3].map((s) => track(new THREE.MeshBasicMaterial({ map: track(windowViewTexture(night, s)) })));
+  // (by day every window looks out on the painted garden and the park beyond — each one a
+  //  different stretch of the same picture; after dark the front ones show it by moonlight)
+  const gardenTex = texture("home-art:window-garden", () => paintedHomeTexture("window-garden"));
+  const gardenMat = track(new THREE.MeshBasicMaterial({ color: night ? "#3d4474" : "#ffffff" }));
+  gardenMat.visible = false;
+  whenReady(gardenTex, () => {
+    gardenMat.map = gardenTex;
+    gardenMat.visible = true;
+    gardenMat.needsUpdate = true;
+  });
+  /** a pane showing the stretch of the garden picture that starts `u0` of the way across */
+  const gardenPane = (w: number, h: number, u0: number) => {
+    const g = new THREE.PlaneGeometry(w, h);
+    const span = Math.min(0.5, (0.5 * (w / h)) / 1.5); // half the picture's height, kept in proportion
+    const a = Math.max(0, Math.min(1 - span, u0));
+    const uv = g.getAttribute("uv") as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, a + uv.getX(i) * span, 0.3 + uv.getY(i) * 0.5);
+    return g;
+  };
   const shaftMat = track(new THREE.MeshBasicMaterial({ color: night ? "#9fb0ff" : "#fff1c8", transparent: true, opacity: night ? 0.06 : 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   const frameMat = toon("#ffffff");
   const curtain = toon(lighten(accent, 0.25));
@@ -399,7 +429,8 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     const h = WIN_Y1 - WIN_Y0;
     // the painted view sits just outside the glass (kept inside the wall's shadow so it never
     // shows as a billboard on the lawn from above)
-    const view = addMesh(new THREE.PlaneGeometry(w + 0.4, h + 0.4), viewMats[winN++ % viewMats.length], 0, 0, -T - 0.04, g);
+    const n = winN++;
+    const view = night ? addMesh(new THREE.PlaneGeometry(w + 0.4, h + 0.4), viewMats[n % viewMats.length], 0, 0, -T - 0.04, g) : addMesh(gardenPane(w + 0.4, h + 0.4, [0.05, 0.5, 0.28, 0.6][n % 4]), gardenMat, 0, 0, -T - 0.04, g);
     view.castShadow = view.receiveShadow = false;
     addMesh(new THREE.BoxGeometry(w + 0.24, 0.14, 0.24), frameMat, 0, h / 2 + 0.03, 0.02, g);
     addMesh(new THREE.BoxGeometry(w + 0.44, 0.14, 0.42), frameMat, 0, -h / 2 - 0.03, 0.1, g);
@@ -444,11 +475,12 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
     doorMeshes.push(addMesh(new THREE.BoxGeometry(w + 0.2, 0.22, 0.24), wood, cx, DOOR_TOP + 0.1, z + 0.06));
     const panel = addMesh(new THREE.BoxGeometry(w - 0.3, DOOR_TOP - 0.05, 0.1), toon("#7fd6b8"), cx, (DOOR_TOP - 0.05) / 2, z + 0.05);
     doorMeshes.push(panel);
-    for (let i = 0; i < 3; i++) doorMeshes.push(addMesh(new THREE.BoxGeometry(w - 0.5, 0.05, 0.03), toon("#6cc4a6"), cx, 0.5 + i * 0.7, z + 0.115));
-    doorMeshes.push(addMesh(new THREE.SphereGeometry(0.08, 10, 8), toon("#ffc53d"), cx + w / 2 - 0.36, 1.25, z + 0.14));
-    const porthole = addMesh(new THREE.CircleGeometry(0.28, 20), kit.glow(night ? "#b8b0ff" : "#dff4ff"), cx, 2.05, z + 0.105);
-    doorMeshes.push(porthole);
-    doorMeshes.push(addMesh(new THREE.TorusGeometry(0.28, 0.05, 6, 20), toon("#ffffff"), cx, 2.05, z + 0.11));
+    // the painted door: sage planks, black strap hinges, a brass latch and a round window
+    const doorArt = kit.picture("home-art:door-inside", () => paintedHomeTexture("door-inside")) as THREE.MeshToonMaterial;
+    doorArt.alphaTest = 0.5;
+    const painted = addMesh(new THREE.PlaneGeometry(w - 0.12, DOOR_TOP), doorArt, cx, DOOR_TOP / 2, z + 0.172);
+    painted.castShadow = false;
+    doorMeshes.push(painted);
     const sign = addMesh(new THREE.PlaneGeometry(1.7, 0.48), kit.picture("sign:park", () => signTexture("🎡 To the Park")), cx, DOOR_TOP + 0.55, z + 0.02);
     sign.castShadow = false;
     doorMeshes.push(sign);
@@ -516,11 +548,14 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
       const s = { ...layout.rooms[id], ...(preview[id] ?? {}) };
       const wm = texture(`wp:${s.wall}`, () => wallpaperTexture(s.wall));
       const fm = texture(`fl:${s.floor}`, () => floorTexture(s.floor));
-      if (wallMat[id].map !== wm) {
+      // (a painted paper or floor still on its way: the room keeps what it wears until it lands)
+      if (wm.userData.pending) whenReady(wm, applyStyles);
+      else if (wallMat[id].map !== wm) {
         wallMat[id].map = wm;
         wallMat[id].needsUpdate = true;
       }
-      if (floorMat[id].map !== fm) {
+      if (fm.userData.pending) whenReady(fm, applyStyles);
+      else if (floorMat[id].map !== fm) {
         floorMat[id].map = fm;
         floorMat[id].needsUpdate = true;
       }
@@ -558,13 +593,29 @@ export function buildHomeInterior(accent: string, initial: HomeLayout, opts: Hom
       inside(new THREE.BoxGeometry(w, 0.07, 0.08), wood, mid, 1.95, FZ + T / 2);
       inside(new THREE.BoxGeometry(0.07, 2.0, 0.08), wood, mid, 1.95, FZ + T / 2);
       inside(new THREE.BoxGeometry(w + 0.2, 0.08, T + 0.3), wood, mid, 0.99, FZ + T / 2);
-      inside(new THREE.BoxGeometry(w, 2.0, 0.03), kit.glass(), mid, 1.95, FZ + T / 2 + 0.05);
+      inside(gardenPane(w, 2.0, i * 0.11).rotateY(Math.PI), gardenMat, mid, 1.95, FZ + T / 2 + 0.03);
       // curtains drawn back at each side, in the kid's own colour, under a little pelmet
       for (const sg of [-1, 1]) inside(new THREE.BoxGeometry(0.42, 2.25, 0.12), toon(accent), mid + sg * (w / 2 - 0.12), 1.95, FZ - 0.02);
       inside(new THREE.BoxGeometry(w + 0.5, 0.2, 0.2), toon(lighten(accent, 0.25)), mid, 3.08, FZ - 0.02);
     }
     // the ceiling: cream boards with dark beams from back to front, a ridge beam across
     inside(new THREE.BoxGeometry(reach * 2 + 1, 0.12, 9.4), toon("#fff6e4"), 0, WALL_H + 0.06, 0.1);
+    {
+      // (painted whitewashed boards on its underside)
+      const g = new THREE.PlaneGeometry(reach * 2 + 1, 9.4);
+      g.rotateX(Math.PI / 2);
+      g.translate(0, WALL_H - 0.004, 0.1);
+      worldUV(g);
+      const boards = track(new THREE.MeshToonMaterial({ gradientMap: getToonRamp() }));
+      const tex = texture("home-art:ceiling-boards", () => paintedHomeTexture("ceiling-boards", true));
+      boards.visible = false;
+      whenReady(tex, () => {
+        boards.map = tex;
+        boards.visible = true;
+        boards.needsUpdate = true;
+      });
+      inside(g, boards, 0, 0, 0);
+    }
     for (let x = -reach + 1.2; x <= reach - 1; x += 2.6) inside(new THREE.BoxGeometry(0.22, 0.26, 8.6), woodDark, x, WALL_H - 0.13, 0);
     inside(new THREE.BoxGeometry(reach * 2, 0.3, 0.26), woodDark, 0, WALL_H - 0.15, 0);
     // a hanging lantern in each room, glowing warm

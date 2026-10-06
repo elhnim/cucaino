@@ -17,6 +17,30 @@ function toTexture(c: HTMLCanvasElement, repeat = true) {
   return t;
 }
 
+/**
+ * A painted picture from public/park-assets/home/ (packed by scripts/art-pack.mjs from
+ * codex-world-art/home/). It arrives a moment after the room opens: until then it is `pending`,
+ * and whenReady() holds off putting it on a material, so nothing flashes black.
+ */
+export function paintedHomeTexture(name: string, tile = false): THREE.Texture {
+  const waiters: (() => void)[] = [];
+  const t = new THREE.TextureLoader().load(`/park-assets/home/${name}.webp`, () => {
+    t.userData.pending = false;
+    for (const f of waiters.splice(0)) f();
+  });
+  t.userData.pending = true;
+  t.userData.waiters = waiters;
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (tile) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 4;
+  return t;
+}
+/** run `f` once the texture has its picture (straight away for a drawn one) */
+export function whenReady(t: THREE.Texture, f: () => void) {
+  if (t.userData.pending) (t.userData.waiters as (() => void)[]).push(f);
+  else f();
+}
+
 function heart(g: CanvasRenderingContext2D, x: number, y: number, s: number) {
   g.beginPath();
   g.moveTo(x, y + s * 0.35);
@@ -37,6 +61,8 @@ function star(g: CanvasRenderingContext2D, x: number, y: number, r: number) {
 
 /** One tile of wallpaper = 2 x 2 world units (textures repeat with world-space UVs). */
 export function wallpaperTexture(id: string): THREE.Texture {
+  if (id === "wp-roses") return paintedHomeTexture("wallpaper-bedroom", true);
+  if (id === "wp-paws") return paintedHomeTexture("wallpaper-den", true);
   const [c, g] = canvas(128, 128);
   switch (id) {
     case "wp-stripes":
@@ -150,6 +176,7 @@ export function wallpaperTexture(id: string): THREE.Texture {
 
 /** One tile of flooring = 2 x 2 world units. */
 export function floorTexture(id: string): THREE.Texture {
+  if (id === "fl-wood") return paintedHomeTexture("floorboards", true);
   const [c, g] = canvas(128, 128);
   switch (id) {
     case "fl-checker":

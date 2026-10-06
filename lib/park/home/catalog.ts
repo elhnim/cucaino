@@ -64,6 +64,8 @@ export const HOME_ITEMS: HomeItemDef[] = [
   { id: "nightstand", name: "Bedside Table", emoji: "🕯️", category: "beds", surface: "floor", w: 1, d: 1, cost: 0, max: 2 },
 
   // ── comfy ──
+  { id: "rug-rose", name: "Rose Rug", emoji: "🌹", category: "comfy", surface: "rug", w: 3, d: 2, cost: 0, max: 1 },
+  { id: "fireplace", name: "Cosy Fireplace", emoji: "🔥", category: "comfy", surface: "floor", w: 3, d: 1, cost: 0, max: 1 },
   { id: "rug-round", name: "Round Rug", emoji: "⭕", category: "comfy", surface: "rug", w: 2, d: 2, cost: 0, max: 2 },
   { id: "rug-rainbow", name: "Rainbow Rug", emoji: "🌈", category: "comfy", surface: "rug", w: 3, d: 2, cost: 3, max: 2 },
   { id: "rug-paw", name: "Paw Print Rug", emoji: "🐾", category: "comfy", surface: "rug", w: 2, d: 2, cost: 2, max: 2 },
@@ -112,6 +114,8 @@ export const HOME_ITEMS: HomeItemDef[] = [
   { id: "pet-tunnel", name: "Play Tunnel", emoji: "🌀", category: "pet", surface: "floor", w: 2, d: 1, cost: 4, max: 1, solid: false, petUse: "play" },
 
   // ── styles (whole room) ──
+  { id: "wp-roses", name: "Rose Garden", emoji: "🌹", category: "styles", surface: "wallpaper", w: 0, d: 0, cost: 0, max: 1, swatch: ["#fbf1dc", "#e58fa5"] },
+  { id: "wp-paws", name: "Minty Paws", emoji: "🐾", category: "styles", surface: "wallpaper", w: 0, d: 0, cost: 0, max: 1, swatch: ["#bfe3c8", "#ffffff"] },
   { id: "wp-cream", name: "Buttercream", emoji: "🧈", category: "styles", surface: "wallpaper", w: 0, d: 0, cost: 0, max: 1, swatch: ["#fff1d6", "#f6dcb4"] },
   { id: "wp-stripes", name: "Candy Stripes", emoji: "🍬", category: "styles", surface: "wallpaper", w: 0, d: 0, cost: 0, max: 1, swatch: ["#ffd7e6", "#ffffff"] },
   { id: "wp-dots", name: "Mint Dots", emoji: "🟢", category: "styles", surface: "wallpaper", w: 0, d: 0, cost: 2, max: 1, swatch: ["#c9f2df", "#ffffff"] },

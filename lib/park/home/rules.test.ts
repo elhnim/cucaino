@@ -243,7 +243,7 @@ describe("ownership, unlocks and validation", () => {
     expect(validateLayout({ v: 1, placed: [], rooms: { den: { wall: "wp-stars", floor: "fl-wood" } } }, {}).ok).toBe(false);
     const ok = validateLayout({ v: 1, placed: [], rooms: { den: { wall: "wp-stars", floor: "fl-wood" } } }, { "wp-stars": 1 });
     expect(ok.ok && ok.layout.rooms.den.wall).toBe("wp-stars");
-    expect(ok.ok && ok.layout.rooms.bedroom.wall).toBe("wp-stripes"); // untouched rooms keep the default
+    expect(ok.ok && ok.layout.rooms.bedroom.wall).toBe("wp-roses"); // untouched rooms keep the default
     expect(validateLayout({ v: 1, placed: [], rooms: { den: { wall: "fl-wood" } } }, {}).ok).toBe(false); // a floor isn't wallpaper
   });
   it("reads stored homes tolerantly", () => {
@@ -251,6 +251,11 @@ describe("ownership, unlocks and validation", () => {
     const kept = sanitizeLayout({ v: 1, placed: [P("a", "bed", "bedroom", 0, 0), P("b", "chair", "bedroom", 1, 1), P("c", "retired-thing", "den", 0, 0), P("d", "sofa", "den", 2, 5)] }, {});
     expect(kept.placed.map((p) => p.uid)).toEqual(["a"]);
     expect(sanitizeLayout({ v: 1, placed: [] }, {}).placed).toEqual([]); // an emptied home stays empty
+    // a stored home still in the plain look it began with is shown in the painted papers; one the kid restyled is left alone
+    const old = { bedroom: { wall: "wp-stripes", floor: "fl-wood" }, den: { wall: "wp-cream", floor: "fl-checker" } };
+    expect(sanitizeLayout({ v: 1, placed: [], rooms: old }, {}).rooms).toEqual({ bedroom: { wall: "wp-roses", floor: "fl-wood" }, den: { wall: "wp-paws", floor: "fl-wood" } });
+    const mine = { ...old, den: { wall: "wp-stripes", floor: "fl-checker" } };
+    expect(sanitizeLayout({ v: 1, placed: [], rooms: mine }, {}).rooms).toEqual(mine);
     expect(sanitizeOwned({ sofa: 2, plant: 3, nope: 1, beanbag: -1, "wp-dots": 5 })).toEqual({ sofa: 1, "wp-dots": 1 });
   });
 });
