@@ -69,15 +69,21 @@ function makeHerd(id: number, species: number, hx: number, hz: number, seed: num
   // (the giants stand further apart: a giraffe swings a long neck down to graze, an elephant's
   // ears and trunk want room — a tight pack of them would overlap badly)
   const spacing = def.giant ? 3.2 : 1.8;
-  const R = Math.max(def.body * spacing, (n * def.body * 1.3) / Math.PI);
+  // (a real herd: scattered loosely over a patch of ground, not standing in a ring — a sunflower
+  //  spiral with a little jitter keeps everyone a body or two apart; every fourth one on the
+  //  ground is a youngster, a good deal smaller)
+  const landHerd = def.biome === "plains" || def.biome === "ridge";
+  const R = Math.max(def.body * spacing, def.body * spacing * Math.sqrt(n) * 0.85);
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + r() * 0.4;
+    const a = landHerd ? i * 2.39996 + r() * 0.5 : (i / n) * Math.PI * 2 + r() * 0.4;
+    const k = landHerd ? Math.sqrt((i + 0.5) / n) * (0.9 + r() * 0.2) : 1;
+    const young = landHerd && i % 4 === 3;
     members.push({
       species,
-      scale: def.scale * (1 - def.spread + r() * def.spread * 2),
+      scale: def.scale * (1 - def.spread + r() * def.spread * 2) * (young ? 0.58 + r() * 0.12 : 1),
       coat: def.coats[Math.floor(r() * def.coats.length)],
-      ox: i === 0 ? 0 : Math.sin(a) * R,
-      oz: i === 0 ? R * 1.2 : Math.cos(a) * R * 0.7,
+      ox: i === 0 ? 0 : Math.sin(a) * R * k,
+      oz: i === 0 ? R * 1.2 : Math.cos(a) * R * (landHerd ? 1 : 0.7) * k,
       x: hx,
       z: hz,
       y: 0,
@@ -144,7 +150,7 @@ export function herdCell(ci: number, cj: number): WHerd[] {
     return [];
   }
   // (sparse: most squares that could hold a herd don't)
-  if (r() > 0.4) return [];
+  if (r() > 0.5) return [];
   return [makeHerd(ci * 100003 + cj, species, cx, cz, seed ^ 0x51ed270b)];
 }
 

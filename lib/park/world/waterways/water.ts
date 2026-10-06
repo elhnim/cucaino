@@ -116,7 +116,7 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
         float open = smoothstep( 0.3, 1.6, aDepth.x );
         vec2 fd = sp > 0.01 ? aFlow / sp : vec2( 1.0, 0.0 );
         float swell = sin( w.x * 0.55 + w.z * 0.31 + uTime * 1.1 ) * 0.03 + sin( w.x * -0.27 + w.z * 0.62 - uTime * 0.8 ) * 0.025;
-        float rapid = sin( dot( w.xz, fd ) * 1.25 - uTime * ( 1.6 + sp ) ) * 0.045 * smoothstep( 0.5, 1.6, sp );
+        float rapid = sin( dot( w.xz, fd ) * 1.25 - uTime * 2.4 ) * 0.045 * smoothstep( 0.5, 1.6, sp );
         w.y += ( swell + rapid ) * open;
         vW = w.xyz;
         vec4 mvPosition = viewMatrix * w;
@@ -169,7 +169,7 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
         // sunlight dancing on the bed in the shallows: a net of bright lines that drifts and
         // re-knits, carried along by the current (by day; fading with depth)
         {
-          vec2 cq = vW.xz * 0.9 - fl * uTime * 0.25;
+          vec2 cq = vW.xz * 0.9;
           float ca = abs( vn( cq + vec2( uTime * 0.21, 0.0 ) ) - vn( cq * 1.35 + vec2( 3.7, -uTime * 0.17 ) ) );
           float cb = abs( vn( cq * 1.9 - vec2( 0.0, uTime * 0.26 ) ) - vn( cq * 2.4 + vec2( uTime * 0.19, 5.1 ) ) );
           float caustic = pow( 1.0 - min( 1.0, ca * 2.6 ), 7.0 ) * 0.7 + pow( 1.0 - min( 1.0, cb * 2.8 ), 7.0 ) * 0.4;
@@ -201,11 +201,22 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
         // foam streaks riding the current (stretched along the flow), thicker where it's fast
         vec2 dir = sp > 0.01 ? fl / sp : vec2( 1.0, 0.0 );
         vec2 fp = vec2( dot( vW.xz, dir ), dot( vW.xz, vec2( -dir.y, dir.x ) ) );
-        float streak = 0.7 * smoothstep( 0.7, 0.9, vn( vec2( fp.x * 0.22 - uTime * sp * 0.24, fp.y * 1.7 ) ) ) * smoothstep( 0.35, 1.3, sp );
+        // (the current's speed differs from place to place, so the pattern is carried along in two
+        //  short overlapping cycles that fade in and out — never by time x speed outright: that
+        //  shears the pattern more and more as time runs on, until water seems to run backwards)
+        float c0 = fract( uTime * 0.25 );
+        float c1 = fract( uTime * 0.25 + 0.5 );
+        float w0 = 1.0 - abs( 2.0 * c0 - 1.0 );
+        float d0 = ( c0 - 0.5 ) * 4.0 * sp;
+        float d1 = ( c1 - 0.5 ) * 4.0 * sp;
+        float streak = 0.7 * mix( smoothstep( 0.7, 0.9, vn( vec2( fp.x * 0.22 - d1 * 0.24 + 7.3, fp.y * 1.7 ) ) ), smoothstep( 0.7, 0.9, vn( vec2( fp.x * 0.22 - d0 * 0.24, fp.y * 1.7 ) ) ), w0 ) * smoothstep( 0.35, 1.3, sp );
         // white riffles where the river runs fast: short bands of broken water standing across the
         // current, flickering as it pours over them
-        vec2 rq = vec2( fp.x * 0.85 - uTime * sp * 0.35, fp.y * 0.55 );
-        float riffle = smoothstep( 0.56, 0.74, vn( rq ) * 0.65 + vn( rq * 2.7 + 1.3 ) * 0.35 ) * smoothstep( 0.9, 1.9, sp ) * ( 0.55 + 0.45 * vn( vW.xz * 2.2 + uTime * 2.0 ) );
+        vec2 rq = vec2( fp.x * 0.85 - d0 * 0.35, fp.y * 0.55 );
+        vec2 rq1 = vec2( fp.x * 0.85 - d1 * 0.35 + 4.1, fp.y * 0.55 );
+        float rf0 = smoothstep( 0.56, 0.74, vn( rq ) * 0.65 + vn( rq * 2.7 + 1.3 ) * 0.35 );
+        float rf1 = smoothstep( 0.56, 0.74, vn( rq1 ) * 0.65 + vn( rq1 * 2.7 + 1.3 ) * 0.35 );
+        float riffle = mix( rf1, rf0, w0 ) * smoothstep( 0.9, 1.9, sp ) * ( 0.55 + 0.45 * vn( vW.xz * 2.2 + uTime * 2.0 ) );
         streak = max( streak, riffle * 0.8 );
         // a lacy line of foam where the water laps the bank
         // (it breathes in and out, as little waves run up the bank and slide back)
@@ -228,14 +239,18 @@ export function* waterSurfaceJob(opts: SurfaceOpts = {}): Generator<void, WaterS
         alpha = max( alpha, foam * 0.92 );
         // leaves floating down the river (cells carried by the flow)
         if ( sp > 0.35 ) {
-          vec2 q = ( vW.xz - fl * uTime * 0.9 ) * 0.38;
+          // (each leaf drifts for eight seconds, fading in and out, then a new one starts elsewhere —
+          //  time x flow outright would shear the cells apart as time runs on)
+          float lt = fract( uTime * 0.125 );
+          float lfade = smoothstep( 0.0, 0.12, lt ) * ( 1.0 - smoothstep( 0.88, 1.0, lt ) );
+          vec2 q = ( vW.xz - fl * ( lt - 0.5 ) * 7.2 ) * 0.38;
           vec2 cid = floor( q );
-          float hh = h2( cid );
+          float hh = h2( cid + floor( uTime * 0.125 ) * 13.7 );
           if ( hh > 0.9 ) {
             vec2 lp = fract( q ) - 0.5 + vec2( h2( cid + 3.1 ) - 0.5, h2( cid + 7.3 ) - 0.5 ) * 0.4;
             float a = hh * 40.0 + uTime * 0.3;
             lp = mat2( cos( a ), -sin( a ), sin( a ), cos( a ) ) * lp;
-            float leaf = 1.0 - smoothstep( 0.07, 0.1, length( lp * vec2( 1.0, 2.3 ) ) );
+            float leaf = ( 1.0 - smoothstep( 0.07, 0.1, length( lp * vec2( 1.0, 2.3 ) ) ) ) * lfade;
             vec3 lc = mix( vec3( 0.42, 0.62, 0.18 ), vec3( 0.86, 0.56, 0.16 ), step( 0.95, hh ) );
             col = mix( col, lc * mix( 1.0, 0.4, uGlow ), leaf );
             alpha = max( alpha, leaf );

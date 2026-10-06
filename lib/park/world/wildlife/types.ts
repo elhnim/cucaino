@@ -90,12 +90,12 @@ function from(kind: number, mesh: number, variant: number, extra: Partial<Specie
 }
 
 export const WILD_SPECIES_DEFS: SpeciesDef[] = [
-  from(K_DEER, WM_DEER, 0, { herdN: [3, 6], wander: [16, 26], biome: "plains", coats: [0xc9a06a, 0xb98f58, 0xd4ae77] }),
-  from(K_ZEBRA, WM_HORSE, V_ZEBRA, { herdN: [3, 6], wander: [20, 32], biome: "plains", coats: [0xf3f1ea, 0xece7da] }),
-  from(K_GIRAFFE, WM_SAFARI, V_GIRAFFE, { herdN: [2, 4], wander: [22, 34], biome: "plains", giant: true, coats: [0xf6e7c6, 0xeedcae] }),
-  from(K_ELEPHANT, WM_SAFARI, V_ELEPHANT, { herdN: [2, 4], wander: [24, 36], biome: "plains", giant: true, coats: [0x9a9890, 0x8d897f] }),
-  from(K_KANGAROO, WM_ROO, 0, { herdN: [3, 6], wander: [14, 22], biome: "plains", coats: [0xc9a877, 0xb89463] }),
-  from(K_GOAT, WM_GOAT, 0, { herdN: [3, 5], wander: [12, 20], biome: "ridge", coats: [0xe8e4d8, 0xd9d3c2] }),
+  from(K_DEER, WM_DEER, 0, { herdN: [8, 14], wander: [16, 26], biome: "plains", coats: [0xc9a06a, 0xb98f58, 0xd4ae77] }),
+  from(K_ZEBRA, WM_HORSE, V_ZEBRA, { herdN: [8, 14], wander: [20, 32], biome: "plains", coats: [0xf3f1ea, 0xece7da] }),
+  from(K_GIRAFFE, WM_SAFARI, V_GIRAFFE, { herdN: [3, 6], wander: [22, 34], biome: "plains", giant: true, coats: [0xf6e7c6, 0xeedcae] }),
+  from(K_ELEPHANT, WM_SAFARI, V_ELEPHANT, { herdN: [4, 7], wander: [24, 36], biome: "plains", giant: true, coats: [0x9a9890, 0x8d897f] }),
+  from(K_KANGAROO, WM_ROO, 0, { herdN: [6, 12], wander: [14, 22], biome: "plains", coats: [0xc9a877, 0xb89463] }),
+  from(K_GOAT, WM_GOAT, 0, { herdN: [5, 8], wander: [12, 20], biome: "ridge", coats: [0xe8e4d8, 0xd9d3c2] }),
   from(K_DUCK, WM_DUCK, 0, { herdN: [3, 6], wander: [6, 10], biome: "lake", coats: [0x8a7452, 0xf2efe6, 0x5a5042] }),
   // the birds: new, no park species to borrow a TUNE from
   S({

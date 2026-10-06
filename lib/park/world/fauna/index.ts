@@ -163,7 +163,7 @@ export function buildFauna(scene: THREE.Scene, opts: FaunaOptions): Fauna {
   }
   const nSheep = flocks.reduce((n, f) => n + f.sheep.length, 0);
   const grid = buildWalkGrid(forest.covered, opts.obstacles, free, forest.trees);
-  const plan = planFauna(free, grid, { trees: forest.trees, meadows: forest.meadows }, { lowQuality: low, obstacles: opts.obstacles, flocks: flocks.map((f) => ({ x: f.x, z: f.z, r: f.r + 2 })) });
+  const plan = planFauna(free, grid, { trees: forest.trees, meadows: forest.meadows }, { wild: false, lowQuality: low, obstacles: opts.obstacles, flocks: flocks.map((f) => ({ x: f.x, z: f.z, r: f.r + 2 })) });
   perchBirds(plan.agents, forest.trees, low);
   // (the sheep stay out of the paddock and the farm: this copy of their pasture, and the storybook's own via sheepKeepOut)
   const keepOut = sheepKeepOut(plan);

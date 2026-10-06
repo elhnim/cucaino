@@ -739,3 +739,13 @@ describe("pushKid: the kid can't walk through an animal's body", { timeout: 3000
     expect(ms).toBeLessThan(0.05);
   });
 });
+
+describe("the park's own animals (wild: false)", () => {
+  it("keeps the farm and the small woodland creatures, and leaves the wild herds to the Wildlands", () => {
+    const park = planFauna(free, grid, { trees: forest.trees, meadows }, { wild: false, obstacles, flocks: flockCircles });
+    const names = new Set(park.agents.map((a) => KIND_NAMES[a.kind]));
+    for (const wild of ["deer", "kangaroo", "emu", "giraffe", "zebra", "elephant", "bear"]) expect(names.has(wild), wild).toBe(false);
+    for (const home of ["horse", "cow", "goat", "sheep", "rabbit", "squirrel"]) expect(names.has(home), home).toBe(true);
+    expect(park.agents.length).toBeGreaterThan(30);
+  });
+});

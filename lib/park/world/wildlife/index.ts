@@ -37,8 +37,8 @@ export interface WildlifeStats {
 /** the squares drawn (and simulated) round the kid, and how many of each species at most
  *  (mesh order: deer, zebras, safari, roos, goats, ducks, birds) */
 export const WILD_VIEW = {
-  std: { r: 260, caps: [10, 8, 6, 8, 8, 14, 10] },
-  low: { r: 190, caps: [5, 4, 3, 4, 4, 7, 5] },
+  std: { r: 260, caps: [42, 30, 16, 26, 18, 14, 10] },
+  low: { r: 190, caps: [18, 14, 8, 12, 9, 7, 5] },
 };
 /** only this many land/bird squares are kept cached (plenty for the view radius above) */
 const KEEP_CELLS = 400;
@@ -154,7 +154,6 @@ export function buildWildlife(scene: THREE.Scene, opts: { lowQuality?: boolean; 
   const v = new THREE.Vector3();
   const s3 = new THREE.Vector3();
   const c3 = new THREE.Color();
-  const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 
   function writeInstance(mesh: MeshRig, a: WAnimal, variant: number) {
     if (mesh.n >= mesh.cap) {
@@ -261,8 +260,10 @@ export function buildWildlife(scene: THREE.Scene, opts: { lowQuality?: boolean; 
       for (const h of activeBirds) writeIfNear(h, p.x, p.z, r2);
 
       for (const m of meshes) {
-        for (let k = m.n; k < m.cap; k++) m.im.setMatrixAt(k, ZERO);
-        m.im.count = m.cap;
+        // (only the animals actually in view are drawn — the herds are big now, and drawing every
+        //  spare slot squashed to nothing still ran its vertices)
+        m.im.count = m.n;
+        m.im.visible = m.n > 0;
         m.im.instanceMatrix.needsUpdate = true;
         if (m.im.instanceColor) m.im.instanceColor.needsUpdate = true;
         m.a.needsUpdate = true;

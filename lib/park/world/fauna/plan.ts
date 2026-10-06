@@ -467,7 +467,15 @@ export interface FaunaOptions {
   obstacles?: readonly { x: number; z: number; r: number }[];
   /** the storybook's sheep flocks (centre, radius): nobody makes a home in them */
   flocks?: readonly { x: number; z: number; r: number }[];
+  /**
+   * false = no wild herds here: the deer, kangaroos, emus, giraffes, zebras, elephants and bears
+   * live out in the Wildlands (lib/park/world/wildlife), and the park keeps its farm animals and
+   * the small creatures of its woods and pond. The park passes false; the default (true) is the
+   * full menagerie, which is what the behaviour tests exercise.
+   */
+  wild?: boolean;
 }
+const WILD_HERDS = new Set(["deer", "kangaroos", "emus", "giraffes", "zebras", "elephants"]);
 
 /** a herd member: kind, role, variant, coat, is it a youngster, who it follows (index in the herd, -1 = the herd's leader) */
 type Member = [kind: number, role: number, variant: number, coat: number, young: boolean, follows: number];
@@ -597,6 +605,7 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
    */
   const addHerd = (name: string, cls: number, node: number, members: Member[], homeR: number, home?: { x: number; z: number }) => {
     if (node < 0 || !members.length) return -1;
+    if (opts.wild === false && WILD_HERDS.has(name)) return -1;
     const gid = group++;
     const base = agents.length;
     const nx = graph.x[node];
@@ -1104,7 +1113,7 @@ export function planFauna(free: FreeFn, g: WalkGrid, forest: FaunaForest, opts: 
         if (!best || score > best.score) best = { i, side, score };
       }
     }
-    if (best) {
+    if (best && opts.wild !== false) {
       const [px, pz] = STREAM_POINTS[best.i];
       const [qx, qz] = STREAM_POINTS[best.i + 1];
       const tl = Math.hypot(qx - px, qz - pz) || 1;

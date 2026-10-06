@@ -9,6 +9,8 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { groundY, railY } from "../../registry/terrain";
+import { buildPaintedBuilding } from "../paintedBuilding";
+import type { PaintedBuilding } from "../../registry/paintedBuildings";
 import { PLATFORM, RAIL_LENGTH, RAIL_POINTS, STATIONS, railAt, type Station } from "../../registry/railway";
 import { CAR_COUNT, CAR_GAP, RIDE_CAR, trestleGeometry } from "../steamTrain";
 import { createTrainKit } from "../trainModels";
@@ -145,12 +147,30 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
   const secMid = Array.from({ length: nSec }, (_, k) => RAIL_POINTS[Math.min(RAIL_POINTS.length - 1, k * SEC + (SEC >> 1))]);
 
   // ── stations ──
+  const STATION_HOUSE: PaintedBuilding = { place: "station", art: "station-house", w: 6.6, h: 4.4, d: 3.6, roofRise: 1.5, trim: "#f3e6cf" };
+  const SIGNAL_BOX: PaintedBuilding = { place: "signal-box", art: "signal-box", w: 3.6, h: 3.6, d: 3.0, roofRise: 1.1, trim: "#f3e6cf" };
   const stationMeshes = new Map<string, THREE.Object3D>();
   const WALL = new THREE.Color("#f3e3c4");
   const ROOF = new THREE.Color("#c8452f");
   const PLAT = new THREE.Color("#c9b9a0");
   const POST = new THREE.Color("#5a4a3a");
   const LAMP = new THREE.Color("#ffe9a8");
+  let platMat: THREE.MeshStandardMaterial | null = null;
+  const platformMat = () => {
+    if (platMat) return platMat;
+    platMat = new THREE.MeshStandardMaterial({ color: "#d8cbb2", roughness: 0.9 });
+    disposables.push(platMat);
+    if (typeof document !== "undefined") {
+      const t = new THREE.TextureLoader().load("/park-assets/buildings/platform-surface.webp");
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = low ? 2 : 8;
+      disposables.push(t);
+      platMat.map = t;
+      platMat.color.set("#ffffff");
+    }
+    return platMat;
+  };
   function buildStation(st: Station): THREE.Object3D {
     const g = new THREE.Group();
     g.name = `station-${st.id}`;
@@ -170,12 +190,6 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
     // the platform (its top level with the levelled ground: you walk straight on), a house at its
     // back with a red roof, lamps along its front, a name board
     put(new THREE.BoxGeometry(PLATFORM.depth, 0.8, PLATFORM.len), PLAT, 0, -0.62, 0);
-    put(new THREE.BoxGeometry(4, 3.4, 7), WALL, 3.6, 1.45, 2);
-    const roof = new THREE.ConeGeometry(5.6, 2.2, 4, 1);
-    roof.rotateY(Math.PI / 4);
-    roof.scale(0.8, 1, 1.4);
-    put(roof, ROOF, 3.6, 4.25, 2);
-    put(new THREE.BoxGeometry(0.1, 1.6, 0.9), POST, 1.55, 1.3, 2);
     for (const lz of [-8, 0, 8]) {
       put(new THREE.CylinderGeometry(0.08, 0.1, 2.8, 6), POST, -1.6, 1.9, lz);
       put(new THREE.SphereGeometry(0.28, 8, 6), LAMP, -1.6, 3.4, lz);
@@ -189,6 +203,31 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
     mesh.castShadow = !low;
     mesh.receiveShadow = true;
     g.add(mesh);
+    // the station house and a signal box at the platform's back, in real painted artwork (cream
+    // boards and crimson trim under a slate roof), their fronts to the track; and the platform's
+    // stone flags with a white line along the edge
+    const stand = (def: PaintedBuilding, lx: number, lz: number) => {
+      const b = buildPaintedBuilding(def, { lowQuality: low });
+      disposables.push(b);
+      b.group.position.set(st.x + Math.cos(yaw) * lx + Math.sin(yaw) * lz, y - 0.22, st.z - Math.sin(yaw) * lx + Math.cos(yaw) * lz);
+      b.group.rotation.y = yaw - Math.PI / 2;
+      g.add(b.group);
+    };
+    stand(STATION_HOUSE, 4.1, 1.6);
+    stand(SIGNAL_BOX, 3.8, 8.6);
+    {
+      const flags = new THREE.PlaneGeometry(PLATFORM.depth, PLATFORM.len);
+      flags.rotateX(-Math.PI / 2);
+      const pos = flags.getAttribute("position");
+      const uv = flags.getAttribute("uv") as THREE.BufferAttribute;
+      // (the picture's white line lies along the track edge; it repeats down the platform)
+      for (let i = 0; i < pos.count; i++) uv.setXY(i, pos.getZ(i) / PLATFORM.depth, 1 - (pos.getX(i) + PLATFORM.depth / 2) / PLATFORM.depth);
+      const top = new THREE.Mesh(flags, platformMat());
+      top.position.set(st.x, y - 0.205, st.z);
+      top.rotation.y = yaw;
+      top.receiveShadow = true;
+      g.add(top);
+    }
     const sign = labelSprite(`${st.emoji} ${st.name}`);
     sign.position.set(st.x + Math.cos(yaw) * 0.6 - Math.sin(yaw) * 6, y + 4.6, st.z - Math.sin(yaw) * 0.6 - Math.cos(yaw) * 6);
     sign.scale.multiplyScalar(1.3);

@@ -133,18 +133,22 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
         float falling = step( 0.0, v );
         // streaks racing down (faster as it falls), lazy ripples in the channel up top — two scales
         // layered so the streaks read as ropes of falling water, not a flat wash
-        float speed = mix( 0.6, 2.4 + v * 1.6, falling );
-        vec2 q = vec2( u * mix( 3.0, 9.0, falling ), v * mix( 1.5, 5.0, falling ) - uTime * speed );
+        // (the fall speeds up on the way down by STRETCHING the pattern lower down — fv grows
+        //  slower than v — never by multiplying time by v: that winds the pattern backwards as time
+        //  runs on, and the water climbs the cliff)
+        float fv = sqrt( max( v, 0.0 ) + 0.12 ) - 0.346;
+        float speed = mix( 0.6, 2.6, falling );
+        vec2 q = vec2( u * mix( 3.0, 9.0, falling ), mix( v * 1.5, fv * 6.5, falling ) - uTime * speed );
         float s1 = vn( q ) * 0.6 + vn( q * 2.1 + 5.3 ) * 0.4;
         float s2 = vn( vec2( q.x * 2.6 + 1.7, q.y * 1.4 ) );
         // sharp contrast: real dark gaps between the lighter falling streaks, not just "less white"
         float streak = smoothstep( 0.4, 0.58, s1 ) * 0.7 + smoothstep( 0.35, 0.7, s2 ) * 0.3;
         // surges: now and then a heavier slug of water tips over the lip and you can follow it all
         // the way down — broad bright bands racing through the streaks
-        float surge = smoothstep( 0.55, 0.8, vn( vec2( u * 1.6 + 2.0, v * 1.1 - uTime * ( 1.5 + v * 1.2 ) ) ) ) * falling;
+        float surge = smoothstep( 0.55, 0.8, vn( vec2( u * 1.6 + 2.0, fv * 1.8 - uTime * 1.7 ) ) ) * falling;
         streak = clamp( streak + surge * 0.45, 0.0, 1.0 );
         // fine spray tearing off the face of the fall
-        streak = max( streak, step( 0.93, vn( vec2( u * 40.0, v * 22.0 - uTime * 9.0 ) ) ) * falling * 0.9 );
+        streak = max( streak, step( 0.93, vn( vec2( u * 40.0, fv * 30.0 - uTime * 9.0 ) ) ) * falling * 0.9 );
         vec3 rock = vec3( 0.14, 0.22, 0.26 );   // dark wet rock, glimpsed through the gaps
         vec3 deepC = vec3( 0.3, 0.56, 0.63 );   // the water's own deep teal, in the darker gaps
         vec3 white = vec3( 0.97, 1.0, 1.0 );
@@ -221,9 +225,9 @@ export function buildFalls(opts: { lowQuality?: boolean; def?: FallsDef; name?: 
           vA = sin( life * 3.14159 ) * 0.1;
           vSpray = -1.0;
         } else {
-          // mist rolling out over the pool and rising up the face of the fall
+          // mist rolling out over the pool, lifting only a little (a tall rising column reads as water going up)
           p += uDir * ( life * ( 6.0 + aSeed.z * 6.0 ) ) + uSide * sin( life * 3.0 + aSeed.y * 6.28 ) * 2.0;
-          p.y += life * ( 4.0 + aSeed.z * 9.0 ) + 0.3;
+          p.y += life * ( 1.5 + aSeed.z * 3.5 ) + 0.3;
           vA = sin( life * 3.14159 ) * 0.1;
         }
         if ( vSpray > -0.5 ) vSpray = spray;
