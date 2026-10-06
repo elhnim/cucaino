@@ -879,7 +879,7 @@ export interface CanyonLayer {
 export const CANYON_LAYERS: CanyonLayer[] = [
   { name: "The Rim", emoji: "\u{1F3DC}\u{FE0F}", age: "today", fact: "You're starting at the very top of the Grand Canyon's rim!" },
   { name: "Kaibab Limestone", emoji: "\u{1FAA8}", age: "~270 million years old", fact: "Cream-coloured rock from an ancient sea that once covered this land." },
-  { name: "Coconino Sandstone", emoji: "\u{1F3DC}\u{FE0F}", age: "~265 million years old", fact: "Made from the sand of a GIANT ancient desert, bigger than Arizona itself!" },
+  { name: "Coconino Sandstone", emoji: "\u{1F3DC}\u{FE0F}", age: "~275 million years old", fact: "Made from the sand of a GIANT ancient desert, bigger than Arizona itself!" },
   { name: "The Esplanade", emoji: "\u{1FAA8}", age: "~285 million years old", fact: "A wide rocky shelf of old red mudflats and riverbeds." },
   { name: "Redwall Limestone", emoji: "\u{1F9F1}", age: "~335 million years old", fact: "This cliff is really grey — it just looks red from rock dust washing down from above!" },
   { name: "Tonto Platform", emoji: "\u{1FAA8}", age: "~525 million years old", fact: "An ancient seashore, when this whole area was underwater." },

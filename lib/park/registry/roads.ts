@@ -149,17 +149,17 @@ const PTS_RING_J_H1: [number, number, number][] = [[553.3,-142.4,5.78],[553.1,-1
 /* prettier-ignore */
 const PTS_RING_H0_J: [number, number, number][] = [[150,-112,3.26],[151.2,-104.5,3.18],[152.8,-94,2.9],[154.5,-86.1,2.85],[156.9,-78.3,1.99],[159.8,-70.7,1.13],[163.4,-63.1,0.4],[166.7,-55.6,0.4],[169.4,-48.1,0.4],[171.4,-40.6,0.4],[172.8,-33.1,0.4],[174.5,-25.9,0.4],[176.9,-18.9,0.4],[179.8,-12.3,0.4],[183.4,-5.9,0.4],[189.5,2,0.4],[196.3,7.9,0.4],[203.5,12,0.4],[208.9,16.4,0.4],[212.8,23.4,0.4],[217,29.1,0.4],[224.8,34.7,0.4],[231.9,38.4,0.4],[238.2,42.4,0.4],[244.8,49,0.4],[247.8,56.3,0.4],[251.9,63.1,0.76],[260.5,64.8,1.49],[268.3,62.7,2.28],[278.1,58.4,2.62],[285.5,54.5,2.72],[292.2,49.5,3.01],[298.3,43.7,3.14],[303.8,36.9,3.66],[308.5,29.7,3.96],[312.3,23.8,4.1],[316.3,17.2,4.79],[320.2,9.7,5.67],[324.4,1.3,6.66],[329.1,-5.5,7.53],[336.6,-10.2,7.97],[346.9,-12.8,8.03],[354.4,-14.5,8.27],[361.9,-16.9,9.08],[369.4,-19.8,9.37],[376.9,-23.4,9.46],[384.1,-27,9.42],[391.1,-30.2,8.84],[397.7,-33,8.08],[407,-37.2,7.53],[414.2,-43.8,7.41],[419.4,-53.1,7.2],[422,-60.5,7.21],[425.3,-67.7,7.55],[429.2,-74.5,7.59],[433.8,-80.9,7.51],[438.9,-87,7.25],[444.7,-92,6.93],[451.1,-96.2,6.56],[458.1,-99.4,6.19],[465.6,-102,6.07],[473.1,-105.3,6.21],[480.6,-109.2,6.23],[488.1,-113.8,5.79],[495.6,-118.8,5.68],[501.2,-121.7,5.72],[506.7,-124.5,5.44],[512.4,-127.2,4.97],[518,-129.9,4.98],[523.7,-132.4,5.23],[529.5,-134.9,5.42],[535.3,-137,5.31],[541.3,-138.9,5.26],[547.3,-140.6,5.42],[553.3,-142.4,5.78]];
 /* prettier-ignore */
-const PTS_RING_H1_H2A: [number, number, number][] = [[919.8,-672.4,13.87],[925.3,-674.7,13.78],[930.7,-677.3,13.75],[936,-679.9,13.7],[941.4,-682.3,13.72],[947,-684.4,13.66],[952.7,-686.1,13.32],[958.6,-687.2,12.96],[964.5,-688,13.1],[970.4,-688.5,13.29],[976.4,-688.7,13.59],[982.3,-688.8,13.76],[988.3,-688.7,13.29],[994.2,-688.3,12.75],[1000.1,-687.8,12.21],[1006,-687.1,11.83],[1011.9,-686.2,11.53],[1017.8,-685,11.42],[1023.5,-683.5,11.75],[1029.3,-681.9,12.29],[1034.9,-680,12.82],[1040.5,-678,13.36],[1046,-675.7,13.81],[1051.4,-673.3,13.79],[1056.7,-670.5,13.96],[1061.8,-667.5,14.26],[1066.8,-664.1,13.88],[1071.5,-660.6,13.35],[1076.3,-657,12.81],[1081,-653.4,12.28],[1085.8,-649.8,11.74],[1090.7,-646.4,11.21],[1095.6,-643,10.67],[1100.5,-639.6,10.13],[1105.4,-636.2,9.6],[1110.2,-632.8,9.06],[1115.1,-629.4,8.53],[1120,-626,7.99]];
+const PTS_RING_H1_H2A: [number, number, number][] = [[919.8,-672.4,13.87],[925.5,-674.5,13.72],[931.2,-676.9,13.66],[936.8,-679.3,13.62],[942.5,-681.5,13.62],[948.3,-683.4,13.49],[954.2,-684.7,13.11],[960.3,-685.1,12.81],[966.4,-684.5,13.04],[972.4,-683.3,13.14],[978.3,-681.8,13.41],[984.2,-680.2,13.48],[990.1,-678.8,13.31],[996.2,-677.9,12.91],[1002.3,-677.6,12.54],[1008.4,-677.8,12.19],[1014.5,-678.1,11.98],[1020.6,-678.3,11.97],[1026.6,-677.8,12.21],[1032.6,-676.3,12.76],[1038.3,-674.2,13.31],[1044,-672,13.86]];
 /* prettier-ignore */
-const PTS_RING_H1_H2B: [number, number, number][] = [[1151.5,-623,5.99],[1156,-622.5,5.47],[1161.6,-621.8,4.82],[1168.1,-621.1,4.07],[1175.5,-620.3,3.44],[1183.4,-619.4,3.43],[1191.9,-618.4,4.19],[1200.8,-617.4,4.92],[1209.8,-616.4,4.3],[1218.9,-615.4,4.61],[1227.9,-614.4,4.92],[1236.7,-613.5,4.78],[1245.1,-612.6,4.69],[1252.9,-611.7,4.58],[1260,-611,4.58],[1268.7,-610.1,5.05],[1276.9,-609.4,5.87],[1284.6,-608.7,6.29],[1292.1,-608.1,6.35],[1298.1,-608.3,6.58],[1304.1,-608.6,6.91],[1310.1,-608.9,7.19],[1316,-609.3,7.38],[1322,-609.9,7.63],[1328,-610.7,7.89],[1333.8,-611.7,8.32],[1339.6,-613.3,8.86],[1345.3,-615.3,9.4],[1350.8,-617.6,9.94],[1356.2,-620.2,10.18],[1361.7,-622.7,10.05],[1367.2,-625.1,9.52],[1372.8,-627.3,8.98],[1378.4,-629.2,8.44],[1384.1,-631,7.9],[1389.9,-632.6,7.52],[1395.8,-633.9,6.98],[1401.7,-635,6.44],[1407.6,-635.5,5.91],[1413.6,-635.6,5.4],[1419.6,-635.4,5.44],[1425.6,-635.1,5.66],[1431.6,-635,5.86]];
+const PTS_RING_H1_H2B: [number, number, number][] = [[1168.1,-621.1,4.07],[1175.5,-620.3,3.44],[1183.4,-619.4,3.43],[1191.9,-618.4,4.19],[1200.8,-617.4,4.92],[1209.8,-616.4,4.3],[1218.9,-615.4,4.61],[1227.9,-614.4,4.92],[1236.7,-613.5,4.78],[1245.1,-612.6,4.69],[1252.9,-611.7,4.58],[1260,-611,4.58],[1268.7,-610.1,5.05],[1276.9,-609.4,5.87],[1284.6,-608.7,6.29],[1292.1,-608.1,6.35],[1298.1,-608.3,6.58],[1304.1,-608.6,6.91],[1310.1,-608.9,7.19],[1316,-609.3,7.38],[1322,-609.9,7.63],[1328,-610.7,7.89],[1333.8,-611.7,8.32],[1339.6,-613.3,8.86],[1345.3,-615.3,9.4],[1350.8,-617.6,9.94],[1356.2,-620.2,10.18],[1361.7,-622.7,10.05],[1367.2,-625.1,9.52],[1372.8,-627.3,8.98],[1378.4,-629.2,8.44],[1384.1,-631,7.9],[1389.9,-632.6,7.52],[1395.8,-633.9,6.98],[1401.7,-635,6.44],[1407.6,-635.5,5.91],[1413.6,-635.6,5.4],[1419.6,-635.4,5.44],[1425.6,-635.1,5.66],[1431.6,-635,5.86]];
 /* prettier-ignore */
 const PTS_RING_H2_H3: [number, number, number][] = [[1431.6,-635,5.86],[1437.5,-635.9,6.4],[1443.4,-636.8,6.93],[1449.2,-637.7,7.47],[1455.1,-638.6,8],[1460.9,-639.8,8.54],[1466.7,-641.2,9.07],[1472.4,-643.1,8.95],[1477.9,-645.3,8.66],[1483.3,-647.7,8.43],[1488.8,-650,8.26],[1494.4,-652,8.4],[1500.1,-653.5,8.83],[1506,-654.8,9.23],[1511.8,-655.8,9.44],[1517.7,-656.2,9.62],[1523.7,-655.8,9.98],[1529.5,-654.6,10.38],[1535.2,-652.8,10.91],[1540.7,-650.6,11.45],[1546.1,-648.2,11.69],[1551.5,-645.6,11.68],[1556.8,-642.9,11.63],[1562,-640.1,11.7],[1567.2,-637.2,11.96],[1572.8,-631.4,12.51],[1578.5,-625.4,13.36],[1584.1,-619.2,13.88],[1589.6,-612.8,13.76],[1594.9,-606.4,13.39],[1600,-600,13.28],[1604.5,-594.1,13.16],[1608.9,-587.9,12.45],[1613.2,-581.6,11.88],[1617.4,-575.2,11.32],[1621.5,-568.6,10.64],[1625.6,-561.9,9.74],[1629.7,-555.1,8.93],[1633.7,-548.1,8.5],[1637.7,-541.2,8.75],[1641.8,-534.1,8.96],[1645.9,-527.1,8.81],[1650,-520,8.66],[1653.9,-513.4,8.85],[1657.8,-506.5,9.35],[1661.7,-499.5,10.27],[1665.7,-492.4,11.2],[1669.7,-485.2,12],[1673.7,-478,11.99],[1677.6,-470.8,11.98],[1681.5,-463.6,11.48],[1685.4,-456.5,11.21],[1689.1,-449.6,11.01],[1692.9,-442.8,10.95],[1695.2,-437.2,10.62],[1697.4,-431.5,10.11],[1699.6,-425.9,9.89],[1701.8,-420.2,9.68],[1704,-414.5,9.51],[1706.2,-408.8,9.25],[1708.3,-403.1,8.75],[1710.5,-397.4,8.6],[1712.6,-391.8,8.55],[1714.8,-386.1,8.58],[1717.1,-380.4,8.48],[1719.2,-374.8,8.34],[1721.2,-369,8.09],[1722.9,-363.2,8.08],[1724.4,-357.3,8.63],[1725.6,-351.3,8.97],[1726.5,-345.3,8.96],[1727.3,-339.3,8.9],[1728,-333.2,9.33],[1728.5,-327.2,9.88],[1728.9,-321.1,10.42],[1729.2,-315,10.6],[1729.5,-309,10.59],[1729.8,-302.9,10.43]];
 /* prettier-ignore */
 const PTS_RING_H3_H4: [number, number, number][] = [[1729.8,-302.9,10.43],[1729.6,-296.9,10.12],[1729.5,-291,9.86],[1729.3,-285,9.76],[1729.1,-279.1,9.66],[1729,-273.1,9.6],[1729,-267.1,9.68],[1729.1,-261.2,9.66],[1729.2,-255.2,9.46],[1729.3,-249.3,9.33],[1729.2,-243.3,9.32],[1729.1,-237.3,9.3],[1728.7,-231.4,9.25],[1728.1,-225.4,9.18],[1727.3,-219.5,9.11],[1726.5,-213.6,8.9],[1725.8,-207.7,8.9],[1725.1,-201.8,9.12],[1724.5,-195.9,9.37],[1723.9,-189.9,9.12],[1723.3,-184,9.04],[1722.8,-178,8.85],[1722.2,-172.1,8.31],[1721.6,-166.2,8],[1721.1,-160.2,7.94],[1720.5,-154.3,8.16],[1719.9,-148.4,8.62],[1719.3,-142.4,9.05],[1718.6,-136.5,9.04],[1717.9,-130.6,8.96],[1715.6,-122.6,8.81],[1713.3,-114.7,8.36],[1711.2,-106.9,7.44],[1709,-99.3,6.77],[1707,-92,6.58],[1705,-85,6.97],[1702.7,-76.7,7.63],[1700.4,-68.5,7.81],[1698.2,-60.6,7.99],[1696.1,-52.9,7.85],[1694,-45.3,7.37],[1692,-37.8,6.78],[1690,-30.4,6.35],[1688,-23.1,6.14],[1686,-15.9,5.47],[1684.1,-8.6,4.82],[1682.1,-1.4,4.21],[1680.1,5.8,3.91],[1678.1,13.1,3.95],[1676.1,20.5,3.19],[1674,28,3.34],[1671.9,35.5,4.18],[1669.8,43.1,4.42],[1667.7,50.6,4.74],[1665.5,58.1,5.1],[1663.4,65.7,5.54],[1659.9,70.5,5.64],[1656.1,75,5.59],[1652.2,79.5,5.05],[1648.3,84,4.52],[1644.5,88.5,4],[1640.6,93,3.71],[1636.9,97.6,3.53],[1633.3,102.3,3.48],[1629.8,107.1,3.24],[1626.4,111.9,3.01],[1623.1,116.8,2.93],[1619.8,121.8,3.16],[1616.6,126.8,3.42],[1613.5,131.8,3.51],[1610.6,137,3.61],[1607.8,142.2,3.89],[1605.3,147.6,4.08],[1603,153,3.55],[1601,158.6,3.02],[1599.2,164.3,2.48],[1597.6,170,1.95],[1596.1,175.7,1.42],[1594.7,181.5,0.88],[1593.2,187.2,0.54],[1591.8,192.9,0.47],[1590.5,198.7,0.96],[1589.3,204.5,1.49],[1588.2,210.4,2.02],[1587.1,216.2,2.33],[1586,222,2.57]];
 /* prettier-ignore */
-const PTS_RING_H4_PARWPA: [number, number, number][] = [[1586,222,2.57],[1580.1,222.2,2.62],[1574.3,222.3,2.58],[1568.4,222.4,2.59],[1562.5,222.7,2.89],[1556.7,223.1,3.2],[1550.8,223.9,3.46],[1545.1,224.9,3.72],[1539.3,225.9,3.98],[1533.4,226.5,4.08],[1527.6,226.9,4.36],[1521.7,227,4.43],[1515.8,226.9,4.29],[1509.9,226.8,4.4],[1504.1,226.5,4.25],[1498.2,226.3,3.77],[1492.3,226,3.25],[1486.5,225.6,2.98],[1480.6,225.3,2.68],[1474.8,224.8,2.32],[1468.9,224.4,2.09],[1462,223,2.34],[1452.8,221.1,2.88],[1443.6,219.2,3.95],[1434.6,217.4,4.54],[1426.3,215.6,5.22],[1419,214.1,6.03],[1412.8,212.8,6.49],[1408.1,211.8,6.5]];
+const PTS_RING_H4_PARWPA: [number, number, number][] = [[1586,222,2.57],[1580.1,222.2,2.62],[1574.3,222.3,2.58],[1568.4,222.4,2.59],[1562.5,222.7,2.89],[1556.7,223.1,3.2],[1550.8,223.9,3.46],[1545.1,224.9,3.72],[1539.3,225.9,3.98],[1533.4,226.5,4.08],[1527.6,226.9,4.36],[1521.7,227,4.43],[1515.8,226.9,4.29],[1509.9,226.8,4.4],[1504.1,226.5,4.25],[1498.2,226.3,3.77],[1492.3,226,3.25],[1486.5,225.6,2.98],[1480.6,225.3,2.68],[1474.8,224.8,2.32],[1468.9,224.4,2.09],[1462,223,2.34],[1452.8,221.1,2.88],[1443.6,219.2,3.95],[1434.6,217.4,4.54],[1426.3,215.6,5.22]];
 /* prettier-ignore */
-const PTS_RING_H4_PARWPB: [number, number, number][] = [[1379.9,206,6.74],[1375.6,205.1,6.6],[1370.6,204,6.44],[1364.9,202.8,6.52],[1358.5,201.4,7.16],[1351.7,199.9,7.58],[1344.3,198.3,7.61],[1336.4,196.7,7.38],[1328.1,194.9,7.97],[1319.5,193,8.14],[1310.6,191.1,7.81],[1301.5,189.2,7.59],[1292.2,187.2,7.21],[1282.7,185.1,6.29],[1273.2,183.1,5.98],[1263.6,181.1,7.07],[1254.1,179,8.19],[1244.7,177,9.3],[1235.4,175,10.39],[1226.3,173.1,11.46],[1217.5,171.2,11.47],[1209,169.4,11.11],[1200.9,167.6,10.16],[1193.1,166,10.23],[1185.9,164.4,9.72],[1179.1,163,9.49],[1173,161.7,9.48],[1167.5,160.5,9.48],[1155.6,158,8.92],[1141.2,155,8.37],[1131.5,153.1,8.62],[1125.3,151.9,8.79],[1121.3,151.2,8.98],[1118.3,150.6,9.14],[1115,150,9.22]];
+const PTS_RING_H4_PARWPB: [number, number, number][] = [[1358.5,201.4,7.16],[1351.7,199.9,7.58],[1344.3,198.3,7.61],[1336.4,196.7,7.38],[1328.1,194.9,7.97],[1319.5,193,8.14],[1310.6,191.1,7.81],[1301.5,189.2,7.59],[1292.2,187.2,7.21],[1282.7,185.1,6.29],[1273.2,183.1,5.98],[1263.6,181.1,7.07],[1254.1,179,8.19],[1244.7,177,9.3],[1235.4,175,10.39],[1226.3,173.1,11.46],[1217.5,171.2,11.47],[1209,169.4,11.11],[1200.9,167.6,10.16],[1193.1,166,10.23],[1185.9,164.4,9.72],[1179.1,163,9.49],[1173,161.7,9.48],[1167.5,160.5,9.48],[1155.6,158,8.92],[1141.2,155,8.37],[1131.5,153.1,8.62],[1125.3,151.9,8.79],[1121.3,151.2,8.98],[1118.3,150.6,9.14],[1115,150,9.22]];
 /* prettier-ignore */
 const PTS_RING_PARWP_J: [number, number, number][] = [[1115,150,9.22],[1110.8,149.1,9.2],[1105.9,148,9.01],[1100.3,146.8,8.6],[1094.2,145.5,8.2],[1087.5,144.1,7.94],[1080.3,142.6,8.16],[1072.7,140.9,8.76],[1064.8,139.2,8.75],[1056.5,137.5,8.51],[1048,135.7,7.58],[1039.3,133.8,6.79],[1033,134.2,6.25],[1029.5,137.8,6.06],[1025.7,141.6,5.75],[1021.3,145.7,5.83],[1016.4,150,5.92],[1010.9,154.4,6.3],[1004.9,158.9,6.69],[998.3,163.5,6.96],[990.9,168,7.73],[983,172.4,8.44],[974.4,176.6,9.17],[964.7,180.7,9.83],[954,184.6,10.78],[942.3,187.9,11.31],[929.5,190.7,11.35],[915.7,192.6,11.27],[901.1,193.5,10.31],[885.9,193.2,9.4],[870.3,191.5,8.78],[854.8,188.6,8.14],[839.6,184.3,7.25],[825,178.8,6.15],[811.4,172.4,6.73],[798.9,165.2,5.07],[787.6,157.5,4.01],[777.5,149.6,3.63],[768.6,141.5,3.37],[760.9,133.6,2.93],[754.1,125.8,2.41],[748.4,118.4,2.14],[743.4,111.2,2.24],[739.1,104.5,2.58],[735.3,98.1,2.61],[732.1,92,2.45],[729.4,86.4,2.14],[727,81,1.98],[725,76.2,2.2],[723.3,71.6,2.26],[721.8,67.3,2.23],[719,63.9,2.1],[711,62.2,1.3],[703.1,60.5,0.45],[695.2,58.8,0.4],[687.4,57.2,1.14],[679.7,55.5,2.04],[672.2,53.9,2.72],[664.8,52.3,3.01],[657.5,50.8,2.77],[650.3,49.2,2.91],[643.4,47.7,3.54],[635.6,46,4.45],[627,44.2,5.19],[618.7,42.4,6.17],[610.6,40.6,7.12],[602.8,38.9,8.04],[595.1,37.2,8.95],[587.7,35.5,9.82],[580.3,33.9,10.69],[573.1,32.3,10.3],[565.9,30.7,9.96],[558.7,29.1,9.48],[551.5,27.5,9.22],[544.3,25.9,8.65],[537,24.3,7.87],[529.6,22.7,7.61],[522,21,7.14],[514.4,19.3,6.95],[506.7,17.6,6.04],[514.2,16.1,6.72],[520.3,12.6,7.03],[528,5.2,7.38],[534.1,-1.9,7.53],[539.4,-9.4,8.13],[543.4,-16.9,9.02],[546.3,-24.4,9.35],[547.8,-31.9,9.05],[550.6,-41.3,8.39],[554.8,-47.8,8.61],[560.3,-52.2,8.34],[565.9,-58.8,7.55],[569.7,-64.7,7.03],[571.8,-70.2,6.9],[573.4,-75.9,6.93],[574.3,-81.7,7.03],[574.2,-87.6,6.77],[573.2,-93.4,6.24],[571.7,-99.1,5.71],[569.9,-104.7,5.38],[567.9,-110.2,5.1],[565.8,-115.7,4.84],[563.5,-121.2,4.93],[561,-126.5,5.22],[558.4,-131.8,5.18],[555.8,-137.1,5.42],[553.3,-142.4,5.78]];
 /* prettier-ignore */
@@ -246,10 +246,12 @@ export const ROAD_SEGMENTS: RoadSeg[] = [
  *  the open water so it reads as a real span over the whole green valley, not just the wet gap) */
 export const BRIDGES: RoadBridge[] = [
   // the span's own ends land exactly on the two approach roads' own frozen bank points (ring-h1-h2a's
-  // last point and ring-h1-h2b's first) — a grand, many-piered deck over the valley, not just the
-  // narrow wet gap, but never further than where the road itself already ends either side of it
-  { id: "wild-river-viaduct", name: "Wild River Viaduct", road: "ring", style: "grand", x: 1135.75, z: -624.485, heading: 1.474, span: 31.65, half: 5.2, y0: 7.99, y1: 5.99, rise: 1.8, piers: 4 },
-  { id: "lake-outlet-bridge", name: "Outlet Bridge", road: "ring", style: "simple", x: 1394, z: 208.9, heading: -1.776, span: 28.79, half: 4.8, y0: 6.5, y1: 6.74, rise: 0.9, piers: 2 },
+  // last point and ring-h1-h2b's first) — a grand, many-piered deck over the WHOLE carved valley,
+  // bank to bank: each end stands where the real ground is back up at road height (a shorter span
+  // left the road dropping 7 units off each end onto the valley floor). It runs north of the rail
+  // trestle, clear of it. The Outlet Bridge below is laid out the same way.
+  { id: "wild-river-viaduct", name: "Wild River Viaduct", road: "ring", style: "grand", x: 1106.05, z: -646.55, heading: 1.1816, span: 134.133, half: 5.2, y0: 13.86, y1: 4.07, rise: 1.8, piers: 9 },
+  { id: "lake-outlet-bridge", name: "Outlet Bridge", road: "ring", style: "simple", x: 1392.4, z: 208.5, heading: -1.7773, span: 69.271, half: 4.8, y0: 5.22, y1: 7.16, rise: 0.9, piers: 5 },
   // the third bridge, as asked for in round 2: a road OVERPASS over the Wildlands Railway, replacing
   // one of the two at-grade level crossings — the deck's own camber (the same sin(u*pi)*rise formula
   // every bridge uses) IS the ramp up and back down, so the ordinary road either side needs no
@@ -284,7 +286,7 @@ export const CAR_PARKS: CarPark[] = [
   // the OLD hub point instead (still a frozen vertex every connecting road genuinely passes through,
   // on its own short stub out to the roundabout), comfortably within r (12) of that real road point.
   { id: "cp-park-station", x: 140.8, z: -81.9, y: 2.85, heading: 0.3, r: 10, serves: ["Park Station"], jeeps: 2 },
-  { id: "cp-falls-station", x: 956, z: -671.5, y: 12.74, heading: 1.76, r: 12, serves: ["Great Falls Station", "Victoria Falls"], jeeps: 2 },
+  { id: "cp-falls-station", x: 956, z: -670, y: 12.77, heading: 1.64, r: 12, serves: ["Great Falls Station", "Victoria Falls"], jeeps: 2 },
   { id: "cp-treetop", x: 923.5, z: -722.4, y: 15.29, heading: 0.76, r: 12, serves: ["Treetop"], jeeps: 2 },
   { id: "cp-lake-station", x: 1398.5, z: -619, y: 7.4, heading: 1.76, r: 12, serves: ["Great Lake Station", "Lakeside"], jeeps: 3 },
   { id: "cp-peak-station", x: 1800.5, z: -287, y: 14.08, heading: 2.15, r: 12, serves: ["Lone Peak Station"], jeeps: 2 },
@@ -358,11 +360,14 @@ export interface RoadHit {
   /** signed lateral offset (+ to the right of travel) */
   lateral: number;
   heading: number;
+  /** the nearest point on the centre-line itself (ordinary road only) */
+  px: number;
+  pz: number;
   /** the nearest point's own bed height (plain linear interpolation along the segment) */
   deckY: number;
   kind: RoadKind;
 }
-const _hit: RoadHit = { d: Infinity, roadId: "", segId: "", lateral: 0, heading: 0, deckY: 0, kind: "road" };
+const _hit: RoadHit = { d: Infinity, roadId: "", segId: "", lateral: 0, heading: 0, px: 0, pz: 0, deckY: 0, kind: "road" };
 
 /** the nearest ordinary road (not a bridge/tunnel — see roadAt() for those) to (x, z), or d=Infinity
  *  if nothing is within ~80 units */
@@ -394,6 +399,8 @@ function nearestOrdinaryRoad(x: number, z: number): RoadHit {
       const lateral = (x - px) * (ez / l) - (z - pz) * (ex / l);
       _hit.roadId = seg.road;
       _hit.segId = seg.id;
+      _hit.px = px;
+      _hit.pz = pz;
       _hit.lateral = lateral;
       _hit.heading = heading;
       _hit.deckY = a.y + (c.y - a.y) * u;
@@ -434,8 +441,8 @@ export function bridgeDeckAt(b: RoadBridge, x: number, z: number): number | null
 }
 /** the tunnel floor height at (x, z) (null off it) */
 export function tunnelDeckAt(t: RoadTunnel, x: number, z: number): number | null {
-  const { side, u, len } = tunnelLocal(t, x, z);
-  const along = u * len;
+  // (the real distance along, not the clamped 0..1 one: past either portal there is no tunnel)
+  const { side, u, len, along } = tunnelLocal(t, x, z);
   if (along < -2 || along > len + 2 || Math.abs(side) > t.half + 0.15) return null;
   return t.y0 + (t.y1 - t.y0) * u;
 }
@@ -479,6 +486,10 @@ export function nearRoad(x: number, z: number, pad = 0): boolean {
 /** the nearest road point to (x, z): ordinary bed, bridge deck or tunnel floor, whichever answers
  *  (bridges/tunnels always win inside their own footprint, since that's the only sensible deck
  *  height there) — see the spec's roadAt() */
+/** how far (x, z) is from the nearest ordinary road's centre-line (Infinity if none is near) */
+export function roadCentreDist(x: number, z: number): number {
+  return nearestOrdinaryRoad(x, z).d;
+}
 export function roadAt(x: number, z: number): RoadHit {
   for (const b of BRIDGES) {
     const y = bridgeDeckAt(b, x, z);
@@ -541,8 +552,8 @@ export function inRoadCorridor(x: number, z: number): boolean {
     if (Math.abs(side) < b.half + ROAD_SHOULDER && Math.abs(along) < b.span / 2 + 1) return true;
   }
   for (const t of TUNNELS) {
-    const { side, u, len } = tunnelLocal(t, x, z);
-    if (Math.abs(side) < t.half + ROAD_SHOULDER && u * len > -2 && u * len < len + 2) return true;
+    const { side, along, len } = tunnelLocal(t, x, z);
+    if (Math.abs(side) < t.half + ROAD_SHOULDER && along > -2 && along < len + 2) return true;
   }
   // (a car park's free area reaches a little past its apron, across the verge to the road beside it)
   for (const cp of CAR_PARKS) if (Math.hypot(x - cp.x, z - cp.z) < cp.r + 3) return true;
@@ -573,49 +584,62 @@ export function roadConfine(x: number, z: number, prevX: number, prevZ: number):
     const step = Math.hypot(x - prevX, z - prevZ);
     if (rl < 0.01 || rl >= RING_DRIVE_OUTER + step + 1) {
       const l = d || 1;
-      return { x: j.x + ((x - j.x) / l || 1) * RING_DRIVE_INNER, z: j.z + ((z - j.z) / l) * RING_DRIVE_INNER };
+      return { x: j.x + ((x - j.x) / l || 1) * (RING_DRIVE_INNER + 0.02), z: j.z + ((z - j.z) / l) * (RING_DRIVE_INNER + 0.02) };
     }
     const cross = rx * (z - prevZ) - rz * (x - prevX);
     const dir = Math.abs(cross) < 0.2 * rl * step ? 1 : Math.sign(cross);
     const a = Math.atan2(rz, rx) + (dir * step) / RING_DRIVE_INNER;
-    return { x: j.x + Math.cos(a) * RING_DRIVE_INNER, z: j.z + Math.sin(a) * RING_DRIVE_INNER };
+    return { x: j.x + Math.cos(a) * (RING_DRIVE_INNER + 0.02), z: j.z + Math.sin(a) * (RING_DRIVE_INNER + 0.02) };
   }
-  // already free in a car park or on a bridge/tunnel that just failed the FIRST check because it's
-  // right at the lengthwise end (about to arrive at the ordinary road beyond it) — try nudging back
-  // onto the nearest ordinary road's own corridor first, since that's where every bridge/tunnel and
-  // every car park ultimately connects back into the network.
+  // Everywhere else: the NEAREST point that is on the network — on a road (its rounded end
+  // included, so a dead end really is one), a ring, a car park, a bridge deck or a tunnel floor.
+  // Nearest means a small step off the edge is answered with a small slide, never a jump.
+  let bx = prevX;
+  let bz = prevZ;
+  let bd = Infinity;
+  const take = (cx: number, cz: number) => {
+    const d = Math.hypot(cx - x, cz - z);
+    if (d < bd && inRoadCorridor(cx, cz)) {
+      bd = d;
+      bx = cx;
+      bz = cz;
+    }
+  };
+  const EPS = 0.02;
   const h = nearestOrdinaryRoad(x, z);
   if (h.d < 500) {
-    // slide along the edge: keep the same "s" (along-road) position implied by the nearest-point
-    // search, just pull the lateral offset back inside the corridor
-    const clampLat = Math.max(-ROAD_CORRIDOR_HALF, Math.min(ROAD_CORRIDOR_HALF, h.lateral));
-    // the perpendicular unit matching nearestOrdinaryRoad's own lateral convention exactly:
-    // lateral = (x-px)*(ez/l) - (z-pz)*(ex/l), heading = atan2(ex, ez), so ex/l = sin(heading) and
-    // ez/l = cos(heading) — the normal is (cos heading, -sin heading), NOT (-sin, cos)
-    const nx = Math.cos(h.heading);
-    const nz = -Math.sin(h.heading);
-    const px = x - h.lateral * nx;
-    const pz = z - h.lateral * nz;
-    const ox = px + clampLat * nx;
-    const oz = pz + clampLat * nz;
-    // (off a ring's OUTER edge where no road leaves: the nearest centre-line is one running on under
-    // the island, so slide along the ring's own outer edge instead of being pulled into the middle)
-    for (const j of ROAD_JUNCTIONS) {
-      if (Math.hypot(ox - j.x, oz - j.z) >= RING_DRIVE_INNER) continue;
-      const d = Math.hypot(x - j.x, z - j.z) || 1;
-      const r = RING_DRIVE_OUTER - 0.05;
-      return { x: j.x + ((x - j.x) / d) * r, z: j.z + ((z - j.z) / d) * r };
-    }
-    return { x: ox, z: oz };
+    const k = Math.min(1, (ROAD_CORRIDOR_HALF - EPS) / (h.d || 1));
+    take(h.px + (x - h.px) * k, h.pz + (z - h.pz) * k);
+  }
+  for (const j of ROAD_JUNCTIONS) {
+    const d = Math.hypot(x - j.x, z - j.z);
+    if (d > RING_DRIVE_OUTER + 60 || d < 0.01) continue;
+    const r = Math.max(RING_DRIVE_INNER + EPS, Math.min(RING_DRIVE_OUTER - EPS, d));
+    take(j.x + ((x - j.x) / d) * r, j.z + ((z - j.z) / d) * r);
   }
   for (const cp of CAR_PARKS) {
     const d = Math.hypot(x - cp.x, z - cp.z);
-    if (d < cp.r + 40) {
-      const k = cp.r / (d || 1);
-      return { x: cp.x + (x - cp.x) * Math.min(1, k), z: cp.z + (z - cp.z) * Math.min(1, k) };
-    }
+    if (d > cp.r + 60) continue;
+    const r = Math.min(d, cp.r + 3 - EPS);
+    take(cp.x + ((x - cp.x) / (d || 1)) * r, cp.z + ((z - cp.z) / (d || 1)) * r);
   }
-  return { x: prevX, z: prevZ };
+  for (const b of BRIDGES) {
+    const l = bridgeLocal(b, x, z);
+    if (Math.abs(l.along) > b.span / 2 + 60 || Math.abs(l.side) > 60) continue;
+    const al = Math.max(-b.span / 2 - 1 + EPS, Math.min(b.span / 2 + 1 - EPS, l.along));
+    const sd = Math.max(-(b.half + ROAD_SHOULDER - EPS), Math.min(b.half + ROAD_SHOULDER - EPS, l.side));
+    take(b.x + Math.sin(b.heading) * al + Math.cos(b.heading) * sd, b.z + Math.cos(b.heading) * al - Math.sin(b.heading) * sd);
+  }
+  for (const t of TUNNELS) {
+    const l = tunnelLocal(t, x, z);
+    if (l.along < -60 || l.along > l.len + 60 || Math.abs(l.side) > 60) continue;
+    const ux = (t.x1 - t.x0) / l.len;
+    const uz = (t.z1 - t.z0) / l.len;
+    const al = Math.max(-2 + EPS, Math.min(l.len + 2 - EPS, l.along));
+    const sd = Math.max(-(t.half + ROAD_SHOULDER - EPS), Math.min(t.half + ROAD_SHOULDER - EPS, l.side));
+    take(t.x0 + ux * al + uz * sd, t.z0 + uz * al - ux * sd);
+  }
+  return { x: bx, z: bz };
 }
 
 // ── which landmass (x, z) belongs to: the park's own little island, the big Wildlands landmass, or

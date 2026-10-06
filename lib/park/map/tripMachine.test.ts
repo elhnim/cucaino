@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TripLeg } from "./planner";
-import { advanceTrip, startTrip, tripStatus, type TripSense } from "./tripMachine";
+import { advanceTrip, FLY_LAND_R, startTrip, tripStatus, type TripSense } from "./tripMachine";
 
 const walkThenTrainThenWalk: TripLeg[] = [
   { mode: "walk", label: "walk to station", x: 10, z: 0, instruction: "Walk to the station", etaSec: 5 },
@@ -64,5 +64,18 @@ describe("tripMachine", () => {
     const status = tripStatus(walkThenTrainThenWalk, state, sense({ pose: { x: 0, z: 0 } }));
     expect(status.leg?.instruction).toBe("Walk to the station");
     expect(status.remaining).toBeCloseTo(10, 5);
+  });
+
+  it("a flight is finished where the dragon really sets down (its landing distance short of the target)", () => {
+    const fly: TripLeg[] = [{ mode: "fly", label: "fly", x: 500, z: 0, instruction: "Fly there", etaSec: 20 }];
+    let state = startTrip();
+    // still flying: not done even when close
+    state = advanceTrip(fly, state, sense({ pose: { x: 500 - FLY_LAND_R + 1, z: 0 }, flyingTo: "Somewhere" }));
+    expect(state.done).toBe(false);
+    // landed at the autopilot's own stopping distance: done
+    state = advanceTrip(fly, state, sense({ pose: { x: 500 - FLY_LAND_R + 1, z: 0 }, flyingTo: null }));
+    expect(state.done).toBe(true);
+    // but landing far away (the kid took over and came down early) is not arriving
+    expect(advanceTrip(fly, startTrip(), sense({ pose: { x: 400, z: 0 }, flyingTo: null })).done).toBe(false);
   });
 });

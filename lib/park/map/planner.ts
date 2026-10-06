@@ -15,13 +15,15 @@ import { routeBetween } from "../registry/island";
 import { STATIONS, RAIL_LENGTH, railS, type Station } from "../registry/railway";
 import { footpathOf } from "../registry/footpaths";
 import { MAP_DOCKS, type MapEntity } from "./entities";
+import { CAR_PARKS, type CarPark } from "../registry/roads";
 
 export const WALK_SPEED = 7;
 /** a winding Wildlands walk (no mapped trail) is never quite as direct as the crow flies */
 const WILD_WALK_WIGGLE = 1.35;
 export const TRAIN_SPEED = 24;
 export const TRAIN_DWELL_S = 6;
-export const FLY_SPEED = 7 * 2.6;
+/** (walk speed x the dragon's own speed x its autopilot boost: ParkWorld flies a map trip at this) */
+export const FLY_SPEED = 7 * 2.6 * 2.6;
 export const BOAT_SPEED = 7 * 2.6;
 export const JEEP_SPEED = 7 * 2.6;
 /** a last-mile walk this long or longer from a station is worth a jeep instead */
@@ -53,19 +55,23 @@ function nearestStation(p: { x: number; z: number }): Station {
   return STATIONS.reduce((best, s) => (dist(p, s) < dist(p, best) ? s : best), STATIONS[0]);
 }
 
-/** the shorter way round the loop between two stations, in world units */
+/** how far the train really travels from `a` to `b`: it only ever runs ONE way round the loop
+ *  (world/railway always increases s), so this is the forward distance, not the shorter arc */
 function railArc(a: Station, b: Station): number {
-  const d = Math.abs(a.s - b.s);
-  return Math.min(d, RAIL_LENGTH - d);
+  let d = b.s - a.s;
+  if (d < 0) d += RAIL_LENGTH;
+  return d;
 }
 
-/** stations strictly between `a` and `b` the short way round the loop (for a dwell-time estimate) */
+/** stations the train stops at on the way from `a` to `b` (for a dwell-time estimate) */
 function stopsBetween(a: Station, b: Station): number {
-  const lo = Math.min(a.s, b.s);
-  const hi = Math.max(a.s, b.s);
-  const short = hi - lo < RAIL_LENGTH - (hi - lo);
-  return STATIONS.filter((s) => s.id !== a.id && s.id !== b.id && (short ? s.s > lo && s.s < hi : s.s < lo || s.s > hi)).length;
+  const arc = railArc(a, b);
+  return STATIONS.filter((s) => s.id !== a.id && s.id !== b.id && railArc(a, s) < arc).length;
 }
+
+const nearestCarPark = (p: { x: number; z: number }): CarPark => CAR_PARKS.reduce((best, c) => (dist(p, c) < dist(p, best) ? c : best), CAR_PARKS[0]);
+/** a road winds: this much longer than the straight line between two car parks */
+const ROAD_WIGGLE = 1.4;
 
 /** the last mile from a station's platform to a settlement/wonder it serves: the real footpath
  *  when one exists (registry/footpaths.ts), else a wiggled straight line */
@@ -130,29 +136,37 @@ export function planTrip(from: { x: number; z: number }, to: MapEntity, ctx: Pla
   const targetStationId = to.category === "station" ? to.id : to.stationId;
   if (targetStationId) {
     const targetStation = STATIONS.find((s) => s.id === targetStationId);
-    if (targetStation) {
-      const board = nearestStation(from);
+    const boardAt = nearestStation(from);
+    // (already at the right station: there is no train to take — the walk option covers it)
+    if (targetStation && boardAt.id !== targetStation.id) {
+      const board = boardAt;
       const toBoard = walkDistance(from, board);
       const arc = railArc(board, targetStation);
       const dwell = stopsBetween(board, targetStation) * TRAIN_DWELL_S;
       const lastMile = targetStationId === to.id ? 0 : stationToSpot(targetStation, to, to.stationId);
       const walkSec = toBoard / WALK_SPEED;
       const rideSec = arc / TRAIN_SPEED + dwell;
-      const useJeep = lastMile >= JEEP_WORTHWHILE_DIST;
-      const lastSec = lastMile / (useJeep ? JEEP_SPEED : WALK_SPEED);
+      // a jeep goes car park to car park — it can't leave the road — so it is only worth it when the
+      // destination's own car park is much nearer the place than the station is
+      const cpFrom = nearestCarPark(targetStation);
+      const cpTo = nearestCarPark(to);
+      const walkOn = dist(cpTo, to) * WILD_WALK_WIGGLE;
+      const useJeep = lastMile >= JEEP_WORTHWHILE_DIST && cpTo.id !== cpFrom.id && walkOn < lastMile * 0.6;
+      const toJeep = dist(targetStation, cpFrom) * WILD_WALK_WIGGLE;
+      const driveSec = (dist(cpFrom, cpTo) * ROAD_WIGGLE) / JEEP_SPEED;
+      const lastSec = useJeep ? toJeep / WALK_SPEED + driveSec + walkOn / WALK_SPEED : lastMile / WALK_SPEED;
       const legs: TripLeg[] = [
         { mode: "walk", label: `Walk to ${board.emoji} ${board.name}`, x: board.x, z: board.z, instruction: `Walk to ${board.emoji} ${board.name} and hop on the train`, etaSec: walkSec },
         { mode: "train", label: `Ride to ${targetStation.emoji} ${targetStation.name}`, x: targetStation.x, z: targetStation.z, instruction: `Ride the train to ${targetStation.emoji} ${targetStation.name}`, etaSec: rideSec },
       ];
-      if (lastMile > 0.5)
-        legs.push({
-          mode: useJeep ? "jeep" : "walk",
-          label: useJeep ? `Jeep to ${to.name}` : `Walk to ${to.name}`,
-          x: to.x,
-          z: to.z,
-          instruction: useJeep ? `Hop in a jeep to ${to.emoji} ${to.name}` : `Walk to ${to.emoji} ${to.name}`,
-          etaSec: lastSec,
-        });
+      if (useJeep) {
+        legs.push(
+          { mode: "walk", label: "Walk to the jeeps", x: cpFrom.x, z: cpFrom.z, instruction: "Walk to the car park and hop in a jeep 🚙", etaSec: toJeep / WALK_SPEED },
+          { mode: "jeep", label: `Drive towards ${to.name}`, x: cpTo.x, z: cpTo.z, instruction: `Drive along the road to the ${to.emoji} ${to.name} car park`, etaSec: driveSec },
+          { mode: "walk", label: `Walk to ${to.name}`, x: to.x, z: to.z, instruction: `Park, hop out and walk to ${to.emoji} ${to.name}`, etaSec: walkOn / WALK_SPEED },
+        );
+      } else if (lastMile > 0.5)
+        legs.push({ mode: "walk", label: `Walk to ${to.name}`, x: to.x, z: to.z, instruction: `Walk to ${to.emoji} ${to.name}`, etaSec: lastSec });
       out.push({
         mode: useJeep ? "jeep" : "train",
         emoji: "🚂",

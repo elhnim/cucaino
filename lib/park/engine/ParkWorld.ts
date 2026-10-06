@@ -54,7 +54,8 @@ import { settlementAt, settlementDeckY } from "../registry/settlements";
 import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
 import { wildBridgeDeckY } from "../registry/wildWater";
 import { roadConfine, roadDeckY, inWildlandsZone, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
-import { canyonVisualFloorY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
+import { FLY_LAND_R } from "../map/tripMachine";
+import { canyonVisualFloorY, canyonWalkY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
 import { rawHeight } from "../registry/landform";
 import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
 import { FROST_ISLAND } from "../registry/frostIsland";
@@ -307,6 +308,8 @@ export class ParkWorld {
   private sky: { v: number; dist: number; cheered: boolean; train?: boolean } | null = null;
   /** standing on a station's platform, waiting for the train we called */
   private trainWait: Station | null = null;
+  /** where the kid stood last frame, for the canyon's cliff walls (see the walking code) */
+  private cliffPrev = { x: 0, z: 0, ok: false };
   private trainPose = { x: 0, y: 0, z: 0, yaw: 0 };
   // ── a guided route climb (Climb Everest!, Climb to the crater!): walked on the REAL mountain
   // (registry/climbRoutes.ts picks the route — registry/everestRoute.ts or paricutinRoute.ts), not a
@@ -725,6 +728,14 @@ export class ParkWorld {
     const q = points.map(([x, z]) => new THREE.Vector3(x, 0, z));
     this.walkTarget = q.shift() ?? null;
     this.walkQueue = q;
+  }
+  /** Stop whatever a guided trip set going (its walk along a route, or the dragon's autopilot):
+   *  the kid cancelled the trip. A dragon in the air simply stays where it is, the kid's to fly. */
+  stopGuidedMove() {
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.routing = false;
+    this.autoFly = null;
   }
   private clearBubble() {
     if (!this.petBubble) return;
@@ -1222,7 +1233,7 @@ export class ParkWorld {
       const dx = this.autoFly.x - pos.x;
       const dz = this.autoFly.z - pos.z;
       const d = Math.hypot(dx, dz);
-      if (d < 22) {
+      if (d < FLY_LAND_R) {
         this.autoFly = null;
         this.dismount();
       } else {
@@ -1498,6 +1509,30 @@ export class ParkWorld {
       dp.z = pos.z;
       dp.y = y ?? 0;
     } else this.deckPrev.on = false;
+    // the Grand Canyon's cliffs are walls: on foot (or on a land mount) a step that would change
+    // height by more than a real step — up a sheer face, or off a ledge — isn't taken; the kid slides
+    // along the foot or the edge instead and goes up and down by the trail's ramps
+    if (!this.climb && !this.onSky && !this.gliding && !aloft && !this.mount?.flies) {
+      const cp = this.cliffPrev;
+      const step = Math.hypot(pos.x - cp.x, pos.z - cp.z);
+      if (cp.ok && step > 0 && step < 3 && (canyonWalkY(pos.x, pos.z) !== null || canyonWalkY(cp.x, cp.z) !== null)) {
+        const y0 = worldFloor(cp.x, cp.z);
+        const wall = (x: number, z: number) => Math.abs(worldFloor(x, z) - y0) > 1.2 + 1.5 * Math.hypot(x - cp.x, z - cp.z);
+        if (wall(pos.x, pos.z)) {
+          if (!wall(pos.x, cp.z)) pos.z = cp.z;
+          else if (!wall(cp.x, pos.z)) pos.x = cp.x;
+          else {
+            pos.x = cp.x;
+            pos.z = cp.z;
+          }
+          this.walkTarget = null;
+          this.walkQueue = [];
+        }
+      }
+      cp.x = pos.x;
+      cp.z = pos.z;
+      cp.ok = true;
+    } else this.cliffPrev.ok = false;
     turnTowards(kid, dt);
     if (kid.current === "idle" || kid.current === "walk" || kid.current === "run" || kid.current === "") this.play(kid, moving && !this.mount ? "walk" : "idle");
     const floorY = worldFloor(pos.x, pos.z);
@@ -1679,8 +1714,12 @@ export class ParkWorld {
       const rw = this.park.railway;
       if (stationAt(pos.x, pos.z, 4) !== st || this.mount) {
         this.trainWait = null;
+        rw.release();
       } else if (rw.train.at === st) {
         this.trainWait = null;
+        // (aboard: the call is spent — a train that was already standing here never "arrives", so
+        // nothing else would clear it and it would wait at this platform for ever)
+        rw.release();
         this.sky = { v: 0, dist: 0, cheered: false, train: true };
         this.walkTarget = null;
         this.walkQueue = [];
@@ -3193,7 +3232,7 @@ export class ParkWorld {
     this.dismount(true);
     const start = route.pointAtU(0);
     const kp = this.kid.root.position;
-    kp.set(start.x, groundY(start.x, start.z), start.z);
+    kp.set(start.x, worldFloor(start.x, start.z), start.z);
     this.kid.facing = route.headingAtU(0);
     this.kid.root.rotation.y = this.kid.facing;
     const guide = buildChibi(route.guideAnimal, { height: route.guideHeight, role: "kid", accent: route.guideAccent });
@@ -3249,7 +3288,7 @@ export class ParkWorld {
     this.climb = null;
     if (returnToStart && this.kid) {
       const kp = this.kid.root.position;
-      kp.set(start.x, groundY(start.x, start.z), start.z);
+      kp.set(start.x, worldFloor(start.x, start.z), start.z);
       this.kid.root.rotation.y = this.kid.facing;
     }
   }
@@ -3294,8 +3333,10 @@ export class ParkWorld {
         this.play(kid, "cheer", true);
       }
     } else if (c.phase === "summit") {
+      // (the floor the kid really stands on — a modelled surface like the canyon's, not the height
+      // field sunk out of sight beneath it)
       const top = route.pointAtU(1);
-      const y = groundY(top.x, top.z);
+      const y = worldFloor(top.x, top.z);
       kid.root.position.set(top.x, y, top.z);
       if (this.climbSnow) {
         this.climbSnow.visible = true;
@@ -3308,9 +3349,13 @@ export class ParkWorld {
       const to = route.pointAtU(0);
       const x = from.x + (to.x - from.x) * t;
       const z = from.z + (to.z - from.z) * t;
-      const y = groundY(x, z) + Math.sin(t * Math.PI) * route.descendArc;
+      // an arc between the two ends' own heights that always clears whatever stands between them
+      // (the way back up out of the canyon crosses its cliffs)
+      const y0 = worldFloor(from.x, from.z);
+      const y1 = worldFloor(to.x, to.z);
+      const y = Math.max(y0 + (y1 - y0) * t + Math.sin(t * Math.PI) * route.descendArc, worldFloor(x, z) + 1.5 * Math.sin(t * Math.PI));
       kid.root.position.set(x, y, z);
-      if (c.guide) c.guide.root.position.set(x + 2, groundY(x + 2, z + 1), z + 1);
+      if (c.guide) c.guide.root.position.set(x + 2, Math.max(y, worldFloor(x + 2, z + 1)), z + 1);
       if (this.climbSnow) this.climbSnow.visible = false;
       if (t >= 1) this.endClimb(false); // the lerp already lands exactly at the trailhead
     }

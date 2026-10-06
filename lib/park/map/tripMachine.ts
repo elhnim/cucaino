@@ -8,6 +8,13 @@ import type { TripLeg } from "./planner";
 /** close enough to a leg's target to call it arrived (a bit more generous than a place's own
  *  doorRadius — the planner's targets are centres, not doorsteps) */
 export const ARRIVE_R = 7;
+/** how far short of its target the dragon autopilot sets down (ParkWorld's own landing distance —
+ *  it reads this number, so the two can never disagree again) */
+export const FLY_LAND_R = 22;
+/** a flight has arrived once the dragon has landed within its own landing distance (+ its glide) */
+export const FLY_ARRIVE_R = FLY_LAND_R + 8;
+/** a drive has arrived once the jeep is in the destination's car park */
+export const JEEP_ARRIVE_R = 16;
 
 export interface TripSense {
   pose: { x: number; z: number } | null;
@@ -30,8 +37,8 @@ export function startTrip(): TripState {
   return { legIndex: 0, boarded: false, done: false };
 }
 
-function arrived(sense: TripSense, x: number, z: number): boolean {
-  return !!sense.pose && Math.hypot(sense.pose.x - x, sense.pose.z - z) < ARRIVE_R;
+function arrived(sense: TripSense, x: number, z: number, r = ARRIVE_R): boolean {
+  return !!sense.pose && Math.hypot(sense.pose.x - x, sense.pose.z - z) < r;
 }
 
 function toNextLeg(state: TripState, legCount: number): TripState {
@@ -56,11 +63,13 @@ export function advanceTrip(legs: readonly TripLeg[], state: TripState, sense: T
   if (leg.mode === "fly") {
     // the dragon autopilot lands itself; the leg is done once it's no longer flying there and
     // we've actually arrived (covers both "landed on target" and "kid took over early but got there")
-    if (!sense.flyingTo && arrived(sense, leg.x, leg.z)) return toNextLeg(state, legs.length);
+    if (!sense.flyingTo && arrived(sense, leg.x, leg.z, FLY_ARRIVE_R)) return toNextLeg(state, legs.length);
     return state;
   }
 
-  // walk / jeep / boat: no special engine hook for these yet, so "arrived" is the one honest signal
+  // a jeep leg ends in a car park (pulled up anywhere on its apron counts)
+  if (leg.mode === "jeep") return arrived(sense, leg.x, leg.z, JEEP_ARRIVE_R) ? toNextLeg(state, legs.length) : state;
+  // walk / boat: no special engine hook for these yet, so "arrived" is the one honest signal
   if (arrived(sense, leg.x, leg.z)) return toNextLeg(state, legs.length);
   return state;
 }

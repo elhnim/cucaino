@@ -10,6 +10,7 @@ import type { ParkWorld } from "@/lib/park/engine/ParkWorld";
 import type { RidePin } from "@/lib/park/world/rideables";
 import { LANDS, type LandDef } from "@/lib/park/registry/places";
 import { routeBetween, type P2 } from "@/lib/park/registry/island";
+import { walkRoute } from "@/lib/park/map/walkRoute";
 import { playSfx } from "@/lib/audio/sound-manager";
 import { STATIC_ENTITIES, type MapEntity } from "@/lib/park/map/entities";
 import { loadFoundIds } from "@/lib/park/map/foundSet";
@@ -52,7 +53,7 @@ export function routeTo(pose: { x: number; z: number }, to: LandDef): P2[] {
 
 /** Walk route to a spot (e.g. just in front of the Quest Board or a wizard), along the trails. */
 export function routeToSpot(pose: { x: number; z: number }, x: number, z: number): P2[] {
-  return routeBetween(pose, { x, z });
+  return walkRoute(pose, { x, z });
 }
 
 function ridePinCategory(kind: RidePin["kind"]): MapEntity["category"] {
@@ -131,7 +132,9 @@ export function MiniMap({
     const leg = trip.option.legs[trip.state.legIndex];
     if (!leg) return;
     if (leg.mode === "fly") world.current?.flyTo(leg.x, leg.z, leg.label);
-    else if (leg.mode !== "train") world.current?.walkKidPath(routeToSpot(pose, leg.x, leg.z));
+    // (only a WALK leg walks itself: a jeep or a boat is the kid's to drive — walking the kid at
+    // its far end on foot just pushed them against the road's edge or the shore)
+    else if (leg.mode === "walk") world.current?.walkKidPath(routeToSpot(pose, leg.x, leg.z));
     onToast?.(leg.instruction);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip?.state.legIndex, trip?.option]);
@@ -245,12 +248,21 @@ export function MiniMap({
           onCancelTrip={() => {
             setTrip(null);
             drovenLeg.current = -1;
+            world.current?.stopGuidedMove();
           }}
           onMarkerTap={onMarkerTap}
         />
       )}
       {!big && trip && target && (
-        <TripToast target={target} status={status} onCancel={() => setTrip(null)} />
+        <TripToast
+          target={target}
+          status={status}
+          onCancel={() => {
+            setTrip(null);
+            drovenLeg.current = -1;
+            world.current?.stopGuidedMove();
+          }}
+        />
       )}
     </>
   );

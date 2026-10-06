@@ -901,7 +901,7 @@ function generateTreetop(): SettlementDef {
     {
       id: "tambo",
       name: "Tambo the Drummer",
-      lines: ["Come drum with us round the fire! Our log drums carry right up through the canopy.", "A sloth moves so slowly that moss grows right on its fur!", "Join the circle tonight — the whole village dances when the drums start."],
+      lines: ["Come drum with us round the fire! Our log drums carry right up through the canopy.", "A sloth moves so slowly that tiny green plants called algae grow in its fur!", "Join the circle tonight — the whole village dances when the drums start."],
     },
     {
       id: "wren",

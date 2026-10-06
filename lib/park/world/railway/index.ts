@@ -31,6 +31,8 @@ export interface Railway {
   update(dt: number, t: number, focus: THREE.Vector3): void;
   /** bring the train to this station and hold it there until `release` */
   call(st: Station): void;
+  /** the kid is aboard (or walked away): the train is free to leave again */
+  release(): void;
   /** keep the train standing where it is (a kid's boarding) / let it go on */
   hold(on: boolean): void;
   /** where car i (0 = the engine) is, and which way it faces */
@@ -248,6 +250,9 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
         train.v = TRAIN_V * 0.8;
         train.at = null;
       }
+    },
+    release() {
+      calledTo = null;
     },
     hold(on) {
       held = on;

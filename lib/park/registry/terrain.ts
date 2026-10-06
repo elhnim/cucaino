@@ -15,8 +15,8 @@ import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
 import { SETTLEMENTS, settlePadHeight } from "./settlements";
 import { paricutinY } from "./paricutin";
-import { CANYON_FOOTPATH, grandCanyonGroundY, nearGrandCanyon } from "./grandCanyon";
-import { ROAD_SEGMENTS, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROAD_BED_INNER, ROAD_BED_OUTER, ROUNDABOUT_OUTER, densifyRoad } from "./roads";
+import { CANYON_FOOTPATH, canyonPlateauRaise, grandCanyonGroundY, nearGrandCanyon } from "./grandCanyon";
+import { ROAD_SEGMENTS, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROAD_BED_INNER, ROAD_BED_OUTER, ROUNDABOUT_OUTER, densifyRoad, roadCentreDist } from "./roads";
 import { CART_ROAD } from "./cartRoad";
 import { FOOTPATHS } from "./footpaths";
 import { rawHeight, smooth, smoothedHeight } from "./landform";
@@ -214,9 +214,13 @@ function stamps(): Stamp[][] {
   // Plain stamps like everything above — where a road meets the railway or a path, whichever wins
   // the blend wins; the road's ribbon is draped over the ground that results (world/roads), so
   // nothing here needs to out-rank anything else. Lazy: no cost until a tile out there is baked.
-  for (const seg of ROAD_SEGMENTS) for (const p of densifyRoad(seg.points, 5)) stampLazy(p.x, p.z, ROAD_BED_INNER, ROAD_BED_OUTER, () => p.y);
-  for (const j of ROAD_JUNCTIONS) stampLazy(j.x, j.z, ROUNDABOUT_OUTER + 3, ROUNDABOUT_OUTER + 12, () => j.y);
-  for (const cp of CAR_PARKS) stampLazy(cp.x, cp.z, cp.r + 1, cp.r + 8, () => cp.y);
+  // (a road's frozen height is the FINAL ground height. Up on the Grand Canyon's plateau finish()
+  // lifts every sample by canyonPlateauRaise afterwards, so the bed is stamped that much lower —
+  // stamping the final height there put the whole canyon road on a second 68-unit embankment.)
+  const bedY = (x: number, z: number, y: number) => y - canyonPlateauRaise(x, z);
+  for (const seg of ROAD_SEGMENTS) for (const p of densifyRoad(seg.points, 5)) stampLazy(p.x, p.z, ROAD_BED_INNER, ROAD_BED_OUTER, () => bedY(p.x, p.z, p.y));
+  for (const j of ROAD_JUNCTIONS) stampLazy(j.x, j.z, ROUNDABOUT_OUTER + 3, ROUNDABOUT_OUTER + 12, () => bedY(j.x, j.z, j.y));
+  for (const cp of CAR_PARKS) stampLazy(cp.x, cp.z, cp.r + 1, cp.r + 8, () => bedY(cp.x, cp.z, cp.y));
   for (const t of TUNNELS) {
     const n = Math.max(4, Math.round(Math.hypot(t.x1 - t.x0, t.z1 - t.z0) / 4));
     for (let i = 0; i <= n; i++) {
@@ -337,8 +341,9 @@ function finish(x: number, z: number, h: number): number {
   const m = r < ISLAND_R + 60 ? mesaY(x, z, h) : wildShelfY(x, z, h);
   if (m !== null) h = Math.max(h, m);
   // the Batoka Gorge's own tall rock walls, flanking the river's narrow first stretch (Agent V)
+  // (its outer skirt gives way to a road's bed: the Great Falls road passes its foot)
   const gw = wildGorgeWallY(x, z, h);
-  if (gw !== null) h = Math.max(h, gw);
+  if (gw !== null && gw > h) h += (gw - h) * smooth(ROAD_BED_INNER, ROAD_BED_OUTER + 8, roadCentreDist(x, z));
   // Parícutin: the cinder cone + its lava field apron, raised the same way
   const pv = paricutinY(x, z, h);
   if (pv !== null) h = Math.max(h, pv);

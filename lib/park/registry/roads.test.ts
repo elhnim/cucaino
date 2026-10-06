@@ -444,11 +444,89 @@ describe("roads: roundabouts are driven round, not across", () => {
         x = c.x;
         z = c.z;
         closest = Math.min(closest, Math.hypot(x - j.x, z - j.z));
-        expect(R.inRoadCorridor(x, z) || Math.hypot(x - j.x, z - j.z) > R.ROUNDABOUT_INNER, `${j.id} left the road`).toBe(true);
+        expect(R.inRoadCorridor(x, z), `${j.id} left the road`).toBe(true);
       }
       expect(closest, `${j.id} cut across the island`).toBeGreaterThan(R.ROUNDABOUT_INNER);
       // (it gets at least round to the island's far half — or out along a road that leaves on the way)
       expect(x, `${j.id} got stuck`).toBeGreaterThan(j.x - 8);
+    }
+  });
+});
+
+describe("roads: a car can never leave the network, and is never thrown", () => {
+  it("a small step off any ring's outer edge is answered with a small slide (all the way round)", () => {
+    for (const j of R.ROAD_JUNCTIONS) {
+      for (let a = 0; a < Math.PI * 2; a += 0.02) {
+        const r0 = R.ROUNDABOUT_OUTER - 0.75;
+        const x0 = j.x + Math.cos(a) * r0;
+        const z0 = j.z + Math.sin(a) * r0;
+        if (!R.inRoadCorridor(x0, z0)) continue;
+        const c = R.roadConfine(j.x + Math.cos(a) * (r0 + 0.3), j.z + Math.sin(a) * (r0 + 0.3), x0, z0);
+        expect(R.inRoadCorridor(c.x, c.z), `${j.id} off the road`).toBe(true);
+        expect(Math.hypot(c.x - x0, c.z - z0), `${j.id} thrown at angle ${a.toFixed(2)}`).toBeLessThan(0.7);
+      }
+    }
+  });
+
+  it("driving straight on past the end of every dead-end road stops at its car park", () => {
+    for (const seg of R.ROAD_SEGMENTS) {
+      for (const end of [0, 1]) {
+        const n = seg.points.length;
+        const e = end ? seg.points[n - 1] : seg.points[0];
+        const b = end ? seg.points[n - 2] : seg.points[1];
+        const cp = R.CAR_PARKS.find((c) => Math.hypot(c.x - e.x, c.z - e.z) < 1);
+        if (!cp) continue;
+        const l = Math.hypot(e.x - b.x, e.z - b.z);
+        const ux = (e.x - b.x) / l;
+        const uz = (e.z - b.z) / l;
+        let x = e.x;
+        let z = e.z;
+        for (let i = 0; i < 400; i++) {
+          const c = R.roadConfine(x + ux * 0.3, z + uz * 0.3, x, z);
+          x = c.x;
+          z = c.z;
+          expect(R.inRoadCorridor(x, z), `${seg.id} left the network`).toBe(true);
+        }
+        expect(Math.hypot(x - cp.x, z - cp.z), `${seg.id} drove off past ${cp.id}`).toBeLessThan(cp.r + 3.01);
+      }
+    }
+  });
+
+  it("random pushes from anywhere on the network always land back on it, close by", () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+    for (const seg of R.ROAD_SEGMENTS) {
+      for (let k = 0; k < 60; k++) {
+        const p = seg.points[Math.floor(rnd() * seg.points.length)];
+        if (!R.inRoadCorridor(p.x, p.z)) continue; // (a leg's last points under a ring's island)
+        const a = rnd() * Math.PI * 2;
+        const step = 0.2 + rnd() * 6;
+        const tx = p.x + Math.cos(a) * step;
+        const tz = p.z + Math.sin(a) * step;
+        const c = R.roadConfine(tx, tz, p.x, p.z);
+        expect(R.inRoadCorridor(c.x, c.z), `${seg.id} pushed off the network`).toBe(true);
+        // (aimed at a roundabout's island the whole step is spent going round it instead)
+        if (R.ROAD_JUNCTIONS.some((j) => Math.hypot(tx - j.x, tz - j.z) < R.ROUNDABOUT_INNER + 1)) continue;
+        // (the answer is the nearest point of the network, and where it started is one `step` away)
+        expect(Math.hypot(c.x - tx, c.z - tz), `${seg.id} thrown`).toBeLessThan(step + 0.1);
+      }
+    }
+  });
+
+  it("a tunnel ends at its portals: no floor, ceiling or road beyond them", () => {
+    for (const t of R.TUNNELS) {
+      const len = Math.hypot(t.x1 - t.x0, t.z1 - t.z0);
+      const ux = (t.x1 - t.x0) / len;
+      const uz = (t.z1 - t.z0) / len;
+      expect(R.tunnelDeckAt(t, t.x0 + ux * 5, t.z0 + uz * 5)).not.toBeNull();
+      for (const d of [-100, -20, len + 20, len + 100]) {
+        const x = t.x0 + ux * d;
+        const z = t.z0 + uz * d;
+        expect(R.tunnelDeckAt(t, x, z), `${t.id} floor at ${d}`).toBeNull();
+        expect(R.tunnelCeilingAt(x, z), `${t.id} ceiling at ${d}`).toBeNull();
+      }
+      // off to the side of the line beyond a portal there is no road at all
+      expect(R.inRoadCorridor(t.x0 - ux * 100 + uz * 3, t.z0 - uz * 100 - ux * 3) && R.roadAt(t.x0 - ux * 100, t.z0 - uz * 100).kind === "tunnel").toBe(false);
     }
   });
 });
