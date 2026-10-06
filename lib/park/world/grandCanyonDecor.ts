@@ -15,7 +15,18 @@ import {
   CANYON_BAND_GLSL,
   CANYON_LODGE,
   CANYON_RIVER_SPAN,
-  CANYON_SIDE_CANYONS,
+  CANYON_CLIFFS,
+  CANYON_HALF_LEN,
+  CANYON_SKYWALK_DECK,
+  CANYON_SUNK_EDGE,
+  CANYON_TRAIL,
+  CANYON_TRAIL_HALF,
+  canyonMaxDepthAt,
+  canyonRimY,
+  canyonSurfaceY,
+  canyonTrailY,
+  canyonTerraceFrac,
+  canyonWalkY,
   CANYON_SITE,
   CANYON_SKYWALK,
   CANYON_TRAILHEAD,
@@ -26,14 +37,10 @@ import {
   canyonPlateauRaise,
   canyonProfilePoint,
   CANYON_BUTTES,
-  MULE_ALONG,
-  canyonMainTerraceFloorY,
-  canyonTerraceFloorY,
   canyonVisualFloorY,
   grandCanyonGroundY,
   nearCanyonFootpath,
   nearGrandCanyon,
-  type SideCanyon,
 } from "../registry/grandCanyon";
 import { rawHeight } from "../registry/landform";
 import { groundY } from "../registry/terrain";
@@ -68,7 +75,8 @@ function rngOf(seed: number): () => number {
   };
 }
 
-const groundAt = (x: number, z: number) => grandCanyonGroundY(x, z, rawHeight(x, z)) ?? groundY(x, z);
+// (the ground inside the canyon is its modelled surface + the ledge trail, not the height field)
+const groundAt = (x: number, z: number) => canyonWalkY(x, z) ?? grandCanyonGroundY(x, z, rawHeight(x, z)) ?? groundY(x, z);
 /** how close to the flat rim (x, z) is: ~0 right on it, growing the further down a cliff/terrace it is */
 function belowRim(x: number, z: number): number {
   const rim = rawHeight(x, z) + canyonPlateauRaise(x, z);
@@ -81,6 +89,7 @@ const STONE = new THREE.MeshStandardMaterial({ color: "#9a7a62", roughness: 0.9 
 const STONE_DARK = new THREE.MeshStandardMaterial({ color: "#6e5648", roughness: 0.9 });
 const ROOF = new THREE.MeshStandardMaterial({ color: "#7a4a36", roughness: 0.8 });
 const RAIL = new THREE.MeshStandardMaterial({ color: "#5c3e2a", roughness: 0.8 });
+const TRAIL_PATH = new THREE.MeshStandardMaterial({ color: "#e2c494", roughness: 0.95, side: THREE.DoubleSide });
 const GLASS = new THREE.MeshStandardMaterial({ color: "#7fd4e8", roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.55 });
 const GLASS_EDGE = new THREE.MeshStandardMaterial({ color: "#2a4a52", roughness: 0.6 });
 const CACTUS_GREEN = new THREE.MeshStandardMaterial({ color: "#5a8a4a", roughness: 0.85 });
@@ -142,35 +151,60 @@ function buildWatchtower(): THREE.Group {
 // ── the Skywalk: a railed, glass-floored horseshoe balcony on a short walk out from the rim ──
 function buildSkywalk(): THREE.Group {
   const g = group("canyon-skywalk");
-  const y = groundAt(CANYON_SKYWALK.x, CANYON_SKYWALK.z) - 0.05;
-  g.position.set(CANYON_SKYWALK.x, y, CANYON_SKYWALK.z);
-  const deck = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 0.5, 20, 1, false, 0, Math.PI), WOOD);
+  const D = CANYON_SKYWALK_DECK;
+  const y = D.y - 0.05;
+  g.position.set(D.out.x, y, D.out.z);
+  const deck = new THREE.Mesh(new THREE.CylinderGeometry(D.r, D.r, 0.5, 28), WOOD);
+  deck.position.y = -0.25;
   g.add(deck);
-  const glass = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 6.4, 0.08, 20, 1, false, 0, Math.PI), GLASS);
-  glass.position.y = 0.3;
+  const glass = new THREE.Mesh(new THREE.CylinderGeometry(6.4, 6.4, 0.08, 28), GLASS);
+  glass.position.y = 0.04;
   g.add(glass);
-  // a dark mullion ring round the glass panel's own edge, so it reads as a distinct see-through
-  // panel set into the wood deck, not just a pale patch
-  const edge = new THREE.Mesh(new THREE.TorusGeometry(6.4, 0.09, 6, 24, Math.PI), GLASS_EDGE);
+  const edge = new THREE.Mesh(new THREE.TorusGeometry(6.4, 0.09, 6, 32), GLASS_EDGE);
   edge.rotation.x = Math.PI / 2;
-  edge.position.y = 0.3;
+  edge.position.y = 0.05;
   g.add(edge);
-  const N = 14;
-  for (let i = 0; i <= N; i++) {
-    const a = (i / N) * Math.PI;
+  // the walkway back to the rim
+  const wx = D.base.x - D.out.x;
+  const wz = D.base.z - D.out.z;
+  const wl = Math.hypot(wx, wz);
+  const yaw = Math.atan2(wx, wz);
+  const walk = new THREE.Mesh(new THREE.BoxGeometry(D.half * 2, 0.5, wl), WOOD);
+  walk.position.set(wx / 2, -0.25, wz / 2);
+  walk.rotation.y = yaw;
+  g.add(walk);
+  // a railing right round, open where the walkway comes in
+  const N = 26;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    let da = a - yaw;
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    if (Math.abs(da) < 0.34) continue;
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 5), RAIL);
-    post.position.set(Math.sin(a) * 8.7, 0.75, Math.cos(a) * 8.7);
+    post.position.set(Math.sin(a) * (D.r - 0.3), 0.5, Math.cos(a) * (D.r - 0.3));
     g.add(post);
   }
-  const rail = new THREE.Mesh(new THREE.TorusGeometry(8.7, 0.07, 6, 24, Math.PI), RAIL);
+  const rail = new THREE.Mesh(new THREE.TorusGeometry(D.r - 0.3, 0.07, 6, 40, Math.PI * 2 - 0.68), RAIL);
   rail.rotation.x = Math.PI / 2;
-  rail.position.y = 1.25;
+  rail.rotation.z = -(Math.PI / 2 - yaw) + 0.34;
+  rail.position.y = 1.0;
   g.add(rail);
-  // a couple of steel support struts underneath, cantilevered out past the rim (just for the look)
-  for (const s of [-5, 0, 5]) {
-    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 10, 6), STONE_DARK);
-    strut.rotation.x = Math.PI / 2.6;
-    strut.position.set(s, -3.5, 3);
+  for (const sgn of [-1, 1]) {
+    for (let k = 0; k <= 4; k++) {
+      const t = k / 4;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.0, 5), RAIL);
+      post.position.set(wx * (0.38 + t * 0.62) + Math.cos(yaw) * sgn * D.half, 0.5, wz * (0.38 + t * 0.62) - Math.sin(yaw) * sgn * D.half);
+      g.add(post);
+    }
+  }
+  // steel struts back to the cliff under the balcony
+  for (const sgn of [-1, 1]) {
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, wl * 1.15, 6), STONE_DARK);
+    strut.position.set(wx / 2 + Math.cos(yaw) * sgn * 1.6, -5.2, wz / 2 - Math.sin(yaw) * sgn * 1.6);
+    strut.rotation.order = "YXZ";
+    strut.rotation.y = yaw;
+    strut.rotation.x = Math.PI / 2 - 0.6;
     g.add(strut);
   }
   return g;
@@ -410,100 +444,109 @@ function buildBoulderGeometry(rnd: () => number): THREE.BufferGeometry {
  *  fluted faces) rather than one dead-flat plane. Two layered frequencies keep it from looking
  *  mechanically regular; it never goes negative (staying a comfortably positive push at every
  *  along) so a ring can never fold back past its neighbour and self-intersect. */
-function flutingOffset(along: number, side: number): number {
-  const a = along * 0.046 + side * 2.35;
-  const lobe = 0.5 + 0.5 * Math.sin(a);
-  const ripple = 0.6 + 0.4 * Math.sin(a * 2.7 + 1.3);
-  return 0.6 + 1.6 * lobe * ripple;
-}
-function buildCliffWalls(): THREE.Mesh {
-  const ALONG_STEP = 6;
-  const ALONG_MIN = -300;
-  const ALONG_MAX = 300;
-  // explicit u samples, clustered tightly round the 3 real cliff transitions (registry/
-  // grandCanyon.ts's canyonTerraceFrac: ~0.07-0.1, ~0.4-0.44, ~0.68-0.73) — a uniform spacing
-  // coarser than one of those near-vertical bands would connect "below the cliff" on one ring to
-  // "above the cliff" on its neighbour, lofting a twisted sliver of a triangle between them (it
-  // read as thin dark spikes poking out of the slopes); sampling densely exactly where the real
-  // profile is steep keeps every ring's own cliff aligned with its neighbours'.
-  const US = [0.085, 0.095, 0.1, 0.108, 0.115, 0.13, 0.17, 0.22, 0.28, 0.34, 0.39, 0.405, 0.415, 0.425, 0.435, 0.44, 0.46, 0.5, 0.56, 0.62, 0.665, 0.682, 0.69, 0.698, 0.706, 0.714, 0.73, 0.76, 0.82, 0.89, 0.96, 1.03, 1.14];
-  const U_N = US.length;
+/** THE GORGE: one modelled surface from rim to rim — the flat floor, the two benches, the three
+ *  near-vertical cliffs and a strip of rim each side out to where the island's own height field
+ *  takes over (CANYON_SUNK_EDGE) — lofted along the real, wandering axis with its columns placed
+ *  exactly on every cliff's foot and top, so each cliff is a clean wall. Its heights are
+ *  canyonTerraceFrac's (the same numbers canyonWalkY() gives the kid's feet). The height field
+ *  underneath is sunk out of sight (canyonTerraceFracSoft). Colour is per fragment: the rock layers
+ *  by world height on the faces, a sandier, lighter tone on anything flat. */
+function buildCanyonSurface(): THREE.Mesh {
+  const us: number[] = [0, 0.15];
+  for (const [a, b] of CANYON_CLIFFS) us.push(a - 0.012, a, a + (b - a) * 0.3, a + (b - a) * 0.5, a + (b - a) * 0.7, b, b + 0.012);
+  us.push(0.45, 0.7, 0.95, 1.06, 1.18, CANYON_SUNK_EDGE);
+  us.sort((p, q) => p - q);
+  const cols: number[] = [...us.slice(1).reverse().map((u) => -u), ...us];
   const alongs: number[] = [];
-  for (let a = ALONG_MIN; a <= ALONG_MAX; a += ALONG_STEP) alongs.push(a);
-
-  const positions: number[] = [];
-  const indices: number[] = [];
-  const outward = new THREE.Vector3();
-  for (const side of [1, -1] as const) {
-    const base = positions.length / 3;
-    for (const along of alongs) {
-      const fo = flutingOffset(along, side);
-      for (let k = 0; k < U_N; k++) {
-        const u = US[k];
-        const p = canyonProfilePoint(along, side, u);
-        // the CRISP visual floor (real near-vertical cliffs, true flat benches) is what this mesh
-        // actually draws; it stands provably at-or-above the much-softened height field the kid
-        // walks on everywhere (canyonTerraceFracSoft's transitions are strictly wider than and
-        // nested around canyonTerraceFrac's own, so the crisp plateau is always reached first), but
-        // the max() + lift below is a cheap, explicit safety net against that ever being violated by
-        // a side-canyon interaction — the one failure mode that reads as "terrain poking through
-        // the cliff face" instead of a clean lofted wall. round 7: canyonMainTerraceFloorY, NOT
-        // canyonVisualFloorY (nor even canyonTerraceFloorY) — this wall must never also hug a
-        // butte's own protected disc OR a side canyon's own mouth-taper, either of which sits at a
-        // u this mesh's own US sampling (tuned for the three real MAIN terrace cliffs only) was
-        // never dense enough to resolve smoothly — exactly what read as "hard scribbled fluting"
-        // standing proud of the real rock at the wrong height. Buttes are their own dense,
-        // standalone mesas (buildButteMesas); side canyons get their own properly-sampled wall
-        // (buildSideCanyonWalls) — the main wall only ever represents the main gorge's own terraces.
-        const crispY = canyonMainTerraceFloorY(p.x, p.z, rawHeight(p.x, p.z)) ?? rawHeight(p.x, p.z) + canyonPlateauRaise(p.x, p.z);
-        const softY = grandCanyonGroundY(p.x, p.z, rawHeight(p.x, p.z)) ?? rawHeight(p.x, p.z) + canyonPlateauRaise(p.x, p.z);
-        const y = Math.max(crispY, softY);
-        // nudge the wall a hair outward (away from the canyon's own centre) so it doesn't z-fight
-        // the terrain it's drawn flush against — the outward direction is just the direction the
-        // profile itself is already moving in as u grows, no extra export needed
-        const p2 = canyonProfilePoint(along, side, Math.min(US[US.length - 1], u + 0.01));
-        outward.set(p2.x - p.x, 0, p2.z - p.z);
-        if (outward.lengthSq() > 1e-6) outward.normalize();
-        positions.push(p.x + outward.x * fo, y + 0.05, p.z + outward.z * fo);
-      }
+  for (let a = -CANYON_HALF_LEN - 6; a <= CANYON_HALF_LEN + 6; a += 3) alongs.push(a);
+  const pos: number[] = [];
+  const idx: number[] = [];
+  for (const along of alongs) {
+    const depth = canyonMaxDepthAt(along);
+    for (const c of cols) {
+      const p = canyonProfilePoint(along, c < 0 ? -1 : 1, Math.abs(c));
+      const rim = canyonRimY(p.x, p.z);
+      // (the outermost column tucks under the ground it meets)
+      const y = Math.abs(c) >= CANYON_SUNK_EDGE ? rim - 0.2 : rim - depth * canyonTerraceFrac(Math.abs(c));
+      pos.push(p.x, y, p.z);
     }
-    for (let i = 0; i + 1 < alongs.length; i++) {
-      // leave a gap in the wall along the mule trail's own corridor (side +1 only — the trail
-      // never rides the far side): the ride's camera sits right up against these same near-
-      // vertical faces, and would otherwise clip straight through this decor skin
-      if (side > 0 && Math.abs(alongs[i] - MULE_ALONG) < 45) continue;
-      for (let k = 0; k + 1 < U_N; k++) {
-        const a0 = base + i * U_N + k;
-        const b0 = base + (i + 1) * U_N + k;
-        if (side > 0) indices.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1);
-        else indices.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0);
-      }
+  }
+  const W = cols.length;
+  for (let i = 0; i + 1 < alongs.length; i++) {
+    for (let k = 0; k + 1 < W; k++) {
+      const a = i * W + k;
+      idx.push(a, a + W, a + 1, a + 1, a + W, a + W + 1);
     }
   }
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(indices);
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
   geo.computeVertexNormals();
-  geo.computeBoundingSphere();
-
-  // flat (faceted) shading: smooth vertex normals averaged straight across a near-vertical
-  // cliff/flat-bench crease point the wrong way at the seam, reading as dark spiky artifacts —
-  // flat shading derives each face's own normal from screen-space derivatives instead, giving a
-  // clean faceted terrace look (which also suits this low-poly park's own style)
-  // DoubleSide: the kid walks INSIDE the canyon, between the two walls, so the camera is always on
-  // the concave (inward) side of whichever wall is in view — the wall's own winding/normal would
-  // need to face inward to show up under FrontSide culling there, which doesn't hold for every
-  // viewpoint (looking back the other way, or from outside the rim); simplest and robust is to
-  // just draw both faces.
   const mesh = new THREE.Mesh(geo, bandedWallMaterial());
-  mesh.name = "canyon-cliff-walls";
-  // neither casts nor receives shadows: a custom onBeforeCompile material sampling the shadow map
-  // too (receiveShadow) was an occasional black-frame hazard under software rendering (a shader
-  // program/link race) — this mesh's own banding is the whole point, a shadow falling across it
-  // would just dim it, so it's no real loss
+  mesh.name = "canyon-surface";
   mesh.receiveShadow = false;
   mesh.castShadow = false;
   return mesh;
+}
+
+/** the ledge trail: each ramp a solid rock causeway built against the foot of its cliff — a
+ *  sandy path on top, rock sides down to the bench below, a row of posts along the open edge */
+function buildCanyonTrail(): THREE.Group {
+  const g = group("canyon-trail");
+  const T = CANYON_TRAIL;
+  const top: number[] = [];
+  const topIdx: number[] = [];
+  const side: number[] = [];
+  const sideIdx: number[] = [];
+  const posts: THREE.BufferGeometry[] = [];
+  const H = CANYON_TRAIL_HALF;
+  for (let i = 0; i < T.length; i++) {
+    const a = T[Math.max(0, i - 1)];
+    const b = T[Math.min(T.length - 1, i + 1)];
+    const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const nx = (b.z - a.z) / l;
+    const nz = -(b.x - a.x) / l;
+    const p = T[i];
+    const y = p.y + 0.1;
+    for (const sgn of [-1, 1]) {
+      const ex = p.x + nx * H * sgn;
+      const ez = p.z + nz * H * sgn;
+      top.push(ex, y, ez);
+      const foot = (canyonSurfaceY(ex + nx * sgn * 0.4, ez + nz * sgn * 0.4) ?? y) - 0.6;
+      side.push(ex, y, ez, ex + nx * sgn * 0.5, Math.min(foot, y - 0.1), ez + nz * sgn * 0.5);
+      if (i % 5 === 0 && y - foot > 2.2) {
+        const post = new THREE.BoxGeometry(0.26, 1.2, 0.26);
+        post.translate(p.x + nx * (H - 0.25) * sgn, y + 0.6, p.z + nz * (H - 0.25) * sgn);
+        posts.push(post);
+      }
+    }
+  }
+  for (let i = 0; i + 1 < T.length; i++) {
+    const a = i * 2;
+    topIdx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+    const s0 = i * 4;
+    sideIdx.push(s0, s0 + 1, s0 + 4, s0 + 1, s0 + 5, s0 + 4, s0 + 2, s0 + 6, s0 + 3, s0 + 3, s0 + 6, s0 + 7);
+  }
+  const topGeo = new THREE.BufferGeometry();
+  topGeo.setAttribute("position", new THREE.Float32BufferAttribute(top, 3));
+  topGeo.setIndex(topIdx);
+  topGeo.computeVertexNormals();
+  const path = new THREE.Mesh(topGeo, TRAIL_PATH);
+  path.name = "canyon-trail-path";
+  g.add(path);
+  const sideGeo = new THREE.BufferGeometry();
+  sideGeo.setAttribute("position", new THREE.Float32BufferAttribute(side, 3));
+  sideGeo.setIndex(sideIdx);
+  sideGeo.computeVertexNormals();
+  const walls = new THREE.Mesh(sideGeo, bandedWallMaterial());
+  walls.name = "canyon-trail-sides";
+  g.add(walls);
+  if (posts.length) {
+    const pm = new THREE.Mesh(mergeGeometries(posts), RAIL);
+    pm.name = "canyon-trail-posts";
+    g.add(pm);
+  }
+  return g;
 }
 
 /** the same crisp per-fragment banded shader buildCliffWalls() uses, factored out so the side-
@@ -532,15 +575,26 @@ function bandedWallMaterial(): THREE.MeshStandardMaterial {
     // without moving it in world space or opening a visible gap on the benches where they're meant
     // to coincide exactly. (Confirmed this is not itself what caused round-4's black-frame
     // regression: that reproduces identically with this removed — see the round-4 report.)
-    polygonOffset: true,
-    polygonOffsetFactor: -4,
-    polygonOffsetUnits: -4,
   });
   mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying float vCanyonY;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvCanyonY = ( modelMatrix * vec4( position, 1.0 ) ).y;");
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying float vCanyonY;\nvarying vec3 vCanyonW;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvCanyonW = ( modelMatrix * vec4( position, 1.0 ) ).xyz;\nvCanyonY = vCanyonW.y;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", `#include <common>\nvarying float vCanyonY;\n${CANYON_BAND_GLSL}`)
-      .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb = canyonBandColor( vCanyonY );")
+      .replace("#include <common>", `#include <common>\nvarying float vCanyonY;\nvarying vec3 vCanyonW;\n${CANYON_BAND_GLSL}`)
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+  {
+    // faces: the rock layers by height, with faint vertical weathering streaks; anything flat (the
+    // floor, the benches, the rim, a mesa's top): the same rock but sandier and lighter
+    vec3 cN = normalize( cross( dFdx( vCanyonW ), dFdy( vCanyonW ) ) );
+    float cUp = smoothstep( 0.7, 0.92, abs( cN.y ) );
+    vec3 cBand = canyonBandColor( vCanyonY );
+    float cStreak = 0.9 + 0.12 * sin( vCanyonW.x * 0.83 + vCanyonW.z * 1.07 ) * sin( vCanyonW.x * 0.21 - vCanyonW.z * 0.17 );
+    float cPatch = 0.5 + 0.5 * sin( vCanyonW.x * 0.11 + 1.3 ) * sin( vCanyonW.z * 0.09 - 0.4 );
+    vec3 cTop = mix( cBand, vec3( 0.84, 0.72, 0.52 ), 0.3 ) * ( 0.84 + 0.12 * cPatch );
+    diffuseColor.rgb = mix( cBand * cStreak, cTop, cUp );
+  }`,
+      )
       // round 6: the gorge is only ~200 units across, so the OPPOSITE wall sits right at (or past)
       // the global fog's own near/far start — the same fog every other object on the island uses,
       // tuned for the open rolling terrain, washes these walls to a pale green-white at exactly the
@@ -557,7 +611,7 @@ function bandedWallMaterial(): THREE.MeshStandardMaterial {
   #else
     float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
   #endif
-  fogFactor *= 0.45; // the canyon's own walls: a gentler, kid-readable recede, not a wash to white
+  fogFactor *= 0.22; // the canyon's own walls: a gentler, kid-readable recede, not a wash to white
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );
 #endif`,
       );
@@ -566,88 +620,6 @@ function bandedWallMaterial(): THREE.MeshStandardMaterial {
   return mat;
 }
 
-// ── the two short side canyons get the same lofted treatment as the main walls: a single ring of
-// samples per branch (they're straight, so one cross-section per `along'` is enough — no need for
-// the main axis's own wandering-centreline handling), heights always read from canyonVisualFloorY
-// at the real (x, z) so a decor-side taper approximation can never desync from the true carve ──
-function sideCanyonHalfWidthAt(sc: SideCanyon, along: number): number {
-  const taper = 1 - smoothstep(sc.length - 40, sc.length, Math.max(0, along));
-  return Math.max(0.5, sc.halfWidth * taper);
-}
-function buildSideCanyonWalls(): THREE.Mesh {
-  const US = [0.085, 0.095, 0.1, 0.108, 0.115, 0.13, 0.17, 0.22, 0.28, 0.34, 0.39, 0.405, 0.415, 0.425, 0.435, 0.44, 0.46, 0.5, 0.56, 0.62, 0.665, 0.682, 0.69, 0.698, 0.706, 0.714, 0.73, 0.76, 0.82, 0.89, 0.96, 1.03, 1.14];
-  const U_N = US.length;
-  const positions: number[] = [];
-  const indices: number[] = [];
-  for (const sc of CANYON_SIDE_CANYONS) {
-    const mouth = alongToWorld(sc.mouthAlong, sc.mouthLateral);
-    const dx = Math.sin(sc.heading);
-    const dz = Math.cos(sc.heading);
-    const sxv = Math.cos(sc.heading);
-    const szv = -Math.sin(sc.heading);
-    // round 6: starting this wall right at the branch's own mouth (the old `-6`) put it in the
-    // SAME physical space the main cliff wall already drew back then — the main wall used to also
-    // bump up near a side canyon's own mouth (canyonVisualFloorY's min() blend), so the two
-    // independent, un-joined surfaces overlapped and z-fought right at the junction (the "broken
-    // glass with dark scribbled lines" reported near the Watchtower, whose own along is only 20
-    // units from the first side canyon's mouth). Round 7 fixed the ROOT of that: the main wall now
-    // lofts itself from canyonMainTerraceFloorY, which never blends in a side canyon at all, so it
-    // can no longer compete with this mesh for the same rock face at the mouth — this can start
-    // much closer in again (12, not 30) without reopening that overlap, leaving only a small strip
-    // right at along=0 uncovered by EITHER wall (the terrain's own soft carve there, blended
-    // smoothly, not a glitch — just not yet dressed with crisp decor).
-    const alongs: number[] = [];
-    for (let a = 12; a <= sc.length; a += 6) alongs.push(a);
-    for (const side of [1, -1] as const) {
-      const base = positions.length / 3;
-      for (const along of alongs) {
-        const hw = sideCanyonHalfWidthAt(sc, along);
-        const fo = flutingOffset(sc.mouthAlong + along, side * 1.6);
-        for (let k = 0; k < U_N; k++) {
-          const u = US[k];
-          const lateral = side * u * hw;
-          const x = mouth.x + dx * along + sxv * lateral;
-          const z = mouth.z + dz * along + szv * lateral;
-          // round 7: canyonTerraceFloorY here too, same reason as the main wall above — never hug
-          // a butte's own protected disc, that's buildButteMesas()'s own job now
-          const crispY = canyonTerraceFloorY(x, z, rawHeight(x, z)) ?? rawHeight(x, z) + canyonPlateauRaise(x, z);
-          const softY = grandCanyonGroundY(x, z, rawHeight(x, z)) ?? rawHeight(x, z) + canyonPlateauRaise(x, z);
-          const y = Math.max(crispY, softY);
-          const lateral2 = side * Math.min(US[US.length - 1], u + 0.01) * hw;
-          const x2 = mouth.x + dx * along + sxv * lateral2;
-          const z2 = mouth.z + dz * along + szv * lateral2;
-          const ox = x2 - x;
-          const oz = z2 - z;
-          const oLen = Math.hypot(ox, oz) || 1;
-          positions.push(x + (ox / oLen) * fo, y + 0.05, z + (oz / oLen) * fo);
-        }
-      }
-      for (let i = 0; i + 1 < alongs.length; i++) {
-        for (let k = 0; k + 1 < U_N; k++) {
-          const a0 = base + i * U_N + k;
-          const b0 = base + (i + 1) * U_N + k;
-          if (side > 0) indices.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1);
-          else indices.push(a0, a0 + 1, b0, a0 + 1, b0 + 1, b0);
-        }
-      }
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  geo.computeBoundingSphere();
-  const mesh = new THREE.Mesh(geo, bandedWallMaterial());
-  mesh.name = "canyon-side-walls";
-  mesh.receiveShadow = false;
-  mesh.castShadow = false;
-  return mesh;
-}
-
-// ── the three standing buttes, now built as real standalone mesas (clean stacked, slightly
-// irregular extruded blocks with the same banded shader) instead of a height-field bump: each is a
-// few box "courses" of decreasing size stacked up from the carved floor at its own (along, lateral)
-// to its own crown height, with a per-butte random seed so the courses aren't identical twins ──
 function buildButteMesas(): THREE.Group {
   const g = group("canyon-buttes");
   let seed = 7001;
@@ -690,8 +662,8 @@ export interface GrandCanyonDecor {
 export function buildGrandCanyonDecor(scene: THREE.Scene): GrandCanyonDecor {
   const root = group("grand-canyon-decor");
 
-  root.add(buildCliffWalls());
-  root.add(buildSideCanyonWalls());
+  root.add(buildCanyonSurface());
+  root.add(buildCanyonTrail());
   root.add(buildButteMesas());
   root.add(buildWatchtower());
   root.add(buildSkywalk());
@@ -778,15 +750,19 @@ export function buildGrandCanyonDecor(scene: THREE.Scene): GrandCanyonDecor {
     Math.hypot(x - CANYON_WATCHTOWER.x, z - CANYON_WATCHTOWER.z) > 8 &&
     Math.hypot(x - CANYON_SKYWALK.x, z - CANYON_SKYWALK.z) > 14 &&
     placed.every((p) => Math.hypot(p.x - x, p.z - z) > p.r + r);
-  for (let tries = 0; tries < 4200 && nCactus + nYucca + nSage + nJTrunk + nBoulder < 480; tries++) {
+  for (let tries = 0; tries < 6000 && nCactus + nYucca + nSage + nJTrunk + nBoulder < 480; tries++) {
     const along = (scatterRng() - 0.5) * 2 * 320;
     const lateral = (scatterRng() - 0.5) * 2 * 140;
     const x = CANYON_SITE.x + lateral;
     const z = CANYON_SITE.z + along;
     if (!nearGrandCanyon(x, z, -8)) continue;
-    const below = belowRim(x, z);
-    if (below > 4) continue; // the rim's own tableland only — nothing growing down the cliffs
+    // anywhere FLAT: the rim's tableland, the two benches and the floor — never a cliff face, the
+    // river or the trail
     const y = groundAt(x, z);
+    if (Math.abs(groundAt(x + 1.6, z) - y) > 0.5 || Math.abs(groundAt(x - 1.6, z) - y) > 0.5 || Math.abs(groundAt(x, z + 1.6) - y) > 0.5) continue;
+    if (canyonTrailY(x, z) !== null) continue;
+    if (Math.abs(x - canyonAxisPointAt(along).x) < canyonChannelHalfWidthAt(along) + 2.5) continue;
+    if (CANYON_TRAIL.some((t, ti) => ti % 4 === 0 && Math.hypot(t.x - x, t.z - z) < 6)) continue;
     const u = scatterRng();
     if (u < 0.22 && nCactus < 80) {
       const s = 0.8 + scatterRng() * 0.7;
@@ -843,9 +819,9 @@ export function buildGrandCanyonDecor(scene: THREE.Scene): GrandCanyonDecor {
 
   // the river at the bottom: a simple flowing ribbon following the real (wandering) channel
   const riverPts: { x: number; y: number; z: number; half: number }[] = [];
-  for (let along = CANYON_RIVER_SPAN[0]; along <= CANYON_RIVER_SPAN[1]; along += 8) {
+  for (let along = CANYON_RIVER_SPAN[0]; along <= CANYON_RIVER_SPAN[1]; along += 3) {
     const p = canyonAxisPointAt(along);
-    const y = groundAt(p.x, p.z) + 0.3;
+    const y = (canyonSurfaceY(p.x, p.z) ?? groundAt(p.x, p.z)) + 0.35;
     riverPts.push({ x: p.x, y, z: p.z, half: canyonChannelHalfWidthAt(along) });
   }
   const rPos: number[] = [];
@@ -889,20 +865,40 @@ export function buildGrandCanyonDecor(scene: THREE.Scene): GrandCanyonDecor {
   }
   function buildCondor(): THREE.Group {
     const c = group("canyon-condor");
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.7, 3, 6), CONDOR_BODY);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.75, 3, 6), CONDOR_BODY);
     body.rotation.x = Math.PI / 2;
     c.add(body);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 6, 5), CONDOR_HEAD);
-    head.position.z = 0.55;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5), CONDOR_HEAD);
+    head.position.z = 0.62;
     c.add(head);
-    const wingGeo = new THREE.BoxGeometry(1.9, 0.04, 0.42);
-    wingGeo.translate(0.95, 0, 0);
-    const wingL = new THREE.Mesh(wingGeo, CONDOR_BODY);
-    const wingR = new THREE.Mesh(wingGeo, CONDOR_BODY);
-    wingR.scale.x = -1;
-    c.add(wingL, wingR);
+    // long, broad wings held in a shallow V, with splayed "finger" feathers at the tips and the
+    // condor's white patch under each wing
+    for (const sgn of [-1, 1]) {
+      const wing = new THREE.Group();
+      const inner = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.05, 0.95), CONDOR_BODY);
+      inner.position.x = 0.85;
+      const outer = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 0.8), CONDOR_BODY);
+      outer.position.x = 2.4;
+      const patch = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.02, 0.4), CONDOR_HEAD);
+      patch.position.set(1.0, -0.04, 0.12);
+      wing.add(inner, outer, patch);
+      for (let f = 0; f < 4; f++) {
+        const feather = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.14), CONDOR_BODY);
+        feather.position.set(3.4, 0, -0.3 + f * 0.2);
+        feather.rotation.y = (f - 1.5) * 0.16;
+        wing.add(feather);
+      }
+      wing.scale.x = sgn;
+      wing.rotation.z = sgn * 0.16;
+      c.add(wing);
+    }
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.6), CONDOR_BODY);
+    tail.position.z = -0.75;
+    c.add(tail);
+    c.scale.setScalar(1.25);
     return c;
   }
+
   const condors: Condor[] = [];
   const condorRng = rngOf(773311);
   // round 8: sampling the live scene found every condor consistently 90+ units from both rim

@@ -29,7 +29,8 @@ import {
   nearGrandCanyon,
 } from "./grandCanyon";
 import { rawHeight, EVEREST_PEAK, LONE_PEAK } from "./landform";
-import { CANYON_OPEN } from "./grandCanyon";
+import { CANYON_OPEN, CANYON_TRAIL, canyonAxisPointAt, canyonSurfaceY, canyonWalkY } from "./grandCanyon";
+import { groundY } from "./terrain";
 import { nearRail, STATIONS } from "./railway";
 import { nearCartRoad } from "./cartRoad";
 import { SETTLEMENTS } from "./settlements";
@@ -165,26 +166,6 @@ describe.skipIf(!CANYON_OPEN)("the canyon's own geometry", () => {
     }
     const spread = Math.max(...xs) - Math.min(...xs);
     expect(spread).toBeGreaterThan(8);
-  });
-
-  it("has two side canyons that carve down from the rim", () => {
-    // walked out along each side canyon's own heading from its mouth (see SIDE_CANYONS in
-    // grandCanyon.ts: mouthAlong/mouthLateral/heading) — well clear of the main canyon's own cut
-    const branches: { mx: number; mz: number; heading: number }[] = [
-      { mx: CANYON_SITE.x + 92, mz: CANYON_SITE.z - 150, heading: 0.95 },
-      { mx: CANYON_SITE.x - 88, mz: CANYON_SITE.z + 95, heading: -2.3 },
-    ];
-    for (const b of branches) {
-      let sawCarve = false;
-      for (let along = 20; along <= 100; along += 15) {
-        const x = b.mx + Math.sin(b.heading) * along;
-        const z = b.mz + Math.cos(b.heading) * along;
-        const rim = rawHeight(x, z) + canyonPlateauRaise(x, z);
-        const floor = groundAt(x, z);
-        if (floor !== null && rim - floor > 15) sawCarve = true;
-      }
-      expect(sawCarve).toBe(true);
-    }
   });
 
   it("the buttes no longer bump the real (soft) height field at all — they're pure decor now (world/grandCanyonDecor.ts's buildButteMesas), so canyonVisualFloorY (crisp, butte-aware) and grandCanyonGroundY (soft, no buttes) only differ by the butte's own protected disc, nothing more", () => {
@@ -349,8 +330,9 @@ describe.skipIf(!CANYON_OPEN)("the rim viewpoints and landmarks", () => {
   it("the trailhead, the lodge and the Skywalk's own viewpoint sign (none has a deck under its own named point) stand on genuinely flat rim ground, not partway down the carve", () => {
     for (const v of [CANYON_TRAILHEAD, CANYON_LODGE, CANYON_SKYWALK]) {
       const rim = rawHeight(v.x, v.z) + canyonPlateauRaise(v.x, v.z);
-      const h = groundAt(v.x, v.z)!;
-      expect(rim - h).toBeLessThan(15);
+      // (the ground at the rim is the modelled gorge's own rim strip where there is one)
+      const h = canyonWalkY(v.x, v.z) ?? groundAt(v.x, v.z)!;
+      expect(Math.abs(rim - h)).toBeLessThan(15);
     }
   });
 
@@ -409,5 +391,48 @@ describe.skipIf(!CANYON_OPEN)("the mule trail", () => {
 
   it("CANYON_MULE_ROUTE is a real, densely-sampled polyline (not degenerate)", () => {
     expect(CANYON_MULE_ROUTE.length).toBeGreaterThan(10);
+  });
+});
+
+describe.skipIf(!CANYON_OPEN)("the modelled gorge: one surface, with the height field out of sight beneath it", () => {
+  it("the island's own ground lies below the modelled surface everywhere inside the gorge", () => {
+    let worst = -Infinity;
+    for (let x = CANYON_SITE.x - 140; x <= CANYON_SITE.x + 140; x += 4) {
+      for (let z = CANYON_SITE.z - 340; z <= CANYON_SITE.z + 340; z += 4) {
+        const s = canyonSurfaceY(x, z);
+        if (s === null) continue;
+        worst = Math.max(worst, groundY(x, z) - s);
+      }
+    }
+    expect(worst).toBeLessThan(1.5);
+  });
+
+  it("the ledge trail never dips below the surface, has no cliff-sized step and no silly grade", () => {
+    let maxGrade = 0;
+    for (let i = 0; i < CANYON_TRAIL.length; i++) {
+      const p = CANYON_TRAIL[i];
+      // (the first few steps, from the trailhead to the modelled rim, are on the island's own ground)
+      if (canyonSurfaceY(p.x, p.z) === null) continue;
+      expect(p.y, `trail point ${i}`).toBeGreaterThan(canyonSurfaceY(p.x, p.z)! - 0.3);
+      expect(canyonWalkY(p.x, p.z)!).toBeCloseTo(Math.max(p.y, canyonSurfaceY(p.x, p.z)!), 0);
+      if (i > 0) {
+        const q = CANYON_TRAIL[i - 1];
+        const run = Math.hypot(p.x - q.x, p.z - q.z);
+        if (run > 0.5) maxGrade = Math.max(maxGrade, Math.abs(p.y - q.y) / run);
+      }
+    }
+    expect(maxGrade).toBeLessThan(0.4);
+    // it really goes from the rim down to the river
+    expect(CANYON_TRAIL[0].y - CANYON_TRAIL[CANYON_TRAIL.length - 1].y).toBeGreaterThan(55);
+  });
+
+  it("the river's bed only ever falls (water never runs uphill)", () => {
+    let prev = Infinity;
+    for (let along = -250; along <= 250; along += 10) {
+      const p = canyonAxisPointAt(along);
+      const y = canyonSurfaceY(p.x, p.z)!;
+      expect(y).toBeLessThanOrEqual(prev + 0.05);
+      prev = y;
+    }
   });
 });

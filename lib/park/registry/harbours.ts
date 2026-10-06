@@ -25,7 +25,7 @@ import { DINO_DECKS, dinoGroundY } from "./dinoIsland";
 import { ABYSS } from "./abyss";
 import { STATIONS } from "./railway";
 import { WILD_LAKE, wildBridgeDeckY } from "./wildWater";
-import { grandCanyonDeckY } from "./grandCanyon";
+import { canyonWalkY, grandCanyonDeckY } from "./grandCanyon";
 import { settlementDeckY } from "./settlements";
 import { boatClearance } from "../world/rideables/craft";
 
@@ -395,8 +395,11 @@ export function worldFloorY(x: number, z: number): number {
   const vb = wildBridgeDeckY(x, z);
   if (vb !== null) return Math.max(vb, baseFloorY(x, z));
   // the Grand Canyon's watchtower and Skywalk
+  // …and the canyon itself: its modelled gorge (and the ledge trail) IS the ground there
+  const cw = canyonWalkY(x, z);
   const gc = grandCanyonDeckY(x, z);
-  if (gc !== null) return Math.max(gc, baseFloorY(x, z));
+  if (gc !== null) return Math.max(gc, cw ?? baseFloorY(x, z));
+  if (cw !== null) return cw;
   return baseFloorY(x, z);
 }
 

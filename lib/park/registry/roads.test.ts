@@ -90,7 +90,7 @@ describe("roads: grade + geometry", () => {
     expect(R.BRIDGES.length).toBeGreaterThanOrEqual(3);
     // (the Great Ridge Tunnel led only to the Grand Canyon, which is switched off for now —
     // CANYON_OPEN in registry/grandCanyon.ts — so its spur waits with it; Lone Peak's stays)
-    expect(R.TUNNELS.length).toBeGreaterThanOrEqual(1);
+    expect(R.TUNNELS.length).toBeGreaterThanOrEqual(2);
   });
 });
 

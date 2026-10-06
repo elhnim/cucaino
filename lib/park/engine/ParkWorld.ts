@@ -3255,14 +3255,14 @@ export class ParkWorld {
     if (c.phase === "climbing") {
       c.u += (c.targetU - c.u) * Math.min(1, dt * 2.2);
       const p = route.pointAtU(c.u);
-      const y = groundY(p.x, p.z);
+      const y = worldFloor(p.x, p.z);
       kid.root.position.set(p.x, y, p.z);
       kid.facing = route.headingAtU(c.u);
       kid.root.rotation.y = kid.facing;
       if (c.guide) {
         const gu = Math.min(1, c.u + 0.02);
         const gp = route.pointAtU(gu);
-        c.guide.root.position.set(gp.x, groundY(gp.x, gp.z), gp.z);
+        c.guide.root.position.set(gp.x, worldFloor(gp.x, gp.z), gp.z);
         c.guide.root.rotation.y = route.headingAtU(gu);
         c.guide.update(dt, 2.2);
       }

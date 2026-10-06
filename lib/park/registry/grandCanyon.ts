@@ -86,7 +86,7 @@ export function findGrandCanyonSite(): { x: number; z: number } {
  *  of the app calls (nearGrandCanyon, grandCanyonGroundY, the footprint weights, the decks, the
  *  footpath, the outpost settlement, the wonder entry, the decor) reports "nothing here", so the
  *  north-west uplands stay exactly as they were. Flip to true to bring the whole wonder back. */
-export const CANYON_OPEN: boolean = false;
+export const CANYON_OPEN: boolean = true;
 
 export const CANYON_SITE = { x: 388.7, z: -1495.0 };
 /** the canyon's own long axis runs due north-south through CANYON_SITE (so "along" = ±z, "lateral"
@@ -132,8 +132,10 @@ export function canyonHalfWidthAt(along: number): number {
  *  own length (the trailhead, the Watchtower, the Skywalk, the river itself) reads as a genuine
  *  look-down-into-it gorge, not just one lucky spot */
 export function canyonMaxDepthAt(along: number): number {
-  const base = 82 + 5 * Math.sin(along / 150 - 0.7) + 3 * Math.sin(along / 60 + 1.4);
-  return Math.max(60, base) * endTaper(along);
+  // the river's bed falls gently and steadily from the south end to the north (water never runs
+  // uphill), and the depth is simply the rim's reference height above it
+  const bed = 18.5 - along * 0.017;
+  return Math.max(55, rimRefAt(along) - bed) * endTaper(along);
 }
 /** the plateau's own broad raise over the natural ground (registry/landform.ts's rawHeight already
  *  gives a gentle ~22-41 there; this is the extra lift that makes it read as a real high tableland,
@@ -211,6 +213,59 @@ function axisAt(along: number): { x: number; z: number; nx: number; nz: number }
   const b = AXIS[i + 1];
   return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t, nx: a.nx + (b.nx - a.nx) * t, nz: a.nz + (b.nz - a.nz) * t };
 }
+/** The rim's own REFERENCE height at each axis sample: the plateau's height averaged across the
+ *  gorge and smoothed along it. Everything inside the gorge (floor, benches, cliffs, the trail)
+ *  hangs off this one smooth number, so a bench is level from wall to wall and the river lies flat
+ *  — the plateau's own bumps stay up on the plateau. Built on first use. */
+let _rimRef: Float64Array | null = null;
+function rimRefAt(along: number): number {
+  if (!_rimRef) {
+    const raw = new Float64Array(AXIS.length);
+    for (let i = 0; i < AXIS.length; i++) {
+      const a = AXIS[i];
+      let sum = 0;
+      let n = 0;
+      for (const lat of [-90, -60, -30, 0, 30, 60, 90]) {
+        const x = a.x + a.nx * lat;
+        const z = a.z + a.nz * lat;
+        sum += rawHeight(x, z) + canyonPlateauRaise(x, z);
+        n++;
+      }
+      raw[i] = sum / n;
+    }
+    const out = new Float64Array(AXIS.length);
+    const K = 10; // +-40 units along
+    for (let i = 0; i < AXIS.length; i++) {
+      let sum = 0;
+      let n = 0;
+      for (let k = -K; k <= K; k++) {
+        const j = Math.max(0, Math.min(AXIS.length - 1, i + k));
+        sum += raw[j];
+        n++;
+      }
+      out[i] = sum / n;
+    }
+    _rimRef = out;
+  }
+  const f = (along - AXIS_START) / AXIS_STEP;
+  const i = Math.max(0, Math.min(AXIS.length - 2, Math.floor(f)));
+  const t = Math.max(0, Math.min(1, f - i));
+  return _rimRef[i] + (_rimRef[i + 1] - _rimRef[i]) * t;
+}
+/** the rim height to hang the gorge off at a point `u` half-widths from the axis: the level
+ *  reference inside, easing out to the plateau's real height where the modelled surface meets the
+ *  island's own ground (u -> CANYON_SUNK_EDGE) */
+function gorgeRim(along: number, u: number, naturalRim: number): number {
+  const k = smoothstep(0.9, 1.26, u);
+  return rimRefAt(along) + (naturalRim - rimRefAt(along)) * k;
+}
+/** the rim height the gorge hangs off at world (x, z) (see gorgeRim) */
+export function canyonRimY(x: number, z: number): number {
+  const hit = axisNearest(x, z);
+  const u = Math.abs(hit.lateral) / canyonHalfWidthAt(hit.along);
+  return gorgeRim(hit.along, u, rawHeight(x, z) + canyonPlateauRaise(x, z));
+}
+
 /** a point at `along` the real centreline, `uFrac` of the half-width to one `side` (+1/-1) of it —
  *  the frame every rim landmark and the mule trail are placed in */
 function onCanyon(along: number, uFrac: number, side = 1): { x: number; z: number } {
@@ -236,7 +291,7 @@ export function canyonAxisPointAt(along: number): { x: number; z: number } {
  *  reads as a real, visible ribbon from the rim viewpoints instead of a thin thread easily lost at
  *  distance; still comfortably inside the crisp channel floor's own flat run. */
 export function canyonChannelHalfWidthAt(along: number): number {
-  return canyonHalfWidthAt(along) * 0.15;
+  return canyonHalfWidthAt(along) * 0.2;
 }
 
 /** the cross-section's own stepped terraces, 0 (the rim) .. 1 (the river channel's own floor) — a
@@ -244,54 +299,48 @@ export function canyonChannelHalfWidthAt(along: number): number {
  *  two) and the cliffs between them, each a smoothstep so nothing has a razor edge. `u` = how far
  *  across the half-width (0 centre .. ~1 rim). */
 export function canyonTerraceFrac(u: number): number {
+  // flat floor | cliff | Tonto Platform | cliff | the Esplanade | cliff | rim. The cliffs are a few
+  // units wide (near-vertical); the benches are truly flat. world/grandCanyonDecor.ts models this
+  // exact surface (buildCanyonSurface) and canyonWalkY() below makes it the ground underfoot.
   const steps: [number, number, number, number][] = [
-    // round 8: a numeric sightline check (a ray from the kid's own eye at the Watchtower/Skywalk
-    // rail to the river's own surface, sampled against this exact profile) showed the river
-    // invisible from BOTH rim decks. My first fix narrowed the benches but kept them where they
-    // were — which made it WORSE, because the real culprit isn't the benches' own width at all:
-    // it's the big gap of flat, full-rim-height TABLELAND that used to sit between the decks
-    // (u~0.66-0.93) and where the old profile's own last cliff began (u~0.68-0.73). Standing on
-    // flat ground at your OWN eye height, with more flat ground at that SAME height between you
-    // and the true edge, hides anything below/behind the edge no matter how the terraces further
-    // in are shaped — the fix has to close THAT gap, not reshape the shelves. So this profile now
-    // pushes every step outward, right up near where the decks actually sit, leaving only a sliver
-    // of true tableland past u=0.85: the last cliff starts at 0.8 (not 0.68), the benches are
-    // narrower (so more of the total u-budget is cliff, not flat shelf — cliffs barely block a
-    // sightline at all), and the channel itself is wider (0.3, not 0.07 — "widen the channel").
-    // The Mule Trail's own walked ground (canyonTerraceFracSoft, below) is completely untouched —
-    // only the crisp decor walls' own shape (and hence what can block a sightline) changes here.
-    [0, 0.3, 1, 1], // the river channel's own flat floor — much wider now
-    [0.3, 0.35, 1, 0.62], // the first cliff — near-vertical, not a ramp
-    [0.35, 0.55, 0.62, 0.62], // the lower shelf (Tonto Platform) — a true flat bench, narrower now
-    [0.55, 0.6, 0.62, 0.35], // the second cliff — near-vertical (0.35 not 0.3 — a little deeper,
-    // the last bit of margin the Watchtower's own sightline check needed)
-    [0.6, 0.8, 0.35, 0.35], // the upper shelf (the Esplanade) — a true flat bench, narrower now
-    [0.8, 0.87, 0.3, 0], // the last cliff — near-vertical, right up near the rim decks themselves
+    [0, 0.3, 1, 1],
+    [0.3, 0.35, 1, 0.62],
+    [0.35, 0.55, 0.62, 0.62],
+    [0.55, 0.6, 0.62, 0.35],
+    [0.6, 0.82, 0.35, 0.35],
+    [0.82, 0.87, 0.35, 0],
   ];
   if (u <= 0) return 1;
   for (const [u0, u1, from, to] of steps) if (u <= u1) return from + (to - from) * smoothstep(u0, u1, u);
   return 0;
 }
-/** the SAME staircase, but every cliff widened enormously (≈7× the crisp version's own width) so
- *  the HEIGHT FIELD's own slope never gets anywhere near the near-vertical grade a kid-visible
- *  cliff needs: the streamed terrain mesh (world/fantasy/terrainChunks.ts) has a fixed grid
- *  spacing, and a true near-vertical step within a couple of grid cells bakes into long sliver
- *  triangles (dark spikes/jagged teeth) wherever the authored decor doesn't fully cover it. This is
- *  what registry/terrain.ts's finish() actually bakes (via grandCanyonGroundY below) — a smooth,
- *  spike-free, gently stepped valley a kid can walk/ride down safely. The CRISP canyonTerraceFrac
- *  above is what the kid actually SEES: world/grandCanyonDecor.ts's cliff-wall and butte meshes are
- *  built from it directly (registry/grandCanyon.ts's canyonVisualFloorY), standing ~0.6 proud of
- *  this softened surface so no terrain ever shows through on a steep face. */
+/** where the three cliffs are, as [foot, top] in u — for the decor's own vertex layout */
+export const CANYON_CLIFFS: [number, number][] = [
+  [0.3, 0.35],
+  [0.55, 0.6],
+  [0.82, 0.87],
+];
+/** What the island's HEIGHT FIELD does inside the canyon: a plain, gently sloped trough that lies
+ *  BELOW the crisp surface above everywhere (a few units under the floor and benches, sloping up to
+ *  meet the plateau at u = CANYON_SUNK_EDGE). It is never seen and never walked on — the modelled
+ *  gorge (world/grandCanyonDecor.ts) covers it completely and canyonWalkY() is the ground — so its
+ *  only job is to stay out of the way: the streamed terrain can't hold a near-vertical cliff without
+ *  sliver triangles, and now it never has to. */
+export const CANYON_SUNK_EDGE = 1.3;
 export function canyonTerraceFracSoft(u: number): number {
-  const steps: [number, number, number, number][] = [
-    [0, 0.32, 1, 0.62], // channel up to the lower shelf — one long, gentle ramp
-    [0.32, 0.46, 0.62, 0.62], // the lower shelf (still flat — zero slope is never a problem)
-    [0.46, 0.8, 0.62, 0.3], // lower shelf up to the upper shelf
-    [0.8, 0.94, 0.3, 0.3], // the upper shelf
-    [0.94, 1.3, 0.3, 0], // upper shelf up to the rim
+  const knots: [number, number][] = [
+    [0, 1.05],
+    [0.35, 1.05],
+    [0.6, 0.7],
+    [0.87, 0.44],
+    [CANYON_SUNK_EDGE, 0],
   ];
-  if (u <= 0) return 1;
-  for (const [u0, u1, from, to] of steps) if (u <= u1) return from + (to - from) * smoothstep(u0, u1, u);
+  if (u <= 0) return knots[0][1];
+  for (let i = 0; i + 1 < knots.length; i++) {
+    const [u0, f0] = knots[i];
+    const [u1, f1] = knots[i + 1];
+    if (u <= u1) return f0 + ((f1 - f0) * (u - u0)) / (u1 - u0);
+  }
   return 0;
 }
 
@@ -311,10 +360,8 @@ export interface SideCanyon {
   halfWidth: number;
   depthScale: number;
 }
-const SIDE_CANYONS: SideCanyon[] = [
-  { mouthAlong: -150, mouthLateral: 92, heading: 0.95, length: 150, halfWidth: 46, depthScale: 0.82 },
-  { mouthAlong: 95, mouthLateral: -88, heading: -2.3, length: 170, halfWidth: 52, depthScale: 0.78 },
-];
+// (none for now: the main gorge is one clean modelled surface; a branch would need its own)
+const SIDE_CANYONS: SideCanyon[] = [];
 /** read-only access to the two side-canyon definitions, for world/grandCanyonDecor.ts's own side-
  *  canyon wall meshes (it needs the mouth/heading/length/halfWidth to lay out its own sample grid —
  *  the actual HEIGHT at any point it samples still always comes from canyonVisualFloorY, never from
@@ -421,13 +468,14 @@ export function nearGrandCanyon(x: number, z: number, pad = 0): boolean {
  *  away — see findGrandCanyonSite's clearance). */
 export function grandCanyonGroundY(x: number, z: number, naturalH: number): number | null {
   if (!nearGrandCanyon(x, z)) return null;
-  const rim = naturalH + canyonPlateauRaise(x, z);
   const hit = axisNearest(x, z);
   const hw = canyonHalfWidthAt(hit.along);
   const uMain = Math.abs(hit.lateral) / hw;
+  const rim = uMain < CANYON_SUNK_EDGE && Math.abs(hit.along) <= CANYON_HALF_LEN + 40 ? gorgeRim(hit.along, uMain, naturalH + canyonPlateauRaise(x, z)) : naturalH + canyonPlateauRaise(x, z);
   const frac = uMain <= 1.6 ? canyonTerraceFracSoft(uMain) : 0;
   const depth = canyonMaxDepthAt(hit.along);
-  let floor = rim - depth * frac;
+  // (…and always a few units under the modelled surface, even where the gorge pinches out)
+  let floor = rim - depth * frac - 3.5 * smoothstep(0, 0.12, frac);
   for (const sc of SIDE_CANYONS) {
     const scFrac = sideCanyonFrac(sc, x, z);
     if (scFrac === null || scFrac <= 0) continue;
@@ -529,8 +577,8 @@ export interface CanyonBandStop {
   name: string;
 }
 export const CANYON_BAND_STOPS: CanyonBandStop[] = [
-  { h: -Infinity, color: "#2c2a26", name: "Vishnu Basement Rocks" },
-  { h: 34, color: "#8a9468", name: "Tonto Platform" },
+  { h: -Infinity, color: "#5b4a47", name: "Vishnu Basement Rocks" },
+  { h: 34, color: "#a89c72", name: "Tonto Platform" },
   { h: 50, color: "#6e3d4e", name: "Redwall Limestone" },
   { h: 66, color: "#a1482c", name: "Supai Group / Hermit Shale" },
   { h: 85, color: "#dcc89c", name: "Coconino Sandstone" },
@@ -613,7 +661,7 @@ export const CANYON_TRAILHEAD = onCanyon(-245, 1.35);
 export const CANYON_WATCHTOWER = onCanyon(-170, 0.93);
 /** the Skywalk's own viewpoint sign, on solid rim ground a short walk back from where the glass
  *  balcony itself hangs out over the gorge (SKYWALK_BASE/SKYWALK_OUT below) */
-export const CANYON_SKYWALK = onCanyon(40, 1.35);
+export const CANYON_SKYWALK = onCanyon(40, 1.0);
 /** the rim lodge/visitor hut, just back from the trailhead */
 // u=1.35 for the same reason as CANYON_TRAILHEAD above: genuinely flat (soft-profile) ground for a
 // building with no deck of its own, not partway down the now-much-wider final ramp to the rim.
@@ -632,7 +680,7 @@ export const CANYON_VIEWPOINTS: { x: number; z: number }[] = [CANYON_TRAILHEAD, 
 // lib/park/registry/harbours.ts's worldFloorY() and lib/park/engine/ParkWorld.ts's own
 // raisedDeckAt() the same way wildBridgeDeckY() is. Pure data + maths, no three.js — the actual
 // tower/balcony MESHES are world/grandCanyonDecor.ts's job. ──
-const rimHeightAt = (x: number, z: number) => rawHeight(x, z) + canyonPlateauRaise(x, z);
+const rimHeightAt = (x: number, z: number) => canyonRimY(x, z);
 interface CanyonDeckLine {
   kind: "ramp";
   ax: number;
@@ -652,15 +700,19 @@ interface CanyonDeckCircle {
 }
 /** the watchtower: climb a short ramp from the rim path up onto a railed viewing platform, a
  *  storey above the ground, a short walk from the trailhead */
-const WATCHTOWER_BASE = onCanyon(-170, 0.8);
+const WATCHTOWER_BASE = onCanyon(-170, 1.12);
 const WATCHTOWER_Y = rimHeightAt(CANYON_WATCHTOWER.x, CANYON_WATCHTOWER.z) + 7;
 /** the Skywalk: walk out from the solid rim onto a railed, glass-floored balcony that hangs out
  *  past the rim's own edge, over the cliffs falling away to the gorge below */
-const SKYWALK_BASE = onCanyon(40, 0.86);
+const SKYWALK_BASE = onCanyon(40, 0.9);
 const SKYWALK_OUT = onCanyon(40, 0.66);
-const SKYWALK_Y = rimHeightAt(CANYON_SKYWALK.x, CANYON_SKYWALK.z);
+const SKYWALK_Y = rimHeightAt(SKYWALK_BASE.x, SKYWALK_BASE.z);
+/** the Skywalk's own geometry, for the decor that draws it */
+export const CANYON_SKYWALK_DECK = { base: SKYWALK_BASE, out: SKYWALK_OUT, y: SKYWALK_Y, r: 9, half: 2.4 };
+/** the watchtower's platform height */
+export const CANYON_WATCHTOWER_Y = WATCHTOWER_Y;
 export const CANYON_DECKS: (CanyonDeckLine | CanyonDeckCircle)[] = [
-  { kind: "ramp", ax: WATCHTOWER_BASE.x, az: WATCHTOWER_BASE.z, ay: grandCanyonGroundY(WATCHTOWER_BASE.x, WATCHTOWER_BASE.z, rawHeight(WATCHTOWER_BASE.x, WATCHTOWER_BASE.z)) ?? rimHeightAt(WATCHTOWER_BASE.x, WATCHTOWER_BASE.z), bx: CANYON_WATCHTOWER.x, bz: CANYON_WATCHTOWER.z, by: WATCHTOWER_Y, half: 1.6 },
+  { kind: "ramp", ax: WATCHTOWER_BASE.x, az: WATCHTOWER_BASE.z, ay: rimHeightAt(WATCHTOWER_BASE.x, WATCHTOWER_BASE.z), bx: CANYON_WATCHTOWER.x, bz: CANYON_WATCHTOWER.z, by: WATCHTOWER_Y, half: 1.6 },
   { kind: "platform", x: CANYON_WATCHTOWER.x, z: CANYON_WATCHTOWER.z, y: WATCHTOWER_Y, r: 5 },
   { kind: "ramp", ax: SKYWALK_BASE.x, az: SKYWALK_BASE.z, ay: SKYWALK_Y, bx: SKYWALK_OUT.x, bz: SKYWALK_OUT.z, by: SKYWALK_Y, half: 2.4 },
   { kind: "platform", x: SKYWALK_OUT.x, z: SKYWALK_OUT.z, y: SKYWALK_Y, r: 9 },
@@ -706,20 +758,96 @@ function muleWorldAt(along: number, uFrac: number): P2 {
   const p = onCanyon(along, uFrac, MULE_SIDE);
   return [p.x, p.z];
 }
-const MULE_CONTROL: P2[] = [
-  muleWorldAt(MULE_ALONG, 1.35), // the trailhead, right on the rim (matches CANYON_TRAILHEAD's own uFrac)
-  muleWorldAt(MULE_ALONG + 10, 0.74), // down through the Kaibab/Coconino cliffs
-  muleWorldAt(MULE_ALONG - 8, 0.6), // onto the Esplanade shelf
-  muleWorldAt(MULE_ALONG + 6, 0.47), // along the Esplanade a little
-  muleWorldAt(MULE_ALONG - 10, 0.33), // down the Redwall cliff
-  muleWorldAt(MULE_ALONG + 4, 0.2), // onto the Tonto Platform
-  muleWorldAt(MULE_ALONG - 6, 0.15),
-  muleWorldAt(MULE_ALONG, 0.12), // down through the Tapeats/Vishnu cliffs
-  muleWorldAt(MULE_ALONG, 0.09), // the river's own bank
+/** The Bright Angel-style ledge trail: from the trailhead out over the rim's edge, then three long
+ *  ramps down the three cliffs — each one a ledge built against the foot of its cliff, running
+ *  along the gorge — with a turn on each bench between them, to the river's bank. Authored as
+ *  (along, u, depth fraction) nodes; every point of it lies ON or ABOVE the modelled surface (a
+ *  ramp starts level with the bench above and ends level with the bench below), so the ground
+ *  underfoot is simply max(surface, trail): see canyonWalkY(). The decor draws the ramps as solid
+ *  rock causeways (world/grandCanyonDecor.ts buildCanyonTrail). */
+const TRAIL_NODES: [number, number, number][] = [
+  [MULE_ALONG, 1.35, 0], // the trailhead
+  [MULE_ALONG + 5, 0.95, 0],
+  [MULE_ALONG + 5, 0.765, 0], // out over the edge
+  [-128, 0.765, 0.35], // ramp 1, down the Kaibab/Coconino cliff
+  [-123, 0.64, 0.35], // a turn on the Esplanade
+  [-128, 0.505, 0.35],
+  [-232, 0.505, 0.62], // ramp 2, down the Redwall
+  [-237, 0.4, 0.62], // a turn on the Tonto Platform
+  [-232, 0.255, 0.62],
+  [-122, 0.255, 1], // ramp 3, down to the river
+  [-116, 0.225, 1], // the river's bank
 ];
-/** the mule trail, smoothed and densely sampled (xz only — real groundY() gives its height, like
- *  registry/everestRoute.ts's EVEREST_ROUTE) */
-export const CANYON_MULE_ROUTE: P2[] = smooth(MULE_CONTROL, 4);
+export const CANYON_TRAIL_HALF = 3;
+export interface CanyonTrailPoint {
+  x: number;
+  y: number;
+  z: number;
+  /** on a ramp (true) or on a level stretch that is just the bench itself (false) */
+  ramp: boolean;
+}
+/** the trail, sampled every ~1.5 units */
+export const CANYON_TRAIL: CanyonTrailPoint[] = (() => {
+  const out: CanyonTrailPoint[] = [];
+  for (let i = 0; i + 1 < TRAIL_NODES.length; i++) {
+    const [a0, u0, f0] = TRAIL_NODES[i];
+    const [a1, u1, f1] = TRAIL_NODES[i + 1];
+    const p0 = onCanyon(a0, u0, MULE_SIDE);
+    const p1 = onCanyon(a1, u1, MULE_SIDE);
+    const n = Math.max(2, Math.ceil(Math.hypot(p1.x - p0.x, p1.z - p0.z) / 1.5));
+    for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+      const t = k / n;
+      const along = a0 + (a1 - a0) * t;
+      const p = onCanyon(along, u0 + (u1 - u0) * t, MULE_SIDE);
+      const rim = canyonRimY(p.x, p.z);
+      out.push({ x: p.x, z: p.z, y: rim - canyonMaxDepthAt(along) * (f0 + (f1 - f0) * t), ramp: f0 !== f1 });
+    }
+  }
+  return out;
+})();
+/** the trail's own deck height at (x, z), or null off it */
+export function canyonTrailY(x: number, z: number): number | null {
+  if (!CANYON_OPEN) return null;
+  const T = CANYON_TRAIL;
+  if (Math.abs(x - T[0].x) > 140 || Math.abs(z - T[0].z) > 200) return null;
+  let best = Infinity;
+  let y = 0;
+  for (let i = 0; i + 1 < T.length; i++) {
+    const a = T[i];
+    const b = T[i + 1];
+    const ex = b.x - a.x;
+    const ez = b.z - a.z;
+    const t = Math.max(0, Math.min(1, ((x - a.x) * ex + (z - a.z) * ez) / (ex * ex + ez * ez || 1)));
+    const d = (x - a.x - ex * t) ** 2 + (z - a.z - ez * t) ** 2;
+    if (d < best) {
+      best = d;
+      y = a.y + (b.y - a.y) * t;
+    }
+  }
+  return best < (CANYON_TRAIL_HALF + 0.4) ** 2 ? y : null;
+}
+/** the modelled gorge's own surface at (x, z) — floor, benches, cliffs and the rim strip out to
+ *  where the height field takes over again — or null outside it */
+export function canyonSurfaceY(x: number, z: number): number | null {
+  if (!CANYON_OPEN) return null;
+  // (a cheap box first: this is asked for every footstep anywhere on the island)
+  if (Math.abs(x - CANYON_SITE.x) > 150 || Math.abs(z - CANYON_SITE.z) > CANYON_HALF_LEN + 30) return null;
+  const hit = axisNearest(x, z);
+  if (Math.abs(hit.along) > CANYON_HALF_LEN + 20) return null;
+  const hw = canyonHalfWidthAt(hit.along);
+  const u = Math.abs(hit.lateral) / hw;
+  if (u > CANYON_SUNK_EDGE) return null;
+  return gorgeRim(hit.along, u, rawHeight(x, z) + canyonPlateauRaise(x, z)) - canyonMaxDepthAt(hit.along) * canyonTerraceFrac(u);
+}
+/** THE GROUND inside the canyon: the modelled surface, or the trail's ledge where that is higher
+ *  (registry/harbours.ts's worldFloorY() uses it, so the kid, pets and the ride all stand on it) */
+export function canyonWalkY(x: number, z: number): number | null {
+  const s = canyonSurfaceY(x, z);
+  if (s === null) return null;
+  const t = canyonTrailY(x, z);
+  return t !== null && t > s ? t : s;
+}
+export const CANYON_MULE_ROUTE: P2[] = CANYON_TRAIL.map((p) => [p.x, p.z]);
 
 /** (x, z) a fraction `u` (0..1, the rim -> the river) along the mule trail */
 export function muleRoutePointAtU(u: number): { x: number; z: number } {
