@@ -2,6 +2,7 @@
 // streams its ground in chunks: terrainChunks.ts; the shaders' textures: terrainWindow.ts).
 //   buildTerrainMesh()   an optional ground mesh: vertex-coloured by height/slope — meadow greens
 //                        with variation, warm rock on cliffs, snow caps, sand at the coast
+import { savannaK } from "../../registry/habitats";
 import * as THREE from "three";
 import { TRAIL_POINTS, seaDist } from "../../registry/island";
 import { beachK, mesaEdgeDist, waterSdf } from "../../registry/waterways";
@@ -93,6 +94,10 @@ const PARICUTIN_SCREE_GREY = col("#5a564e"); //   ...alternating with grey scree
 const PARICUTIN_LAVA = col("#584d42");
 const PARICUTIN_LAVA_LIGHT = col("#6b5d4f");
 const PARICUTIN_LAVA_WARM = col("#7a4e30");
+const SAVANNA_GOLD = col("#c8ae66");
+const SAVANNA_STRAW = col("#dccb8c");
+const SAVANNA_EARTH = col("#b68c5e");
+const SAVANNA_OLIVE = col("#9aa04a");
 const BED_SAND = col("#cdb88a");
 const BED_MUD = col("#6f7a4a");
 const BED_DEEP = col("#3a5a4c");
@@ -119,6 +124,15 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
   mix(GRASS_A, GRASS_B, smoothstep(0.45, 0.72, n1), out);
   out.lerp(GRASS_C, smoothstep(0.5, 0.8, n2) * 0.55 * grassK);
   out.lerp(GRASS_DARK, smoothstep(0.35, 0.1, n2) * 0.4 * grassK);
+  // the Savanna (registry/habitats.ts): sun-dried golden grass, paler straw patches and a little
+  // bare red earth showing through
+  const sav = savannaK(x, z);
+  if (sav > 0) {
+    const gold = mix(SAVANNA_GOLD, SAVANNA_STRAW, smoothstep(0.4, 0.7, n1), new THREE.Color());
+    gold.lerp(SAVANNA_EARTH, smoothstep(0.62, 0.86, n2) * 0.4);
+    gold.lerp(SAVANNA_OLIVE, smoothstep(0.4, 0.12, n2) * 0.35);
+    out.lerp(gold, sav);
+  }
   // rock on steep ground (strata bands), snow on the peaks
   const rockAmt = smoothstep(0.3, 0.52, slope);
   if (rockAmt > 0) {

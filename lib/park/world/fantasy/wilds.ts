@@ -7,7 +7,8 @@
 // the distance), as a handful of instanced meshes of the storybook's chunky low-poly trees, so it
 // stays light however far you roam. trunkAt() lets the kid bump into trunks and boulders.
 import * as THREE from "three";
-import { buildForestTree } from "../storybook/geometry";
+import { buildAcacia, buildForestTree } from "../storybook/geometry";
+import { savannaK } from "../../registry/habitats";
 import { KIND_PINE, KIND_SPIRE, LEAF_GREENS, LEAF_YELLOWS, PINE_GREENS, TREE_KINDS } from "../storybook/plan";
 import { buildRockGeometry } from "./stones";
 import { fbm2, noise2, rngOf } from "./noise";
@@ -36,6 +37,9 @@ const ROCK = TREE_KINDS;
 const J0 = ROCK + 1;
 const CLUMP = J0 + 4;
 const isJungle = (k: number) => k >= J0 && k < CLUMP;
+/** a savanna acacia (registry/habitats.ts) */
+const ACACIA = CLUMP + 1;
+const ACACIA_GREENS = ["#8a9a3c", "#7c8f3a", "#98a544", "#6f8436"].map((h) => new THREE.Color(h));
 
 export interface WildItem {
   /** 0..TREE_KINDS-1 a storybook tree kind, TREE_KINDS = a boulder, then the rainforest's four
@@ -132,10 +136,24 @@ export function wildCell(ci: number, cj: number): WildItem[] {
       out.push({ kind: CLUMP, x, y: groundYFar(x, z), z, s: 0.8 + r() * 0.9, sy: 0.8 + r() * 0.5, rot: r() * Math.PI * 2, hue: Math.floor(r() * 8), keep: r() });
     }
   }
+  // the Savanna: flat-topped acacias standing well apart on open grass (no woods here)
+  if (savannaK(cx, cz) > 0 || savannaK(x0, z0) > 0 || savannaK(x0 + WILD_CELL, z0 + WILD_CELL) > 0) {
+    for (let k = 0; k < 9; k++) {
+      const x = x0 + r() * WILD_CELL;
+      const z = z0 + r() * WILD_CELL;
+      if (savannaK(x, z) < 0.35 || r() > 0.5 || !ok(x, z)) continue;
+      const h = groundYFar(x, z);
+      if (h < 0.8 || slopeAt(x, z) > 0.4) continue;
+      if (out.some((t) => t.kind !== ROCK && Math.hypot(t.x - x, t.z - z) < 15)) continue;
+      out.push({ kind: ACACIA, x, y: h, z, s: 0.9 + r() * 0.5, sy: 0.9 + r() * 0.2, rot: r() * Math.PI * 2, hue: Math.floor(r() * 4), keep: r() });
+    }
+  }
   // trees: big forests and smaller groves, a few loners on the open plains
   for (let k = 0; k < 70; k++) {
     const x = x0 + r() * WILD_CELL;
     const z = z0 + r() * WILD_CELL;
+    // (the heart of the Savanna grows only its acacias; its edge thins the woods out)
+    if (r() < savannaK(x, z) * 1.2) continue;
     const forest = smooth(0.5, 0.68, fbm2(x / 300 + 5.3, z / 300 - 2.1, 3, 41));
     const grove = smooth(0.6, 0.76, fbm2(x / 70 - 3.7, z / 70 + 8.2, 3, 42));
     const dense = Math.max(forest * 0.95, grove * 0.7) + 0.035;
@@ -220,6 +238,9 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
   };
   const treeMeshes = geos.map((g, k) => make(g, caps[k], `wild-trees-${k}`));
   const rocks = make(rockGeo, V.rocks, "wild-rocks");
+  const acaciaGeo = buildAcacia(low);
+  const ACACIA_CAP = low ? 90 : 220;
+  const acacias = make(acaciaGeo, ACACIA_CAP, "wild-acacias");
   // the rainforest: its four tree types and the undergrowth, near the kid
   const R0 = low ? RF.low : RF.std;
   const jGeos = [T_GIANT, T_CANOPY, T_PALM, T_FERN].map((t) => buildJungleTree(t, low));
@@ -280,6 +301,7 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
     const jc = jMeshes.map(() => 0);
     let nc = 0;
     let nr = 0;
+    let na = 0;
     let made = 0;
     pending = false;
     shownCells = 0;
@@ -304,6 +326,15 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
           rocks.setMatrixAt(nr, m4);
           rocks.setColorAt(nr, c.copy(rockCol).multiplyScalar(0.92 + t.keep * 0.12));
           nr++;
+          continue;
+        }
+        if (t.kind === ACACIA) {
+          if (na >= ACACIA_CAP) continue;
+          e.set(0, t.rot, 0);
+          m4.compose(v.set(t.x, t.y - 0.15 * t.s, t.z), q.setFromEuler(e), s3.set(t.s, t.s * t.sy, t.s));
+          acacias.setMatrixAt(na, m4);
+          acacias.setColorAt(na, c.copy(ACACIA_GREENS[t.hue % 4]).multiplyScalar(0.92 + t.keep * 0.16));
+          na++;
           continue;
         }
         if (t.kind === CLUMP) {
@@ -355,6 +386,9 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
       m.instanceMatrix.needsUpdate = true;
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     });
+    acacias.count = na;
+    acacias.instanceMatrix.needsUpdate = true;
+    if (acacias.instanceColor) acacias.instanceColor.needsUpdate = true;
     rocks.count = nr;
     rocks.instanceMatrix.needsUpdate = true;
     if (rocks.instanceColor) rocks.instanceColor.needsUpdate = true;
@@ -413,6 +447,7 @@ export function buildWilds(material: THREE.Material, opts: { lowQuality?: boolea
       for (const g of jGeos) g.dispose();
       clumpGeo.dispose();
       rockGeo.dispose();
+      acaciaGeo.dispose();
       for (const m of meshes) m.dispose();
     },
   };

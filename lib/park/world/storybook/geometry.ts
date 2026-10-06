@@ -125,6 +125,37 @@ export function buildForestTree(kind: number, low = false): THREE.BufferGeometry
   return merge(parts);
 }
 
+/**
+ * A savanna acacia at unit scale (~7 m): a leaning trunk that forks into spreading boughs under a
+ * wide, flat umbrella of leaves — the tree a giraffe browses. White-ish canopy (the instance colour
+ * gives the olive green), like the forest trees.
+ */
+export function buildAcacia(low = false): THREE.BufferGeometry {
+  const bark = col("#7a6248");
+  const limb = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, r0: number, r1: number) => {
+    const len = Math.hypot(x1 - x0, y1 - y0, z1 - z0);
+    const g = new THREE.CylinderGeometry(r1, r0, len, low ? 5 : 7, 1, true);
+    g.translate(0, len / 2, 0);
+    // (stand it along the limb)
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(x1 - x0, y1 - y0, z1 - z0).normalize());
+    g.applyQuaternion(q);
+    g.translate(x0, y0, z0);
+    return part(g, (p) => _c.copy(bark).multiplyScalar(0.78 + 0.22 * Math.min(1, p.y / 5)), [0, 0, 0]);
+  };
+  const parts = [limb(0, 0, 0, 0.35, 3.1, 0.1, 0.34, 0.24)];
+  const forks: [number, number, number][] = [
+    [2.3, 5.1, 0.5],
+    [-1.9, 5.3, 1.2],
+    [-0.4, 5.2, -2.1],
+  ];
+  for (const [x, y, z] of forks) parts.push(limb(0.35, 3.0, 0.1, x, y, z, 0.2, 0.09));
+  // the umbrella: one broad flat crown and two lower skirts of leaves
+  parts.push(canopy(lump(0.2, 5.75, 0, 4.2, 0.62, 4.0, 3.7, 0.12, low ? 0 : 1), 61, 6.4, 5.0, 0.2));
+  parts.push(canopy(lump(2.4, 5.35, 0.6, 2.2, 0.45, 2.0, 5.1, 0.12, 0), 62, 6.0, 4.9, 0.2));
+  parts.push(canopy(lump(-1.8, 5.5, -1.2, 2.4, 0.45, 2.3, 8.3, 0.12, 0), 63, 6.0, 4.9, 0.2));
+  return merge(parts);
+}
+
 /** a cheap stand-in used only to cast the forest's shadows near the player (one per tree) */
 export function buildShadowProxy(): THREE.BufferGeometry {
   const g = new THREE.IcosahedronGeometry(1, 0);

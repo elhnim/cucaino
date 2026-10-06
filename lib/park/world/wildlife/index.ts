@@ -37,8 +37,8 @@ export interface WildlifeStats {
 /** the squares drawn (and simulated) round the kid, and how many of each species at most
  *  (mesh order: deer, zebras, safari, roos, goats, ducks, birds) */
 export const WILD_VIEW = {
-  std: { r: 260, caps: [42, 30, 16, 26, 18, 14, 10] },
-  low: { r: 190, caps: [18, 14, 8, 12, 9, 7, 5] },
+  std: { r: 260, caps: [64, 44, 30, 26, 18, 14, 10] },
+  low: { r: 190, caps: [28, 20, 12, 12, 9, 7, 5] },
 };
 /** only this many land/bird squares are kept cached (plenty for the view radius above) */
 const KEEP_CELLS = 400;

@@ -246,7 +246,7 @@ describe("the Wildlands' trees and rocks", () => {
       const s = w.stats();
       expect(s.trees).toBeGreaterThan(low ? 150 : 300);
       expect(s.triangles).toBeLessThan(low ? 90_000 : 210_000);
-      expect(w.meshes.length).toBe(11);
+      expect(w.meshes.length).toBe(12); // (5 storybook kinds, rocks, acacias, the rainforest's 4 + its undergrowth)
       // somewhere near: a trunk to bump into
       let hit = 0;
       for (let x = 1840; x < 1960; x += 2) for (let z = -160; z < -40; z += 2) if (w.trunkAt(x, z, 0.45)) hit++;

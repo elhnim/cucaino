@@ -26,8 +26,9 @@ export const WS_GOAT = 5;
 export const WS_DUCK = 6;
 export const WS_PARROT = 7;
 export const WS_EAGLE = 8;
-export const WILD_SPECIES = 9;
-export const WILD_SPECIES_NAMES = ["deer", "zebra", "giraffe", "elephant", "kangaroo", "goat", "duck", "parrot", "eagle"];
+export const WS_ANTELOPE = 9;
+export const WILD_SPECIES = 10;
+export const WILD_SPECIES_NAMES = ["deer", "zebra", "giraffe", "elephant", "kangaroo", "goat", "duck", "parrot", "eagle", "antelope"];
 
 export type Biome = "plains" | "ridge" | "lake" | "canopy" | "sky";
 
@@ -140,6 +141,8 @@ export const WILD_SPECIES_DEFS: SpeciesDef[] = [
     noticeR: 0,
     coats: [0x6b4a34, 0x5a3f2c],
   }),
+  // the Savanna's antelope: big, wary herds of slim tan grazers (the deer's body plan, horned)
+  from(K_DEER, WM_DEER, 1, { herdN: [10, 16], wander: [22, 34], biome: "plains", coats: [0xc98f4e, 0xd29a58, 0xbb8244] }),
 ];
 
 // ── behaviour states (shared by herds, rafts and flocks) ──

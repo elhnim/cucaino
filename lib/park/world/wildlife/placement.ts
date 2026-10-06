@@ -7,16 +7,20 @@ import { seaDist } from "../../registry/island";
 import { groundYFar } from "../../registry/terrain";
 import { nearRail, stationAt } from "../../registry/railway";
 import { inSettlement } from "../../registry/settlements";
+import { savannaK } from "../../registry/habitats";
 import { WILD_LAKE, wildLakeRadius, wildRainforestK, wildWaterSdf } from "../../registry/wildWater";
-import { WS_DEER, WS_DUCK, WS_ELEPHANT, WS_EAGLE, WS_GIRAFFE, WS_GOAT, WS_KANGAROO, WS_PARROT, WS_ZEBRA, WILD_SPECIES_DEFS, type WAnimal, type WHerd, rnd01, xorshift } from "./types";
+import { WS_DEER, WS_DUCK, WS_ELEPHANT, WS_EAGLE, WS_GIRAFFE, WS_GOAT, WS_KANGAROO, WS_PARROT, WS_ZEBRA, WS_ANTELOPE, WILD_SPECIES_DEFS, type WAnimal, type WHerd, rnd01, xorshift } from "./types";
 
 /** a square of the Wildlands given over to grazing herds (bigger than the trees' square: herds want room to wander) */
 export const HERD_CELL = 200;
 /** the rainforest canopy's square (the same grid the trees use, so a flock's perch sits where the canopy actually is) */
 export const BIRD_CELL = 64;
 
-const PLAINS = [WS_DEER, WS_ZEBRA, WS_KANGAROO, WS_GIRAFFE, WS_ELEPHANT];
-const PLAINS_W = [0.3, 0.24, 0.24, 0.11, 0.11];
+// who lives where (registry/habitats.ts): the green country has deer and kangaroos; the Savanna
+// has the safari — zebras, antelope, giraffes and elephants — and a good deal more of it
+const PLAINS = [WS_DEER, WS_KANGAROO];
+const PLAINS_W = [0.55, 0.45];
+const SAFARI = [WS_ZEBRA, WS_ANTELOPE, WS_GIRAFFE, WS_ELEPHANT];
 
 function pickWeighted(r: () => number, ids: number[], w: number[]): number {
   let t = r() * w.reduce((a, b) => a + b, 0);
@@ -132,6 +136,24 @@ export function herdCell(ci: number, cj: number): WHerd[] {
   };
   const cx = ci * HERD_CELL + (0.2 + r() * 0.6) * HERD_CELL;
   const cz = cj * HERD_CELL + (0.2 + r() * 0.6) * HERD_CELL;
+  // the Savanna: several herds to a square, the kinds taking turns so zebras, antelope, giraffes
+  // and elephants graze side by side
+  {
+    const out: WHerd[] = [];
+    const first = Math.abs(ci * 3 + cj * 5) % SAFARI.length;
+    for (let k = 0; k < 7; k++) {
+      const x = ci * HERD_CELL + (0.08 + r() * 0.84) * HERD_CELL;
+      const z = cj * HERD_CELL + (0.08 + r() * 0.84) * HERD_CELL;
+      if (savannaK(x, z) < 0.5) continue;
+      if (seaDist(x, z) > -16 || wildWaterSdf(x, z) < 22 || nearRail(x, z, 18) || stationAt(x, z, 24) || inSettlement(x, z, 30)) continue;
+      const h = groundYFar(x, z);
+      if (h < 1 || slopeAt(x, z) > 0.35) continue;
+      if (out.some((o) => Math.hypot(o.hx - x, o.hz - z) < 48)) continue;
+      const species = SAFARI[(first + out.length) % SAFARI.length];
+      out.push(makeHerd(ci * 100003 + cj + (k + 1) * 5000011, species, x, z, seed ^ (0x51ed270b + k * 7919)));
+    }
+    if (out.length || savannaK(cx, cz) > 0.5) return out;
+  }
   if (Math.hypot(cx, cz) < WILD_FROM + 24) return [];
   if (seaDist(cx, cz) > -16) return [];
   if (wildWaterSdf(cx, cz) < 22) return [];
