@@ -213,6 +213,8 @@ interface Actor {
   rig?: ChibiRig;
   /** chibi: where it was last frame (speed drives walk/run), and how long a one-shot action holds */
   last?: THREE.Vector3;
+  /** its speed, smoothed (see tickActor) */
+  speedSm?: number;
   hold?: number;
   actions: Map<string, THREE.AnimationAction>;
   current: string;
@@ -316,6 +318,7 @@ export class ParkWorld {
   private walkVZ = 0;
   /** the kid's body lean on foot: forward into a run / back as they pull up, and banking into a turn */
   private leanX = 0;
+  private leanAccel = 0;
   private leanZ = 0;
   private leanSpeed = 0;
   private leanFacing = 0;
@@ -978,8 +981,14 @@ export class ParkWorld {
       return;
     }
     const p = a.root.position;
-    const speed = forceSpeed ?? (Number.isNaN(a.last!.x) || dt <= 0 ? 0 : Math.hypot(p.x - a.last!.x, p.z - a.last!.z) / dt);
+    // (how fast it is really going, SMOOTHED: measured frame to frame it jitters — a short frame,
+    //  a nudge off a wall, the ground's steps — and a jittery speed flips the walk between poses,
+    //  which is what made heads nod up and down like mad)
+    const raw = Number.isNaN(a.last!.x) || dt <= 0 ? 0 : Math.hypot(p.x - a.last!.x, p.z - a.last!.z) / dt;
     a.last!.copy(p);
+    a.speedSm = (a.speedSm ?? 0) + ((raw > 40 ? 0 : raw) - (a.speedSm ?? 0)) * Math.min(1, dt * 9);
+    if (a.speedSm < 0.05) a.speedSm = 0;
+    const speed = forceSpeed ?? a.speedSm;
     // the pet (and visitors) paddle when they're in the sea
     if (a !== this.kid) a.rig.setSwim(!this.ride && WATER_Y - worldFloor(p.x, p.z) > SWIM_DEPTH && p.y < WATER_Y, speed > 0.4);
     a.rig.update(dt, speed);
@@ -1741,14 +1750,18 @@ export class ParkWorld {
       // what makes a run read as a body with weight rather than a figure sliding along)
       const onFoot = !this.mount && !this.sky && !this.slide && !this.skiLock && !this.climb && !this.wasInSea;
       const spNow = onFoot ? Math.hypot(this.walkVX, this.walkVZ) : 0;
-      const accel = dt > 0 ? (spNow - this.leanSpeed) / dt : 0;
+      // (speeding up or slowing down, measured gently over about a third of a second: taken frame
+      //  to frame it is all noise, and the body pitched forward and back on every frame)
+      const accelRaw = dt > 0 ? (spNow - this.leanSpeed) / dt : 0;
       this.leanSpeed = spNow;
+      this.leanAccel += (Math.max(-12, Math.min(12, accelRaw)) - this.leanAccel) * Math.min(1, dt * 3);
+      const accel = this.leanAccel;
       let turn = Math.atan2(Math.sin(kid.facing - this.leanFacing), Math.cos(kid.facing - this.leanFacing));
       this.leanFacing = kid.facing;
       turn = dt > 0 ? Math.max(-6, Math.min(6, turn / dt)) : 0;
-      const wantX = onFoot ? Math.max(-0.12, Math.min(0.2, accel * 0.035 + spNow * 0.07)) : 0;
+      const wantX = onFoot ? Math.max(-0.05, Math.min(0.11, accel * 0.012 + spNow * 0.012)) : 0;
       const wantZ = onFoot ? Math.max(-0.2, Math.min(0.2, -turn * 0.045 * spNow)) : 0;
-      this.leanX += (wantX - this.leanX) * Math.min(1, dt * 7);
+      this.leanX += (wantX - this.leanX) * Math.min(1, dt * 4);
       this.leanZ += (wantZ - this.leanZ) * Math.min(1, dt * 6);
       kid.rig.root.rotation.x = this.swimPitch + this.leanX;
       if (!this.slide) kid.rig.root.rotation.z = this.leanZ;
