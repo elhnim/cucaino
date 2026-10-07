@@ -18,9 +18,46 @@ export function toonMat(color: string, opacity = 1): THREE.MeshToonMaterial {
       depthWrite: opacity >= 1,
     });
     m.name = `chibi:${color}`;
+    if (opacity >= 1) plushify(m);
     shared.set(key, m);
   }
   return m;
+}
+
+// ── plush: every character is a soft toy, so its colours carry the fine nap of plush fur — a
+//    neutral fur picture (public/park-assets/props/plush-fur.webp, from codex-world-art/props/)
+//    laid over the body from three sides and blended by which way the surface faces, lightening and
+//    darkening the colour a little. Nothing shows until the picture has arrived. ──
+const PLUSH = { uPlush: { value: null as THREE.Texture | null }, uPlushK: { value: 0 } };
+let plushAsked = false;
+function plushify(m: THREE.MeshToonMaterial) {
+  if (typeof document === "undefined") return;
+  if (!plushAsked) {
+    plushAsked = true;
+    const t = new THREE.TextureLoader().load("/park-assets/props/plush-fur.webp", () => (PLUSH.uPlushK.value = 3.4));
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    PLUSH.uPlush.value = t;
+  }
+  m.customProgramCacheKey = () => "chibi-plush";
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uPlush = PLUSH.uPlush;
+    sh.uniforms.uPlushK = PLUSH.uPlushK;
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vPlP;\nvarying vec3 vPlN;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvPlP = position;\nvPlN = normal;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform sampler2D uPlush;\nuniform float uPlushK;\nvarying vec3 vPlP;\nvarying vec3 vPlN;")
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          vec3 plW = abs( normalize( vPlN ) );
+          plW /= plW.x + plW.y + plW.z;
+          float plF = texture2D( uPlush, vPlP.yz * 5.0 ).r * plW.x + texture2D( uPlush, vPlP.xz * 5.0 ).r * plW.y + texture2D( uPlush, vPlP.xy * 5.0 ).r * plW.z;
+          diffuseColor.rgb *= 1.0 + ( plF - 0.635 ) * uPlushK;
+        }`,
+      );
+  };
 }
 
 /** Unlit colour (eye sparkles): always bright, whatever the lighting. */
