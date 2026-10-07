@@ -26,6 +26,27 @@ const PIT_ROOF = 0xffffff;
 
 type P2 = [number, number];
 
+/** the circuit's painted artwork (public/park-assets/karts/, from codex-world-art/karts/): loaded
+ *  once and shared by the park's view of the circuit and the race itself */
+const artCache = new Map<string, THREE.Texture>();
+function art(name: string, repeat = false): THREE.Texture | null {
+  if (typeof document === "undefined") return null;
+  let t = artCache.get(name);
+  if (!t) {
+    t = new THREE.TextureLoader().load(`/park-assets/karts/${name}.webp`);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    artCache.set(name, t);
+  }
+  return t;
+}
+/** a painted surface: the picture, glowing a touch so it reads at dusk */
+function painted(name: string, fallback: number, repeat = false): THREE.MeshStandardMaterial {
+  const map = art(name, repeat);
+  return new THREE.MeshStandardMaterial({ map: map ?? undefined, color: map ? 0xffffff : fallback, roughness: 0.85, emissive: 0xffffff, emissiveMap: map ?? undefined, emissiveIntensity: map ? 0.18 : 0, side: THREE.DoubleSide });
+}
+
 function mat(color: number, opts: Partial<THREE.MeshStandardMaterialParameters> = {}) {
   return new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.85, metalness: 0.02, ...opts });
 }
@@ -41,10 +62,11 @@ function toWorldYaw(yaw: number): number {
 }
 
 /** a flat ribbon of `width` along a closed world-space polyline, as one triangle-strip mesh */
-function ribbonMesh(poly: P2[], width: number, color: number, y = 0.02): THREE.Mesh {
+function ribbonMesh(poly: P2[], width: number, color: number, y = 0.02, surface?: string): THREE.Mesh {
   const n = poly.length;
   const pos: number[] = [];
   const uv: number[] = [];
+  let along = 0;
   for (let i = 0; i <= n; i++) {
     const a = poly[i % n];
     const b = poly[(i + 1) % n];
@@ -54,7 +76,9 @@ function ribbonMesh(poly: P2[], width: number, color: number, y = 0.02): THREE.M
     const px = (dz / l) * (width / 2);
     const pz = (-dx / l) * (width / 2);
     pos.push(a[0] - px, y, a[1] - pz, a[0] + px, y, a[1] + pz);
-    uv.push(0, i, 1, i);
+    // (u runs along the track — the asphalt's rubber lines follow the racing line — v across it)
+    uv.push(along / 9, 0, along / 9, 1);
+    along += l;
   }
   const idx: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -66,7 +90,12 @@ function ribbonMesh(poly: P2[], width: number, color: number, y = 0.02): THREE.M
   geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  return new THREE.Mesh(geo, mat(color, { side: THREE.DoubleSide }));
+  const m = surface ? painted(surface, color, true) : mat(color, { side: THREE.DoubleSide });
+  // (drawn a hair nearer than the grass it lies on, so it never flickers against it from far above)
+  m.polygonOffset = true;
+  m.polygonOffsetFactor = -3;
+  m.polygonOffsetUnits = -3;
+  return new THREE.Mesh(geo, m);
 }
 
 /** short alternating red/white kerb blocks hugging both edges of the track */
@@ -177,34 +206,34 @@ export function buildGrandstand(x: number, z: number, faceYaw: number): THREE.Gr
   g.position.set(x, 0, z);
   g.rotation.y = faceYaw;
   const rows = 4;
-  const seatMat = mat(GRANDSTAND_SEAT);
   const frameMat = mat(0xffffff, { roughness: 0.95 });
   const peopleColors = [0xff6f91, 0xffd24a, 0x58c4e0, 0x8bd96a, 0xc98bf0];
+  // the stand itself is the painted picture — tiers of red, yellow and blue seats under a striped
+  // canopy — leaning back behind the folk, on a plain white deck
+  const W = 15;
+  const Hs = 10;
+  const lean = 0.5;
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(W, Hs), painted("grandstand", GRANDSTAND_SEAT));
+  panel.rotation.x = -lean;
+  panel.position.set(0, (Hs / 2) * Math.cos(lean) + 0.2, -(Hs / 2) * Math.sin(lean) - 0.6);
+  panel.castShadow = true;
+  g.add(panel);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(W, 0.4, 2.2), frameMat);
+  deck.position.set(0, 0.2, 0.2);
+  g.add(deck);
   for (let r = 0; r < rows; r++) {
-    const step = new THREE.Mesh(new THREE.BoxGeometry(14, 0.6, 1.6), frameMat);
-    step.position.set(0, 0.6 + r * 1.1, -r * 1.5);
-    g.add(step);
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(13.4, 0.5, 1.1), seatMat);
-    seat.position.set(0, 1.0 + r * 1.1, -r * 1.5 + 0.1);
-    g.add(seat);
     for (let p = 0; p < 6; p++) {
       const px = -6 + p * 2.4 + (r % 2) * 0.5;
       const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.6, 2, 6), mat(peopleColors[(p + r) % peopleColors.length]));
-      body.position.set(px, 1.5 + r * 1.1, -r * 1.5 + 0.1);
+      // (seated up the leaning stand, a little in front of the picture)
+      const fy = 1.3 + r * 1.35;
+      const fz = -fy * Math.tan(lean) - 0.15;
+      body.position.set(px, fy, fz);
       const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), mat(0xffe0bd));
-      head.position.set(px, 1.95 + r * 1.1, -r * 1.5 + 0.1);
+      head.position.set(px, fy + 0.45, fz);
       g.add(body, head);
     }
   }
-  const roofPosts = new THREE.CylinderGeometry(0.2, 0.2, rows * 1.1 + 1.6, 6);
-  for (const side of [-6.8, 6.8]) {
-    const post = new THREE.Mesh(roofPosts, frameMat);
-    post.position.set(side, (rows * 1.1 + 1.6) / 2, -rows * 1.5 * 0.5);
-    g.add(post);
-  }
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(15, 0.4, rows * 1.5 + 1.5), mat(PIT_ROOF));
-  roof.position.set(0, rows * 1.1 + 1.8, -rows * 1.5 * 0.5);
-  g.add(roof);
   return g;
 }
 
@@ -239,20 +268,18 @@ export function buildPitGarage(x: number, z: number, yaw: number): THREE.Group {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
   g.rotation.y = yaw;
-  const wallMat = mat(PIT_WALL);
-  const body = new THREE.Mesh(new THREE.BoxGeometry(10, 3.6, 7), wallMat);
-  body.position.set(0, 1.8, 2.6);
+  // the painted pit and race-control building: white and red boards, three open garages below a
+  // glazed control room, a chequered band between (its front on the wall that faces the track)
+  const front = painted("pit-front", PIT_WALL);
+  const side = painted("pit-side", PIT_WALL);
+  const plain = mat(PIT_ROOF);
+  // (BoxGeometry's faces: +x, -x, +y, -y, +z, -z — the track is on the -z side)
+  const body = new THREE.Mesh(new THREE.BoxGeometry(10.5, 7, 7), [side, side, plain, plain, side, front]);
+  body.position.set(0, 3.5, 2.6);
   g.add(body);
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(11, 0.5, 8), mat(PIT_ROOF));
-  roof.position.set(0, 3.8, 2.6);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(11.1, 0.4, 7.6), mat(0xc8262b));
+  roof.position.set(0, 7.2, 2.6);
   g.add(roof);
-  const awning = new THREE.Mesh(new THREE.BoxGeometry(10.6, 0.3, 2.2), mat(0xffd24a));
-  awning.position.set(0, 2.6, -0.4);
-  awning.rotation.x = -0.25;
-  g.add(awning);
-  const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 0.3), mat(0x2b2b32));
-  doorMesh.position.set(0, 1.2, -0.9);
-  g.add(doorMesh);
   for (const side of [-3.2, 3.2]) {
     const kart = buildMiniParkedKart(0xff5fa8);
     kart.position.set(side, 0, -2.6);
@@ -302,7 +329,7 @@ export function buildKartTrack(): THREE.Group {
   const world = kartTrackWorld();
   const poly: P2[] = world.points.map((p) => [p.x, p.z]);
 
-  g.add(ribbonMesh(poly, world.width, ASPHALT));
+  g.add(ribbonMesh(poly, world.width, ASPHALT, 0.02, "asphalt"));
   g.add(ribbonMesh(poly, 0.35, ASPHALT_LINE, 0.03));
   g.add(buildKerbs(poly, world.width));
   g.add(buildTyreWalls(shape));

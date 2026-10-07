@@ -45,6 +45,8 @@ export const PAINTED_BUILDINGS: PaintedBuilding[] = [
   { place: "my-home", art: "my-home", w: 7.2, h: 4.8, d: 4.8, roofRise: 2.3, replaces: [], trim: "#efe2c4" },
   // the grown-ups' kiosk: navy and cream boards with a serving hatch
   { place: "control-room", art: "info-kiosk", w: 3.3, h: 3.3, d: 2.7, roofRise: 1.0, trim: "#f1ead8" },
+  // Candy Golf's kiosk: white boards with mint trim, a serving hatch of clubs and coloured balls, mint shingles
+  { place: "mini-golf", art: "golf-kiosk", w: 5.4, h: 3.6, d: 3.6, roofRise: 1.3, trim: "#dff2e6" },
   // the market stalls
   { place: "pet-food", art: "stall-snack", kind: "stall", w: 4.7, h: 3.13, d: 1.9, roofRise: 0, trim: "#3f8f5a" },
   { place: "pet-stage", art: "stall-stage", kind: "stall", w: 5.1, h: 3.4, d: 2.0, roofRise: 0, trim: "#b3262b" },

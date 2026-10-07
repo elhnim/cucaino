@@ -208,6 +208,18 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     g.add(body, cap);
   }
 
+  // the greens: real putting-green felt (public/park-assets/golf/felt.webp), tinted a shade
+  // lighter or deeper from hole to hole; one tile is two and a half units of green
+  const feltTex = typeof document === "undefined" ? null : track(new THREE.TextureLoader().load("/park-assets/golf/felt.webp"));
+  if (feltTex) {
+    feltTex.colorSpace = THREE.SRGBColorSpace;
+    feltTex.wrapS = feltTex.wrapT = THREE.RepeatWrapping;
+    feltTex.repeat.set(0.4, 0.4);
+    feltTex.anisotropy = 4;
+  }
+  const feltMats = ["#ffffff", "#eaffe6", "#f4fff0"].map((tint, i) => track(new THREE.MeshToonMaterial({ color: feltTex ? tint : FELT[i], map: feltTex ?? undefined, gradientMap: getToonRamp() })));
+  const feltMat = (n: number) => feltMats[n % feltMats.length];
+
   function buildHole(def: HoleDef, n: number): HoleView {
     const g = new THREE.Group();
     const geos: THREE.BufferGeometry[] = [];
@@ -219,7 +231,7 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     const greenGeo = new THREE.ShapeGeometry(shape);
     const cakeGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: false });
     geos.push(greenGeo, cakeGeo);
-    const green = new THREE.Mesh(greenGeo, toon(FELT[n % FELT.length]));
+    const green = new THREE.Mesh(greenGeo, feltMat(n));
     green.rotation.x = -Math.PI / 2;
     green.position.y = 0.005;
     const cake = new THREE.Mesh(cakeGeo, toon(CAKE));
