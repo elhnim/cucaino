@@ -49,7 +49,7 @@ export function WhereToPanel({
         style={searchInput}
         aria-label="Search for a place"
       />
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, touchAction: "pan-x", flexShrink: 0 }}>
         <button type="button" onClick={() => setCat(null)} style={{ ...chip, ...(cat === null ? chipOn : null) }}>
           ✨ Everywhere
         </button>
@@ -59,7 +59,7 @@ export function WhereToPanel({
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, overflowY: "auto", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, overflowY: "auto", flex: 1, minHeight: 0, touchAction: "pan-y", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
         {rows.length === 0 && <div style={{ opacity: 0.7, fontWeight: 700, padding: "8px 4px" }}>Nothing found — try a different search!</div>}
         {rows.map(({ e, d }) => {
           const hidden = e.discoverable && !foundIds.includes(e.id);

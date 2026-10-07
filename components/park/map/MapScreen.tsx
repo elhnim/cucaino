@@ -3,6 +3,7 @@
 // The big map: one continuous, pinch-zoomable, pannable picture from the whole ocean down to a
 // single park land — no more Park/Island/World tabs. Owns the camera (pan/zoom gestures), the
 // Where-to panel, and the trip bar; MapCanvas.tsx does the actual drawing.
+import { LANDS } from "@/lib/park/registry/places";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Camera } from "@/lib/park/map/camera";
 import { bandFor, lerpCamera, minPriorityForBand, pan as panCamera, setViewMax, worldToScreen, zoomAt } from "@/lib/park/map/camera";
@@ -21,6 +22,8 @@ import { ISLAND_VIEW } from "@/lib/park/registry/worldMap";
 // the camera's ceiling has to actually reach the real edge of the world (plus a little slack for
 // the "World" quick-zoom below) — the module default is a placeholder until this runs once
 setViewMax(WORLD_VIEW * 1.25);
+
+const LAND_NAMES = new Set(LANDS.map((l) => l.name));
 
 export interface LiveMarker {
   id: string;
@@ -113,10 +116,16 @@ export function MapScreen({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const dragLast = useRef<{ x: number; y: number } | null>(null);
   const pinchD0 = useRef<number | null>(null);
+  const pinchMid = useRef<{ x: number; y: number } | null>(null);
   const tapStart = useRef<{ x: number; y: number; t: number } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    // (a touch on one of the buttons laid over the map is the button's, not the map's)
+    if ((e.target as Element).closest?.("button")) return;
+    // (a finger on the map stops any glide in progress, so the two never fight over the view)
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    animRef.current = null;
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 1) {
       dragLast.current = { x: e.clientX, y: e.clientY };
@@ -127,6 +136,7 @@ export function MapScreen({
     if (pointers.current.size === 2) {
       const [a, b] = [...pointers.current.values()];
       pinchD0.current = Math.hypot(a.x - b.x, a.y - b.y);
+      pinchMid.current = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
     }
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -140,7 +150,17 @@ export function MapScreen({
         const mx = (a.x + b.x) / 2;
         const my = (a.y + b.y) / 2;
         const rect = hostRef.current!.getBoundingClientRect();
-        setCam((c) => zoomAt(c, size.w, size.h, d / pinchD0.current!, mx - rect.left, my - rect.top));
+        // (the zoom step is worked out NOW: it used to be read later, after the line below had
+        //  already overwritten it, so most pinch steps did nothing and the zoom stuttered)
+        const factor = d / pinchD0.current;
+        const fx = mx - rect.left;
+        const fy = my - rect.top;
+        // …and the map follows the two fingers as they move together, like any map
+        const last = pinchMid.current;
+        const dx = last ? mx - last.x : 0;
+        const dy = last ? my - last.y : 0;
+        pinchMid.current = { x: mx, y: my };
+        setCam((c) => panCamera(zoomAt(c, size.w, size.h, factor, fx, fy), size.w, size.h, dx, dy));
         pinchD0.current = d;
       }
       return;
@@ -155,7 +175,16 @@ export function MapScreen({
   };
   const onPointerUp = (e: React.PointerEvent) => {
     pointers.current.delete(e.pointerId);
-    if (pointers.current.size < 2) pinchD0.current = null;
+    if (pointers.current.size < 2) {
+      pinchD0.current = null;
+      pinchMid.current = null;
+    }
+    // (one finger left after a pinch: carry on dragging from where THAT finger is — the old
+    //  position made the map jump)
+    if (pointers.current.size === 1) {
+      const [rest] = [...pointers.current.values()];
+      dragLast.current = { x: rest.x, y: rest.y };
+    }
     if (pointers.current.size === 0) dragLast.current = null;
     const tap = tapStart.current;
     tapStart.current = null;
@@ -209,7 +238,8 @@ export function MapScreen({
     // (on a phone the pins gather into fewer, bigger groups — more so the further out you look —
     //  so each one stays a clear thing to tap instead of a pile)
     const phone = size.w < 520;
-    const gap = phone ? (band === "world" ? 64 : band === "island" ? 50 : 42) : 34;
+    // (pins are big and named now, so they need room: about a thumb's width apart)
+    const gap = phone ? (band === "world" ? 72 : band === "island" ? 62 : 56) : 58;
     return [...clusterMarkers(normalInput, cam, size.w, size.h, gap), ...clusterMarkers(mysteryInput, cam, size.w, size.h, Math.max(gap, mysteryRadius))];
   }, [clusterInput, cam, size.w, size.h, band]);
   const markerDraws: MapMarkerDraw[] = useMemo(
@@ -217,9 +247,13 @@ export function MapScreen({
       clustered.map((c) => {
         const liveHit = c.count === 1 ? liveMarkers.find((m) => `live:${m.id}` === c.id) : undefined;
         const mystery = clusterInput.find((ci) => ci.id === c.memberIds[0])?.groupKey?.startsWith("mystery:") ?? false;
-        return { ...c, badge: liveHit?.badge, pulse: liveHit?.pulse, mystery };
+        // (a pin on its own carries its name — a found place's, or what the live thing is)
+        const ent = allEntities.find((en) => en.id === c.id);
+        // (a land already has its name written across it: its pin doesn't repeat it)
+        const name = c.count === 1 && !mystery ? (liveHit?.label ?? (ent && LAND_NAMES.has(ent.name) ? undefined : ent?.name)) : undefined;
+        return { ...c, badge: liveHit?.badge, pulse: liveHit?.pulse, mystery, name };
       }),
-    [clustered, liveMarkers, clusterInput],
+    [clustered, liveMarkers, clusterInput, allEntities],
   );
 
   const tripDraw: TripDraw | null = useMemo(() => {
@@ -284,7 +318,9 @@ export function MapScreen({
             </button>
           </div>
           {showWhereTo && (
-            <div style={whereToSheet}>
+            // (touches on the list belong to the list: the map underneath must not grab them, or the
+            //  list can't be scrolled)
+            <div style={whereToSheet} onPointerDown={(e) => e.stopPropagation()} onPointerMove={(e) => e.stopPropagation()} onPointerUp={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()}>
               <WhereToPanel entities={allEntities} pose={pose} foundIds={foundIds} canFly={canFly} onPick={pickEntity} />
             </div>
           )}
@@ -388,7 +424,10 @@ const whereToSheet: React.CSSProperties = {
   left: 0,
   right: 0,
   bottom: 62, // leaves the quick-zoom/Where-to chip row reachable, to collapse it again
-  maxHeight: "64%",
+  height: "64%",
+  display: "flex",
+  flexDirection: "column",
+  touchAction: "pan-y",
   padding: "12px 10px 10px",
   borderTopLeftRadius: 18,
   borderTopRightRadius: 18,

@@ -29,6 +29,8 @@ export interface MapMarkerDraw extends ClusterResult {
   mystery?: boolean;
   badge?: number;
   pulse?: boolean;
+  /** its name, written under a pin that stands on its own */
+  name?: string;
 }
 
 export interface TripDraw {
@@ -506,8 +508,8 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
   // tag (above) already stands in for all of them until the kid zooms back in
   if (closeUp || !big) {
     for (const { l } of art.LAND_SHAPES) {
-      drawEmoji(ctx, l.x, l.z + (big ? -px(1) : px(4)), l.emoji, big ? px(15) : px(11));
-      if (big) drawLabel(ctx, l.x, l.z, "", l.name, px, false, 12);
+      drawEmoji(ctx, l.x, l.z + (big ? -px(1) : px(4)), l.emoji, big ? px(22) : px(11));
+      if (big) drawLabel(ctx, l.x, l.z, "", l.name, px, false, 17);
     }
   }
 
@@ -525,7 +527,9 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
 
   // markers (already clustered by the caller)
   for (const m of markers) {
-    const scaleHint = m.count > 1 ? 1.15 : 1;
+    // (on the big map the pins are thumb-sized with a picture you can make out; the little HUD
+    //  keeps them small)
+    const scaleHint = (m.count > 1 ? 1.15 : 1) * (big ? 1.75 : 1);
     if (m.pulse) {
       ctx.strokeStyle = "#ff2f6d";
       ctx.lineWidth = px(1.8);
@@ -544,7 +548,7 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
     ctx.fill();
     ctx.stroke();
     if (m.mystery) ctx.globalAlpha = 0.6;
-    drawEmoji(ctx, m.x, m.z + px(3.4), m.emoji, px(9 * scaleHint));
+    drawEmoji(ctx, m.x, m.z + px(3.4 * scaleHint), m.emoji, px(9 * scaleHint));
     ctx.globalAlpha = 1;
     // a small "?" corner badge: the silhouette hints at the KIND of thing (a village, a wonder…)
     // without spoiling what it actually is — this badge is what says "and you haven't found it yet"
@@ -586,7 +590,7 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
       ctx.textAlign = "center";
       ctx.fillText(`${m.badge}`, m.x + px(5), m.z - px(3.3));
     }
-    if (big && (!m.mystery || m.count > 1)) drawLabel(ctx, m.x, m.z, "", m.count > 1 ? `${m.emoji} x${m.count}` : "", px, false, 15, m.mystery ? "#6a5a9e" : "#c2185b");
+    if (big && (!m.mystery || m.count > 1)) drawLabel(ctx, m.x, m.z, "", m.count > 1 ? `${m.emoji} x${m.count}` : (m.name ?? ""), px, false, 25, m.mystery ? "#6a5a9e" : m.count > 1 ? "#c2185b" : "#3a2350");
   }
 
   // the planned trip: a bright dashed line + an arrow at the next step
@@ -724,9 +728,11 @@ function drawEmoji(ctx: CanvasRenderingContext2D, x: number, z: number, emoji: s
 function drawLabel(ctx: CanvasRenderingContext2D, x: number, z: number, emoji: string, name: string, px: (n: number) => number, big: boolean, dyPx = 15, color = "#5a2350") {
   if (emoji) drawEmoji(ctx, x, z + px(4), emoji, px(big ? 10 : 10));
   if (!name) return;
-  ctx.font = `900 ${px(big ? 9 : 7.4)}px system-ui`;
+  // (letters a young reader can make out: about 12 px on screen, on a thick white outline)
+  ctx.font = `900 ${px(big ? 13 : 11.5)}px system-ui`;
   ctx.textAlign = "center";
-  ctx.lineWidth = px(2.6);
+  ctx.lineWidth = px(3.4);
+  ctx.lineJoin = "round";
   ctx.strokeStyle = "#ffffff";
   ctx.strokeText(name, x, z + px(dyPx));
   ctx.fillStyle = color;
