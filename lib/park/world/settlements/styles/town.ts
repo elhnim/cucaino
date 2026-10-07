@@ -11,6 +11,7 @@
 // (not merged: they need their own per-frame rotation), sharing the village's wind/glow uniforms so
 // they still fade in with the fog and glow at night like everything else.
 import type { HouseAtlas, PaintedHouse } from "./paintedHouses";
+import type { CutoutStand } from "./cutouts";
 import * as THREE from "three";
 import type { SettlementDef, SettlementProp } from "../../../registry/settlements";
 import { ball, box, cone, cyl, flat, gem, lump, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -357,8 +358,24 @@ function buildBandstand(p: SettlementProp): THREE.BufferGeometry[] {
   return parts;
 }
 
+/** the market stalls are painted cut-outs (./cutouts.ts): one picture per good, in the order they
+ *  are packed (scripts/village-atlas.mjs `townstalls`: four cells across, 384 x 384 each) */
+const STALL_CELLS = ["fruit", "toys", "bread", "cheese", "wool", "fish", "shells"];
+export function townStalls(def: SettlementDef): { stands: CutoutStand[]; atlas: { name: string; w: number; h: number } } | null {
+  if (!PAINTED) return null;
+  const stands: CutoutStand[] = [];
+  for (const p of def.props) {
+    if (!p.kind.startsWith("stall-")) continue;
+    const i = STALL_CELLS.indexOf(p.kind.slice(6));
+    if (i < 0) continue;
+    stands.push({ x: p.x, y: 0, z: p.z, yaw: p.yaw, w: 2.6 * M, h: 2.6 * M, d: 1.2 * M, cell: [(i % 4) * 384, Math.floor(i / 4) * 384, 384, 384] });
+  }
+  return { stands, atlas: { name: "townstalls", w: 1536, h: 768 } };
+}
+
 function buildStall(p: SettlementProp, good: string): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
+  if (PAINTED && STALL_CELLS.includes(good)) return parts; // (the painted stall stands here)
   const color = townStallColor(good);
   const faceA = Math.sin(p.yaw);
   const faceB = Math.cos(p.yaw);

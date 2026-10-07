@@ -818,6 +818,17 @@ function numberBadge(n: number): THREE.Sprite {
   return sprite;
 }
 
+let liveryTex: THREE.Texture | null = null;
+/** the karts' painted side panels (one small picture, shared by every kart) */
+function liveryTexture(): THREE.Texture {
+  if (!liveryTex) {
+    liveryTex = new THREE.TextureLoader().load("/park-assets/karts/liveries.webp");
+    liveryTex.colorSpace = THREE.SRGBColorSpace;
+    liveryTex.anisotropy = 4;
+  }
+  return liveryTex;
+}
+
 /** a chunky toy go-kart: a tub the driver sits IN (not on), a rounded nose + bumper, side pods, a
  *  roll hoop, a little rear spoiler and a race number, in the racer's own colour with a white
  *  stripe. Rear tyres are fat, front tyres smaller and steer visibly (each on its own pivot);
@@ -875,6 +886,38 @@ function buildKartMesh(colour: string, animal: string, number: number, ghost = f
   const bodyMat = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: getToonRamp(), transparent: ghost, opacity: op });
   const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
   group.add(bodyMesh);
+
+  // painted side panels on the pods: glossy enamel in the racer's own colour family with racing
+  // stripes and a blank number roundel (public/park-assets/karts/liveries.webp — eight panels,
+  // two across and four down; the one nearest the racer's colour is used)
+  {
+    const hsl = { h: 0, s: 0, l: 0 };
+    body.getHSL(hsl);
+    const HUES = [0, 30, 55, 120, 175, 215, 270, 330]; // red, orange, yellow, green, teal, blue, purple, pink
+    let cell = 0;
+    let best = 999;
+    HUES.forEach((hDeg, i) => {
+      const d = Math.abs(((hsl.h * 360 - hDeg + 540) % 360) - 180);
+      if (d < best) {
+        best = d;
+        cell = i;
+      }
+    });
+    const u0 = (cell % 2) / 2 + 0.004;
+    const u1 = (cell % 2) / 2 + 0.496;
+    const v1 = 1 - Math.floor(cell / 2) / 4 - 0.006;
+    const v0 = 1 - (Math.floor(cell / 2) + 1) / 4 + 0.006;
+    const liveryMat = new THREE.MeshToonMaterial({ map: liveryTexture(), gradientMap: getToonRamp(), transparent: ghost, opacity: op });
+    for (const s of [-1, 1]) {
+      const g = new THREE.PlaneGeometry(1.05, 0.3);
+      // (the stripes sweep back from the nose on both sides)
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(s > 0 ? [u1, v1, u0, v1, u1, v0, u0, v0] : [u0, v1, u1, v1, u0, v0, u1, v0], 2));
+      const panel = new THREE.Mesh(g, liveryMat);
+      panel.position.set(s * 0.925, 0.28, 0.05);
+      panel.rotation.y = (s * Math.PI) / 2;
+      group.add(panel);
+    }
+  }
 
   // the steering wheel, held up in front of the driver
   const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 6, 10), new THREE.MeshToonMaterial({ color: 0x3a3a42, gradientMap: getToonRamp(), transparent: ghost, opacity: op }));

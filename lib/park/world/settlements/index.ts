@@ -19,8 +19,9 @@ import { BODY_VARIANTS, buildCrowd, folkInstance, makeRig, resolveRig, type Crow
 import { buildLakesidePropsGeometry, lakesidePainted } from "./styles/lakeside";
 import { buildTreetopPropsGeometry, treetopPainted } from "./styles/treetop";
 import { buildMountainPropsGeometry, mountainPainted, buildYakGeometry } from "./styles/mountain";
-import { buildTownMoving, buildTownPropsGeometry, townPainted, type TownMoving } from "./styles/town";
+import { buildTownMoving, buildTownPropsGeometry, townPainted, townStalls, type TownMoving } from "./styles/town";
 import { buildPaintedHouses, type PaintedHouses } from "./styles/paintedHouses";
+import { buildCutouts, type Cutouts } from "./styles/cutouts";
 import { buildBaseCampPropsGeometry, basecampPainted } from "./styles/basecamp";
 import { buildFarmPropsGeometry, farmPainted } from "./styles/farm";
 import { makeSettlementSim, stepSettlement, type SettlementSim, type TalkOut } from "./routine";
@@ -139,6 +140,8 @@ interface BuiltSettlement {
   moving: TownMoving | null;
   /** the village's painted houses (one mesh, one picture) — null for a village without any */
   painted: PaintedHouses | null;
+  /** the town's painted market stalls (one mesh, one picture) — null elsewhere */
+  cutouts: Cutouts | null;
   propsMesh: THREE.Mesh;
   propMat: THREE.Material;
   PU: ReturnType<typeof makeUniforms>;
@@ -215,6 +218,14 @@ function buildOne(scene: THREE.Scene, def: SettlementDef, low: boolean): BuiltSe
     group.add(painted.mesh);
   }
 
+  let cutouts: Cutouts | null = null;
+  const stalls = def.style === "town" ? townStalls(def) : null;
+  if (stalls && stalls.stands.length) {
+    for (const st of stalls.stands) st.y = groundY(st.x, st.z);
+    cutouts = buildCutouts(stalls.stands, stalls.atlas, { lowQuality: low });
+    group.add(cutouts.mesh);
+  }
+
   // canoes: the ones pulled up on the sand (static) plus one paddling each of the village's loops —
   // only built at all for a settlement that actually has any (one fewer draw call elsewhere)
   const beached = def.props.filter((p) => p.kind === "canoe-beached");
@@ -255,7 +266,7 @@ function buildOne(scene: THREE.Scene, def: SettlementDef, low: boolean): BuiltSe
   // per-frame rotation), sharing the village's wind/glow uniforms (PU) like the canopy above
   const moving = def.style === "town" ? buildTownMoving(group, def, low, PU) : null;
 
-  return { group, def, sim, crowd, canoes, canoeState, fauna, faunaState, critters, critterState, canopy, moving, painted, propsMesh, propMat, PU, skin, hair, cloth, scaleOf, bodyVar };
+  return { group, def, sim, crowd, canoes, canoeState, fauna, faunaState, critters, critterState, canopy, moving, painted, cutouts, propsMesh, propMat, PU, skin, hair, cloth, scaleOf, bodyVar };
 }
 
 function disposeOne(b: BuiltSettlement) {
@@ -267,6 +278,7 @@ function disposeOne(b: BuiltSettlement) {
   b.canopy?.dispose();
   b.moving?.dispose();
   b.painted?.dispose();
+  b.cutouts?.dispose();
   b.propsMesh.geometry.dispose();
   b.propMat.dispose();
 }
@@ -307,6 +319,7 @@ export function buildSettlements(scene: THREE.Scene, opts: { lowQuality?: boolea
         b.PU.uTime.value = t;
         b.PU.uPulse.value = o.glow;
         b.painted?.setGlow(o.glow);
+        b.cutouts?.setGlow(o.glow);
         b.crowd.glow.uGlowK.value = 0.12 + o.glow * 1.2;
 
         const talker = stepSettlement(def, b.sim, dt, t, o.hour, { x: o.kid.x, z: o.kid.z }, talk);

@@ -98,3 +98,15 @@ for (const [name, A] of Object.entries(ATLASES)) {
   await sharp({ create: { width: A.w, height: A.h, channels: 3, background: "#f4ecd8" } }).composite(comps).webp({ quality: 82 }).toFile(`public/park-assets/buildings/${name}-atlas.webp`);
   console.log(`${name}-atlas.webp`);
 }
+
+// the town's market stalls: seven cut-outs on a clear ground (codex-world-art/shape/stall-*.png),
+// four cells across, 384 x 384 each, packed WITH their transparency
+{
+  const goods = ["fruit", "toys", "bread", "cheese", "wool", "fish", "shells"];
+  if (goods.every((g) => existsSync(`codex-world-art/shape/stall-${g}.png`))) {
+    const comps = [];
+    for (const [i, g] of goods.entries()) comps.push({ input: await sharp(`codex-world-art/shape/stall-${g}.png`).resize(384, 384, { fit: "fill" }).png().toBuffer(), left: (i % 4) * 384, top: Math.floor(i / 4) * 384 });
+    await sharp({ create: { width: 1536, height: 768, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).composite(comps).webp({ quality: 84, alphaQuality: 90 }).toFile("public/park-assets/buildings/townstalls-atlas.webp");
+    console.log("townstalls-atlas.webp");
+  }
+}
