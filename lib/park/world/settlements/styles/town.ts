@@ -10,7 +10,7 @@
 // is static geometry. They're built and animated by buildTownMoving(), its own tiny pair of meshes
 // (not merged: they need their own per-frame rotation), sharing the village's wind/glow uniforms so
 // they still fade in with the fog and glow at night like everything else.
-import type { TownHouse } from "./townPainted";
+import type { HouseAtlas, PaintedHouse } from "./paintedHouses";
 import * as THREE from "three";
 import type { SettlementDef, SettlementProp } from "../../../registry/settlements";
 import { ball, box, cone, cyl, flat, gem, lump, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -157,14 +157,17 @@ const SHOP_ART: Record<string, number> = {
 
 /** the painted buildings of the town: one per house or shop, where its shell would stand
  *  (`y` is filled in by the caller: the ground under each) */
-export function townPainted(def: SettlementDef): TownHouse[] {
-  if (!PAINTED) return [];
-  return def.huts.map((h, i) => {
+export function townPainted(def: SettlementDef): { houses: PaintedHouse[]; atlas: HouseAtlas } | null {
+  if (!PAINTED) return null;
+  // (the picture's layout: scripts/village-atlas.mjs `town`)
+  const houses = def.huts.map((h, i): PaintedHouse => {
     const { w, d, h1, h2, roofH } = dims(h);
     const art = SHOP_ART[h.kind] ?? i % 4;
     // (red tiles on the pink and yellow houses, slate on the blue and the timbered ones)
-    return { x: h.x, y: 0, z: h.z, yaw: h.yaw, w, h: h1 + h2, d, roofRise: roofH, art, roof: art === 0 || art === 2 ? 0 : 1 };
+    const roof = art === 0 || art === 2 ? 0 : 1;
+    return { x: h.x, y: 0, z: h.z, yaw: h.yaw, w, h: h1 + h2, d, roofRise: roofH, front: [art * 512, 0, 512, 768], side: [art * 192, 768, 192, 256], roof: [768 + roof * 256, 768, 256, 256] };
   });
+  return { houses, atlas: { name: "town", w: 2048, h: 1024, trim: [1280, 768, 128, 128] } };
 }
 
 // ── per-shop signature: a hanging signboard with a theme icon, plus the odd special feature the

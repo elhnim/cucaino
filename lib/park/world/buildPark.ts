@@ -1,6 +1,8 @@
 // Builds the candy-world theme park: a central plaza, themed lands joined by winding paths,
 // a sky-train looping over everything, and lots of instanced candy decor. Nothing casts real
 // shadows (soft blob shadows instead) and every repeated prop is one draw call per part.
+import { nearRail, stationAt } from "../registry/railway";
+import { nearRoad } from "../registry/roads";
 import * as THREE from "three";
 import type { ParkAssets, KitName } from "../assets/loader";
 import { PLACES, LANDS, SKY_LOOP_N, SKY_STATION_I, skyLoopRadius, skyLoopXZ, type PlaceDef, type LandDef } from "../registry/places";
@@ -631,6 +633,9 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     !nearSky(x, z, pad) &&
     !rideableKeepOut(x, z, pad) &&
     !wild(x, z, pad) &&
+    // (nothing grows on the railway, Park Station's platform or the road in from it)
+    // (they only come near the park's rim: nothing to check further in, which keeps the load light)
+    (Math.hypot(x, z) < 95 || (!nearRail(x, z, pad + 3) && !stationAt(x, z, pad + 7) && !nearRoad(x, z, pad + 3))) &&
     // (and clear of the fantasy kit's ruins, rocks and giant trees)
     !fantasy.plan.ruins.some((s) => Math.hypot(x - s.x, z - s.z) < s.r + pad) &&
     !fantasy.obstacles.some((o) => Math.hypot(x - o.x, z - o.z) < o.r + pad + 1);

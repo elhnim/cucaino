@@ -18,11 +18,11 @@ import { buildCanoe } from "../village/folk";
 import { BODY_VARIANTS, buildCrowd, folkInstance, makeRig, resolveRig, type Crowd, type FolkMeshHandle, type Rig } from "../village/crowd";
 import { buildLakesidePropsGeometry } from "./styles/lakeside";
 import { buildTreetopPropsGeometry } from "./styles/treetop";
-import { buildMountainPropsGeometry, buildYakGeometry } from "./styles/mountain";
+import { buildMountainPropsGeometry, mountainPainted, buildYakGeometry } from "./styles/mountain";
 import { buildTownMoving, buildTownPropsGeometry, townPainted, type TownMoving } from "./styles/town";
-import { buildTownPainted, type TownPainted } from "./styles/townPainted";
+import { buildPaintedHouses, type PaintedHouses } from "./styles/paintedHouses";
 import { buildBaseCampPropsGeometry } from "./styles/basecamp";
-import { buildFarmPropsGeometry } from "./styles/farm";
+import { buildFarmPropsGeometry, farmPainted } from "./styles/farm";
 import { makeSettlementSim, stepSettlement, type SettlementSim, type TalkOut } from "./routine";
 import { buildCanopy, type Canopy } from "./canopy";
 import { buildCrittersGeometry, critterGroundY, makeCritters, stepCritters, type CritterState } from "./critters";
@@ -137,8 +137,8 @@ interface BuiltSettlement {
   canopy: Canopy | null;
   /** Sunnybrook's clock hands + windmill sails (its own tiny unmerged meshes) — null everywhere else */
   moving: TownMoving | null;
-  /** the town's painted houses and shops (one mesh, one picture) — null elsewhere */
-  painted: TownPainted | null;
+  /** the village's painted houses (one mesh, one picture) — null for a village without any */
+  painted: PaintedHouses | null;
   propsMesh: THREE.Mesh;
   propMat: THREE.Material;
   PU: ReturnType<typeof makeUniforms>;
@@ -194,14 +194,12 @@ function buildOne(scene: THREE.Scene, def: SettlementDef, low: boolean): BuiltSe
   group.add(propsMesh);
 
   // the town's houses and shops: painted buildings (real artwork), each standing on its own ground
-  let painted: TownPainted | null = null;
-  if (def.style === "town") {
-    const houses = townPainted(def);
-    for (const h of houses) h.y = groundY(h.x, h.z);
-    if (houses.length) {
-      painted = buildTownPainted(houses, { lowQuality: low });
-      group.add(painted.mesh);
-    }
+  let painted: PaintedHouses | null = null;
+  const plan = def.style === "town" ? townPainted(def) : def.style === "mountain" ? mountainPainted(def) : def.style === "farm" ? farmPainted(def) : null;
+  if (plan && plan.houses.length) {
+    for (const h of plan.houses) h.y = groundY(h.x, h.z);
+    painted = buildPaintedHouses(plan.houses, plan.atlas, { lowQuality: low });
+    group.add(painted.mesh);
   }
 
   // canoes: the ones pulled up on the sand (static) plus one paddling each of the village's loops —

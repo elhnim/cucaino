@@ -3,6 +3,7 @@
 // with a roof and bucket, a little bell tower, cheese wheels drying on racks, a terraced vegetable
 // garden walled in stone, firewood stacks, bunting across the square, barrels and crates dotted
 // through the yards, and the yak-and-goat (and sheep) pasture behind its fence.
+import type { HouseAtlas, PaintedHouse } from "./paintedHouses";
 import * as THREE from "three";
 import type { SettlementDef, SettlementHut, SettlementProp } from "../../../registry/settlements";
 import { box, col, cone, cyl, flat, fp, lump, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -48,9 +49,43 @@ const BLOOM = ["#e8485f", "#ffc23d", "#eef0f4", "#ff8fc9", "#5aa852"];
  *  basket, a stone step up to the door. Built entirely in terms of `hut.size` — registry/settlements.ts
  *  generates Highstone's huts at a size already picked so the ridge comes out ~3.5-4.5 m (1 m ≈
  *  1.6 world units; a 1.4 m child kid stands 2.26 units tall) */
+/** Highstone's cottages are painted houses (real artwork on plain walls: see ./paintedHouses.ts) */
+const PAINTED = true;
+/** a painted cottage's size: every other one is the low grey stone cottage (a square front), the
+ *  rest the long whitewashed house with carved, painted window frames (three wide by two high) */
+function paintedDims(hut: SettlementHut, i: number) {
+  const s = hut.size;
+  const long = i % 2 === 1;
+  return { long, w: (long ? 2.5 : 1.8) * s, h: (long ? 1.65 : 1.75) * s, d: 1.7 * s, roofRise: 0.85 * s };
+}
+/** the painted cottages of a mountain village (the picture's layout: scripts/village-atlas.mjs `highstone`) */
+export function mountainPainted(def: SettlementDef): { houses: PaintedHouse[]; atlas: HouseAtlas } | null {
+  if (!PAINTED) return null;
+  const houses = def.huts.map((h, i): PaintedHouse => {
+    const p = paintedDims(h, i);
+    return { x: h.x, y: 0, z: h.z, yaw: h.yaw, w: p.w, h: p.h, d: p.d, roofRise: p.roofRise, front: p.long ? [384, 0, 576, 384] : [0, 0, 384, 384], side: p.long ? [256, 384, 256, 256] : [0, 384, 256, 256], roof: [512, 384, 256, 256] };
+  });
+  return { houses, atlas: { name: "highstone", w: 1024, h: 640, trim: [768, 384, 128, 128] } };
+}
+
 function buildCottage(hut: SettlementHut, seed: number): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const s = hut.size;
+  if (PAINTED) {
+    // (the walls, roof, door and windows are the painted cottage: this adds only what stands
+    //  proud of it — the smoking chimney, the doorstep and a hanging basket of flowers)
+    const p = paintedDims(hut, seed);
+    const fa = Math.sin(hut.yaw);
+    const fb = Math.cos(hut.yaw);
+    const chimX = hut.x - fa * p.d * 0.22 + fb * p.w * 0.22;
+    const chimZ = hut.z - fb * p.d * 0.22 - fa * p.w * 0.22;
+    parts.push(pp(box(0.3 * s, 1.0 * s, 0.3 * s, chimX, p.h + 0.75 * s, chimZ), STONE_D));
+    parts.push(...buildSmokePuff(chimX, p.h + 1.45 * s, chimZ, 0.26 * s));
+    parts.push(pp(place(box(1.1 * s, 0.18 * s, 0.4 * s), hut.x + fa * (p.d * 0.5 + 0.2 * s), 0.09 * s, hut.z + fb * (p.d * 0.5 + 0.2 * s), hut.yaw), STONE_D));
+    const ba = hut.yaw + Math.PI / 2;
+    parts.push(...buildHangingBasket(hut.x + Math.sin(ba) * (p.w * 0.5 + 0.05 * s) + fa * p.d * 0.3, p.h * 0.8, hut.z + Math.cos(ba) * (p.w * 0.5 + 0.05 * s) + fb * p.d * 0.3, ba, BLOOM, seed + 2));
+    return parts;
+  }
   const w = 1.9 * s;
   const d = 1.7 * s;
   const wallH = 1.7 * s;

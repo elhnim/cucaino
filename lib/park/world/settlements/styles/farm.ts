@@ -4,6 +4,7 @@
 // the trailhead flags where "Climb to the crater!" begins — the same low-level-geometry discipline
 // as every other style file (lakeside.ts/mountain.ts/basecamp.ts): everything built in terms of
 // `hut.size`/`p.scale`.
+import type { HouseAtlas, PaintedHouse } from "./paintedHouses";
 import * as THREE from "three";
 import type { SettlementDef, SettlementHut, SettlementProp } from "../../../registry/settlements";
 import { box, cyl, flat, lump, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -20,9 +21,36 @@ const STRAW = "#d9b85c";
 
 /** the farmhouse: whitewashed adobe walls, a terracotta tiled roof (banded like Highstone's own
  *  cottage roofs), a red door, one shuttered window, and a little clay chimney */
+/** the farmhouse and the barn are painted buildings (real artwork on plain walls: ./paintedHouses.ts) */
+const PAINTED = true;
+function paintedDims(hut: SettlementHut) {
+  const s = hut.size;
+  return hut.kind === "barn" ? { w: 2.25 * s, h: 1.5 * s, d: 1.5 * s, roofRise: 0.75 * s } : { w: 2.4 * s, h: 1.6 * s, d: 1.7 * s, roofRise: 0.8 * s };
+}
+/** the farm's painted buildings: an orange adobe farmhouse under clay tiles, a red barn under grey
+ *  shingles (the picture's layout: scripts/village-atlas.mjs `farm`) */
+export function farmPainted(def: SettlementDef): { houses: PaintedHouse[]; atlas: HouseAtlas } | null {
+  if (!PAINTED) return null;
+  const houses = def.huts.map((h): PaintedHouse => {
+    const p = paintedDims(h);
+    const barn = h.kind === "barn";
+    return { x: h.x, y: 0, z: h.z, yaw: h.yaw, ...p, front: barn ? [576, 0, 448, 298] : [0, 0, 576, 384], side: barn ? [256, 384, 256, 256] : [0, 384, 256, 256], roof: barn ? [768, 384, 256, 256] : [512, 384, 256, 256] };
+  });
+  return { houses, atlas: { name: "farm", w: 1024, h: 640, trim: [576, 304, 64, 64] } };
+}
+
 function buildFarmhouse(hut: SettlementHut): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const s = hut.size;
+  if (PAINTED) {
+    // (the painted farmhouse stands here: this adds its clay chimney and the doorstep)
+    const p = paintedDims(hut);
+    const fa = Math.sin(hut.yaw);
+    const fb = Math.cos(hut.yaw);
+    parts.push(pp(box(0.26 * s, 0.85 * s, 0.26 * s, hut.x - fa * p.d * 0.2 + fb * p.w * 0.25, p.h + 0.6 * s, hut.z - fb * p.d * 0.2 - fa * p.w * 0.25), shade(ADOBE, 0.8)));
+    parts.push(pp(place(box(1.0 * s, 0.16 * s, 0.4 * s), hut.x + fa * (p.d * 0.5 + 0.2 * s), 0.08 * s, hut.z + fb * (p.d * 0.5 + 0.2 * s), hut.yaw), "#9a8f7c"));
+    return parts;
+  }
   const w = 2.0 * s;
   const d = 1.7 * s;
   const wallH = 1.6 * s;
@@ -55,6 +83,7 @@ function buildFarmhouse(hut: SettlementHut): THREE.BufferGeometry[] {
 /** the barn: weathered wood planks, a simple gable roof, a big double door */
 function buildBarn(hut: SettlementHut): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
+  if (PAINTED) return parts; // (the painted barn stands here)
   const s = hut.size;
   const w = 1.9 * s;
   const d = 1.5 * s;
