@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COURSE, type HoleDef } from "./courses";
+import { COURSE, KINGDOM, greenHeight, type HoleDef } from "./courses";
 import { MAX_SHOT_DIST, maxStrokes, pointInPolygon, rollDistance, scoreName, shoot, speedForDistance, stepBall, type BallState } from "./physics";
 import { solveHole } from "./solver";
 
@@ -122,5 +122,34 @@ describe("mini golf physics", () => {
     expect(scoreName(1, 3)).toContain("HOLE IN ONE");
     expect(scoreName(3, 3)).toContain("Par");
     expect(scoreName(7, 3)).toContain("You did it");
+  });
+});
+
+describe("Storybook Kingdom Golf (the second course)", () => {
+  it("has 18 holes, every one with humps or hills, each sinkable within par by the robot golfer", { timeout: 240_000 }, () => {
+    expect(KINGDOM).toHaveLength(18);
+    for (const hole of KINGDOM) {
+      expect((hole.mounds?.length ?? 0) + (hole.slopes?.length ?? 0), hole.name).toBeGreaterThan(0);
+      const r = solveHole(hole, maxStrokes(hole.par));
+      expect(r.strokes, hole.name).not.toBeNull();
+      expect(r.strokes!, hole.name).toBeLessThanOrEqual(hole.par);
+    }
+  });
+
+  it("a ball left on a hump rolls off it and comes to rest; the green is flat at the tee and never below the floor", () => {
+    for (const hole of [...COURSE, ...KINGDOM]) {
+      expect(greenHeight(hole, hole.tee.x, hole.tee.z), hole.name).toBeLessThan(0.02);
+      for (const m of hole.mounds ?? []) {
+        expect(greenHeight(hole, m.at.x, m.at.z), hole.name).toBeGreaterThan(0.2);
+        const ball: BallState = { x: m.at.x + 0.2, z: m.at.z + 0.1, vx: 0, vz: 0 };
+        let moving = true;
+        let t = 0;
+        for (let f = 0; f < 60 * 20 && moving; f++, t += 1 / 60) {
+          const st = stepBall(ball, hole, 1 / 60, t);
+          moving = st.moving && !st.sunk && !st.splash;
+        }
+        expect(moving, `${hole.name}: still rolling after 20 s`).toBe(false);
+      }
+    }
   });
 });

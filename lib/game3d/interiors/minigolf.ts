@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { getToonRamp } from "../../park/assets/loader";
 import { makeSparkleTexture } from "../textures";
-import { COURSE, type HoleDef, type Vec2, type Zone } from "../minigolf/courses";
+import { COURSES, greenHeight, type CourseId, type HoleDef, type Vec2, type Zone } from "../minigolf/courses";
 import { BALL_R, CUP_R, maxStrokes, moverOffset, predictPath, scoreName, shoot, speed, stepBall, type BallState } from "../minigolf/physics";
 import type { Interior } from "./types";
 
@@ -24,22 +24,49 @@ export interface GolfOptions {
   /** first hole index (0-based) and how many holes to play: front 9 = {from: 0, count: 9} */
   from?: number;
   count?: number;
+  /** which course: Candy Golf (default) or Storybook Kingdom Golf */
+  course?: CourseId;
 }
+
+/** a course's look: the painted scenery standing round each hole (one cut-out per hole, in hole
+ *  order — public/park-assets/golf/<course>/), its sky, its rails and its felt */
+const THEMES: Record<CourseId, { cutouts: string[]; sky: string; meadow: string; felt: string; cake: string; decor: string[] }> = {
+  candy: {
+    cutouts: ["lollipop-tree", "candy-windmill", "candy-cane-arch", "gumdrop-hill", "ice-cream", "cupcake", "sweet-jar", "donut-stack", "cotton-candy", "pretzel-bridge", "macaron-tower", "gummy-bears", "gingerbread-house", "popcorn", "chocolate-fountain", "birthday-cake", "jelly-castle", "trophy-candy"],
+    sky: "#ffe3f1",
+    meadow: "#a6e8bd",
+    felt: "/park-assets/golf/felt.webp",
+    cake: "#ffd6ea",
+    decor: ["#ff7fbd", "#8fd3ff", "#ffd36b", "#b99bff", "#7ee8a8"],
+  },
+  kingdom: {
+    cutouts: ["kingdom-castle", "pirate-ship", "jungle-idol", "rocket", "teacup", "haunted-manor", "mine-train", "carousel-horse", "clock-tower", "dragon", "treasure-chest", "mushroom-house", "wishing-well", "drawbridge", "ferris-wheel", "balloon-cart", "royal-fountain", "trophy-crown"],
+    sky: "#cfe6ff",
+    meadow: "#8fd69a",
+    felt: "/park-assets/golf/kingdom/felt.webp",
+    cake: "#e9dcc0",
+    decor: ["#3f9b54", "#58b368", "#2f8a52", "#6cc070", "#4aa860"],
+  },
+};
 
 const FLOOR_Y = 0;
 const AIM_MAX_DRAG = 3.4;
+/** the camera sits this far up and back from what it looks at (per unit of distance): low enough
+ *  that the humps in the green and the scenery round it show, high enough to read the whole hole */
+const CAM_UP = 0.74;
+const CAM_BACK = 0.86;
 /** the golfer is kid-sized next to the ball */
 const ACTOR_SCALE = 0.52;
 
 // candy palette
 const FELT = ["#6fe29a", "#62d98f", "#7eeaa6"];
-const CAKE = "#ffd6ea";
 
 function tipFor(h: HoleDef): string | null {
   if (h.portals?.length) return "🌀 Roll into a portal and pop out somewhere else!";
   if (h.water?.length) return "💧 Splash in the water = +1 stroke, so steer clear!";
   if (h.boosts?.length) return "⚡ Zoom pads fire your ball forward!";
   if (h.slopes?.length) return "⛰️ Hills roll slow balls back, so hit harder uphill!";
+  if (h.mounds?.length && !h.blades?.length && !h.movers?.length && !h.portals?.length && !h.water?.length) return "⛰️ The green has humps: your ball curls round them!";
   if (h.ice?.length) return "🧊 Ice is slippery: tap it gently!";
   if (h.movers?.length) return "🚪 Wait for a gap in the sliding doors!";
   if (h.blades?.length) return "🌬️ Time your putt between the windmill blades!";
@@ -58,6 +85,10 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
   camera: (cam: THREE.PerspectiveCamera, dt: number) => void;
   actorScale: number;
 } {
+  const courseId: CourseId = opts.course ?? "candy";
+  const COURSE = COURSES[courseId];
+  const THEME = THEMES[courseId];
+  const ART = `/park-assets/golf/${courseId}/`;
   const first = Math.max(0, Math.min(COURSE.length - 1, opts.from ?? 0));
   const count = Math.max(1, Math.min(COURSE.length - first, opts.count ?? COURSE.length));
   const scene = new THREE.Scene();
@@ -75,14 +106,63 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
   };
 
   // ── candy sky + meadow ──
-  scene.background = new THREE.Color("#ffe3f1");
-  scene.fog = new THREE.Fog("#ffe3f1", 30, 70);
+  scene.background = new THREE.Color(THEME.sky);
+  scene.fog = new THREE.Fog(THEME.sky, 34, 78);
+  // painted pictures (the course's scenery, rails, sand and water): loaded as they're first wanted
+  const loader = new THREE.TextureLoader();
+  const pics = new Map<string, THREE.Texture>();
+  const pic = (url: string, repeat = false) => {
+    let t = pics.get(url);
+    if (!t) {
+      t = track(loader.load(url));
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 4;
+      if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      pics.set(url, t);
+    }
+    return t;
+  };
+  const hasDom = typeof document !== "undefined";
+  // the painted sky-and-hills all round the course (it follows the hole being played)
+  const backdrop = new THREE.Mesh(
+    track(new THREE.CylinderGeometry(64, 64, 34, 40, 1, true)),
+    track(new THREE.MeshBasicMaterial({ map: hasDom ? pic(`${ART}backdrop.webp`, true) : undefined, color: hasDom ? "#ffffff" : THEME.sky, side: THREE.BackSide, fog: false, depthWrite: false })),
+  );
+  backdrop.position.y = 13;
+  backdrop.renderOrder = -1;
+  scene.add(backdrop);
+  /** a painted cut-out standing in the scene, always turned to the camera */
+  const cutMats = new Map<string, THREE.SpriteMaterial>();
+  const cutout = (name: string, size: number) => {
+    let m = cutMats.get(name);
+    if (!m) {
+      m = track(new THREE.SpriteMaterial({ map: hasDom ? pic(`${ART}${name}.webp`) : undefined, transparent: true, alphaTest: 0.35, fog: false }));
+      cutMats.set(name, m);
+    }
+    const sp = new THREE.Sprite(m);
+    sp.scale.set(size, size, 1);
+    sp.center.set(0.5, 0.02); // (it stands on its bottom edge)
+    return sp;
+  };
+  const railTex = hasDom ? pic(`${ART}rail.webp`, true) : null;
+  const sandTex = hasDom ? pic("/park-assets/golf/sand.webp", true) : null;
+  const waterTex = hasDom ? pic("/park-assets/golf/water.webp", true) : null;
+  /** a material wearing a tiling picture (or a plain colour where there's no page to load it) */
+  const tiled = (tex: THREE.Texture | null, fallback: string, extra: THREE.MeshToonMaterialParameters = {}) => track(new THREE.MeshToonMaterial({ color: tex ? "#ffffff" : fallback, map: tex ?? undefined, gradientMap: getToonRamp(), ...extra }));
+  const railMat = tiled(railTex, "#ffffff");
+  const sandMat = tiled(sandTex, "#ffe29a");
+  const waterMat = tiled(waterTex, "#5cc8ff", { transparent: true, opacity: 0.92 });
+  /** scale a flat piece's picture to the piece's real size (one tile = `tile` units) */
+  const worldUV = (geo: THREE.BufferGeometry, w: number, h: number, tile: number) => {
+    const uv = geo.getAttribute("uv") as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * w) / tile, (uv.getY(i) * h) / tile);
+  };
   scene.add(new THREE.HemisphereLight(0xffffff, 0xffc4e1, 1.25));
   const sun = new THREE.DirectionalLight(0xfff6e8, 1.4);
   sun.position.set(6, 14, 8);
   scene.add(sun, sun.target);
   track(sun);
-  const meadow = new THREE.Mesh(track(new THREE.CircleGeometry(60, 40)), toon("#a6e8bd"));
+  const meadow = new THREE.Mesh(track(new THREE.CircleGeometry(66, 40)), toon(THEME.meadow));
   meadow.rotation.x = -Math.PI / 2;
   meadow.position.y = FLOOR_Y - 0.3;
   scene.add(meadow);
@@ -93,8 +173,8 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
   const stickGeo = track(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6));
   const popGeo = track(new THREE.SphereGeometry(0.7, 14, 10));
   const dropGeo = track(new THREE.SphereGeometry(0.45, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2));
-  const popColors = ["#ff7fbd", "#8fd3ff", "#ffd36b", "#b99bff", "#7ee8a8"];
-  for (let i = 0; i < 26; i++) {
+  const popColors = THEME.decor;
+  for (let i = 0; i < 14; i++) {
     const g = new THREE.Group();
     if (i % 2) {
       const stick = new THREE.Mesh(stickGeo, toon("#ffffff"));
@@ -181,10 +261,12 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     let m: THREE.Mesh;
     if ("r" in z) {
       geo = new THREE.CircleGeometry(z.r, 28);
+      worldUV(geo, z.r * 2, z.r * 2, 2.2);
       m = new THREE.Mesh(geo, mat);
       m.position.set(z.at.x, y, z.at.z);
     } else {
       geo = new THREE.PlaneGeometry(z.max.x - z.min.x, z.max.z - z.min.z);
+      worldUV(geo, z.max.x - z.min.x, z.max.z - z.min.z, 2.2);
       m = new THREE.Mesh(geo, mat);
       m.position.set((z.min.x + z.max.x) / 2, y, (z.min.z + z.max.z) / 2);
     }
@@ -199,7 +281,8 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     const bodyGeo = new THREE.BoxGeometry(len + 0.2, 0.3, 0.2);
     const capGeo = new THREE.BoxGeometry(len + 0.26, 0.08, 0.26);
     geos.push(bodyGeo, capGeo);
-    const body = new THREE.Mesh(bodyGeo, toon("#ffffff"));
+    worldUV(bodyGeo, len + 0.2, 0.3, 0.9);
+    const body = new THREE.Mesh(bodyGeo, railMat);
     body.position.set((a.x + b.x) / 2, 0.15, (a.z + b.z) / 2);
     body.rotation.y = ang;
     const cap = new THREE.Mesh(capGeo, toon(color));
@@ -210,7 +293,7 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
 
   // the greens: real putting-green felt (public/park-assets/golf/felt.webp), tinted a shade
   // lighter or deeper from hole to hole; one tile is two and a half units of green
-  const feltTex = typeof document === "undefined" ? null : track(new THREE.TextureLoader().load("/park-assets/golf/felt.webp"));
+  const feltTex = typeof document === "undefined" ? null : track(new THREE.TextureLoader().load(THEME.felt));
   if (feltTex) {
     feltTex.colorSpace = THREE.SRGBColorSpace;
     feltTex.wrapS = feltTex.wrapT = THREE.RepeatWrapping;
@@ -219,6 +302,14 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
   }
   const feltMats = ["#ffffff", "#eaffe6", "#f4fff0"].map((tint, i) => track(new THREE.MeshToonMaterial({ color: feltTex ? tint : FELT[i], map: feltTex ?? undefined, gradientMap: getToonRamp() })));
   const feltMat = (n: number) => feltMats[n % feltMats.length];
+  // (the same felt for the humps and hills, shaded by their own height: see patch())
+  const hillMats = feltMats.map((m) => {
+    const h = track(m.clone());
+    h.vertexColors = true;
+    h.side = THREE.DoubleSide;
+    return h;
+  });
+  const hillMat = (n: number) => hillMats[n % hillMats.length];
 
   function buildHole(def: HoleDef, n: number): HoleView {
     const g = new THREE.Group();
@@ -234,39 +325,104 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     const green = new THREE.Mesh(greenGeo, feltMat(n));
     green.rotation.x = -Math.PI / 2;
     green.position.y = 0.005;
-    const cake = new THREE.Mesh(cakeGeo, toon(CAKE));
+    const cake = new THREE.Mesh(cakeGeo, toon(THEME.cake));
     cake.rotation.x = -Math.PI / 2;
     cake.position.y = -0.3;
     g.add(cake, green);
 
+    // ── the lie of the land: every hump and every hill is really there to see — a patch of felt
+    //    raised to the green's own height (courses.ts greenHeight), laid over the flat green ──
+    const hy = (x: number, z: number) => greenHeight(def, x, z);
+    const patch = (pts: { x: number; z: number }[], cols: number, rows: number, lift: number, mat: THREE.Material, uvOf?: (x: number, z: number) => [number, number]) => {
+      // (pts: a (cols + 1) x (rows + 1) grid of ground points)
+      const pos: number[] = [];
+      const uv: number[] = [];
+      const idx: number[] = [];
+      for (const q of pts) {
+        pos.push(q.x, hy(q.x, q.z) + lift, q.z);
+        const t = uvOf ? uvOf(q.x, q.z) : [q.x, -q.z];
+        uv.push(t[0], t[1]);
+      }
+      for (let j = 0; j < rows; j++)
+        for (let i = 0; i < cols; i++) {
+          const a = j * (cols + 1) + i;
+          idx.push(a, a + cols + 1, a + 1, a + 1, a + cols + 1, a + cols + 2);
+        }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      // (painted to show its shape: lighter the higher it stands, in soft contour bands — so a
+      //  hump reads as a hump even from straight above)
+      const col: number[] = [];
+      for (const q of pts) {
+        const hh = hy(q.x, q.z);
+        const k = 0.86 + Math.min(0.6, hh * 1.05) + (Math.floor(hh / 0.08) % 2 ? 0.09 : 0);
+        col.push(k, k, k);
+      }
+      geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+      geo.setIndex(idx);
+      geo.computeVertexNormals();
+      geos.push(geo);
+      const m = new THREE.Mesh(geo, mat);
+      g.add(m);
+      return m;
+    };
+    for (const md of def.mounds ?? []) {
+      const RINGS = 9;
+      const SEG = 28;
+      const pts: { x: number; z: number }[] = [];
+      for (let j = 0; j <= RINGS; j++)
+        for (let i = 0; i <= SEG; i++) {
+          const a = (i / SEG) * Math.PI * 2;
+          const rr = (j / RINGS) * md.r;
+          pts.push({ x: md.at.x + Math.cos(a) * rr, z: md.at.z + Math.sin(a) * rr });
+        }
+      patch(pts, SEG, RINGS, 0.006, hillMat(n));
+    }
+    const slopeGrids: { pts: { x: number; z: number }[]; cols: number; rows: number }[] = [];
+    for (const sl of def.slopes ?? []) {
+      const zn = sl.zone;
+      const x0 = "r" in zn ? zn.at.x - zn.r : zn.min.x;
+      const x1 = "r" in zn ? zn.at.x + zn.r : zn.max.x;
+      const z0 = "r" in zn ? zn.at.z - zn.r : zn.min.z;
+      const z1 = "r" in zn ? zn.at.z + zn.r : zn.max.z;
+      const cols = Math.max(4, Math.round((x1 - x0) / 0.22));
+      const rows = Math.max(4, Math.round((z1 - z0) / 0.22));
+      const pts: { x: number; z: number }[] = [];
+      for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) pts.push({ x: x0 + ((x1 - x0) * i) / cols, z: z0 + ((z1 - z0) * j) / rows });
+      patch(pts, cols, rows, 0.006, hillMat(n));
+      slopeGrids.push({ pts, cols, rows });
+    }
+
     for (const [a, b] of def.outline.map((p, k) => [p, def.outline[(k + 1) % def.outline.length]] as const)) wallRun(g, a, b, def.color, geos);
     for (const line of def.walls ?? []) for (let k = 0; k + 1 < line.length; k++) wallRun(g, line[k], line[k + 1], def.color, geos);
 
-    for (const z of def.sand ?? []) g.add(zoneMesh(z, 0.012, toon("#ffe29a"), geos));
+    for (const z of def.sand ?? []) g.add(zoneMesh(z, 0.012, sandMat, geos));
     for (const z of def.ice ?? []) g.add(zoneMesh(z, 0.012, toon("#dff6ff", { transparent: true, opacity: 0.9 }), geos));
     const water: THREE.Mesh[] = [];
     for (const z of def.water ?? []) {
-      const m = zoneMesh(z, 0.014, toon("#5cc8ff", { transparent: true, opacity: 0.92 }), geos);
+      const m = zoneMesh(z, 0.014, waterMat, geos);
       g.add(m);
       water.push(m);
     }
-    for (const sl of def.slopes ?? []) {
+    (def.slopes ?? []).forEach((sl, si) => {
       const tex = chevronTex.clone();
       track(tex);
-      const m = zoneMesh(sl.zone, 0.016, track(new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false })), geos);
-      // chevrons point downhill (the way the hill pushes)
-      m.rotation.z = Math.atan2(sl.push.x, -sl.push.z);
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(1.5, 1.5);
-      g.add(m);
-    }
+      // chevrons point downhill (the way the hill pushes), draped over the hill itself
+      const pl = Math.hypot(sl.push.x, sl.push.z) || 1;
+      const dx = sl.push.x / pl;
+      const dz = sl.push.z / pl;
+      const G = slopeGrids[si];
+      patch(G.pts, G.cols, G.rows, 0.02, track(new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.4, depthWrite: false })), (x, z) => [(x * dz - z * dx) / 1.4, -(x * dx + z * dz) / 1.4]);
+    });
 
     const bumpers: THREE.Mesh[] = [];
     for (const bp of def.bumpers ?? []) {
       const geo = new THREE.CylinderGeometry(bp.r, bp.r * 1.08, 0.42, 18);
       geos.push(geo);
       const m = new THREE.Mesh(geo, toon(bumpers.length % 2 ? "#ff7fbd" : "#ffb347"));
-      m.position.set(bp.at.x, 0.21, bp.at.z);
+      m.position.set(bp.at.x, 0.21 + hy(bp.at.x, bp.at.z), bp.at.z);
       g.add(m);
       bumpers.push(m);
     }
@@ -276,10 +432,10 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
       const hubGeo = new THREE.CylinderGeometry(0.22, 0.28, 0.5, 12);
       geos.push(hubGeo);
       const hub = new THREE.Mesh(hubGeo, toon("#ffffff"));
-      hub.position.set(bl.at.x, 0.25, bl.at.z);
+      hub.position.set(bl.at.x, 0.25 + hy(bl.at.x, bl.at.z), bl.at.z);
       g.add(hub);
       const rotor = new THREE.Group();
-      rotor.position.set(bl.at.x, 0.18, bl.at.z);
+      rotor.position.set(bl.at.x, 0.18 + hy(bl.at.x, bl.at.z), bl.at.z);
       for (const [k, off] of [0, Math.PI / 2].entries()) {
         const geo = new THREE.BoxGeometry(bl.length, 0.22, 0.14);
         geos.push(geo);
@@ -307,14 +463,14 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
       geos.push(geo);
       const glow = new THREE.Mesh(geo, toon("#ffb347"));
       glow.rotation.x = -Math.PI / 2;
-      glow.position.set(bp.at.x, 0.015, bp.at.z);
+      glow.position.set(bp.at.x, 0.015 + hy(bp.at.x, bp.at.z), bp.at.z);
       g.add(glow);
       const tex = chevronTex.clone();
       track(tex);
       const m = new THREE.Mesh(geo, track(new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff, transparent: true, depthWrite: false })));
       m.rotation.x = -Math.PI / 2;
       m.rotation.z = Math.atan2(bp.dir.x, -bp.dir.z);
-      m.position.set(bp.at.x, 0.018, bp.at.z);
+      m.position.set(bp.at.x, 0.018 + hy(bp.at.x, bp.at.z), bp.at.z);
       g.add(m);
       boosts.push(m);
     }
@@ -327,7 +483,7 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
         ["to", pt.to],
       ] as const) {
         const pg = new THREE.Group();
-        pg.position.set(at.x, 0, at.z);
+        pg.position.set(at.x, hy(at.x, at.z), at.z);
         const ringGeo = new THREE.TorusGeometry(pt.r, 0.07, 8, 28);
         const discGeo = new THREE.CircleGeometry(pt.r * 0.96, 28);
         geos.push(ringGeo, discGeo);
@@ -351,15 +507,16 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     geos.push(cupGeo, rimGeo, poleGeo, flagGeo);
     const cup = new THREE.Mesh(cupGeo, track(new THREE.MeshBasicMaterial({ color: 0x3a2233 })));
     cup.rotation.x = -Math.PI / 2;
-    cup.position.set(def.cup.x, 0.02, def.cup.z);
+    const cupY = hy(def.cup.x, def.cup.z);
+    cup.position.set(def.cup.x, 0.02 + cupY, def.cup.z);
     const rim = new THREE.Mesh(rimGeo, toon("#ffffff"));
     rim.rotation.x = -Math.PI / 2;
-    rim.position.set(def.cup.x, 0.021, def.cup.z);
+    rim.position.set(def.cup.x, 0.021 + cupY, def.cup.z);
     const pole = new THREE.Mesh(poleGeo, toon("#ffffff"));
-    pole.position.set(def.cup.x, 0.75, def.cup.z);
+    pole.position.set(def.cup.x, 0.75 + cupY, def.cup.z);
     const flagTex = track(makeFlagTexture(String(n + 1), def.color));
     const flag = new THREE.Mesh(flagGeo, track(new THREE.MeshBasicMaterial({ map: flagTex, side: THREE.DoubleSide })));
-    flag.position.set(def.cup.x + 0.32, 1.28, def.cup.z);
+    flag.position.set(def.cup.x + 0.32, 1.28 + cupY, def.cup.z);
     g.add(cup, rim, pole, flag);
 
     // name board behind the far end of the green
@@ -386,6 +543,27 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     });
     meadow.position.x = cx;
     meadow.position.z = cz;
+    backdrop.position.x = cx;
+    backdrop.position.z = cz;
+    // the hole's own painted scenery: its big piece beyond the far end, and four more from the
+    // rest of the course standing round the sides and behind (never between the tee and the camera)
+    {
+      const N = THEME.cutouts.length;
+      const main = cutout(THEME.cutouts[n % N], 6.4);
+      main.position.set(cx + (n % 2 ? -1 : 1) * (rx * 0.35 + 1.2), FLOOR_Y - 0.3, farZ - 4.6);
+      g.add(main);
+      const spots: [number, number, number][] = [
+        [-(rx + 3.4), cz - rz * 0.45, 4.6],
+        [rx + 3.6, cz - rz * 0.1, 4.8],
+        [-(rx + 4.2), cz + rz * 0.35, 4.2],
+        [rx + 4.4, cz - rz * 0.8, 4.4],
+      ];
+      spots.forEach(([dx, z, size], k) => {
+        const sp = cutout(THEME.cutouts[(n + 3 + k * 4) % N], size);
+        sp.position.set(cx + dx, FLOOR_Y - 0.3, z);
+        g.add(sp);
+      });
+    }
 
     return { def, group: g, geos, blades, movers, bumpers, portals, boosts, water, flag, sprites };
   }
@@ -420,7 +598,7 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
   const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -FLOOR_Y);
 
   const def = () => COURSE[holeIdx];
-  const ballWorld = () => new THREE.Vector3(ball.x, FLOOR_Y + BALL_R, ball.z);
+  const ballWorld = () => new THREE.Vector3(ball.x, FLOOR_Y + BALL_R + greenHeight(def(), ball.x, ball.z), ball.z);
 
   function placeGolfer() {
     // stand side-on to the line of the putt (a right-handed golfer: target on their left)
@@ -541,7 +719,7 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     const look = b.clone().lerp(c, 0.3);
     const fitW = portrait ? spanX / Math.max(0.45, cam.aspect) : spanX;
     const dist = Math.max(9.5, Math.min(24, Math.max(spanZ * 0.95, fitW * 1.15)));
-    const want = new THREE.Vector3(look.x, dist * 0.95, look.z + dist * 0.62);
+    const want = new THREE.Vector3(look.x, dist * CAM_UP, look.z + dist * CAM_BACK);
     // …and make sure the things you aim with are really in the picture, whatever the screen's
     // shape: the ball, the cup and the whole flag, inside a safe rectangle that leaves room for the
     // score at the top and the buttons at the bottom. Pull back (and look a little further up the
@@ -555,14 +733,14 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
       let mix = 0.3;
       for (let i = 0; i < 14; i++) {
         look.copy(b).lerp(c, mix);
-        want.set(look.x, far * 0.95, look.z + far * 0.62);
+        want.set(look.x, far * CAM_UP, look.z + far * CAM_BACK);
         cam.position.copy(want);
         cam.lookAt(look);
         cam.updateMatrixWorld();
         let ok = true;
         for (const p of pts) {
           v.copy(p).project(cam);
-          if (Math.abs(v.x) > 0.84 || v.y > 0.66 || v.y < -0.6) ok = false;
+          if (Math.abs(v.x) > 0.86 || v.y > 0.74 || v.y < -0.62) ok = false;
         }
         if (ok) break;
         far = Math.min(40, far * 1.1);
@@ -677,18 +855,18 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
 
       const b = ballWorld();
       ballMesh.position.copy(b);
-      ballShadow.position.set(b.x + 0.05, FLOOR_Y + 0.02, b.z + 0.05);
+      ballShadow.position.set(b.x + 0.05, b.y - BALL_R + 0.02, b.z + 0.05);
       ballShadow.visible = sinkT < 0;
       if (sinkT >= 0) {
         sinkT += dt;
-        ballMesh.position.y = FLOOR_Y + BALL_R - Math.min(1, sinkT * 3) * 0.45;
+        ballMesh.position.y = b.y - Math.min(1, sinkT * 3) * 0.45;
         if (sinkT > 1.7) {
           sinkT = -1;
           nextHole();
         }
       } else if (splashT >= 0) {
         splashT += dt;
-        ballMesh.position.y = FLOOR_Y + BALL_R - Math.min(1, splashT * 4) * 0.4;
+        ballMesh.position.y = b.y - Math.min(1, splashT * 4) * 0.4;
         if (splashT > 1.1) {
           // back to where it was hit from
           splashT = -1;
@@ -734,7 +912,7 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
           dots.forEach((dot, i) => {
             dot.visible = i < pts.length;
             if (!dot.visible) return;
-            dot.position.set(pts[i].x, FLOOR_Y + 0.08, pts[i].z);
+            dot.position.set(pts[i].x, FLOOR_Y + 0.08 + greenHeight(d, pts[i].x, pts[i].z), pts[i].z);
             dot.scale.setScalar(1 - (i / dots.length) * 0.5);
           });
           arrow.visible = pts.length > 0;
@@ -742,7 +920,7 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
             const tip = pts[pts.length - 1];
             const prev = pts.length > 1 ? pts[pts.length - 2] : ball;
             const dir = new THREE.Vector3(tip.x - prev.x, 0, tip.z - prev.z);
-            arrow.position.set(tip.x, FLOOR_Y + 0.12, tip.z);
+            arrow.position.set(tip.x, FLOOR_Y + 0.12 + greenHeight(d, tip.x, tip.z), tip.z);
             if (dir.lengthSq() > 1e-6) arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
           }
           dotMat.color.setHSL(0.33 - power * 0.33, 0.9, 0.62); // green -> red with power

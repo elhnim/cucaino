@@ -1248,12 +1248,13 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const golfRef = useRef(onGolf);
   golfRef.current = onGolf;
 
-  const startGolf = async (from: number, count: number) => {
+  const [golfCourse, setGolfCourse] = useState<"candy" | "kingdom">("candy");
+  const startGolf = async (from: number, count: number, course: "candy" | "kingdom" = golfCourse) => {
     const { buildMiniGolfInterior } = await import("@/lib/game3d/interiors/minigolf");
     rideFrom.current = panel?.placeId;
     setPanel(null);
     setGolf(null);
-    worldRef.current?.enterRide((accent) => buildMiniGolfInterior(accent, (e) => golfRef.current(e), golfCtl.current, { from, count }));
+    worldRef.current?.enterRide((accent) => buildMiniGolfInterior(accent, (e) => golfRef.current(e), golfCtl.current, { from, count, course }));
     toast("⛳ Drag back from anywhere to aim, let go to putt!");
   };
 
@@ -1787,13 +1788,30 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       {panel?.kind === "rides" && <RidesMenu onPick={pickRide} onClose={closePanel} />}
       {panel?.kind === "retro" && <RetroArcade kidId={kidId} onClose={closePanel} pay={payPlay} />}
       {panel?.kind === "golf" && (
-        <CandySheet title="⛳ Candy Golf" subtitle="18 holes of windmills, portals, hills, ice and water!" color={C.success} onClose={closePanel}>
+        <CandySheet title="⛳ Mini Golf" subtitle="Two courses of 18 holes: windmills, portals, humps and hills, ice and water!" color={C.success} onClose={closePanel}>
+          {/* which course */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+            {GOLF_COURSES.map((gc) => (
+              <button
+                key={gc.id}
+                type="button"
+                onClick={() => setGolfCourse(gc.id)}
+                className="gp-press"
+                aria-pressed={golfCourse === gc.id}
+                style={{ ...cardStyle(golfCourse === gc.id ? "gold" : C.success), padding: "10px 8px", cursor: "pointer", textAlign: "center", opacity: golfCourse === gc.id ? 1 : 0.72 }}
+              >
+                <span style={{ display: "block", fontSize: 30 }}>{gc.emoji}</span>
+                <span style={{ display: "block", ...display(16) }}>{gc.name}</span>
+                <span style={{ display: "block", fontWeight: 700, fontSize: 11.5, color: C.dim, marginTop: 2 }}>{gc.sub}</span>
+              </button>
+            ))}
+          </div>
           <div style={{ display: "grid", gap: 10 }}>
             {GOLF_ROUNDS.map((c) => (
               <button
                 key={c.name}
                 type="button"
-                onClick={() => void payPlay("golf", "a round of Candy Golf").then((ok) => {
+                onClick={() => void payPlay("golf", "a round of mini golf").then((ok) => {
                     if (ok) void startGolf(c.from, c.count);
                   })}
                 style={{ ...cardStyle(c.count === 18 ? "gold" : C.success), ...golfPick }}
@@ -2174,9 +2192,14 @@ const ASK_HINT: Partial<Record<PlaceAction, string>> = {
   parent: "A grown-up PIN is needed",
 };
 
+const GOLF_COURSES: { id: "candy" | "kingdom"; emoji: string; name: string; sub: string }[] = [
+  { id: "candy", emoji: "🍭", name: "Candy Golf", sub: "Lollipops, cupcakes & a jelly castle" },
+  { id: "kingdom", emoji: "🏰", name: "Storybook Kingdom", sub: "A castle, pirates, a dragon & a rocket" },
+];
+
 const GOLF_ROUNDS = [
   { from: 0, count: 9, emoji: "🌱", name: "Front 9", sub: "Holes 1–9 · a great place to start" },
-  { from: 9, count: 9, emoji: "🔥", name: "Back 9", sub: "Holes 10–18 · portals, a volcano & the Grand Finale" },
+  { from: 9, count: 9, emoji: "🔥", name: "Back 9", sub: "Holes 10–18 · the trickier half, to the Grand Finale" },
   { from: 0, count: 18, emoji: "🏆", name: "All 18 holes", sub: "The full championship course" },
 ];
 

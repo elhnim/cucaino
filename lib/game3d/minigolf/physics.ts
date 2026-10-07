@@ -5,6 +5,7 @@
 // stopping dead. Shot power maps to *distance* (not speed), so the aim line can promise how far
 // the ball will go. The cup catches slow balls, and a fast ball lips out instead of vanishing.
 import type { HoleDef, Vec2, Zone } from "./courses";
+import { moundPush } from "./courses";
 
 export const BALL_R = 0.18;
 export const CUP_R = 0.3;
@@ -197,6 +198,11 @@ export function stepBall(ball: BallState, hole: HoleDef, dt: number, t: number):
         ax += sl.push.x;
         az += sl.push.z;
       }
+    }
+    if (hole.mounds) {
+      const mp = moundPush(hole, ball.x, ball.z);
+      ax += mp.x;
+      az += mp.z;
     }
     const onHill = ax !== 0 || az !== 0;
     if (speed(ball) === 0 && !onHill) break;
