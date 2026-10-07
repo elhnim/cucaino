@@ -11,8 +11,9 @@ describe("painted buildings", () => {
       expect(place, b.place).toBeTruthy();
       expect(seen.has(b.place), `${b.place} twice`).toBe(false);
       seen.add(b.place);
-      // (its corners may poke a little past the circle the kid is pushed out of, never far)
-      expect(Math.hypot(b.w / 2, b.d / 2), b.place).toBeLessThan(place!.radius + 1.6);
+      // (its corners may poke a little past the circle the kid is pushed out of, never far — the
+      //  gate's arch is walked through, not round)
+      if (b.kind !== "arch") expect(Math.hypot(b.w / 2, b.d / 2), b.place).toBeLessThan(place!.radius + 1.6);
       // a door a kid can walk up to: the wall is at least a couple of kid-heights tall
       expect(b.h).toBeGreaterThan(3);
       for (const i of b.replaces ?? [0]) expect(i, b.place).toBeLessThan(Math.max(1, place!.models.length));
@@ -22,7 +23,8 @@ describe("painted buildings", () => {
   it("each has its three pictures, and stays light (the whole building well under 250 KB)", () => {
     for (const b of PAINTED_BUILDINGS) {
       let total = 0;
-      for (const part of [b.front ?? "front", "side", "roof"]) {
+      const parts = b.kind === "arch" || (b.kind === "stall" && b.noRoof) ? [b.front ?? "front"] : b.kind === "stall" ? [b.front ?? "front", "roof"] : [b.front ?? "front", "side", "roof"];
+      for (const part of parts) {
         const path = `public/park-assets/buildings/${b.art}-${part}.webp`;
         expect(existsSync(path), path).toBe(true);
         total += statSync(path).size;

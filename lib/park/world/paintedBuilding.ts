@@ -41,6 +41,44 @@ export function buildPaintedBuilding(def: PaintedBuilding, opts: { lowQuality?: 
   };
   const trim = keep(new THREE.MeshStandardMaterial({ color: def.trim ?? "#f3ecdc", roughness: 0.75 }));
   const { w, h, d } = def;
+  const result = (): PaintedBuildingModel => ({
+    group,
+    setGlow(glow) {
+      for (const m of painted) m.emissiveIntensity = 0.22 + glow * 0.36;
+    },
+    dispose() {
+      for (const x of disposables) x.dispose();
+    },
+  });
+  const flatAdd = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => {
+    const o = new THREE.Mesh(keep(g), m);
+    o.position.set(x, y, z);
+    o.castShadow = !opts.lowQuality;
+    o.receiveShadow = true;
+    group.add(o);
+    return o;
+  };
+  if (def.kind === "arch" || def.kind === "stall") {
+    // a cut-out: the picture's clear ground is cut away, and it is seen from both sides
+    const cut = paint(tex(`${def.art}-${def.front ?? "front"}.webp`), "#e9c9c9");
+    cut.alphaTest = 0.5;
+    cut.side = THREE.DoubleSide;
+    if (def.kind === "arch") {
+      flatAdd(new THREE.PlaneGeometry(w, h), cut, 0, h / 2, 0);
+      return result();
+    }
+    // a stall: the picture in front and again behind, a plain wooden counter between them, and a
+    // flat canopy overhead in its striped cloth
+    flatAdd(new THREE.PlaneGeometry(w, h), cut, 0, h / 2, d / 2);
+    const back = flatAdd(new THREE.PlaneGeometry(w, h), cut, 0, h / 2, -d / 2);
+    back.rotation.y = Math.PI;
+    const wood = keep(new THREE.MeshStandardMaterial({ color: "#8a5f36", roughness: 0.8 }));
+    flatAdd(new THREE.BoxGeometry(w * 0.86, h * 0.36, d - 0.12), wood, 0, h * 0.2, 0);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) flatAdd(new THREE.BoxGeometry(0.12, h * 0.86, 0.12), wood, sx * w * 0.44, h * 0.43, sz * (d / 2 - 0.1));
+    const cloth = def.noRoof ? trim : paint(tex(`${def.art}-roof.webp`, Math.max(1, Math.round(w / 2.4)), 1), def.trim ?? "#d9b85c", 0.9);
+    flatAdd(new THREE.BoxGeometry(w * 0.98, 0.08, d + 0.5), cloth, 0, h * 0.9, 0);
+    return result();
+  }
   const mFront = paint(tex(`${def.art}-${def.front ?? "front"}.webp`), "#e9c9c9");
   const mSide = paint(tex(`${def.art}-side.webp`), "#e2d6c2");
   // (the back is the side wall again, repeated so it isn't stretched across a wider wall)

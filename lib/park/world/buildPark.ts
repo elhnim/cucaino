@@ -407,7 +407,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       disposables.push(skyB);
     }
     // hand-built landmarks for the most important places
-    const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : p.id === "my-home" ? buildHomeExterior() : null;
+    const special = p.id === "quest-board" ? buildQuestBoard() : p.id === "daily-gift" ? buildGiftChest() : p.id === "my-home" && !paintedBuildingFor(p.id) ? buildHomeExterior() : null;
     if (special) {
       landmarks.push(special);
       disposables.push(special);
