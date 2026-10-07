@@ -13,8 +13,10 @@ export type Rect = readonly [x: number, y: number, w: number, h: number];
 
 export interface PaintedHouse {
   x: number;
-  /** the ground under it (filled in by ../index.ts) */
+  /** the ground under it (filled in by ../index.ts, unless `fixedY`) */
   y: number;
+  /** `y` is already right (a hut standing in the shallows at the lake's own level) */
+  fixedY?: boolean;
   z: number;
   yaw: number;
   /** the front wall's width, the walls' height, the depth front to back, the roof's rise */
@@ -27,6 +29,19 @@ export interface PaintedHouse {
   front: Rect;
   side: Rect;
   roof: Rect;
+  /**
+   * a ROUND house (a reed hut, a treehouse cabin, a dome tent) instead of a box: `w` is then its
+   * diameter and `d` is unused. Its wall wears two strips like the label round a tin — `front`
+   * (the door in its middle) across the side that faces `yaw`, and `side` (the plain back strip)
+   * round the rest, repeated `backRepeat` times (default 1: each strip covers half the wall).
+   *  "cone": an upright wall under a conical roof whose eaves reach `roofR` (default 1.3 x the wall's radius);
+   *  "dome": the two strips over a flattened dome `h` high (a tent) — no separate roof.
+   */
+  round?: "cone" | "dome";
+  backRepeat?: number;
+  roofR?: number;
+  /** a round wall leaning in a little towards the top (0.9 = its top is 0.9 of its foot), default 1 */
+  taper?: number;
 }
 
 export interface HouseAtlas {
@@ -70,10 +85,70 @@ export function buildPaintedHouses(houses: PaintedHouse[], atlas: HouseAtlas, op
       put(c, tc);
       put(d, td);
     };
-    const hw = hs.w / 2;
-    const hd = hs.d / 2;
     const lift = hs.lift ?? 0;
     const H = lift + hs.h;
+    if (hs.round) {
+      const r0 = hs.w / 2;
+      const k = Math.max(1, hs.backRepeat ?? 1);
+      const SEG = 8 * (1 + k); // (so every strip starts and ends on a segment's edge)
+      /** the wall's picture at angle a (0 = straight ahead, growing to the house's left): which
+       *  strip, and how far along it */
+      const at = (j: number): { r: Rect; u: number }[] => {
+        // segment j runs from unit j / 8 to (j + 1) / 8, in strips: strip 0 is the front, centred on a = 0
+        const s0 = Math.floor(j / 8);
+        return [
+          { r: s0 === 0 ? hs.front : hs.side, u: (j % 8) / 8 },
+          { r: s0 === 0 ? hs.front : hs.side, u: ((j % 8) + 1) / 8 },
+        ];
+      };
+      const span = (Math.PI * 2) / (1 + k); // the angle one strip covers
+      const ang = (j: number) => -span / 2 + (j / 8) * span; // (the front strip is centred on 0)
+      const ring = (rad: number, y: number, j: number) => [Math.sin(ang(j)) * rad, y, Math.cos(ang(j)) * rad];
+      const rows = hs.round === "dome" ? 5 : 1;
+      const B = lift > 0 ? lift : hs.round === "dome" ? -0.1 : -0.6;
+      for (let j = 0; j < SEG; j++) {
+        const [ua, ub] = at(j);
+        for (let i = 0; i < rows; i++) {
+          // (a dome: rings up a flattened quarter-circle; a wall: straight up, leaning in by `taper`)
+          const f0 = i / rows;
+          const f1 = (i + 1) / rows;
+          const rad = (f: number) => (hs.round === "dome" ? r0 * Math.cos((f * Math.PI) / 2) : r0 * (1 + ((hs.taper ?? 1) - 1) * f));
+          const hy = (f: number) => (hs.round === "dome" ? B + (H - B) * Math.sin((f * Math.PI) / 2) : B + (H - B) * f);
+          // (seen from outside, the picture reads left to right as the angle FALLS)
+          const a = ring(rad(f0), hy(f0), j + 1);
+          const b = ring(rad(f0), hy(f0), j);
+          const c = ring(rad(f1), hy(f1), j);
+          const d = ring(rad(f1), hy(f1), j + 1);
+          const ta = uvOf(ua.r, 1 - ub.u, f0);
+          const tb = uvOf(ua.r, 1 - ua.u, f0);
+          const tc = uvOf(ua.r, 1 - ua.u, f1);
+          const td = uvOf(ua.r, 1 - ub.u, f1);
+          put(a, ta);
+          put(b, tb);
+          put(c, tc);
+          put(a, ta);
+          put(c, tc);
+          put(d, td);
+        }
+        if (hs.round === "cone") {
+          // the conical roof, a slice per wall segment, each wearing the roofing once (its strands
+          // run down the slope); the eaves hang a little below the wall's top
+          const rr = hs.roofR ?? r0 * 1.3;
+          const e0 = ring(rr, H - 0.12 * hs.roofRise, j + 1);
+          const e1 = ring(rr, H - 0.12 * hs.roofRise, j);
+          put(e0, uvOf(hs.roof, 0, 0));
+          put(e1, uvOf(hs.roof, 1, 0));
+          put([0, H + hs.roofRise, 0], uvOf(hs.roof, 0.5, 1));
+          // (and its underside, in trim)
+          put(e1, uvOf(atlas.trim, 0, 0));
+          put(e0, uvOf(atlas.trim, 1, 0));
+          put([0, H - 0.02, 0], uvOf(atlas.trim, 0.5, 1));
+        }
+      }
+      continue;
+    }
+    const hw = hs.w / 2;
+    const hd = hs.d / 2;
     // (on the ground: a little down into it, so a house on a slope never shows a gap under its
     //  walls; on stilts: the floor itself)
     const B = lift > 0 ? lift : -0.6;

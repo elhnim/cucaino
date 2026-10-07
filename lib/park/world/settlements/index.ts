@@ -16,12 +16,12 @@ import { SETTLEMENTS, settlementDeckY, type SettlementDef } from "../../registry
 import { groundY } from "../../registry/terrain";
 import { buildCanoe } from "../village/folk";
 import { BODY_VARIANTS, buildCrowd, folkInstance, makeRig, resolveRig, type Crowd, type FolkMeshHandle, type Rig } from "../village/crowd";
-import { buildLakesidePropsGeometry } from "./styles/lakeside";
-import { buildTreetopPropsGeometry } from "./styles/treetop";
+import { buildLakesidePropsGeometry, lakesidePainted } from "./styles/lakeside";
+import { buildTreetopPropsGeometry, treetopPainted } from "./styles/treetop";
 import { buildMountainPropsGeometry, mountainPainted, buildYakGeometry } from "./styles/mountain";
 import { buildTownMoving, buildTownPropsGeometry, townPainted, type TownMoving } from "./styles/town";
 import { buildPaintedHouses, type PaintedHouses } from "./styles/paintedHouses";
-import { buildBaseCampPropsGeometry } from "./styles/basecamp";
+import { buildBaseCampPropsGeometry, basecampPainted } from "./styles/basecamp";
 import { buildFarmPropsGeometry, farmPainted } from "./styles/farm";
 import { makeSettlementSim, stepSettlement, type SettlementSim, type TalkOut } from "./routine";
 import { buildCanopy, type Canopy } from "./canopy";
@@ -195,9 +195,22 @@ function buildOne(scene: THREE.Scene, def: SettlementDef, low: boolean): BuiltSe
 
   // the town's houses and shops: painted buildings (real artwork), each standing on its own ground
   let painted: PaintedHouses | null = null;
-  const plan = def.style === "town" ? townPainted(def) : def.style === "mountain" ? mountainPainted(def) : def.style === "farm" ? farmPainted(def) : null;
+  const plan =
+    def.style === "town"
+      ? townPainted(def)
+      : def.style === "mountain"
+        ? mountainPainted(def)
+        : def.style === "farm"
+          ? farmPainted(def)
+          : def.style === "treehouse"
+            ? treetopPainted(def)
+            : def.style === "basecamp"
+              ? basecampPainted(def)
+              : def.style === "lakeside"
+                ? lakesidePainted(def)
+                : null;
   if (plan && plan.houses.length) {
-    for (const h of plan.houses) h.y = groundY(h.x, h.z);
+    for (const h of plan.houses) if (!h.fixedY) h.y = groundY(h.x, h.z);
     painted = buildPaintedHouses(plan.houses, plan.atlas, { lowQuality: low });
     group.add(painted.mesh);
   }

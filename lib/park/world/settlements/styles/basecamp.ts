@@ -3,6 +3,7 @@
 // a painted helipad, a pair of trail-marker flags at the trailhead, and a mess-tent fire with
 // benches — all built entirely in terms of `hut.size`/`p.scale`, same discipline as
 // lakeside.ts/treetop.ts/mountain.ts.
+import type { HouseAtlas, PaintedHouse } from "./paintedHouses";
 import * as THREE from "three";
 import type { SettlementDef, SettlementHut, SettlementProp } from "../../../registry/settlements";
 import { ball, box, col, cyl, flat, lump, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -17,13 +18,26 @@ const STONE_D = "#7a6f5e";
 
 /** a bright dome tent: a flattened sphere, a darker base skirt, a dark door flap facing the fire,
  *  and four guy-lines pegged out to the ground — reads as a real expedition tent, not a toy pyramid */
+/** Base Camp's dome tents wear real painted fabric (./paintedHouses.ts): orange ripstop with
+ *  yellow panels, stitched seams and a zipped door */
+const PAINTED = true;
+/** the painted tents of a base camp (the picture's layout: scripts/village-atlas.mjs `basecamp`) */
+export function basecampPainted(def: SettlementDef): { houses: PaintedHouse[]; atlas: HouseAtlas } | null {
+  if (!PAINTED) return null;
+  const houses = def.huts.map((h): PaintedHouse => {
+    const s = h.size;
+    return { x: h.x, y: 0, z: h.z, yaw: h.yaw, w: 2.1 * s, h: 0.72 * s, d: 0, roofRise: 0, round: "dome", front: [0, 0, 1024, 341], side: [0, 341, 1024, 341], roof: [0, 0, 64, 64] };
+  });
+  return { houses, atlas: { name: "basecamp", w: 1024, h: 746, trim: [0, 682, 64, 64] } };
+}
+
 function buildTent(hut: SettlementHut, idx: number): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const s = hut.size;
   const color = TENT_COLORS[idx % TENT_COLORS.length];
   const domeR = 1.05 * s;
   const domeH = 0.64 * domeR;
-  parts.push(pp(ball(domeR, hut.x, domeH, hut.z, 1, 1, domeH / domeR, 1), (pt, n) => shade(color, 0.84 + 0.22 * Math.max(0, n.y))));
+  if (!PAINTED) parts.push(pp(ball(domeR, hut.x, domeH, hut.z, 1, 1, domeH / domeR, 1), (pt, n) => shade(color, 0.84 + 0.22 * Math.max(0, n.y))));
   parts.push(pp(cyl(domeR * 1.03, domeR * 1.1, 0.16, 10, hut.x, 0.08, hut.z), shade(color, 0.55)));
   // the door flap, facing the fire (hut.yaw already points that way — see everestBaseCamp.ts)
   const doorX = hut.x + Math.sin(hut.yaw) * domeR * 0.92;
@@ -33,7 +47,7 @@ function buildTent(hut: SettlementHut, idx: number): THREE.BufferGeometry[] {
     [0.3 * s, 0],
     [0, 0.5 * domeH],
   ]);
-  parts.push(pp(place(flap, doorX, 0.01, doorZ, hut.yaw + Math.PI / 2), "#2a2420"));
+  if (!PAINTED) parts.push(pp(place(flap, doorX, 0.01, doorZ, hut.yaw + Math.PI / 2), "#2a2420"));
   // four guy-lines from the dome's shoulder out to pegs in the ground
   for (let i = 0; i < 4; i++) {
     const a = hut.yaw + Math.PI / 4 + i * (Math.PI / 2);

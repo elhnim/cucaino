@@ -2,6 +2,7 @@
 // drying racks hung with fish, nets on poles, a smokehouse with a chimney, a fire pit ringed by
 // log benches, a welcome arch, wind chimes, a lookout tower with a flag, a boat on trestles being
 // mended, a reed bed and lily pads at the shore, and lanterns throughout.
+import type { HouseAtlas, PaintedHouse } from "./paintedHouses";
 import * as THREE from "three";
 import type { SettlementDef, SettlementHut, SettlementProp } from "../../../registry/settlements";
 import { ball, box, col, cone, cyl, flat, gem, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -45,6 +46,23 @@ const BLOOM = ["#ff6fa0", "#ffd24a", "#ff9a4a", "#ff5a5a", "#eef0f4"];
 /** a round reed hut on four short stilts, door facing `hut.yaw`, painted with a wavy band and a
  *  little school of fish near the waterline, a window with shutters, a flower box and a door lamp
  *  (land huts only — stilt huts over the water skip the flower box, nobody waters it) */
+/** Lakeside's round huts wear real painted artwork (./paintedHouses.ts): woven reed walls with a
+ *  painted band, a plank door and shuttered windows, under reed thatch */
+const PAINTED = true;
+/** (the wrap picture's layout: scripts/village-atlas.mjs — two families' walls, each a front strip
+ *  and a back strip 1024 x 341, then the roofing and a block of trim) */
+const WRAP_ATLAS = (name: string): HouseAtlas => ({ name, w: 1024, h: 1620, trim: [256, 1364, 128, 128] });
+const wrapRects = (family: number) => ({ front: [0, family * 682, 1024, 341] as const, side: [0, family * 682 + 341, 1024, 341] as const, roof: [0, 1364, 256, 256] as const });
+/** the painted huts of a lakeside village (they stand on their stilts at the lake's own level) */
+export function lakesidePainted(def: SettlementDef): { houses: PaintedHouse[]; atlas: HouseAtlas } | null {
+  if (!PAINTED) return null;
+  const houses = def.huts.map((h, i): PaintedHouse => {
+    const s = h.size;
+    return { x: h.x, y: 0, fixedY: true, z: h.z, yaw: h.yaw, w: 3.8 * s, h: 2.0 * s, d: 0, lift: 0.62 * s, roofRise: 1.55 * s, roofR: 1.9 * s * 1.36, taper: 0.92, round: "cone", ...wrapRects(i % 2) };
+  });
+  return { houses, atlas: WRAP_ATLAS("lakeside") };
+}
+
 function buildHut(hut: SettlementHut, seed: number, low: boolean): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const s = hut.size;
@@ -68,6 +86,22 @@ function buildHut(hut: SettlementHut, seed: number, low: boolean): THREE.BufferG
   // fish, a shell, a wave-crest) glued onto the wall — a storybook cottage never has a blank wall,
   // but the pattern has to be its own little shapes, not a coarse per-face paint job
   const wallY0 = stiltH + 0.07 * s;
+  if (PAINTED) {
+    // (the wall, door, windows and thatch are the painted hut: this keeps the stilts and deck
+    //  above, and adds what stands proud of it — the finial and its fish pennant, the door lamp,
+    //  the step and the shell wind-chime)
+    const topY = stiltH + wallH + 1.5 * s + 0.12 * s;
+    parts.push(pp(cyl(0.09 * s, 0.11 * s, 0.22 * s, 6, 0, topY, 0), "#6e4a28"));
+    parts.push(pp(gem(0.16 * s, 0, topY + 0.26 * s, 0, 1, 1.2, 1), style.trim));
+    parts.push(pp(stick(v3(0, topY + 0.5 * s, 0), v3(0, topY + 0.9 * s, 0), 0.035 * s), WOOD_D));
+    parts.push(pp(place(flat([[0, 0], [0.4 * s, -0.06 * s], [0.08 * s, -0.24 * s]]), 0, topY + 0.9 * s, 0, hut.yaw), style.trim, SWAY));
+    parts.push(pp(box(1.0 * s, stiltH * 0.5, 0.5 * s, Math.sin(hut.yaw) * (r + 0.4 * s), stiltH * 0.25, Math.cos(hut.yaw) * (r + 0.4 * s), hut.yaw), WOOD));
+    parts.push(...buildDoorLamp(Math.sin(hut.yaw) * r + Math.sin(hut.yaw + Math.PI / 2) * 0.7 * s, Math.cos(hut.yaw) * r + Math.cos(hut.yaw + Math.PI / 2) * 0.7 * s, hut.yaw));
+    parts.push(...buildWindchime(Math.sin(hut.yaw - 0.9) * r * 1.05, stiltH + wallH + 0.1 * s, Math.cos(hut.yaw - 0.9) * r * 1.05, seed, s));
+    const done = mergeAll(parts);
+    done.translate(hut.x, 0, hut.z);
+    return [done];
+  }
   parts.push(pp(cyl(r, r * 0.92, wallH, seg, 0, wallY0, 0, true), (p, n) => shade(style.wall, 0.9 + 0.1 * Math.max(0, n.z))));
   const bandY = wallY0 + wallH * 0.32;
   parts.push(pp(cyl(r * 1.01, r * 0.97, wallH * 0.16, seg, 0, bandY - wallH * 0.08, 0, true), style.trim));

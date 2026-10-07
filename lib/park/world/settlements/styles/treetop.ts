@@ -2,6 +2,7 @@
 // porch with a window and a birdhouse, platforms joined by a ramp and TWO rope bridges strung with
 // hanging lanterns, hammocks slung between trunks, a ground-level drum circle round a big painted
 // totem tree, giant glowing mushrooms and flowers on the forest floor, and fireflies after dark.
+import type { HouseAtlas, PaintedHouse } from "./paintedHouses";
 import * as THREE from "three";
 import type { SettlementDef, SettlementHut, SettlementProp } from "../../../registry/settlements";
 import { ball, box, cone, cyl, flat, gem, lump, mergeAll, place, pp, stick, v3 } from "../../village/kit";
@@ -56,6 +57,24 @@ function buildBirdhouse(x: number, y: number, z: number, yaw: number, seed: numb
   return parts;
 }
 
+/** Treetop's round cabins wear real painted artwork (./paintedHouses.ts): woven bamboo and cane
+ *  with a carved doorway and porthole windows, under palm thatch */
+const PAINTED = true;
+/** (the wrap picture's layout: scripts/village-atlas.mjs — two families' walls, each a front strip
+ *  and a back strip 1024 x 341, then the roofing and a block of trim) */
+const WRAP_ATLAS = (name: string): HouseAtlas => ({ name, w: 1024, h: 1620, trim: [256, 1364, 128, 128] });
+const wrapRects = (family: number) => ({ front: [0, family * 682, 1024, 341] as const, side: [0, family * 682 + 341, 1024, 341] as const, roof: [0, 1364, 256, 256] as const });
+/** the painted cabins of a treehouse village, each up on its own platform */
+export function treetopPainted(def: SettlementDef): { houses: PaintedHouse[]; atlas: HouseAtlas } | null {
+  if (!PAINTED) return null;
+  const houses = def.huts.map((h, i): PaintedHouse => {
+    const s = h.size;
+    // (nine times as far round as it is tall: the front strip once and the back strip twice)
+    return { x: h.x, y: 0, z: h.z, yaw: h.yaw, w: 3.7 * s, h: 1.3 * s, d: 0, lift: (h.elev ?? 0) + 0.08, roofRise: 0.85 * s, roofR: 1.85 * s * 1.2, taper: 0.9, round: "cone", backRepeat: 2, ...wrapRects(i % 2) };
+  });
+  return { houses, atlas: WRAP_ATLAS("treetop") };
+}
+
 function buildTreehouseCabin(hut: SettlementHut, seed: number): THREE.BufferGeometry[] {
   const parts: THREE.BufferGeometry[] = [];
   const y = hut.elev ?? 0;
@@ -81,6 +100,15 @@ function buildTreehouseCabin(hut: SettlementHut, seed: number): THREE.BufferGeom
   // reads crisply even at this low segment count, unlike a high-frequency painted sine band, which
   // just shows as a couple of huge flat triangles), with a band of small separate leaf + flower
   // SHAPES glued on round the top (not a painted-on pattern, so it never looks like a glitch)
+  if (PAINTED) {
+    // (the wall, door, windows and thatch are the painted cabin; the porch and its rail stay,
+    //  and a birdhouse hangs under the eaves)
+    const bh = hut.yaw - Math.PI * 0.45;
+    parts.push(...buildBirdhouse(hut.x + Math.sin(bh) * rad * 1.04, y + 0.08 + wallH * 0.35, hut.z + Math.cos(bh) * rad * 1.04, bh, seed));
+    void wall;
+    void trim;
+    return parts;
+  }
   const segN = 10;
   const accent = LEAF[seed % LEAF.length];
   parts.push(
