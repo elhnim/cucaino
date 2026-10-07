@@ -23,7 +23,7 @@ import { KART_SITE, KART_SITE_RADIUS } from "../../registry/kartTrack";
 import { nearGlacier } from "../everestDecor";
 import { nearCanyonFootpath, nearGrandCanyon } from "../../registry/grandCanyon";
 import { nearParicutin } from "../../registry/paricutin";
-import { nearRoad, ROAD_JUNCTIONS, ROUNDABOUT_OUTER, CAR_PARKS, TUNNELS } from "../../registry/roads";
+import { nearRoad, onPaving, ROAD_JUNCTIONS, ROUNDABOUT_OUTER, CAR_PARKS, TUNNELS } from "../../registry/roads";
 import { buildClump, buildJungleTree } from "../jungle/geometry";
 import { TREE_DIMS, T_CANOPY, T_FERN, T_GIANT, T_PALM } from "../jungle/plan";
 import type { JungleCut } from "../jungle/cutaway";
@@ -96,10 +96,19 @@ export function wildCell(ci: number, cj: number): WildItem[] {
     !inSettlement(x, z, 6) &&
     !nearCartRoad(x, z, 3) &&
     !nearFootpath(x, z, 3) &&
+    !onPaving(x, z, 3) && // nothing grows through asphalt: roads, roundabouts, the whole of a car park
     !nearRoad(x, z, 4) && // the island's road network: no trees in the way of a drive,
     !ROAD_JUNCTIONS.some((j) => Math.hypot(x - j.x, z - j.z) < ROUNDABOUT_OUTER + 5) && // on a roundabout,
     !CAR_PARKS.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + 4) && // in a car park
     !TUNNELS.some((t) => nearSeg(x, z, t.x0, t.z0, t.x1, t.z1) < t.half + 11) && // or growing out of a tunnel's roof
+    // …nor in front of a tunnel's mouth: the bore's line carried on 34 units past each end, kept
+    // clear a good crown's width either side, so no branches hang across the opening
+    !TUNNELS.some((t) => {
+      const L = Math.hypot(t.x1 - t.x0, t.z1 - t.z0) || 1;
+      const ux = (t.x1 - t.x0) / L;
+      const uz = (t.z1 - t.z0) / L;
+      return nearSeg(x, z, t.x0 - ux * 34, t.z0 - uz * 34, t.x1 + ux * 34, t.z1 + uz * 34) < t.half + 9;
+    }) &&
 
     !nearFallsStructures(x, z, 5) && // the Victoria Falls Bridge and the falls' own rocky islands
     !nearGlacier(x, z, 3) && // Everest's own glacier ribbon and icefall — no forest growing through the ice

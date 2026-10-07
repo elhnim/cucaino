@@ -97,7 +97,9 @@ export function carriageGeometry(): THREE.BufferGeometry {
 
 /** A unit-height red trestle (legs splayed, cross beams and X braces), scaled in y to reach the deck. */
 export function trestleGeometry(): THREE.BufferGeometry {
-  const red = new THREE.Color("#b83227");
+  // (weathered timber, not signal red: the trestles stride right across the park, and in bright
+  //  red they shouted over everything they passed — the Glow Forest most of all)
+  const red = new THREE.Color("#ffffff"); // (the colour is the material's, below)
   const parts: THREE.BufferGeometry[] = [];
   for (const s of [-1, 1]) {
     // legs lean outwards towards the bottom
@@ -157,7 +159,7 @@ export function buildSteamTrain(scene: THREE.Scene, loop: THREE.CatmullRomCurve3
   const tGeo = track(trestleGeometry());
   const every = lowQuality ? 9 : 6.5;
   const nt = Math.floor(len / every);
-  const trestles = add(new THREE.InstancedMesh(tGeo, track(flat("#b83227", 0.9)), nt));
+  const trestles = add(new THREE.InstancedMesh(tGeo, track(flat("#9a7a58", 0.9)), nt));
   let used = 0;
   for (let i = 0; i < nt; i++) {
     const u = i / nt;

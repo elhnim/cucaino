@@ -21,7 +21,7 @@ import { kartTrackWorld } from "../../registry/kartTrack";
 import { TRACK_WIDTH } from "../../karts/track";
 import { canyonDesertK, CANYON_FOOTPATH } from "../../registry/grandCanyon";
 import { paricutinFootprintWeight } from "../../registry/paricutin";
-import { ROAD_SEGMENTS, ROAD_HALF, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROUNDABOUT_OUTER } from "../../registry/roads";
+import { ROAD_SEGMENTS, ROAD_HALF, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROUNDABOUT_INNER, ROUNDABOUT_OUTER } from "../../registry/roads";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
  *  any i, j (the mask reaches over the whole island, tile by tile). Its resolution `n` is the
@@ -151,7 +151,15 @@ function discs(): Disc[] {
       carve(t.x0 + (t.x1 - t.x0) * u, t.z0 + (t.z1 - t.z0) * u, t.half + 0.4, t.half + 2.6);
     }
   }
-  for (const cp of CAR_PARKS) carve(cp.x, cp.z, cp.r - 1.5, cp.r + 3);
+  // (a car park is a rectangle longer than its `r`: three discs along it clear its ends too)
+  for (const cp of CAR_PARKS) for (const k of [-0.6, 0, 0.6]) carve(cp.x + Math.sin(cp.heading) * cp.r * k, cp.z + Math.cos(cp.heading) * cp.r * k, cp.r * 0.95, cp.r * 0.95 + 3);
+  // a roundabout's ring of asphalt: no flowers on it (its middle stays a green island)
+  for (const j of ROAD_JUNCTIONS)
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2;
+      const rr = (ROUNDABOUT_OUTER + ROUNDABOUT_INNER) / 2;
+      carve(j.x + Math.sin(a) * rr, j.z + Math.cos(a) * rr, (ROUNDABOUT_OUTER - ROUNDABOUT_INNER) / 2 + 0.8, (ROUNDABOUT_OUTER - ROUNDABOUT_INNER) / 2 + 2.4);
+    }
   // lands: tidy, shorter lawns (not bare)
   for (const l of LANDS) {
     if (l.id === "forest") continue;

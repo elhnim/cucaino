@@ -43,6 +43,7 @@ import {
   nearGrandCanyon,
 } from "../registry/grandCanyon";
 import { rawHeight } from "../registry/landform";
+import { onPaving } from "../registry/roads";
 import { groundY } from "../registry/terrain";
 import { smoothstep } from "../registry/geom2d";
 
@@ -745,6 +746,8 @@ export function buildGrandCanyonDecor(scene: THREE.Scene): GrandCanyonDecor {
   const placed: { x: number; z: number; r: number }[] = [];
   const clearOf = (x: number, z: number, r: number) =>
     !nearCanyonFootpath(x, z, 3) &&
+    // (no cactus, tree or boulder on the road in or anywhere on the car park)
+    !onPaving(x, z, r + 2.5) &&
     Math.hypot(x - CANYON_LODGE.x, z - CANYON_LODGE.z) > 26 &&
     Math.hypot(x - CANYON_TRAILHEAD.x, z - CANYON_TRAILHEAD.z) > 10 &&
     Math.hypot(x - CANYON_WATCHTOWER.x, z - CANYON_WATCHTOWER.z) > 8 &&
