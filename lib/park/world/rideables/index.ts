@@ -622,6 +622,9 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
     const other = isW ? dolphin : whale;
     if (r.state === AWAY) {
       if (!atSea) return;
+      // (the whale is an open-sea animal: it only comes to a kid who has swum well out over deep
+      //  water, never to one paddling off the beach)
+      if (isW && seaDepth(kid.x, kid.z) < 9) return;
       r.timer -= dt;
       if (r.timer > 0) return;
       // both may come, but never to the same spot (so it's clear who's who): the second one comes

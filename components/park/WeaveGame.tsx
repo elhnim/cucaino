@@ -115,7 +115,7 @@ function GridArt({
 }) {
   const warpBg = `repeating-linear-gradient(90deg, rgba(255,241,214,0.35) 0 2px, transparent 2px calc(${cellSize} + ${gap}px))`;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: onRow ? gap + 4 : gap }}>
       {grid.map((row, r) => (
         <div key={r} style={{ display: "flex", alignItems: "center", gap: onRow ? 6 : 0 }}>
           {onRow && (
@@ -127,14 +127,17 @@ function GridArt({
               title="Weave this whole row"
               style={{
                 flexShrink: 0,
-                width: `calc(${cellSize} * 0.78)`,
-                height: cellSize,
-                borderRadius: 6,
+                // (a proper finger-sized target: 44 wide, and as tall as the row plus the gap to the next
+                //  one, so the eight buttons make one easy column with no dead strips between them)
+                width: `max(44px, calc(${cellSize} * 1.3))`,
+                height: `calc(${cellSize} + ${gap * 4 + 4}px)`,
+                margin: "-2px 0",
+                borderRadius: 9,
                 border: "none",
                 background: "linear-gradient(180deg, #d8a35c, #9a6a34)",
                 boxShadow: "inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -2px 0 rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.3)",
                 color: "#2a1a0c",
-                fontSize: `calc(${cellSize} * 0.5)`,
+                fontSize: `calc(${cellSize} * 0.62)`,
                 lineHeight: 1,
                 cursor: "pointer",
                 touchAction: "manipulation",
@@ -589,7 +592,7 @@ const loomDock: React.CSSProperties = { position: "fixed", left: 0, right: 0, bo
 // the loom itself: a warm wooden frame (not a dark glass UI panel), with a CSS var controlling the
 // responsive cell size — bigger on wide (tablet) screens, down to a comfortable minimum on phones.
 const loomCard: React.CSSProperties = {
-  ["--loom-cell" as string]: "clamp(24px, 3.6vw, 38px)",
+  ["--loom-cell" as string]: "clamp(23px, calc((100vw - 136px) / 10.6), 38px)",
   width: "min(640px, 100%)",
   borderRadius: 22,
   padding: 14,

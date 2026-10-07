@@ -65,6 +65,10 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
   const band = bandFor(cam.view, ISLAND_VIEW, WORLD_VIEW);
   const scale = scaleOf(cam, w, h);
   const big = mode === "big";
+  // (is there room for names? the big island is ~3,000 units across: when it shows smaller than
+  //  about a hand's width — the World view on a phone — names would pile up into a smudge, so
+  //  only the pictures are drawn; names come in as you zoom)
+  const roomForNames = scale * 3000 > 520;
 
   ctx.save();
   ctx.clearRect(0, 0, w, h);
@@ -95,13 +99,16 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
     ctx.arc(0, 0, WORLD_EDGE, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.font = `900 ${px(13)}px system-ui`;
+    // (a shorter line in smaller letters on a narrow screen, so it never runs off both sides)
+    const narrow = w < 560;
+    const edgeText = narrow ? "✨ sail on and you come back round ✨" : "✨ the edge of the world — sail on and you come back round ✨";
+    ctx.font = `900 ${px(narrow ? 11 : 13)}px system-ui`;
     ctx.textAlign = "center";
-    ctx.lineWidth = px(5);
+    ctx.lineWidth = px(narrow ? 4 : 5);
     ctx.strokeStyle = "#ffffff";
-    ctx.strokeText("✨ the edge of the world — sail on and you come back round ✨", 0, -WORLD_EDGE - px(12));
+    ctx.strokeText(edgeText, 0, -WORLD_EDGE - px(12));
     ctx.fillStyle = "#1f5f8a";
-    ctx.fillText("✨ the edge of the world — sail on and you come back round ✨", 0, -WORLD_EDGE - px(12));
+    ctx.fillText(edgeText, 0, -WORLD_EDGE - px(12));
   }
 
   // far world (islands / sky / abyss) — only worth the ink once you can see past the big island
@@ -311,8 +318,8 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
       ctx.fillStyle = "#8a5a1a";
       ctx.fillText("🍭 Cucaino Park", 0, -ISLAND_R - px(16));
     }
-    for (const lm of ISLAND_LANDMARKS) drawLabel(ctx, lm.x, lm.z, lm.emoji, lm.name, px, true);
-    for (const rl of art.REGION_LABELS) drawLabel(ctx, rl.x, rl.z, rl.emoji, rl.name, px, true);
+    for (const lm of ISLAND_LANDMARKS) drawLabel(ctx, lm.x, lm.z, lm.emoji, roomForNames ? lm.name : "", px, true);
+    if (roomForNames) for (const rl of art.REGION_LABELS) drawLabel(ctx, rl.x, rl.z, rl.emoji, rl.name, px, true);
     // every Wildlands station except Park Station (drawn below, unconditionally — it's right by
     // the park and the kart circuit, so it needs to show at the park's own close zoom too)
     for (const st of STATIONS) {
@@ -325,7 +332,7 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
       ctx.fill();
       ctx.stroke();
       drawEmoji(ctx, st.x, st.z + px(3), st.emoji, px(8.5));
-      if (big) drawLabel(ctx, st.x, st.z, "", st.name, px, false, 16);
+      if (big && roomForNames) drawLabel(ctx, st.x, st.z, "", st.name, px, false, 16);
     }
   }
 

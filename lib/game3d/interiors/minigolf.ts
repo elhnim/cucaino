@@ -542,6 +542,35 @@ export function buildMiniGolfInterior(accent: string, onEvent: (e: GolfEvent) =>
     const fitW = portrait ? spanX / Math.max(0.45, cam.aspect) : spanX;
     const dist = Math.max(9.5, Math.min(24, Math.max(spanZ * 0.95, fitW * 1.15)));
     const want = new THREE.Vector3(look.x, dist * 0.95, look.z + dist * 0.62);
+    // …and make sure the things you aim with are really in the picture, whatever the screen's
+    // shape: the ball, the cup and the whole flag, inside a safe rectangle that leaves room for the
+    // score at the top and the buttons at the bottom. Pull back (and look a little further up the
+    // hole) until they are.
+    {
+      const pts = [b, c, new THREE.Vector3(d.cup.x, 2.1, d.cup.z)];
+      const savedP = cam.position.clone();
+      const savedQ = cam.quaternion.clone();
+      const v = new THREE.Vector3();
+      let far = dist;
+      let mix = 0.3;
+      for (let i = 0; i < 14; i++) {
+        look.copy(b).lerp(c, mix);
+        want.set(look.x, far * 0.95, look.z + far * 0.62);
+        cam.position.copy(want);
+        cam.lookAt(look);
+        cam.updateMatrixWorld();
+        let ok = true;
+        for (const p of pts) {
+          v.copy(p).project(cam);
+          if (Math.abs(v.x) > 0.84 || v.y > 0.66 || v.y < -0.6) ok = false;
+        }
+        if (ok) break;
+        far = Math.min(40, far * 1.1);
+        mix = Math.min(0.5, mix + 0.03);
+      }
+      cam.position.copy(savedP);
+      cam.quaternion.copy(savedQ);
+    }
     if (!camInit) {
       camPos.copy(want);
       camLook.copy(look);

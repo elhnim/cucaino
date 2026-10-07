@@ -97,12 +97,41 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
 
     // the cart the kid sits in
     const cart = new THREE.Group();
-    const body = new THREE.Mesh(track(new THREE.BoxGeometry(2.2, 0.9, 2.8)), toon("#ffd23f"));
-    body.position.y = 0.45;
-    const trim = new THREE.Mesh(track(new THREE.BoxGeometry(2.3, 0.2, 2.9)), toon("#ff5fa8"));
-    trim.position.y = 0.95;
-    cart.add(body, trim);
+    // (a proper little coaster car you sit IN: an open tub with a rounded nose, side walls with a
+    //  pink rail along the top, a front seat for the kid and a back seat for their pet — each
+    //  with its own backrest — wheels on the rails and two headlamps)
+    {
+      const yellow = toon("#ffd23f");
+      const pink = toon("#ff5fa8");
+      const dark = toon("#3a2f4a");
+      const cream = toon("#fff3d6");
+      const put = (g: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) => {
+        const o = new THREE.Mesh(track(g), m);
+        o.position.set(x, y, z);
+        cart.add(o);
+        return o;
+      };
+      put(new THREE.BoxGeometry(2.0, 0.22, 3.6), yellow, 0, 0.2, -0.2); // the floor
+      for (const sx of [-1, 1]) {
+        put(new THREE.BoxGeometry(0.16, 0.8, 3.6), yellow, sx * 1.0, 0.66, -0.2); // a side wall
+        put(new THREE.BoxGeometry(0.24, 0.14, 3.7), pink, sx * 1.0, 1.1, -0.2); // its rail
+      }
+      put(new THREE.BoxGeometry(2.16, 1.25, 0.18), yellow, 0, 0.9, -2.0); // the high back
+      put(new THREE.BoxGeometry(2.24, 0.14, 0.26), pink, 0, 1.56, -2.0);
+      const nose = put(new THREE.CylinderGeometry(1.08, 1.08, 0.8, 16, 1, false, -Math.PI / 2, Math.PI), yellow, 0, 0.66, 1.6);
+      nose.rotation.y = 0;
+      const noseRail = put(new THREE.CylinderGeometry(1.12, 1.12, 0.14, 16, 1, false, -Math.PI / 2, Math.PI), pink, 0, 1.1, 1.6);
+      void noseRail;
+      for (const sx of [-1, 1]) put(new THREE.SphereGeometry(0.17, 10, 8), cream, sx * 0.5, 0.75, 2.62);
+      // the two seats (cushion + backrest)
+      for (const z of [0.25, -1.15]) {
+        put(new THREE.BoxGeometry(1.7, 0.16, 0.9), pink, 0, 0.39, z);
+        put(new THREE.BoxGeometry(1.7, 0.75, 0.14), pink, 0, 0.75, z - 0.5);
+      }
+      for (const sx of [-1, 1]) for (const z of [1.1, -1.5]) put(new THREE.CylinderGeometry(0.26, 0.26, 0.2, 12), dark, sx * 1.02, 0.12, z).rotation.z = Math.PI / 2;
+    }
     scene.add(cart);
+    const fwd = new THREE.Vector3();
 
     // sparkles for right answers
     const sparkTex = track(makeSparkleTexture());
@@ -155,11 +184,21 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
       bounds: 1000,
       zones: [],
       playerAnchor() {
-        return { position: seat.clone().setY(seat.y + 0.4), facing: Math.atan2(ahead.x - seat.x, ahead.z - seat.z) };
+        // (on the front seat's cushion)
+        fwd.set(ahead.x - seat.x, 0, ahead.z - seat.z).normalize();
+        return { position: seat.clone().addScaledVector(fwd, 0.3).setY(seat.y - 0.08), facing: Math.atan2(fwd.x, fwd.z) };
+      },
+      petAnchor() {
+        // (on the back seat, behind the kid)
+        fwd.set(ahead.x - seat.x, 0, ahead.z - seat.z).normalize();
+        return seat.clone().addScaledVector(fwd, -1.1).setY(seat.y - 0.08);
       },
       camera(cam, dt) {
-        const back = curve.getPointAt((u - 0.018 + 1) % 1);
-        camPos.set(back.x, back.y + 4.2, back.z);
+        // (on a tall, narrow screen: further back and higher, so the whole car, its two riders
+        //  and the gate ahead all stay in the picture)
+        const tall = cam.aspect < 0.85;
+        const back = curve.getPointAt((u - (tall ? 0.03 : 0.018) + 1) % 1);
+        camPos.set(back.x, back.y + (tall ? 6.4 : 4.2), back.z);
         cam.position.lerp(camPos, Math.min(1, dt * 4));
         const target = curve.getPointAt((u + 0.03) % 1);
         cam.lookAt(target.x, target.y + 1, target.z);

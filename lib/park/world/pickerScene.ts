@@ -77,7 +77,7 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
   let rows = 1;
   let cols = 1;
   const SPREAD = 3.4;
-  const ROW_GAP = 4.2;
+  const ROW_GAP = 5.2;
 
   // lay the kids out: one row on wide screens, two rows on narrow phones with lots of kids
   function layout(aspect: number) {
@@ -89,7 +89,10 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
       const row = Math.floor(i / cols);
       const inRow = Math.min(cols, n - row * cols);
       const col = i % cols;
-      const x = (col - (inRow - 1) / 2) * SPREAD;
+      // (two rows: the back row stands in the gaps of the front one, so nobody is hidden behind
+      //  another kid — and if both rows are full, the back one shifts half a place)
+      const stagger = rows === 2 && row === 0 && inRow === cols && n - cols === cols ? SPREAD * 0.5 : 0;
+      const x = (col - (inRow - 1) / 2) * SPREAD + stagger;
       const z = rows === 2 ? (row === 0 ? -ROW_GAP / 2 : ROW_GAP / 2) : -Math.abs(col - (inRow - 1) / 2) * 0.4;
       s.root.position.set(x, 0, z);
       i++;
@@ -101,7 +104,7 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
     const h = container.clientHeight || window.innerHeight;
     camera.aspect = w / Math.max(1, h);
     layout(camera.aspect);
-    const width = Math.max(4, (cols - 1) * SPREAD + 3.2);
+    const width = Math.max(4, (cols - 1) * SPREAD + 3.2 + (rows === 2 ? SPREAD * 0.5 : 0));
     const depth = rows === 2 ? ROW_GAP + 3 : 3;
     const vfov = (camera.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
@@ -109,8 +112,9 @@ export function createPickerScene(container: HTMLElement, opts: PickerOptions = 
     const distH = (depth + 3) / 2 / Math.tan(vfov / 2);
     const dist = Math.max(distW, distH, 6.5) * 1.02;
     // kids sit in the lower-middle of the screen, leaving room for the title above
-    camera.position.set(0, 2.4 + dist * 0.18, dist);
-    camera.lookAt(0, chars ? 1.6 : 2.4, 0);
+    // (two rows are looked at from higher up, so the back row and its names show clear over the front)
+    camera.position.set(rows === 2 ? SPREAD * 0.25 : 0, 2.4 + dist * (rows === 2 ? 0.5 : 0.18), dist);
+    camera.lookAt(rows === 2 ? SPREAD * 0.25 : 0, rows === 2 ? 0.9 : chars ? 1.6 : 2.4, 0);
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
   }

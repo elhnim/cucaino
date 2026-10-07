@@ -206,7 +206,11 @@ export function MapScreen({
     const mysteryInput = clusterInput.filter((c) => c.groupKey?.startsWith("mystery:"));
     const normalInput = clusterInput.filter((c) => !c.groupKey?.startsWith("mystery:"));
     const mysteryRadius = band === "close" || band === "park" ? 64 : 40;
-    return [...clusterMarkers(normalInput, cam, size.w, size.h, 34), ...clusterMarkers(mysteryInput, cam, size.w, size.h, mysteryRadius)];
+    // (on a phone the pins gather into fewer, bigger groups — more so the further out you look —
+    //  so each one stays a clear thing to tap instead of a pile)
+    const phone = size.w < 520;
+    const gap = phone ? (band === "world" ? 64 : band === "island" ? 50 : 42) : 34;
+    return [...clusterMarkers(normalInput, cam, size.w, size.h, gap), ...clusterMarkers(mysteryInput, cam, size.w, size.h, Math.max(gap, mysteryRadius))];
   }, [clusterInput, cam, size.w, size.h, band]);
   const markerDraws: MapMarkerDraw[] = useMemo(
     () =>
@@ -359,13 +363,16 @@ const chipsRow: React.CSSProperties = {
   right: 10,
   bottom: 10,
   display: "flex",
-  gap: 8,
+  // (on a narrow screen the five buttons wrap onto two rows instead of running off the edge)
+  flexWrap: "wrap-reverse",
+  gap: 6,
   pointerEvents: "none",
 };
 const quickChip: React.CSSProperties = {
   pointerEvents: "auto",
   minHeight: 44,
-  padding: "0 12px",
+  padding: "0 10px",
+  whiteSpace: "nowrap",
   borderRadius: 999,
   border: "1.5px solid rgba(160,200,255,0.4)",
   background: "rgba(16,14,42,0.82)",

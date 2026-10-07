@@ -7,7 +7,7 @@ import { awayFromCoast, seaDepth, seaFloorY } from "../sea/wander";
 export const SEA_ROOT_Y = { dolphin: WATER_Y - MOUNT_SEA_DRAFT.dolphin!, whale: WATER_Y - MOUNT_SEA_DRAFT.whale! } as const;
 
 /** how deep the water must be for each swimmer to come up (m) */
-export const SEA_MIN_DEPTH = { dolphin: 3, whale: 10 } as const;
+export const SEA_MIN_DEPTH = { dolphin: 3, whale: 14 } as const; // (the whale keeps well out: never in the shallows by the beach)
 /** how far from the kid they stop to wait (m) */
 export const SEA_WAIT_R = { dolphin: [9, 12], whale: [13, 16] } as const;
 /** how far out they start swimming in from (m, beyond the wait spot) */

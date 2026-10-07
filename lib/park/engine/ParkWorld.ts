@@ -1220,7 +1220,8 @@ export class ParkWorld {
       this.tickActor(kid, dt);
       if (this.pet) {
         const pt = ride.petAnchor?.() ?? pos.clone().add(new THREE.Vector3(1.3, 0, 1.1).multiplyScalar(ride.actorScale ?? 1));
-        this.pet.root.position.lerp(pt, Math.min(1, dt * 3));
+        // (a pet with a seat of its own rides ON it: it keeps up with the car instead of trailing behind)
+        this.pet.root.position.lerp(pt, Math.min(1, dt * (ride.petAnchor ? 14 : 3)));
         this.tickActor(this.pet, dt);
       }
       ride.update?.(dt, pos);

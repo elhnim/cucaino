@@ -303,7 +303,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
 
   // ── manta rays gliding and hopping, dolphin pods leaping, turtles paddling — all roaming ──
   const mantaGeo = track(mantaGeometry());
-  const mantas = add(new THREE.InstancedMesh(mantaGeo, toon("#6a5ab8"), low ? 3 : 6));
+  const mantas = add(new THREE.InstancedMesh(mantaGeo, toon("#4a5a8f"), low ? 3 : 6));
   mantas.frustumCulled = false;
   const MANTA: SwimStyle = { speed: [2, 3.2], turn: 0.25, wander: 0.05, depth: [0.3, 0.6], clear: 1.5, need: 4, look: 20, climb: 0.5, bank: 1.2 };
   const mantaState = Array.from({ length: mantas.count }, (_, i) => {
@@ -438,13 +438,15 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
       splashGeo.attributes.position.needsUpdate = true;
 
       // mantas glide and bank on their own headings, flapping, with a joyful hop now and then
+      // (UNDER the surface — they used to skim along on top of it, where from the beach they read
+      //  as flat purple arrows floating on the sea — and only break it when they leap)
       for (let i = 0; i < mantaState.length; i++) {
         const m = mantaState[i];
         if (dist2(m.sw, focus) > 260 * 260) respawn(m.sw, MANTA, focus, ft.vx, ft.vz, rnd, 150, 230, 1.3);
         swim(m.sw, MANTA, dt, t, focus, 4);
         const hop = Math.max(0, Math.sin(t * 0.35 + m.ph) - 0.93) * 60;
         const flap = Math.sin(t * 3 + m.ph) * 0.15;
-        tmpM.compose(tmpV.set(m.sw.x, 0.2 + hop, m.sw.z), tmpQ.setFromEuler(tmpE.set(-hop * 0.08, m.sw.yaw, m.sw.roll * 0.6 + flap, "YXZ")), tmpS.set(OCEAN_K.manta, OCEAN_K.manta * (1 + flap), OCEAN_K.manta));
+        tmpM.compose(tmpV.set(m.sw.x, -0.75 + hop, m.sw.z), tmpQ.setFromEuler(tmpE.set(-hop * 0.08, m.sw.yaw, m.sw.roll * 0.6 + flap, "YXZ")), tmpS.set(OCEAN_K.manta, OCEAN_K.manta * (1 + flap), OCEAN_K.manta));
         mantas.setMatrixAt(i, tmpM);
       }
       mantas.instanceMatrix.needsUpdate = true;

@@ -360,7 +360,12 @@ export function buildRailway(scene: THREE.Scene, opts: { lowQuality?: boolean } 
           g = buildStation(st);
           stationMeshes.set(st.id, g);
         }
-        if (g) g.visible = d < SHOW_R + 60;
+        if (g) {
+          g.visible = d < SHOW_R + 60;
+          // (right up close — standing on the platform or sitting in the train at it — the name
+          //  board would fill the screen: it is only shown from a little way off)
+          for (const o of g.children) if (o instanceof THREE.Sprite) o.visible = Math.hypot(o.position.x - focus.x, o.position.z - focus.z) > 13;
+        }
       }
     },
     stats() {

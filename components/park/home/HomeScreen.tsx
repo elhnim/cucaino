@@ -357,6 +357,8 @@ export function HomeScreen({
           {msg && <div style={toast}>{msg}</div>}
           <Joystick onChange={(x, y) => ride.setMove(x, y)} />
           <div style={walkDock}>
+            {/* (only the buttons themselves take touches: the bar must never cover the joystick) */}
+            <div style={{ display: "contents", pointerEvents: "auto" }}>
             <GameButton variant="primary" onClick={startEditing}>
               🎨 Decorate
             </GameButton>
@@ -366,6 +368,7 @@ export function HomeScreen({
             <GameButton variant="secondary" onClick={onExit}>
               🚪 Park
             </GameButton>
+            </div>
           </div>
         </>
       )}
@@ -444,16 +447,18 @@ const toast: React.CSSProperties = {
 };
 const walkDock: React.CSSProperties = {
   position: "fixed",
-  left: 0,
-  right: 0,
+  // (the bar stops short of the joystick, bottom-right, and lets touches through everywhere but
+  //  on its buttons: on a phone the three buttons wrap onto several rows, and the bar used to lie
+  //  right over the joystick and swallow every touch — you couldn't walk at all)
+  left: 12,
+  right: 160,
   bottom: "max(16px, env(safe-area-inset-bottom))",
   display: "flex",
-  justifyContent: "center",
-  flexWrap: "wrap",
-  gap: 10,
+  justifyContent: "flex-start",
+  flexWrap: "wrap-reverse",
+  gap: 8,
   zIndex: 25,
-  // (clear of the joystick, bottom-right)
-  padding: "0 170px 0 12px",
+  pointerEvents: "none",
 };
 const petTile: React.CSSProperties = {
   border: "1.5px solid rgba(160,190,255,0.22)",
