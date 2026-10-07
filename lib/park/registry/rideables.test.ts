@@ -24,8 +24,8 @@ describe("rideable spots", () => {
   it("has the right mix, with unique ids", () => {
     expect(of("bike").length).toBeGreaterThanOrEqual(6);
     expect(of("bike").length).toBeLessThanOrEqual(8);
-    expect(of("car").length).toBeGreaterThanOrEqual(3);
-    expect(of("car").length).toBeLessThanOrEqual(4);
+    // (no buggies inside the park: cars wait in the car parks out on the island's roads)
+    for (const s of RIDEABLE_SPOTS) if (s.kind === "car") expect(Math.hypot(s.x, s.z), s.id).toBeGreaterThan(150);
     expect(of("unicorn").length).toBeGreaterThanOrEqual(4);
     expect(of("unicorn").length).toBeLessThanOrEqual(6);
     expect(of("dragon").length).toBe(5);

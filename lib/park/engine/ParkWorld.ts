@@ -53,7 +53,7 @@ import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { settlementAt, settlementDeckY } from "../registry/settlements";
 import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
 import { wildBridgeDeckY } from "../registry/wildWater";
-import { roadConfine, roadDeckY, inWildlandsZone, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
+import { roadConfine, roadDeckY, inWildlandsZone, carRoadBound, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
 import { FLY_LAND_R } from "../map/tripMachine";
 import { CAROUSEL, CAROUSEL_RIDE_TURNS } from "../registry/carousel";
 import { newPetBrain, stepPetBrain, type PetBrain } from "../pet/followBrain";
@@ -1390,7 +1390,7 @@ export class ParkWorld {
       // car-gate/rides/dream/golf ones) and the Dino Isle jeeps keep roaming free as they always
       // have (they never leave the park/Dino Isle anyway — they already can't cross water), but once
       // ANY car strays out into the Wildlands proper it's held to the road same as a Wildlands jeep.
-      if (caps && caps.medium === "land" && this.mount!.kind === "car" && inWildlandsZone(pos.x, pos.z)) {
+      if (caps && caps.medium === "land" && this.mount!.kind === "car" && carRoadBound(pos.x, pos.z)) {
         const c = roadConfine(pos.x, pos.z, px, pz);
         // held to the road (an edge, or a roundabout's island): the jeep points the way it really
         // goes, so it turns with the ring instead of sliding round it sideways

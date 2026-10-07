@@ -604,7 +604,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     lowQuality: opts.lowQuality,
     // the diorama look wants clean, flat meadows (blades turn into pixel noise when chunky), and
     // its own chunky storybook forest instead of the kit's candy trees
-    blades: opts.look !== "diorama",
+    blades: false, // (no grass blades at all: the ground carries its own meadow grain now — terrainChunks.ts — and 56,000 blades were a lot to draw for something that read as too big)
     trees: opts.look !== "diorama",
   });
   disposables.push(fantasy);

@@ -101,7 +101,7 @@ export const DRAGON_BREEDS: Record<DragonBreed, BreedDef> = {
     id: "roostwarden",
     name: "Roostwarden",
     line: "The big horned guardian who looks after the Dragon Roost.",
-    size: 1.08,
+    size: 0.84,
     speed: 1,
     moods: [1.5, 1, 0.5, 3],
     colors: { hide: "#cf3a52", top: "#8f2444", belly: "#ffd98a", spike: "#ffcf4a", horn: "#fff1c9", memb: "#ffab7a", iris: "#ffd257" },

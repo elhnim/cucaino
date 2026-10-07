@@ -712,6 +712,11 @@ const WILDLANDS_Z = -822.9;
 const WILDLANDS_R = 1420;
 /** true once (x, z) is unambiguously in the Wildlands (clear of the park's own little island, and
  *  inside the big landmass's own generous radius — never true for the separate far-sea islands) */
+/** where a car is held to the roads: out in the Wildlands AND inside the park itself (a jeep
+ *  can come down the road to the park's edge, never on across its lawns and trails) */
+export function carRoadBound(x: number, z: number): boolean {
+  return Math.hypot(x, z) <= PARK_R + 6 || inWildlandsZone(x, z);
+}
 export function inWildlandsZone(x: number, z: number): boolean {
   if (Math.hypot(x, z) <= PARK_R + 6) return false;
   return Math.hypot(x - WILDLANDS_X, z - WILDLANDS_Z) < WILDLANDS_R + 40;

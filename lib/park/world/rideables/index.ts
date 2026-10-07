@@ -628,7 +628,14 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       // up on the other side of the kid
       const busy = other.state === COMING || other.state === WAITING;
       const aim = busy ? Math.atan2(kid.x - other.tx, kid.z - other.tz) : undefined;
-      if (!pickSeaCall(kid.x, kid.z, isW ? "whale" : "dolphin", rnd(), rnd(), call, aim) || (busy && Math.hypot(call.x - other.tx, call.z - other.tz) < 16)) {
+      // (several tries at once: near a shallow shore most headings are too shallow for a whale, and
+      //  one try every second and a half could leave a kid waiting a minute for it)
+      let found = false;
+      // (the far side from a friend already there is tried first; if that side is the shallows — the
+      //  friend took the open sea — anywhere deep enough and still clear of the friend will do: a
+      //  whale that can only come up on the open-sea side must not be kept away for ever)
+      for (let k = 0; k < 10 && !found; k++) found = !!pickSeaCall(kid.x, kid.z, isW ? "whale" : "dolphin", rnd(), rnd(), call, k < 4 ? aim : undefined) && !(busy && Math.hypot(call.x - other.tx, call.z - other.tz) < (k < 4 ? 16 : 10));;
+      if (!found) {
         r.timer = 1.5;
         return;
       }

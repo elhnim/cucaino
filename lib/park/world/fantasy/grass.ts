@@ -225,7 +225,7 @@ const FLOWER_VERTEX_BODY = /* glsl */ `
   vec3 lp = position;
   float gT = lp.y;
   lp.y *= gH;
-  lp.xz *= aKind > 0.5 ? gS * 0.62 : gS * 0.7;
+  lp.xz *= aKind > 0.5 ? gS * 0.5 : gS * 0.6;
   float gRot = aBlade.w;
   float cr = cos( gRot ); float sr = sin( gRot );
   lp.xz = vec2( lp.x * cr - lp.z * sr, lp.x * sr + lp.z * cr );
@@ -249,7 +249,7 @@ function flowerMaterial(U: FantasyUniforms, patch: number, radius: number, win: 
       uPatch: { value: patch },
       uRadius: { value: radius },
       uInner: { value: 0 },
-      uHeight: { value: 0.42 },
+      uHeight: { value: 0.28 },
       uWidth: { value: 1 },
       uTime: U.uTime,
       uGlow: U.uGlow,
@@ -294,7 +294,7 @@ export function buildGrassField(U: FantasyUniforms, win: TerrainWindows, opts: {
     disposables.push(geo, mat);
     blades += def.count;
   });
-  const fCount = opts.lowQuality ? 1400 : 4200;
+  const fCount = opts.lowQuality ? 900 : 2600;
   const fPatch = opts.lowQuality ? 56 : 76;
   const fGeo = flowerGeometry(fCount, 555);
   const fMat = flowerMaterial(U, fPatch, fPatch / 2, win);

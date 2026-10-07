@@ -170,12 +170,8 @@ for (const land of ["pets", "market", "friends", "forest", "books"] as const) {
   add({ id: `bike-${land}`, kind: "bike", x: p.x, z: p.z, yaw: p.yaw, y: groundY(p.x, p.z) }, 1);
 }
 
-// ── buggies: four little car parks beside the trails ──
-for (const [land, k, turn] of [["gate", 2.6, 0.9], ["rides", 1.45, 0.5], ["dream", 1.5, -0.5], ["golf", 1.45, 0.4]] as const) {
-  const [ax, az] = landEdge(land, k, turn);
-  const p = trailside(ax, az, 2, [4, 6.5], 30);
-  add({ id: `car-${land}`, kind: "car", x: p.x, z: p.z, yaw: p.yaw, y: groundY(p.x, p.z) }, 2.6);
-}
+// (no buggies inside the park: it is for walking, bikes and unicorns. Cars belong on the island's
+//  roads — the jeeps wait in the car parks out there, the nearest at Park Station just outside)
 // ── the safari jeeps: two buggies parked by the trail at Dino Isle's plaza (registry/dinoIsland) ──
 for (const j of DINO_JEEPS) add({ id: j.id, kind: "car", x: j.x, z: j.z, yaw: j.yaw, y: j.y }, 2.6);
 
@@ -264,7 +260,7 @@ export const DRAGON_PAD = 6;
 /** the Dragon Roost's perch: a low round stone the dragon stands on (m proud of the grass) */
 export const ROOST_LIFT = 0.06;
 /** the Dragon Roost's yard (m) */
-export const ROOST_R = 9.5;
+export const ROOST_R = 6.5;
 /** keep-clear round the Roost's middle for trees and props: the whole yard and its boulder ring */
 export const ROOST_CLEAR = ROOST_R + 2;
 
@@ -358,10 +354,11 @@ export interface DragonRoost {
   f: { x: number; z: number };
 }
 let roost: DragonRoost | null = null;
-/** the Roost is the open ground nearest here (the plaza's south trail) */
-export const ROOST_NEAR = { x: 0, z: 20 };
+/** the Roost is the open ground nearest here: just outside the park's gate, a short walk from the
+ *  kid's cottage — not in the middle of the park, where it crowded the plaza */
+export const ROOST_NEAR = { x: 12, z: 74 };
 /** where the Roost's loungers lie, as (u, f) from the yard's middle (u: toward the trail) */
-export const ROOST_LOUNGE = { puffwing: [-5.4, -1.5], zippit: [4.6, -3.5] } as const;
+export const ROOST_LOUNGE = { puffwing: [-3.7, -1.0], zippit: [3.2, -2.4] } as const;
 
 {
   // 1. the Dragon Roost: open ground by the plaza's south trail (a short walk from where kids
