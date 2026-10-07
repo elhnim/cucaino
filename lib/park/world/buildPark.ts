@@ -12,7 +12,7 @@ import { zoneBounds } from "../builder/rules";
 import { buildAtmosphere, type Atmosphere } from "./atmosphere";
 import { buildGlowFlora } from "./glowFlora";
 import { buildOcean, BEACH_IN, wobbleToCoast } from "./ocean";
-import { TRAILS, ISLAND_R, nearStream, nearMesa, coastR } from "../registry/island";
+import { TRAILS, ISLAND_R, LAND_SQUARES, nearStream, nearMesa, nearTrail, coastR } from "../registry/island";
 import { inJungle, underCanopy } from "../registry/jungle";
 import { buildJungle } from "./jungle";
 import { buildWaterways } from "./waterways";
@@ -756,9 +756,11 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
     const nx = -dz / len;
     const nz = dx / len;
     const side = i % 4 < 2 ? 1 : -1;
-    const x = p.x + nx * 2.1 * side;
-    const z = p.z + nz * 2.1 * side;
-    if (Math.hypot(x, z) < 9.5 || nearPlace(x, z, 0.5)) continue;
+    const x = p.x + nx * 2.4 * side;
+    const z = p.z + nz * 2.4 * side;
+    // (never ON a path: where trails meet, on a land's square or on a lane to a door the post
+    //  beside one trail would stand in the middle of another)
+    if (Math.hypot(x, z) < 11 || nearPlace(x, z, 1.6) || nearTrail(x, z, 2.15) || LAND_SQUARES.some((q) => Math.hypot(x - q.x, z - q.z) < q.r + 0.6)) continue;
     if (i % 6 === 3) lanternMats.push(m4g(x, 0, z, 2.2));
     else caneMats.push(m4g(x, 0, z, 5.5, Math.atan2(nx, nz)));
   }

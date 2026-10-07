@@ -102,7 +102,7 @@ export interface LandDef {
 }
 
 export const LANDS: LandDef[] = [
-  { id: "pets", name: "Pet Meadow", emoji: "🐾", x: -78, z: 18, radius: 18, ground: "#dcd690" },
+  { id: "pets", name: "Home & Pet Meadow", emoji: "🏡", x: -78, z: 18, radius: 18, ground: "#dcd690" },
   { id: "market", name: "Market Street", emoji: "🏪", x: 52, z: -72, radius: 16, ground: "#d9c8a6" },
   { id: "rides", name: "Ride Land", emoji: "🎢", x: -50, z: -68, radius: 15, ground: "#c9c2ae" },
   { id: "friends", name: "Friends Café", emoji: "💌", x: -55, z: 80, radius: 13, ground: "#b9d9c6" },
@@ -128,6 +128,11 @@ export const LANDS: LandDef[] = [
  * building of a land stands round the same paved square, front to it, with a lane to its door
  * (registry/island.ts lays the lanes), and none hides behind another.
  */
+/** round Pet Meadow's square: the pet house, the snack bar, the bath, the bed and the stage (degrees
+ *  round from the way in), and how far out the kid's cottage stands at its head */
+const PET_RING = [230, 60, 305, 265, 105];
+const HOME_R = 16;
+
 function ring(landId: string, deg: number, r: number): { x: number; z: number; face: number } {
   const l = LANDS.find((q) => q.id === landId)!;
   // (the way in is the side nearest the plaza: the loop trail runs between them)
@@ -173,7 +178,7 @@ export const PLACES: PlaceDef[] = [
     label: "Pet House",
     emoji: "🏡",
     land: "pets",
-    ...ring("pets", 180, 12.5),
+    ...ring("pets", PET_RING[0], 12.5),
     radius: 3,
     doorRadius: 6,
     action: "pet",
@@ -188,7 +193,7 @@ export const PLACES: PlaceDef[] = [
     label: "Snack Bar",
     emoji: "🍎",
     land: "pets",
-    ...ring("pets", 75, 12.5),
+    ...ring("pets", PET_RING[1], 12.5),
     radius: 1.4,
     doorRadius: 3,
     action: "pet-feed",
@@ -203,7 +208,7 @@ export const PLACES: PlaceDef[] = [
     label: "Bubble Bath",
     emoji: "🛁",
     land: "pets",
-    ...ring("pets", 285, 12.5),
+    ...ring("pets", PET_RING[2], 12.5),
     radius: 1.6,
     doorRadius: 3,
     action: "pet-wash",
@@ -215,7 +220,7 @@ export const PLACES: PlaceDef[] = [
     label: "Cosy Bed",
     emoji: "🛏️",
     land: "pets",
-    ...ring("pets", 230, 12.5),
+    ...ring("pets", PET_RING[3], 12.5),
     radius: 1.4,
     doorRadius: 3,
     action: "pet-sleep",
@@ -243,7 +248,7 @@ export const PLACES: PlaceDef[] = [
     label: "Trick Stage",
     emoji: "🌟",
     land: "pets",
-    ...ring("pets", 130, 12.5),
+    ...ring("pets", PET_RING[4], 12.5),
     radius: 1.8,
     doorRadius: 3.4,
     action: "pet-tricks",
@@ -504,20 +509,22 @@ export const PLACES: PlaceDef[] = [
   },
 
   // ── My Home (the kid's cottage: decorate the rooms, look after the pet) ──
-  { id: "my-home", label: "My Home", emoji: "🏡", land: "gate", x: -13, z: 50, radius: 3.4, doorRadius: 5, action: "home", signY: 6.8, models: [] }, // hand-built: lib/park/home/exterior.ts
+  // (it stands at the head of Pet Meadow's square, straight across from the way in: the pet's
+  //  things — its house, bed, bath, snack bar and stage — are the home's own garden, round the same square)
+  { id: "my-home", label: "My Home", emoji: "🏡", land: "pets", ...ring("pets", 180, HOME_R), radius: 3.4, doorRadius: 5, action: "home", signY: 9.2, models: [] }, // hand-built: lib/park/home/exterior.ts
 
   // ── Grown-ups' Control Room (parent area, PIN protected) ──
   {
     id: "control-room",
-    label: "Grown-ups",
-    emoji: "🔒",
+    label: "Parents' Office",
+    emoji: "🗝️",
     land: "gate",
     x: 9,
     z: 54,
-    radius: 1.8,
-    doorRadius: 3,
+    radius: 2.8,
+    doorRadius: 4.4,
     action: "parent",
-    signY: 4.4,
+    signY: 7.2,
     models: [{ kit: "coaster", id: "stall-information", scale: 2.6 }],
   },
 
@@ -562,8 +569,10 @@ export const PLACES: PlaceDef[] = [
 /** where the kid starts (and comes out when they leave home): right beside their cottage, on the
  *  camera's side of it so they're in view, just clear of its door */
 export const SPAWN = (() => {
+  // (out in front of its door, on the square it faces)
   const h = PLACES.find((p) => p.id === "my-home")!;
-  return { x: h.x + h.doorRadius + 1.5, z: h.z + 1 };
+  const f = h.face ?? 0;
+  return { x: h.x + Math.sin(f) * (h.doorRadius + 1.5), z: h.z + Math.cos(f) * (h.doorRadius + 1.5) };
 })();
 
 export function getPlace(id: string): PlaceDef | undefined {

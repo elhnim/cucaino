@@ -167,11 +167,12 @@ describe("rideable spots", () => {
       for (let j = i + 1; j < ds.length; j++) expect(Math.hypot(ds[i].x - ds[j].x, ds[i].z - ds[j].z), `${ds[i].id} / ${ds[j].id}`).toBeGreaterThan(40);
   });
 
-  it("the Dragon Roost is a few steps from where kids start, with its sign by the trail", () => {
+  it("the Dragon Roost stands by the park gate, with its sign by the trail", () => {
     const r = of("dragon").find((s) => s.id === "dragon-roost")!;
     expect(r).toBeTruthy();
     expect(Math.hypot(r.x - ROOST_NEAR.x, r.z - ROOST_NEAR.z)).toBeLessThan(30);
-    expect(Math.hypot(r.x - SPAWN.x, r.z - SPAWN.z)).toBeLessThan(45);
+    // (just inside the park's gate)
+    expect(Math.hypot(r.x - 0, r.z - 62)).toBeLessThan(30);
     expect(DRAGON_ROOST.x).toBeCloseTo(r.x, 5);
     expect(DRAGON_ROOST.z).toBeCloseTo(r.z, 5);
     const sg = DRAGON_ROOST.sign;

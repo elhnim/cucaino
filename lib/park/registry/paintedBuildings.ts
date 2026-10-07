@@ -43,8 +43,8 @@ export const PAINTED_BUILDINGS: PaintedBuilding[] = [
   { place: "ride-station", art: "ride-station", w: 6.3, h: 4.2, d: 4.2, roofRise: 1.2, trim: "#f3e6cf" },
   // the kid's own cottage: cream plaster and timber, a mint door, heart-cut shutters, climbing roses, thatch
   { place: "my-home", art: "my-home", w: 7.2, h: 4.8, d: 4.8, roofRise: 2.3, replaces: [], trim: "#efe2c4" },
-  // the grown-ups' kiosk: navy and cream boards with a serving hatch
-  { place: "control-room", art: "info-kiosk", w: 3.3, h: 3.3, d: 2.7, roofRise: 1.0, trim: "#f1ead8" },
+  // the Parents' Office: a proper little navy-and-cream gatehouse by the park gate (it was a tiny kiosk)
+  { place: "control-room", art: "info-kiosk", w: 4.8, h: 4.8, d: 3.8, roofRise: 1.5, trim: "#f1ead8" },
   // Candy Golf's kiosk: white boards with mint trim, a serving hatch of clubs and coloured balls, mint shingles
   { place: "mini-golf", art: "golf-kiosk", w: 5.4, h: 3.6, d: 3.6, roofRise: 1.3, trim: "#dff2e6" },
   // the market stalls
