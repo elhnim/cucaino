@@ -59,6 +59,36 @@ export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMas
   const group = new THREE.Group();
   group.name = "terrain";
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+  // the ground's fine grain: a real meadow picture (public/park-assets/props/meadow-detail.webp,
+  // from codex-world-art/materials/) laid over the painted colours in world space — close up you
+  // see tufts and blades, further off a broader mottling, so the grass is never a flat wash. It
+  // only lightens and darkens the colour underneath (strongly on grass, faintly on paths, sand and
+  // rock), and nothing shows until the picture has arrived.
+  const detail = { uGrain: { value: null as THREE.Texture | null }, uGrainK: { value: 0 } };
+  if (typeof document !== "undefined") {
+    const t = new THREE.TextureLoader().load("/park-assets/props/meadow-detail.webp", () => (detail.uGrainK.value = 1));
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 4;
+    detail.uGrain.value = t;
+    material.customProgramCacheKey = () => "terrain-grain";
+    material.onBeforeCompile = (sh) => {
+      sh.uniforms.uGrain = detail.uGrain;
+      sh.uniforms.uGrainK = detail.uGrainK;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrW;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvGrW = ( modelMatrix * vec4( position, 1.0 ) ).xyz;");
+      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform sampler2D uGrain;\nuniform float uGrainK;\nvarying vec3 vGrW;").replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          float grD = distance( vGrW, cameraPosition );
+          float grNear = texture2D( uGrain, vGrW.xz * 0.21 ).r - 0.374;
+          float grFar = texture2D( uGrain, vGrW.xz * 0.027 + 0.37 ).r - 0.374;
+          float grGrass = smoothstep( 0.02, 0.14, diffuseColor.g - max( diffuseColor.r, diffuseColor.b ) );
+          float grAmt = mix( 0.28, 1.0, grGrass ) * uGrainK;
+          diffuseColor.rgb *= 1.0 + ( grNear * 0.95 * ( 1.0 - smoothstep( 18.0, 70.0, grD ) ) + grFar * 0.5 ) * grAmt;
+        }`,
+      );
+    };
+  }
   const built = new Map<number, Built>();
   /** variant: -1 = the level's own detail, MID, STANDIN */
   const key = (level: number, bi: number, bj: number, variant: number) => ((variant < 0 ? level : variant) * 4096 + bj) * 4096 + bi;
