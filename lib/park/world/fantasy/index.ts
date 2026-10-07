@@ -7,7 +7,7 @@
 // tested) and animated by a handful of shared uniforms in update().
 import * as THREE from "three";
 import { grassMask, type GrassMask } from "./mask";
-import { buildTerrainWindows } from "./terrainWindow";
+import { buildTerrainWindows, type MaskUniforms } from "./terrainWindow";
 import { buildWilds, type Wilds } from "./wilds";
 import { addJungleCut, makeJungleCut } from "../jungle/cutaway";
 import { planFantasy, SPECIES, type FantasyPlan, type FreeFn } from "./placement";
@@ -26,6 +26,8 @@ export { bakeGrassMask } from "./mask";
 export type { FantasyPlan, FreeFn } from "./placement";
 
 export interface FantasyWorld {
+  /** the grass mask's window round the kid (the ground's shader reads its paving from it) */
+  maskUniforms: MaskUniforms;
   /** call every frame; `focus` = the player's position (grass follows the player); glow 0 = day .. 1 = twilight */
   update(dt: number, t: number, focus: THREE.Vector3, glow: number): void;
   /** round obstacles the player should walk around (big rocks, ruin pillars), x/z/r */
@@ -245,6 +247,7 @@ export function buildFantasyWorld(scene: THREE.Scene, opts: FantasyOptions): Fan
     group,
     plan,
     mask,
+    maskUniforms: win.mask,
     wilds,
     sky: {
       setOpened: (ids) => sky.setOpened(ids),

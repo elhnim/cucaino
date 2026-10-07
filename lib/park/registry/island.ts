@@ -79,6 +79,9 @@ function entranceOf(land: LandDef): P2 {
   return [land.x + (dx / d) * (land.radius - 1), land.z + (dz / d) * (land.radius - 1)];
 }
 
+/** the lands whose buildings stand round a little square (registry/places.ts ring()) */
+const SQUARE_LANDS = new Set(["pets", "market", "rides"]);
+
 export const TRAILS: Trail[] = [
   { id: "loop", pts: loopCtrl, closed: true },
   // four winding trails from the plaza out to the loop
@@ -93,7 +96,28 @@ export const TRAILS: Trail[] = [
   // a short trail into every land
   ...LANDS.filter((l) => l.id !== "plaza").map((l) => {
     const start = nearestOnLoop(l.x, l.z);
-    return { id: `land-${l.id}`, pts: bendy(start, entranceOf(l), (R() - 0.5) * 8) };
+    const pts = bendy(start, entranceOf(l), (R() - 0.5) * 8);
+    // (a land whose buildings stand round a square: the trail runs on in to the square's middle)
+    if (SQUARE_LANDS.has(l.id)) pts.push([l.x, l.z]);
+    return { id: `land-${l.id}`, pts };
+  }),
+  // a lane to every building's door: from its land's square (or, for a building standing on its
+  // own, from the land's way in or the loop — whichever is nearer), so nothing stands in bare
+  // ground with no way up to it
+  ...PLACES.filter((p) => p.radius > 0 && !p.sky && p.land !== "plaza" && Math.hypot(p.x, p.z) < 160).map((p) => {
+    const l = LANDS.find((q) => q.id === p.land)!;
+    const dc = Math.hypot(p.x - l.x, p.z - l.z);
+    let hub: P2;
+    if (SQUARE_LANDS.has(l.id) && dc > 6 && dc < 20) hub = [l.x, l.z];
+    else {
+      const e = entranceOf(l);
+      const lp = nearestOnLoop(p.x, p.z);
+      hub = Math.hypot(e[0] - p.x, e[1] - p.z) < Math.hypot(lp[0] - p.x, lp[1] - p.z) ? e : lp;
+    }
+    const d = Math.hypot(hub[0] - p.x, hub[1] - p.z) || 1;
+    const k = Math.min(1, (p.radius + (p.radius > 6 ? 3.2 : 0.6)) / d); // (a big ride: the lane stops at its steps)
+    const door: P2 = [p.x + (hub[0] - p.x) * k, p.z + (hub[1] - p.z) * k];
+    return { id: `door-${p.id}`, pts: [hub, door] as P2[] };
   }),
   // ── the rainforest's trails (you walk under the canopy along these; the undergrowth either side
   // is too thick to push through — see ./jungle.ts) ──
@@ -107,6 +131,9 @@ export const TRAILS: Trail[] = [
   { id: "lake-beach", pts: [[0, 67.6], [1.2, 73.5], [0, 79.5]] as P2[] },
   { id: "lake-north", pts: [[0, 79.5], [-13, 80.5], [-26, 82.5], [-38, 87.5], [-48, 92], [-54, 93.5]] as P2[] },
 ];
+
+/** the paved squares in the middle of the lands whose buildings stand round one */
+export const LAND_SQUARES: { x: number; z: number; r: number }[] = LANDS.filter((l) => SQUARE_LANDS.has(l.id)).map((l) => ({ x: l.x, z: l.z, r: 5.5 }));
 
 export const LAND_ENTRANCE: Record<string, P2> = Object.fromEntries(LANDS.map((l) => [l.id, entranceOf(l)]));
 

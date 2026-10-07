@@ -4,7 +4,7 @@
 //                        with variation, warm rock on cliffs, snow caps, sand at the coast
 import { savannaK } from "../../registry/habitats";
 import * as THREE from "three";
-import { TRAIL_POINTS, seaDist } from "../../registry/island";
+import { ISLAND_R, TRAIL_POINTS, seaDist } from "../../registry/island";
 import { beachK, mesaEdgeDist, waterSdf } from "../../registry/waterways";
 import { wildShelfEdgeDist } from "../../registry/wildWater";
 import { groundY, slopeAt } from "../../registry/terrain";
@@ -24,6 +24,7 @@ const GRASS_B = col("#7a9a2e");
 const GRASS_C = col("#2f7a4c");
 const GRASS_DARK = col("#2c5a1c");
 const DIRT = col("#8a6a47");
+const PAVED_FAR = col("#cdbfa3");
 /** Sunnybrook's cobbled square + streets (mask.ts carves the same footprint clear of grass; this
  *  is just the tint) — a cool stone grey, distinct from every trail's warm DIRT brown */
 const COBBLE_GROUND = col("#9a9486");
@@ -264,7 +265,11 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
   if (mask && paths) {
     const bare = (1 - maskAt(mask, x, z)) * terrainGrassFactor(x, z, h, slope);
     const st = settlementAt(x, z, 4);
-    out.lerp(st && st.style === "town" ? COBBLE_GROUND : DIRT, bare * (st && st.style === "town" ? 0.92 : 0.85));
+    // (inside the park the trails, squares and pads are PAVED — the ground's shader lays the flags
+    //  close up, terrainChunks.ts; this is their colour from further off — out in the Wildlands a
+    //  path is still worn dirt)
+    const inPark = Math.hypot(x, z) < ISLAND_R + 6;
+    out.lerp(st && st.style === "town" ? COBBLE_GROUND : inPark ? PAVED_FAR : DIRT, bare * (st && st.style === "town" ? 0.92 : 0.85));
   }
   // Rainbow Falls' mesa: warm dark rock in strata, moss and ferns on its ledges and its top
   // (the park's mesa, or the Great Falls' shelf out in the Wildlands)

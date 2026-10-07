@@ -8,6 +8,7 @@
 // seams between levels; normals come from the field so neighbouring blocks light the same.
 // Vertex-coloured by groundColor() — meadow greens, rock, snow, sand, river beds, trails.
 // Taps find the ground by marching the pointer's ray over the field (no mesh raycast needed).
+import type { MaskUniforms } from "./terrainWindow";
 import * as THREE from "three";
 import { DEEP_FLOOR, TERRAIN_X0, TERRAIN_X1, TERRAIN_Z0, TERRAIN_Z1, groundY, groundYFar, inTerrain, slopeAt, terrainCoverGrid, terrainCovers, terrainPrefetch } from "../../registry/terrain";
 import { groundColor } from "./terrainMesh";
@@ -54,7 +55,7 @@ interface Built {
   level: number;
 }
 
-export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMask } = {}): TerrainChunks {
+export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMask; maskUniforms?: MaskUniforms } = {}): TerrainChunks {
   const segs = opts.lowQuality ? BLOCK_SEGS.low : BLOCK_SEGS.std;
   const group = new THREE.Group();
   group.name = "terrain";
@@ -64,18 +65,31 @@ export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMas
   // see tufts and blades, further off a broader mottling, so the grass is never a flat wash. It
   // only lightens and darkens the colour underneath (strongly on grass, faintly on paths, sand and
   // rock), and nothing shows until the picture has arrived.
-  const detail = { uGrain: { value: null as THREE.Texture | null }, uGrainK: { value: 0 } };
+  const detail = { uGrain: { value: null as THREE.Texture | null }, uGrainK: { value: 0 }, uPave: { value: null as THREE.Texture | null }, uPaveK: { value: 0 } };
   if (typeof document !== "undefined") {
     const t = new THREE.TextureLoader().load("/park-assets/props/meadow-detail.webp", () => (detail.uGrainK.value = 1));
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 4;
     detail.uGrain.value = t;
+    // (the paving: warm stone flags — public/park-assets/props/paving.webp — laid wherever the
+    //  mask's third channel says the park is paved; needs the mask's window, so only with it)
+    const pv = new THREE.TextureLoader().load("/park-assets/props/paving.webp", () => (detail.uPaveK.value = opts.maskUniforms ? 1 : 0));
+    pv.wrapS = pv.wrapT = THREE.RepeatWrapping;
+    pv.colorSpace = THREE.SRGBColorSpace;
+    pv.anisotropy = 8;
+    detail.uPave.value = pv;
+    const MU = opts.maskUniforms;
     material.customProgramCacheKey = () => "terrain-grain";
     material.onBeforeCompile = (sh) => {
       sh.uniforms.uGrain = detail.uGrain;
       sh.uniforms.uGrainK = detail.uGrainK;
+      sh.uniforms.uPave = detail.uPave;
+      sh.uniforms.uPaveK = detail.uPaveK;
+      sh.uniforms.uMask = MU ? MU.uMask : { value: null };
+      sh.uniforms.uMaskO = MU ? MU.uMaskO : { value: new THREE.Vector2() };
+      sh.uniforms.uMaskSpan = MU ? MU.uMaskSpan : { value: 1 };
       sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vGrW;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvGrW = ( modelMatrix * vec4( position, 1.0 ) ).xyz;");
-      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform sampler2D uGrain;\nuniform float uGrainK;\nvarying vec3 vGrW;").replace(
+      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform sampler2D uGrain;\nuniform float uGrainK;\nuniform sampler2D uPave;\nuniform float uPaveK;\nuniform sampler2D uMask;\nuniform vec2 uMaskO;\nuniform float uMaskSpan;\nvarying vec3 vGrW;").replace(
         "#include <color_fragment>",
         `#include <color_fragment>
         {
@@ -84,7 +98,18 @@ export function buildTerrainChunks(opts: { lowQuality?: boolean; mask?: GrassMas
           float grFar = texture2D( uGrain, vGrW.xz * 0.027 + 0.37 ).r - 0.374;
           float grGrass = smoothstep( 0.02, 0.14, diffuseColor.g - max( diffuseColor.r, diffuseColor.b ) );
           float grAmt = mix( 0.28, 1.0, grGrass ) * uGrainK;
-          diffuseColor.rgb *= 1.0 + ( grNear * 0.95 * ( 1.0 - smoothstep( 18.0, 70.0, grD ) ) + grFar * 0.5 ) * grAmt;
+          // paving, read per pixel from the mask's window round the kid (crisp edges, a darker kerb)
+          float pvA = 0.0;
+          if ( uPaveK > 0.5 ) {
+            vec2 mUv = ( vGrW.xz - uMaskO ) / uMaskSpan;
+            if ( mUv.x > 0.01 && mUv.x < 0.99 && mUv.y > 0.01 && mUv.y < 0.99 ) pvA = texture2D( uMask, mUv ).b;
+          }
+          diffuseColor.rgb *= 1.0 + ( grNear * 0.95 * ( 1.0 - smoothstep( 18.0, 70.0, grD ) ) + grFar * 0.5 ) * grAmt * ( 1.0 - smoothstep( 0.3, 0.6, pvA ) );
+          if ( pvA > 0.01 ) {
+            vec3 flags = texture2D( uPave, vGrW.xz * 0.17 ).rgb * vec3( 0.93, 0.89, 0.81 );
+            float kerb = smoothstep( 0.35, 0.5, pvA ) * ( 1.0 - smoothstep( 0.72, 0.9, pvA ) );
+            diffuseColor.rgb = mix( diffuseColor.rgb, flags * ( 1.0 - kerb * 0.3 ), smoothstep( 0.4, 0.55, pvA ) );
+          }
         }`,
       );
     };

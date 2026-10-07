@@ -13,7 +13,8 @@ describe("the Grand Carousel", () => {
     // the kid is kept off the turning deck, and the walk-up prompt reaches past the steps
     expect(place.radius).toBeGreaterThan(CAROUSEL.deckR + 1);
     expect(place.doorRadius).toBeGreaterThan(place.radius + 2);
-    expect(nearTrail(CAROUSEL.x, CAROUSEL.z, CAROUSEL.canopyR + 2)).toBe(false);
+    // (its own lane comes up to the steps, never in under the canopy)
+    expect(nearTrail(CAROUSEL.x, CAROUSEL.z, CAROUSEL.canopyR)).toBe(false);
     for (const p of PLACES) {
       if (p.id === "carousel" || p.sky) continue;
       expect(Math.hypot(p.x - CAROUSEL.x, p.z - CAROUSEL.z), p.id).toBeGreaterThan(CAROUSEL.canopyR + Math.max(p.radius, 1.5) + 1);

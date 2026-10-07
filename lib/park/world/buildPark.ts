@@ -1,6 +1,7 @@
 // Builds the candy-world theme park: a central plaza, themed lands joined by winding paths,
 // a sky-train looping over everything, and lots of instanced candy decor. Nothing casts real
 // shadows (soft blob shadows instead) and every repeated prop is one draw call per part.
+import { buildSignposts } from "./signposts";
 import { nearRail, stationAt } from "../registry/railway";
 import { nearRoad } from "../registry/roads";
 import * as THREE from "three";
@@ -491,20 +492,25 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const stallKinds: [KitName, string][] = [["coaster", "stall-food"], ["coaster", "stall-drinks"], ["town", "stall-red"], ["town", "stall-green"], ["coaster", "stall-information"], ["town", "cart"]];
   const stallMats = new Map<string, THREE.Matrix4[]>();
   const market = LANDS.find((l) => l.id === "market")!;
-  // (six stalls, three a side of a broad street with room to walk between them — eight used to
-  // be packed along a short diagonal in the middle of the land)
-  for (let i = 0; i < 6; i++) {
+  // (four stalls standing round Market Street's square in the gaps between the shops, each
+  //  facing the square — never on it or on a lane)
+  const marketIn = Math.atan2(-market.x, -market.z);
+  [55, 140, 220, 305].forEach((deg, i) => {
     const k = stallKinds[i % stallKinds.length];
     const key = `${k[0]}/${k[1]}`;
-    const x = market.x + (Math.floor(i / 2) - 1) * 9.5;
-    const z = market.z + (i % 2 ? 6.5 : -6.5);
+    const a = marketIn + (deg * Math.PI) / 180;
+    const x = market.x + Math.sin(a) * 13.5;
+    const z = market.z + Math.cos(a) * 13.5;
     if (!stallMats.has(key)) stallMats.set(key, []);
-    stallMats.get(key)!.push(m4g(x, 0, z, 2.6, i % 2 ? Math.PI * 0.8 : -Math.PI * 0.2));
-  }
+    stallMats.get(key)!.push(m4g(x, 0, z, 2.4, Math.atan2(market.x - x, market.z - z)));
+  });
   for (const [key, mats] of stallMats) {
     const [kit, id] = key.split("/") as [KitName, string];
     scene.add(await assets.instanced(kit, id, mats));
   }
+
+  // finger-post signs at the trail junctions (which way is everything?)
+  disposables.push(buildSignposts(scene));
 
   // Friends Café terrace + plaza benches
   const benchMats: THREE.Matrix4[] = [];
@@ -520,7 +526,11 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const bigMill = await assets.spawn("town", "windmill");
   bigMill.scale.setScalar(3.4);
   const rides = LANDS.find((l) => l.id === "rides")!;
-  bigMill.position.set(rides.x - 8, groundY(rides.x - 8, rides.z - 6), rides.z - 6);
+  // (beside the way in to Ride Land, clear of the square, the lanes and the Sky Railway overhead)
+  const millA = Math.atan2(-rides.x, -rides.z) + (335 * Math.PI) / 180;
+  const millX = rides.x + Math.sin(millA) * 24;
+  const millZ = rides.z + Math.cos(millA) * 24;
+  bigMill.position.set(millX, groundY(millX, millZ), millZ);
   bigMill.rotation.y = 0.6;
   scene.add(bigMill);
 
@@ -717,7 +727,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const roads: Roads = buildRoads(scene);
   disposables.push(roads);
   // (streamed round the kid: only the chunks in view are built, the near ones finely)
-  const ground = track(buildTerrainChunks({ lowQuality: opts.lowQuality, mask: fantasy.mask }));
+  const ground = track(buildTerrainChunks({ lowQuality: opts.lowQuality, mask: fantasy.mask, maskUniforms: fantasy.maskUniforms }));
   scene.add(ground.group);
   ground.update({ x: 0, z: 0 }, 25);
 

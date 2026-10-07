@@ -122,6 +122,21 @@ export const LANDS: LandDef[] = [
   { id: "karts", name: "Cucaino Karts", emoji: "🏎️", x: 279.2, z: -95.4, radius: 120, ground: "#c7c4bc" },
 ];
 
+/**
+ * A spot on a land's own little square: `deg` degrees round from the way in (0 = the entrance,
+ * 180 = straight across from it), `r` out from the land's middle, FACING the middle — so every
+ * building of a land stands round the same paved square, front to it, with a lane to its door
+ * (registry/island.ts lays the lanes), and none hides behind another.
+ */
+function ring(landId: string, deg: number, r: number): { x: number; z: number; face: number } {
+  const l = LANDS.find((q) => q.id === landId)!;
+  // (the way in is the side nearest the plaza: the loop trail runs between them)
+  const a = Math.atan2(-l.x, -l.z) + (deg * Math.PI) / 180;
+  const x = Math.round((l.x + Math.sin(a) * r) * 10) / 10;
+  const z = Math.round((l.z + Math.cos(a) * r) * 10) / 10;
+  return { x, z, face: Math.atan2(l.x - x, l.z - z) };
+}
+
 export const PLACES: PlaceDef[] = [
   // ── Candy Plaza ──
   {
@@ -158,13 +173,11 @@ export const PLACES: PlaceDef[] = [
     label: "Pet House",
     emoji: "🏡",
     land: "pets",
-    x: -70.8,
-    z: -1.5,
+    ...ring("pets", 180, 12.5),
     radius: 3,
     doorRadius: 6,
     action: "pet",
     signY: 5.8,
-    face: Math.PI / 2,
     models: [
       { kit: "city", id: "building-c", scale: 3.8, rotY: Math.PI / 2 },
       { kit: "town", id: "hedge-curved", scale: 3, offset: [3.6, 3] },
@@ -175,8 +188,7 @@ export const PLACES: PlaceDef[] = [
     label: "Snack Bar",
     emoji: "🍎",
     land: "pets",
-    x: -95.2,
-    z: 26.1,
+    ...ring("pets", 75, 12.5),
     radius: 1.4,
     doorRadius: 3,
     action: "pet-feed",
@@ -191,8 +203,7 @@ export const PLACES: PlaceDef[] = [
     label: "Bubble Bath",
     emoji: "🛁",
     land: "pets",
-    x: -57.6,
-    z: 23.5,
+    ...ring("pets", 285, 12.5),
     radius: 1.6,
     doorRadius: 3,
     action: "pet-wash",
@@ -204,8 +215,7 @@ export const PLACES: PlaceDef[] = [
     label: "Cosy Bed",
     emoji: "🛏️",
     land: "pets",
-    x: -73.5,
-    z: 36.5,
+    ...ring("pets", 230, 12.5),
     radius: 1.4,
     doorRadius: 3,
     action: "pet-sleep",
@@ -233,8 +243,7 @@ export const PLACES: PlaceDef[] = [
     label: "Trick Stage",
     emoji: "🌟",
     land: "pets",
-    x: -93.9,
-    z: 5.7,
+    ...ring("pets", 130, 12.5),
     radius: 1.8,
     doorRadius: 3.4,
     action: "pet-tricks",
@@ -251,13 +260,11 @@ export const PLACES: PlaceDef[] = [
     label: "Prize Shop",
     emoji: "🏪",
     land: "market",
-    x: 31.6,
-    z: -74.3,
+    ...ring("market", 180, 11),
     radius: 3.6,
     doorRadius: 6,
     action: "shop",
     signY: 7,
-    face: Math.PI / 2,
     models: [
       { kit: "city", id: "building-k", scale: 3.6, rotY: -Math.PI / 2 },
       { kit: "city", id: "detail-parasol-a", scale: 3.2, offset: [-4.2, 2.6] },
@@ -270,8 +277,7 @@ export const PLACES: PlaceDef[] = [
     label: "Nugget Market",
     emoji: "📈",
     land: "market",
-    x: 61.2,
-    z: -51.6,
+    ...ring("market", 100, 11),
     radius: 2,
     doorRadius: 4,
     action: "market",
@@ -288,8 +294,7 @@ export const PLACES: PlaceDef[] = [
     label: "The Bank",
     emoji: "🏦",
     land: "market",
-    x: 67.4,
-    z: -87.4,
+    ...ring("market", 260, 11),
     radius: 2.6,
     doorRadius: 4.6,
     action: "bank",
@@ -303,8 +308,7 @@ export const PLACES: PlaceDef[] = [
     label: "Rides & Games",
     emoji: "🎢",
     land: "rides",
-    x: -27.5,
-    z: -60.7,
+    ...ring("rides", 300, 12),
     radius: 3,
     doorRadius: 5.5,
     action: "rides",
@@ -399,8 +403,7 @@ export const PLACES: PlaceDef[] = [
     label: "Money Town",
     emoji: "💰",
     land: "rides",
-    x: -45.6,
-    z: -91.5,
+    ...ring("rides", 60, 12),
     radius: 2.2,
     doorRadius: 4.2,
     action: "money-town",

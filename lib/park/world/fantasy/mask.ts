@@ -1,11 +1,13 @@
 // The grass mask: an RGBA8 image over the island that tells the grass shader where it may grow.
 // R = how much grass (0 none .. 1 full), G = tidy-lawn factor (1 = wild meadow, lower = shorter
-// cut grass inside lands). Drawn from island.ts / places.ts / terrain.ts, so blades never poke
+// cut grass inside lands), B = PAVING (1 on the park's paved trails, the plaza, the lands' squares
+// and the pad under every building — the ground's own shader lays stone flags there with a crisp
+// edge, pixel by pixel, which the coarse vertex colours never could). Drawn from island.ts / places.ts / terrain.ts, so blades never poke
 // through trails, the stream, the pond, the plaza, buildings, the Dream Park grid, steep cliffs or
 // the beach. Nothing is baked up front: the mask is worked out in tiles of MASK_TILE pixels the
 // first time something looks inside one (the grass only ever needs the window round the kid —
 // see terrainWindow.ts). Pure (typed arrays only) — safe in Node and unit tested.
-import { ISLAND_R, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, TRAIL_WIDTH, seaDist } from "../../registry/island";
+import { ISLAND_R, LAND_SQUARES, POND, STREAM_POINTS, STREAM_WIDTH, TRAIL_POINTS, TRAIL_WIDTH, seaDist } from "../../registry/island";
 import { LANDS, PLACES } from "../../registry/places";
 import { TERRAIN_CELL, TERRAIN_NX, TERRAIN_NZ, TERRAIN_X0, TERRAIN_Z0, terrainSample } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
@@ -66,6 +68,20 @@ interface Disc {
   /** carves the lawn factor (down to `floor`) instead of the grass amount */
   lawn: boolean;
   floor: number;
+}
+/** the park's paving: trails as straight pieces [ax, az, bx, bz, half width], and discs [x, z, r] */
+let pavingList: { segs: number[][]; discs: number[][] } | null = null;
+function paving() {
+  if (pavingList) return pavingList;
+  const segs: number[][] = [];
+  const discs: number[][] = [];
+  const half = TRAIL_WIDTH / 2;
+  for (const pts of TRAIL_POINTS) for (let i = 0; i + 1 < pts.length; i++) segs.push([pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], half]);
+  discs.push([0, 0, 9.8]); // the plaza
+  for (const sq of LAND_SQUARES) discs.push([sq.x, sq.z, sq.r]);
+  // (the pad a building stands on, a step wider than the building all round)
+  for (const p of PLACES) if (p.radius > 0 && !p.sky && Math.hypot(p.x, p.z) < ISLAND_R + 20) discs.push([p.x, p.z, p.radius + 1.5]);
+  return (pavingList = { segs, discs });
 }
 let discList: Disc[] | null = null;
 function discs(): Disc[] {
@@ -274,11 +290,44 @@ function bakeTile(R: MaskRes, ti: number, tj: number): Uint8Array {
     }
   }
 
+  // the paving: every pixel's distance to the nearest paved trail (a run of straight pieces), or
+  // into the nearest paved disc
+  const pave = new Float32Array(T * T);
+  {
+    const P = paving();
+    const x0 = wx(I0) - 3;
+    const x1 = wx(I0 + T - 1) + 3;
+    const z0 = wx(J0) - 3;
+    const z1 = wx(J0 + T - 1) + 3;
+    const segs = P.segs.filter((s) => Math.max(s[0], s[2]) > x0 && Math.min(s[0], s[2]) < x1 && Math.max(s[1], s[3]) > z0 && Math.min(s[1], s[3]) < z1);
+    const pads = P.discs.filter((d) => d[0] + d[2] > x0 && d[0] - d[2] < x1 && d[1] + d[2] > z0 && d[1] - d[2] < z1);
+    if (segs.length || pads.length)
+      for (let j = 0; j < T; j++) {
+        const z = wx(J0 + j);
+        for (let i = 0; i < T; i++) {
+          const x = wx(I0 + i);
+          let v = 0;
+          for (const s of segs) {
+            const ex = s[2] - s[0];
+            const ez = s[3] - s[1];
+            const u = Math.max(0, Math.min(1, ((x - s[0]) * ex + (z - s[1]) * ez) / (ex * ex + ez * ez || 1)));
+            const d = Math.hypot(x - s[0] - ex * u, z - s[1] - ez * u);
+            if (d < s[4] + 0.4) v = Math.max(v, 1 - smoothstep(s[4] - 0.3, s[4] + 0.3, d));
+          }
+          for (const d of pads) {
+            const dd = Math.hypot(x - d[0], z - d[1]);
+            if (dd < d[2] + 0.4) v = Math.max(v, 1 - smoothstep(d[2] - 0.3, d[2] + 0.3, dd));
+          }
+          pave[j * T + i] = v;
+        }
+      }
+  }
+
   const data = new Uint8Array(T * T * 4);
   for (let k = 0; k < T * T; k++) {
     data[k * 4] = Math.round(Math.min(1, Math.max(0, amount[k])) * 255);
     data[k * 4 + 1] = Math.round(lawn[k] * 255);
-    data[k * 4 + 2] = 0;
+    data[k * 4 + 2] = Math.round(pave[k] * 255);
     data[k * 4 + 3] = 255;
   }
   return data;
