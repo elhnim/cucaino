@@ -165,7 +165,8 @@ export class ChibiAnimator {
     this.move += ((moving ? 1 : 0) - this.move) * kMove;
     this.runW += ((running ? 1 : 0) - this.runW) * (1 - Math.exp(-dt * 5));
     let f: number;
-    if (speed > 0.2) f = clamp(speed / (this.height * 0.9), running ? 2.3 : 1.4, running ? 3.6 : 2.6);
+    // (steps a second: an unhurried trot at a run, never a blur of little steps)
+    if (speed > 0.2) f = clamp(speed / (this.height * 0.9), running ? 2.0 : 1.3, running ? 2.6 : 2.1);
     else f = this.forced === "run" ? 2.9 : 1.8;
     if (this.k.gait === "hop") f *= 0.62;
     if (this.move > 0.01) this.phase = (this.phase + dt * TAU * f) % (TAU * 1000);
@@ -409,8 +410,10 @@ export class ChibiAnimator {
     const s = Math.sin(phase), c = Math.cos(phase);
     const b = 0.5 - 0.5 * Math.cos(2 * phase); // 0 at foot contact, 1 mid-stride
     const g = this.k.gait;
-    P[RIG_Y] = (0.02 + 0.05 * r) * b;
-    P[SQUASH] = (0.035 + 0.035 * r) * (2 * b - 1);
+    // (a gentle rise and fall with each step — a couple of centimetres on a real child — and a hint
+    //  of squash: the old stride bounced the body nearly a tenth of its height seven times a second)
+    P[RIG_Y] = (0.008 + 0.012 * r) * b;
+    P[SQUASH] = (0.012 + 0.01 * r) * (2 * b - 1);
     P[BODY_Y] = 0;
     const legA = 0.55 + 0.3 * r;
     P[LEG_LX] = -legA * s;
@@ -425,11 +428,11 @@ export class ChibiAnimator {
     P[LEAN] = 0.06 + 0.2 * r;
     P[SWAY] = 0.05 * s * (1 - 0.5 * r);
     P[TWIST] = 0.08 * s;
-    P[HEAD_X] = -0.04 * r + 0.035 * (b - 0.5) - 0.05 * r;
+    P[HEAD_X] = -0.04 * r + 0.012 * (b - 0.5) - 0.05 * r;
     P[HEAD_Z] = -0.035 * s;
     P[HEAD_Y] = 0;
     P[TAIL_Y] = 0.35 * Math.sin(2 * phase);
-    P[EAR_L] = P[EAR_R] = 0.12 * (b - 0.5) * (1 + r);
+    P[EAR_L] = P[EAR_R] = 0.07 * (b - 0.5) * (1 + r);
     P[MOUTH_OPEN] = 0.45 * r;
     if (g === "hover") {
       P[RIG_Y] = 0.03 * Math.sin(phase) + 0.028 * Math.sin(t * 2.6);
@@ -440,9 +443,9 @@ export class ChibiAnimator {
       P[SQUASH] = 0.02 * Math.sin(2 * phase);
     } else if (g === "hop") {
       const h = Math.abs(Math.sin(phase));
-      P[RIG_Y] = (0.1 + 0.06 * r) * h;
-      P[SQUASH] = 0.07 * h - 0.035 - 0.05 * Math.max(0, 0.25 - h) * 4;
-      P[LEAN] = -0.22 * Math.sin(2 * phase) + 0.08;
+      P[RIG_Y] = (0.04 + 0.025 * r) * h; // (a hopper's hop: a little spring, not a pogo stick)
+      P[SQUASH] = 0.03 * h - 0.015 - 0.02 * Math.max(0, 0.25 - h) * 4;
+      P[LEAN] = -0.09 * Math.sin(2 * phase) + 0.08;
       P[SWAY] = 0;
       P[TWIST] = 0;
     } else if (g === "crawl") {
