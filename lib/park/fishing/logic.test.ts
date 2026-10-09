@@ -130,6 +130,21 @@ describe("fishing state machine", () => {
     expect(Object.values(s.catchCounts).reduce((a, b) => a + b, 0)).toBe(25);
   });
 
+  it("a catch is not flagged 'new' when catchCounts is seeded from an earlier session's fish book", () => {
+    // FishingGame.tsx seeds a fresh session's catchCounts from the persisted on-device fish book
+    // (so "New species!" only ever shows once per fish, across sessions, not once per session).
+    const rng = mulberry32(13);
+    let s = castToNibble(rng);
+    s = tapNibble(s);
+    const id = s.pendingFishId!;
+    s = { ...s, catchCounts: { [id]: 3 } }; // already caught 3 times in a previous session
+    s = reelIn(s, rng);
+    expect(s.phase).toBe("caught");
+    expect(s.result!.fishId).toBe(id);
+    expect(s.result!.isNew).toBe(false);
+    expect(s.catchCounts[id]).toBe(4);
+  });
+
   it("weighted picks land on every species over many seeded draws, favouring common ones", () => {
     const rng = mulberry32(7);
     const tally: Record<string, number> = {};

@@ -75,7 +75,7 @@ function woolHex(id: string | null | undefined): string {
 }
 
 /** a small ball of wool, used both as the colour palette and as shelf decoration */
-function YarnBall({ color, size = 34 }: { color: string; size?: number }) {
+function YarnBall({ color, size = 44 }: { color: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 34 34" aria-hidden style={{ display: "block" }}>
       <circle cx="17" cy="17" r="15" fill={color} />
@@ -500,7 +500,7 @@ export function WeaveGame({ open, onClose, kidId, villagerName, night: nightProp
               <div style={galleryGrid} className="gp-scroll">
                 {gallery.map((g) => (
                   <div key={g.id} style={galleryTile}>
-                    <GridArt grid={decodeGrid(g.cells, g.cols, g.rows)} cellSize="6px" gap={1} />
+                    <GridArt grid={decodeGrid(g.cells, g.cols, g.rows)} cellSize="9px" gap={1.5} />
                     <div style={galleryLabel}>
                       {g.patternName ?? "Free design"} {g.isMatch && g.patternName ? "⭐" : ""}
                     </div>
@@ -519,7 +519,7 @@ function ColorDot({ colorId, label, active, onClick }: { colorId: string; label?
   const hex = woolHex(colorId);
   return (
     <button type="button" className="gp-press" onClick={onClick} aria-label={label ?? colorId} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", touchAction: "manipulation" }}>
-      <YarnBall color={hex === "transparent" ? "#f5f0e0" : hex} size={active ? 40 : 34} />
+      <YarnBall color={hex === "transparent" ? "#f5f0e0" : hex} size={active ? 48 : 44} />
       {active && <div style={{ height: 3, borderRadius: 2, background: C.gold, marginTop: 2, boxShadow: `0 0 6px ${alpha(C.gold, 0.8)}` }} />}
     </button>
   );
@@ -592,7 +592,11 @@ const loomDock: React.CSSProperties = { position: "fixed", left: 0, right: 0, bo
 // the loom itself: a warm wooden frame (not a dark glass UI panel), with a CSS var controlling the
 // responsive cell size — bigger on wide (tablet) screens, down to a comfortable minimum on phones.
 const loomCard: React.CSSProperties = {
-  ["--loom-cell" as string]: "clamp(23px, calc((100vw - 136px) / 10.6), 38px)",
+  // touch targets at least 44px on a tablet: the old clamp topped out at 38px even on a full-size
+  // tablet width, and bottomed out at 23px on a phone — both below the 44px minimum. This keeps the
+  // same clamp() shape but raises both ends (the loom card's own max width, 640px, still fits a
+  // 44px cell times 10 columns plus the shuttle column, so nothing needs to resize around it).
+  ["--loom-cell" as string]: "clamp(30px, calc((100vw - 140px) / 9.6), 44px)",
   width: "min(640px, 100%)",
   borderRadius: 22,
   padding: 14,
@@ -621,7 +625,7 @@ const doneCard: React.CSSProperties = { width: "min(380px, 100%)", maxHeight: "9
 const newRibbon: React.CSSProperties = { position: "absolute", top: -14, left: "50%", transform: "translateX(-50%)", background: `linear-gradient(180deg, ${C.goldHi}, ${C.gold})`, color: C.ink, fontWeight: 900, fontFamily: FONT.display, fontSize: 13, padding: "4px 14px", borderRadius: 999, boxShadow: "0 4px 10px rgba(0,0,0,0.35)" };
 const factBox: React.CSSProperties = { fontWeight: 700, fontFamily: FONT.body, fontSize: 14, color: C.text, lineHeight: 1.35, padding: "2px 4px" };
 const gallerySheet: React.CSSProperties = { width: "min(680px, 100%)", maxHeight: "82dvh", borderRadius: "24px 24px 0 0", padding: 16, display: "flex", flexDirection: "column", gap: 12 };
-const galleryGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))", gap: 10, overflowY: "auto" };
+const galleryGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(128px, 1fr))", gap: 10, overflowY: "auto" };
 const galleryTile: React.CSSProperties = { display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: 8, borderRadius: 12, background: "rgba(34,30,78,0.55)", border: `1px solid ${C.line}` };
 const galleryLabel: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, color: C.dim, textAlign: "center" };
 

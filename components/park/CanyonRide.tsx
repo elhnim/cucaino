@@ -33,6 +33,8 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
   const [arrivedCard, setArrivedCard] = useState<{ icon: string; title: string; age: string; fact: string } | null>(null);
   const [ridingUp, setRidingUp] = useState(false);
   const ridingUpRef = useRef(false);
+  // a one-line "how to play" hint shown before the first ride-on tap, same idea as EverestClimb/VolcanoClimb
+  const [showHint, setShowHint] = useState(true);
   const animal = getParkAnimal(animalId);
 
   // set off down the trail on open; a safe return to the rim on close/unmount
@@ -42,6 +44,7 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
     setState(s);
     setRidingUp(false);
     ridingUpRef.current = false;
+    setShowHint(true);
     const arrived = justArrivedLayer(s);
     setArrivedCard(arrived ? { icon: arrived.emoji, title: arrived.name, age: arrived.age, fact: arrived.fact } : null);
     world.boardClimb("grand-canyon");
@@ -111,15 +114,17 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
       {!ridingUp && (
         <div style={meterWrap}>
           <div style={meterTrack}>
-            <div style={{ ...meterFill, height: `${(1 - progress) * 100}%` }} />
-            <div style={meterFlag}>🐴</div>
+            {/* the mule's own position on the trail: 0% (rim, top) to 100% (river, bottom) as the
+                ride progresses — track the SAME anchor the fill grows from, so the icon moves. */}
+            <div style={{ ...meterFill, height: `${progress * 100}%` }} />
+            <div style={{ ...meterFlag, top: `calc(${progress * 100}% - 14px)` }}>🐴</div>
           </div>
           <div style={meterLabel}>{layer.name}</div>
           <div style={meterSub}>{layer.age}</div>
         </div>
       )}
 
-      {!atRiver && !arrivedCard && !ridingUp && (
+      {!atRiver && !arrivedCard && !ridingUp && !showHint && (
         <div style={bottomBar}>
           <div style={legLabel}>
             {layer.name} → {upcoming.name}
@@ -134,6 +139,18 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
         <div style={bottomBar}>
           <div style={legLabel}>🐴 Riding back up to the rim…</div>
         </div>
+      )}
+
+      {showHint && !arrivedCard && !atRiver && !ridingUp && (
+        <FactCard
+          icon="🐴"
+          title="How to ride"
+          fact="Tap Ride on! to head down into the canyon on muleback, one rock layer at a time."
+          onClose={() => {
+            playSfx("tap");
+            setShowHint(false);
+          }}
+        />
       )}
 
       {arrivedCard && !atRiver && (

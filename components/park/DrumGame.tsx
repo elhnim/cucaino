@@ -19,6 +19,7 @@ import {
   nextLevel,
   resumeLevels,
   retryLevel,
+  startLevel,
   tickDemo,
   type DrumId,
   type DrumState,
@@ -592,6 +593,26 @@ export function DrumGame({ open, onClose, kidId, villagerName, night: nightProp 
 
       {/* prompt / action dock — kept well above the drum arc below */}
       <div style={dock}>
+        {/* demo progress dots: one per hit in the pattern, lighting up as the lead drummer plays
+            each one — so a kid watching can see how many hits are left, not just a silent wait */}
+        {state.phase === "demo" && (
+          <div style={{ display: "flex", gap: 6 }} aria-hidden>
+            {state.pattern.map((_, i) => (
+              <span
+                key={i}
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: i <= state.demoIndex ? C.gold : "rgba(255,255,255,0.28)",
+                  boxShadow: i <= state.demoIndex ? `0 0 6px ${alpha(C.gold, 0.8)}` : undefined,
+                  transition: "background 150ms ease",
+                }}
+              />
+            ))}
+          </div>
+        )}
+
         {prompt && (
           <div
             style={{ ...glass({ edge: state.phase === "input" ? "gold" : "cyan", fill: "rgba(16,14,40,0.85)" }), ...promptChip, ...dockItem }}
@@ -642,15 +663,27 @@ export function DrumGame({ open, onClose, kidId, villagerName, night: nightProp 
           <div style={{ ...glass({ edge: "gold", fill: "rgba(18,16,44,0.92)", blur: 12 }), ...factCard, ...dockItem }} className="gp-popin">
             <div style={display(16, C.gold)}>Level {state.level} done! 🎉</div>
             <div style={factText}>{fact.text}</div>
-            <GameButton
-              variant="primary"
-              onClick={() => {
-                playSfx("tap");
-                setState((s) => nextLevel(s, rng));
-              }}
-            >
-              Next pattern ▶
-            </GameButton>
+            <div style={{ display: "flex", gap: 10 }}>
+              <GameButton
+                small
+                variant="secondary"
+                onClick={() => {
+                  playSfx("tap");
+                  setState((s) => startLevel(s, s.level, rng));
+                }}
+              >
+                🔁 Replay
+              </GameButton>
+              <GameButton
+                variant="primary"
+                onClick={() => {
+                  playSfx("tap");
+                  setState((s) => nextLevel(s, rng));
+                }}
+              >
+                Next pattern ▶
+              </GameButton>
+            </div>
           </div>
         )}
       </div>

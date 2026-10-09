@@ -151,11 +151,17 @@ export function FishingGame({ open, onClose, kidId, villagerName, night: nightPr
   const reelHoldTimer = useRef<number | null>(null);
   const missTimer = useRef<number | undefined>(undefined);
 
-  // fresh state + fish book every time the pier is opened
+  // fresh state + fish book every time the pier is opened — the session's catchCounts (which
+  // finishCatch() uses to decide "isNew") are seeded from the persisted book, so a fish caught in
+  // an earlier session is never flagged "New species!" again (logic.ts's catchCounts would
+  // otherwise start empty every session and have no memory of previous visits).
   useEffect(() => {
     if (!open) return;
-    setState(initialFishingState());
-    setBook(readBook(kidId));
+    const loadedBook = readBook(kidId);
+    const catchCounts: Record<string, number> = {};
+    for (const [fishId, entry] of Object.entries(loadedBook)) catchCounts[fishId] = entry.count;
+    setState({ ...initialFishingState(), catchCounts });
+    setBook(loadedBook);
     setShowBook(false);
   }, [open, kidId]);
 

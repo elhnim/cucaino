@@ -33,6 +33,8 @@ export function VolcanoClimb({ open, onClose, world, kidId, kidName, animalId }:
   const [arrivedCard, setArrivedCard] = useState<{ icon: string; title: string; fact: string } | null>(null);
   const [descending, setDescending] = useState(false);
   const descendingRef = useRef(false);
+  // a one-line "how to play" hint shown before the first climb tap
+  const [showHint, setShowHint] = useState(true);
   const animal = getParkAnimal(animalId);
 
   // set off up the cone on open; a safe return to the farm on close/unmount
@@ -42,6 +44,7 @@ export function VolcanoClimb({ open, onClose, world, kidId, kidName, animalId }:
     setState(s);
     setDescending(false);
     descendingRef.current = false;
+    setShowHint(true);
     const arrived = justArrivedStop(s);
     setArrivedCard(arrived ? { icon: arrived.emoji, title: arrived.name, fact: arrived.fact } : null);
     world.boardClimb("paricutin");
@@ -119,7 +122,7 @@ export function VolcanoClimb({ open, onClose, world, kidId, kidName, animalId }:
         </div>
       )}
 
-      {!arrivedAtRim && !arrivedCard && !descending && (
+      {!arrivedAtRim && !arrivedCard && !descending && !showHint && (
         <div style={bottomBar}>
           <div style={legLabel}>
             {stop.name} → {upcoming.name}
@@ -134,6 +137,18 @@ export function VolcanoClimb({ open, onClose, world, kidId, kidName, animalId }:
         <div style={bottomBar}>
           <div style={legLabel}>🦺 Heading back down to the farm…</div>
         </div>
+      )}
+
+      {showHint && !arrivedCard && !arrivedAtRim && !descending && (
+        <FactCard
+          icon="🌋"
+          title="How to climb"
+          fact="Tap Climb! to walk up to the crater, one stop at a time."
+          onClose={() => {
+            playSfx("tap");
+            setShowHint(false);
+          }}
+        />
       )}
 
       {arrivedCard && !arrivedAtRim && (

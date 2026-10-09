@@ -46,6 +46,8 @@ export function EverestClimb({ open, onClose, world, kidId, kidName, animalId }:
   const [state, setState] = useState<ClimbState>(() => initialClimbState());
   const [arrivedCard, setArrivedCard] = useState<{ icon: string; title: string; fact: string } | null>(null);
   const [flying, setFlying] = useState(false);
+  // a one-line "how to play" hint shown before the first climb tap
+  const [showHint, setShowHint] = useState(true);
   const animal = getParkAnimal(animalId);
   const flyingRef = useRef(false);
 
@@ -57,6 +59,7 @@ export function EverestClimb({ open, onClose, world, kidId, kidName, animalId }:
     setState(s);
     setFlying(false);
     flyingRef.current = false;
+    setShowHint(true);
     const arrived = justArrivedCamp(s);
     setArrivedCard(arrived ? { icon: arrived.emoji, title: arrived.name, fact: arrived.fact } : null);
     world.boardClimb("everest");
@@ -156,7 +159,7 @@ export function EverestClimb({ open, onClose, world, kidId, kidName, animalId }:
         </>
       )}
 
-      {!summited && !arrivedCard && !flying && (
+      {!summited && !arrivedCard && !flying && !showHint && (
         <div style={bottomBar}>
           <div style={legLabel}>
             {camp.name} → {upcoming.name}
@@ -176,6 +179,18 @@ export function EverestClimb({ open, onClose, world, kidId, kidName, animalId }:
         <div style={bottomBar}>
           <div style={legLabel}>🚁 Flying back down to Base Camp…</div>
         </div>
+      )}
+
+      {showHint && !arrivedCard && !summited && !flying && (
+        <FactCard
+          icon="🧗"
+          title="How to climb"
+          fact="Tap Climb! to take a roped step up. Running low on breath? Tap Breathe to rest — there's no rush."
+          onClose={() => {
+            playSfx("tap");
+            setShowHint(false);
+          }}
+        />
       )}
 
       {arrivedCard && !summited && (
