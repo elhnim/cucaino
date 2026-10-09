@@ -2,7 +2,7 @@
 // mountains overhead and the Abyss. One entry per place — add a new island here and both the
 // little map and the big World map draw it. Pure data (derived from each place's own registry).
 import { VILLAGE_ISLAND } from "./villageIsland";
-import { SKY_ISLANDS } from "./skyIslands";
+import { SKY_HOME, SKY_ISLANDS } from "./skyIslands";
 import { TERRAIN_X0, TERRAIN_X1, TERRAIN_Z0, TERRAIN_Z1, WRAP_R } from "./terrain";
 import { ABYSS } from "./abyss";
 import { FROST_ISLAND } from "./frostIsland";
@@ -86,7 +86,7 @@ export const WORLD_PLACES: WorldPlace[] = [
     z: s.z,
     r: s.r,
     kind: "sky" as const,
-    how: `${s.name} floats high in the sky. Fly up on the dragon or manta and tap "Land"!`,
+    how: `${s.name} floats high over the Great Lake. Take the train to Lake Station, hop on the dragon there, fly up and tap "Land"!`,
   })),
 ];
 
@@ -122,4 +122,8 @@ export const ISLAND_DESTINATIONS: MapDestination[] = [
 
 /** mountains labelled on the Island tab (not themselves destinations — the Lone Peak already has
  *  its own station marker, so only the long Great Ridge needs a label of its own) */
-export const ISLAND_LANDMARKS: { id: string; name: string; emoji: string; x: number; z: number }[] = [{ id: "great-ridge", name: "Great Ridge", emoji: "⛰️", x: 860, z: -927 }];
+export const ISLAND_LANDMARKS: { id: string; name: string; emoji: string; x: number; z: number }[] = [
+  { id: "great-ridge", name: "Great Ridge", emoji: "⛰️", x: 860, z: -927 },
+  // the floating mountains, all together over the Great Lake (registry/skyIslands.ts)
+  { id: "sky-peaks", name: "Sky Peaks", emoji: "☁️", x: SKY_HOME.x, z: SKY_HOME.z },
+];

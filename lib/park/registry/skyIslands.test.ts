@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { RUNE_STONE_RING, SKY_BRIDGES, SKY_GRID, SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyRim, skyRimMax, skyRimRadius, SKY_RIM_N, skyBob, skyBridgeY, skyIslandAt, skyIslandById, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, skyWalkable, stonesLit } from "./skyIslands";
-import { groundY } from "./terrain";
+import { RUNE_STONE_RING, SKY_BRIDGES, SKY_GRID, SKY_HOME, SKY_ISLANDS, SKY_OBSTACLES, SKY_PADS, SKY_PROPS, SKY_RUNE_STONES, SKY_SPOTS, runeStoneAt, skyBaseY, skyRim, skyRimMax, skyRimRadius, SKY_RIM_N, skyBob, skyBridgeY, skyIslandAt, skyIslandById, skyLocalHeight, skyNodeHeight, skyStreamEnd, skyTopY, skyWalkable, stonesLit } from "./skyIslands";
+import { groundY, groundYFar } from "./terrain";
+import { seaDist } from "./island";
+import { STATIONS } from "./railway";
 import { skyLoopXZ, SKY_LOOP_N, PLACES } from "./places";
 
 const hyp = Math.hypot;
@@ -183,6 +185,24 @@ describe("sky islands registry", () => {
       expect(hyp(end.x - s.x, end.z - s.z)).toBeGreaterThan(s.r);
       expect(skyTopY(s.spring.x, s.spring.z, 0)?.id, `${s.id} spring`).toBe(s.id);
     }
+  });
+
+  it("floats over the Great Lake, well away from the park, high above the ground and clear of the peaks", () => {
+    for (const s of SKY_ISLANDS) {
+      // nowhere near the park (it used to hang right over it) …
+      expect(hyp(s.x, s.z), s.id).toBeGreaterThan(1000);
+      // … a short flight from Lake Station and its dragon
+      const st = STATIONS.find((q) => q.id === "lake-station")!;
+      expect(hyp(s.x - st.x, s.z - st.z), s.id).toBeLessThan(520);
+      // … over land or lake (never out at sea), with clear air under its rock all the way round
+      expect(seaDist(s.x, s.z), s.id).toBeLessThan(-40);
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        for (const f of [0, 0.5, 1.15]) expect(s.y - s.depth - groundYFar(s.x + Math.sin(a) * s.r * f, s.z + Math.cos(a) * s.r * f), s.id).toBeGreaterThan(12);
+      }
+    }
+    expect(Math.abs(SKY_HOME.x % SKY_GRID)).toBe(0);
+    expect(Math.abs(SKY_HOME.z % SKY_GRID)).toBe(0);
   });
 
   it("has exactly the five building pads: flat, clear, walkable, facing the landing spot", () => {

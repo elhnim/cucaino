@@ -6,7 +6,7 @@ import { nearRail, stationAt } from "../registry/railway";
 import { nearRoad } from "../registry/roads";
 import * as THREE from "three";
 import type { ParkAssets, KitName } from "../assets/loader";
-import { PLACES, LANDS, SKY_LOOP_N, SKY_STATION_I, skyLoopRadius, skyLoopXZ, type PlaceDef, type LandDef } from "../registry/places";
+import { PLACES, LANDS, placeFootprint, SKY_LOOP_N, SKY_STATION_I, skyLoopRadius, skyLoopXZ, type PlaceDef, type LandDef } from "../registry/places";
 import { labelSprite } from "@/lib/game3d/buildingKit";
 import { zoneBounds } from "../builder/rules";
 import { buildAtmosphere, type Atmosphere } from "./atmosphere";
@@ -326,7 +326,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   const zb = zoneBounds();
   const inDreamZone = (x: number, z: number, pad: number) => x > zb.minX - pad && x < zb.maxX + pad && z > zb.minZ - pad && z < zb.maxZ + pad;
   const nearPlace = (x: number, z: number, pad: number) =>
-    inDreamZone(x, z, pad) || Math.hypot(x, z) < 10 + pad || PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < Math.max(p.radius, 1.5) + pad);
+    inDreamZone(x, z, pad) || Math.hypot(x, z) < 10 + pad || PLACES.some((p) => Math.hypot(x - placeFootprint(p).x, z - placeFootprint(p).z) < Math.max(p.radius, 1.5) + pad);
   const inLand = (x: number, z: number, id: string) => {
     const l = LANDS.find((q) => q.id === id)!;
     return Math.hypot(x - l.x, z - l.z) < l.radius;

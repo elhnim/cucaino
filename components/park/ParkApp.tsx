@@ -1340,8 +1340,8 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   window.location.reload();
                 },
               },
-              { e: "🔭", t: `Sky discoveries · ${spots.length}/${SKY_SPOTS.length}`, on: () => toast(spots.length >= SKY_SPOTS.length ? "🏆 You've discovered everything on the floating mountains!" : "🔭 The floating mountains hide caves, a dragon egg, rune circles, telescopes, sky cannons, a treehouse and more. Land and explore!") },
-              { e: "🏝️", t: `Sky treasures · ${skyFound.length}/${SKY_ISLANDS.length}`, on: () => toast(skyFound.length >= SKY_ISLANDS.length ? "🏆 You've opened every sky treasure!" : "🏝️ Each floating mountain hides a treasure chest. Fly up on the dragon or manta, land on top and explore!") },
+              { e: "🔭", t: `Sky discoveries · ${spots.length}/${SKY_SPOTS.length}`, on: () => toast(spots.length >= SKY_SPOTS.length ? "🏆 You've discovered everything on the floating mountains!" : "🔭 Out over the Great Lake, the floating mountains hide caves, a dragon egg, rune circles, telescopes, sky cannons, a treehouse and more. Land and explore!") },
+              { e: "🏝️", t: `Sky treasures · ${skyFound.length}/${SKY_ISLANDS.length}`, on: () => toast(skyFound.length >= SKY_ISLANDS.length ? "🏆 You've opened every sky treasure!" : "🏝️ The floating mountains are out over the Great Lake, and each hides a treasure chest. Ride the train to Lake Station, fly up on the dragon, land on top and explore!") },
               { e: "🫧", t: `Sea Pearls · ${pearls.length}/${PEARL_COUNT}`, on: () => toast(pearls.length >= PEARL_COUNT ? "🫧 You found every Sea Pearl!" : "🫧 Sea Pearls glow inside giant clams on the reef, by the shipwreck and the sunken ruins. Swim out past the beach and dive!") },
               { e: "✦", t: `Star Shards · ${shards.length}/${SHARD_COUNT}`, on: () => toast(shards.length >= SHARD_COUNT ? "✦ You found every Star Shard — a true explorer!" : "✦ Star Shards hide on peaks, sky islands, ruins, ancient trees, crystals and coves. Fly to reach the high ones!") },
               {

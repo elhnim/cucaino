@@ -4,7 +4,7 @@
 // lake's own trails), the river from Rainbow Falls down to Rainbow Lake (./waterways.ts) with
 // bridges where trails cross it, and gentle grassy hills in the open meadows. Pure data +
 // geometry maths, computed once and deterministic.
-import { LANDS, PLACES, type LandDef } from "./places";
+import { LANDS, PLACES, placeFootprint, type LandDef } from "./places";
 import { smooth, segHit, type P2 } from "./geom2d";
 import { DUCK_BAY, MESA, OUTLET_HALF, OUTLET_POINTS, RIVER_POINTS, RIVER_WIDTH, WATER_LEVEL, mesaRadius, nearWater, riverAt, waterSdf } from "./waterways";
 
@@ -344,7 +344,7 @@ export const HILLS: { x: number; z: number; r: number; h: number }[] = (() => {
     const rad = 4 + r() * 7;
     if (nearTrail(x, z, rad + 3) || nearStream(x, z, rad + 2) || nearMesa(x, z, rad + 2)) continue;
     if (LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius + rad + 3)) continue;
-    if (PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < rad + 6)) continue;
+    if (PLACES.map(placeFootprint).some((p) => Math.hypot(x - p.x, z - p.z) < rad + 6)) continue;
     if (out.some((h) => Math.hypot(h.x - x, h.z - z) < h.r + rad + 4)) continue;
     out.push({ x, z, r: rad, h: 1.2 + r() * 2.2 });
   }

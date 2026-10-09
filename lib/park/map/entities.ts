@@ -66,10 +66,9 @@ function fromWonder(w: WonderDef): MapEntity {
   return { id: w.id, name: w.name, emoji: w.emoji, x: w.x, z: w.z, category: "wonder", priority: 9, discoverable: true, blurb: w.blurb };
 }
 function fromWorldPlace(w: WorldPlace): MapEntity {
-  // sky islands float right above the park itself (reached by flying straight up, not by any
-  // cross-island journey) — at Island/World zoom they'd otherwise pile into a dense knot right on
-  // top of the park, so they fade out with the park's own buildings instead of competing with the
-  // genuinely far-flung destinations (real islands, the Abyss) a kid actually travels the map to
+  // sky islands float close together over the Great Lake (the "Sky Peaks" landmark) and are
+  // reached by flying up, never by boat — at Island/World zoom fourteen pins would pile into a
+  // dense knot, so they stay low-priority and show one by one as the kid zooms in on the lake
   const localToPark = w.kind === "sky";
   return {
     id: w.id,

@@ -74,7 +74,15 @@ interface Def {
   spots: SpotDef[];
 }
 
+/**
+ * Where the whole archipelago floats: out in the Wildlands, over the Great Lake beside Lake Station
+ * (it used to hang right over the park). Every island below is laid out round this point — move it
+ * and all of them, with everything on them, follow. Keep it a multiple of SKY_GRID.
+ */
+export const SKY_HOME = { x: 1420, z: -330 } as const;
+
 // angle convention: atan2(x, z) — 0 = +z (south on the map), π = north (the mountain range)
+// (x / z below are measured from SKY_HOME)
 const DEFS: Def[] = [
   // ── the floating mountains ──
   {
@@ -250,7 +258,12 @@ function distToSeg(px: number, pz: number, ax: number, az: number, bx: number, b
 }
 
 // ── build the islands ──
-const outward = (d: Def) => Math.atan2(d.x, d.z);
+for (const d of DEFS) {
+  d.x += SKY_HOME.x;
+  d.z += SKY_HOME.z;
+}
+// (outward = away from the middle of the archipelago)
+const outward = (d: Def) => Math.atan2(d.x - SKY_HOME.x, d.z - SKY_HOME.z);
 const polar = (a: number, dist: number) => ({ x: Math.sin(a) * dist, z: Math.cos(a) * dist });
 
 export const SKY_ISLANDS: SkyIsland[] = DEFS.map((d) => {

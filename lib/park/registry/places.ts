@@ -1,7 +1,7 @@
 // The lands, buildings and stations of Cucaino Park. Pure data: the world builder places them,
 // paths wind from the plaza to each land's entrance, and the HUD decides what each `action`
 // opens. To add a place: add an entry (and a land if it starts a new area).
-import { SKY_PADS } from "./skyIslands";
+import { SKY_HOME, SKY_PADS } from "./skyIslands";
 import type { KitName } from "../assets/loader";
 
 export type PlaceAction =
@@ -589,6 +589,16 @@ for (const pad of SKY_PADS) {
   p.face = pad.face;
   p.sky = pad.island;
   p.radius = Math.min(p.radius, pad.r - 1.5);
+}
+
+/**
+ * Where a place counts on the park's GROUND when trees, hills and animals are laid out. For a place
+ * up on a floating mountain that is the spot it hung over when the mountains still floated above
+ * the park: the park's ground was planned round those spots, so keeping them means moving the
+ * mountains away (SKY_HOME) did not shift a single hill, tree or animal trail in the park.
+ */
+export function placeFootprint(p: PlaceDef): { x: number; z: number } {
+  return p.sky ? { x: p.x - SKY_HOME.x, z: p.z - SKY_HOME.z } : p;
 }
 
 /** Walkable limit of the park (the kid is kept inside this radius). */

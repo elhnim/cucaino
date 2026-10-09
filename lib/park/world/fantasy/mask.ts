@@ -98,6 +98,7 @@ function discs(): Disc[] {
   for (let i = 0; i < RAIL_POINTS.length; i++) carve(RAIL_POINTS[i][0], RAIL_POINTS[i][1], 1.9, 3.2);
   for (const st of STATIONS) carve(st.x, st.z, 7, 10);
   for (const p of PLACES) {
+    if (p.sky) continue; // (up on a floating mountain: no bare earth on the ground for it)
     const r = Math.max(p.radius, 1.5);
     carve(p.x, p.z, r + 0.8, r + 2.4);
   }

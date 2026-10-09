@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LANDS, PLACES } from "../../registry/places";
+import { LANDS, PLACES, placeFootprint } from "../../registry/places";
 import { ISLAND_R, POND, TRAIL_POINTS, nearMesa, nearStream, nearTrail, seaDist } from "../../registry/island";
 import { WATER_Y, groundY } from "../../registry/terrain";
 import { rideableKeepOut } from "../../registry/rideables";
@@ -65,7 +65,7 @@ const free: FreeFn = (x, z, pad) => {
   if (r < 12 + pad || r > ISLAND_R - 2) return false;
   if (inDream(x, z, pad)) return false;
   if (nearTrail(x, z, pad + 1.6) || nearStream(x, z, pad) || rideableKeepOut(x, z, pad) || inJungle(x, z, pad) || nearMesa(x, z, pad)) return false;
-  return !PLACES.some((p) => Math.hypot(x - p.x, z - p.z) < Math.max(p.radius, 1.5) + pad + 1.2);
+  return !PLACES.some((p) => Math.hypot(x - placeFootprint(p).x, z - placeFootprint(p).z) < Math.max(p.radius, 1.5) + pad + 1.2);
 };
 
 const meadows = planMeadows(free, { count: 8 });
