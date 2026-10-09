@@ -1,9 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { LibraryStory } from "@/lib/stories/types";
+import { LIBRARY_PASS_PCT, type LibraryStory } from "@/lib/stories/types";
 import { completeStory, completeStoryRead, type StoryProgress } from "@/lib/actions/stories";
+
+/** Friendly inline message shown when a save to the server failed, with the button left tappable to retry. */
+function SaveError({ message }: { message: string | null }) {
+  if (!message) return null;
+  return <p className="text-xs font-bold text-rose-600 mt-2 text-center">⚠️ {message}</p>;
+}
+const SAVE_ERROR_MSG = "Couldn't save — check your connection and try again.";
 
 type View =
   | { mode: "shelf" }
@@ -62,10 +69,12 @@ export default function StoryLibrary({
   stories,
   kidId,
   initialProgress,
+  title = "Story Library",
 }: {
   stories: LibraryStory[];
   kidId: string | null;
   initialProgress: StoryProgress[];
+  title?: string;
 }) {
   const backHref = kidId ? `/kid/${kidId}/play` : "/select-kid";
   const [progress, setProgress] = useState<Record<string, StoryProgress>>(
@@ -74,28 +83,41 @@ export default function StoryLibrary({
   const [view, setView] = useState<View>({ mode: "shelf" });
   const [chapterIdx, setChapterIdx] = useState<number | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const storyById = (id: string) => stories.find((s) => s.id === id)!;
-  const openStory = (id: string) => { setChapterIdx(null); setView({ mode: "read", id }); };
+  const openStory = (id: string) => { setChapterIdx(null); setError(null); setView({ mode: "read", id }); };
+  // Clear any stale save error whenever the kid navigates to a different screen.
+  useEffect(() => { setError(null); }, [view, chapterIdx]);
 
   const finishReading = async (s: LibraryStory) => {
-    let starsAwarded = 0;
-    if (kidId) {
-      setFinishing(true);
-      const res = await completeStoryRead(kidId, s.id);
-      setFinishing(false);
-      if (res.ok) starsAwarded = res.starsAwarded;
+    if (!kidId) {
+      setView({ mode: "result", id: s.id, score: 0, passed: true, starsAwarded: 0, total: 0 });
+      return;
     }
-    setProgress((prev) => ({
-      ...prev,
-      [s.id]: {
-        storyId: s.id,
-        bestScore: 0,
-        total: 0,
-        starsAwarded: (prev[s.id]?.starsAwarded ?? 0) + starsAwarded,
-        completedAt: new Date().toISOString(),
-      },
-    }));
-    setView({ mode: "result", id: s.id, score: 0, passed: true, starsAwarded, total: 0 });
+    setFinishing(true);
+    setError(null);
+    try {
+      const res = await completeStoryRead(kidId, s.id);
+      if (!res.ok) {
+        setError(SAVE_ERROR_MSG);
+        return;
+      }
+      setProgress((prev) => ({
+        ...prev,
+        [s.id]: {
+          storyId: s.id,
+          bestScore: 0,
+          total: 0,
+          starsAwarded: (prev[s.id]?.starsAwarded ?? 0) + res.starsAwarded,
+          completedAt: new Date().toISOString(),
+        },
+      }));
+      setView({ mode: "result", id: s.id, score: 0, passed: true, starsAwarded: res.starsAwarded, total: 0 });
+    } catch {
+      setError(SAVE_ERROR_MSG);
+    } finally {
+      setFinishing(false);
+    }
   };
 
   if (view.mode === "read") {
@@ -132,9 +154,12 @@ export default function StoryLibrary({
                 Skip to quiz 📝
               </button>
             ) : (
-              <button onClick={() => finishReading(s)} disabled={finishing} className="w-full mt-4 py-3.5 rounded-2xl font-black text-indigo-700 border-2 border-indigo-200 hover:bg-indigo-50 transition-colors disabled:opacity-50">
-                {finishing ? "Saving…" : "Mark as finished ✅"}
-              </button>
+              <>
+                <button onClick={() => finishReading(s)} disabled={finishing} className="w-full mt-4 py-3.5 rounded-2xl font-black text-indigo-700 border-2 border-indigo-200 hover:bg-indigo-50 transition-colors disabled:opacity-50">
+                  {finishing ? "Saving…" : "Mark as finished ✅"}
+                </button>
+                <SaveError message={error} />
+              </>
             )}
           </Frame>
         );
@@ -165,6 +190,7 @@ export default function StoryLibrary({
               </button>
             )}
           </div>
+          <SaveError message={error} />
         </Frame>
       );
     }
@@ -198,6 +224,7 @@ export default function StoryLibrary({
             {finishing ? "Saving…" : "I've read this! ✅"}
           </button>
         )}
+        <SaveError message={error} />
       </Frame>
     );
   }
@@ -236,6 +263,11 @@ export default function StoryLibrary({
           <div className="text-6xl mb-3" style={{ animation: view.passed ? "vp-float 1.6s ease-in-out infinite" : undefined }}>{view.passed ? "🌟" : "📖"}</div>
           <h1 className="text-3xl font-black text-gray-900 mb-1">{view.passed ? "Nice reading!" : "Give it another read"}</h1>
           <p className="text-gray-600 font-semibold mb-4">You scored {view.score} / {view.total}</p>
+          {!view.passed && view.total > 0 && (
+            <p className="text-sm text-gray-500 mb-4">
+              You need {Math.ceil(view.total * LIBRARY_PASS_PCT)} correct ({Math.round(LIBRARY_PASS_PCT * 100)}%) to earn stars. Give it another go!
+            </p>
+          )}
           {view.starsAwarded > 0 && (
             <div className="inline-block bg-amber-100 border-2 border-amber-300 rounded-2xl px-5 py-2 mb-4">
               <span className="text-lg font-black text-amber-800">+{view.starsAwarded} ⭐ earned!</span>
@@ -265,7 +297,7 @@ export default function StoryLibrary({
     <Frame>
       <div className="flex items-center gap-3 mb-4">
         <Link href={backHref} className="text-sm font-bold text-gray-500 shrink-0">← Back</Link>
-        <h1 className="text-2xl font-black text-indigo-900 flex-1">Story Library</h1>
+        <h1 className="text-2xl font-black text-indigo-900 flex-1">{title}</h1>
       </div>
       <div className="bg-white/80 backdrop-blur rounded-3xl p-4 shadow-sm mb-4">
         <p className="text-gray-700 font-semibold mb-3">Browse the shelf, pick a book, and read to earn stars.</p>
@@ -331,6 +363,7 @@ function StoryQuiz({
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const question = quiz[qi];
   const answered = picked !== null;
 
@@ -355,17 +388,28 @@ function StoryQuiz({
     if (qi + 1 < total) {
       setQi(qi + 1);
       setPicked(null);
+      setSaveError(null);
       return;
     }
-    const passed = total > 0 && finalScore / total >= 0.6;
-    let starsAwarded = 0;
-    if (kidId) {
-      setSubmitting(true);
-      const res = await completeStory(kidId, story.id, finalScore);
-      setSubmitting(false);
-      if (res.ok) starsAwarded = res.starsAwarded;
+    const passed = total > 0 && finalScore / total >= LIBRARY_PASS_PCT;
+    if (!kidId) {
+      onDone(finalScore, passed, 0, total);
+      return;
     }
-    onDone(finalScore, passed, starsAwarded, total);
+    setSubmitting(true);
+    setSaveError(null);
+    try {
+      const res = await completeStory(kidId, story.id, finalScore);
+      if (!res.ok) {
+        setSaveError("Couldn't save your score — check your connection and tap Finish again.");
+        return;
+      }
+      onDone(finalScore, passed, res.starsAwarded, total);
+    } catch {
+      setSaveError("Couldn't save your score — check your connection and tap Finish again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const optionClass = (i: number) => {
@@ -403,6 +447,7 @@ function StoryQuiz({
           <button onClick={next} disabled={submitting} className="w-full py-4 rounded-2xl font-black text-white text-lg bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 disabled:opacity-50 transition-colors">
             {submitting ? "Saving…" : qi + 1 < total ? "Next question ▶" : "Finish 🎯"}
           </button>
+          <SaveError message={saveError} />
         </>
       )}
     </Frame>

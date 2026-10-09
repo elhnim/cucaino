@@ -45,17 +45,24 @@ export function GameHall({ kind, kidId, onClose }: { kind: HallKind; kidId: stri
 function LearnHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
   const [courseId, setCourseId] = useState<string | null>(null);
   const [progress, setProgress] = useState<Awaited<ReturnType<typeof getLearnProgress>> | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   useEffect(() => {
     if (!courseId) return;
     setProgress(null);
-    getLearnProgress(kidId, courseId).then(setProgress);
-  }, [kidId, courseId]);
+    setLoadFailed(false);
+    getLearnProgress(kidId, courseId)
+      .then(setProgress)
+      .catch(() => setLoadFailed(true));
+  }, [kidId, courseId, retryKey]);
   const course = COURSES.find((c) => c.id === courseId);
   return (
     <GameStage title={course ? `${course.emoji} ${course.title}` : "🎓 Learning Tree"} color="#f43f5e" onClose={onClose} onBack={course ? () => setCourseId(null) : undefined}>
       {course ? (
         progress ? (
           <CourseClient course={course} kidId={kidId} initialProgress={progress} />
+        ) : loadFailed ? (
+          <LoadError onRetry={() => setRetryKey((k) => k + 1)} />
         ) : (
           <Loading />
         )
@@ -75,12 +82,29 @@ const CHAPTER_BOOKS = STORIES.filter((s) => s.chapters?.length);
 const SHORT_TALES = STORIES.filter((s) => !s.chapters?.length);
 function LibraryHall({ kidId, onClose, books }: { kidId: string; onClose: () => void; books?: boolean }) {
   const [progress, setProgress] = useState<Awaited<ReturnType<typeof getLibraryProgress>> | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   useEffect(() => {
-    getLibraryProgress(kidId).then(setProgress);
-  }, [kidId]);
+    setProgress(null);
+    setLoadFailed(false);
+    getLibraryProgress(kidId)
+      .then(setProgress)
+      .catch(() => setLoadFailed(true));
+  }, [kidId, retryKey]);
   return (
     <GameStage title={books ? "📚 Library" : "🎭 Story Theatre"} color={books ? "#0ea5e9" : "#e84a8a"} onClose={onClose}>
-      {progress ? <StoryLibrary stories={books ? CHAPTER_BOOKS : SHORT_TALES} kidId={kidId} initialProgress={progress} /> : <Loading />}
+      {progress ? (
+        <StoryLibrary
+          stories={books ? CHAPTER_BOOKS : SHORT_TALES}
+          kidId={kidId}
+          initialProgress={progress}
+          title={books ? "📚 Story Library" : "🎭 Story Theatre"}
+        />
+      ) : loadFailed ? (
+        <LoadError onRetry={() => setRetryKey((k) => k + 1)} />
+      ) : (
+        <Loading />
+      )}
     </GameStage>
   );
 }
@@ -193,6 +217,32 @@ function BankHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
 // ── shared bits ──
 function Loading() {
   return <div style={{ textAlign: "center", padding: "48px 0", fontWeight: 900, color: "#6a64a0", fontSize: 18 }}>✨ Loading…</div>;
+}
+
+/** Shown instead of an endless spinner when the initial progress fetch fails — kid-friendly, with a retry. */
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div style={{ textAlign: "center", padding: "48px 16px" }}>
+      <div style={{ fontSize: 40, marginBottom: 8 }}>😕</div>
+      <div style={{ ...display(18, "#241c4d") }}>Couldn&apos;t load — check your connection</div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="gp-press"
+        style={{
+          marginTop: 14,
+          ...cardStyle("#f43f5e", "rgba(30,27,74,0.9)"),
+          borderRadius: 14,
+          padding: "10px 20px",
+          fontWeight: 900,
+          color: "#fff",
+          cursor: "pointer",
+        }}
+      >
+        Try again
+      </button>
+    </div>
+  );
 }
 
 function Shelf({ intro, children }: { intro: string; children: React.ReactNode }) {
