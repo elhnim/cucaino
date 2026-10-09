@@ -185,6 +185,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   // ── rides ──
   const [coaster, setCoaster] = useState<{ quiz: QuizGameData; gate: number | null; answered: number | null; correct: number; done: boolean } | null>(null);
   const coasterCtl = useRef<CoasterControls>({});
+  const coasterTimeout = useRef<number | undefined>(undefined);
   const [golf, setGolf] = useState<{ hole: number; of: number; name: string; par: number; tip: string | null; strokes: number; scores: number[]; done?: { total: number; par: number } } | null>(null);
   const golfCtl = useRef<GolfControls>({});
   const fetchScore = useRef(0);
@@ -1165,6 +1166,25 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     });
   };
 
+  // a kid who never taps an answer must not stall the ride forever: the gate times out as a miss
+  useEffect(() => {
+    if (!coaster || coaster.gate === null || coaster.answered !== null) return;
+    const seconds = coaster.quiz.questions[coaster.gate].timeLimitSeconds || 20;
+    const ms = Math.max(8, seconds) * 1000;
+    coasterTimeout.current = window.setTimeout(() => {
+      // (this timer is cleared the moment the gate is answered or passed, so it only ever fires on
+      //  a gate still waiting)
+      playSfx("wrong");
+      toast("⏰ Time's up!");
+      setCoaster((c) => (c && c.gate !== null && c.answered === null ? { ...c, answered: -1 } : c));
+      window.setTimeout(() => {
+        setCoaster((cc) => (cc ? { ...cc, gate: null, answered: null } : cc));
+        coasterCtl.current.resume?.(false);
+      }, 1100);
+    }, ms);
+    return () => window.clearTimeout(coasterTimeout.current);
+  }, [coaster?.gate, coaster?.answered, coaster?.quiz, playSfx, toast]);
+
   const rideFrom = useRef<string | undefined>(undefined);
   const leaveRide = () => {
     worldRef.current?.exitRide();
@@ -1255,7 +1275,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
     setPanel(null);
     setGolf(null);
     worldRef.current?.enterRide((accent) => buildMiniGolfInterior(accent, (e) => golfRef.current(e), golfCtl.current, { from, count, course }));
-    toast("⛳ Drag back from anywhere to aim, let go to putt!");
+    toast("⛳ Touch anywhere and pull back to aim, let go to putt!");
   };
 
   const pickAnimal = (a: ParkAnimal) => {
@@ -1890,7 +1910,7 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
                   onClick={() => answerCoaster(i)}
                   disabled={show}
                   className="gp-press"
-                  style={{ ...cardStyle(tone, alpha(tone, show && (ch.isCorrect || picked) ? 0.45 : 0.16)), minHeight: 52, padding: "10px 10px", fontWeight: 900, fontSize: 15, color: C.text, cursor: "pointer", opacity: show && !ch.isCorrect && !picked ? 0.55 : 1 }}
+                  style={{ ...cardStyle(tone, alpha(tone, show && (ch.isCorrect || picked) ? 0.45 : 0.16)), minHeight: 64, padding: "14px 10px", fontWeight: 900, fontSize: 18, color: C.text, cursor: "pointer", opacity: show && !ch.isCorrect && !picked ? 0.55 : 1 }}
                 >
                   {show && ch.isCorrect ? "✓ " : show && picked ? "✕ " : ""}
                   {ch.label}
