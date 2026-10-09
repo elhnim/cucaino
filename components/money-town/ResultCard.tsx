@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import type { ResultPayload, Player, GameState, GameAction } from "@/lib/money-town/types"
 import { ASSETS, DEGREE_JOBS } from "@/lib/money-town/constants"
 import { playSfx } from "@/lib/audio/sound-manager"
+import Pic from "./Pic"
 
 interface Props {
   result: ResultPayload
@@ -108,7 +109,7 @@ export default function ResultCard({ result, player, state, dispatch }: Props) {
                 <button key={job.id} type="button"
                   onClick={() => dispatch({ type: 'SWITCH_CAREER', jobId: job.id })}
                   className="w-full flex items-center gap-3 bg-blue-50 border-2 border-blue-200 rounded-2xl px-4 py-3 active:scale-95 transition-transform hover:border-blue-400">
-                  <span className="text-2xl">{job.emoji}</span>
+                  <span className="text-2xl"><Pic kind="job" id={job.id} /></span>
                   <div className="flex-1 text-left">
                     <div className="font-black text-blue-900 text-sm">{job.name}</div>
                     <div className="text-xs text-blue-600">${job.salary.toLocaleString()}/turn · exp ${job.expenses.toLocaleString()}</div>
@@ -128,7 +129,7 @@ export default function ResultCard({ result, player, state, dispatch }: Props) {
             <div className="mb-4">
               <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-4 mb-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-3xl">{offerDef.emoji}</span>
+                  <span className="text-3xl"><Pic kind="asset" id={offerDef.id} /></span>
                   <div>
                     <div className="font-black text-gray-900">{offerDef.name}</div>
                     <div className="text-sm text-gray-600">

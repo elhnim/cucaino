@@ -3,16 +3,17 @@
 import { useRef, useEffect, useState } from "react"
 import type { Player, ReelSegment } from "@/lib/money-town/types"
 import { REEL_SEGMENTS } from "@/lib/money-town/constants"
+import Pic from "./Pic"
 
 const SEGMENT_HEIGHT = 80
 const SPIN_DURATION = 2600
 const NUM_ROTATIONS = 6
 
-const SEGMENT_DISPLAY: Record<ReelSegment, { emoji: string; label: string }> = {
-  'event':     { emoji: '📋', label: 'Event' },
-  'chance':    { emoji: '🌟', label: 'Chance' },
-  'mini-game': { emoji: '🎮', label: 'Mini-Game' },
-  'big-event': { emoji: '💥', label: 'Big Event' },
+const SEGMENT_LABEL: Record<ReelSegment, string> = {
+  'event':     'Event',
+  'chance':    'Chance',
+  'mini-game': 'Mini-Game',
+  'big-event': 'Big Event',
 }
 
 function easeInQuad(t: number) { return t * t }
@@ -101,16 +102,13 @@ export default function LeverOverlay({ player, onResult }: Props) {
               <div className={`absolute left-0 right-0 border-2 border-yellow-400 rounded-xl pointer-events-none z-10 ${done ? 'pulse-ring' : ''}`}
                 style={{ top: SEGMENT_HEIGHT, height: SEGMENT_HEIGHT, boxShadow: done ? "0 0 16px rgba(250,204,21,0.7)" : undefined }} />
               <div ref={reelRef} className="absolute top-0 left-0 right-0">
-                {reelItems.map((seg, i) => {
-                  const d = SEGMENT_DISPLAY[seg]
-                  return (
-                    <div key={i} className="flex flex-col items-center justify-center text-white"
-                      style={{ height: SEGMENT_HEIGHT }}>
-                      <span className="text-2xl">{d.emoji}</span>
-                      <span className="text-xs font-bold mt-0.5">{d.label}</span>
-                    </div>
-                  )
-                })}
+                {reelItems.map((seg, i) => (
+                  <div key={i} className="flex flex-col items-center justify-center text-white"
+                    style={{ height: SEGMENT_HEIGHT }}>
+                    <span className="text-2xl"><Pic kind="reel" id={seg} /></span>
+                    <span className="text-xs font-bold mt-0.5">{SEGMENT_LABEL[seg]}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react"
 import type { Player, GameAction } from "@/lib/money-town/types"
 import { JOBS } from "@/lib/money-town/constants"
+import Pic from "./Pic"
 
 const SEGMENT_HEIGHT = 80
 const SPIN_DURATION = 2200
@@ -80,7 +81,7 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
           ))}
         </div>
         <div className="bg-white rounded-3xl shadow-xl p-8 max-w-sm w-full text-center relative animate-pop">
-          <div className="text-6xl mb-3"><span className="avatar-party inline-block">{result.emoji}</span></div>
+          <div className="text-6xl mb-3"><span className="avatar-party inline-block"><Pic kind="job" id={result.id} /></span></div>
           <h2 className="text-2xl font-black text-gray-900 mb-1">
             <span className="walk-bob inline-block mr-1">{player.emoji}</span> {player.name} is a
           </h2>
@@ -140,7 +141,7 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
             {reelItems.map((job, i) => (
               <div key={i} className="flex flex-col items-center justify-center text-white"
                 style={{ height: SEGMENT_HEIGHT }}>
-                <span className="text-2xl">{job.emoji}</span>
+                <span className="text-2xl"><Pic kind="job" id={job.id} /></span>
                 <span className="text-xs font-bold mt-0.5">{job.name}</span>
               </div>
             ))}

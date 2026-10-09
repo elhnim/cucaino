@@ -6,7 +6,8 @@ import GameAudio from "@/components/audio/GameAudio"
 import GameFullscreen from "@/components/games/GameFullscreen"
 import { playSfx } from "@/lib/audio/sound-manager"
 import { gameReducer, createInitialState } from "@/lib/money-town/gameLogic"
-import type { GameState } from "@/lib/money-town/types"
+import { ASSETS } from "@/lib/money-town/constants"
+import type { GameState, GameAction } from "@/lib/money-town/types"
 import type { Kid } from "@/lib/domain/types"
 import GameLobby from "./GameLobby"
 import JobSpinCeremony from "./JobSpinCeremony"
@@ -17,6 +18,7 @@ import ActionPanel from "./ActionPanel"
 import RulesModal from "./RulesModal"
 import WinScreen from "./WinScreen"
 import MiniGame from "./MiniGame"
+import Pic from "./Pic"
 
 const SAVE_KEY = 'money-town-v8-save'
 
@@ -26,7 +28,7 @@ interface Props {
 }
 
 export default function MoneyTownGame({ kids, activeKidId }: Props) {
-  const [state, dispatch] = useReducer(gameReducer, undefined, () => {
+  const [state, rawDispatch] = useReducer(gameReducer, undefined, () => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(SAVE_KEY)
@@ -38,6 +40,27 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
 
   const router = useRouter()
   const [rulesOpen, setRulesOpen] = useState(false)
+  const [boughtAsset, setBoughtAsset] = useState<{ id: string; name: string } | null>(null)
+
+  // Wrap dispatch so a BUY_ASSET anywhere (market or a chance offer) gets a
+  // brief celebration — the reducer itself stays pure.
+  const dispatch = useCallback((action: GameAction) => {
+    if (action.type === 'BUY_ASSET') {
+      const def = ASSETS.find(a => a.id === action.defId)
+      if (def) {
+        setBoughtAsset({ id: def.id, name: def.name })
+        playSfx("coin")
+      }
+    }
+    rawDispatch(action)
+  }, [rawDispatch])
+
+  // Auto-dismiss the purchase celebration
+  useEffect(() => {
+    if (!boughtAsset) return
+    const t = setTimeout(() => setBoughtAsset(null), 1400)
+    return () => clearTimeout(t)
+  }, [boughtAsset])
 
   const handleExit = useCallback(() => {
     dispatch({ type: 'NEW_GAME' })
@@ -162,6 +185,16 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
       )}
 
       {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
+
+      {/* Small celebration whenever an asset is bought — market or a chance offer */}
+      {boughtAsset && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-pop">
+          <div className="bg-green-500 text-white font-black rounded-full px-4 py-2 flex items-center gap-2 shadow-xl text-sm">
+            <span className="text-xl"><Pic kind="asset" id={boughtAsset.id} /></span>
+            🎉 New asset! {boughtAsset.name}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import type { Player, GameState, GameAction } from "@/lib/money-town/types"
 import { ASSETS, DEGREE_COST, INSURANCE_COST, MAX_INSURANCE, SELL_RATIO } from "@/lib/money-town/constants"
 import { canBuyAsset } from "@/lib/money-town/gameLogic"
+import Pic from "./Pic"
 
 interface Props {
   player: Player
@@ -69,7 +70,7 @@ export default function ActionPanel({ player, state, dispatch }: Props) {
                       className={`w-full flex items-center gap-3 rounded-2xl px-4 py-3 disabled:opacity-40 active:scale-95 transition-transform border-2 ${
                         priceMult < 1 ? 'bg-gradient-to-r from-amber-50 to-white border-amber-300' : 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200'
                       }`}>
-                      <span className="text-2xl w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0">{def!.emoji}</span>
+                      <span className="text-2xl w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0"><Pic kind="asset" id={def!.id} /></span>
                       <div className="flex-1 text-left">
                         <div className="font-black text-gray-900 text-sm flex items-center gap-1.5 flex-wrap">
                           {def!.name}
@@ -98,7 +99,9 @@ export default function ActionPanel({ player, state, dispatch }: Props) {
 
           {/* Quick moves — these don't end the turn */}
           <div>
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">⚡ Quick moves</h3>
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-wide mb-2">
+              ⚡ Quick moves <span className="normal-case font-bold text-gray-300">· doesn&apos;t end your turn</span>
+            </h3>
             <div className="space-y-2">
               <button type="button"
                 onClick={() => dispatch({ type: 'BUY_INSURANCE' })}
@@ -121,7 +124,7 @@ export default function ActionPanel({ player, state, dispatch }: Props) {
                   <button key={a.uid} type="button"
                     onClick={() => dispatch({ type: 'SELL_ASSET', uid: a.uid })}
                     className="w-full flex items-center gap-3 bg-gray-50 border-2 border-gray-200 rounded-2xl px-4 py-2.5 active:scale-95 transition-transform">
-                    <span className="text-xl w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">{def.emoji}</span>
+                    <span className="text-xl w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0"><Pic kind="asset" id={def.id} /></span>
                     <div className="flex-1 text-left">
                       <div className="font-black text-gray-700 text-xs">Sell {def.name}</div>
                       <div className="text-[10px] font-bold text-gray-400">Get back ${refund.toLocaleString()} (75%)</div>
@@ -159,7 +162,7 @@ export default function ActionPanel({ player, state, dispatch }: Props) {
           <button type="button"
             onClick={() => dispatch({ type: 'END_TURN' })}
             className="w-full py-4 border-2 border-gray-200 text-gray-600 font-black text-lg rounded-2xl active:scale-95 transition-transform">
-            ⏭️ Save my cash — End Turn
+            ⏭️ Skip Shopping — End My Turn
           </button>
         </div>
       </div>
