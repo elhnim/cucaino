@@ -277,8 +277,8 @@ export function RetroPlayer({
           {score} <span style={{ color: "#9aa0b8", fontSize: 12 }}>BEST {Math.max(best, score)}</span>
           {Number.isFinite(credits) && <div style={{ color: credits > 0 ? "#5ef2ff" : "#ff6fcf", fontSize: 11 }}>{credits > 0 ? `${credits} PLAY${credits === 1 ? "" : "S"} LEFT` : "NEED A 🎟️"}</div>}
         </div>
-        <button type="button" onClick={() => (startPressed.current = true)} style={topBtn} aria-label="Pause">
-          {phase === "paused" ? "▶" : "⏸"}
+        <button type="button" onClick={() => (startPressed.current = true)} style={topBtn} aria-label={phase === "paused" ? "Play" : "Pause"}>
+          {phase === "paused" ? "▶ Play" : "⏸ Pause"}
         </button>
       </div>
 
@@ -323,7 +323,7 @@ export function RetroPlayer({
           )}
         </div>
 
-        <div className="retro-hint" style={{ color: "#9aa0b8", fontSize: 12, fontWeight: 800, textAlign: "center", padding: "0 12px" }}>
+        <div className="retro-hint" style={{ color: "#cfd2e6", fontSize: 14, fontWeight: 800, textAlign: "center", padding: "0 12px" }}>
           {game.controls}
         </div>
         <div className="retro-pad" style={padRow}>
