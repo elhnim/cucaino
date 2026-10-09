@@ -50,7 +50,8 @@ export default function TradingLeaderboardTab({
 
   return (
     <div>
-      <p className="text-sm font-black text-gray-700 mb-3">🏆 Family Rankings</p>
+      <p className="text-sm font-black text-gray-700">🏆 Family Rankings</p>
+      <p className="text-xs text-gray-500 mb-3">Ranked by % gained since depositing.</p>
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm divide-y divide-gray-50">
         {sorted.map((entry, i) => {
           const isCurrentKid = entry.kidId === currentKidId;
