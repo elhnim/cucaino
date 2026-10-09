@@ -4,7 +4,7 @@
 // lands on trails, the stream, the pond, the plaza, places or the Dream Park (via `free`), and
 // everything sits on the terrain (groundY).
 import { ISLAND_R, TRAIL_WIDTH, nearStream, nearTrail, seaDist } from "../../registry/island";
-import { LANDS, PLACES, placeFootprint } from "../../registry/places";
+import { LANDS, PLACES, GROUND_KEEPOUTS } from "../../registry/places";
 import { groundY, slopeAt } from "../../registry/terrain";
 import { zoneBounds } from "../../builder/rules";
 import { SKY_ISLANDS, skyBaseY } from "../../registry/skyIslands";
@@ -143,7 +143,7 @@ export function defaultFantasyFree(): FreeFn {
     if (x > zb.minX - pad - 1 && x < zb.maxX + pad + 1 && z > zb.minZ - pad - 1 && z < zb.maxZ + pad + 1) return false;
     if (nearTrail(x, z, TRAIL_WIDTH / 2 + pad + 0.6)) return false;
     if (nearStream(x, z, pad + 1.2)) return false;
-    if (PLACES.some((p) => Math.hypot(x - placeFootprint(p).x, z - placeFootprint(p).z) < Math.max(p.radius, 1.5) + pad + 1.5)) return false;
+    if (GROUND_KEEPOUTS.some((p) => Math.hypot(x - p.x, z - p.z) < Math.max(p.radius, 1.5) + pad + 1.5)) return false;
     // lands have their own furniture; the Glow Forest is ours to fill
     if (LANDS.some((l) => l.id !== "forest" && Math.hypot(x - l.x, z - l.z) < l.radius + pad)) return false;
     return true;

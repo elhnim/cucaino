@@ -208,14 +208,11 @@ const BRIDGE_PAIRS: [string, string][] = [
   ["eagle-rock", "windy-knoll"],
 ];
 
-/** park places that move up onto the big mountains: [placeId, island, pad radius] */
-const PAD_DEFS: [string, string, number][] = [
-  ["arcade", "thunder-peak", 6],
-  ["retro-arcade", "eagle-rock", 5.5],
-  ["story-theatre", "dragons-crown", 6],
-  ["library", "cloudtop", 6],
-  ["learning-tree", "cloudtop", 4],
-];
+/** park places that stand up on the big mountains: [placeId, island, pad radius]. None now — the
+ *  Arcade, Retro Arcade, Story Theatre, Library and Learning Tree came back down to the park when
+ *  the mountains moved out over the Great Lake (kids use them every day); add an entry to put a
+ *  place on a mountain again. */
+const PAD_DEFS: [string, string, number][] = [];
 
 // ── tiny deterministic noise (same family as terrain.ts) ──
 function hash(x: number, y: number, s: number) {

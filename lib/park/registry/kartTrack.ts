@@ -14,7 +14,7 @@ import { seaDist, nearTrail } from "./island";
 import { nearRail, STATIONS } from "./railway";
 import { nearCartRoad } from "./cartRoad";
 import { naturalSlopeAt, smoothedHeight } from "./landform";
-import { PLACES, placeFootprint } from "./places";
+import { PLACES, SITED_ROUND } from "./places";
 
 const TAU = Math.PI * 2;
 const PARK_STATION = STATIONS.find((s) => s.id === "park-station");
@@ -52,10 +52,9 @@ function siteIsClear(site: { x: number; z: number }, rot: number, samples: { x: 
     if (nearCartRoad(w.x, w.z, 12)) return false;
     if (nearTrail(w.x, w.z, 8)) return false;
     if (naturalSlopeAt(w.x, w.z) > 0.55) return false; // the real ground stays gentle under it
-    for (const place of PLACES) {
-      if (place.land === "karts") continue; // the track's own land/door — not an obstacle to itself
-      const at = placeFootprint(place);
-      if (Math.hypot(w.x - at.x, w.z - at.z) < place.radius + 40) return false;
+    for (const place of SITED_ROUND) {
+      if ((place as { land?: string }).land === "karts") continue; // the track's own land/door — not an obstacle to itself
+      if (Math.hypot(w.x - place.x, w.z - place.z) < place.radius + 40) return false;
     }
   }
   return true;

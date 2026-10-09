@@ -8,7 +8,7 @@
 //   - the pasture grid (open, level, free ground — not under the forest) for sheep and windmills
 //   - flocks of sheep that graze and wander slowly as a flock, never leaving the pasture
 //   - windmills on open hilltops, hot-air balloon loops, drifting clouds, the horizon's ridges
-import { LANDS, PLACES, placeFootprint } from "../../registry/places";
+import { LANDS, PLACES, GROUND_KEEPOUTS } from "../../registry/places";
 import { ISLAND_R, STREAM_POINTS, TRAIL_POINTS, seaDist } from "../../registry/island";
 import { groundY, slopeAt } from "../../registry/terrain";
 import { lakeEdgeDist, waterSdf } from "../../registry/waterways";
@@ -107,7 +107,7 @@ export function openFields(): OpenFields {
       if (Math.hypot(x, z) < 14) land[k] = 0; // the plaza
       else if (x > zb.minX && x < zb.maxX && z > zb.minZ && z < zb.maxZ) land[k] = 0;
       else if (LANDS.some((l) => Math.hypot(x - l.x, z - l.z) < l.radius)) land[k] = 0;
-      else if (PLACES.some((p) => Math.hypot(x - placeFootprint(p).x, z - placeFootprint(p).z) < Math.max(p.radius, 1.5) + 1.5)) land[k] = 0;
+      else if (GROUND_KEEPOUTS.some((p) => Math.hypot(x - p.x, z - p.z) < Math.max(p.radius, 1.5) + 1.5)) land[k] = 0;
     }
   chamfer(trail);
   chamfer(land);

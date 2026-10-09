@@ -1,7 +1,7 @@
 // The lands, buildings and stations of Cucaino Park. Pure data: the world builder places them,
 // paths wind from the plaza to each land's entrance, and the HUD decides what each `action`
 // opens. To add a place: add an entry (and a land if it starts a new area).
-import { SKY_HOME, SKY_PADS } from "./skyIslands";
+import { SKY_PADS } from "./skyIslands";
 import type { KitName } from "../assets/loader";
 
 export type PlaceAction =
@@ -360,10 +360,9 @@ export const PLACES: PlaceDef[] = [
     label: "AI Arcade",
     emoji: "🕹️",
     land: "arcade",
-    x: 6,
-    z: -122,
-    radius: 2.4,
-    doorRadius: 4.4,
+    ...ring("arcade", 120, 8.5),
+    radius: 5,
+    doorRadius: 6.6,
     action: "arcade",
     signY: 6,
     models: [{ kit: "city", id: "building-a", scale: 3.6 }],
@@ -373,10 +372,9 @@ export const PLACES: PlaceDef[] = [
     label: "Retro Arcade",
     emoji: "👾",
     land: "arcade",
-    x: -7,
-    z: -122,
-    radius: 2.6,
-    doorRadius: 4.6,
+    ...ring("arcade", 240, 8.5),
+    radius: 5,
+    doorRadius: 6.6,
     action: "retro",
     signY: 7,
     models: [
@@ -427,8 +425,8 @@ export const PLACES: PlaceDef[] = [
     land: "forest",
     x: 62,
     z: 74,
-    radius: 2.6,
-    doorRadius: 4.6,
+    radius: 5.2,
+    doorRadius: 6.8,
     action: "theatre",
     signY: 6,
     models: [
@@ -443,10 +441,9 @@ export const PLACES: PlaceDef[] = [
     label: "Library",
     emoji: "📚",
     land: "books",
-    x: 116,
-    z: -48,
-    radius: 2.6,
-    doorRadius: 4.6,
+    ...ring("books", 125, 8),
+    radius: 5.4,
+    doorRadius: 7,
     action: "library",
     signY: 6,
     models: [
@@ -459,10 +456,9 @@ export const PLACES: PlaceDef[] = [
     label: "Learning Tree",
     emoji: "🎓",
     land: "books",
-    x: 107,
-    z: -33,
-    radius: 1.8,
-    doorRadius: 4,
+    ...ring("books", 245, 8),
+    radius: 4,
+    doorRadius: 5.6,
     action: "learn",
     signY: 7.6,
     models: [{ kit: "town", id: "tree-high-round", scale: 3.2 }],
@@ -592,14 +588,24 @@ for (const pad of SKY_PADS) {
 }
 
 /**
- * Where a place counts on the park's GROUND when trees, hills and animals are laid out. For a place
- * up on a floating mountain that is the spot it hung over when the mountains still floated above
- * the park: the park's ground was planned round those spots, so keeping them means moving the
- * mountains away (SKY_HOME) did not shift a single hill, tree or animal trail in the park.
+ * Everything the park's GROUND is planned round (hills, trees, animal trails keep clear of these):
+ * every place standing on the ground.
  */
-export function placeFootprint(p: PlaceDef): { x: number; z: number } {
-  return p.sky ? { x: p.x - SKY_HOME.x, z: p.z - SKY_HOME.z } : p;
-}
+export const GROUND_KEEPOUTS: { x: number; z: number; radius: number }[] = [...PLACES.filter((p) => !p.sky)];
+/**
+ * Frozen history, for the two things that were SITED when five buildings still hung over the park
+ * on the floating mountains and kept clear of the spots under them: the park's hills
+ * (registry/island.ts) and the kart circuit's site search (registry/kartTrack.ts). They still count
+ * these spots, so neither a hill nor the circuit has moved. Nothing else should use this.
+ */
+export const SITED_ROUND: { x: number; z: number; radius: number }[] = [
+  ...GROUND_KEEPOUTS,
+  { x: 0, z: -115, radius: 2.4 },
+  { x: -87.1393, z: 11.9603, radius: 2.6 },
+  { x: -95.9605, z: 0.2696, radius: 1.8 },
+  { x: 113.2333, z: 115.0896, radius: 2.6 },
+  { x: 140.3951, z: -36.9461, radius: 2.6 },
+];
 
 /** Walkable limit of the park (the kid is kept inside this radius). */
 export const PARK_RADIUS = 160;

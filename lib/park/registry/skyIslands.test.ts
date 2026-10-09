@@ -205,15 +205,13 @@ describe("sky islands registry", () => {
     expect(Math.abs(SKY_HOME.z % SKY_GRID)).toBe(0);
   });
 
-  it("has exactly the five building pads: flat, clear, walkable, facing the landing spot", () => {
-    const want = [
-      ["arcade", "thunder-peak"],
-      ["retro-arcade", "eagle-rock"],
-      ["story-theatre", "dragons-crown"],
-      ["library", "cloudtop"],
-      ["learning-tree", "cloudtop"],
-    ];
-    expect(SKY_PADS.map((p) => [p.placeId, p.island]).sort()).toEqual([...want].sort());
+  it("carries no park buildings (they stand in the park); any pad added later is flat, clear and walkable", () => {
+    expect(SKY_PADS.map((p) => p.placeId)).toEqual([]);
+    for (const id of ["arcade", "retro-arcade", "story-theatre", "library", "learning-tree"]) {
+      const p = PLACES.find((q) => q.id === id)!;
+      expect(p.sky, id).toBeUndefined();
+      expect(hyp(p.x, p.z), id).toBeLessThan(150);
+    }
     for (const p of SKY_PADS) {
       const s = skyIslandById(p.island)!;
       expect(p.r).toBeGreaterThanOrEqual(p.placeId === "learning-tree" ? 3.5 : 5);
