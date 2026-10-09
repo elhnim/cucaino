@@ -345,7 +345,7 @@ function AdoptScreen({
             onChange={(e) => setName(e.target.value)}
             maxLength={20}
             placeholder="Give your pet a name…"
-            className="w-full bg-white rounded-2xl px-4 py-3.5 text-center font-black text-lg text-gray-900 shadow-sm outline-none mb-3 placeholder:text-gray-300 placeholder:font-bold"
+            className="w-full bg-white rounded-2xl px-4 py-3.5 text-center font-black text-lg text-gray-900 shadow-sm outline-none mb-3 placeholder:text-gray-400 placeholder:font-bold"
             autoFocus
           />
 

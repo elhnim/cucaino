@@ -1251,18 +1251,6 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
   /** 0..1, set the instant the kid's own kart starts boosting, decayed in camera() for the FOV kick */
   let kidBoostKick = 0;
 
-  // a handful of streak quads that flash past at the screen's edges at speed/on a boost — built
-  // once, repositioned off the camera's own basis vectors every frame in camera() below
-  const speedLineGroup = new THREE.Group();
-  speedLineGroup.renderOrder = 999;
-  const speedLines = Array.from({ length: 8 }, (_, i) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.007, 0.5 + (i % 3) * 0.22), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthTest: false, depthWrite: false, fog: false }));
-    speedLineGroup.add(m);
-    return m;
-  });
-  speedLineGroup.visible = false; // (they read as glitchy bars at the screen edge; the FOV kick + sparks carry the speed)
-  scene.add(speedLineGroup);
-
   // ── the fun layer: item boxes, coins, bananas, the jump ──
   const course = buildKartCourse(track);
   const funProps = buildFunProps(track, course);
@@ -1496,10 +1484,6 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
     (flamePool.points.material as THREE.Material).dispose();
     confettiPool.points.geometry.dispose();
     (confettiPool.points.material as THREE.Material).dispose();
-    for (const m of speedLines) {
-      m.geometry.dispose();
-      (m.material as THREE.Material).dispose();
-    }
   }
 
   const _fwd = new THREE.Vector3();
@@ -1912,23 +1896,6 @@ export function buildKartRaceInterior(_accent: string, onEvent: (e: KartRaceEven
       const speedFrac = Math.max(0, Math.min(1, kidRacer.kart.speed / MAX_SPEED));
       cam.fov = lerpNum(cam.fov, baseFov + speedFrac * 4 + kidBoostKick * 8, Math.min(1, dt * 5));
       cam.updateProjectionMatrix();
-
-      // speed lines: a few streaks flashing past the screen's edges, off the camera's own basis
-      const xAxis = new THREE.Vector3();
-      const yAxis = new THREE.Vector3();
-      const zAxis = new THREE.Vector3();
-      cam.matrixWorld.extractBasis(xAxis, yAxis, zAxis);
-      const forward = zAxis.clone().negate();
-      const linesK = Math.max(speedFrac > 0.55 ? (speedFrac - 0.55) / 0.45 : 0, kidBoostKick);
-      speedLines.forEach((m, i) => {
-        const side = i % 2 === 0 ? -1 : 1;
-        const row = Math.floor(i / 2);
-        const ox = side * (0.5 + row * 0.2);
-        const oy = -0.3 + row * 0.19;
-        m.position.copy(cam.position).addScaledVector(forward, 1.1).addScaledVector(xAxis, ox).addScaledVector(yAxis, oy);
-        m.quaternion.copy(cam.quaternion);
-        (m.material as THREE.MeshBasicMaterial).opacity = linesK * (0.2 + 0.35 * ((i * 37) % 7) / 7);
-      });
     },
     dispose,
   };

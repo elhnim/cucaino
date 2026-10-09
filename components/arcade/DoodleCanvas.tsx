@@ -241,6 +241,25 @@ const DoodleCanvas = forwardRef<DoodleCanvasHandle, Props>(function DoodleCanvas
         aria-label="Drawing pad"
         role="img"
       />
+      {/* dim the pad + say why, so a kid doesn't keep poking at it once time's up */}
+      {disabled && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(255,255,255,0.55)",
+            pointerEvents: "none",
+          }}
+        >
+          <span style={{ fontSize: 15, fontWeight: 900, color: "#92400e", background: "rgba(255,255,255,0.9)", borderRadius: 999, padding: "6px 14px", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>
+            ⏰ Time&apos;s up!
+          </span>
+        </div>
+      )}
     </div>
   );
 });

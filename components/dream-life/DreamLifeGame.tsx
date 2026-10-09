@@ -51,7 +51,13 @@ export default function DreamLifeGame({ kids, activeKidId }: Props) {
   useEffect(() => {
     setSavedGame(loadGame())
     setCanSave(isStorageAvailable())
-    setRulesOpen(!localStorage.getItem(RULES_SEEN_KEY))
+    // storage can throw here too (private mode, blocked cookies, a sandboxed iframe) — a kid
+    // would otherwise be stuck on the blank loading screen forever (hydrated never flips true)
+    let rulesSeen = false
+    try {
+      rulesSeen = !!localStorage.getItem(RULES_SEEN_KEY)
+    } catch {}
+    setRulesOpen(!rulesSeen)
     setHydrated(true)
   }, [])
 
