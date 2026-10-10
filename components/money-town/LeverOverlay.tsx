@@ -105,7 +105,7 @@ export default function LeverOverlay({ player, onResult }: Props) {
                 {reelItems.map((seg, i) => (
                   <div key={i} className="flex flex-col items-center justify-center text-white"
                     style={{ height: SEGMENT_HEIGHT }}>
-                    <span className="text-2xl"><Pic kind="reel" id={seg} /></span>
+                    <span className="text-4xl"><Pic kind="reel" id={seg} /></span>
                     <span className="text-xs font-bold mt-0.5">{SEGMENT_LABEL[seg]}</span>
                   </div>
                 ))}

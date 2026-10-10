@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { LIBRARY_PASS_PCT, type LibraryStory } from "@/lib/stories/types";
 import { completeStory, completeStoryRead, type StoryProgress } from "@/lib/actions/stories";
+import { storyCoverSrc } from "@/lib/stories/covers";
 
 /** Friendly inline message shown when a save to the server failed, with the button left tappable to retry. */
 function SaveError({ message }: { message: string | null }) {
@@ -40,26 +41,48 @@ function BookCover({
   story,
   className = "",
   size = "sm",
+  lazy = true,
   children,
 }: {
   story: LibraryStory;
   className?: string;
   size?: "sm" | "lg";
+  /** Pass false for a cover shown immediately on screen (e.g. the reading-screen header). */
+  lazy?: boolean;
   children?: React.ReactNode;
 }) {
   const c = coverStyle(story.id);
   const titleSize = size === "lg" ? "text-xl" : "text-xs";
   const authorSize = size === "lg" ? "text-xs" : "text-[9px]";
+  // Painted cover art, when there is one for this book/collection — the emoji/gradient
+  // cover below stays in the DOM so a failed image load falls back to it cleanly.
+  const art = storyCoverSrc(story);
+  const [artFailed, setArtFailed] = useState(false);
+  const showArt = !!art && !artFailed;
   return (
     <div className={`relative rounded-r-lg rounded-l-sm bg-gradient-to-br ${c.from} ${c.to} shadow-md overflow-hidden flex flex-col items-center justify-center text-center px-3 ${className}`}>
-      <div className={`absolute left-0 top-0 bottom-0 w-2 ${c.spine} shadow-[inset_-2px_0_3px_rgba(0,0,0,0.4)]`} />
-      <div className="absolute right-0 top-1 bottom-1 w-1.5 bg-gradient-to-l from-white/40 to-transparent" />
-      <div className="w-8 h-px bg-white/40 mb-2" />
-      <p className={`font-serif font-black text-white leading-tight drop-shadow-sm line-clamp-4 ${titleSize}`}>
-        {story.title}
-      </p>
-      <div className="w-8 h-px bg-white/40 mt-2" />
-      {story.author && <p className={`${authorSize} font-semibold text-white/70 mt-2 uppercase tracking-wide`}>{story.author}</p>}
+      {showArt && (
+        <img
+          src={art}
+          alt=""
+          draggable={false}
+          loading={lazy ? "lazy" : undefined}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={() => setArtFailed(true)}
+        />
+      )}
+      {!showArt && (
+        <>
+          <div className={`absolute left-0 top-0 bottom-0 w-2 ${c.spine} shadow-[inset_-2px_0_3px_rgba(0,0,0,0.4)]`} />
+          <div className="absolute right-0 top-1 bottom-1 w-1.5 bg-gradient-to-l from-white/40 to-transparent" />
+          <div className="w-8 h-px bg-white/40 mb-2" />
+          <p className={`font-serif font-black text-white leading-tight drop-shadow-sm line-clamp-4 ${titleSize}`}>
+            {story.title}
+          </p>
+          <div className="w-8 h-px bg-white/40 mt-2" />
+          {story.author && <p className={`${authorSize} font-semibold text-white/70 mt-2 uppercase tracking-wide`}>{story.author}</p>}
+        </>
+      )}
       {children}
     </div>
   );
@@ -133,7 +156,7 @@ export default function StoryLibrary({
           <Frame>
             <button onClick={() => setView({ mode: "shelf" })} className="text-sm font-bold text-gray-500 mb-3">← Library</button>
             <div className="bg-white rounded-2xl shadow-sm p-4 mb-4 flex gap-4 items-center">
-              <BookCover story={s} size="lg" className="w-24 aspect-[2/3] shrink-0" />
+              <BookCover story={s} size="lg" lazy={false} className="w-24 aspect-[2/3] shrink-0" />
               <div>
                 <h1 className="text-xl font-black text-indigo-900 leading-tight">{s.title}</h1>
                 {s.author && <p className="text-sm font-bold text-gray-500">by {s.author}</p>}
@@ -201,7 +224,7 @@ export default function StoryLibrary({
         <button onClick={() => setView({ mode: "shelf" })} className="text-sm font-bold text-gray-500 mb-3">← Library</button>
         <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
           <div className="flex gap-4 items-center mb-4">
-            <BookCover story={s} size="lg" className="w-24 aspect-[2/3] shrink-0" />
+            <BookCover story={s} size="lg" lazy={false} className="w-24 aspect-[2/3] shrink-0" />
             <div>
               <h1 className="text-xl font-black text-indigo-900 leading-tight">{s.title}</h1>
               {s.author && <p className="text-sm font-bold text-gray-500">by {s.author}</p>}

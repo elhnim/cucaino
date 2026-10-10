@@ -141,11 +141,45 @@ function VillagerSprite({ skin, hair, shirt, hat, bag }: { skin: string; hair: s
   );
 }
 
+/** Painted stand-ins for the animal regulars, keyed by their emoji — any animal without a
+ * matching picture just keeps showing its emoji. */
+const ANIMAL_PICS: Record<string, string> = {
+  "🦊": "/park-assets/games/market/fox.webp",
+  "🐢": "/park-assets/games/market/turtle.webp",
+  "🐿️": "/park-assets/games/market/squirrel.webp",
+  "🦆": "/park-assets/games/market/duck.webp",
+  "🐰": "/park-assets/games/market/rabbit.webp",
+  "🐥": "/park-assets/games/market/chick.webp",
+};
+
+/** One animal customer's picture — falls back to the emoji if there's no painted art for it, or
+ * if the picture fails to load. Keyed by name from the caller so a new customer always gets a
+ * fresh try at its own picture. */
+function AnimalPic({ emoji }: { emoji: string }) {
+  const [failed, setFailed] = useState(false);
+  const src = ANIMAL_PICS[emoji];
+  if (!src || failed) {
+    return <div style={{ fontSize: "min(9vw, 72px)", lineHeight: 1, textAlign: "center" }}>{emoji}</div>;
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      loading="lazy"
+      width={72}
+      height={72}
+      style={{ width: "min(9vw, 72px)", height: "min(9vw, 72px)", display: "block", margin: "0 auto", objectFit: "contain" }}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function CustomerSprite({ cust, dancing }: { cust: (typeof CUSTOMERS)[number]; dancing: boolean }) {
   return (
     <div className={dancing ? "mg-dance" : "mg-idlebob"} style={{ width: "100%", height: "100%" }}>
       {cust.kind === "animal" ? (
-        <div style={{ fontSize: "min(9vw, 72px)", lineHeight: 1, textAlign: "center" }}>{cust.emoji}</div>
+        <AnimalPic key={cust.name} emoji={cust.emoji!} />
       ) : (
         <VillagerSprite skin={cust.skin!} hair={cust.hair!} shirt={cust.shirt!} hat={cust.hat} bag={cust.bag} />
       )}

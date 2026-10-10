@@ -46,7 +46,12 @@ export default function GameBoard({ state, dispatch, onHowToPlay, onExit }: Prop
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "radial-gradient(circle at 50% 30%, #1e3a8a 0%, #172554 55%, #0c1130 100%)" }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{
+      backgroundImage: "radial-gradient(circle at 50% 30%, rgba(30,58,138,0.88) 0%, rgba(23,37,84,0.92) 55%, rgba(12,17,48,0.95) 100%), url('/park-assets/games/money-town/street.webp')",
+      backgroundSize: "auto, cover",
+      backgroundPosition: "center, center",
+      backgroundRepeat: "no-repeat, no-repeat",
+    }}>
 
       {/* Header */}
       <header className="shrink-0 px-4 py-2 flex items-center justify-between z-10" style={{ background: "linear-gradient(90deg, #1d4ed8, #2563eb, #1d4ed8)" }}>

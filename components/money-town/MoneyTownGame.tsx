@@ -190,7 +190,7 @@ export default function MoneyTownGame({ kids, activeKidId }: Props) {
       {boughtAsset && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-pop">
           <div className="bg-green-500 text-white font-black rounded-full px-4 py-2 flex items-center gap-2 shadow-xl text-sm">
-            <span className="text-xl"><Pic kind="asset" id={boughtAsset.id} /></span>
+            <span className="text-2xl"><Pic kind="asset" id={boughtAsset.id} /></span>
             🎉 New asset! {boughtAsset.name}
           </div>
         </div>

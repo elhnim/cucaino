@@ -128,7 +128,7 @@ export default function PlayerCard({ player, isActive, paydayInfo, onPullLever }
                 const def = ASSETS.find(d => d.id === a.defId)
                 return (
                   <div key={a.uid} className="flex-shrink-0 flex flex-col items-center bg-green-50 border-2 border-green-300 rounded-xl px-1.5 py-1 min-w-[40px] max-w-[68px]">
-                    <span className={`text-lg leading-none inline-block ${isActive ? 'avatar-idle' : ''}`} style={isActive ? { animationDelay: `${i * 0.3}s` } : undefined}>
+                    <span className={`text-2xl leading-none inline-block ${isActive ? 'avatar-idle' : ''}`} style={isActive ? { animationDelay: `${i * 0.3}s` } : undefined}>
                       {def ? <Pic kind="asset" id={def.id} /> : '📦'}
                     </span>
                     <span className="text-[8px] font-black text-green-800 text-center leading-tight mt-0.5 truncate w-full text-center">{def?.name ?? 'Asset'}</span>

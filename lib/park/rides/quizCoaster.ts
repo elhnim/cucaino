@@ -31,12 +31,49 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
     const skyTex = track(new THREE.CanvasTexture(cv));
     skyTex.colorSpace = THREE.SRGBColorSpace;
     scene.add(new THREE.Mesh(track(new THREE.SphereGeometry(400, 20, 14)), track(new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false }))));
+    // the painted scenery (lazy: the ride starts at once and the pictures arrive a moment later)
+    const loader = new THREE.TextureLoader();
+    const painted = (name: string, done?: (t: THREE.Texture) => void) => {
+      const t = track(loader.load(`/park-assets/games/coaster/${name}.webp`, done));
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
+    };
+    {
+      // a painted candy-land horizon right round the course, fading out into the sky above it
+      const fade = document.createElement("canvas");
+      fade.width = 4;
+      fade.height = 64;
+      const fc = fade.getContext("2d")!;
+      const fg = fc.createLinearGradient(0, 0, 0, 64);
+      fg.addColorStop(0, "#000000");
+      fg.addColorStop(0.3, "#ffffff");
+      fc.fillStyle = fg;
+      fc.fillRect(0, 0, 4, 64);
+      const fadeTex = track(new THREE.CanvasTexture(fade));
+      const horizonMat = track(new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false, depthWrite: false, transparent: true, alphaMap: fadeTex, visible: false }));
+      horizonMat.map = painted("sky", () => {
+        horizonMat.visible = true;
+        horizonMat.needsUpdate = true;
+      });
+      const horizon = new THREE.Mesh(track(new THREE.CylinderGeometry(360, 360, 110, 48, 1, true)), horizonMat);
+      horizon.position.y = 46;
+      horizon.renderOrder = -1;
+      scene.add(horizon);
+    }
     scene.fog = new THREE.Fog(0xffd0e6, 90, 330);
     scene.add(new THREE.HemisphereLight(0xffffff, 0xd6c8ff, 1));
     const sun = new THREE.DirectionalLight(0xffffff, 1.1);
     sun.position.set(-20, 40, 20);
     scene.add(sun);
-    const ground = new THREE.Mesh(track(new THREE.CircleGeometry(380, 48)), toon("#6fe8ab"));
+    const groundMat = toon("#6fe8ab");
+    const meadow = painted("ground", () => {
+      groundMat.map = meadow;
+      groundMat.color.set("#f2fff6");
+      groundMat.needsUpdate = true;
+    });
+    meadow.wrapS = meadow.wrapT = THREE.RepeatWrapping;
+    meadow.repeat.set(54, 54);
+    const ground = new THREE.Mesh(track(new THREE.CircleGeometry(380, 48)), groundMat);
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
 
@@ -50,7 +87,15 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
       pts.push(new THREE.Vector3(Math.sin(a) * r, y, Math.cos(a) * r));
     }
     const curve = new THREE.CatmullRomCurve3(pts, true, "centripetal");
-    scene.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, 600, 0.55, 8, true)), toon("#ff5fa8")));
+    const railMat = toon("#ff5fa8");
+    const enamel = painted("rail", () => {
+      railMat.map = enamel;
+      railMat.color.set("#ffffff");
+      railMat.needsUpdate = true;
+    });
+    enamel.wrapS = enamel.wrapT = THREE.RepeatWrapping;
+    enamel.repeat.set(320, 1);
+    scene.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, 600, 0.55, 8, true)), railMat));
     scene.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, 600, 0.2, 6, true)), toon("#ffffff")));
     const pillarMat = toon("#fff1f8");
     const pillars = new THREE.InstancedMesh(track(new THREE.CylinderGeometry(0.4, 0.55, 1, 8)), pillarMat, 70);
@@ -75,6 +120,15 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
     // gates: rainbow arches with a big question number
     const gateU: number[] = [];
     const arches: THREE.Object3D[] = [];
+    // (each gate is a painted fairground arch; the plain rainbow hoop shows until the picture is in)
+    const gateGeo = track(new THREE.PlaneGeometry(11, 11));
+    const gateMat = track(new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, visible: false }));
+    const hoops: THREE.Mesh[] = [];
+    gateMat.map = painted("gate", () => {
+      gateMat.visible = true;
+      gateMat.needsUpdate = true;
+      for (const h of hoops) h.visible = false;
+    });
     for (let i = 0; i < gates; i++) {
       const u = 0.08 + (i / gates) * 0.86;
       gateU.push(u);
@@ -83,11 +137,15 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
       const arch = new THREE.Group();
       const ring = new THREE.Mesh(track(new THREE.TorusGeometry(3.4, 0.35, 8, 28, Math.PI)), toon(cols[i % cols.length]));
       arch.add(ring);
+      hoops.push(ring);
+      const board = new THREE.Mesh(gateGeo, gateMat);
+      board.position.y = 2.6;
+      arch.add(board);
       const num = labelSprite(`❓ ${i + 1}`);
       track(num.material);
       if (num.material.map) track(num.material.map);
       num.scale.multiplyScalar(0.7);
-      num.position.y = 4.6;
+      num.position.set(0, 6.5, -0.4);
       arch.add(num);
       arch.position.copy(p);
       arch.lookAt(p.clone().add(tg));

@@ -92,12 +92,36 @@ function FishSVG({ colors, size = 64, mirrored = false }: { colors: FishDef["col
   );
 }
 
+/** painted artwork for the 12 fish-book species (ids in fishFacts.ts), one square webp each */
+const FISH_ART_DIR = "/park-assets/games/fish";
+
 function CatchArt({ fish, size = 72, silhouette = false }: { fish: FishDef; size?: number; silhouette?: boolean }) {
-  if (silhouette) {
-    return <div style={{ fontSize: size * 0.6, filter: "grayscale(1) brightness(0.55)", opacity: 0.55 }}>{fish.kind === "fish" ? "❔" : fish.emoji}</div>;
+  // the painted webp failed to load (missing file, offline, etc.) — fall back to exactly what
+  // this game showed before the art existed, per species emoji / the flat-colour fish shape
+  const [artFailed, setArtFailed] = useState(false);
+  if (artFailed) {
+    if (silhouette) {
+      return <div style={{ fontSize: size * 0.6, filter: "grayscale(1) brightness(0.55)", opacity: 0.55 }}>{fish.kind === "fish" ? "❔" : fish.emoji}</div>;
+    }
+    if (fish.kind === "fish") return <FishSVG colors={fish.colors} size={size} />;
+    return <div style={{ fontSize: size * 0.72, lineHeight: 1 }}>{fish.emoji}</div>;
   }
-  if (fish.kind === "fish") return <FishSVG colors={fish.colors} size={size} />;
-  return <div style={{ fontSize: size * 0.72, lineHeight: 1 }}>{fish.emoji}</div>;
+  return (
+    <img
+      src={`${FISH_ART_DIR}/${fish.id}.webp`}
+      alt={fish.name}
+      width={size}
+      height={size}
+      draggable={false}
+      loading={silhouette ? "lazy" : undefined}
+      style={
+        silhouette
+          ? { width: size, height: size, objectFit: "contain", filter: "brightness(0)", opacity: 0.4 }
+          : { width: size, height: size, objectFit: "contain" }
+      }
+      onError={() => setArtFailed(true)}
+    />
+  );
 }
 
 /** Classic red-and-white round bobber, small stem on top. */

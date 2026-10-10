@@ -141,7 +141,7 @@ export default function JobSpinCeremony({ players, spinPlayerIndex, dispatch }: 
             {reelItems.map((job, i) => (
               <div key={i} className="flex flex-col items-center justify-center text-white"
                 style={{ height: SEGMENT_HEIGHT }}>
-                <span className="text-2xl"><Pic kind="job" id={job.id} /></span>
+                <span className="text-4xl"><Pic kind="job" id={job.id} /></span>
                 <span className="text-xs font-bold mt-0.5">{job.name}</span>
               </div>
             ))}

@@ -70,7 +70,7 @@ export default function ActionPanel({ player, state, dispatch }: Props) {
                       className={`w-full flex items-center gap-3 rounded-2xl px-4 py-3 disabled:opacity-40 active:scale-95 transition-transform border-2 ${
                         priceMult < 1 ? 'bg-gradient-to-r from-amber-50 to-white border-amber-300' : 'bg-gradient-to-r from-emerald-50 to-white border-emerald-200'
                       }`}>
-                      <span className="text-2xl w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0"><Pic kind="asset" id={def!.id} /></span>
+                      <span className="text-4xl w-11 h-11 rounded-2xl bg-emerald-100 flex items-center justify-center shrink-0"><Pic kind="asset" id={def!.id} /></span>
                       <div className="flex-1 text-left">
                         <div className="font-black text-gray-900 text-sm flex items-center gap-1.5 flex-wrap">
                           {def!.name}
@@ -124,7 +124,7 @@ export default function ActionPanel({ player, state, dispatch }: Props) {
                   <button key={a.uid} type="button"
                     onClick={() => dispatch({ type: 'SELL_ASSET', uid: a.uid })}
                     className="w-full flex items-center gap-3 bg-gray-50 border-2 border-gray-200 rounded-2xl px-4 py-2.5 active:scale-95 transition-transform">
-                    <span className="text-xl w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0"><Pic kind="asset" id={def.id} /></span>
+                    <span className="text-3xl w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center shrink-0"><Pic kind="asset" id={def.id} /></span>
                     <div className="flex-1 text-left">
                       <div className="font-black text-gray-700 text-xs">Sell {def.name}</div>
                       <div className="text-[10px] font-bold text-gray-400">Get back ${refund.toLocaleString()} (75%)</div>

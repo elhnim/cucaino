@@ -17,7 +17,7 @@ import { playSfx } from "@/lib/audio/sound-manager";
 import { C, FONT, PARK_CSS, display, glass } from "./ui/theme";
 import { GameButton } from "./ui/GameButton";
 import { PanelClose } from "./ui/GamePanel";
-import { FactCard } from "./ui/Hud";
+import { IconChip } from "./ui/IconChip";
 
 export interface CanyonRideProps {
   open: boolean;
@@ -142,7 +142,7 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
       )}
 
       {showHint && !arrivedCard && !atRiver && !ridingUp && (
-        <FactCard
+        <WonderFactCard
           icon="🐴"
           title="How to ride"
           fact="Tap Ride on! to head down into the canyon on muleback, one rock layer at a time."
@@ -154,7 +154,7 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
       )}
 
       {arrivedCard && !atRiver && (
-        <FactCard icon={arrivedCard.icon} title={arrivedCard.title} subtitle={arrivedCard.age} fact={arrivedCard.fact} onClose={() => {
+        <WonderFactCard icon={arrivedCard.icon} title={arrivedCard.title} subtitle={arrivedCard.age} fact={arrivedCard.fact} onClose={() => {
           playSfx("tap");
           setArrivedCard(null);
         }} />
@@ -163,6 +163,7 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
       {atRiver && !ridingUp && (
         <div style={doneWrap}>
           <div style={{ ...glass({ edge: "gold", fill: "rgba(42,24,14,0.92)", blur: 12 }), ...doneCard }} className="gp-popin">
+            <WonderBanner style={wonderBannerDone} />
             <div style={{ fontSize: 44 }}>💧</div>
             <div style={display(22)}>You made it to the Colorado River!</div>
             <div style={{ fontWeight: 800, fontSize: 15, color: C.gold }}>Nearly two billion years of rock stacked up above you</div>
@@ -183,6 +184,57 @@ export function CanyonRide({ open, onClose, world, kidId, kidName, animalId }: C
 
 const RIVER_FACT = "This whole canyon was carved by the river right beside you — one tiny grain of sand at a time.";
 
+// painted scene for this ride (components/park/CanyonRide.tsx owns this file; the art itself is
+// prepacked at public/park-assets/games/wonders/canyon.webp by the art pipeline) — used as a top
+// banner on the river card and the fact cards below, never over the live 3D ride itself.
+const WONDER_ART = "/park-assets/games/wonders/canyon.webp";
+
+/** The painted banner strip: plain <img>, lazy off-screen, sized so it never jumps the layout.
+ *  If the picture can't load, it just disappears and the card looks exactly as it did before. */
+function WonderBanner({ style }: { style: React.CSSProperties }) {
+  return (
+    <img
+      src={WONDER_ART}
+      alt=""
+      width={1280}
+      height={640}
+      loading="lazy"
+      draggable={false}
+      style={style}
+      onError={(e) => {
+        (e.currentTarget as HTMLImageElement).style.display = "none";
+      }}
+    />
+  );
+}
+
+/** Same look as the shared FactCard (ui/Hud.tsx), plus the painted banner on top — kept local to
+ *  this file so fitting the art never touches the shared Hud component other games also use. */
+function WonderFactCard({ icon, title, subtitle, fact, onClose }: { icon: string; title: string; subtitle?: string; fact: string; onClose: () => void }) {
+  return (
+    <div style={wonderPromptWrap}>
+      <div style={{ ...glass({ edge: "gold", fill: "rgba(18,16,44,0.9)", width: 1.5 }), ...wonderFactCard }} className="gp-popin">
+        <WonderBanner style={wonderBannerFact} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <IconChip color={C.gold} size={54} style={{ fontSize: 30 }}>
+            {icon}
+          </IconChip>
+          <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+            <div style={{ ...display(19, C.text), textShadow: "0 2px 0 rgba(0,0,0,0.35)" }}>{title}</div>
+            {subtitle && <div style={{ fontWeight: 800, fontSize: 12, color: C.dim, marginTop: 2 }}>{subtitle}</div>}
+          </div>
+        </div>
+        <div style={{ fontWeight: 700, fontSize: 14.5, lineHeight: 1.4, color: C.text, marginTop: 10 }}>{fact}</div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+          <GameButton variant="primary" small onClick={onClose}>
+            Got it!
+          </GameButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const wrap: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 90, overflow: "hidden", fontFamily: FONT.body };
 const topBar: React.CSSProperties = { position: "fixed", top: "max(12px, env(safe-area-inset-top))", left: 12, right: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, zIndex: 8 };
 const chip: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, borderRadius: 14, padding: "8px 14px", fontWeight: 900 };
@@ -197,5 +249,12 @@ const legLabel: React.CSSProperties = { fontWeight: 800, fontSize: 13, color: "#
 const doneWrap: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 7, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: C.scrim };
 const doneCard: React.CSSProperties = { width: "min(380px, 100%)", maxHeight: "90dvh", overflowY: "auto", borderRadius: 24, padding: "22px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center" };
 const photoCard: React.CSSProperties = { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "14px 18px", borderRadius: 16, background: "linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.04))", border: `1px solid ${C.line}` };
+// banner across the top of the river card — negative margin cancels doneCard's own padding
+// (22px 20px) so the picture runs edge to edge; doneCard's own flex gap spaces it from the emoji below
+const wonderBannerDone: React.CSSProperties = { display: "block", width: "calc(100% + 40px)", height: 150, objectFit: "cover", margin: "-22px -20px 0" };
+// same idea, sized for the narrower fact-card shell (ui/Hud.tsx's own factCard: 14px 16px padding)
+const wonderBannerFact: React.CSSProperties = { display: "block", width: "calc(100% + 32px)", height: 140, objectFit: "cover", margin: "-14px -16px 12px" };
+const wonderPromptWrap: React.CSSProperties = { position: "fixed", left: 0, right: 0, bottom: "calc(max(16px, env(safe-area-inset-bottom)) + 150px)", zIndex: 33, display: "flex", justifyContent: "center", pointerEvents: "none" };
+const wonderFactCard: React.CSSProperties = { pointerEvents: "auto", width: "min(420px, calc(100vw - 24px))", borderRadius: 20, padding: "14px 16px", overflow: "hidden" };
 
 export default CanyonRide;
