@@ -3,8 +3,13 @@
 // Procedural and light: one tube track, instanced pillars/decor, a handful of gate arches.
 import * as THREE from "three";
 import type { Ride } from "../engine/ParkWorld";
-import { labelSprite } from "@/lib/game3d/buildingKit";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { makeSparkleTexture } from "@/lib/game3d/textures";
+
+/** height of the gate's round sign above the rail (SIGN_Z in scripts/blender/coaster-gate.py) */
+const GATE_SIGN_Y = 6.7;
 
 export interface CoasterControls {
   /** answer given for the current gate: true = right */
@@ -117,18 +122,32 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
     }
     scene.add(gum);
 
-    // gates: rainbow arches with a big question number
+    // gates: fairground arches with a big question number
     const gateU: number[] = [];
     const arches: THREE.Object3D[] = [];
-    // (each gate is a painted fairground arch; the plain rainbow hoop shows until the picture is in)
-    const gateGeo = track(new THREE.PlaneGeometry(11, 11));
-    const gateMat = track(new THREE.MeshBasicMaterial({ transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, visible: false }));
+    // (each gate is a real fairground arch — candy-striped pillars, light bulbs and a round sign —
+    //  modelled in Blender by scripts/blender/coaster-gate.py; a plain rainbow hoop stands in
+    //  until the model is in. The sign's number is drawn here, one small disc per face.)
     const hoops: THREE.Mesh[] = [];
-    gateMat.map = painted("gate", () => {
-      gateMat.visible = true;
-      gateMat.needsUpdate = true;
-      for (const h of hoops) h.visible = false;
-    });
+    const bulbMats = [track(new THREE.MeshBasicMaterial()), track(new THREE.MeshBasicMaterial())];
+    const numGeo = track(new THREE.CircleGeometry(1.16, 28));
+    const numberDisc = (n: number) => {
+      const cv2 = document.createElement("canvas");
+      cv2.width = cv2.height = 128;
+      const x = cv2.getContext("2d")!;
+      x.fillStyle = "#fffaf0";
+      x.beginPath();
+      x.arc(64, 64, 64, 0, Math.PI * 2);
+      x.fill();
+      x.fillStyle = "#7a4fd6";
+      x.font = `800 ${n > 9 ? 72 : 92}px system-ui, -apple-system, sans-serif`;
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.fillText(String(n), 64, 70);
+      const t = track(new THREE.CanvasTexture(cv2));
+      t.colorSpace = THREE.SRGBColorSpace;
+      return track(new THREE.MeshBasicMaterial({ map: t, transparent: true }));
+    };
     for (let i = 0; i < gates; i++) {
       const u = 0.08 + (i / gates) * 0.86;
       gateU.push(u);
@@ -138,20 +157,61 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
       const ring = new THREE.Mesh(track(new THREE.TorusGeometry(3.4, 0.35, 8, 28, Math.PI)), toon(cols[i % cols.length]));
       arch.add(ring);
       hoops.push(ring);
-      const board = new THREE.Mesh(gateGeo, gateMat);
-      board.position.y = 2.6;
-      arch.add(board);
-      const num = labelSprite(`❓ ${i + 1}`);
-      track(num.material);
-      if (num.material.map) track(num.material.map);
-      num.scale.multiplyScalar(0.7);
-      num.position.set(0, 6.5, -0.4);
-      arch.add(num);
+      const numMat = numberDisc(i + 1);
+      for (const face of [-1, 1]) {
+        // (the rider comes at the gate from its -Z side)
+        const num = new THREE.Mesh(numGeo, numMat);
+        num.position.set(0, GATE_SIGN_Y, face * 0.53);
+        if (face < 0) num.rotation.y = Math.PI;
+        arch.add(num);
+      }
       arch.position.copy(p);
       arch.lookAt(p.clone().add(tg));
       scene.add(arch);
       arches.push(arch);
     }
+    let gone = false;
+    const gateLoader = new GLTFLoader();
+    gateLoader.setMeshoptDecoder(MeshoptDecoder);
+    gateLoader.load("/park-assets/games/coaster/gate.glb", (gltf) => {
+      // four plain-colour parts become ONE toon mesh (colour per vertex); the two bulb sets stay
+      // apart so they can blink in turn: three draw calls a gate
+      gltf.scene.updateMatrixWorld(true);
+      const place = new THREE.Matrix4();
+      const parts: THREE.BufferGeometry[][] = [[], [], []];
+      gltf.scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        place.copy(m.matrixWorld);
+        const mat = m.material as THREE.MeshStandardMaterial;
+        const slot = mat.name === "bulbA" ? 1 : mat.name === "bulbB" ? 2 : 0;
+        if (slot === 0) {
+          const n = m.geometry.getAttribute("position").count;
+          const col = new Float32Array(n * 3);
+          for (let k = 0; k < n; k++) col.set([mat.color.r, mat.color.g, mat.color.b], k * 3);
+          m.geometry.setAttribute("color", new THREE.BufferAttribute(col, 3));
+        }
+        parts[slot].push(m.geometry);
+        mat.dispose();
+      });
+      const merged = parts.map((list) => (list.length ? mergeGeometries(list) : null));
+      for (const list of parts) for (const geo of list) geo.dispose();
+      if (gone || !merged[0]) {
+        for (const geo of merged) geo?.dispose();
+        return;
+      }
+      const mats = [track(new THREE.MeshToonMaterial({ vertexColors: true })), ...bulbMats];
+      merged.forEach((geo, k) => {
+        if (!geo) return;
+        track(geo);
+        for (const arch of arches) {
+          const mesh = new THREE.Mesh(geo, mats[k]);
+          mesh.applyMatrix4(place);
+          arch.add(mesh);
+        }
+      });
+      for (const h of hoops) h.visible = false;
+    });
 
     // the cart the kid sits in
     const cart = new THREE.Group();
@@ -291,6 +351,10 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
         look.lookAt(ahead, p, up);
         cart.quaternion.setFromRotationMatrix(look);
         arches.forEach((a, i) => (a.scale.setScalar(i === nextGate - 1 && waiting ? 1 + Math.sin(Date.now() / 150) * 0.05 : 1)));
+        // the gates' bulbs blink in turn
+        const lit = Math.floor(Date.now() / 420) % 2;
+        bulbMats[lit].color.setHex(0xfff6b0);
+        bulbMats[1 - lit].color.setHex(0xff8fc4);
         for (let i = bursts.length - 1; i >= 0; i--) {
           const b = bursts[i];
           b.life -= dt;
@@ -313,6 +377,7 @@ export function buildQuizCoaster(gates: number, onGate: (index: number) => void,
         }
       },
       dispose() {
+        gone = true;
         for (const d of disposables) d.dispose();
       },
     };
