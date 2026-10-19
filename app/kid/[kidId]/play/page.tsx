@@ -16,6 +16,21 @@ export default async function KidPlayPage({
       <h1 className="text-2xl font-black text-gray-900 mb-4">🎮 Play</h1>
 
       <div className="grid grid-cols-2 gap-3">
+        {/* Harbour City Tycoon */}
+        <Link
+          href={`/play/harbour-city?kid=${kid.id}`}
+          className="bg-sky-50 border-2 border-sky-200 rounded-3xl p-5 shadow-sm flex flex-col gap-3 active:scale-95 transition-transform"
+        >
+          <div className="text-4xl">🌉</div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-black text-sky-900">Harbour City</span>
+              <span className="text-[10px] font-bold bg-sky-500 text-white px-1.5 py-0.5 rounded-full leading-none">NEW</span>
+            </div>
+            <div className="text-xs text-sky-700 mt-0.5">3D Sydney property game · multi-device · 2–4 players</div>
+          </div>
+        </Link>
+
         {/* Star Pets */}
         <Link
           href={`/play/pet?kid=${kid.id}`}
