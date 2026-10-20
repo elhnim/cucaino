@@ -23,6 +23,7 @@ export const RIDES: RideEntry[] = [
   { id: "invest", emoji: "🏦", name: "The Bank", blurb: "Grow your money", color: "#4f46e5", route: "bank" },
   { id: "arcade", emoji: "🕹️", name: "AI Arcade", blurb: "Emoji stories & brain games", color: "#06b6d4", route: "arcade" },
   { id: "money-town", emoji: "💰", name: "Money Town", blurb: "Spin, earn and save", color: "#eab308", route: "money-town" },
+  { id: "harbour-city", emoji: "🌉", name: "Harbour City", blurb: "3D Sydney property game · 2–4 players", color: "#0ea5e9", route: (kidId) => `/play/harbour-city?kid=${kidId}` },
   { id: "retro", emoji: "👾", name: "Retro Arcade", blurb: "20 classic-style pixel games", color: "#9a5cff", route: "retro" },
   { id: "library", emoji: "📚", name: "Library", blurb: "Chapter books, earn stars", color: "#0ea5e9", route: "library" },
   { id: "theatre", emoji: "🎭", name: "Story Theatre", blurb: "Fables, myths & short tales", color: "#e84a8a", route: "theatre" },
