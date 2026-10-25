@@ -5,7 +5,8 @@
 // slide-tackles to win the ball back when you don't have it. Win (or draw) a 2-half match to
 // move up the mini cup against a tougher made-up team; lose and it's game over.
 // (Original teams and art — no real clubs, players or branding.)
-import { H, PAL, W, clamp, dist, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+import { H, PAL, W, clamp, dist, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, outlined, shade } from "../art";
 
 // ── pitch geometry (wider than the screen; the camera follows the ball) ──
 const FIELD_W = 480;
@@ -53,30 +54,95 @@ const TEAMS: Tier[] = [
   { name: "GOLDEN DRAGONS", color: PAL.yellow, speed: 1.15, acc: 0.78, gk: 0.8 },
 ];
 
-// ── pixel art: a 12x16 top-down body (head, team shirt, shorts) with a 2-frame run cycle ──
+// ── pixel art: a 14x18 top-down body (hair, shaded head, shirt with highlight/shadow sleeve,
+// shorts) with an idle pose plus a 2-frame run cycle, finished with a 1px dark outline so
+// players pop against the busy mown grass. ──
 const BODY_TOP = [
-  "....kkkk....",
-  "...kssssk...",
-  "..kssssssk..",
-  "..kssssssk..",
-  "...kssssk...",
-  ".khhhhhhhhk.",
-  "khhhhhhhhhhk",
-  "khhhhhhhhhhk",
-  "khhhhhhhhhhk",
-  ".khhhhhhhhk.",
-  ".kppppppppk.",
-  "..kppppppk..",
+  ".....kkkk.....",
+  "....kkkkkk....",
+  "...kssssssk...",
+  "..ksssssssssk.",
+  "..ksssssssssk.",
+  "...kssssssk...",
+  ".klhhhhhhhhdk.",
+  ".klhhhhhhhhdk.",
+  ".klhhhhhhhhdk.",
+  ".klhhhhhhhhdk.",
+  ".klhhhhhhhhdk.",
+  ".klhhhhhhhhdk.",
+  ".kppppppppppk.",
+  "..kppppppppk..",
+  "...kppppppk...",
 ];
-const LEGS_A = ["...pp..pp...", "...pp..pp...", "...ww..ww...", "..kk....kk.."];
-const LEGS_B = ["..pp....pp..", "..pp....pp..", "..ww....ww..", ".kk......kk."];
-const bodyPal = (shirt: string, shorts: string) => ({ s: PAL.tan, h: shirt, k: PAL.black, p: shorts, w: PAL.white });
+const LEGS_IDLE = [".....pppp.....", ".....wwww.....", ".....kkkk....."];
+const LEGS_A = ["..pp......pp..", ".ww........ww.", "kk..........kk"];
+const LEGS_B = ["....pp..pp....", "...ww....ww...", "..kk......kk.."];
+const bodyPal = (shirt: string, shorts: string) => ({
+  s: PAL.tan,
+  k: PAL.black,
+  h: shirt,
+  l: shade(shirt, 0.3), // sleeve highlight
+  d: shade(shirt, -0.3), // sleeve shadow
+  p: shorts,
+  w: PAL.white,
+});
 const spriteFor = (shirt: string, shorts: string) => {
   const pal = bodyPal(shirt, shorts);
-  return [sprite([...BODY_TOP, ...LEGS_A], pal), sprite([...BODY_TOP, ...LEGS_B], pal)];
+  const mk = (legs: string[]) => outlined(sprite([...BODY_TOP, ...legs], pal));
+  return [mk(LEGS_IDLE), mk(LEGS_A), mk(LEGS_B)];
 };
-const PLAYER_W = 12;
-const PLAYER_H = 16;
+const PLAYER_W = 16;
+const PLAYER_H = 20;
+
+// ── static pitch art, baked once and reused every frame (never touched inside draw/update) ──
+const GRASS_LIGHT = "#3fc953";
+const GRASS_DARK = "#35b249";
+const STRIPE_W = 40;
+const FIELD_H = FIELD_BOTTOM - FIELD_TOP;
+interface PitchArt {
+  grassStripe: Sprite; // one 40-wide mown stripe, tiled across the pitch
+  board: Sprite; // 16x10 quiet out-of-bounds strip tile, tiled along the touchlines
+  net: Sprite; // 8x8 diagonal net mesh, tiled behind each goal mouth
+  ball: Sprite;
+  shadow: Sprite;
+}
+function bakePitchArt(): PitchArt {
+  // a mown stripe: subtle blade speckle + a soft dithered seam between the two mow bands
+  const grassStripe = bake(STRIPE_W, FIELD_H, (x, y) => {
+    const base = x < STRIPE_W / 2 ? GRASS_LIGHT : GRASS_DARK;
+    const h = (x * 131 + y * 517) % 97;
+    if (h < 5) return shade(base, h % 2 ? 0.14 : -0.14); // blade speckle
+    const edge = Math.min(x, STRIPE_W - 1 - x);
+    if (edge === 0) return shade(base, -0.1); // seam shade between stripes
+    return base;
+  });
+  // the painting crops tight to the pitch (no stands or boards) — keep out-of-bounds a quiet,
+  // almost-background strip, just enough texture to not be a flat slab
+  const board = bake(16, 10, (x, y) => {
+    const d = (x + y) % 16;
+    return d < 8 ? "#211a3c" : "#1b1533";
+  });
+  // a diagonal net mesh for the goal mouths
+  const net = bake(8, 8, (x, y) => ((x + y) % 4 === 0 || (x - y + 8) % 4 === 0 ? "rgba(255,255,255,0.4)" : null));
+  const ball = bake(10, 10, (x, y) => {
+    const dx = x - 4.5;
+    const dy = y - 4.5;
+    const d = Math.hypot(dx, dy);
+    if (d > 4.7) return null;
+    const patch = (x === 3 && y === 2) || (x === 6 && y === 2) || (x === 2 && y === 5) || (x === 7 && y === 5) || (x === 4 && y === 7) || (x === 5 && y === 7) || (x === 4 && y === 4) || (x === 5 && y === 4);
+    if (patch) return PAL.black;
+    return d > 3.7 ? shade(PAL.white, -0.18) : PAL.white;
+  });
+  const shadow = bake(14, 7, (x, y) => {
+    const dx = (x + 0.5 - 7) / 7;
+    const dy = (y + 0.5 - 3.5) / 3.5;
+    const d = dx * dx + dy * dy;
+    return d < 1 ? `rgba(10,8,20,${0.4 * (1 - d * 0.5)})` : null;
+  });
+  return { grassStripe, board, net, ball, shadow };
+}
+let PITCH_ART: PitchArt | null = null;
+const art = () => (PITCH_ART ??= bakePitchArt());
 
 type Role = "GK" | "DEF" | "MID" | "FWD";
 const ROLE_SLOTS: Record<Role, { frac: number; yOff: number }> = {
@@ -100,6 +166,7 @@ interface Player {
   dribbleYOff: number;
   chargeA: number;
   tackleT: number;
+  lastMoveFrame: number;
 }
 interface Ball {
   x: number;
@@ -110,6 +177,7 @@ interface Ball {
   lockT: number;
   noPickupT: number;
   noPickupWho: Player | null;
+  spin: number;
 }
 type MatchState = "intro" | "kickoff" | "play" | "goal" | "halftime" | "fulltime" | "won" | "lost";
 
@@ -144,7 +212,22 @@ function create(seed: number): GameInstance {
   const spawnConfetti = (x: number, y: number) => {
     for (let i = 0; i < 24; i++) confetti.push({ x, y, vx: r.range(-2.4, 2.4), vy: r.range(-3.6, -0.6), life: r.int(32, 58), c: r.pick(CONFETTI_COLORS) });
   };
-  const ball: Ball = { x: FIELD_W / 2, y: GOAL_CY, vx: 0, vy: 0, owner: null, lockT: 0, noPickupT: 0, noPickupWho: null };
+  interface Dust {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    life: number;
+    maxLife: number;
+  }
+  const dust: Dust[] = [];
+  const spawnDust = (x: number, y: number, n: number, spread: number) => {
+    for (let i = 0; i < n; i++) {
+      const life = r.int(10, 18);
+      dust.push({ x, y, vx: r.range(-spread, spread), vy: r.range(-spread * 0.4, 0), life, maxLife: life });
+    }
+  };
+  const ball: Ball = { x: FIELD_W / 2, y: GOAL_CY, vx: 0, vy: 0, owner: null, lockT: 0, noPickupT: 0, noPickupWho: null, spin: 0 };
 
   const oppTier = () => TEAMS[matchIdx];
   const tierFor = (team: 0 | 1) => (team === 0 ? KID_TIER : oppTier());
@@ -154,7 +237,7 @@ function create(seed: number): GameInstance {
   const makePlayer = (team: 0 | 1, role: Role): Player => {
     const slot = ROLE_SLOTS[role];
     const baseY = GOAL_CY + slot.yOff;
-    return { team, role, x: xForFrac(team, slot.frac), y: baseY, vx: 0, vy: 0, anim: 0, baseFrac: slot.frac, baseY, decideT: r.int(20, 50), dribbleYOff: 0, chargeA: 0, tackleT: 0 };
+    return { team, role, x: xForFrac(team, slot.frac), y: baseY, vx: 0, vy: 0, anim: 0, baseFrac: slot.frac, baseY, decideT: r.int(20, 50), dribbleYOff: 0, chargeA: 0, tackleT: 0, lastMoveFrame: -99 };
   };
 
   const resetFormation = () => {
@@ -174,6 +257,7 @@ function create(seed: number): GameInstance {
     ball.lockT = 0;
     ball.noPickupT = 0;
     ball.noPickupWho = null;
+    ball.spin = 0;
   };
 
   const newMatch = () => {
@@ -210,7 +294,10 @@ function create(seed: number): GameInstance {
     p.vy = (dy / d) * s;
     p.x = clamp(p.x + p.vx, 10, FIELD_W - 10);
     p.y = clamp(p.y + p.vy, FIELD_TOP + 4, FIELD_BOTTOM - 4);
-    if (s > 0.05) p.anim += s * 0.35;
+    if (s > 0.05) {
+      p.anim += s * 0.35;
+      p.lastMoveFrame = frame;
+    }
   };
 
   const shiftedHome = (p: Player) => {
@@ -283,6 +370,8 @@ function create(seed: number): GameInstance {
     ball.noPickupWho = p;
     ball.noPickupT = 10;
     io.sfx.play("shoot");
+    if (powerFrac > 0.65) io.sfx.noise?.(10, 0.2, 2200, 500);
+    spawnDust(ball.x, ball.y, 4, 1.4);
   };
 
   const gkMove = (p: Player, speed: number, tier: Tier) => {
@@ -400,6 +489,8 @@ function create(seed: number): GameInstance {
         ball.owner = claimant;
         ball.lockT = LOCK_FRAMES;
         io.sfx.play("hit");
+        io.sfx.play("thud");
+        spawnDust(ball.x, ball.y, 5, 1.1);
       }
     }
   };
@@ -412,6 +503,7 @@ function create(seed: number): GameInstance {
     const ty = o.y;
     ball.x += (tx - ball.x) * 0.5;
     ball.y += (ty - ball.y) * 0.5;
+    ball.spin += Math.hypot(o.vx, o.vy) * 0.6;
     ball.vx = 0;
     ball.vy = 0;
   };
@@ -421,6 +513,7 @@ function create(seed: number): GameInstance {
     if (scoringTeam === 0) {
       io.score(200);
       io.sfx.play("coin");
+      io.sfx.play("cheer");
       msg = "GOAL!";
       spawnConfetti(GOAL_LINE_R - 10, GOAL_CY);
       flash = 12;
@@ -439,6 +532,7 @@ function create(seed: number): GameInstance {
   const ballPhysics = (io: IO) => {
     ball.x += ball.vx;
     ball.y += ball.vy;
+    ball.spin += Math.hypot(ball.vx, ball.vy);
     ball.vx *= FRICTION;
     ball.vy *= FRICTION;
     if (Math.hypot(ball.vx, ball.vy) < 0.03) {
@@ -469,7 +563,11 @@ function create(seed: number): GameInstance {
     }
   };
 
-  const resolveAfterStoppage = () => {
+  const playWhistle = (io: IO) => {
+    io.sfx.slide?.(1500, 2100, 110, "square", 0.3);
+  };
+
+  const resolveAfterStoppage = (io: IO) => {
     if (halfTimer <= 0) {
       if (half === 1) {
         state = "halftime";
@@ -478,10 +576,12 @@ function create(seed: number): GameInstance {
         state = "fulltime";
         stateT = 170;
       }
+      playWhistle(io);
     } else {
       resetFormation();
       state = "kickoff";
       stateT = 50;
+      playWhistle(io);
     }
   };
 
@@ -519,6 +619,13 @@ function create(seed: number): GameInstance {
         c.vy += 0.08;
         if (--c.life <= 0) confetti.splice(i, 1);
       }
+      for (let i = dust.length - 1; i >= 0; i--) {
+        const d = dust[i];
+        d.x += d.vx;
+        d.y += d.vy;
+        d.vx *= 0.9;
+        if (--d.life <= 0) dust.splice(i, 1);
+      }
       if (state === "won" || state === "lost") return;
 
       if (state === "intro") {
@@ -527,6 +634,7 @@ function create(seed: number): GameInstance {
           resetFormation();
           state = "kickoff";
           stateT = 50;
+          playWhistle(io);
         }
         return;
       }
@@ -537,7 +645,7 @@ function create(seed: number): GameInstance {
       }
       if (state === "goal") {
         stateT--;
-        if (stateT <= 0) resolveAfterStoppage();
+        if (stateT <= 0) resolveAfterStoppage(io);
         return;
       }
       if (state === "halftime") {
@@ -548,6 +656,7 @@ function create(seed: number): GameInstance {
           resetFormation();
           state = "kickoff";
           stateT = 50;
+          playWhistle(io);
         }
         return;
       }
@@ -580,9 +689,13 @@ function create(seed: number): GameInstance {
         human.x = clamp(human.x + human.vx, 10, FIELD_W - 10);
         human.y = clamp(human.y + human.vy, FIELD_TOP + 4, FIELD_BOTTOM - 4);
         human.anim += hSpeed * 0.35;
+        human.lastMoveFrame = frame;
+        if (frame % 16 === 0) io.sfx.play("step");
+        if (frame % 5 === 0) spawnDust(human.x, human.y + 7, 1, 0.3);
       } else if (human.tackleT > 0) {
         human.x = clamp(human.x + human.vx * 0.8, 10, FIELD_W - 10);
         human.y = clamp(human.y + human.vy * 0.8, FIELD_TOP + 4, FIELD_BOTTOM - 4);
+        human.lastMoveFrame = frame;
       }
       if (human.tackleT > 0) human.tackleT--;
 
@@ -590,6 +703,7 @@ function create(seed: number): GameInstance {
         if (hasBall) passBall(io, human);
         else {
           human.tackleT = 14;
+          human.lastMoveFrame = frame;
           if (!dx && !dy) {
             const ddx = ball.x - human.x;
             const ddy = ball.y - human.y;
@@ -597,7 +711,8 @@ function create(seed: number): GameInstance {
             human.vx = ddx / dd;
             human.vy = ddy / dd;
           }
-          io.sfx.play("step");
+          io.sfx.play("thud");
+          spawnDust(human.x, human.y + 7, 6, 1.3);
         }
       }
       if (hasBall && inp.held.a) {
@@ -642,15 +757,21 @@ function create(seed: number): GameInstance {
       })();
       const sx = shake > 0 ? (frame % 2 ? 2 : -2) : 0;
       const camX = clamp(ball.x - W / 2, 0, FIELD_W - W);
+      const A = art();
 
-      g.clear(PAL.night);
+      g.clear("#171031");
       g.camera(camX + sx, 0);
 
-      // pitch + mow stripes
-      g.rect(0, FIELD_TOP, FIELD_W, FIELD_BOTTOM - FIELD_TOP, "#2fa040");
-      for (let x = 0; x < FIELD_W; x += 40) g.rect(x, FIELD_TOP, 20, FIELD_BOTTOM - FIELD_TOP, "#36b24a");
-      g.rect(0, FIELD_TOP - 3, FIELD_W, 3, PAL.white);
-      g.rect(0, FIELD_BOTTOM, FIELD_W, 3, PAL.white);
+      // a quiet out-of-bounds strip (the painting crops tight to the pitch — keep this subtle)
+      for (let x = Math.floor((camX - 16) / 16) * 16; x < camX + W + 16; x += 16) {
+        g.sprite(A.board, x, FIELD_TOP - 10);
+        g.sprite(A.board, x, FIELD_BOTTOM);
+      }
+
+      // pitch: mown-stripe grass tiles
+      for (let x = 0; x < FIELD_W; x += STRIPE_W) g.sprite(A.grassStripe, x, FIELD_TOP);
+      g.rect(0, FIELD_TOP - 2, FIELD_W, 2, PAL.white);
+      g.rect(0, FIELD_BOTTOM, FIELD_W, 2, PAL.white);
       g.line(FIELD_W / 2, FIELD_TOP, FIELD_W / 2, FIELD_BOTTOM, PAL.white);
       for (let i = 0; i < 16; i++) {
         const a = (i / 16) * Math.PI * 2;
@@ -658,28 +779,47 @@ function create(seed: number): GameInstance {
       }
       g.box(GOAL_LINE_L, GOAL_CY - BOX_H / 2, BOX_W, BOX_H, PAL.white);
       g.box(GOAL_LINE_R - BOX_W, GOAL_CY - BOX_H / 2, BOX_W, BOX_H, PAL.white);
-      // goal nets
-      g.rect(2, GOAL_Y0, GOAL_LINE_L - 2, GOAL_H, "rgba(255,255,255,0.1)");
+      // goal nets: a diagonal mesh tiled behind each goal mouth, clipped to the goal's depth
+      // so it never bleeds onto the playing grass
+      for (let gy = GOAL_Y0; gy < GOAL_Y1; gy += 8) {
+        for (let gx = GOAL_LINE_L - 16; gx < GOAL_LINE_L; gx += 8) g.sprite(A.net, gx, gy);
+        for (let gx = GOAL_LINE_R; gx < GOAL_LINE_R + 16; gx += 8) g.sprite(A.net, gx, gy);
+      }
       g.box(0, GOAL_Y0 - 2, GOAL_LINE_L, GOAL_H + 4, PAL.white);
-      g.rect(GOAL_LINE_R, GOAL_Y0, FIELD_W - GOAL_LINE_R - 2, GOAL_H, "rgba(255,255,255,0.1)");
       g.box(GOAL_LINE_R, GOAL_Y0 - 2, FIELD_W - GOAL_LINE_R, GOAL_H + 4, PAL.white);
 
-      // players
+      // ground dust (beneath the players)
+      for (const d of dust) {
+        const t = d.life / d.maxLife;
+        g.circle(d.x, d.y, 1 + (1 - t) * 1.5, `rgba(222,200,150,${0.45 * t})`);
+      }
+
+      // players, feet-anchored shadow first so it never draws over a teammate's sprite
       for (const p of players) {
         const shirt = p.team === 0 ? (p.role === "GK" ? kidGkShirt : kidShirt) : p.role === "GK" ? oppGkShirt : oppShirt;
-        const frameI = Math.floor(p.anim) % 2;
-        g.circle(p.x, p.y + 6, 4, "rgba(0,0,0,0.25)");
+        const moving = frame - p.lastMoveFrame < 6;
+        const frameI = moving ? 1 + (Math.floor(p.anim) % 2) : 0;
+        g.sprite(A.shadow, p.x - 7, p.y);
         g.sprite(shirt[frameI], p.x - PLAYER_W / 2, p.y - PLAYER_H + 3);
       }
-      // controlled marker
+      // controlled marker — a little bouncing arrow-free dot above the kid's active player
       const bob = Math.sin(frame * 0.2) * 2;
       g.circle(human.x, human.y - PLAYER_H - 2 + bob, 3, "rgba(0,0,0,0.4)");
-      g.circle(human.x, human.y - PLAYER_H - 2 + bob, 2, PAL.white);
+      g.circle(human.x, human.y - PLAYER_H - 2 + bob, 2, KID_TIER.color);
+      g.circle(human.x, human.y - PLAYER_H - 2 + bob, 1, PAL.white);
 
-      // ball
-      g.circle(ball.x + 1, ball.y + 2, BALL_R, "rgba(0,0,0,0.3)");
-      g.circle(ball.x, ball.y, BALL_R, PAL.white);
-      g.rect(ball.x - 1, ball.y - 1, 1, 1, PAL.black);
+      // ball: a spinning classic ball (flips stand in for rotation, driven by distance travelled)
+      const ballSpeed = Math.hypot(ball.vx, ball.vy);
+      if (ballSpeed > 2.2) {
+        for (let i = 1; i <= 2; i++) {
+          g.circle(ball.x - ball.vx * i * 1.6, ball.y - ball.vy * i * 1.6, 3 - i, `rgba(255,255,255,${0.22 / i})`);
+        }
+      }
+      const spinFrame = Math.floor(ball.spin / 3) % 4;
+      const flipX = spinFrame === 1 || spinFrame === 3;
+      const flipY = spinFrame === 2 || spinFrame === 3;
+      g.circle(ball.x + 1, ball.y + 3, 3, "rgba(10,8,20,0.3)");
+      g.sprite(A.ball, ball.x - 5, ball.y - 5, { flipX, flipY });
 
       // goal celebration confetti (drawn in field space, above everything else)
       for (const c of confetti) g.rect(c.x, c.y, 2, 2, c.c);
@@ -689,10 +829,13 @@ function create(seed: number): GameInstance {
       // big flash on a kid's goal, under the HUD so the HUD stays readable
       if (flash > 0) g.rect(0, 0, W, H, `rgba(255,255,255,${clamp(flash / 12, 0, 1) * 0.55})`);
 
-      // HUD
-      g.rect(0, 0, W, 18, "rgba(13,11,26,0.65)");
-      g.text(`${KID_TIER.name.slice(0, 10)} ${score[0]}`, 4, 2, KID_TIER.color);
-      g.text(`${score[1]} ${oppTier().name.slice(0, 10)}`, W - 4, 2, oppTier().color, { align: "right" });
+      // HUD — a framed scoreboard panel with each team's colour underlined
+      g.rect(0, 0, W, 18, "rgba(13,11,26,0.78)");
+      g.rect(0, 18, W, 1, "rgba(0,0,0,0.5)");
+      g.rect(0, 0, 60, 2, KID_TIER.color);
+      g.rect(W - 60, 0, 60, 2, oppTier().color);
+      g.text(`${KID_TIER.name.slice(0, 10)} ${score[0]}`, 4, 3, KID_TIER.color);
+      g.text(`${score[1]} ${oppTier().name.slice(0, 10)}`, W - 4, 3, oppTier().color, { align: "right" });
       const secs = Math.ceil(halfTimer / 60);
       g.text(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`, W / 2, 2, PAL.white, { align: "center" });
       g.text(`HALF ${half}  ·  CUP ${matchIdx + 1}/${TEAMS.length}`, W / 2, 10, PAL.grey, { align: "center" });
