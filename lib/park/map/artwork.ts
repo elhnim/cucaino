@@ -24,6 +24,9 @@ import { EVEREST_SUMMIT, LONE_PEAK, rawHeight } from "../registry/landform";
 import { canyonDesertK, canyonPlateauRaise } from "../registry/grandCanyon";
 import { gizaDesertK, nearGiza, PYRAMIDS, pyramidCourses } from "../registry/giza";
 import { smoothstep } from "../registry/geom2d";
+import { VILLAGE_DECKS, VILLAGE_ISLAND, VILLAGE_LAGOON, VILLAGE_LIGHTHOUSE, VILLAGE_PROPS, villageHeightAt, villageInLagoon } from "../registry/villageIsland";
+import { FROST_BERGS, FROST_ISLAND, FROST_SEA_R, frostFloeAt, frostHeightAt, frostOnPond } from "../registry/frostIsland";
+import { DINO_ISLAND, DINO_LAGOON, DINO_OUTLINE, DINO_POOL, DINO_RIVER, DINO_SWAMP, dinoHeightAt, dinoSnow } from "../registry/dinoIsland";
 import { fbm2 } from "../world/fantasy/noise";
 // kartTrack.ts (and its own geometry source, karts/track.ts) are plain 2D maths — verified three.js
 // -free the same way every other value import into this module is (see the harbours.ts/trade.ts
@@ -469,4 +472,181 @@ export function localRelief(cx: number, cz: number, view: number): { img: HTMLCa
     localReliefKey = key;
   }
   return { img: localReliefCanvas, x0: rx - spanBucket / 2, z0: rz - spanBucket / 2, span: spanBucket };
+}
+
+// ── the far islands' own pictures (Coralcove, Frostpeak, Dino Isle): each one baked once, lazily,
+// the first time it's on screen, from that island's REAL ground (its registry's height field, the
+// same one the 3D world is built from) — so on the map an island is its true shape with its beach,
+// hills, lagoon, snow and reef shelf, not a round blob or a pin in empty sea. Shaded like the big
+// island's relief. ──
+type RGBA = [number, number, number, number];
+interface FarDef {
+  id: string;
+  x0: number;
+  z0: number;
+  span: number;
+  S: number;
+  height: (x: number, z: number) => number;
+  paint: (x: number, z: number, h: number, steep: number) => RGBA | null;
+  /** built things drawn over the ground (world units; the context is already mapped to world) */
+  decorate?: (c: CanvasRenderingContext2D, unit: number) => void;
+}
+const mixC = (c: number[], d: number[], t: number) => [c[0] + (d[0] - c[0]) * t, c[1] + (d[1] - c[1]) * t, c[2] + (d[2] - c[2]) * t];
+const SEA_Y = -0.25;
+/** the reef shelf round an island: pale turquoise in the shallows, fading out into the open sea */
+const shelf = (h: number): RGBA | null => (h > -7 ? [168, 236, 228, Math.round(170 * Math.min(1, (h + 7) / 6.5))] : null);
+const box = (cx: number, cz: number, half: number) => ({ x0: cx - half, z0: cz - half, span: half * 2 });
+const dinoBox = (() => {
+  let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+  for (const p of DINO_OUTLINE) {
+    x0 = Math.min(x0, p.x);
+    x1 = Math.max(x1, p.x);
+    z0 = Math.min(z0, p.z);
+    z1 = Math.max(z1, p.z);
+  }
+  const half = Math.max(x1 - x0, z1 - z0) / 2 + 40;
+  return box((x0 + x1) / 2, (z0 + z1) / 2, half);
+})();
+const inPond = (x: number, z: number, h: number, p: { x: number; z: number; rx: number; rz: number; waterY: number }) => h < p.waterY && Math.hypot(x - p.x, z - p.z) < Math.max(p.rx, p.rz) * 1.4;
+const FAR_DEFS: FarDef[] = [
+  {
+    id: VILLAGE_ISLAND.id,
+    ...box(VILLAGE_ISLAND.x, VILLAGE_ISLAND.z, 84),
+    S: 300,
+    height: villageHeightAt,
+    paint(x, z, h) {
+      if (h <= SEA_Y) return shelf(h);
+      if (villageInLagoon(x, z) && h < VILLAGE_LAGOON.waterY) return [96, 214, 222, 255];
+      const wob = (fbm2(x / 9, z / 9, 2, 11) - 0.5) * 1.6;
+      let c = [240, 222, 172]; // coral sand
+      c = mixC(c, [118, 204, 104], smoothstep(1.2 + wob, 2.4 + wob, h)); // grass
+      c = mixC(c, [70, 160, 80], smoothstep(4 + wob * 2, 7 + wob * 2, h) * 0.8); // palm woods
+      c = mixC(c, [150, 138, 118], smoothstep(11, 15, h)); // the lighthouse hill's rock
+      return [c[0], c[1], c[2], 255];
+    },
+    decorate(c, unit) {
+      // the jetty, the lagoon boardwalks and the stilt-house decks: planks
+      c.lineCap = "round";
+      for (const d of VILLAGE_DECKS) {
+        c.fillStyle = c.strokeStyle = "#b07a46";
+        if (d.kind === "deck") {
+          c.beginPath();
+          c.arc(d.ax, d.az, d.r ?? 3, 0, Math.PI * 2);
+          c.fill();
+        } else {
+          c.lineWidth = Math.max(d.half * 2, unit * 1.5);
+          c.beginPath();
+          c.moveTo(d.ax, d.az);
+          c.lineTo(d.bx, d.bz);
+          c.stroke();
+        }
+      }
+      // the huts' thatched roofs, the lighthouse
+      for (const p of VILLAGE_PROPS) {
+        if (p.kind !== "hut" && p.kind !== "bighut" && p.kind !== "stilthut") continue;
+        const r = (p.kind === "bighut" ? 3.4 : 2.5) * p.s;
+        c.fillStyle = "#c89a52";
+        c.beginPath();
+        c.arc(p.x, p.z, r, 0, Math.PI * 2);
+        c.fill();
+        c.fillStyle = "#8a5e2a";
+        c.beginPath();
+        c.arc(p.x, p.z, r * 0.35, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.fillStyle = "#ffffff";
+      c.beginPath();
+      c.arc(VILLAGE_LIGHTHOUSE.x, VILLAGE_LIGHTHOUSE.z, 2.4, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = "#e8401a";
+      c.beginPath();
+      c.arc(VILLAGE_LIGHTHOUSE.x, VILLAGE_LIGHTHOUSE.z, 1.2, 0, Math.PI * 2);
+      c.fill();
+    },
+  },
+  {
+    id: FROST_ISLAND.id,
+    ...box(FROST_ISLAND.x, FROST_ISLAND.z, FROST_SEA_R),
+    S: 340,
+    height: frostHeightAt,
+    paint(x, z, h, steep) {
+      if (h <= SEA_Y) {
+        if (frostFloeAt(x, z)) return [236, 246, 255, 255];
+        for (const b of FROST_BERGS) if (Math.hypot(x - b.x, z - b.z) < b.r) return [214, 236, 252, 255];
+        const s = shelf(h);
+        return s ? [200, 232, 246, s[3]] : null;
+      }
+      if (frostOnPond(x, z)) return [168, 216, 246, 255];
+      let c = [196, 202, 214]; // grey shingle beach
+      c = mixC(c, [242, 247, 255], smoothstep(0.6, 1.6, h)); // snow
+      c = mixC(c, [138, 150, 168], smoothstep(0.55, 0.95, steep)); // bare cliffs
+      return [c[0], c[1], c[2], 255];
+    },
+  },
+  {
+    id: DINO_ISLAND.id,
+    ...dinoBox,
+    S: 520,
+    height: dinoHeightAt,
+    paint(x, z, h, steep) {
+      if (h <= SEA_Y) return shelf(h);
+      if (inPond(x, z, h, DINO_LAGOON) || inPond(x, z, h, DINO_POOL)) return [80, 186, 222, 255];
+      if (inPond(x, z, h, DINO_SWAMP)) return [92, 150, 112, 255];
+      for (const p of DINO_RIVER) if (h < p.y && Math.abs(x - p.x) < p.half + 3 && Math.abs(z - p.z) < p.half + 3) return [80, 186, 222, 255];
+      const wob = (fbm2(x / 30, z / 30, 2, 19) - 0.5) * 3;
+      let c = [236, 214, 160]; // beach
+      c = mixC(c, [62, 150, 70], smoothstep(1.4 + wob * 0.3, 3 + wob * 0.3, h)); // jungle
+      c = mixC(c, [150, 186, 92], smoothstep(10 + wob, 18 + wob, h) * 0.7); // open plains
+      c = mixC(c, [142, 128, 112], Math.max(smoothstep(30 + wob * 2, 44 + wob * 2, h), smoothstep(0.6, 1, steep) * 0.8)); // rock
+      c = mixC(c, [238, 242, 252], dinoSnow(x, z)); // the Ice Age north
+      return [c[0], c[1], c[2], 255];
+    },
+  },
+];
+/** where each far island's picture sits (MapCanvas.tsx draws it there, in world units) */
+export const FAR_RELIEFS = FAR_DEFS.map(({ id, x0, z0, span }) => ({ id, x0, z0, span }));
+const farCanvases = new Map<string, HTMLCanvasElement>();
+export function farIslandRelief(id: string): HTMLCanvasElement | null {
+  if (typeof document === "undefined") return null;
+  const hit = farCanvases.get(id);
+  if (hit) return hit;
+  const def = FAR_DEFS.find((d) => d.id === id);
+  if (!def) return null;
+  const { S, x0, z0, span } = def;
+  const upp = span / (S - 1);
+  const g = new Float32Array(S * S);
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) g[j * S + i] = def.height(x0 + i * upp, z0 + j * upp);
+  const at = (i: number, j: number) => g[Math.min(S - 1, Math.max(0, j)) * S + Math.min(S - 1, Math.max(0, i))];
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const c = cv.getContext("2d");
+  if (!c) return null;
+  const img = c.createImageData(S, S);
+  for (let y = 0; y < S; y++)
+    for (let x = 0; x < S; x++) {
+      const h = at(x, y);
+      const wx = x0 + x * upp;
+      const wz = z0 + y * upp;
+      const slope = Math.hypot(at(x + 1, y) - at(x - 1, y), at(x, y + 1) - at(x, y - 1)) / (2 * upp);
+      const col = def.paint(wx, wz, h, Math.min(1, slope / 1.2));
+      if (!col) continue;
+      // light from the north-west, like the big island's relief
+      const shade = h > SEA_Y ? Math.max(-1, Math.min(1, ((at(x - 1, y - 1) - at(x + 1, y + 1)) / upp) * 0.45)) : 0;
+      const k = 1 + shade * 0.35;
+      const o = (y * S + x) * 4;
+      img.data[o] = Math.min(255, col[0] * k);
+      img.data[o + 1] = Math.min(255, col[1] * k);
+      img.data[o + 2] = Math.min(255, col[2] * k);
+      img.data[o + 3] = col[3];
+    }
+  c.putImageData(img, 0, 0);
+  if (def.decorate) {
+    c.save();
+    c.scale((S - 1) / span, (S - 1) / span);
+    c.translate(-x0, -z0);
+    def.decorate(c, upp);
+    c.restore();
+  }
+  farCanvases.set(id, cv);
+  return cv;
 }

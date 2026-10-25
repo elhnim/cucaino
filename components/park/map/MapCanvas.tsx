@@ -113,15 +113,32 @@ export function paintMap(ctx: CanvasRenderingContext2D, p: MapCanvasProps) {
     ctx.fillText(edgeText, 0, -WORLD_EDGE - px(12));
   }
 
-  // far world (islands / sky / abyss) — only worth the ink once you can see past the big island
+  // the far islands, at EVERY zoom (they used to appear only in the World view, so zooming in on
+  // one left just its pin floating in empty sea): each one's own baked picture from its real
+  // ground, drawn once it's anywhere near the screen (the old round blob only as a stand-in for
+  // an island that has no picture)
+  const viewHalf = Math.hypot(w, h) / 2 / scale;
+  for (const fr of art.FAR_RELIEFS) {
+    const near = Math.abs(fr.x0 + fr.span / 2 - cam.cx) < viewHalf + fr.span / 2 && Math.abs(fr.z0 + fr.span / 2 - cam.cz) < viewHalf + fr.span / 2;
+    if (!near) continue;
+    const img = art.farIslandRelief(fr.id);
+    if (img) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(img, fr.x0, fr.z0, fr.span, fr.span);
+    }
+  }
+  for (const { w: wp, beach, land } of art.WORLD_SHAPES) {
+    if (wp.kind !== "island" || art.FAR_RELIEFS.some((fr) => fr.id === wp.id)) continue;
+    ctx.fillStyle = "#ffe7bf";
+    ctx.fill(new Path2D(beach));
+    ctx.fillStyle = wp.land ?? "#a6e8bd";
+    ctx.fill(new Path2D(land));
+  }
+  // the sky islands and the abyss — only worth the ink once you can see past the big island
   if (band === "world" || (!big && Math.hypot(cam.cx, cam.cz) > ISLAND_R + 28)) {
-    for (const { w: wp, beach, land, crack } of art.WORLD_SHAPES) {
-      if (wp.kind === "island") {
-        ctx.fillStyle = "#ffe7bf";
-        ctx.fill(new Path2D(beach));
-        ctx.fillStyle = wp.land ?? "#a6e8bd";
-        ctx.fill(new Path2D(land));
-      } else if (wp.kind === "sky") {
+    for (const { w: wp, land, crack } of art.WORLD_SHAPES) {
+      if (wp.kind === "island") continue;
+      if (wp.kind === "sky") {
         ctx.fillStyle = "rgba(255,255,255,0.55)";
         ctx.fill(new Path2D(land));
         ctx.strokeStyle = "#b9a6ff";
