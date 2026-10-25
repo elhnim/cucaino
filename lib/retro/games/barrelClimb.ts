@@ -242,7 +242,8 @@ function create(seed: number): GameInstance {
   };
 
   const heroBox = () => ({ x: hero.x + 3, y: hero.y + 4, w: PW - 6, h: PH - 7 }); // kid-friendly, forgiving
-  const barrelBox = (b: Barrel) => ({ x: b.x + 2, y: b.y + 2 - hopOf(b), w: BR - 4, h: BR - 3 }); // a little forgiving
+  // the same forgiving 6x7 hurt-box as before the bigger keg art, centred in the 12-px keg
+  const barrelBox = (b: Barrel) => ({ x: b.x + 3, y: b.y + 3 - hopOf(b), w: 6, h: 7 });
   const hopOf = (b: Barrel) => (b.spring && b.st === "roll" ? Math.abs(Math.sin(b.t * 0.085)) * 20 : 0);
   const hammerBox = () =>
     hero.facing > 0 ? { x: hero.x + 4, y: hero.y - 12, w: 20, h: PH + 10 } : { x: hero.x - 14, y: hero.y - 12, w: 20, h: PH + 10 };
