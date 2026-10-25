@@ -839,6 +839,17 @@ export function canyonSurfaceY(x: number, z: number): number | null {
   if (u > CANYON_SUNK_EDGE) return null;
   return gorgeRim(hit.along, u, rawHeight(x, z) + canyonPlateauRaise(x, z)) - canyonMaxDepthAt(hit.along) * canyonTerraceFrac(u);
 }
+/** true when (x, z) is down inside the gorge proper — anywhere from the river out to just past the
+ *  top cliff (u < 0.95), where ParkWorld's cliff rule has to hold. The rim strip beyond it is flat
+ *  plateau with no cliff at all; leaving the rule off out there means the small kerb where the
+ *  modelled surface meets the baked height field (about a unit) never stops a kid at the rim. */
+export function inCanyonGorge(x: number, z: number): boolean {
+  if (!CANYON_OPEN) return false;
+  if (Math.abs(x - CANYON_SITE.x) > 150 || Math.abs(z - CANYON_SITE.z) > CANYON_HALF_LEN + 30) return false;
+  const hit = axisNearest(x, z);
+  if (Math.abs(hit.along) > CANYON_HALF_LEN + 20) return false;
+  return Math.abs(hit.lateral) / canyonHalfWidthAt(hit.along) < 0.95;
+}
 /** THE GROUND inside the canyon: the modelled surface, or the trail's ledge where that is higher
  *  (registry/harbours.ts's worldFloorY() uses it, so the kid, pets and the ride all stand on it) */
 export function canyonWalkY(x: number, z: number): number | null {

@@ -20,7 +20,10 @@ import { WILD_FALLS, WILD_LAKE_OUTLINE, WILD_OUTLET_POINTS, WILD_RIVER_POINTS, w
 import { CART_ROAD } from "../registry/cartRoad";
 import { FOOTPATHS } from "../registry/footpaths";
 import { ROAD_SEGMENTS, BRIDGES as ROAD_BRIDGES, TUNNELS as ROAD_TUNNELS, CAR_PARKS } from "../registry/roads";
-import { EVEREST_SUMMIT, LONE_PEAK } from "../registry/landform";
+import { EVEREST_SUMMIT, LONE_PEAK, rawHeight } from "../registry/landform";
+import { canyonDesertK, canyonPlateauRaise } from "../registry/grandCanyon";
+import { smoothstep } from "../registry/geom2d";
+import { fbm2 } from "../world/fantasy/noise";
 // kartTrack.ts (and its own geometry source, karts/track.ts) are plain 2D maths — verified three.js
 // -free the same way every other value import into this module is (see the harbours.ts/trade.ts
 // comment below): safe to import directly, no "copy the number" workaround needed here.
@@ -307,13 +310,39 @@ let localReliefKey = "";
 /** one height (+ position, for the rainforest tint and the park's own mesa) -> one colour, shared
  *  by every relief raster this module bakes */
 function biomeColor(h: number, wx: number, wz: number): [number, number, number] {
-  let r = 230;
-  let gr = 210;
-  let b = 165; // sand
-  if (h > 4) [r, gr, b] = [124, 204, 132]; // grass
-  if (h > 13) [r, gr, b] = [100, 170, 106]; // forested hills
-  if (h > 40) [r, gr, b] = [150, 142, 124]; // rock
-  if (h > 76) [r, gr, b] = [236, 238, 250]; // snow
+  // Every band BLENDS into the next over a height range, and the blend's position wanders with
+  // the ground: a plain height threshold draws a ruled contour line, and on a 3 km island made of
+  // big smooth shapes that read as drawn rings and stripes (the Great Ridge was one straight bar
+  // of grey and white with hard edges). Two octaves of value noise, a broad one (~160-unit lumps)
+  // and a fine one (~45 units), push each blend up and down; a third, finer one (~14 units) gives
+  // the colour itself a little mottling so a big slope isn't one flat paint.
+  const wob = (fbm2(wx / 160, wz / 160, 2, 31) - 0.5) * 2 + (fbm2(wx / 45, wz / 45, 2, 57) - 0.5);
+  const mot = (fbm2(wx / 14, wz / 14, 2, 83) - 0.5) * 2;
+  const mix = (c: number[], d: number[], t: number) => [c[0] + (d[0] - c[0]) * t, c[1] + (d[1] - c[1]) * t, c[2] + (d[2] - c[2]) * t];
+  let col = [230, 210, 165]; // sand
+  col = mix(col, [124, 204, 132], smoothstep(2 + wob * 2, 6 + wob * 2, h)); // grass
+  col = mix(col, [100, 170, 106], smoothstep(9 + wob * 5, 19 + wob * 5, h)); // forested hills
+  col = mix(col, [146, 138, 120], smoothstep(34 + wob * 9, 52 + wob * 9, h)); // rock
+  col = mix(col, [236, 238, 250], smoothstep(72 + wob * 11, 92 + wob * 11, h)); // snow
+  // the Grand Canyon's tableland is a high DESERT, not a snowfield: its plateau stands ~100 up
+  // (registry/grandCanyon.ts's canyonPlateauRaise), which the plain height ramp above paints
+  // white. Inside the canyon's footprint it's sand on the plateau and the red-rock strata only
+  // DOWN IN the gorge (how far below the plateau's own surface this point is), with a ragged,
+  // noisy desert edge rather than a ruled circle.
+  const dk = canyonDesertK(wx, wz) + (wob - 0.25) * 0.22;
+  if (dk > 0.02) {
+    const k = smoothstep(0.02, 0.35, dk);
+    let desert = [214 + mot * 8, 176 + mot * 8, 122 + mot * 6];
+    const below = rawHeight(wx, wz) + canyonPlateauRaise(wx, wz) - h;
+    if (below > 3) {
+      // the strata, by depth: cream cap, red Supai, red-purple Redwall, tan Tonto, dark Vishnu
+      const t = smoothstep(3, 75, below);
+      const strata = t < 0.18 ? [226, 196, 150] : t < 0.42 ? [190, 92, 62] : t < 0.62 ? [160, 82, 76] : t < 0.82 ? [170, 140, 100] : [108, 84, 80];
+      desert = mix(desert, strata, smoothstep(3, 9, below));
+    }
+    col = mix(col, desert, k);
+  }
+  let [r, gr, b] = [col[0] + mot * 5, col[1] + mot * 5, col[2] + mot * 4];
   if (h > 0.2 && h <= 40) {
     const jk = wildRainforestK(wx, wz);
     if (jk > 0.1) {

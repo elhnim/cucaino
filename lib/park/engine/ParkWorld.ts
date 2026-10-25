@@ -57,7 +57,7 @@ import { roadConfine, roadDeckY, inWildlandsZone, carRoadBound, tunnelCeilingAt,
 import { FLY_LAND_R } from "../map/tripMachine";
 import { CAROUSEL, CAROUSEL_RIDE_TURNS } from "../registry/carousel";
 import { newPetBrain, stepPetBrain, type PetBrain } from "../pet/followBrain";
-import { canyonVisualFloorY, canyonWalkY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
+import { canyonVisualFloorY, grandCanyonDeckY, inCanyonGorge, nearGrandCanyon } from "../registry/grandCanyon";
 import { rawHeight } from "../registry/landform";
 import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
 import { FROST_ISLAND } from "../registry/frostIsland";
@@ -1553,12 +1553,18 @@ export class ParkWorld {
     // the Grand Canyon's cliffs are walls: on foot (or on a land mount) a step that would change
     // height by more than a real step — up a sheer face, or off a ledge — isn't taken; the kid slides
     // along the foot or the edge instead and goes up and down by the trail's ramps
-    if (!this.climb && !this.onSky && !this.gliding && !aloft && !this.mount?.flies) {
+    // (a SLOPE rule, not a fixed step height: the cliffs are smoothstep faces a few units wide, so
+    // a fixed "more than 1.2 units" allowance let a kid creeping along at a slow joystick tilt
+    // walk straight down a 28-unit face in 0.4-unit nibbles — a canyon-floor landing from the rim.
+    // Anything steeper than ~58° (1.6 : 1) over the step taken is a wall at every speed; a small
+    // constant covers floor noise at a near-standstill. The rule holds while jumping too, so a
+    // hop off the rim lands back on the rim, not in the gorge.)
+    if (!this.climb && !this.onSky && !this.gliding && !this.mount?.flies) {
       const cp = this.cliffPrev;
       const step = Math.hypot(pos.x - cp.x, pos.z - cp.z);
-      if (cp.ok && step > 0 && step < 3 && (canyonWalkY(pos.x, pos.z) !== null || canyonWalkY(cp.x, cp.z) !== null)) {
+      if (cp.ok && step > 0 && step < 3 && (inCanyonGorge(pos.x, pos.z) || inCanyonGorge(cp.x, cp.z))) {
         const y0 = worldFloor(cp.x, cp.z);
-        const wall = (x: number, z: number) => Math.abs(worldFloor(x, z) - y0) > 1.2 + 1.5 * Math.hypot(x - cp.x, z - cp.z);
+        const wall = (x: number, z: number) => Math.abs(worldFloor(x, z) - y0) > 0.12 + 1.6 * Math.hypot(x - cp.x, z - cp.z);
         if (wall(pos.x, pos.z)) {
           if (!wall(pos.x, cp.z)) pos.z = cp.z;
           else if (!wall(cp.x, pos.z)) pos.x = cp.x;
@@ -3801,6 +3807,24 @@ export class ParkWorld {
     const dir = new THREE.Vector3(-p.x, 0, -p.z).normalize();
     this.kid.root.position.set(p.x, 0, p.z).addScaledVector(dir, p.doorRadius + 1);
     this.kid.facing = Math.atan2(dir.x, dir.z);
+    this.nearPlace = null;
+  }
+
+  /** Put the kid down at (x, z) on whatever ground is there, facing `facing` (radians, the kid's
+   *  own atan2(dx, dz) convention) — a plain teleport with no travel: the camera snaps across on the
+   *  next frame (its own >60 m jump rule). For the smoke harness and anything that needs the kid
+   *  somewhere specific without a dragon flight. */
+  placeKidAt(x: number, z: number, facing?: number) {
+    if (!this.kid) return;
+    this.endSlide(false);
+    this.endSki();
+    this.endLift();
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.kid.root.position.set(x, worldFloor(x, z), z);
+    if (facing !== undefined) this.kid.facing = facing;
+    this.cliffPrev.ok = false;
+    this.deckPrev.on = false;
     this.nearPlace = null;
   }
 
