@@ -49,12 +49,39 @@ export interface Gfx {
   alpha(a: number): void;
 }
 
-export type SfxName = "jump" | "shoot" | "hit" | "coin" | "explode" | "powerup" | "die" | "blip" | "win" | "bounce" | "laser" | "step";
+export type SfxName =
+  | "jump"
+  | "shoot"
+  | "hit"
+  | "coin"
+  | "explode"
+  | "powerup"
+  | "die"
+  | "blip"
+  | "win"
+  | "bounce"
+  | "laser"
+  | "step"
+  // (added for the graphics + sound upgrade)
+  | "pop"
+  | "zap"
+  | "whoosh"
+  | "splash"
+  | "thud"
+  | "pickup"
+  | "hurt"
+  | "select"
+  | "kick"
+  | "cheer";
 
 export interface Sfx {
   play(name: SfxName): void;
   /** a single chiptune note */
   tone(freq: number, dur: number, wave?: OscillatorType, vol?: number): void;
+  /** a chiptune note that slides from freq to slideTo (a zip, a swoop, a falling whistle) */
+  slide?(freq: number, slideTo: number, dur: number, wave?: OscillatorType, vol?: number): void;
+  /** a burst of filtered noise (crash, splash, engine rumble, crowd): its filter sweeps from -> to Hz */
+  noise?(dur: number, vol?: number, from?: number, to?: number): void;
 }
 
 /** What a running game can do to the outside world. */

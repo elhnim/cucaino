@@ -200,63 +200,18 @@ export function canvasGfx(ctx: CanvasRenderingContext2D): Gfx {
 }
 
 // ── chiptune sound effects ──
+// One small "console" sound chip: everything (effects and music) goes through a master bus with
+// a soft compressor (so a busy moment never clips) and a short slap-back echo send (the warm
+// cartridge-in-a-room sound), using NES-style pulse waves (thin 12.5% / 25% duty) as well as
+// square/triangle/saw and a noise channel. Effects are layered (an explosion is a noise crash
+// AND a falling sine boom) so they feel big without being loud.
 export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; close(): void; music(t: Tune | null): void } {
   let ac: AudioContext | null = null;
-  let noise: AudioBuffer | null = null;
-  const get = () => {
-    if (!ac) {
-      const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AC) return null;
-      ac = new AC();
-      noise = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
-      const d = noise.getChannelData(0);
-      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    }
-    return ac;
-  };
-  let lastAt: Partial<Record<SfxName, number>> = {};
-
-  const tone = (freq: number, dur: number, wave: OscillatorType = "square", vol = 0.08, slideTo?: number, delay = 0) => {
-    const a = get();
-    if (!a || isMuted()) return;
-    const t = a.currentTime + delay;
-    const o = a.createOscillator();
-    const g = a.createGain();
-    o.type = wave;
-    o.frequency.setValueAtTime(freq, t);
-    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(a.destination);
-    o.start(t);
-    o.stop(t + dur + 0.02);
-  };
-  const burst = (dur: number, vol = 0.12, from = 1800, to = 200) => {
-    const a = get();
-    if (!a || !noise || isMuted()) return;
-    const t = a.currentTime;
-    const src = a.createBufferSource();
-    src.buffer = noise;
-    const f = a.createBiquadFilter();
-    f.type = "lowpass";
-    f.frequency.setValueAtTime(from, t);
-    f.frequency.exponentialRampToValueAtTime(to, t + dur);
-    const g = a.createGain();
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f).connect(g).connect(a.destination);
-    src.start(t);
-    src.stop(t + dur);
-  };
-
-  // ── background music (lib/retro/music.ts composes it; this plays it) ──
-  let musicGain: GainNode | null = null;
+  let noiseBuf: AudioBuffer | null = null;
+  let master: GainNode | null = null;
+  let echo: GainNode | null = null;
   let pulse25: PeriodicWave | null = null;
   let pulse12: PeriodicWave | null = null;
-  let tune: Tune | null = null;
-  let timer: number | null = null;
-  let step = 0;
-  let nextAt = 0;
   /** a pulse wave of the given duty cycle (the NES's thin, buzzy square), from its Fourier series */
   const pulse = (a: AudioContext, duty: number) => {
     const N = 32;
@@ -265,12 +220,130 @@ export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; clo
     for (let n = 1; n < N; n++) im[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
     return a.createPeriodicWave(re, im);
   };
-  const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
-  const note = (a: AudioContext, out: GainNode, wave: PeriodicWave | OscillatorType, midi: number, t: number, dur: number, vol: number) => {
+  const get = () => {
+    if (!ac) {
+      const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return null;
+      const a = new AC();
+      ac = a;
+      noiseBuf = a.createBuffer(1, a.sampleRate * 1, a.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const comp = a.createDynamicsCompressor();
+      comp.threshold.value = -16;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.004;
+      comp.release.value = 0.18;
+      comp.connect(a.destination);
+      master = a.createGain();
+      master.gain.value = 0.95;
+      master.connect(comp);
+      // the echo: a short delay, a little feedback, darkened, sent quietly back into the master
+      echo = a.createGain();
+      echo.gain.value = 0.16;
+      const dl = a.createDelay(0.5);
+      dl.delayTime.value = 0.13;
+      const fb = a.createGain();
+      fb.gain.value = 0.28;
+      const lp = a.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 2600;
+      echo.connect(dl);
+      dl.connect(lp);
+      lp.connect(fb);
+      fb.connect(dl);
+      lp.connect(comp);
+      pulse25 = pulse(a, 0.25);
+      pulse12 = pulse(a, 0.125);
+    }
+    return ac;
+  };
+  let lastAt: Partial<Record<SfxName, number>> = {};
+
+  type Wave = OscillatorType | "pulse25" | "pulse12";
+  const setWave = (o: OscillatorNode, w: Wave) => {
+    if (w === "pulse25" && pulse25) o.setPeriodicWave(pulse25);
+    else if (w === "pulse12" && pulse12) o.setPeriodicWave(pulse12);
+    else o.type = w === "pulse25" || w === "pulse12" ? "square" : w;
+  };
+  /** one note: `slideTo` glides the pitch, `vib` adds vibrato (Hz depth), `wet` sends to the echo */
+  const tone = (freq: number, dur: number, wave: Wave = "square", vol = 0.08, slideTo?: number, delay = 0, vib = 0, wet = 0.5) => {
+    const a = get();
+    if (!a || !master || isMuted()) return;
+    const t = a.currentTime + delay;
     const o = a.createOscillator();
-    if (wave instanceof PeriodicWave) o.setPeriodicWave(wave);
-    else o.type = wave;
+    const g = a.createGain();
+    setWave(o, wave);
+    o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
+    if (vib > 0) {
+      const lfo = a.createOscillator();
+      const lg = a.createGain();
+      lfo.frequency.value = 7;
+      lg.gain.value = vib;
+      lfo.connect(lg).connect(o.frequency);
+      lfo.start(t);
+      lfo.stop(t + dur + 0.02);
+    }
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(master);
+    if (echo && wet > 0) {
+      const s = a.createGain();
+      s.gain.value = wet;
+      g.connect(s).connect(echo);
+    }
+    o.start(t);
+    o.stop(t + dur + 0.03);
+  };
+  /** filtered noise: `type` lowpass (rumble, crash), bandpass (swish, snare), highpass (hiss) */
+  const burst = (dur: number, vol = 0.12, from = 1800, to = 200, delay = 0, type: BiquadFilterType = "lowpass", q = 0.8) => {
+    const a = get();
+    if (!a || !noiseBuf || !master || isMuted()) return;
+    const t = a.currentTime + delay;
+    const src = a.createBufferSource();
+    src.buffer = noiseBuf;
+    src.playbackRate.value = 0.7 + Math.random() * 0.6;
+    const f = a.createBiquadFilter();
+    f.type = type;
+    f.Q.value = q;
+    f.frequency.setValueAtTime(Math.max(30, from), t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(30, to), t + dur);
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(master);
+    if (echo) g.connect(echo);
+    src.start(t, Math.random() * 0.4);
+    src.stop(t + dur + 0.02);
+  };
+  const arp = (notes: number[], step: number, dur: number, wave: Wave, vol: number, delay = 0) => notes.forEach((f, i) => tone(f, dur, wave, vol, undefined, delay + i * step));
+
+  // ── background music (lib/retro/music.ts composes it; this plays it) ──
+  let musicGain: GainNode | null = null;
+  let tune: Tune | null = null;
+  let timer: number | null = null;
+  let step = 0;
+  let nextAt = 0;
+  const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+  const note = (a: AudioContext, out: GainNode, wave: Wave, midi: number, t: number, dur: number, vol: number, vib = 0) => {
+    const o = a.createOscillator();
+    setWave(o, wave);
     o.frequency.setValueAtTime(mtof(midi), t);
+    if (vib > 0 && dur > 0.22) {
+      // long lead notes get a delayed vibrato, like a real chip tune
+      const lfo = a.createOscillator();
+      const lg = a.createGain();
+      lfo.frequency.value = 5.5;
+      lg.gain.setValueAtTime(0, t);
+      lg.gain.linearRampToValueAtTime(mtof(midi) * vib, t + dur * 0.6);
+      lfo.connect(lg).connect(o.frequency);
+      lfo.start(t);
+      lfo.stop(t + dur + 0.02);
+    }
     const g = a.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.008);
@@ -279,34 +352,48 @@ export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; clo
     o.connect(g).connect(out);
     o.start(t);
     o.stop(t + dur + 0.02);
+    return g;
   };
   const drum = (a: AudioContext, out: GainNode, hit: "kick" | "snare" | "hat", t: number) => {
     if (hit === "kick") {
       const o = a.createOscillator();
       const g = a.createGain();
       o.type = "sine";
-      o.frequency.setValueAtTime(150, t);
-      o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
-      g.gain.setValueAtTime(0.5, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      o.frequency.setValueAtTime(160, t);
+      o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
+      g.gain.setValueAtTime(0.55, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
       o.connect(g).connect(out);
       o.start(t);
-      o.stop(t + 0.16);
+      o.stop(t + 0.18);
       return;
     }
-    if (!noise) return;
+    if (!noiseBuf) return;
     const src = a.createBufferSource();
-    src.buffer = noise;
+    src.buffer = noiseBuf;
     const f = a.createBiquadFilter();
     f.type = hit === "hat" ? "highpass" : "bandpass";
-    f.frequency.setValueAtTime(hit === "hat" ? 7000 : 1800, t);
+    f.frequency.setValueAtTime(hit === "hat" ? 7500 : 1700, t);
     const g = a.createGain();
-    const dur = hit === "hat" ? 0.035 : 0.11;
-    g.gain.setValueAtTime(hit === "hat" ? 0.12 : 0.3, t);
+    const dur = hit === "hat" ? 0.035 : 0.13;
+    g.gain.setValueAtTime(hit === "hat" ? 0.11 : 0.32, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f).connect(g).connect(out);
-    src.start(t);
+    src.start(t, Math.random() * 0.5);
     src.stop(t + dur + 0.01);
+    if (hit === "snare") {
+      // a snare has a body too: a short pitched thump under the rattle
+      const o = a.createOscillator();
+      const og = a.createGain();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(220, t);
+      o.frequency.exponentialRampToValueAtTime(120, t + 0.06);
+      og.gain.setValueAtTime(0.18, t);
+      og.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+      o.connect(og).connect(out);
+      o.start(t);
+      o.stop(t + 0.08);
+    }
   };
   /** schedule every note starting in the next ~150 ms (called every 40 ms: steady timing even if a frame stutters) */
   const schedule = () => {
@@ -317,9 +404,16 @@ export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; clo
     while (nextAt < a.currentTime + 0.15) {
       const s = step % tune.steps;
       if (!isMuted()) {
-        for (const n of tune.lead) if (n.at === s) note(a, musicGain, pulse25 ?? "square", n.midi, nextAt, n.len * sd * 0.9, 0.055);
-        for (const n of tune.arp) if (n.at === s) note(a, musicGain, pulse12 ?? "square", n.midi, nextAt, sd * 0.8, 0.02);
-        for (const n of tune.bass) if (n.at === s) note(a, musicGain, "triangle", n.midi, nextAt, n.len * sd * 0.92, 0.16);
+        for (const n of tune.lead) if (n.at === s) {
+          const g = note(a, musicGain, "pulse25", n.midi, nextAt, n.len * sd * 0.9, 0.05, 0.012);
+          if (echo) {
+            const send = a.createGain();
+            send.gain.value = 0.55;
+            g.connect(send).connect(echo);
+          }
+        }
+        for (const n of tune.arp) if (n.at === s) note(a, musicGain, "pulse12", n.midi, nextAt, sd * 0.8, 0.02);
+        for (const n of tune.bass) if (n.at === s) note(a, musicGain, "triangle", n.midi, nextAt, n.len * sd * 0.92, 0.17);
         for (const d of tune.drums) if (d.at === s) drum(a, musicGain, d.hit, nextAt);
       }
       step++;
@@ -338,6 +432,8 @@ export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; clo
       tune = null;
       void ac?.close();
       ac = null;
+      master = null;
+      echo = null;
       musicGain = null;
       lastAt = {};
     },
@@ -354,18 +450,18 @@ export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; clo
       }
       musicGain = null;
       tune = t;
-      if (!t || !a) return;
-      pulse25 ??= pulse(a, 0.25);
-      pulse12 ??= pulse(a, 0.125);
+      if (!t || !a || !master) return;
       musicGain = a.createGain();
-      musicGain.gain.value = 0.55;
-      musicGain.connect(a.destination);
+      musicGain.gain.value = 0.5;
+      musicGain.connect(master);
       step = 0;
       nextAt = a.currentTime + 0.08;
       schedule();
       timer = window.setInterval(schedule, 40);
     },
     tone: (f, d, w, v) => tone(f, d, w, v),
+    slide: (f, to, d, w, v) => tone(f, d, w, v, to),
+    noise: (d, v, from, to) => burst(d, v, from, to),
     play(name) {
       // don't machine-gun the same sound more than ~25x a second
       const now = performance.now();
@@ -373,33 +469,68 @@ export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; clo
       lastAt[name] = now;
       switch (name) {
         case "jump":
-          return tone(260, 0.16, "square", 0.07, 620);
+          tone(240, 0.17, "pulse25", 0.07, 680);
+          return tone(480, 0.12, "pulse12", 0.025, 1300, 0.01);
         case "shoot":
-          return tone(900, 0.07, "square", 0.05, 300);
+          tone(980, 0.08, "pulse12", 0.055, 260);
+          return burst(0.03, 0.05, 6000, 3000, 0, "highpass");
         case "laser":
-          return tone(1400, 0.12, "sawtooth", 0.04, 200);
+          tone(1500, 0.14, "sawtooth", 0.035, 180, 0, 0, 0.7);
+          return tone(1800, 0.12, "pulse25", 0.025, 300);
         case "hit":
-          return burst(0.12, 0.1, 2400, 400);
+          burst(0.1, 0.11, 2600, 500, 0, "bandpass", 1.2);
+          return tone(220, 0.08, "square", 0.05, 90);
         case "explode":
-          return burst(0.45, 0.16, 1200, 60);
+          burst(0.6, 0.18, 1600, 50);
+          tone(120, 0.5, "sine", 0.22, 32);
+          return burst(0.25, 0.08, 4000, 800, 0.05, "bandpass");
         case "coin":
-          tone(988, 0.06, "square", 0.06);
-          return tone(1319, 0.2, "square", 0.06, undefined, 0.06);
+          tone(988, 0.07, "pulse25", 0.06, undefined, 0, 0, 0.3);
+          return tone(1319, 0.28, "pulse25", 0.06, undefined, 0.07, 0, 0.6);
         case "powerup":
-          [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.1, "square", 0.06, undefined, i * 0.07));
-          return;
+          arp([523, 659, 784, 1047, 1319, 1568], 0.045, 0.09, "pulse25", 0.05);
+          return arp([262, 330, 392, 523], 0.07, 0.12, "triangle", 0.06);
         case "die":
-          return tone(440, 0.6, "triangle", 0.12, 55);
+          arp([660, 622, 587, 554, 523, 494, 466, 440], 0.07, 0.1, "pulse25", 0.06);
+          return tone(330, 0.75, "triangle", 0.12, 55, 0.5);
         case "win":
-          [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, 0.14, "square", 0.06, undefined, i * 0.11));
-          return;
+          arp([523, 659, 784, 1047, 784, 1047, 1319], 0.1, 0.16, "pulse25", 0.06);
+          arp([262, 330, 392, 523, 392, 523, 659], 0.1, 0.16, "triangle", 0.1);
+          return burst(0.5, 0.04, 9000, 6000, 0.7, "highpass");
         case "bounce":
-          return tone(420, 0.06, "triangle", 0.1, 260);
+          return tone(440, 0.08, "triangle", 0.11, 250);
         case "step":
-          return tone(140, 0.04, "triangle", 0.06);
+          tone(130, 0.04, "triangle", 0.06, 90, 0, 0, 0);
+          return burst(0.025, 0.03, 3000, 1500, 0, "bandpass");
+        case "pop":
+          return tone(500, 0.07, "sine", 0.12, 1400, 0, 0, 0.3);
+        case "zap":
+          return tone(2200, 0.1, "pulse12", 0.05, 90);
+        case "whoosh":
+          return burst(0.28, 0.08, 300, 3500, 0, "bandpass", 1.6);
+        case "splash":
+          burst(0.4, 0.12, 2400, 300);
+          tone(700, 0.06, "sine", 0.05, 1400, 0.08);
+          return tone(900, 0.06, "sine", 0.04, 1800, 0.16);
+        case "thud":
+          tone(110, 0.16, "sine", 0.2, 40, 0, 0, 0.2);
+          return burst(0.08, 0.08, 900, 200);
+        case "pickup":
+          return arp([880, 1320, 1760], 0.04, 0.08, "pulse25", 0.05);
+        case "hurt":
+          tone(330, 0.22, "square", 0.06, 150, 0, 20);
+          return burst(0.08, 0.06, 2000, 600, 0, "bandpass");
+        case "select":
+          return tone(1047, 0.06, "pulse12", 0.05, undefined, 0, 0, 0.3);
+        case "kick":
+          tone(150, 0.12, "sine", 0.22, 50, 0, 0, 0);
+          return burst(0.05, 0.08, 3000, 800, 0, "bandpass");
+        case "cheer":
+          burst(1.1, 0.07, 1400, 900, 0, "bandpass", 0.6);
+          return arp([784, 988, 1175, 1568], 0.08, 0.12, "pulse25", 0.04, 0.1);
         case "blip":
         default:
-          return tone(660, 0.05, "square", 0.05);
+          return tone(660, 0.05, "pulse25", 0.05, undefined, 0, 0, 0.2);
       }
     },
   };
