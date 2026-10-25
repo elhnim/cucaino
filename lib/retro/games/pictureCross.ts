@@ -8,7 +8,8 @@
 // is never undone — the cell shows a red ✕ and the countdown clock loses time — so a completed
 // picture is always the one true answer the clues describe. Finished rows/columns grey out, and
 // solving the whole grid reveals the picture in colour with its name and a little fanfare.
-import { H, PAL, W, clamp, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+import { H, PAL, W, clamp, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, hash2, shade, bayer } from "../art";
 
 // ───────────────────────── puzzles ─────────────────────────
 
@@ -344,10 +345,106 @@ function slotSize(n: number) {
 // young kids are still learning the logic, so the clocks are generous
 const TIME_PER_SIZE: Record<number, number> = { 5: 60 * 180, 10: 60 * 360, 15: 60 * 600 };
 const MISTAKE_PENALTY = 60 * 10; // 10 seconds off the clock
-/** a correct cell is chiselled in this one neutral colour while playing — the picture's real
+
+// ───────────────────────── carved-wood cabinet look ─────────────────────────
+// The cabinet painting shows a carved wooden puzzle frame holding cream tablets: a dark amber
+// border, a gold corner badge where the row/column clue gutters meet, warm cream paper for the
+// grid and tan parchment behind the clue numbers, a chiselled navy block for a correct cell, and
+// a dashed red "X" scratched onto a cell the kid has marked as empty. Everything below is baked
+// once (lazily, the first time a given size/puzzle is needed) and reused every frame after.
+const WOOD_DARK = "#4a2510";
+const WOOD_MID = "#8a4a1e";
+const WOOD_LIGHT = "#d08a3e";
+const PAPER_HEADER = "#e7cf9c";
+const PAPER_GRID = "#f7ecd2";
+const GOLD = "#ffd76a";
+const GRID_LINE = "#c9ad78";
+const INK = "#8a2518";
+const INK_DONE = "#b7a98a";
+const MARK_RED = "#d9503f";
+/** a correct cell is chiselled in this one neutral navy while playing — the picture's real
  * colours stay hidden (so they can't be used to cheat) until the reveal screen */
-const CHISEL_FILL = "#34406b";
-const CHISEL_HILITE = "rgba(200,220,255,0.4)";
+const CHISEL_BASE = "#2c3a68";
+
+/** the carved wood frame + parchment background for one puzzle's clue gutters + grid — baked
+ *  once per puzzle (geometry only depends on its clue shape) and blitted as a single sprite. */
+function bakeFrame(gutterW: number, headerH: number, gw: number, gh: number): Sprite {
+  const panelW = gutterW + gw + 8;
+  const panelH = headerH + gh + 8;
+  const B = 4;
+  return bake(panelW, panelH, (x, y) => {
+    const edge = Math.min(x, y, panelW - 1 - x, panelH - 1 - y);
+    if (edge < B) {
+      if (edge === 0) return WOOD_DARK;
+      const grain = hash2(x, y, 3) > 0.85 ? shade(WOOD_MID, -0.2) : null;
+      if (grain) return grain;
+      return x - y < panelW - panelH ? WOOD_LIGHT : WOOD_MID;
+    }
+    const inHeader = y < B + headerH;
+    const inGutter = x < B + gutterW;
+    if (inHeader && inGutter) {
+      const cw = gutterW;
+      const ch = headerH;
+      const dx = x - (B + cw / 2);
+      const dy = y - (B + ch / 2);
+      return Math.abs(dx) / (cw / 2) + Math.abs(dy) / (ch / 2) < 0.85 ? GOLD : PAPER_HEADER;
+    }
+    if (inHeader || inGutter) return PAPER_HEADER;
+    return PAPER_GRID;
+  });
+}
+const frameCache = new Map<number, Sprite>();
+
+/** a chiselled stone block: lit top/left edge, shadowed bottom/right, a little flecked texture */
+function bakeFillTile(size: number): Sprite {
+  const hi = shade(CHISEL_BASE, 0.4);
+  const lo = shade(CHISEL_BASE, -0.4);
+  return bake(size, size, (x, y) => {
+    if (x === 0 || y === 0) return hi;
+    if (x === size - 1 || y === size - 1) return lo;
+    return hash2(x, y, 11) > 0.88 ? shade(CHISEL_BASE, 0.14) : CHISEL_BASE;
+  });
+}
+/** the kid's own ✕ note — a dashed scratch, not a solid cross, so it reads as a hand mark */
+function bakeMarkTile(size: number): Sprite {
+  return bake(size, size, (x, y) => {
+    if (x < 2 || y < 2 || x > size - 3 || y > size - 3) return null;
+    const onA = Math.abs(x - y) <= 1;
+    const onB = Math.abs(size - 1 - x - y) <= 1;
+    if (!onA && !onB) return null;
+    return Math.floor((x + y) / 2) % 2 === 0 ? MARK_RED : null;
+  });
+}
+/** a wrong chisel — a bold flashing ✕ (two colour frames swapped in draw()) */
+function bakeMissTile(size: number, color: string): Sprite {
+  return bake(size, size, (x, y) => {
+    if (x < 1 || y < 1 || x > size - 2 || y > size - 2) return null;
+    const onA = Math.abs(x - y) <= 1;
+    const onB = Math.abs(size - 1 - x - y) <= 1;
+    return onA || onB ? color : null;
+  });
+}
+interface TileSet {
+  fill: Sprite;
+  mark: Sprite;
+  missA: Sprite;
+  missB: Sprite;
+}
+const tileCache = new Map<number, TileSet>();
+function tilesFor(size: number): TileSet {
+  let t = tileCache.get(size);
+  if (!t) {
+    t = { fill: bakeFillTile(size), mark: bakeMarkTile(size), missA: bakeMissTile(size, PAL.red), missB: bakeMissTile(size, PAL.orange) };
+    tileCache.set(size, t);
+  }
+  return t;
+}
+/** a few fixed, twinkling background stars (positions are deterministic, not per-frame random) */
+const STARS = Array.from({ length: 26 }, (_, i) => ({
+  x: Math.floor(hash2(i, 1, 51) * W),
+  y: Math.floor(hash2(i, 2, 51) * 150) + 6,
+  ph: Math.floor(hash2(i, 3, 51) * 90),
+}));
 
 // cell states
 const EMPTY = 0;
@@ -386,6 +483,8 @@ function create(seed: number): GameInstance {
   let gridY = 0;
   let cx = 0;
   let cy = 0;
+  let frameSprite: Sprite | null = null;
+  let tiles: TileSet = tilesFor(14);
 
   let phase: "play" | "reveal" | "done" = "play";
   let revealT = 0;
@@ -438,6 +537,13 @@ function create(seed: number): GameInstance {
     cy = 0;
     phase = "play";
     revealT = 0;
+    tiles = tilesFor(cell);
+    let fr = frameCache.get(puzzleIndex);
+    if (!fr) {
+      fr = bakeFrame(gutterW, headerH, w * cell, h * cell);
+      frameCache.set(puzzleIndex, fr);
+    }
+    frameSprite = fr;
     if (io) io.sfx.play("blip");
   }
 
@@ -457,13 +563,23 @@ function create(seed: number): GameInstance {
     if (target[y][x]) {
       grid[y][x] = FILLED;
       filledCount++;
+      const wasRowDone = rowDone[y];
+      const wasColDone = colDone[x];
       recomputeLine(y);
       recomputeCol(x);
-      io.sfx.play("blip");
+      io.sfx.play("pop");
+      io.sfx.tone(520 + Math.min(10, filledCount) * 18, 70, "square", 0.25);
       io.score(5);
-      spark(px, py, PAL.sky, 5);
+      spark(px, py, "#9fc4ff", 6);
+      spark(px, py, PAL.white, 2);
+      if ((!wasRowDone && rowDone[y]) || (!wasColDone && colDone[x])) {
+        io.sfx.play("coin");
+        if (!wasRowDone && rowDone[y]) spark(gridX, py, GOLD, 10);
+        if (!wasColDone && colDone[x]) spark(px, gridY, GOLD, 10);
+      }
       if (filledCount >= totalFilled) {
         io.sfx.play("win");
+        io.sfx.play("cheer");
         io.score(Math.max(0, Math.floor(timeLeft / 60)) * 10);
         phase = "reveal";
         revealT = 190;
@@ -473,15 +589,18 @@ function create(seed: number): GameInstance {
       grid[y][x] = MISS;
       timeLeft = Math.max(0, timeLeft - MISTAKE_PENALTY);
       io.sfx.play("hit");
+      io.sfx.noise?.(140, 0.35, 700, 160);
       shake = 14;
       toasts.push({ x: px, y: py - 10, t: 45, s: "-10s", c: PAL.red });
     }
   }
-  function tryMark(x: number, y: number) {
+  function tryMark(x: number, y: number, io: IO) {
     if (x < 0 || x >= w || y < 0 || y >= h) return;
     const s = grid[y][x];
     if (s === FILLED || s === MISS) return;
-    grid[y][x] = s === MARK ? EMPTY : MARK;
+    const marking = s !== MARK;
+    grid[y][x] = marking ? MARK : EMPTY;
+    io.sfx.tone(marking ? 300 : 220, 40, "triangle", 0.15);
   }
 
   loadPuzzle(null);
@@ -545,8 +664,8 @@ function create(seed: number): GameInstance {
       }
 
       if (inp.held.a) tryFill(cx, cy, io);
-      if (inp.pressed.b) tryMark(cx, cy);
-      else if (inp.held.b && (cx !== prevX || cy !== prevY)) tryMark(cx, cy);
+      if (inp.pressed.b) tryMark(cx, cy, io);
+      else if (inp.held.b && (cx !== prevX || cy !== prevY)) tryMark(cx, cy, io);
 
       if (inp.tap) {
         const gx = Math.floor((inp.tap.x - gridX) / cell);
@@ -554,7 +673,7 @@ function create(seed: number): GameInstance {
         if (gx >= 0 && gx < w && gy >= 0 && gy < h) {
           cx = gx;
           cy = gy;
-          if (inp.held.b) tryMark(gx, gy);
+          if (inp.held.b) tryMark(gx, gy, io);
           else tryFill(gx, gy, io);
         }
       }
@@ -568,6 +687,8 @@ function create(seed: number): GameInstance {
             io.sfx.play("die");
             io.gameOver();
           }
+        } else if (timeLeft <= 10 * 60 && timeLeft % 60 === 0) {
+          io.sfx.tone(880, 90, "square", 0.3);
         }
       }
     },
@@ -575,73 +696,76 @@ function create(seed: number): GameInstance {
     draw(g: Gfx) {
       const puzzle = PICTURE_PUZZLES[puzzleIndex];
       const sx = shake > 0 && frame % 2 ? (shake % 4 < 2 ? -1 : 1) : 0;
+
+      // ── night backdrop: dithered diagonal bands + a scatter of twinkling stars ──
       g.clear(PAL.night);
-      for (let i = -H; i < W; i += 22) g.line(i, 0, i + H, H, "#231c45");
+      for (let i = -H; i < W + H; i += 22) {
+        const dim = bayer(i, 0) > 0.5;
+        g.line(i, 0, i + H, H, dim ? "#201a3c" : "#2a2350");
+      }
+      for (const s of STARS) {
+        const tw = (frame + s.ph) % 90;
+        if (tw < 60) g.rect(s.x, s.y, 1, 1, tw < 20 || tw > 45 ? "#6a63a8" : PAL.white);
+      }
 
       if (phase === "reveal") {
-        // big reveal: the whole picture in colour, framed, with its name
+        // big reveal: the whole picture in colour, in the same carved-wood frame, with its name
         const scale = Math.min(10, Math.floor(140 / Math.max(w, h)));
         const pw = w * scale;
         const ph = h * scale;
         const ox = Math.floor((W - pw) / 2);
         const oy = 54;
-        g.rect(ox - 6, oy - 6, pw + 12, ph + 12, PAL.purple);
-        g.rect(ox - 3, oy - 3, pw + 6, ph + 6, PAL.white);
+        g.rect(ox - 8, oy - 8, pw + 16, ph + 16, WOOD_DARK);
+        g.rect(ox - 5, oy - 5, pw + 10, ph + 10, WOOD_LIGHT);
+        g.rect(ox - 2, oy - 2, pw + 4, ph + 4, PAPER_GRID);
         for (let y = 0; y < h; y++)
           for (let x = 0; x < w; x++)
             if (target[y][x]) g.rect(ox + x * scale, oy + y * scale, scale, scale, puzzle.color(x, y));
+        // a slow diagonal shine sweeping across the revealed picture
+        const shineX = ox - pw + ((frame * 2) % (pw * 2));
+        g.alpha(0.18);
+        for (let d = 0; d < 10; d++) g.line(shineX + d, oy, shineX + d + ph, oy + ph, PAL.white);
+        g.alpha(1);
         for (const s of sparkles) g.rect(s.x - 1, s.y - 1, 2, 2, s.life % 6 < 3 ? PAL.white : s.c);
         const article = /^[AEIOU]/.test(puzzle.name) ? "AN" : "A";
         const bob = Math.floor(frame / 6) % 2;
-        g.text(`${article} ${puzzle.name}!`, W / 2, 24 + bob, PAL.yellow, { align: "center", size: 2 });
-        g.text(`PICTURE ${puzzleIndex + 1} OF ${PICTURE_PUZZLES.length} SOLVED`, W / 2, oy + ph + 14, PAL.sky, { align: "center" });
+        g.text(`${article} ${puzzle.name}!`, W / 2, 24 + bob, GOLD, { align: "center", size: 2 });
+        g.text(`PICTURE ${puzzleIndex + 1} OF ${PICTURE_PUZZLES.length} SOLVED`, W / 2, oy + ph + 16, PAL.sky, { align: "center" });
         return;
       }
 
-      // ── playing: paper panel behind the clue gutters + grid ──
+      // ── playing: the carved wooden frame holding the clue parchment + grid, baked once ──
       const panelX = gridX - gutterW - 4;
       const panelY = gridY - headerH - 4;
-      const panelW = gutterW + w * cell + 8;
       const panelH = headerH + h * cell + 8;
-      g.rect(panelX + sx, panelY, panelW, panelH, "#f0e4c4");
-      g.box(panelX + sx, panelY, panelW, panelH, PAL.brown);
+      if (frameSprite) g.sprite(frameSprite, panelX + sx, panelY);
 
       // cursor highlight band across its row and column
-      g.rect(panelX + sx, gridY + cy * cell, panelW, cell, "rgba(255,225,77,0.35)");
-      g.rect(gridX + cx * cell + sx, panelY, cell, panelH, "rgba(255,225,77,0.35)");
+      g.rect(panelX + sx, gridY + cy * cell, gutterW + w * cell + 8, cell, "rgba(255,225,77,0.3)");
+      g.rect(gridX + cx * cell + sx, panelY, cell, panelH, "rgba(255,225,77,0.3)");
 
-      // grid cells
+      // grid cells: a chiselled stone block, a dashed ✕ note, or a flashing wrong-chisel ✕
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
           const px = gridX + x * cell + sx;
           const py = gridY + y * cell;
           const s = grid[y][x];
-          if (s === FILLED) {
-            // one neutral chiselled colour while playing — the real picture colours only show on
-            // the reveal screen, so a filled-in square never gives the picture away early
-            g.rect(px + 1, py + 1, cell - 2, cell - 2, CHISEL_FILL);
-            g.rect(px + 1, py + 1, cell - 2, 1, CHISEL_HILITE);
-          } else if (s === MARK) {
-            g.line(px + 3, py + 3, px + cell - 3, py + cell - 3, PAL.grey);
-            g.line(px + cell - 3, py + 3, px + 3, py + cell - 3, PAL.grey);
-          } else if (s === MISS) {
-            const flashOn = frame % 10 < 6;
-            const c = flashOn ? PAL.red : PAL.orange;
-            g.line(px + 2, py + 2, px + cell - 2, py + cell - 2, c);
-            g.line(px + cell - 2, py + 2, px + 2, py + cell - 2, c);
-          }
+          if (s === FILLED) g.sprite(tiles.fill, px, py);
+          else if (s === MARK) g.sprite(tiles.mark, px, py);
+          else if (s === MISS) g.sprite(frame % 10 < 6 ? tiles.missA : tiles.missB, px, py);
         }
       }
       // gridlines (thicker every 5 cells)
-      for (let x = 0; x <= w; x++) g.rect(gridX + x * cell + sx, gridY, x % 5 === 0 ? 2 : 1, h * cell, x % 5 === 0 ? PAL.brown : "#c9b78c");
-      for (let y = 0; y <= h; y++) g.rect(gridX + sx, gridY + y * cell, w * cell, y % 5 === 0 ? 2 : 1, y % 5 === 0 ? PAL.brown : "#c9b78c");
-      // cursor box
-      g.box(gridX + cx * cell + sx, gridY + cy * cell, cell, cell, PAL.yellow);
+      for (let x = 0; x <= w; x++) g.rect(gridX + x * cell + sx, gridY, x % 5 === 0 ? 2 : 1, h * cell, x % 5 === 0 ? WOOD_MID : GRID_LINE);
+      for (let y = 0; y <= h; y++) g.rect(gridX + sx, gridY + y * cell, w * cell, y % 5 === 0 ? 2 : 1, y % 5 === 0 ? WOOD_MID : GRID_LINE);
+      // cursor box — a thin gold ring inside a dark outline
+      g.box(gridX + cx * cell + sx, gridY + cy * cell, cell, cell, WOOD_DARK);
+      g.box(gridX + cx * cell + sx + 1, gridY + cy * cell + 1, cell - 2, cell - 2, GOLD);
 
       // row clues (right-aligned just left of the grid)
       for (let y = 0; y < h; y++) {
         const clue = rowClue[y].length ? rowClue[y] : [0];
-        const ink = rowDone[y] ? "#b7a98a" : "#2a2140";
+        const ink = rowDone[y] ? INK_DONE : INK;
         const cyText = gridY + y * cell + cell / 2 - 4;
         for (let i = 0; i < clue.length; i++) {
           g.text(String(clue[clue.length - 1 - i]), gridX - 6 - i * slotSize(Math.max(w, h)).rowSlot + sx, cyText, ink, { align: "right" });
@@ -650,7 +774,7 @@ function create(seed: number): GameInstance {
       // column clues (stacked above the grid, bottom-aligned)
       for (let x = 0; x < w; x++) {
         const clue = colClue[x].length ? colClue[x] : [0];
-        const ink = colDone[x] ? "#b7a98a" : "#2a2140";
+        const ink = colDone[x] ? INK_DONE : INK;
         const cxText = gridX + x * cell + cell / 2 + sx;
         for (let i = 0; i < clue.length; i++) {
           const row = clue.length - 1 - i;
@@ -658,16 +782,20 @@ function create(seed: number): GameInstance {
         }
       }
 
-      // HUD
-      g.text(`PICTURE ${puzzleIndex + 1}/${PICTURE_PUZZLES.length}`, 4, 4, PAL.white);
+      // HUD — small framed badges either end of the wood panel's top edge
+      g.rect(2, 2, 76, 11, WOOD_DARK);
+      g.rect(3, 3, 74, 9, PAPER_HEADER);
+      g.text(`PIC ${puzzleIndex + 1}/${PICTURE_PUZZLES.length}`, 6, 4, INK);
       const secs = Math.ceil(timeLeft / 60);
       const mm = Math.floor(secs / 60);
       const ss = secs % 60;
       const low = secs <= 20;
-      g.text(`${mm}:${ss < 10 ? "0" : ""}${ss}`, W - 4, 4, low && frame % 20 < 10 ? PAL.red : PAL.cyan, { align: "right" });
+      g.rect(W - 46, 2, 44, 11, WOOD_DARK);
+      g.rect(W - 45, 3, 42, 9, PAPER_HEADER);
+      g.text(`${mm}:${ss < 10 ? "0" : ""}${ss}`, W - 6, 4, low && frame % 20 < 10 ? PAL.red : INK, { align: "right" });
       if (puzzle.hint && puzzleIndex <= 1) {
-        g.text(puzzle.hint[0], W / 2, 14, PAL.lime, { align: "center" });
-        g.text(puzzle.hint[1], W / 2, 23, PAL.lime, { align: "center" });
+        g.text(puzzle.hint[0], W / 2, 15, PAL.lime, { align: "center" });
+        g.text(puzzle.hint[1], W / 2, 24, PAL.lime, { align: "center" });
       }
 
       for (const t of toasts) g.text(t.s, t.x, t.y - (45 - t.t) * 0.3, t.c, { align: "center" });
