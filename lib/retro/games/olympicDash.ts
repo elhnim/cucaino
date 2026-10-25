@@ -4,6 +4,7 @@
 // hold A/B then let go to aim a long jump or javelin throw. Four events, run in order, each with
 // a qualifying mark to beat — miss it and the meet is over; beat it and you climb the podium.
 import { H, PAL, W, clamp, rng, sprite, type GameInstance, type Gfx, type IO, type Input, type RetroGameDef, type Sprite } from "../engine";
+import { bake, bakeShadow, hash2, outlined, shade, tinted } from "../art";
 
 // ── layout ──
 // crowd (0-44) + fence/ad boards (44-58) + track/runway filling the rest of the screen — no gap.
@@ -13,9 +14,11 @@ const TRACK_TOP = 58; // where the track/runway visuals start (right under the f
 const GROUND_Y = 204; // the player's (near) lane baseline — feet stand here
 const RIVAL_Y = 162; // the rival's lane baseline, a lane further back (smaller, higher on screen)
 const LANE_LINES = [100, 141, 183]; // dividers between the 4 lanes, far → near
-const SPRITE_H = 13; // unscaled athlete sprite height (rows)
-const PLAYER_SCALE = 2.1; // ~27px tall — big and grounded
-const RIVAL_SCALE = 1.6; // smaller: a lane further back
+const LANE_CENTERS = [TRACK_TOP + 21, 120, RIVAL_Y, GROUND_Y]; // worn-groove bands + lane number rows
+const TRACK_COLOR = "#c9894b"; // sampled from the cabinet painting's track dirt
+const SPRITE_H = 14; // unscaled athlete sprite height (rows): 8 head/torso + 6 legs
+const PLAYER_SCALE = 2.4; // ~34px tall, matching the painting's hero proportions
+const RIVAL_SCALE = 1.8; // smaller: a lane further back
 const CAM_OFFSET = 90; // the runner sits about a third in from the left, not pinned to the edge
 const SPEED_MAX = 3.2; // fastest pace, px/frame
 const BOOST_ALT = 0.13; // speed added for an A→B or B→A tap
@@ -26,23 +29,134 @@ const FOUL_TOL = 6; // a few forgiving pixels past the board before it counts as
 const RUNUP_TIMEOUT = 600; // 10s — auto-attempt if nobody presses the jump button
 const JUMP_WINDOW = 26; // frames a hurdle jump stays "active" after pressing ▲
 
-// ── pixel art ──
-const AP = { j: PAL.red, h: "#ffd9a8", k: PAL.black, w: PAL.white, l: PAL.navy, s: PAL.blue, o: PAL.black };
-const RP = { j: PAL.blue, h: "#ffd9a8", k: PAL.black, w: PAL.yellow, l: PAL.purple, s: PAL.pink, o: PAL.black };
-const HEAD_TORSO = ["....jjjj....", "...jhhhhj...", "...hhkhkh...", "...hhhhhh...", "....wwww....", "...wwwwww...", "...wwwwww...", "...llllll..."];
-const LEG_A = ["..l......s..", "..l......s..", ".l........s.", ".l........s.", "oo........oo"];
-const LEG_B = ["....llss....", "....llss....", "....ll.ss...", "....l....s..", "...oo..oo..."];
-const LEG_C = ["..s......l..", "..s......l..", ".s........l.", ".s........l.", "oo........oo"];
-const LEG_JUMP = ["...ll..ss...", "..l......s..", ".l........s.", "............", "............"];
-const LEG_STUMBLE = [".l........s.", "l..........s", "............", "............", "............"];
-function makeFrames(pal: Record<string, string>): Sprite[] {
-  return [LEG_A, LEG_B, LEG_C, LEG_B].map((legs) => sprite([...HEAD_TORSO, ...legs], pal));
+// ── pixel art: a sprinter built from a 12-wide head/torso (two arm-swing variants, so the
+//    trailing arm the painting shows actually pumps) plus a 12-wide leg frame per stride. 3-4
+//    shading tones per colour (a highlight and a shadow key alongside the base) give the small
+//    sprite some roundness, and `outlined` wraps the whole thing in a 1px dark edge so it still
+//    reads crisply against the busy stadium backdrop. ──
+const HEAD = ["..jjjjjjjj..", "..hhhhhhJJ..", "..hhkhhkhh..", "..hhhhhhhh.."];
+// torso A: shoulders bump a px wider than the head (breaks the outline into a shoulder, not one
+// long straight side), then a short trailing-arm nub on the chest row; torso B swings it right
+const TORSO_A = [".wwwwwwwwww.", "Aawwwwwwww..", ".awwwwwwww..", "..uuuuuuuu.."];
+const TORSO_B = [".wwwwwwwwww.", "..wwwwwwwwaA", "..wwwwwwwwa.", "..uuuuuuuu.."];
+const LEG_A = ["....b..c....", "...b....c...", "..b......c..", ".b........c.", "oo........oo", "tt........tt"];
+const LEG_B = [".....bc.....", ".....bc.....", "....b..c....", "....b..c....", "...oo..oo...", "...tt..tt..."];
+const LEG_C = ["....c..b....", "...c....b...", "..c......b..", ".c........b.", "oo........oo", "tt........tt"];
+const LEG_JUMP = ["...b....c...", "..bb....cc..", ".ooo....ooo.", "............", "............", "............"];
+const LEG_STUMBLE = [".b.......c..", "o.........o.", "............", "............", "............", "............"];
+function athletePal(skin: string, headband: string, shirt: string, shorts: string, farLeg: string, nearLeg: string) {
+  return {
+    j: headband,
+    J: shade(headband, -0.3),
+    h: skin,
+    H: shade(skin, -0.22),
+    k: PAL.black,
+    w: shirt,
+    a: skin,
+    A: shade(skin, -0.2),
+    u: shorts,
+    b: shade(farLeg, -0.25),
+    c: nearLeg,
+    o: PAL.black,
+    t: PAL.grey,
+  };
 }
-const PLAYER_FRAMES = makeFrames(AP);
-const RIVAL_FRAMES = makeFrames(RP);
-const PLAYER_JUMP = sprite([...HEAD_TORSO, ...LEG_JUMP], AP);
-const PLAYER_STUMBLE = sprite([...HEAD_TORSO, ...LEG_STUMBLE], AP);
-const HURDLE = sprite([".wwwwwwww.", ".wyyyyyyw.", "....ww....", "....ww....", "....ww....", "....ww....", "...wwww..."], { w: PAL.white, y: PAL.orange });
+const AP = athletePal("#ffd9a8", PAL.red, PAL.white, PAL.navy, PAL.blue, PAL.blue);
+const RP = athletePal("#ffd9a8", PAL.blue, PAL.yellow, PAL.purple, PAL.pink, PAL.pink);
+function makeFrames(pal: Record<string, string>): Sprite[] {
+  const build = (torso: string[], legs: string[]) => outlined(sprite([...HEAD, ...torso, ...legs], pal));
+  return [build(TORSO_A, LEG_A), build(TORSO_B, LEG_B), build(TORSO_A, LEG_C), build(TORSO_B, LEG_B)];
+}
+
+// ── big/baked art lives behind one lazy memo: the arcade imports every game's module at once, so
+//    none of this runs (and no canvases get cached) until this game is actually created ──
+const TILE_W = 32; // ground tiles repeat every 32px along the track/runway
+const AD_H = TRACK_TOP - CROWD_H - 4; // bunting-board height between the fence and the track
+function bakeGround(base: string, grooves: number[]): Sprite {
+  const h = H - TRACK_TOP;
+  return bake(TILE_W, h, (x, y) => {
+    for (const gy of grooves) if (Math.abs(y - gy) <= 1) return shade(base, -0.22);
+    const n = hash2(x + 101, y, 5);
+    return n > 0.93 ? shade(base, -0.16) : n < 0.08 ? shade(base, 0.12) : base;
+  });
+}
+function bakeSand(): Sprite {
+  const base = "#e8c98a";
+  return bake(TILE_W, H - TRACK_TOP, (x, y) => {
+    const n = hash2(x + 7, y + 3, 17);
+    return n > 0.9 ? shade(base, -0.18) : n < 0.12 ? shade(base, 0.16) : base;
+  });
+}
+function bakeGrass(): Sprite {
+  const base = "#5a9a4e";
+  return bake(TILE_W, H - TRACK_TOP, (x, y) => {
+    const blade = hash2(Math.floor(x / 2), 11, 3) > 0.55;
+    if (hash2(x, y, 29) > 0.95) return shade(base, -0.2);
+    return blade ? shade(base, 0.1) : base;
+  });
+}
+/** a wood-plank fence tile under the crowd, grained instead of a flat brown bar */
+function bakeBoard(): Sprite {
+  const color = "#8a5a2c";
+  return bake(16, 6, (x, y) => (y === 0 ? shade(color, 0.3) : x % 6 === 0 ? shade(color, -0.16) : color));
+}
+/** a beveled bunting panel (yellow/pink), not a flat rect */
+function bakeAdPanel(color: string): Sprite {
+  return bake(26, AD_H, (x, y) => (y === 0 ? shade(color, 0.3) : y === AD_H - 1 ? shade(color, -0.3) : x === 0 || x === 25 ? shade(color, -0.15) : color));
+}
+/** a little round light/flag dot in the stands, lit from the top-left */
+function bakeLight(color: string): Sprite {
+  return bake(6, 6, (x, y) => {
+    const dx = (x - 2.5) / 3;
+    const dy = (y - 2.5) / 3;
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    if (dx < -0.2 && dy < -0.2) return shade(color, 0.45);
+    return d > 0.6 ? shade(color, -0.2) : color;
+  });
+}
+// a candy-cane hurdle: a red/white striped bar on two posts with a dark base plate
+function bakeHurdle(): Sprite {
+  return outlined(
+    bake(12, 18, (x, y) => {
+      if (y < 3) {
+        if (Math.abs(x - 2) > 1 && Math.abs(x - 9) > 1) return null;
+        return y === 0 ? shade(PAL.red, 0.2) : PAL.white;
+      }
+      if (y === 3) return x < 2 || x > 9 ? null : (x + y) % 4 < 2 ? PAL.red : PAL.white;
+      if (y < 15) return x === 2 || x === 9 ? shade(PAL.grey, -0.1) : null;
+      return x < 1 || x > 10 ? null : PAL.dark;
+    }),
+  );
+}
+/** tile a textured ground sprite across a world-space span (inside an active g.camera block) */
+function tileFill(g: Gfx, tile: Sprite, left: number, right: number, y: number) {
+  const start = Math.floor(left / TILE_W) * TILE_W;
+  for (let x = start; x < right; x += TILE_W) g.sprite(tile, x, y);
+}
+function makeArt() {
+  const grooves = LANE_CENTERS.map((y) => y - TRACK_TOP);
+  const playerFrames = makeFrames(AP);
+  const playerStumble = outlined(sprite([...HEAD, ...TORSO_B, ...LEG_STUMBLE], AP));
+  return {
+    playerFrames,
+    rivalFrames: makeFrames(RP),
+    playerJump: outlined(sprite([...HEAD, ...TORSO_A, ...LEG_JUMP], AP)),
+    playerStumble,
+    stumbleFlash: tinted(playerStumble, "#fff8e8"),
+    shadow: bakeShadow(14, 5, "rgba(20,12,10,0.4)"),
+    hurdle: bakeHurdle(),
+    track: bakeGround(TRACK_COLOR, grooves),
+    sand: bakeSand(),
+    grass: bakeGrass(),
+    board: bakeBoard(),
+    adPanels: { yellow: bakeAdPanel("#ffd24d"), pink: bakeAdPanel("#fe6ecf") },
+    lights: [bakeLight(PAL.yellow), bakeLight(PAL.pink), bakeLight(PAL.cyan)],
+  };
+}
+type Art = ReturnType<typeof makeArt>;
+let ART: Art | null = null;
+const art = () => (ART ??= makeArt());
 
 // ── events ──
 type Kind = "sprint" | "jump" | "throw";
@@ -134,6 +248,7 @@ interface Result {
 type Phase = "card" | "marks" | "set" | "wait" | "go" | "run" | "runup" | "hold" | "flight" | "result" | "fail" | "podium";
 
 function create(seed: number): GameInstance {
+  const A = art();
   const r = rng(seed);
   const results: Result[] = [];
   const confetti: Bit[] = []; // screen-space celebration
@@ -145,6 +260,9 @@ function create(seed: number): GameInstance {
   let frame = 0;
   let message = "";
   let messageT = 0;
+  let shakeT = 0; // a few frames of camera jitter on a hurdle stumble
+  let playerGait = -1; // last foot-plant phase, so dust/step sfx fire once per plant, not per frame
+  let fieldGait = -1;
 
   // sprint state
   let player: Runner = { x: 0, pace: { speed: 0, last: null } };
@@ -159,9 +277,13 @@ function create(seed: number): GameInstance {
   // field state
   let field: FieldRun = { pace: { speed: 0, last: null }, x: 0, runT: 0, angle: 45, angleDir: 1, attempt: 1, best: -1, lastFoul: false, flyX: 0, flyY: 0, flyVX: 0, flyVY: 0, flyGrav: 0.2, flyFromX: 0 };
 
+  /** which of the 4 running frames is "down" right now — shared by the draw loop and the
+   *  footstep/dust triggers below so a dust puff always lines up with a foot touching down */
+  const gaitPhase = (speed: number) => Math.floor(frame * (0.12 + speed * 0.3)) % 4;
   const burst = (x: number, y: number, colors: string[], n: number, spread: number, grav: number, lo: number, hi: number, arr: Bit[]) => {
     for (let i = 0; i < n; i++) arr.push({ x, y, vx: r.range(-spread, spread), vy: r.range(-spread * 0.6, 0), life: r.int(lo, hi), c: r.pick(colors), g: grav });
   };
+  const footPlant = (x: number, y: number) => burst(x, y, [shade(TRACK_COLOR, -0.12), TRACK_COLOR, "#e8c98a"], 3, 0.7, 0.1, 8, 15, fx);
   const spawnConfetti = () => {
     for (let i = 0; i < 44; i++) confetti.push({ x: r.range(0, W), y: -10, vx: r.range(-0.6, 0.6), vy: r.range(0.4, 1.3), life: r.int(100, 170), c: r.pick([PAL.yellow, PAL.pink, PAL.cyan, PAL.lime, PAL.orange, PAL.white]), g: 0.02 });
   };
@@ -216,6 +338,8 @@ function create(seed: number): GameInstance {
       phase = "podium";
       spawnConfetti();
       io.sfx.play("win");
+      io.sfx.play("cheer");
+      io.sfx.slide?.(500, 1000, 0.5, "triangle", 0.1);
       io.win();
     } else startCard(eventIdx + 1);
   };
@@ -226,6 +350,7 @@ function create(seed: number): GameInstance {
     results.push({ mark, medal });
     io.score(medalPoints(medal) + Math.max(0, Math.round((ev.bronze - mark) * 15)));
     io.sfx.play(medal === "gold" ? "win" : "coin");
+    if (medal) io.sfx.play("cheer");
     if (medal === "gold") spawnConfetti();
     message = `${mark.toFixed(2)}S — ${medal ? medal.toUpperCase() : "QUALIFIED"}`;
     messageT = 99999;
@@ -243,6 +368,7 @@ function create(seed: number): GameInstance {
     results.push({ mark, medal });
     io.score(medalPoints(medal) + Math.round(mark * 4));
     io.sfx.play(medal === "gold" ? "win" : "coin");
+    io.sfx.play("cheer");
     if (medal === "gold") spawnConfetti();
     message = `${mark.toFixed(2)}${ev.unit.toUpperCase()} — ${medal.toUpperCase()}`;
     messageT = 99999;
@@ -284,6 +410,7 @@ function create(seed: number): GameInstance {
     field.flyY = jump ? GROUND_Y : GROUND_Y - 14;
     field.flyFromX = boardPx;
     io.sfx.play(jump ? "jump" : "shoot");
+    if (!jump) io.sfx.noise?.(0.3, 0.1, 1800, 500);
     phase = "flight";
   };
 
@@ -311,6 +438,7 @@ function create(seed: number): GameInstance {
     update(io: IO) {
       frame++;
       if (messageT > 0) messageT--;
+      if (shakeT > 0) shakeT--;
       stepBits(confetti);
       stepBits(fx);
       const inp = io.input;
@@ -331,14 +459,17 @@ function create(seed: number): GameInstance {
           if (phase === "marks") {
             phase = "set";
             phaseT = 55;
+            io.sfx.tone(420, 0.09, "square", 0.08);
           } else if (phase === "set") {
             phase = "wait";
             phaseT = r.int(25, 65);
+            io.sfx.tone(560, 0.09, "square", 0.08);
           } else {
             phase = "go";
             phaseT = 22;
             runFrames = 0;
             io.sfx.play("blip");
+            io.sfx.noise?.(0.14, 0.14, 1000, 240);
           }
         }
         return;
@@ -354,6 +485,15 @@ function create(seed: number): GameInstance {
         if (phase === "run" && (inp.pressed.up || inp.pressed.b)) tryJump();
         player.x += player.pace.speed;
         stepRival();
+        // a dust puff + footstep sound each time a new foot plants down, not every frame
+        if (phase === "run" && stumbleT === 0 && player.pace.speed > 0.35) {
+          const g2 = gaitPhase(player.pace.speed);
+          if (g2 !== playerGait) {
+            playerGait = g2;
+            footPlant(player.x, GROUND_Y);
+            if (g2 % 2 === 0) io.sfx.play("step");
+          }
+        }
         if (phase === "go") {
           phaseT--;
           if (phaseT <= 0) phase = "run";
@@ -365,12 +505,14 @@ function create(seed: number): GameInstance {
               hd.cleared = jumpT > 0;
               if (hd.cleared) {
                 io.sfx.play("blip");
+                io.sfx.play("whoosh");
                 io.score(20);
               } else {
                 player.pace.speed *= 0.35;
                 stumbleT = 22;
+                shakeT = 10;
                 io.sfx.play("hit");
-                burst(player.x, GROUND_Y, ["#c98a4a", PAL.tan], 8, 1.4, 0.15, 10, 20, fx);
+                burst(player.x, GROUND_Y, [TRACK_COLOR, PAL.tan], 8, 1.4, 0.15, 10, 20, fx);
               }
             }
           }
@@ -391,6 +533,14 @@ function create(seed: number): GameInstance {
         pump(inp, field.pace);
         field.x += field.pace.speed;
         field.runT++;
+        if (field.pace.speed > 0.35) {
+          const g2 = gaitPhase(field.pace.speed);
+          if (g2 !== fieldGait) {
+            fieldGait = g2;
+            footPlant(field.x, GROUND_Y);
+            if (g2 % 2 === 0) io.sfx.play("step");
+          }
+        }
         const boardPx = ev.meters * PXM;
         if (inp.held.up || inp.held.b) {
           phase = "hold";
@@ -432,7 +582,14 @@ function create(seed: number): GameInstance {
         if (field.flyY >= floorY) {
           field.flyY = floorY;
           const mark = Math.max(0, (field.flyX - field.flyFromX) / PXM);
-          if (ev.kind === "jump") burst(field.flyX, GROUND_Y, ["#e8c98a", "#caa968"], 12, 1.8, 0.2, 14, 26, fx);
+          if (ev.kind === "jump") {
+            burst(field.flyX, GROUND_Y, ["#e8c98a", "#caa968"], 12, 1.8, 0.2, 14, 26, fx);
+            io.sfx.play("thud");
+            shakeT = 6;
+          } else {
+            burst(field.flyX, field.flyY, ["#5a9a4e", PAL.dark], 6, 1, 0.12, 10, 18, fx);
+            io.sfx.play("thud");
+          }
           resolveAttempt(io, mark);
         }
         return;
@@ -460,30 +617,35 @@ function create(seed: number): GameInstance {
 
   // ── drawing helpers (closures over the state above) ──
   function drawCrowd(g: Gfx, f: number) {
-    g.rect(0, 0, W, CROWD_H, "#2f6fb0");
-    g.rect(0, CROWD_H - 6, W, 6, "#8a5a2c");
+    // the stadium wall: a two-tone navy gradient (not a flat rect) behind rows of little lit
+    // dots — small sources with their own highlight, not a big flat glow
+    g.rect(0, 0, W, CROWD_H - 8, "#2a5fa0");
+    g.rect(0, CROWD_H - 8, W, 8, "#2f6fb0");
     for (let row = 0; row < 3; row++) {
       for (let i = 0; i < 18; i++) {
         const x = i * 15 + 4;
         const wave = Math.sin(f * 0.1 - i * 0.35 + row);
         const y = 5 + row * 10 + wave * 2;
-        const col = wave > 0.4 ? PAL.yellow : row % 2 ? PAL.pink : PAL.cyan;
-        g.rect(x, y, 6, 6, col);
+        const light = A.lights[wave > 0.4 ? 0 : row % 2 ? 1 : 2];
+        g.sprite(light, x, y);
       }
     }
-    // a strip of sponsor boards between the stands and the track, drifting slightly for depth
+    // a wood-grained fence tile, then the sponsor boards between the stands and the track
+    for (let x = 0; x < W; x += 16) g.sprite(A.board, x, CROWD_H - 6);
     g.rect(0, CROWD_H, W, TRACK_TOP - CROWD_H, "#1f8a5c");
     for (let i = 0; i < 10; i++) {
       const x = (((i * 32 - f * 0.4) % 320) + 320) % 320 - 32;
-      g.rect(x, CROWD_H + 2, 26, TRACK_TOP - CROWD_H - 4, i % 2 ? "#ffd34d" : "#ff6fcf");
+      g.sprite(i % 2 ? A.adPanels.yellow : A.adPanels.pink, x, CROWD_H + 2);
     }
   }
 
-  function drawRunnerPose(g: Gfx, x: number, baselineY: number, speed: number, stumbling: boolean, jumping: number, frames: Sprite[], scale: number) {
+  function drawRunnerPose(g: Gfx, x: number, baselineY: number, speed: number, stumbling: boolean, jumping: number, frames: Sprite[], scale: number, flashing = false) {
     let spr: Sprite;
-    if (stumbling) spr = PLAYER_STUMBLE;
-    else if (jumping > 0) spr = PLAYER_JUMP;
-    else spr = frames[Math.floor(frame * (0.12 + speed * 0.3)) % frames.length];
+    const idx = Math.floor(frame * (0.12 + speed * 0.3)) % frames.length;
+    if (stumbling) spr = flashing && frame % 4 < 2 ? A.stumbleFlash : A.playerStumble;
+    else if (jumping > 0) spr = A.playerJump;
+    else spr = frames[idx];
+    g.sprite(A.shadow, x - 1, baselineY - 3, { scale: scale * 0.7 });
     g.sprite(spr, x, baselineY - SPRITE_H * scale, { scale });
   }
 
@@ -493,12 +655,24 @@ function create(seed: number): GameInstance {
     if (sx > -14 && sx < W + 14) g.text(label, sx, y, "rgba(255,255,255,0.55)", { align: "center" });
   }
 
+  /** 2-3 short streak lines trailing a fast runner — juice without a big flat glow */
+  function speedStreaks(g: Gfx, x: number, baselineY: number, speed: number, scale: number) {
+    if (speed < SPEED_MAX * 0.55) return;
+    const n = speed > SPEED_MAX * 0.85 ? 3 : 2;
+    for (let i = 0; i < n; i++) {
+      const sy = baselineY - SPRITE_H * scale * (0.3 + i * 0.22);
+      const len = 5 + speed * 2;
+      g.line(x - 3, sy, x - 3 - len, sy, "rgba(255,255,255,0.35)");
+    }
+  }
+
   function drawSprint(g: Gfx, ev: EventDef) {
     const trackLen = ev.meters * PXM;
     const camX = clamp(player.x - CAM_OFFSET, 0, Math.max(0, trackLen + 50 - W));
-    g.camera(camX, 0);
-    // the track fills everything below the fence — no empty gap
-    g.rect(-60, TRACK_TOP, trackLen + 200, H - TRACK_TOP, "#c98a4a");
+    const shx = shakeT > 0 ? (frame % 2 ? 1 : -1) * Math.ceil(shakeT / 4) : 0;
+    g.camera(camX + shx, 0);
+    // the track fills everything below the fence — no empty gap, a tiled dirt texture not a flat rect
+    tileFill(g, A.track, camX - 60, camX + W + 60, TRACK_TOP);
     for (const ly of LANE_LINES) g.rect(-60, ly, trackLen + 200, 1, "rgba(255,255,255,0.55)");
     for (let x = 0; x < trackLen; x += 22) g.rect(x, GROUND_Y - 1, 9, 2, "rgba(255,255,255,0.65)");
     // 10m distance markers scroll past so speed reads clearly (text ignores the camera, offset by hand)
@@ -508,19 +682,20 @@ function create(seed: number): GameInstance {
       const sx = wx - camX;
       if (sx > -10 && sx < W + 10) g.text(`${m}`, sx, TRACK_TOP + 4, "rgba(255,255,255,0.8)", { align: "center" });
     }
-    const laneCenters = [TRACK_TOP + 21, 120, RIVAL_Y, GROUND_Y];
-    laneCenters.forEach((cy, i) => laneNumber(g, camX, 10, cy - 24, `${i + 1}`));
+    LANE_CENTERS.forEach((cy, i) => laneNumber(g, camX, 10, cy - 24, `${i + 1}`));
     // finish line: a tall checkered post plus a sign
     for (let i = 0; i < 10; i++) g.rect(trackLen + 2, TRACK_TOP + i * ((H - TRACK_TOP) / 10), 5, (H - TRACK_TOP) / 10 - 1, i % 2 ? PAL.black : PAL.white);
     laneNumber(g, camX, trackLen - 10, TRACK_TOP - 1, "FINISH");
     if (ev.hurdles) {
       for (const hd of hurdles) {
         if (hd.x < camX - 30 || hd.x > camX + W + 30) continue;
-        g.sprite(HURDLE, hd.x - 10, GROUND_Y - 14, { scale: 2 });
+        g.sprite(A.hurdle, hd.x - 10, GROUND_Y - 30, { scale: 1.5 });
       }
     }
-    drawRunnerPose(g, rival.x, RIVAL_Y, rival.pace.speed, false, 0, RIVAL_FRAMES, RIVAL_SCALE);
-    drawRunnerPose(g, player.x, GROUND_Y, player.pace.speed, stumbleT > 0, jumpT, PLAYER_FRAMES, PLAYER_SCALE);
+    speedStreaks(g, rival.x, RIVAL_Y, rival.pace.speed, RIVAL_SCALE);
+    speedStreaks(g, player.x, GROUND_Y, player.pace.speed, PLAYER_SCALE);
+    drawRunnerPose(g, rival.x, RIVAL_Y, rival.pace.speed, false, 0, A.rivalFrames, RIVAL_SCALE);
+    drawRunnerPose(g, player.x, GROUND_Y, player.pace.speed, stumbleT > 0, jumpT, A.playerFrames, PLAYER_SCALE, true);
     for (const b of fx) g.rect(b.x, b.y, 2, 2, b.c);
     g.camera(0, 0);
     // the rival can fall off either edge of the screen — point to them so they never just vanish
@@ -535,8 +710,9 @@ function create(seed: number): GameInstance {
     const totalLen = boardPx + 420;
     const activeX = phase === "flight" ? field.flyX : field.x;
     const camX = clamp(activeX - CAM_OFFSET, 0, Math.max(0, totalLen - W));
-    g.camera(camX, 0);
-    g.rect(-60, TRACK_TOP, boardPx + 90, H - TRACK_TOP, "#c98a4a");
+    const shx = shakeT > 0 ? (frame % 2 ? 1 : -1) * Math.ceil(shakeT / 4) : 0;
+    g.camera(camX + shx, 0);
+    tileFill(g, A.track, camX - 60, boardPx + 90, TRACK_TOP);
     for (const ly of LANE_LINES) g.rect(-60, ly, boardPx + 90, 1, "rgba(255,255,255,0.4)");
     for (let x = 0; x < boardPx; x += 22) g.rect(x, GROUND_Y - 1, 9, 2, "rgba(255,255,255,0.65)");
     for (let m = 10; m * PXM < boardPx; m += 10) {
@@ -546,25 +722,30 @@ function create(seed: number): GameInstance {
     }
     g.rect(boardPx, TRACK_TOP, 3, H - TRACK_TOP, PAL.white); // board / foul line
     if (ev.kind === "jump") {
-      g.rect(boardPx + 3, TRACK_TOP, 260, H - TRACK_TOP, "#e8c98a");
-      for (let i = 0; i < 16; i++) g.rect(boardPx + 10 + i * 16, TRACK_TOP + 20 + ((i * 37) % 120), 3, 3, "#caa968");
+      tileFill(g, A.sand, boardPx + 3, boardPx + 260, TRACK_TOP);
     } else {
-      g.rect(boardPx + 3, TRACK_TOP, totalLen - boardPx, H - TRACK_TOP, "#5a9a4e");
+      tileFill(g, A.grass, boardPx + 3, Math.min(camX + W + 60, totalLen), TRACK_TOP);
       for (let m = 10; m <= 50; m += 10) g.rect(boardPx + m * PXM, TRACK_TOP + 2, 1, H - TRACK_TOP - 4, "rgba(255,255,255,0.3)");
     }
     const athleteX = ev.kind === "jump" && phase === "flight" ? field.flyX : field.x;
     const athleteBaseline = ev.kind === "jump" && phase === "flight" ? field.flyY : GROUND_Y;
     const jumping = phase === "hold" || (phase === "flight" && ev.kind === "jump") ? 1 : 0;
-    drawRunnerPose(g, athleteX, athleteBaseline, field.pace.speed, false, jumping, PLAYER_FRAMES, PLAYER_SCALE);
+    speedStreaks(g, field.x, GROUND_Y, field.pace.speed, PLAYER_SCALE);
+    drawRunnerPose(g, athleteX, athleteBaseline, field.pace.speed, false, jumping, A.playerFrames, PLAYER_SCALE);
     if (ev.kind === "throw") {
       if (phase === "flight") {
         const ang = Math.atan2(field.flyVY, field.flyVX);
-        const len = 15;
-        g.line(field.flyX - Math.cos(ang) * len, field.flyY - Math.sin(ang) * len, field.flyX + Math.cos(ang) * len, field.flyY + Math.sin(ang) * len, "#d8b23a");
-        g.circle(field.flyX + Math.cos(ang) * len, field.flyY + Math.sin(ang) * len, 2, PAL.grey);
+        const len = 16;
+        const tx = field.flyX + Math.cos(ang) * len;
+        const ty = field.flyY + Math.sin(ang) * len;
+        g.line(field.flyX - Math.cos(ang) * len * 0.8, field.flyY - Math.sin(ang) * len * 0.8, tx, ty, "#9a6a28");
+        g.line(field.flyX + Math.cos(ang) * len * 0.3, field.flyY + Math.sin(ang) * len * 0.3, tx, ty, PAL.grey);
+        g.circle(tx, ty, 1, "#e3e8ff");
+        g.line(field.flyX - Math.cos(ang) * (len + 6), field.flyY - Math.sin(ang) * (len + 6), field.flyX - Math.cos(ang) * len, field.flyY - Math.sin(ang) * len, "rgba(255,255,255,0.3)");
       } else {
         const handY = GROUND_Y - SPRITE_H * PLAYER_SCALE + 10;
-        g.line(field.x + 10, handY, field.x + 30, handY - 8, "#d8b23a");
+        g.line(field.x + 10, handY, field.x + 32, handY - 9, "#9a6a28");
+        g.circle(field.x + 32, handY - 9, 1, "#e3e8ff");
       }
     }
     if (field.best > 0) {
@@ -576,26 +757,29 @@ function create(seed: number): GameInstance {
   }
 
   function drawHud(g: Gfx, ev: EventDef) {
-    g.rect(0, 0, W, 13, "rgba(13,11,26,0.6)");
+    g.rect(0, 0, W, 13, "rgba(13,11,26,0.65)");
+    g.rect(0, 12, W, 1, "rgba(255,225,77,0.4)");
     g.text(`EVENT ${eventIdx + 1}/${EVENTS.length}`, 4, 3, PAL.white);
     g.text(ev.name, W / 2, 3, PAL.yellow, { align: "center" });
     let mx = W - 4;
     for (let i = results.length - 1; i >= 0; i--) {
-      g.text("*", mx, 3, medalColor(results[i].medal), { align: "right" });
+      g.text("★", mx, 3, medalColor(results[i].medal), { align: "right" });
       mx -= 7;
     }
     const racing = phase === "go" || phase === "run" || phase === "runup" || phase === "hold";
     if (racing) {
-      // a solid dark HUD box, top-left under the event title — never bare over the crowd/fence art
+      // a solid dark framed HUD panel, top-left under the event title — never bare over the art
       const pace = ev.kind === "sprint" ? player.pace.speed : field.pace.speed;
-      g.rect(2, 14, 68, 20, "rgba(13,11,26,0.7)");
+      g.rect(2, 14, 68, 20, "rgba(13,11,26,0.75)");
+      g.box(2, 14, 68, 20, "rgba(255,255,255,0.25)");
       g.text("SPEED", 5, 16, PAL.white);
       g.rect(5, 25, 60, 6, PAL.dark);
       g.rect(5, 25, clamp(pace / SPEED_MAX, 0, 1) * 60, 6, pace > SPEED_MAX * 0.7 ? PAL.lime : PAL.yellow);
     }
     if (ev.kind === "sprint" && (phase === "go" || phase === "run")) g.text(`${(runFrames / 60).toFixed(2)}S`, W - 4, 3, PAL.cyan, { align: "right" });
     if (phase === "hold") {
-      g.rect(126, 14, 128, 20, "rgba(13,11,26,0.7)");
+      g.rect(126, 14, 128, 20, "rgba(13,11,26,0.75)");
+      g.box(126, 14, 128, 20, "rgba(255,255,255,0.25)");
       g.text("ANGLE", 130, 16, PAL.white);
       g.rect(130, 25, 80, 6, PAL.dark);
       const pct = clamp((field.angle - 15) / 60, 0, 1);
@@ -634,9 +818,13 @@ function create(seed: number): GameInstance {
       g.text(`GOLD x${golds}  SILVER x${silvers}  BRONZE x${bronzes}`, W / 2, 140, PAL.grey, { align: "center" });
     } else if (phase === "podium") {
       g.rect(60, 174, 34, 30, PAL.dark);
+      g.box(60, 174, 34, 30, "rgba(255,255,255,0.2)");
       g.rect(96, 150, 36, 54, "#c89a3a");
+      g.box(96, 150, 36, 54, "rgba(255,255,255,0.3)");
       g.rect(134, 166, 34, 38, PAL.dark);
-      g.sprite(PLAYER_FRAMES[0], 102, 116);
+      g.box(134, 166, 34, 38, "rgba(255,255,255,0.2)");
+      g.sprite(A.shadow, 106, 146, { scale: 1.4 });
+      g.sprite(A.playerFrames[0], 100, 118, { scale: 2 });
       g.text("CHAMPION!", W / 2, 26, PAL.yellow, { align: "center", size: 4 });
       const golds = results.filter((x) => x.medal === "gold").length;
       const silvers = results.filter((x) => x.medal === "silver").length;
