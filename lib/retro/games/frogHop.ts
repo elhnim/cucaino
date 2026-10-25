@@ -1,9 +1,11 @@
-// FROG HOP — help a little frog get home. Hop across the busy road, then over the river on
+// FROG HOP — help a little frog get home. Hop across the busy night road, then over the river on
 // floating logs and turtles (careful: some turtles dive!). Land in all 5 lily-pad homes to
 // clear the level; the next one is faster. Each life has a timer bar, and a bonus bug
-// sometimes sits in an empty home. 3 lives. (Original game in the spirit of 8-bit
-// road-crossing classics.)
-import { PAL, W, clamp, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+// sometimes sits in an empty home. 3 lives. A night-time cabinet look: a moonlit river with
+// lily pads, a dark asphalt road full of glossy cars and a lamp-lit sidewalk. (Original game in
+// the spirit of 8-bit road-crossing classics.)
+import { PAL, W, clamp, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, bayer, drawStrip, fbm, hash2, mixHex, outlined, shade } from "../art";
 
 const T = 16;
 const START_ROW = 13;
@@ -16,17 +18,32 @@ const HOP_FR = 8;
 const LOOP = W + 112; // lane objects wrap around this loop (room for the longest log)
 const REPEAT = 16; // frames between hops while a direction is held
 
-const FROG_TOP = ["..gg......gg..", ".gwkg....gwkg.", ".gwwg....gwwg.", "..gggggggggg..", "...gllllllg...", "g..gllllllg..g", "gg.gllllllg.gg", ".gggllllllggg.", "...gllllllg...", "...gggggggg..."];
-const FROG_PAL = { g: PAL.green, l: PAL.lime, w: PAL.white, k: PAL.black };
+// ── palette sampled straight off the cabinet painting (deep night road + river) ──
+const RIVER_DEEP = "#071a63";
+const RIVER_MID = "#1c49c4";
+const RIVER_GLOW = "#5fb6ff";
+const ROAD_DARK = "#14172a";
+const ROAD_DARK2 = "#1d2140";
+const HEDGE_DARK = "#102f1c";
+const HEDGE_LEAF = "#1f7a3c";
+const LILY_GREEN = "#1f9a3f";
+const LILY_DARK = "#0f5c27";
+const GRASS_DARK = "#0d2a1b";
+const GRASS_LIGHT = "#1f6f34";
+const MEDIAN_BASE = "#262a40";
+const CAR_COLORS = [PAL.red, PAL.blue, PAL.pink, PAL.purple, PAL.orange, PAL.teal];
+
+const FROG_TOP = ["..gg......gg..", ".gwkg....gwkg.", ".gwwg....gwwg.", "..hhhhhhhhhh..", "...gllllllg...", "d..gllllllg..d", "dd.gllllllg.dd", ".gggllllllggg.", "...gllllllg...", "...dddddddd.."];
+const FROG_PAL = { g: PAL.green, l: PAL.lime, w: PAL.white, k: PAL.black, h: shade(PAL.green, 0.3), d: shade(PAL.green, -0.32) };
 const SIT_ROWS = [...FROG_TOP, "..gg......gg..", ".gg........gg.", "gg..........gg", ".............."];
 const HOP_ROWS = [...FROG_TOP, "...g......g...", "..gg......gg..", "..g........g..", "..g........g.."];
 /** rotate pixel rows 90° clockwise (an up-facing frog ends up facing right) */
 const rot = (rows: string[]) => rows[0].split("").map((_, x) => rows.map((row) => row[x]).reverse().join(""));
-const FROG_SIT = sprite(SIT_ROWS, FROG_PAL);
-const FROG_HOP = sprite(HOP_ROWS, FROG_PAL);
-const FROG_SIT_R = sprite(rot(SIT_ROWS), FROG_PAL);
-const FROG_HOP_R = sprite(rot(HOP_ROWS), FROG_PAL);
-const BUG = sprite(["k.....k", ".k...k.", "..yyy..", ".ywwwy.", "yyyyyyy", ".ykyky.", "..yyy.."], { k: PAL.black, y: PAL.yellow, w: PAL.cyan });
+const FROG_SIT = outlined(sprite(SIT_ROWS, FROG_PAL));
+const FROG_HOP = outlined(sprite(HOP_ROWS, FROG_PAL));
+const FROG_SIT_R = outlined(sprite(rot(SIT_ROWS), FROG_PAL));
+const FROG_HOP_R = outlined(sprite(rot(HOP_ROWS), FROG_PAL));
+const BUG = outlined(sprite(["k.....k", ".k...k.", "..yyy..", ".ywwwy.", "yyyyyyy", ".ykyky.", "..yyy.."], { k: PAL.black, y: PAL.yellow, w: PAL.cyan }));
 
 interface LaneObj {
   x0: number;
@@ -54,6 +71,183 @@ interface Bit {
 
 const mod = (v: number, m: number) => ((v % m) + m) % m;
 
+// ── backdrop + tile art, baked once and reused every frame (see "BAKE LAZILY" below) ──
+function hedgeStrip(): Sprite {
+  return bake(W, T, (x, y) => {
+    if (HOMES.some((hx) => Math.abs(x - hx) < 13)) return null; // the lily-pad home bays
+    const n = fbm(x * 0.22, y * 0.42, 2, 11);
+    const base = mixHex(HEDGE_DARK, HEDGE_LEAF, 0.3 + n * 0.5);
+    if (y === 0) return shade(base, n > 0.55 ? 0.3 : 0.05);
+    if (y >= T - 2) return shade(base, n < 0.4 ? -0.22 : 0);
+    return base;
+  });
+}
+function lilyPadSprite(): Sprite {
+  const w = 22;
+  const h = 14;
+  return bake(w, h, (x, y) => {
+    const dx = (x + 0.5 - w / 2) / (w / 2);
+    const dy = (y + 0.5 - h / 2) / (h / 2);
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    if (Math.abs(Math.atan2(dy, dx)) < 0.4 && d > 0.3) return null; // classic lily-pad notch
+    if (d > 0.78) return LILY_DARK;
+    const vein = Math.abs(Math.sin(dx * 7) + Math.cos(dy * 6)) < 0.22;
+    if (vein) return shade(LILY_GREEN, -0.14);
+    return d < 0.3 ? shade(LILY_GREEN, 0.2) : LILY_GREEN;
+  });
+}
+function medianStrip(): Sprite {
+  return bake(W, T, (x, y) => {
+    if (y === 0 || y === T - 1) return shade(MEDIAN_BASE, 0.22);
+    if (y === 7 && x % 18 < 2) return PAL.yellow; // reflector studs
+    const n = hash2(Math.floor(x / 4), Math.floor(y / 3), 5);
+    return shade(MEDIAN_BASE, (n - 0.5) * 0.14);
+  });
+}
+function roadTile(): Sprite {
+  return bake(32, T, (x, y) => {
+    const streak = fbm(x * 0.15, y * 0.5, 2, 9);
+    const base = mixHex(ROAD_DARK, ROAD_DARK2, streak);
+    return hash2(x, y, 3) > 0.985 ? shade(base, 0.3) : base;
+  });
+}
+function riverTile(): Sprite {
+  return bake(48, T, (x, y) => {
+    const n = fbm(x * 0.12, y * 0.3, 2, 21);
+    const base = mixHex(RIVER_DEEP, RIVER_MID, n);
+    const streak = Math.sin((x - y * 1.6) * 0.25) * 0.5 + 0.5;
+    return streak > 0.84 && bayer(x, y) < streak - 0.78 ? shade(base, 0.32) : base;
+  });
+}
+/** a lamp's small bright core plus a soft dithered glow falloff — never a flat glow dome */
+function lampPixel(x: number, y: number, cx: number): string | null {
+  const dx = x - cx;
+  const dy = y - 4;
+  const d = Math.hypot(dx, dy);
+  if (d < 1.6) return "#fff6c2";
+  if (d < 5 && 1 - d / 5 > bayer(x, y)) return "#ffe14d";
+  if (Math.abs(dx) <= 1 && y >= 6 && y <= 14) return y === 6 ? "#3a4050" : "#262b3c";
+  return null;
+}
+function sidewalkStartStrip(): Sprite {
+  const lampXs = [14, W - 14];
+  return bake(W, T, (x, y) => {
+    for (const cx of lampXs) {
+      const c = lampPixel(x, y, cx);
+      if (c) return c;
+    }
+    const n = fbm(x * 0.3, y * 0.6, 2, 77);
+    const base = mixHex(GRASS_DARK, GRASS_LIGHT, n * 0.55);
+    return y < 2 ? shade(base, 0.12) : base;
+  });
+}
+function logTile(): Sprite {
+  return bake(16, 12, (x, y) => {
+    if (y === 0) return "#c98a52";
+    if (y === 11) return shade(PAL.brown, -0.3);
+    return Math.sin((x + y * 0.4) * 0.8) > 0.55 ? shade(PAL.brown, -0.16) : PAL.brown;
+  });
+}
+function carSprite(color: string): Sprite {
+  const roof = shade(color, 0.35);
+  const under = shade(color, -0.3);
+  return outlined(
+    bake(16, 16, (x, y) => {
+      const wheelCols = (x >= 2 && x <= 3) || (x >= 11 && x <= 12);
+      if (y <= 2 || y >= 13) return (y === 1 || y === 2 || y === 13 || y === 14) && wheelCols ? "#0d0b1a" : null;
+      if (x < 1 || x > 14) return null;
+      if (x === 14 && (y === 6 || y === 9)) return "#fff4b0"; // headlight
+      if (x === 1 && (y === 6 || y === 9)) return "#ff3b3b"; // taillight
+      if (x >= 6 && x <= 10 && y >= 6 && y <= 9) return "#b9c4e6"; // windshield
+      if (y === 3) return roof;
+      if (y === 12) return under;
+      return color;
+    })
+  );
+}
+function racerSprite(): Sprite {
+  const color = PAL.yellow;
+  const roof = shade(color, 0.3);
+  const under = shade(color, -0.3);
+  return outlined(
+    bake(16, 16, (x, y) => {
+      const wheelCols = (x >= 2 && x <= 3) || (x >= 11 && x <= 12);
+      if (y <= 2 || y >= 13) return (y === 1 || y === 2 || y === 13 || y === 14) && wheelCols ? "#0d0b1a" : null;
+      if (x < 1 || x > 14) return null;
+      if (x === 14 && (y === 6 || y === 9)) return "#fff4b0"; // headlight
+      if (x === 1 && (y === 6 || y === 9)) return "#ff3b3b"; // taillight
+      if ((y === 7 || y === 8) && (x < 6 || x > 10)) return PAL.red; // racing stripe either side of the cab
+      if (x >= 6 && x <= 10 && y >= 6 && y <= 9) return "#fff0c2";
+      if (y === 3) return roof;
+      if (y === 12) return under;
+      return color;
+    })
+  );
+}
+function truckSprite(): Sprite {
+  const cab = "#d9433a";
+  const cabRoof = shade(cab, 0.3);
+  const cabUnder = shade(cab, -0.3);
+  const trailer = "#c9ccd8";
+  const trailerRoof = shade(trailer, 0.2);
+  const trailerUnder = shade(trailer, -0.22);
+  return outlined(
+    bake(32, 16, (x, y) => {
+      const wheelCols = (x >= 3 && x <= 4) || (x >= 14 && x <= 15) || (x >= 26 && x <= 27);
+      if (y <= 2 || y >= 13) return (y === 1 || y === 2 || y === 13 || y === 14) && wheelCols ? "#0d0b1a" : null;
+      if (x < 1 || x > 30) return null;
+      if (x >= 24) {
+        if (x === 30 && (y === 6 || y === 9)) return "#fff4b0";
+        if (x >= 26 && x <= 29 && y >= 6 && y <= 9) return "#bfefff";
+        if (y === 3) return cabRoof;
+        if (y === 12) return cabUnder;
+        return cab;
+      }
+      if (x === 1 && (y === 6 || y === 9)) return "#ff3b3b";
+      if (y === 3) return trailerRoof;
+      if (y === 12) return trailerUnder;
+      return x % 6 === 0 ? shade(trailer, -0.1) : trailer;
+    })
+  );
+}
+function turtleSprite(legsOut: boolean): Sprite {
+  const shellHi = "#5fd27e";
+  const shellMid = "#2c8a4e";
+  const shellDark = "#175c34";
+  return outlined(
+    bake(16, 14, (x, y) => {
+      const dx = x - 8;
+      const dy = y - 7;
+      const d = Math.hypot(dx / 6, dy / 5);
+      if (d < 1) {
+        if (d < 0.38) return shellHi;
+        return Math.floor(d * 4) % 2 === 0 ? shellMid : shellDark;
+      }
+      if (dx > 5 && Math.abs(dy) < 2.1 && d < 1.5) return PAL.lime;
+      if (legsOut && Math.abs(dx) < 2.4 && Math.abs(dy) > 5 && d < 1.7) return PAL.lime;
+      return null;
+    })
+  );
+}
+function makeArt() {
+  return {
+    hedge: hedgeStrip(),
+    lily: lilyPadSprite(),
+    median: medianStrip(),
+    road: roadTile(),
+    river: riverTile(),
+    sidewalkStart: sidewalkStartStrip(),
+    log: logTile(),
+    cars: Object.fromEntries(CAR_COLORS.map((c) => [c, carSprite(c)])) as Record<string, Sprite>,
+    racer: racerSprite(),
+    truck: truckSprite(),
+    turtle: [turtleSprite(true), turtleSprite(false)] as [Sprite, Sprite],
+  };
+}
+let A: ReturnType<typeof makeArt> | null = null;
+const art = () => (A ??= makeArt());
+
 function makeLanes(level: number, seed: number): Lane[] {
   const r = rng(seed + level * 17);
   const sp = 1 + (level - 1) * 0.2;
@@ -61,7 +255,7 @@ function makeLanes(level: number, seed: number): Lane[] {
   const lane = (row: number, kind: Lane["kind"], dir: number, speed: number, n: number, w: number, dive = false): Lane => {
     const objs: LaneObj[] = [];
     for (let i = 0; i < n; i++)
-      objs.push({ x0: (i * LOOP) / n + r.range(0, 10), w, dive: dive && i % 2 === 0, phase: r.int(0, 299), color: r.pick([PAL.red, PAL.blue, PAL.pink, PAL.purple, PAL.orange, PAL.teal]) });
+      objs.push({ x0: (i * LOOP) / n + r.range(0, 10), w, dive: dive && i % 2 === 0, phase: r.int(0, 299), color: r.pick(CAR_COLORS) });
     return { row, kind, dir, speed: speed * sp, off: r.range(0, LOOP), objs };
   };
   return [
@@ -117,8 +311,12 @@ function create(seed: number): GameInstance {
     deadX = frog.x + 8;
     deadY = frog.row * T + 8;
     frog.hop = 0;
-    io.sfx.play(kind === "splash" ? "bounce" : "hit");
-    const c = kind === "splash" ? [PAL.white, PAL.cyan, PAL.sky] : [PAL.white, PAL.grey, PAL.yellow];
+    if (kind === "splash") io.sfx.play("splash");
+    else {
+      io.sfx.play("hit");
+      io.sfx.noise?.(140, 0.5, 700, 140);
+    }
+    const c = kind === "splash" ? [RIVER_GLOW, "#eaffff", RIVER_MID] : [PAL.white, PAL.grey, PAL.yellow];
     for (let i = 0; i < 14; i++) {
       const a = r.range(0, Math.PI * 2);
       const s = r.range(0.5, 2);
@@ -172,6 +370,7 @@ function create(seed: number): GameInstance {
         pts += 200;
         bug = -1;
         pops.push({ x: HOMES[i], y: 10, t: 50, s: "BUG +200" });
+        io.sfx.slide?.(500, 1300, 0.28, "square", 0.5);
       } else pops.push({ x: HOMES[i], y: 10, t: 40, s: `+${pts}` });
       io.score(pts);
       io.sfx.play("powerup");
@@ -215,7 +414,10 @@ function create(seed: number): GameInstance {
           bugT = r.int(400, 700);
         } else {
           const open = filled.map((f, i) => (f ? -1 : i)).filter((i) => i >= 0);
-          if (open.length) bug = r.pick(open);
+          if (open.length) {
+            bug = r.pick(open);
+            io.sfx.play("pickup");
+          }
           bugT = 300;
         }
       }
@@ -232,6 +434,9 @@ function create(seed: number): GameInstance {
         }
         return;
       }
+
+      // a distant engine whoosh now and then, so the road feels alive without ever looping
+      if (frame % 97 === 11) io.sfx.play("whoosh");
 
       // ── hopping ──
       const inp = io.input;
@@ -257,6 +462,7 @@ function create(seed: number): GameInstance {
         return;
       }
       if (timer === 300) io.sfx.play("blip");
+      else if (timer < 150 && timer % 30 === 0) io.sfx.play("blip");
 
       // ── the river carries you (only once you've landed) ──
       if (frog.hop === 0 && RIVER.includes(frog.row)) {
@@ -291,32 +497,36 @@ function create(seed: number): GameInstance {
     },
 
     draw(g: Gfx) {
-      g.clear(PAL.night);
-      // river + banks
-      g.rect(0, 2 * T, W, 5 * T, "#2b62d9");
-      for (let i = 0; i < 24; i++) {
-        const y = 2 * T + ((i * 13) % (5 * T));
-        const x = mod(i * 47 + frame * (i % 2 ? 0.3 : -0.3), W + 20) - 10;
-        g.rect(x, y, 8, 1, "#5d8ff0");
+      const a = art();
+      g.clear(ROAD_DARK);
+
+      // river, each row drifting at its own pace for a touch of depth
+      for (let i = 0; i < RIVER.length; i++) {
+        const row = RIVER[i];
+        const dir = i % 2 === 0 ? 1 : -1;
+        drawStrip(g, a.river, dir * (frame * (0.35 + i * 0.05)) + row * 29, row * T, W);
       }
-      // hedge row with lily-pad bays
-      g.rect(0, T, W, T, "#1f7a3c");
-      for (let x = 0; x < W; x += 8) g.circle(x + 4, T + 3, 5, "#2f9a44");
+      for (let i = 0; i < 16; i++) {
+        const y = RIVER[0] * T + ((i * 13) % (RIVER.length * T));
+        const x = mod(i * 47 + frame * (i % 2 ? 0.3 : -0.3), W + 20) - 10;
+        g.rect(x, y, 6, 1, RIVER_GLOW);
+      }
+
+      // hedge + lily-pad homes
+      g.sprite(a.hedge, 0, T);
       for (let i = 0; i < 5; i++) {
         const hx = HOMES[i];
-        g.rect(hx - 12, T + 2, 24, T - 2, "#2b62d9");
-        g.circle(hx, T + 9, 7, PAL.green);
-        g.rect(hx, T + 5, 3, 4, "#2b62d9");
-        if (filled[i]) g.sprite(FROG_SIT, hx - 7, T + 1);
-        else if (bug === i) g.sprite(BUG, hx - 3, T + 6 + (frame % 20 < 10 ? 0 : -1));
+        g.sprite(a.lily, hx - 11, T + 1);
+        if (filled[i]) g.sprite(FROG_SIT, hx - 8, T);
+        else if (bug === i) g.sprite(BUG, hx - 4, T + 4 + (frame % 20 < 10 ? 0 : -1));
       }
-      // candy sidewalks
-      for (const row of [7, START_ROW]) {
-        g.rect(0, row * T, W, T, PAL.purple);
-        for (let x = 0; x < W; x += 16) g.rect(x + (row === 7 ? 0 : 8), row * T + 2, 8, T - 4, "#b37bff");
-      }
+
+      // safe median strip + the lamp-lit home sidewalk
+      g.sprite(a.median, 0, 7 * T);
+      g.sprite(a.sidewalkStart, 0, START_ROW * T);
+
       // road
-      g.rect(0, 8 * T, W, 5 * T, "#3a3d52");
+      for (const row of ROAD) drawStrip(g, a.road, row * 7, row * T, W);
       for (let row = 9; row <= 12; row++) for (let x = 0; x < W; x += 24) g.rect(x + 4, row * T - 1, 12, 2, PAL.yellow);
 
       // lane objects
@@ -326,44 +536,22 @@ function create(seed: number): GameInstance {
           const x = objX(ln, o);
           if (x > W || x + o.w < 0) continue;
           if (ln.kind === "log") {
-            g.rect(x, y + 3, o.w, 10, PAL.brown);
-            g.rect(x, y + 3, o.w, 2, "#b87444");
-            for (let k = 8; k < o.w - 4; k += 12) g.rect(x + k, y + 8, 6, 1, "#6a3c1e");
-            g.circle(x + o.w - 3, y + 8, 4, PAL.tan);
-            g.circle(x + o.w - 3, y + 8, 2, "#c08850");
+            for (let k = 0; k < o.w; k += 16) g.sprite(a.log, x + k, y + 2);
+            g.circle(x + o.w - 5, y + 8, 5, PAL.tan);
+            g.circle(x + o.w - 5, y + 8, 3, shade(PAL.tan, -0.22));
           } else if (ln.kind === "turtle") {
             const ds = diveState(o);
             if (ds === 2) {
-              for (let k = 0; k < o.w; k += 16) g.circle(x + k + 8, y + 8, 3 + (frame % 20 < 10 ? 1 : 0), "#5d8ff0");
+              for (let k = 0; k < o.w; k += 16) g.circle(x + k + 8, y + 9, 3 + (frame % 20 < 10 ? 1 : 0), RIVER_MID);
               continue;
             }
-            for (let k = 0; k < o.w; k += 16) {
-              const tx = x + k + 8;
-              g.circle(tx + ln.dir * 6, y + 8, 2, PAL.lime);
-              g.circle(tx, y + 8, ds === 1 ? 5 : 6, ds === 1 ? "#2a8a78" : PAL.teal);
-              g.rect(tx - 2, y + 6, 4, 4, ds === 1 ? PAL.teal : PAL.green);
-              if (frame % 16 < 8) g.rect(tx - 6, y + 3, 2, 2, PAL.lime);
-              else g.rect(tx - 6, y + 11, 2, 2, PAL.lime);
-            }
+            const spr = a.turtle[frame % 24 < 12 ? 0 : 1];
+            if (ds === 1) g.alpha(0.55);
+            for (let k = 0; k < o.w; k += 16) g.sprite(spr, x + k - 1, y, { flipX: ln.dir < 0 });
+            if (ds === 1) g.alpha(1);
           } else {
-            const long = ln.kind === "truck";
-            const front = ln.dir > 0 ? x + o.w - 4 : x;
-            g.rect(x + 2, y + 13, 4, 3, PAL.black);
-            g.rect(x + o.w - 6, y + 13, 4, 3, PAL.black);
-            g.rect(x + 2, y + 1, 4, 2, PAL.black);
-            g.rect(x + o.w - 6, y + 1, 4, 2, PAL.black);
-            if (long) {
-              g.rect(x, y + 3, o.w, 10, PAL.grey);
-              g.rect(ln.dir > 0 ? x + o.w - 10 : x, y + 2, 10, 12, PAL.orange);
-              g.rect(ln.dir > 0 ? x + o.w - 5 : x + 2, y + 4, 3, 8, PAL.cyan);
-            } else {
-              const col = ln.kind === "racer" ? PAL.yellow : o.color;
-              g.rect(x, y + 3, o.w, 10, col);
-              g.rect(x + 5, y + 4, 6, 8, "#bfefff");
-              if (ln.kind === "racer") g.rect(x, y + 7, o.w, 2, PAL.red);
-            }
-            g.rect(front, y + 4, 4, 2, PAL.white);
-            g.rect(front, y + 10, 4, 2, PAL.white);
+            const spr = ln.kind === "truck" ? a.truck : ln.kind === "racer" ? a.racer : a.cars[o.color];
+            g.sprite(spr, x - 1, y - 1, { flipX: ln.dir < 0 });
           }
         }
       }
@@ -375,20 +563,20 @@ function create(seed: number): GameInstance {
         if (frog.hop > 0) {
           const k = 1 - frog.hop / HOP_FR;
           y = (frog.fromRow + (frog.toRow - frog.fromRow) * k) * T;
-          hopUp = Math.sin(k * Math.PI) * 3;
+          hopUp = Math.sin(k * Math.PI) * 4;
         }
         const spr = frog.hop > 0 ? FROG_HOP : FROG_SIT;
-        const x = frog.x + 1;
-        g.rect(x + 2, y + 12, 10, 2, "rgba(13,11,26,0.35)");
-        if (frog.face === "up") g.sprite(spr, x, y + 1 - hopUp);
-        else if (frog.face === "down") g.sprite(spr, x, y + 1 - hopUp, { flipY: true });
-        else g.sprite(frog.hop > 0 ? FROG_HOP_R : FROG_SIT_R, x, y + 1 - hopUp, { flipX: frog.face === "left" });
+        const x = frog.x;
+        g.rect(x + 3, y + 13, 10, 2, "rgba(13,11,26,0.35)");
+        if (frog.face === "up") g.sprite(spr, x, y - hopUp);
+        else if (frog.face === "down") g.sprite(spr, x, y - hopUp, { flipY: true });
+        else g.sprite(frog.hop > 0 ? FROG_HOP_R : FROG_SIT_R, x, y - hopUp, { flipX: frog.face === "left" });
       }
       if (dead > 0) {
         const t = 50 - dead;
         if (deadKind === "splash") {
-          g.box(deadX - t * 0.5 - 2, deadY - t * 0.25 - 1, t + 4, t * 0.5 + 2, PAL.white);
-          if (t < 25) g.circle(deadX, deadY, 4, PAL.cyan);
+          g.box(deadX - t * 0.5 - 2, deadY - t * 0.25 - 1, t + 4, t * 0.5 + 2, RIVER_GLOW);
+          if (t < 25) g.circle(deadX, deadY, 4, RIVER_MID);
         } else {
           g.circle(deadX, deadY, Math.min(9, 3 + t * 0.4), "#d8dae8");
           g.circle(deadX - 4, deadY - 3, Math.min(6, 2 + t * 0.3), PAL.white);
@@ -398,16 +586,19 @@ function create(seed: number): GameInstance {
       for (const b of bits) g.rect(b.x, b.y, 2, 2, b.c);
       for (const p of pops) g.text(p.s, p.x, p.y + p.t * 0.2, PAL.yellow, { align: "center" });
 
-      // HUD (row 0)
-      g.rect(0, 0, W, T, PAL.black);
+      // HUD (row 0) — a small framed instrument panel
+      g.rect(0, 0, W, T, "#0a0818");
+      g.rect(0, T - 1, W, 1, "#030210");
       for (let i = 0; i < lives; i++) g.text("♥", 4 + i * 9, 5, PAL.red);
       g.text(`LV ${level}`, 40, 5, PAL.white);
       g.text("TIME", 110, 5, PAL.white);
       const k = timer / LIFE_FRAMES;
+      g.box(137, 4, 114, 9, "#030210");
       g.rect(138, 5, 112, 7, PAL.dark);
       g.rect(139, 6, 110 * k, 5, k < 0.2 ? (frame % 12 < 6 ? PAL.red : PAL.orange) : k < 0.5 ? PAL.yellow : PAL.lime);
       if (banner > 0) {
-        g.rect(0, 7 * T, W, T, "rgba(13,11,26,0.7)");
+        g.rect(0, 7 * T, W, T, "rgba(13,11,26,0.72)");
+        g.box(W / 2 - 54, 7 * T + 2, 108, T - 4, PAL.yellow);
         g.text(bannerText, W / 2, 7 * T + 4, PAL.yellow, { align: "center" });
       }
     },
