@@ -8,7 +8,8 @@
 // circuits (meadow, beach, snow, city, desert, rainbow); 4th place earns a retry (2 of them)
 // before it's game over. Win the rainbow cup finale to win the whole thing.
 // (Original game in the spirit of 8-bit top-down kart racers — no borrowed names or characters.)
-import { H, PAL, W, clamp, dist, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng } from "../engine";
+import { H, PAL, W, clamp, dist, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng, type Sprite } from "../engine";
+import { bake, bakeShadow, fbm, hash2, outlined, shade } from "../art";
 
 const TOP_SPEED = 6.2;
 const ACCEL = 0.105;
@@ -27,7 +28,7 @@ const normAngle = (a: number) => {
 
 // ── car pixel art (facing "up" in its own grid; rotated per-pixel to the heading at draw time) ──
 const KART_ROWS = [
-  "..cccc...",
+  "..clll...",
   "..cxxc...",
   "ccccccccc",
   "kccccccck",
@@ -41,11 +42,14 @@ const KART_ROWS = [
   "..cdddc..",
   "...crc...",
 ];
-const mkPal = (c: string, d: string) => ({ c, d, x: "#bfefff", w: PAL.white, k: PAL.black, r: PAL.red });
+const mkPal = (c: string, d: string) => ({ c, d, l: shade(c, 0.3), x: "#bfefff", w: PAL.white, k: PAL.black, r: PAL.red });
 const CAR_PALS = [mkPal(PAL.red, "#b8262e"), mkPal(PAL.blue, PAL.navy), mkPal(PAL.green, "#1f8a3a"), mkPal(PAL.purple, "#5a2ea0")];
-const KART_SCALE = 2; // draws the 9x13 grid at ~18x26 so a kid can read which way the car's pointing
+const KART_SCALE = 2.35; // draws the 9x13 grid big enough a kid can read which way the car's pointing, close to the cabinet art's chunky toy-car size
+const KART_OUTLINE = "#140c28";
 
-/** rotate every pixel of a small sprite about its centre and stamp it, so a car can face any angle */
+/** rotate every pixel of a small sprite about its centre and stamp it, so a car can face any angle.
+ *  Stamps a slightly-oversized dark pass first so the kart keeps a crisp 1px-ish outline even
+ *  over busy, similarly-toned ground (kerbs, dust, other karts). */
 function drawKart(g: Gfx, cx: number, cy: number, heading: number, scale: number) {
   return (pal: Record<string, string>) => {
     const w = KART_ROWS[0].length;
@@ -54,18 +58,24 @@ function drawKart(g: Gfx, cx: number, cy: number, heading: number, scale: number
     const cf = Math.cos(phi);
     const sf = Math.sin(phi);
     const dot = scale * 1.3; // a touch oversized so rotated dots overlap with no gaps
+    const plot = (i: number, j: number, col: string, dd: number) => {
+      const lx = (i - (w - 1) / 2) * scale;
+      const ly = (j - (h - 1) / 2) * scale;
+      const rx = lx * cf - ly * sf;
+      const ry = lx * sf + ly * cf;
+      g.rect(cx + rx - dd / 2, cy + ry - dd / 2, dd, dd, col);
+    };
+    for (let j = 0; j < h; j++) {
+      const row = KART_ROWS[j];
+      for (let i = 0; i < w; i++) if (row[i] !== ".") plot(i, j, KART_OUTLINE, dot * 1.6);
+    }
     for (let j = 0; j < h; j++) {
       const row = KART_ROWS[j];
       for (let i = 0; i < w; i++) {
         const ch = row[i];
-        if (ch === "." ) continue;
+        if (ch === ".") continue;
         const col = pal[ch];
-        if (!col) continue;
-        const lx = (i - (w - 1) / 2) * scale;
-        const ly = (j - (h - 1) / 2) * scale;
-        const rx = lx * cf - ly * sf;
-        const ry = lx * sf + ly * cf;
-        g.rect(cx + rx - dot / 2, cy + ry - dot / 2, dot, dot, col);
+        if (col) plot(i, j, col, dot);
       }
     }
   };
@@ -106,6 +116,168 @@ const THEMES: Theme[] = [
   { name: "RAINBOW RUSH", bg: "#1b1535", trackCol: "#3a2d6b", kerbA: PAL.pink, kerbB: PAL.cyan, wallCol: PAL.purple, decor: "star", grip: 1, rivalV: [1.0, 1.12], boosts: 6, puddles: 2, jumps: 2, rainbow: true },
 ];
 const RAINBOW_BAND = [PAL.red, PAL.orange, PAL.yellow, PAL.green, PAL.cyan, PAL.purple];
+
+// ── baked art: ground tiles + scenery sprites, built once lazily (never at module load) ──
+const TILE = 32;
+/** a seamless-looking 32x32 ground tile: a base colour with dithered patches of shade plus
+ *  sparse flecks (grass blades, sand grains, snow sparkle, pavement joints, dune ripples, stars) */
+function bakeGroundTile(base: string, fleck: string | null, fleckChance: number, seed: number, ripple = false): Sprite {
+  return bake(TILE, TILE, (x, y) => {
+    let col = base;
+    const n = fbm(x * 0.2, y * 0.2, 2, seed);
+    if (ripple) {
+      const band = Math.sin(x * 0.35 + y * 0.12 + seed) * 0.5 + 0.5;
+      col = shade(base, (band - 0.5) * 0.22 + (n - 0.5) * 0.08);
+    } else {
+      col = n > 0.6 ? shade(base, 0.07) : n < 0.33 ? shade(base, -0.08) : base;
+    }
+    if (fleck && hash2(x, y, seed + 71) < fleckChance) return fleck;
+    return col;
+  });
+}
+function bakeAllGround(): Sprite[] {
+  return [
+    bakeGroundTile("#3ecf55", "#2f9a44", 0.05, 1), // meadow grass blades
+    bakeGroundTile("#f2c48d", "#d9a868", 0.05, 2, true), // sandy ripples
+    bakeGroundTile("#eaf6ff", "#ffffff", 0.06, 3), // frosty sparkle
+    bake(TILE, TILE, (x, y) => {
+      // candy city pavement: slab joints every 8px plus light speckle
+      const edge = x % 8 === 0 || y % 8 === 0;
+      const n = fbm(x * 0.2, y * 0.2, 2, 4);
+      const base = n > 0.6 ? shade("#9aa0b8", 0.05) : "#9aa0b8";
+      return edge ? shade(base, -0.18) : base;
+    }),
+    bakeGroundTile("#e0b060", "#c68a3e", 0.04, 5, true), // dune ripples
+    bake(TILE, TILE, (x, y) => {
+      // rainbow night sky ground: deep purple with tiny stars
+      const n = fbm(x * 0.15, y * 0.15, 2, 6);
+      const base = n > 0.62 ? shade("#1b1535", 0.08) : "#1b1535";
+      if (hash2(x, y, 206) < 0.025) return hash2(x + 1, y, 207) < 0.5 ? PAL.cyan : PAL.white;
+      return base;
+    }),
+  ];
+}
+
+/** round foliage canopy + a slim trunk, lit from the top-left, outlined so it pops off the grass */
+function bakeTreeSprite(): Sprite {
+  const base = "#2f9a44";
+  return outlined(
+    bake(18, 22, (x, y) => {
+      if (y >= 17) return x >= 7 && x <= 10 ? shade("#6b4a2a", (x - 8.5) * -0.1) : null;
+      const cx = 9;
+      const cy = 9;
+      const dx = x - cx;
+      const dy = (y - cy) * 1.05;
+      const d = Math.hypot(dx, dy);
+      if (d > 8.2) return null;
+      const light = clamp(-(dx + dy) / 11, -1, 1);
+      return shade(base, light * 0.32 - 0.04);
+    }),
+  );
+}
+function bakePalmSprite(): Sprite {
+  return outlined(
+    bake(20, 24, (x, y) => {
+      // leaning trunk
+      const trunkX = 10 + Math.round((22 - y) * 0.12);
+      if (y >= 10 && y < 23 && Math.abs(x - trunkX) <= 1) return shade("#9a5a32", (x - trunkX) * 0.15);
+      // fan of fronds from the crown
+      const cx = trunkX;
+      const cy = 9;
+      const dx = x - cx;
+      const dy = y - cy;
+      const ang = Math.atan2(dy, dx);
+      const d = Math.hypot(dx, dy);
+      for (let k = 0; k < 6; k++) {
+        const fa = (k / 6) * Math.PI * 2 + 0.3;
+        const da = Math.abs(normAngle(ang - fa));
+        if (d < 9 && d > 1 && da < 0.42 * (1 - d / 14)) return shade("#2f9a44", (1 - da * 2) * 0.2);
+      }
+      return null;
+    }),
+  );
+}
+function bakePineSprite(): Sprite {
+  return outlined(
+    bake(18, 24, (x, y) => {
+      if (y >= 20) return x >= 7 && x <= 10 ? "#6b4a2a" : null;
+      // three stacked conifer tiers, widest at the bottom
+      const cx = 9;
+      for (let tier = 0; tier < 3; tier++) {
+        const ty = 5 + tier * 5;
+        const half = 8 - tier * 2.2;
+        const h0 = 6;
+        const dy = y - ty;
+        if (dy < 0 || dy > h0) continue;
+        const w = half * (1 - dy / h0);
+        if (Math.abs(x - cx) <= w) {
+          const light = (cx - x) / (half + 1);
+          return shade("#1fb3a3", light * 0.3 - 0.05);
+        }
+      }
+      return null;
+    }),
+  );
+}
+function bakeBuildingSprite(): Sprite {
+  return outlined(
+    bake(16, 26, (x, y) => {
+      if (y < 4) return null;
+      const edge = x === 0 || x === 15;
+      const base = "#4a4e6a";
+      if (edge) return shade(base, -0.15);
+      const wx = (x - 2) % 4;
+      const wy = (y - 6) % 6;
+      if (x >= 2 && x <= 13 && y >= 6 && wx < 2 && wy < 3) return PAL.yellow;
+      return shade(base, ((x + y) % 2 ? 0.03 : -0.03));
+    }),
+  );
+}
+function bakeCactusSprite(): Sprite {
+  const base = "#2f9a44";
+  return outlined(
+    bake(14, 20, (x, y) => {
+      const main = Math.abs(x - 7) <= 2 && y >= 2;
+      const armL = x >= 2 && x <= 4 && y >= 7 && y <= 14;
+      const armR = x >= 10 && x <= 12 && y >= 5 && y <= 12;
+      if (!main && !armL && !armR) return null;
+      const light = (7 - x) * 0.06;
+      return shade(base, light);
+    }),
+  );
+}
+function bakeCandyStarSprite(): Sprite {
+  return outlined(
+    bake(16, 16, (x, y) => {
+      const dx = x - 8;
+      const dy = y - 8;
+      const main = (Math.abs(dx) <= 1.4 && Math.abs(dy) <= 7) || (Math.abs(dy) <= 1.4 && Math.abs(dx) <= 7);
+      const diag = Math.abs(Math.abs(dx) - Math.abs(dy)) <= 1 && Math.abs(dx) <= 4.5;
+      if (!main && !diag) return null;
+      const d = Math.hypot(dx, dy);
+      return d < 2.4 ? PAL.white : PAL.yellow;
+    }),
+  );
+}
+interface Art {
+  ground: Sprite[];
+  decor: Record<Theme["decor"], Sprite>;
+  shadow: Sprite;
+}
+let ART: Art | null = null;
+const art = (): Art =>
+  (ART ??= {
+    ground: bakeAllGround(),
+    decor: {
+      tree: bakeTreeSprite(),
+      palm: bakePalmSprite(),
+      pine: bakePineSprite(),
+      building: bakeBuildingSprite(),
+      cactus: bakeCactusSprite(),
+      star: bakeCandyStarSprite(),
+    },
+    shadow: bakeShadow(14, 7, "#000000"),
+  });
 
 interface TrackData {
   theme: Theme;
@@ -346,6 +518,7 @@ function stepCar(c: CarT, steer: number, gas: boolean, brake: boolean, track: Tr
   }
   for (const pd of track.puddles) {
     if (dist(c.x, c.y, pd.x, pd.y) < pd.r) {
+      if (c.puddleT <= 0) events.push("splash");
       c.puddleT = 10;
       break;
     }
@@ -465,7 +638,11 @@ function create(seed: number): GameInstance {
   let nextScoreDist = 300;
   let msg = "";
   let msgT = 0;
+  let shake = 0;
+  let engineT = 0;
+  let screechT = 0;
   const bits: Bit[] = [];
+  const marks: { x: number; y: number; a: number }[] = [];
   let oils: Oil[] = [];
   let balls: Ball[] = [];
 
@@ -491,12 +668,14 @@ function create(seed: number): GameInstance {
     rivals = [1, 2, 3].map((i) => mkCar(false, CAR_PALS[i], r.range(track.theme.rivalV[0], track.theme.rivalV[1]), r.range(0, 6.28), track.pts[0], positions[i][0], positions[i][1]));
     oils = [];
     balls = [];
+    marks.length = 0;
     camInit = false;
     nextScoreDist = 300;
     prevPlayerPos = 1;
     state = "count";
     stateT = 160;
     startBoost = false;
+    shake = 0;
   };
 
   const useItem = (io: IO) => {
@@ -518,10 +697,12 @@ function create(seed: number): GameInstance {
       player.boostT = 60;
       player.speed = TOP_SPEED * 1.4;
       io.sfx.play("powerup");
+      io.sfx.slide?.(160, 720, 0.3, "sawtooth", 0.1);
       say("TURBO!", 40);
     } else if (it === "shield") {
       player.shield = true;
       io.sfx.play("powerup");
+      io.sfx.tone(700, 0.2, "sine", 0.08);
       say("SHIELD UP!", 40);
     }
   };
@@ -538,20 +719,36 @@ function create(seed: number): GameInstance {
     const bonus = resultPos === 1 ? 1500 : resultPos === 2 ? 900 : resultPos === 3 ? 500 : 150;
     io.score(bonus);
     io.sfx.play(resultPos <= 3 ? "win" : "die");
+    if (resultPos <= 3) {
+      io.sfx.play("cheer");
+      const confetti = [PAL.red, PAL.yellow, PAL.cyan, PAL.lime, PAL.pink];
+      for (let k = 0; k < 18; k++) puff(player.x, player.y, confetti[k % confetti.length], 1);
+    }
     state = "result";
     stateT = 150;
   };
+
+  let prevJumpT = 0;
+  const dustColor = (theme: Theme) =>
+    theme.decor === "palm" || theme.decor === "cactus" ? "#d9a868" : theme.decor === "pine" ? PAL.white : theme.decor === "building" ? PAL.grey : theme.decor === "star" ? PAL.purple : "#c8e6a8";
 
   return {
     update(io) {
       if (state === "over" || state === "won") return;
       frame++;
       if (msgT > 0) msgT--;
+      if (shake > 0) shake--;
+      if (engineT > 0) engineT--;
+      if (screechT > 0) screechT--;
       for (let i = bits.length - 1; i >= 0; i--) {
         const b = bits[i];
         b.x += b.vx;
         b.y += b.vy;
         if (--b.life <= 0) bits.splice(i, 1);
+      }
+      for (let i = marks.length - 1; i >= 0; i--) {
+        marks[i].a -= 0.012;
+        if (marks[i].a <= 0) marks.splice(i, 1);
       }
 
       if (state === "count") {
@@ -598,22 +795,59 @@ function create(seed: number): GameInstance {
       if (player.item && inp.pressed.b) useItem(io);
       const gas = !!inp.held.a;
       const brake = !player.item && !!inp.held.b;
+      const prevJumpT = player.jumpT;
       const evs = stepCar(player, steer, gas, brake, track, oils, r);
       for (const e of evs) {
         if (e === "wall") {
           io.sfx.play("hit");
           say("BONK!", 30);
-          puff(player.x, player.y, PAL.white, 5);
+          puff(player.x, player.y, PAL.white, 6);
+          shake = 9;
         } else if (e === "oil") {
           io.sfx.play("bounce");
           say("OIL SLICK!", 40);
+          puff(player.x, player.y, "#6a4ea0", 7);
+          shake = 6;
         } else if (e === "boost") {
           io.sfx.play("powerup");
+          io.sfx.slide?.(220, 660, 0.22, "sawtooth", 0.08);
         } else if (e === "jump") {
           io.sfx.play("jump");
+          puff(player.x, player.y, "#e8c89a", 4);
+        } else if (e === "splash") {
+          io.sfx.play("splash");
+          puff(player.x, player.y, "#bfe6ff", 5);
         } else if (e === "shieldpop") {
           io.sfx.play("blip");
           say("SHIELD BLOCKED IT!", 40);
+        }
+      }
+      if (prevJumpT > 0 && player.jumpT <= 0) {
+        io.sfx.play("thud");
+        puff(player.x, player.y, track.theme.wallCol, 4);
+      }
+      // engine hum + dust/skid, throttled so they never spam the mixer
+      if (engineT <= 0 && player.speed > 0.3) {
+        engineT = 9;
+        const f = 90 + clamp(player.speed / (TOP_SPEED * 1.5), 0, 1) * 150;
+        io.sfx.tone(f, 0.1, "sawtooth", 0.025);
+      }
+      if (player.surface === "grass" && Math.abs(player.speed) > 1 && frame % 4 === 0) {
+        const fx = Math.cos(player.heading);
+        const fy = Math.sin(player.heading);
+        puff(player.x - fx * 6, player.y - fy * 6, dustColor(track.theme), 2);
+      }
+      if (player.surface === "track" && Math.abs(player.slip) > 1.4 && player.spin === 0) {
+        if (frame % 3 === 0) {
+          const fx = Math.cos(player.heading);
+          const fy = Math.sin(player.heading);
+          marks.push({ x: player.x - fx * 5 - fy * 3, y: player.y - fy * 5 + fx * 3, a: 0.5 });
+          marks.push({ x: player.x - fx * 5 + fy * 3, y: player.y - fy * 5 - fx * 3, a: 0.5 });
+          if (marks.length > 140) marks.splice(0, marks.length - 140);
+        }
+        if (screechT <= 0) {
+          screechT = 22;
+          io.sfx.noise?.(0.14, 0.05, 1400, 700);
         }
       }
       for (const ib of track.itemBoxes) {
@@ -687,6 +921,7 @@ function create(seed: number): GameInstance {
       if (player.lap > 0 && player.lap < LAPS && Math.floor(total) % Math.floor(track.totalLen) < 4 && msgT === 0) {
         say(`LAP ${player.lap + 1}/${LAPS}`, 60);
         io.score(200 * player.lap);
+        io.sfx.tone(523 + player.lap * 90, 0.16, "square", 0.09);
       }
       if (player.lap >= LAPS) finishRace(io);
     },
@@ -705,10 +940,20 @@ function create(seed: number): GameInstance {
 
       const theme = track.theme;
       g.clear(theme.bg);
-      g.camera(camX - W / 2, camY - H / 2);
+      const shx = shake > 0 ? Math.sin(frame * 1.7) * (shake / 9) * 3 : 0;
+      const shy = shake > 0 ? Math.cos(frame * 2.3) * (shake / 9) * 3 : 0;
+      g.camera(camX - W / 2 + shx, camY - H / 2 + shy);
       const nearCam = (x: number, y: number, r2: number) => (x - camX) * (x - camX) + (y - camY) * (y - camY) < r2 * r2;
 
-      for (const d of track.decor) if (nearCam(d.x, d.y, 190)) drawDecor(g, d.x, d.y, theme.decor);
+      // tiled ground texture under everything (grass blades / sand / snow / pavement / stars)
+      const groundTile = art().ground[ti];
+      const left = camX - W / 2 - TILE;
+      const top = camY - H / 2 - TILE;
+      const x0 = Math.floor(left / TILE) * TILE;
+      const y0 = Math.floor(top / TILE) * TILE;
+      for (let ty = y0; ty < camY + H / 2 + TILE; ty += TILE) for (let tx = x0; tx < camX + W / 2 + TILE; tx += TILE) g.sprite(groundTile, tx, ty);
+
+      for (const d of track.decor) if (nearCam(d.x, d.y, 200)) drawDecor(g, d.x, d.y, theme.decor);
 
       // the road: every point along the centreline stamps a slightly-oversized rim disc, then a
       // true-width surface disc on top — stamping every point (not every other) with that much
@@ -740,6 +985,11 @@ function create(seed: number): GameInstance {
       for (let k = -5; k <= 5; k++) {
         const off = (k / 5) * fp.hw;
         g.rect(fp.x + fp.ox * off - 2, fp.y + fp.oy * off - 2, 4, 4, (k + 5) % 2 ? PAL.black : PAL.white);
+      }
+      for (const m of marks) if (nearCam(m.x, m.y, 190)) {
+        g.alpha(m.a);
+        g.rect(m.x - 1.5, m.y - 1.5, 3, 3, "#1c1a2e");
+        g.alpha(1);
       }
       for (const pu of track.puddles) if (nearCam(pu.x, pu.y, 190)) {
         g.alpha(0.6);
@@ -808,29 +1058,42 @@ function create(seed: number): GameInstance {
 }
 
 function drawRacer(g: Gfx, c: CarT, frame: number) {
-  g.rect(c.x - 7, c.y - 4, 14, 14, "rgba(13,11,26,0.25)");
+  g.sprite(SHADOW_SPRITE(), c.x - 9, c.y - 2);
   // spinning fades the car instead of hiding it outright, so it's never just gone off-screen
   const fading = c.spin > 0 && Math.floor(c.spin / 4) % 2 === 0;
   if (fading) g.alpha(0.4);
+  if (c.boostT > 0) {
+    // a short flame-coloured trail streaming off the back while boosting
+    const fx = Math.cos(c.heading);
+    const fy = Math.sin(c.heading);
+    g.circle(c.x - fx * 9, c.y - fy * 9, 4.5, PAL.orange);
+    g.circle(c.x - fx * 13, c.y - fy * 13, 3, PAL.yellow);
+  }
   drawKart(g, c.x, c.y, c.heading, KART_SCALE)(c.pal);
   if (fading) g.alpha(1);
   if (c.isPlayer) {
     // a bright pin above the kid's own kart so it's always easy to pick out from the rivals
     const bob = Math.sin(frame * 0.15) * 1.5;
-    g.rect(c.x - 1, c.y - 24 + bob, 2, 3, PAL.yellow);
-    g.rect(c.x - 2, c.y - 21 + bob, 4, 2, PAL.yellow);
-    g.rect(c.x - 3, c.y - 19 + bob, 6, 2, PAL.yellow);
+    g.rect(c.x - 1, c.y - 26 + bob, 2, 3, PAL.yellow);
+    g.rect(c.x - 2, c.y - 23 + bob, 4, 2, PAL.yellow);
+    g.rect(c.x - 3, c.y - 21 + bob, 6, 2, PAL.yellow);
+    // two little paint-job sparkle stars on the hood, like a toy car's decal shine
+    if (Math.floor(frame / 24) % 2 === 0) drawSparkle(g, c.x - 6, c.y - 3, 3);
+    drawSparkle(g, c.x + 5, c.y + 2, Math.floor(frame / 24) % 2 === 0 ? 2 : 3);
   }
   if (c.shield) {
     g.alpha(0.5);
     g.circle(c.x, c.y, 13 + Math.sin(frame * 0.2) * 1.2, PAL.cyan);
     g.alpha(1);
   }
-  if (c.boostT > 0) {
-    const fx = Math.cos(c.heading);
-    const fy = Math.sin(c.heading);
-    g.circle(c.x - fx * 10, c.y - fy * 10, 4, PAL.orange);
-  }
+}
+let SHADOW: Sprite | null = null;
+const SHADOW_SPRITE = () => (SHADOW ??= bakeShadow(18, 9, "#000000"));
+
+/** a tiny 4-point sparkle, the kind painted on a toy racer's bodywork */
+function drawSparkle(g: Gfx, x: number, y: number, s: number) {
+  g.rect(x - 0.5, y - s, 1, s * 2, PAL.white);
+  g.rect(x - s, y - 0.5, s * 2, 1, PAL.white);
 }
 
 function drawOil(g: Gfx, x: number, y: number) {
@@ -839,43 +1102,33 @@ function drawOil(g: Gfx, x: number, y: number) {
   g.circle(x + 2, y + 2, 1.5, PAL.purple);
 }
 
+/** baked scenery, feet planted on the ground with a soft dithered shadow (candy stars just float) */
 function drawDecor(g: Gfx, x: number, y: number, kind: Theme["decor"]) {
-  if (kind === "tree") {
-    g.circle(x + 1, y + 2, 7, "#1f6a2c");
-    g.circle(x, y, 7, "#2f9a44");
-    g.rect(x - 1, y + 4, 2, 4, "#6b4a2a");
-  } else if (kind === "palm") {
-    g.rect(x - 1, y - 2, 2, 10, "#9a5a32");
-    g.circle(x, y - 6, 6, "#2f9a44");
-  } else if (kind === "pine") {
-    g.rect(x - 1, y + 2, 2, 5, "#6b4a2a");
-    g.circle(x, y - 4, 7, "#1fb3a3");
-    g.circle(x, y + 1, 5, "#1fb3a3");
-  } else if (kind === "building") {
-    g.rect(x - 7, y - 16, 14, 20, "#4a4e6a");
-    for (let r0 = 0; r0 < 4; r0++) for (let c0 = 0; c0 < 2; c0++) g.rect(x - 4 + c0 * 6, y - 13 + r0 * 4, 3, 2, PAL.yellow);
-  } else if (kind === "cactus") {
-    g.rect(x - 1, y - 8, 3, 12, "#3ecf55");
-    g.rect(x - 5, y - 4, 4, 3, "#3ecf55");
-    g.rect(x + 2, y - 6, 4, 3, "#3ecf55");
-  } else {
-    // a little 4-point candy star
-    g.rect(x - 1, y - 5, 2, 10, PAL.yellow);
-    g.rect(x - 5, y - 1, 10, 2, PAL.yellow);
-    g.rect(x - 1, y - 1, 2, 2, PAL.white);
+  const s = art().decor[kind];
+  const w = s.rows[0]?.length ?? 0;
+  const h = s.rows.length;
+  if (kind === "star") {
+    const bob = Math.sin((x + y) * 0.05) * 1.5;
+    g.sprite(s, x - w / 2, y - h / 2 + bob);
+    return;
   }
+  g.sprite(art().shadow, x - 7, y - 3);
+  g.sprite(s, x - w / 2, y - h + 5);
 }
 
 function drawHud(g: Gfx, track: TrackData, player: CarT, frame: number, retries: number) {
   // two rows so short labels never run into each other (position+lap+retries on row 1, the
   // track name alone on row 2 — a single crowded row used to read as "LAP 1/3MEADOW CUP")
   g.rect(0, 0, W, 20, "rgba(13,11,26,0.65)");
+  g.rect(0, 19, W, 1, "rgba(255,255,255,0.25)");
+  const medal = player.pos === 1 ? PAL.yellow : player.pos === 2 ? "#d8d8e8" : player.pos === 3 ? "#cf8a4a" : "#4a4e6a";
+  g.rect(2, 2, 22, 9, medal);
   const ord = player.pos === 1 ? "1ST" : player.pos === 2 ? "2ND" : player.pos === 3 ? "3RD" : "4TH";
-  g.text(ord, 4, 3, player.pos === 1 ? PAL.yellow : PAL.white);
+  g.text(ord, 4, 3, player.pos <= 3 ? PAL.black : PAL.white);
   g.text(`LAP ${Math.min(player.lap + 1, LAPS)}/${LAPS}`, 32, 3, PAL.white);
   g.text(`RETRY ${retries}`, W - 4, 3, PAL.grey, { align: "right" });
   g.text(track.theme.name, W / 2, 12, PAL.grey, { align: "center" });
-  // item slot, bottom-left
+  // item slot, bottom-left — a small checkered flag swatch marks it as "the box" at a glance
   g.rect(4, H - 18, 16, 14, "rgba(13,11,26,0.6)");
   g.box(4, H - 18, 16, 14, PAL.white);
   if (player.item) drawItemIcon(g, player.item, 12, H - 11);
@@ -902,7 +1155,7 @@ function drawMiniMap(g: Gfx, track: TrackData, player: CarT, rivals: CarT[]) {
   const cx = W - 32;
   const cy = H - 32;
   const scale = 26 / track.maxR;
-  g.rect(cx - 30, cy - 30, 60, 60, "rgba(13,11,26,0.55)");
+  g.rect(cx - 30, cy - 30, 60, 60, "rgba(13,11,26,0.86)");
   g.box(cx - 30, cy - 30, 60, 60, PAL.white);
   for (let i = 0; i < track.N; i += 5) {
     const p = track.pts[i];
