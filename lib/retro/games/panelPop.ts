@@ -6,7 +6,8 @@
 // match it's a CHAIN (x2, x3…) — pop 4+ panels in one go and it's a COMBO. Both pause the
 // rise for a beat and score big. Let the stack touch the top for ~2s and it's game over.
 // Endless play, level up every ~30s, reach level 10 to win.
-import { H, PAL, W, clamp, rng, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+import { H, PAL, W, clamp, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, hash2, mixHex, shade } from "../art";
 
 const COLS = 6;
 const ROWS = 10;
@@ -20,16 +21,6 @@ const FALL_STEP = 3; // frames per row of falling
 const CLEAR_FRAMES = 20; // flash-before-pop duration
 const PAUSE_FRAMES = 18; // rise pauses this long after every pop in a cascade
 const DANGER_LIMIT = 120; // ~2s touching the top = game over
-
-// ── shading helper (same trick as the other cabinets: lighten/darken a hex colour) ──
-function shade(hex: string, f: number) {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = (v: number) => clamp(Math.round(f > 0 ? v + (255 - v) * f : v * (1 + f)), 0, 255);
-  const r = ch((n >> 16) & 255);
-  const g = ch((n >> 8) & 255);
-  const b = ch(n & 255);
-  return "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
-}
 
 // ── six colour-blind-friendly symbols, drawn from plain rects/circles/lines ──
 type Icon = (g: Gfx, x: number, y: number, s: number, color: string) => void;
@@ -54,7 +45,17 @@ const iconStar: Icon = (g, x, y, s, c) => {
   g.line(cx - r * 0.7, cy + r * 0.7, cx + r * 0.7, cy - r * 0.7, c);
   g.circle(cx, cy, r * 0.3, c);
 };
-const iconCircle: Icon = (g, x, y, s, c) => g.circle(x + s / 2, y + s / 2, s * 0.32, c);
+const iconCircle: Icon = (g, x, y, s, c) => {
+  const cx = x + s / 2;
+  const cy = y + s / 2;
+  const r = s * 0.32;
+  g.circle(cx, cy, r, c);
+  // tiny cardinal tick marks, like the painting's target dial
+  g.rect(cx - 1, y + s * 0.1, 2, s * 0.08, c);
+  g.rect(cx - 1, y + s * 0.82, 2, s * 0.08, c);
+  g.rect(x + s * 0.1, cy - 1, s * 0.08, 2, c);
+  g.rect(x + s * 0.82, cy - 1, s * 0.08, 2, c);
+};
 const iconTriangle: Icon = (g, x, y, s, c) => {
   const rows = 6;
   for (let i = 0; i < rows; i++) {
@@ -62,13 +63,13 @@ const iconTriangle: Icon = (g, x, y, s, c) => {
     g.rect(x + s / 2 - w / 2, y + s * 0.2 + i * (s * 0.095), w, s * 0.11, c);
   }
 };
-const iconDiamond: Icon = (g, x, y, s, c) => {
-  const rows = 6;
-  for (let i = 0; i < rows; i++) {
-    const t = Math.abs(i - (rows - 1) / 2) / ((rows - 1) / 2);
-    const w = s * 0.56 * (1 - t);
-    g.rect(x + s / 2 - w / 2, y + s * 0.18 + i * (s * 0.64 / rows), w, s * 0.64 / rows + 1, c);
-  }
+const iconCross: Icon = (g, x, y, s, c) => {
+  const cx = x + s / 2;
+  const cy = y + s / 2;
+  const arm = s * 0.56;
+  const t = s * 0.26;
+  g.rect(cx - t / 2, cy - arm / 2, t, arm, c);
+  g.rect(cx - arm / 2, cy - t / 2, arm, t, c);
 };
 const iconSquare: Icon = (g, x, y, s, c) => g.rect(x + s * 0.24, y + s * 0.24, s * 0.52, s * 0.52, c);
 
@@ -82,7 +83,7 @@ const PANELS: PanelKind[] = [
   { color: PAL.yellow, ink: PAL.night, icon: iconStar },
   { color: PAL.sky, ink: PAL.navy, icon: iconCircle },
   { color: PAL.green, ink: PAL.night, icon: iconTriangle },
-  { color: PAL.purple, ink: PAL.white, icon: iconDiamond },
+  { color: PAL.purple, ink: PAL.white, icon: iconCross },
   { color: PAL.orange, ink: PAL.night, icon: iconSquare },
 ];
 
@@ -105,7 +106,7 @@ interface Spark {
   color: string;
 }
 
-function drawPanel(g: Gfx, x: number, y: number, size: number, cell: Cell, grey: boolean) {
+function drawPanel(g: Gfx, x: number, y: number, size: number, cell: Cell, grey: boolean, bg = PAL.black) {
   const p = PANELS[cell.color];
   const flashing = cell.clearT > 0 && Math.floor(cell.clearT / 3) % 2 === 0;
   const base = grey ? PAL.grey : p.color;
@@ -113,11 +114,22 @@ function drawPanel(g: Gfx, x: number, y: number, size: number, cell: Cell, grey:
     g.rect(x + 1, y + 1, size - 2, size - 2, PAL.white);
     return;
   }
-  const dark = shade(base, -0.4);
-  const light = shade(base, 0.4);
-  g.rect(x + 1, y + 1, size - 2, size - 2, dark);
+  // muted blue-grey frame (never a flat darkened copy of the fill — that's what reads as "glitchy")
+  const edge = mixHex(shade(base, -0.5), PAL.navy, 0.4);
+  const dark = shade(base, -0.22);
+  const light = shade(base, 0.3);
+  const hi = shade(base, 0.55);
+  g.rect(x + 1, y + 1, size - 2, size - 2, edge);
   g.rect(x + 2, y + 2, size - 4, size - 4, base);
-  g.rect(x + 2, y + 2, size - 4, 2, light);
+  const band = Math.max(2, Math.round(size * 0.3));
+  g.rect(x + 2, y + 2, size - 4, band, light);
+  g.rect(x + 2, y + 2, size - 4, 2, hi);
+  g.rect(x + 2, y + size - 4, size - 4, 2, dark);
+  // clip the four corners square so the chiclet reads as rounded against the well floor
+  g.rect(x, y, 1, 1, bg);
+  g.rect(x + size - 1, y, 1, 1, bg);
+  g.rect(x, y + size - 1, 1, 1, bg);
+  g.rect(x + size - 1, y + size - 1, 1, 1, bg);
   p.icon(g, x, y, size, grey ? PAL.dark : p.ink);
 }
 
@@ -136,6 +148,34 @@ function generateRow(r: ReturnType<typeof rng>, above1: number[], above2: number
     row.push(color);
   }
   return row;
+}
+
+// ── backdrop: dark hazard-stripe navy with a scattered static twinkle and a soft vignette,
+// baked once (lazily) into one Sprite so draw() costs a single blit, like the painting's panel ──
+let BG: Sprite | null = null;
+function bakeBackdrop(): Sprite {
+  const cx = W / 2;
+  const cy = H / 2;
+  const maxD = Math.hypot(cx, cy);
+  return bake(W, H, (x, y) => {
+    const diag = (((x + y) % 24) + 24) % 24;
+    let c = diag < 1 ? mixHex(PAL.night, PAL.navy, 0.5) : PAL.night;
+    const h = hash2(x, y, 7);
+    if (h > 0.997) c = mixHex(c, PAL.cyan, 0.6);
+    else if (h > 0.992) c = mixHex(c, PAL.sky, 0.3);
+    const d = Math.hypot(x - cx, y - cy) / maxD;
+    if (d > 0.5) c = mixHex(c, "#000000", Math.min(0.5, (d - 0.5) * 0.9));
+    return c;
+  });
+}
+const backdrop = () => (BG ??= bakeBackdrop());
+
+interface Ring {
+  x: number;
+  y: number;
+  t: number;
+  max: number;
+  color: string;
 }
 
 function create(seed: number): GameInstance {
@@ -174,11 +214,22 @@ function create(seed: number): GameInstance {
   let frame = 0;
   let banner = "";
   let bannerT = 0;
+  let shakeT = 0;
   const sparks: Spark[] = [];
+  const rings: Ring[] = [];
 
   const burst = (x: number, y: number, color: string, n = 6) => {
     for (let i = 0; i < n; i++) sparks.push({ x, y, vx: r.range(-1.6, 1.6), vy: r.range(-2.2, -0.2), life: r.int(16, 32), color });
   };
+
+  // a few notes scheduled a handful of frames apart, for little fanfares/arpeggios without
+  // ever blocking update() — never Math.random, purely frame-counted
+  interface Note { at: number; freq: number; dur: number; wave?: OscillatorType; vol?: number }
+  const noteQueue: Note[] = [];
+  const queueNote = (delay: number, freq: number, dur: number, wave?: OscillatorType, vol?: number) =>
+    noteQueue.push({ at: frame + delay, freq, dur, wave, vol });
+  const fanfare = (notes: number[], step = 5, wave: OscillatorType = "square", dur = 0.1, vol = 0.14) =>
+    notes.forEach((f, i) => queueNote(i * step, f, dur, wave, vol));
 
   const anyClearing = () => grid.some((row) => row.some((c) => c && c.clearT > 0));
 
@@ -260,7 +311,8 @@ function create(seed: number): GameInstance {
       b.swapX = -CELL;
       b.hang = HANG_FRAMES;
     }
-    io.sfx.tone(380, 0.04, "square", 0.08);
+    if (io.sfx.slide) io.sfx.slide(320, 480, 0.05, "square", 0.09);
+    else io.sfx.tone(380, 0.04, "square", 0.08);
   };
 
   const moveRepeat = (pressed: boolean, held: boolean, key: keyof typeof rep, move: () => void) => {
@@ -286,12 +338,23 @@ function create(seed: number): GameInstance {
         s.life--;
       }
       for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i].life <= 0) sparks.splice(i, 1);
+      for (const ring of rings) ring.t++;
+      for (let i = rings.length - 1; i >= 0; i--) if (rings[i].t >= rings[i].max) rings.splice(i, 1);
       if (bannerT > 0) bannerT--;
+      if (shakeT > 0) shakeT--;
+      for (let i = noteQueue.length - 1; i >= 0; i--) {
+        const n = noteQueue[i];
+        if (frame >= n.at) {
+          io.sfx.tone(n.freq, n.dur, n.wave, n.vol);
+          noteQueue.splice(i, 1);
+        }
+      }
 
       if (won) return;
 
       if (over) {
         overT++;
+        if (overT === 1 && io.sfx.slide) io.sfx.slide(260, 60, 0.4, "sawtooth", 0.18);
         if (overT > 55 && !sentOver) {
           sentOver = true;
           io.sfx.play("die");
@@ -353,13 +416,22 @@ function create(seed: number): GameInstance {
             const c = key % COLS;
             const cell = grid[row][c]!;
             cell.clearT = CLEAR_FRAMES;
-            burst(WX + c * CELL + CELL / 2, WY + row * CELL - riseOffset + CELL / 2, PANELS[cell.color].color);
+            const px = WX + c * CELL + CELL / 2;
+            const py = WY + row * CELL - riseOffset + CELL / 2;
+            burst(px, py, PANELS[cell.color].color, 8);
+            rings.push({ x: px, y: py, t: 0, max: 16, color: PANELS[cell.color].color });
           }
           const combo = size >= 4;
           const pts = Math.round(10 * size * level * (combo ? 1 + (size - 3) * 0.25 : 1) * (chainCount >= 2 ? chainCount : 1));
           io.score(pts);
-          io.sfx.play(chainCount >= 3 ? "win" : combo ? "powerup" : "coin");
+          // chain pitch climbs with every link; a crunchy noise burst underlines a 4+ combo
+          const base = 420 + Math.min(chainCount, 6) * 70;
+          if (io.sfx.slide) io.sfx.slide(base, base * 1.5, 0.1, "square", 0.14);
+          else io.sfx.play(chainCount >= 3 ? "win" : combo ? "powerup" : "coin");
+          if (combo) io.sfx.noise?.(0.16, 0.14, 1400, 400);
+          if (chainCount >= 3) fanfare([base * 1.5, base * 1.5 * 1.26, base * 1.5 * 1.5], 4, "square", 0.08, 0.12);
           pauseRiseT = PAUSE_FRAMES;
+          shakeT = Math.max(shakeT, combo ? 10 : chainCount >= 2 ? 7 : 3);
           const label = chainCount >= 2 && combo ? `CHAIN x${chainCount} COMBO!` : chainCount >= 2 ? `CHAIN x${chainCount}!` : combo ? "COMBO!" : "";
           if (label) {
             banner = label;
@@ -371,10 +443,13 @@ function create(seed: number): GameInstance {
         }
       }
 
-      // ── danger: the stack is touching the top ──
+      // ── danger: the stack is touching the top (an alarm beep over a low heartbeat thud) ──
       if (grid[0].some((c) => c !== null)) {
         dangerT++;
-        if (dangerT % 20 === 1) io.sfx.tone(820, 0.05, "square", 0.08);
+        if (dangerT % 20 === 1) {
+          io.sfx.tone(880, 0.05, "square", 0.09);
+          io.sfx.tone(110, 0.09, "sine", 0.14);
+        }
         if (dangerT >= DANGER_LIMIT) over = true;
       } else dangerT = 0;
 
@@ -384,10 +459,11 @@ function create(seed: number): GameInstance {
         level = newLevel;
         banner = level >= 10 ? "LEVEL 10!" : `LEVEL ${level}!`;
         bannerT = 80;
-        io.sfx.play("win");
+        fanfare([523, 659, 784, 1046], 5, "square", 0.1, 0.16);
         io.score(150 * level);
         if (level >= 10) {
           won = true;
+          fanfare([523, 659, 784, 1046, 1318, 1568], 6, "square", 0.14, 0.18);
           io.win();
           return;
         }
@@ -396,6 +472,7 @@ function create(seed: number): GameInstance {
       // ── the stack slowly rises; B hurries it ──
       if (pauseRiseT > 0) pauseRiseT--;
       else if (!grid[0].some((c) => c !== null)) {
+        if (inp.held.b && frame % 8 === 0) io.sfx.noise?.(0.05, 0.05, 220, 150);
         riseOffset += riseSpeed() * (inp.held.b ? 3 : 1);
         while (riseOffset >= CELL) {
           riseOffset -= CELL;
@@ -409,7 +486,12 @@ function create(seed: number): GameInstance {
 
     draw(g) {
       g.clear(PAL.night);
-      for (let i = -H; i < W; i += 24) g.line(i, 0, i + H, H, "#231c45");
+      g.sprite(backdrop(), 0, 0);
+
+      // a hit lands with a little camera punch, same deterministic jitter every replay
+      const shk = shakeT > 0 ? (hash2(frame, 1) - 0.5) * 2 * (shakeT / 10) * 3 : 0;
+      const shky = shakeT > 0 ? (hash2(frame, 2) - 0.5) * 2 * (shakeT / 10) * 3 : 0;
+      g.camera(shk, shky);
 
       // well frame
       g.rect(WX - 5, WY - 3, COLS * CELL + 10, ROWS * CELL + 7, PAL.purple);
@@ -433,6 +515,14 @@ function create(seed: number): GameInstance {
       for (let x = 1; x < COLS; x++) g.rect(WX + x * CELL, WY, 1, ROWS * CELL, "rgba(0,0,0,0.3)");
       g.box(WX, WY, COLS * CELL, ROWS * CELL, PAL.pink);
 
+      // pop shockwave rings
+      for (const ring of rings) {
+        const t = ring.t / ring.max;
+        g.alpha(Math.max(0, 0.6 * (1 - t)));
+        g.circle(ring.x, ring.y, 2 + t * (CELL * 0.9), ring.color);
+        g.alpha(1);
+      }
+
       // cursor (bounces a little, spans the two selected panels)
       if (!over) {
         const bob = Math.sin(frame * 0.25) * 1.2;
@@ -443,6 +533,15 @@ function create(seed: number): GameInstance {
       }
 
       for (const s of sparks) g.rect(s.x - 1, s.y - 1, 2, 2, s.life % 6 < 3 ? PAL.white : s.color);
+
+      // danger: the well floods with a pulsing red wash as time runs out
+      if (dangerT > 0) {
+        g.alpha(0.1 + 0.12 * (frame % 20 < 10 ? 1 : 0) * Math.min(1, dangerT / DANGER_LIMIT));
+        g.rect(WX, WY, COLS * CELL, ROWS * CELL, PAL.red);
+        g.alpha(1);
+      }
+
+      g.camera(0, 0);
 
       // side panels
       const panel = (x: number, y: number, w: number, h: number, title: string) => {
@@ -468,10 +567,12 @@ function create(seed: number): GameInstance {
       panel(192, WY, 60, 44, "NEXT");
       for (let c = 0; c < COLS; c++) {
         const p = PANELS[nextRow[c]];
-        const x = 196 + (c % 3) * 18;
-        const y = WY + 16 + Math.floor(c / 3) * 15;
-        g.rect(x, y, 14, 12, p.color);
-        p.icon(g, x - 3, y - 4, 20, p.ink);
+        const x = 198 + (c % 3) * 17;
+        const y = WY + 15 + Math.floor(c / 3) * 16;
+        g.rect(x, y, 13, 13, shade(p.color, -0.3));
+        g.rect(x + 1, y + 1, 11, 11, p.color);
+        g.rect(x + 1, y + 1, 11, 4, shade(p.color, 0.3));
+        p.icon(g, x - 2, y - 3, 17, p.ink);
       }
       panel(192, WY + 50, 60, 70, "");
       g.text("ENDLESS", 222, WY + 58, PAL.grey, { align: "center" });

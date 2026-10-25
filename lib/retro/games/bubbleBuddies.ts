@@ -9,7 +9,8 @@
 // back faster and angrier. Clear every critter on screen to move on — twelve rounds, with
 // walkers, jumpers, flyers and critters that lob things joining in as you go. No critter is
 // ever really hurt: caught ones simply float away and turn into fruit.
-import { H, PAL, W, clamp, overlap, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng } from "../engine";
+import { H, PAL, W, clamp, overlap, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng, type Sprite } from "../engine";
+import { bake, bayer, fbm, hash2, mixHex, shade } from "../art";
 
 const T = 16; // tile size
 const COLS = 16; // 16 * 16 = 256 = W
@@ -19,8 +20,10 @@ const MAXFALL = 5.2;
 const COYOTE = 6;
 const BUFFER = 6;
 const WALK = 1.05;
-const HW = 12; // hero hitbox
-const HH = 13;
+const HW = 14; // hero footprint — platform landing, bubble/fruit pickup (bigger here is never harder)
+const HH = 15;
+const HURT_W = 12; // the hero's ORIGINAL hurt-box, centred inside the bigger sprite: the bigger
+const HURT_H = 13; // art must not make critters/projectiles easier to touch the kid with
 const TOTAL_ROUNDS = 12;
 const MAX_BUBBLES = 3; // empty bubbles the hero can have drifting at once
 const BUBBLE_FLY_FRAMES = 26;
@@ -115,6 +118,123 @@ type CritterKind = "walker" | "jumper" | "flyer" | "thrower";
 const KIND_COLOR: Record<CritterKind, string> = { walker: PAL.purple, jumper: PAL.teal, flyer: PAL.pink, thrower: PAL.orange };
 const KIND_DARK: Record<CritterKind, string> = { walker: "#5f36a8", jumper: "#136b61", flyer: "#b8459a", thrower: "#b8601e" };
 const FRUIT_COLORS = [PAL.red, PAL.purple, PAL.orange, PAL.yellow];
+/** visual body radius for each critter kind (ears/legs add a bit more); hitboxes below stay
+ * a little smaller than the drawn body, per the brief ("never beyond it") */
+const CRITTER_R: Record<CritterKind, number> = { walker: 7, jumper: 7, flyer: 7, thrower: 7 };
+const CRITTER_DIMS: Record<CritterKind, [number, number]> = { walker: [15, 15], jumper: [15, 15], flyer: [17, 14], thrower: [15, 16] };
+/** the critters' ORIGINAL sizes, used only for the contact-hurts-the-hero check (inset, centred
+ * inside the bigger art) — their bigger CRITTER_DIMS box still applies when a bubble catches
+ * them, which only makes them easier to trap */
+const CRITTER_HURT_DIMS: Record<CritterKind, [number, number]> = { walker: [12, 11], jumper: [12, 11], flyer: [12, 10], thrower: [12, 12] };
+const OUTLINE = "#140c28";
+
+// ── baked backdrop + tile art (see "BAKE LAZILY" at the top of the brief) ──
+const DITHER_W = 4; // kept narrow (and identical across its width) so it tiles seamlessly
+function skyStrip(stops: [string, string]): Sprite {
+  // a smooth vertical blend — the two stops are close in hue, so an ordered dither here just
+  // reads as sparkly noise; a plain blend is the cleaner 16-bit look
+  return bake(DITHER_W, H, (_x, y) => mixHex(stops[0], stops[1], y / (H - 1)));
+}
+function groundStrip(bandColor: string): Sprite {
+  // the pale horizon band under the sky: a soft syrupy shimmer, not a flat rect
+  const w = 32, h = 28;
+  return bake(w, h, (x, y) => {
+    const wave = fbm(x * 0.15, y * 0.4, 2, 40);
+    const base = mixHex(bandColor, "#ffffff", 0.12 + wave * 0.07);
+    if (y === 0) return shade(base, 0.22);
+    const glint = Math.sin((x - y * 0.6) * 0.4) > 0.97;
+    return glint ? mixHex(base, "#ffffff", 0.6) : base;
+  });
+}
+/** a fluffy cloud silhouette made of overlapping puffs, lit from the top-left */
+function cloudPuff(w: number, h: number, dim: boolean): Sprite {
+  const puffs: [number, number, number][] = [
+    [w * 0.22, h * 0.58, w * 0.24],
+    [w * 0.46, h * 0.36, w * 0.32],
+    [w * 0.72, h * 0.5, w * 0.27],
+    [w * 0.88, h * 0.62, w * 0.17],
+  ];
+  const lit = dim ? "#dcebff" : "#ffffff";
+  const soft = dim ? "#b9d2f0" : "#cfe6ff";
+  return bake(w, h, (x, y) => {
+    let inside = false;
+    for (const [bx, by, br] of puffs) {
+      const dx = (x - bx) / br;
+      const dy = (y - by) / (br * 0.8);
+      if (dx * dx + dy * dy < 1) inside = true;
+    }
+    if (!inside) return null;
+    return y < h * 0.42 ? lit : soft;
+  });
+}
+/** one candy-pink platform tile: glossy top rim, faint diagonal stripe, sprinkled underside */
+function platformTile(): Sprite {
+  const w = T;
+  const h = 12;
+  const top = "#ffc8ea";
+  const base = shade(PAL.pink, -0.06);
+  const dark = shade(PAL.pink, -0.34);
+  const darker = shade(PAL.pink, -0.48);
+  return bake(w, h, (x, y) => {
+    if (y === 0) return top;
+    if (y <= 6) return (x + y) % 9 < 2 ? shade(base, 0.2) : base;
+    if (y === 7) return dark;
+    return hash2(x, y, 31) > 0.84 ? mixHex(darker, "#ffffff", 0.45) : darker;
+  });
+}
+/** a soft dithered glow core — used for the empty "sparkle" bubbles, echoing the painting's
+ * floating white sparkle rather than a flat glow dome */
+function sparkSprite(r: number, color: string): Sprite {
+  const d = r * 2 + 1;
+  return bake(d, d, (x, y) => {
+    const dx = x - r;
+    const dy = y - r;
+    const dist = Math.hypot(dx, dy);
+    if (dist < r * 0.3) return "#ffffff";
+    if (dist < r && 1 - dist / r > bayer(x, y) * 0.75) return color;
+    return null;
+  });
+}
+function fruitSprite(color: string): Sprite {
+  const w = 12;
+  const hi = shade(color, 0.3);
+  const lo = shade(color, -0.3);
+  return bake(w, w, (x, y) => {
+    if (x >= 5 && x <= 6 && y <= 1) return "#1f9a3f"; // stem
+    if (y === 1 && x >= 7 && x <= 9) return "#3ecf55"; // little leaf
+    const dx = (x - 5.5) / 4.6;
+    const dy = (y - 6.5) / 4.6;
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    const light = -dx - dy * 0.7;
+    return light > 0.5 ? hi : light < -0.55 ? lo : color;
+  });
+}
+function pebbleSprite(): Sprite {
+  return bake(7, 7, (x, y) => {
+    const dx = (x - 3) / 3;
+    const dy = (y - 3) / 3;
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    const light = -dx - dy;
+    return light > 0.4 ? "#c9a876" : light < -0.5 ? shade(PAL.brown, -0.3) : PAL.brown;
+  });
+}
+function makeArt() {
+  return {
+    skies: SKYS.map((s) => skyStrip(s)),
+    grounds: SKYS.map((s) => groundStrip(s[1])),
+    cloudNearA: cloudPuff(46, 20, false),
+    cloudNearB: cloudPuff(36, 17, false),
+    cloudFar: cloudPuff(38, 16, true),
+    plat: platformTile(),
+    sparkWhite: sparkSprite(7, "#dff3ff"),
+    fruit: FRUIT_COLORS.map((c) => fruitSprite(c)),
+    pebble: pebbleSprite(),
+  };
+}
+let A: ReturnType<typeof makeArt> | null = null;
+const art = () => (A ??= makeArt());
 
 interface Hero {
   x: number;
@@ -216,6 +336,7 @@ function platformsOf(grid: string[]): Seg[] {
   }
   return segs;
 }
+const mod = (v: number, m: number) => ((v % m) + m) % m;
 const wrapCol = (x: number) => (((Math.floor(x / T) % COLS) + COLS) % COLS);
 function wrapLeft(e: { x: number; w: number }) {
   if (e.x + e.w < 0) e.x += W;
@@ -253,8 +374,7 @@ function typesForRound(round: number): CritterKind[] {
 }
 function spawnCritter(kind: CritterKind, x: number, y: number, angry: boolean, speedMul: number, r: Rng): Critter {
   const base = kind === "walker" ? 0.55 : kind === "jumper" ? 0.5 : kind === "flyer" ? 0.8 : 0.32;
-  const dims: Record<CritterKind, [number, number]> = { walker: [12, 11], jumper: [12, 11], flyer: [12, 10], thrower: [12, 12] };
-  const [w, h] = dims[kind];
+  const [w, h] = CRITTER_DIMS[kind];
   const c: Critter = { kind, x, y, w, h, dir: r.chance(0.5) ? 1 : -1, spd: base * speedMul, vy: 0, onGround: false, angry, t: 0 };
   if (kind === "jumper") c.jumpT = r.int(40, 90);
   if (kind === "flyer") {
@@ -266,6 +386,126 @@ function spawnCritter(kind: CritterKind, x: number, y: number, angry: boolean, s
 }
 const bubbleBox = (b: Bubble) => ({ x: b.x - b.r, y: b.y - b.r, w: b.r * 2, h: b.r * 2 });
 const projBox = (p: Projectile) => ({ x: p.x - 3, y: p.y - 3, w: 6, h: 6 });
+/** a smaller box of the given size, centred inside a bigger entity's footprint */
+const centeredBox = (e: { x: number; y: number; w: number; h: number }, w: number, h: number) => ({
+  x: e.x + (e.w - w) / 2,
+  y: e.y + (e.h - h) / 2,
+  w,
+  h,
+});
+
+/** three small pixel-staircase points across the top of a round head/body — the little spiky
+ * crown every buddy in the painting wears, instead of plain round ear nubs */
+function crownSpikes(g: Gfx, cx: number, topY: number, r: number, color: string) {
+  const dk = shade(color, -0.22);
+  for (const ox of [-r * 0.55, 0, r * 0.55]) {
+    const x = cx + ox;
+    g.rect(x - 1.5, topY, 3, 1.4, color);
+    g.rect(x - 1, topY + 1.3, 2, 1.3, color);
+    g.rect(x - 0.5, topY + 2.5, 1, 1.4, dk);
+  }
+}
+/** the painting's big round eye with a small square black pupil, not a soft circular dot */
+function bigEye(g: Gfx, x: number, y: number, r: number, pupilDx: number) {
+  g.circle(x, y, r, PAL.white);
+  const pw = r * 0.62;
+  g.rect(x - pw / 2 + pupilDx, y - pw / 2, pw, pw, PAL.black);
+}
+
+/** A trapped/angry critter, chubby and round with a little spike crown — bigger and shinier
+ * than the original 10px dots, with a dark silhouette behind for a readable 1px-style outline. */
+function drawCritter(g: Gfx, c: Critter) {
+  const col = c.angry ? PAL.red : KIND_COLOR[c.kind];
+  const dark = c.angry ? "#7a1c28" : KIND_DARK[c.kind];
+  const hi = shade(col, 0.32);
+  const r = CRITTER_R[c.kind];
+  const cx = c.x + c.w / 2;
+  const cy = c.y + c.h / 2 - (c.kind === "flyer" ? 0 : 1);
+
+  if (c.kind === "flyer") {
+    const wing = Math.sin(c.t * 0.3) * 3;
+    g.circle(cx - 7, cy - wing, 5, OUTLINE);
+    g.circle(cx + 7, cy - wing, 5, OUTLINE);
+    g.circle(cx, cy, r + 1.3, OUTLINE);
+    g.circle(cx - 7, cy - wing, 3.8, hi);
+    g.circle(cx + 7, cy - wing, 3.8, hi);
+  } else {
+    g.circle(cx, cy, r + 1.3, OUTLINE);
+  }
+
+  // limbs, drawn before the body so it overlaps their tops like a real socket
+  if (c.kind === "walker") {
+    const leg = Math.sin(c.t * 0.4) * 2;
+    g.rect(cx - 4, cy + r - 2, 3, 3 + Math.max(0, leg), dark);
+    g.rect(cx + 1, cy + r - 2, 3, 3 + Math.max(0, -leg), dark);
+  } else if (c.kind === "jumper") {
+    const squat = c.onGround && (c.jumpT ?? 99) > 44 ? 1.4 : 0.75;
+    g.rect(cx - 4, cy + r - 2, 3, 3 * squat, dark);
+    g.rect(cx + 1, cy + r - 2, 3, 3 * squat, dark);
+  } else if (c.kind === "thrower") {
+    g.rect(cx - 3, cy + r - 2, 3, 3, dark);
+    g.rect(cx + 1, cy + r - 2, 3, 3, dark);
+    const armX = c.dir > 0 ? cx + r - 1 : cx - r - 5;
+    g.rect(armX, cy - 1, 6, 2.4, dark);
+    g.circle(c.dir > 0 ? armX + 7 : armX - 1, cy, 2, "#c9a876");
+  }
+
+  if (c.kind !== "flyer") crownSpikes(g, cx, cy - r - 1, r, col);
+
+  // body + glossy highlight
+  g.circle(cx, cy, r, col);
+  g.circle(cx - r * 0.35, cy - r * 0.35, r * 0.42, hi);
+
+  // eyes
+  const eyeY = cy - r * 0.08;
+  bigEye(g, cx - r * 0.34, eyeY, r * 0.4, 0.4);
+  bigEye(g, cx + r * 0.34, eyeY, r * 0.4, 0.4);
+}
+
+/** Bubblo, the chubby baby dino hero — bigger body, back spikes, a big friendly eye, a dark
+ * outline silhouette and a bit of squash/stretch on jumps and landings. */
+function drawHero(g: Gfx, hero: Hero) {
+  const dir = hero.facing;
+  const cx = hero.x + hero.w / 2;
+  const bodyCy = hero.y + hero.h / 2 + 2;
+  const legSwing = hero.onGround && Math.abs(hero.vx) > 0.1 ? Math.sin(hero.anim * 2) : 0;
+  const squashY = hero.vy < -1.5 ? 0.86 : hero.vy > 2.2 ? 1.14 : 1;
+  const bodyR = 7.6;
+  const headR = 6.2;
+  const headX = cx + dir * 6;
+  const headY = hero.y + 6;
+
+  // outline silhouette behind body + head
+  g.circle(cx, bodyCy, bodyR * squashY + 1.4, OUTLINE);
+  g.circle(headX, headY, headR + 1.2, OUTLINE);
+
+  // legs + tail, overlapped by the body on top
+  const legY = hero.y + hero.h - 4;
+  g.rect(cx - 5, legY, 3.4, legSwing > 0.15 ? 5 : 3.4, shade(PAL.green, -0.35));
+  g.rect(cx + 1.6, legY, 3.4, legSwing < -0.15 ? 5 : 3.4, shade(PAL.green, -0.35));
+  g.circle(cx - dir * 8, bodyCy + 2, 2.6, shade(PAL.green, -0.12));
+
+  // body + a soft belly patch + head
+  g.circle(cx, bodyCy, bodyR * squashY, PAL.green);
+  g.circle(cx - dir * 1.5, bodyCy - 1.5, bodyR * 0.55, shade(PAL.green, 0.3));
+  g.circle(cx - dir * 0.5, bodyCy + bodyR * 0.5, bodyR * 0.4, PAL.lime);
+  g.circle(headX, headY, headR, PAL.green);
+  g.circle(headX - dir * 1.5, headY - 1.5, headR * 0.5, shade(PAL.green, 0.32));
+  crownSpikes(g, headX, headY - headR - 1, headR * 0.85, PAL.orange);
+
+  // one big friendly eye, like every buddy in the park
+  bigEye(g, headX + dir * 2.4, headY - 0.6, 3, dir * 0.6);
+
+  if (hero.blowT > 0) {
+    const k = 1 - hero.blowT / 14;
+    const bubR = 1.5 + k * 5;
+    const bx = headX + dir * (headR + 2 + bubR);
+    g.alpha(0.55);
+    g.circle(bx, headY + 2, bubR, PAL.cyan);
+    g.alpha(1);
+    g.circle(bx - dir * 1.5, headY + 0.5, 1, PAL.white);
+  }
+}
 
 function create(seed: number): GameInstance {
   const rnd = rng(seed);
@@ -326,8 +566,11 @@ function create(seed: number): GameInstance {
     for (let i = 0; i < count; i++) {
       const seg = rnd.pick(segs);
       const kind = rnd.pick(types);
-      const hi = Math.max(seg.x1 + 2, seg.x2 - 14);
+      const hi = Math.max(seg.x1 + 2, seg.x2 - 16);
       const x = rnd.range(seg.x1 + 2, hi);
+      // the original fixed -12 offset, not the (bigger) drawn height: a flyer's hover baseline
+      // is captured from this y on its first update, so this must match the original exactly
+      // or critters would reach higher/lower than before
       critters.push(spawnCritter(kind, x, seg.y - 12, false, roundSpeedMul, rnd));
     }
     bubbles = [];
@@ -358,8 +601,8 @@ function create(seed: number): GameInstance {
 
   const hurt = (io: IO) => {
     if (hero.inv > 0 || state !== "play") return;
-    io.sfx.play("die");
     lives--;
+    io.sfx.play(lives <= 0 ? "die" : "hurt");
     burst(hero.x + hero.w / 2, hero.y + hero.h / 2, PAL.red, 10);
     if (lives <= 0) {
       state = "dead";
@@ -389,6 +632,7 @@ function create(seed: number): GameInstance {
     hero.x += hero.vx;
     wrapLeft(hero);
     hero.anim += Math.abs(hero.vx) * 0.15;
+    if (hero.onGround && Math.abs(hero.vx) > 0.4 && tick % 14 === 0) io.sfx.play("step");
 
     hero.buffer = inp.pressed.a ? BUFFER : Math.max(0, hero.buffer - 1);
     hero.coyote = hero.onGround ? COYOTE : Math.max(0, hero.coyote - 1);
@@ -466,7 +710,7 @@ function create(seed: number): GameInstance {
         if (c.shootT <= 0) {
           const dir: 1 | -1 = hero.x < c.x ? -1 : 1;
           projectiles.push({ x: c.x + (dir > 0 ? c.w : 0), y: c.y + c.h / 2, vx: dir * 1.7, t: 0 });
-          io.sfx.play("laser");
+          io.sfx.play("zap");
           c.shootT = Math.round(rnd.int(110, 190) / (c.angry ? 1.4 : 1));
         }
       }
@@ -482,7 +726,7 @@ function create(seed: number): GameInstance {
     projectiles = projectiles.filter((p) => p.t < 240);
   };
 
-  const updateBubbles = () => {
+  const updateBubbles = (io: IO) => {
     for (const b of bubbles) {
       if (b.dead) continue;
       b.t++;
@@ -502,6 +746,7 @@ function create(seed: number): GameInstance {
         }
         if (b.state === "fly" && b.t > BUBBLE_FLY_FRAMES) b.state = "drift";
       } else {
+        const wasBelow = b.y > 22.01;
         b.vy = Math.max(-0.8, b.vy - 0.02);
         b.y += b.vy;
         b.x += Math.sin((tick + b.sway) * 0.05) * 0.4;
@@ -509,9 +754,13 @@ function create(seed: number): GameInstance {
         if (b.y < 22) {
           b.y = 22;
           b.vy = 0;
+          if (wasBelow) io.sfx.play("blip");
         }
         if (b.state === "drift" && b.t > BUBBLE_FLY_FRAMES + DRIFT_LIFE) b.dead = true;
         if (b.state === "trapped" && b.t > trapLifetime()) {
+          // the original fixed offsets (not the bigger drawn size) — same reach-safety reason
+          // as the round-start spawn above
+          io.sfx.play("whoosh");
           critters.push(spawnCritter(b.kind!, b.x - 6, b.y - 5, true, roundSpeedMul, rnd));
           b.dead = true;
         }
@@ -533,11 +782,12 @@ function create(seed: number): GameInstance {
 
   const hurtCheck = (io: IO) => {
     if (hero.inv > 0 || state !== "play") return;
+    const heroBox = centeredBox(hero, HURT_W, HURT_H);
     for (const c of critters) {
-      if (overlap(hero, c)) return hurt(io);
+      if (overlap(heroBox, centeredBox(c, ...CRITTER_HURT_DIMS[c.kind]))) return hurt(io);
     }
     for (const p of projectiles) {
-      if (overlap(hero, projBox(p))) return hurt(io);
+      if (overlap(heroBox, projBox(p))) return hurt(io);
     }
   };
   const bubbleCheck = (io: IO) => {
@@ -545,9 +795,10 @@ function create(seed: number): GameInstance {
     for (const b of bubbles) {
       if (!overlap(hero, bubbleBox(b))) continue;
       if (b.state === "trapped") {
-        io.sfx.play("explode");
-        fruits.push(spawnFruit(b.x, b.y));
+        io.sfx.play("pop");
         chain = tick - lastPop < CHAIN_WINDOW ? Math.min(chain + 1, 8) : 1;
+        if (chain > 1) io.sfx.slide?.(380 + chain * 70, 820 + chain * 70, 0.14, "square", 0.35);
+        fruits.push(spawnFruit(b.x, b.y));
         lastPop = tick;
         io.score(10 * chain);
         popText(b.x, b.y - 10, `+${10 * chain}`);
@@ -564,7 +815,7 @@ function create(seed: number): GameInstance {
   const fruitCheck = (io: IO) => {
     for (const f of fruits) {
       if (f.dead || !overlap(hero, f)) continue;
-      io.sfx.play("coin");
+      io.sfx.play("pickup");
       const pts = FRUIT_BASE * chain;
       io.score(pts);
       popText(f.x, f.y - 8, `+${pts}`);
@@ -635,7 +886,7 @@ function create(seed: number): GameInstance {
       updateHero(io);
       updateCritters(io);
       updateProjectiles();
-      updateBubbles();
+      updateBubbles(io);
       updateFruit();
       hurtCheck(io);
       bubbleCheck(io);
@@ -644,131 +895,103 @@ function create(seed: number): GameInstance {
     },
 
     draw(g: Gfx) {
-      const sky = SKYS[(round - 1) % SKYS.length];
-      g.clear(sky[0]);
-      g.rect(0, H - 28, W, 28, sky[1]);
-      for (let i = 0; i < 4; i++) {
-        const x = (i * 70 + 24) % W;
-        g.circle(x, 18, 9, sky[1]);
-        g.circle(x + 10, 14, 7, sky[1]);
+      const a = art();
+      const skyIdx = (round - 1) % SKYS.length;
+
+      // sky: a dithered gradient (never a flat fill), tiled from a 4px strip
+      for (let x = 0; x < W; x += DITHER_W) g.sprite(a.skies[skyIdx], x, 0);
+
+      // distant pale clouds drift slowly; nearer, whiter ones drift a touch faster — two depths
+      // of the same simple shape, not a wall of jungle the painting never had
+      for (let i = 0; i < 2; i++) {
+        const w = 38;
+        const x = mod(i * 150 + 40 - tick * 0.045, W + w) - w;
+        g.sprite(a.cloudFar, x, 16 + (i % 2) * 20);
+      }
+      for (let i = 0; i < 3; i++) {
+        const cloud = i % 2 === 0 ? a.cloudNearA : a.cloudNearB;
+        const w = i % 2 === 0 ? 46 : 36;
+        const x = mod(i * 160 + 90 - tick * 0.1, W + w) - w;
+        g.sprite(cloud, x, 15 + (i % 2) * 18);
       }
 
-      // platforms
+      // the pale, shimmering horizon band
+      for (let x = 0; x < W; x += 32) g.sprite(a.grounds[skyIdx], x, H - 28);
+
+      // platforms: a baked candy-pink tile per cell, glossy top + sprinkled underside
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           if (grid[r][c] !== "#") continue;
-          const x = c * T;
-          const y = r * T;
-          g.rect(x, y, T, 5, PAL.pink);
-          g.rect(x, y, T, 1, "#ffd4ec");
-          g.rect(x, y + 5, T, 4, "#d078a8");
+          g.sprite(a.plat, c * T, r * T);
         }
       }
 
-      // fruit
+      // fruit (a baked little candy fruit with a stem + leaf, bobbing gently)
       for (const f of fruits) {
-        const cx = f.x + f.w / 2;
-        const cy = f.y + f.h / 2;
-        g.circle(cx, cy, 5, FRUIT_COLORS[f.kind]);
-        g.rect(cx - 1, cy - 7, 2, 3, PAL.green);
+        const bob = Math.sin((f.t + f.x) * 0.18) * 1.3;
+        g.sprite(a.fruit[f.kind], f.x - 1, f.y - 1 + bob);
       }
 
-      // bubbles (wobbly and translucent; a trapped critter shows faintly inside)
+      // bubbles: a soft rim-lit soap bubble; empty ones carry the painting's white sparkle,
+      // trapped ones glow with the critter's own colour inside
       for (const b of bubbles) {
         const wob = Math.sin((tick + b.sway) * 0.15);
-        g.alpha(0.3);
-        g.circle(b.x, b.y, b.r + wob, PAL.cyan);
+        const rr = b.r + wob;
+        g.alpha(0.4);
+        g.circle(b.x, b.y, rr + 1, "#ffffff");
         g.alpha(1);
-        g.alpha(0.8);
-        g.circle(b.x - 3, b.y - 3, 2, PAL.white);
+        g.alpha(0.3);
+        g.circle(b.x, b.y, rr, PAL.cyan);
         g.alpha(1);
         if (b.state === "trapped" && b.kind) {
           const col = b.angry ? PAL.red : KIND_COLOR[b.kind];
-          g.circle(b.x, b.y, 4, col);
-        }
-      }
-
-      // critters
-      for (const c of critters) {
-        const col = c.angry ? PAL.red : KIND_COLOR[c.kind];
-        const dark = c.angry ? "#a82a3a" : KIND_DARK[c.kind];
-        const cx = c.x + c.w / 2;
-        const cy = c.y + c.h / 2;
-        if (c.kind === "flyer") {
-          const wing = Math.sin(c.t * 0.3) * 3;
-          g.circle(cx - 6, cy - wing, 4, col);
-          g.circle(cx + 6, cy - wing, 4, col);
-          g.circle(cx, cy, 5, col);
-        } else if (c.kind === "thrower") {
-          g.circle(cx, cy, 6, col);
-          g.rect(c.dir > 0 ? cx + 4 : cx - 8, cy - 1, 4, 2, dark);
-        } else if (c.kind === "jumper") {
-          g.circle(cx, cy - 1, 5, col);
-          g.rect(cx - 3, cy + 4, 2, 3, dark);
-          g.rect(cx + 1, cy + 4, 2, 3, dark);
+          g.circle(b.x, b.y, 4.4, col);
+          g.circle(b.x - 1, b.y - 1, 1.6, shade(col, 0.32));
         } else {
-          g.circle(cx, cy, 5, col);
-          const leg = Math.floor(c.t / 8) % 2;
-          g.rect(cx - 3, cy + 3, 2, 2 + leg, dark);
-          g.rect(cx + 1, cy + 3, 2, 3 - leg, dark);
+          g.sprite(a.sparkWhite, b.x - 4, b.y - 4);
         }
-        g.rect(cx - 2, cy - 2, 1, 2, PAL.black);
-        g.rect(cx + 1, cy - 2, 1, 2, PAL.black);
       }
 
-      // thrown pebbles
-      for (const p of projectiles) g.circle(p.x, p.y, 3, PAL.brown);
+      for (const c of critters) drawCritter(g, c);
 
-      // hero — a chubby baby dino, "Bubblo"
+      // thrown pebbles, with a faint motion trail
+      for (const p of projectiles) {
+        g.alpha(0.35);
+        g.sprite(a.pebble, p.x - 3.5 - Math.sign(p.vx) * 3, p.y - 3.5);
+        g.alpha(1);
+        g.sprite(a.pebble, p.x - 3.5, p.y - 3.5);
+      }
+
+      // hero — Bubblo, the chubby baby dino
       const blink = hero.inv > 0 && Math.floor(hero.inv / 4) % 2 === 1;
-      if (!blink) {
-        const dir = hero.facing;
-        const cx = hero.x + hero.w / 2;
-        const cy = hero.y + hero.h / 2 + 2;
-        const legSwing = hero.onGround && Math.abs(hero.vx) > 0.1 ? Math.sin(hero.anim * 2) : 0;
-        g.rect(cx - 4, hero.y + hero.h - 3, 3, legSwing > 0 ? 4 : 3, PAL.dark);
-        g.rect(cx + 1, hero.y + hero.h - 3, 3, legSwing < 0 ? 4 : 3, PAL.dark);
-        g.rect(cx - dir * 7, hero.y + hero.h - 7, 3, 3, PAL.green);
-        g.circle(cx, cy, 6, PAL.green);
-        g.circle(cx, cy + 2, 4, PAL.lime);
-        g.rect(cx - 2, hero.y + 1, 2, 3, PAL.orange);
-        g.rect(cx + 2, hero.y + 1, 2, 3, PAL.orange);
-        const headX = cx + dir * 4;
-        g.circle(headX, hero.y + 5, 5, PAL.green);
-        g.circle(headX + dir * 2, hero.y + 3, 2, PAL.white);
-        g.rect(headX + dir * 2, hero.y + 3, 1, 1, PAL.black);
-        g.rect(headX + dir * 5, hero.y + 5, 2, 2, PAL.lime);
-        if (hero.blowT > 0) {
-          g.circle(headX + dir * 3, hero.y + 6, 3, PAL.lime);
-          const bubR = 2 + (14 - hero.blowT) * 0.35;
-          g.alpha(0.5);
-          g.circle(headX + dir * (6 + bubR), hero.y + 6, bubR, PAL.cyan);
-          g.alpha(1);
-        }
-      }
+      if (!blink) drawHero(g, hero);
 
       for (const p of parts) g.rect(p.x, p.y, 2, 2, p.color);
       for (const p of pops) g.text(p.text, p.x, p.y - p.t * 0.5, PAL.white);
 
-      // HUD
-      g.rect(0, 0, W, 12, "rgba(13,11,26,0.55)");
-      g.text(`♥X${lives}`, 4, 2, PAL.red);
+      // HUD — a small framed instrument panel
+      g.rect(0, 0, W, 13, "#141233");
+      g.rect(0, 13, W, 1, OUTLINE);
+      for (let i = 0; i < lives; i++) g.text("♥", 4 + i * 9, 3, PAL.red);
       const left = critters.length + bubbles.filter((b) => b.state === "trapped").length;
-      g.text(`${left} LEFT`, 70, 2, PAL.cyan);
-      g.text(`ROUND ${round}/${TOTAL_ROUNDS}`, W - 4, 2, PAL.white, { align: "right" });
+      g.text(`${left} LEFT`, 70, 3, PAL.cyan);
+      g.text(`ROUND ${round}/${TOTAL_ROUNDS}`, W - 4, 3, PAL.white, { align: "right" });
 
       if (state === "ready") {
-        g.rect(40, 94, W - 80, 30, "rgba(13,11,26,0.75)");
+        g.rect(40, 94, W - 80, 30, "rgba(13,11,26,0.8)");
+        g.box(40, 94, W - 80, 30, PAL.pink);
         g.text(`ROUND ${round}`, W / 2, 100, PAL.yellow, { align: "center" });
         g.text("TRAP THE CRITTERS!", W / 2, 112, PAL.white, { align: "center" });
       }
       if (state === "clear") {
-        g.rect(40, 94, W - 80, 30, "rgba(13,11,26,0.75)");
+        g.rect(40, 94, W - 80, 30, "rgba(13,11,26,0.8)");
+        g.box(40, 94, W - 80, 30, PAL.lime);
         g.text(round >= TOTAL_ROUNDS ? "YOU DID IT!" : "ROUND CLEAR!", W / 2, 100, PAL.pink, { align: "center" });
         g.text(round >= TOTAL_ROUNDS ? "ALL BUDDIES SAVED" : "NICE BUBBLING!", W / 2, 112, PAL.white, { align: "center" });
       }
       if (state === "dead" && lives <= 0) {
-        g.rect(40, 94, W - 80, 24, "rgba(13,11,26,0.75)");
+        g.rect(40, 94, W - 80, 24, "rgba(13,11,26,0.8)");
+        g.box(40, 94, W - 80, 24, PAL.red);
         g.text("OUT OF BUBBLES!", W / 2, 102, PAL.red, { align: "center" });
       }
       if (hurryBanner > 0 && Math.floor(hurryBanner / 10) % 2 === 0) {
