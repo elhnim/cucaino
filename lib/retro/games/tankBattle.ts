@@ -1,595 +1,835 @@
-// TANK BATTLE — a top-down maze shoot-'em-up. Drive your tank through a brick-and-steel
-// battlefield, blast waves of enemy tanks before they blast you, and above all protect your
-// base — a little star emblem boxed in by bricks at the bottom of the map. Shoot bricks to
-// rubble (one quarter-block at a time), hide under bushes, and grab power-ups dropped by
-// flashing enemies. 3 lives, several handcrafted battlefields that cycle and get tougher.
-// (Original game in the spirit of 8-bit tank-maze classics — no borrowed names or art.)
-import { H, PAL, W, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+// TANK BATTLE — a top-down tank-maze shoot-'em-up in the spirit of the 8-bit battle-city classics.
+// Drive your gold tank round a brick-and-steel battlefield, blast every enemy tank before it
+// blasts you, and above all keep your base (the bird emblem in its little brick nest at the
+// bottom) safe. Bullets chew bricks away 4 px at a time, steel only gives to a fully powered-up
+// tank, water stops tanks but not bullets, trees hide everything, ice makes you slide.
+// Flashing red tanks drop power-ups: star (power up), helmet (shield), shovel (steel nest),
+// clock (freeze), grenade (boom!) and tank (extra life). 8 stages, then you win.
+// (Original art and stages — no borrowed names or graphics.)
+import { H, W, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
 
 // ── layout ──
-const T = 16; // tile size
+const T = 16; // one map tile
 const COLS = 13;
 const ROWS = 13;
 const ARENA = COLS * T; // 208 x 208 battlefield
-const OX = 4; // arena sits left, HUD strip on the right
+const Q = 4; // terrain cell: bricks chip away a 4 px strip at a time
+const QN = ARENA / Q; // 52 x 52 cells
+const OX = 16; // the arena sits in a grey frame, the HUD panel on the right
 const OY = 8;
-const BLOCK = T / 2; // 8px chip blocks (also the half-tile movement grid)
-const BCOLS = COLS * 2;
-const BROWS = ROWS * 2;
-const TANK = 14; // tank hitbox, a hair smaller than a tile
-const PLAYER_SPAWN_COL = 3;
-const BASE_COL = 6;
-const BASE_ROW = ROWS - 1;
 const TOTAL_STAGES = 8;
+const PLAYER_X = 4 * T;
+const PLAYER_Y = 12 * T;
+const BASE_X = 6 * T;
+const BASE_Y = 12 * T;
+const SPAWN_X = [6 * T, 12 * T, 0];
 
-// terrain codes, one per 8x8 chip block
+const GREY = "#7c7c7c";
+const INK = "#000000";
+
+// terrain codes, one per 4x4 cell
 const EMPTY = 0,
   BRICK = 1,
   STEEL = 2,
   WATER = 3,
   BUSH = 4,
-  BASE = 5;
+  ICE = 5,
+  BASE = 6;
 
-// ── handcrafted battlefields (13x13 chars; '.' empty '#' brick '%' steel '~' water '*' bush) ──
-const STAGE_LAYOUTS: string[][] = [
+// ── battlefields: 13x13 tiles. '.' empty  '#' brick  '%' steel  '~' water  '*' trees  '-' ice
+//    half tiles: brick u(pper) b(ottom) l(eft) r(ight), steel U N L R (top bottom left right) ──
+const STAGES: string[][] = [
   [
     ".............",
     ".#.#.#.#.#.#.",
+    ".#.#.#.#.#.#.",
+    ".#.#.#%#.#.#.",
+    ".#.#.....#.#.",
+    ".....#.#.....",
+    "b.bb.....bb.b",
+    "...u.#.#.u...",
+    ".#.#.###.#.#.",
+    ".#.#.#.#.#.#.",
+    ".#.#.....#.#.",
+    ".#.#.....#.#.",
     ".............",
-    "..###...###..",
-    ".............",
-    "#.....#.....#",
-    ".............",
-    "...*****.....",
-    ".............",
-    "#.....#.....#",
-    ".............",
-    "..###...###..",
+  ],
+  [
+    ".....%.%.....",
+    ".#.#.%.%.#.#.",
+    ".#.#.....#.#.",
+    ".#.#.###.#.#.",
+    "NN.........NN",
+    "...#.*.*.#...",
+    ".*.#.***.#.*.",
+    "...#.*.*.#...",
+    "UU.........UU",
+    ".#.#.###.#.#.",
+    ".#.#.....#.#.",
+    ".#.#.....#.#.",
     ".............",
   ],
   [
     ".............",
-    "..%.......%..",
-    "..#.......#..",
+    ".##.##.##.##.",
+    ".bb.##.##.bb.",
     ".............",
-    "####.....####",
-    ".............",
-    "...%%%.%%%...",
-    ".............",
-    "####.....####",
-    ".............",
-    "..#.......#..",
-    "..%.......%..",
-    ".............",
-  ],
-  [
-    ".............",
-    "..###...###..",
-    ".............",
-    "#.....#.....#",
-    ".............",
-    "..~~~~~~~~~..",
-    "..~~~~~~~~~..",
-    ".............",
-    "#.....#.....#",
-    ".............",
-    "..###...###..",
-    ".............",
+    "~~~.~~~~~.~~~",
+    "~~~.~~~~~.~~~",
+    "...#.....#...",
+    ".*.#.%.%.#.*.",
+    ".*...%.%...*.",
+    "**.#.....#.**",
+    "...#.....#...",
+    ".##.......##.",
     ".............",
   ],
   [
+    ".............",
+    ".%%.#####.%%.",
     ".%.........%.",
+    "...--###--...",
+    ".#.-------.#.",
+    ".#.-#...#-.#.",
+    ".#.-#.%.#-.#.",
+    ".#.-#...#-.#.",
+    ".#.-------.#.",
+    "...--###--...",
+    ".%.........%.",
+    ".%%.#...#.%%.",
+    ".............",
+  ],
+  [
+    "..*.......*..",
+    ".***.#.#.***.",
+    ".***.#.#.***.",
+    "..*..#.#..*..",
+    ".....###.....",
+    "##.*.....*.##",
+    "uu.***.***.uu",
+    ".....*.*.....",
+    ".#.#.....#.#.",
+    ".#.#.%%%.#.#.",
+    ".#.#.....#.#.",
+    ".#.........#.",
+    ".............",
+  ],
+  [
+    ".............",
+    ".###.%.%.###.",
+    ".#.........#.",
+    ".#.##.#.##.#.",
+    "...#..#..#...",
+    "R#.#.###.#.#L",
+    ".........~...",
+    ".#.#.###.#.#.",
+    ".#.#..#..#.#.",
+    ".#.##.#.##.#.",
+    ".#.........#.",
+    ".###.....###.",
+    ".............",
+  ],
+  [
+    ".............",
+    "..#.#...#.#..",
+    ".%#.#.%.#.#%.",
+    "..#.......#..",
+    "....~~~~~....",
+    ".#.~~~~~~~.#.",
+    ".#.~~*%*~~.#.",
+    ".#.~~~~~~~.#.",
+    "....~~~~~....",
+    "..#.#...#.#..",
+    ".%#.#...#.#%.",
+    "..#.......#..",
+    ".............",
+  ],
+  [
+    ".............",
+    ".%%%.#.#.%%%.",
     ".#.#.#.#.#.#.",
-    ".............",
-    "..###.#.###..",
-    ".............",
-    "#.%.......%.#",
-    "...~~~.~~~...",
-    "#.%.......%.#",
-    ".............",
-    "..###.#.###..",
-    ".............",
-    ".#.#.#.#.#.#.",
+    ".#.#.....#.#.",
+    "...#.%%%.#...",
+    "##...#*#...##",
+    ".*.#.***.#.*.",
+    "##...#*#...##",
+    "...#.%%%.#...",
+    ".#.#.....#.#.",
+    ".#.#.###.#.#.",
+    ".%%%.....%%%.",
     ".............",
   ],
 ];
-for (const layout of STAGE_LAYOUTS) {
-  if (layout.length !== ROWS || layout.some((row) => row.length !== COLS)) throw new Error("tankBattle: bad stage layout size");
+for (const s of STAGES) if (s.length !== ROWS || s.some((row) => row.length !== COLS)) throw new Error("tankBattle: bad stage layout size");
+
+// char -> [code, cell x0, x1, y0, y1] within the tile's 4x4 cells
+const TILE_CODES: Record<string, [number, number, number, number, number]> = {
+  "#": [BRICK, 0, 4, 0, 4],
+  u: [BRICK, 0, 4, 0, 2],
+  b: [BRICK, 0, 4, 2, 4],
+  l: [BRICK, 0, 2, 0, 4],
+  r: [BRICK, 2, 4, 0, 4],
+  "%": [STEEL, 0, 4, 0, 4],
+  U: [STEEL, 0, 4, 0, 2],
+  N: [STEEL, 0, 4, 2, 4],
+  L: [STEEL, 0, 2, 0, 4],
+  R: [STEEL, 2, 4, 0, 4],
+  "~": [WATER, 0, 4, 0, 4],
+  "*": [BUSH, 0, 4, 0, 4],
+  "-": [ICE, 0, 4, 0, 4],
+};
+
+// the base's brick nest: a ring 8 px thick round the 16x16 base (cells), as in the classics
+const NEST: number[] = [];
+for (let cy = 46; cy < 52; cy++)
+  for (let cx = 22; cx < 30; cx++) {
+    const inBase = cx >= 24 && cx < 28 && cy >= 48;
+    if (!inBase) NEST.push(cy * QN + cx);
+  }
+
+function buildMap(stage: number): Uint8Array {
+  const m = new Uint8Array(QN * QN);
+  const layout = STAGES[stage % STAGES.length];
+  const fill = (tx: number, ty: number, code: number, x0 = 0, x1 = 4, y0 = 0, y1 = 4) => {
+    for (let cy = y0; cy < y1; cy++) for (let cx = x0; cx < x1; cx++) m[(ty * 4 + cy) * QN + tx * 4 + cx] = code;
+  };
+  for (let ty = 0; ty < ROWS; ty++)
+    for (let tx = 0; tx < COLS; tx++) {
+      const d = TILE_CODES[layout[ty][tx]];
+      if (d) fill(tx, ty, d[0], d[1], d[2], d[3], d[4]);
+    }
+  for (const x of SPAWN_X) fill(x / T, 0, EMPTY);
+  fill(PLAYER_X / T, PLAYER_Y / T, EMPTY);
+  for (let ty = 11; ty < 13; ty++) for (let tx = 5; tx < 8; tx++) fill(tx, ty, EMPTY);
+  for (const i of NEST) m[i] = BRICK;
+  fill(BASE_X / T, BASE_Y / T, BASE);
+  return m;
 }
 
-// ── sprites: one hand-drawn hull (barrel pointing up), transposed for the sideways facing,
-// then mirrored with flipX/flipY at draw time to cover all 4 directions ──
-function buildVerticalTank(): string[] {
-  const n = 14;
-  const g: string[][] = Array.from({ length: n }, () => Array(n).fill("."));
+// ── pixel art ──
+const transpose = (rows: string[]) => rows[0].split("").map((_, x) => rows.map((r) => r[x]).join(""));
+const quarters = (rows: string[]) => [0, 1].flatMap((qy) => [0, 1].map((qx) => rows.slice(qy * 4, qy * 4 + 4).map((r) => r.slice(qx * 4, qx * 4 + 4))));
+
+// 8x8 terrain patterns (they repeat every 8 px, so a 4x4 cell takes the matching quarter and
+// chewed walls keep a continuous pattern)
+const BRICK_ROWS = ["ooooooog", "rrrrrrrg", "rrrrrrdg", "gggggggg", "ooogoooo", "rrrgrrrr", "rrdgrrrd", "gggggggg"];
+const BRICK_PAL = { o: "#d8703a", r: "#a8401a", d: "#6a2408", g: "#9c9c9c" };
+const STEEL_ROWS = ["wwwwwwwd", "whhhhhad", "whaaaaad", "whaaaaad", "whaaaaad", "whaaaaad", "waaaaaad", "dddddddd"];
+const STEEL_PAL = { w: "#ffffff", h: "#e4e4ec", a: "#b4b4c0", d: "#5c5c6c" };
+const WATER_ROWS = [
+  ["bbbbbbbb", "bwwbbbbb", "wbbwbbbd", "bbbbbwwb", "bdbbwbbw", "bbbbbbbb", "bbwwbbdb", "bwbbwbbb"],
+  ["bbbbbbbb", "bbbwwbbb", "dbbwbbwb", "wwbbbbbb", "bbwbdbbb", "bbbbbbbb", "dbbbbwwb", "bbbbwbbw"],
+];
+const WATER_PAL = { b: "#2848d8", w: "#a8c8ff", d: "#1830a0" };
+const BUSH_ROWS = [".mml.mm.", "mlmmmlmd", "mmdmmmdm", ".mmdlmm.", "lmm.mmdm", "mdmmlmm.", "mmmdmmdm", ".dm.mdm."];
+const BUSH_PAL = { m: "#2a9a2a", l: "#8ad84a", d: "#0a5a1a" };
+const ICE_ROWS = ["iiiiiijw", "iiiiijwi", "iiiijwii", "iiijwiii", "iijwiiii", "ijwiiiii", "jwiiiiij", "wiiiiiji"];
+const ICE_PAL = { i: "#c8d0e0", j: "#8890a8", w: "#ffffff" };
+
+interface TileArt {
+  full: Sprite[];
+  q: Sprite[][];
+}
+const tileArt = (frames: string[][], pal: Record<string, string>): TileArt => ({ full: frames.map((f) => sprite(f, pal)), q: frames.map((f) => quarters(f).map((r) => sprite(r, pal))) });
+const ART: Record<number, TileArt> = {
+  [BRICK]: tileArt([BRICK_ROWS], BRICK_PAL),
+  [STEEL]: tileArt([STEEL_ROWS], STEEL_PAL),
+  [WATER]: tileArt(WATER_ROWS, WATER_PAL),
+  [BUSH]: tileArt([BUSH_ROWS], BUSH_PAL),
+  [ICE]: tileArt([ICE_ROWS], ICE_PAL),
+};
+
+// the base: a bird with its wings raised; and what's left of it
+const BASE_SPR = sprite(
+  [
+    "................",
+    ".k....kkkk....k.",
+    ".kk..kwwwwk..kk.",
+    ".khk.kwkwwk.khk.",
+    ".khhkkwwwwkkhhk.",
+    ".khhhkkwwkkhhhk.",
+    "..khhhhkkhhhhk..",
+    "..khahhhhhhahk..",
+    "...khahhhhahk...",
+    "....khhkkhhk....",
+    ".....khhhhk.....",
+    "....khakkahk....",
+    "...khak..kahk...",
+    "...kkk....kkk...",
+    "..dddddddddddd..",
+    "................",
+  ],
+  { k: "#202020", h: "#b8b8b8", a: "#7c7c7c", w: "#ffffff", d: "#4c4c4c" },
+);
+const BASE_DEAD_SPR = sprite(
+  [
+    "................",
+    "................",
+    "................",
+    ".......k........",
+    "......kwk.......",
+    "......kwwk..r...",
+    ".......kk..r.r..",
+    "....k.......r...",
+    "...kak..k.......",
+    "..khhak.kak..k..",
+    ".khhahkkhahkkak.",
+    "khahhhhhhhahhhak",
+    "kaahhakhahhaahhk",
+    "kddddddddddddddk",
+    "................",
+    "................",
+  ],
+  { k: "#202020", h: "#9c9c9c", a: "#5c5c5c", w: "#ffffff", d: "#4c4c4c", r: "#e8401a" },
+);
+
+// tanks: built from a few parameters so every kind has its own silhouette; drawn barrel-up,
+// transposed for the sideways facings, mirrored for the other two
+interface Design {
+  tread0: number;
+  hx0: number;
+  hx1: number;
+  hy0: number;
+  hy1: number;
+  tr: number;
+  tcy: number;
+  barY0: number;
+  thick?: boolean;
+  brake?: boolean;
+  rivets?: boolean;
+  grille?: boolean;
+  stripe?: boolean;
+}
+const DESIGNS: Record<string, Design> = {
+  p0: { tread0: 2, hx0: 3, hx1: 12, hy0: 4, hy1: 14, tr: 3.6, tcy: 9.5, barY0: 1 },
+  p1: { tread0: 2, hx0: 3, hx1: 12, hy0: 4, hy1: 14, tr: 3.6, tcy: 9.5, barY0: 0, grille: true },
+  p2: { tread0: 1, hx0: 3, hx1: 12, hy0: 3, hy1: 14, tr: 4.1, tcy: 9.5, barY0: 0, grille: true, rivets: true },
+  p3: { tread0: 1, hx0: 3, hx1: 12, hy0: 3, hy1: 15, tr: 4.6, tcy: 9.5, barY0: 0, thick: true, brake: true, rivets: true },
+  basic: { tread0: 3, hx0: 3, hx1: 12, hy0: 5, hy1: 14, tr: 3.2, tcy: 10, barY0: 2, grille: true },
+  fast: { tread0: 1, hx0: 4, hx1: 11, hy0: 2, hy1: 15, tr: 2.7, tcy: 10.5, barY0: 0, stripe: true },
+  power: { tread0: 2, hx0: 3, hx1: 12, hy0: 4, hy1: 14, tr: 3.6, tcy: 10, barY0: 0, brake: true },
+  armor: { tread0: 1, hx0: 3, hx1: 12, hy0: 2, hy1: 15, tr: 4.6, tcy: 9.5, barY0: 0, thick: true, rivets: true },
+};
+function tankRows(d: Design, phase: number): string[] {
+  const g: string[][] = Array.from({ length: 16 }, () => Array(16).fill("."));
   const put = (x: number, y: number, c: string) => {
-    g[y][x] = c;
+    if (x >= 0 && x < 16 && y >= 0 && y < 16) g[y][x] = c;
   };
-  const rect = (x0: number, y0: number, x1: number, y1: number, c: string) => {
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) put(x, y, c);
-  };
-  rect(0, 3, 1, 13, "d");
-  rect(12, 3, 13, 13, "d"); // tread tracks
-  for (let y = 4; y < 14; y += 3) {
-    put(0, y, "k");
-    put(1, y, "k");
-    put(12, y, "k");
-    put(13, y, "k");
-  }
-  rect(2, 3, 11, 13, "b"); // hull
-  rect(2, 3, 11, 3, "k");
-  rect(2, 13, 11, 13, "k");
-  rect(4, 2, 9, 6, "h"); // turret hub
-  rect(4, 2, 9, 2, "k");
-  rect(6, 0, 7, 3, "g"); // barrel, pointing up
-  put(5, 4, "w");
-  put(5, 5, "w"); // highlight
+  // treads: 3 px each side with ridges that roll as the tank drives
+  for (let y = d.tread0; y < 16; y++)
+    for (let i = 0; i < 3; i++) {
+      const end = y === d.tread0 || y === 15;
+      const c = i === 0 || end ? "k" : (y + phase) % 3 === 0 ? "T" : "t";
+      put(i, y, c);
+      put(15 - i, y, c);
+    }
+  // hull
+  for (let y = d.hy0; y <= d.hy1; y++)
+    for (let x = d.hx0; x <= d.hx1; x++) {
+      const corner = (x === d.hx0 || x === d.hx1) && (y === d.hy0 || y === d.hy1);
+      put(x, y, corner ? "k" : x === d.hx0 || y === d.hy0 ? "h" : x === d.hx1 || y === d.hy1 ? "d" : "a");
+    }
+  if (d.grille) for (let x = d.hx0 + 2; x <= d.hx1 - 2; x += 2) put(x, d.hy1 - 1, "d");
+  if (d.stripe) for (let y = d.hy0 + 1; y < d.hy1; y++) put(8, y, "h");
+  if (d.rivets)
+    for (const [x, y] of [
+      [d.hx0 + 1, d.hy0 + 1],
+      [d.hx1 - 1, d.hy0 + 1],
+      [d.hx0 + 1, d.hy1 - 1],
+      [d.hx1 - 1, d.hy1 - 1],
+    ])
+      put(x, y, "w");
+  // barrel (drawn before the turret so the turret sits over its root)
+  const bx0 = d.thick ? 6 : 7;
+  const bx1 = d.thick ? 9 : 8;
+  for (let y = d.barY0; y < d.tcy; y++)
+    for (let x = bx0; x <= bx1; x++) put(x, y, d.thick && (x === bx0 || x === bx1) ? "k" : x === bx0 || (d.thick && x === bx0 + 1) ? "h" : "g");
+  if (d.brake) for (let x = bx0 - 1; x <= bx1 + 1; x++) put(x, d.barY0 + 1, x === bx0 - 1 || x === bx1 + 1 ? "k" : "g");
+  // turret
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 16; x++) {
+      const dx = x + 0.5 - 8;
+      const dy = y + 0.5 - d.tcy;
+      const r = Math.hypot(dx, dy);
+      if (r > d.tr) continue;
+      put(x, y, r > d.tr - 1 ? "k" : dx + dy < -d.tr * 0.45 ? "h" : dx + dy > d.tr * 0.4 ? "d" : "a");
+    }
+  put(Math.round(8 - d.tr * 0.45) - 1, Math.round(d.tcy - d.tr * 0.45) - 1, "w");
   return g.map((row) => row.join(""));
 }
-function transposeRows(rows: string[]): string[] {
-  const h = rows.length;
-  const w = rows[0].length;
-  const out: string[] = [];
-  for (let x = 0; x < w; x++) {
-    let row = "";
-    for (let y = 0; y < h; y++) row += rows[y][x];
-    out.push(row);
+const TANK_PALS: Record<string, Record<string, string>> = {
+  gold: { k: "#3a2600", a: "#e8b818", h: "#fff07a", d: "#a07000", g: "#8a6000", t: "#c89a30", T: "#5a4410", w: "#ffffff" },
+  silver: { k: "#1a1a2a", a: "#bcbcc8", h: "#ffffff", d: "#6c6c7c", g: "#5a5a6a", t: "#9c9cac", T: "#3c3c4c", w: "#ffffff" },
+  red: { k: "#2a0800", a: "#e83a1a", h: "#ff9a7a", d: "#8a1a08", g: "#6a1a08", t: "#c06040", T: "#5a1a08", w: "#ffffff" },
+  green: { k: "#08200c", a: "#3aa84a", h: "#9ae07a", d: "#1a6a2a", g: "#1a5a24", t: "#5a9a5a", T: "#1a3a1a", w: "#ffffff" },
+  amber: { k: "#2a1a00", a: "#d8a030", h: "#ffe08a", d: "#8a5a10", g: "#6a4a10", t: "#b08a40", T: "#4a3a10", w: "#ffffff" },
+  violet: { k: "#1a0830", a: "#9a6ae0", h: "#d8c0ff", d: "#5a3a9a", g: "#4a2a7a", t: "#8a7ab0", T: "#3a2a5a", w: "#ffffff" },
+};
+const tankCache = new Map<string, { up: Sprite; side: Sprite }>();
+function tankSprite(design: string, pal: string, phase: number) {
+  const key = `${design}|${pal}|${phase}`;
+  let s = tankCache.get(key);
+  if (!s) {
+    const rows = tankRows(DESIGNS[design], phase);
+    s = { up: sprite(rows, TANK_PALS[pal]), side: sprite(transpose(rows), TANK_PALS[pal]) };
+    tankCache.set(key, s);
   }
-  return out;
+  return s;
 }
-const TANK_UP_ROWS = buildVerticalTank();
-const TANK_SIDE_ROWS = transposeRows(TANK_UP_ROWS); // barrel points left
 
-type TankPal = Record<string, string>;
-const tankSprites = (pal: TankPal) => ({ up: sprite(TANK_UP_ROWS, pal), side: sprite(TANK_SIDE_ROWS, pal) });
-const PLAYER_PAL: TankPal = { b: PAL.yellow, d: PAL.dark, h: PAL.orange, g: PAL.black, w: PAL.white, k: PAL.black };
-const BASIC_PAL: TankPal = { b: PAL.grey, d: PAL.dark, h: "#5a6080", g: PAL.black, w: PAL.white, k: PAL.black };
-const FAST_PAL: TankPal = { b: PAL.sky, d: PAL.navy, h: PAL.blue, g: PAL.black, w: PAL.white, k: PAL.black };
-const ARMORED_PALS: TankPal[] = [
-  { b: PAL.purple, d: PAL.dark, h: "#5a3a8a", g: PAL.black, w: PAL.white, k: PAL.black },
-  { b: PAL.pink, d: PAL.dark, h: "#a84a8a", g: PAL.black, w: PAL.white, k: PAL.black },
-  { b: PAL.red, d: PAL.dark, h: "#a82020", g: PAL.black, w: PAL.white, k: PAL.black },
-];
-const PLAYER_SPR = tankSprites(PLAYER_PAL);
-const BASIC_SPR = tankSprites(BASIC_PAL);
-const FAST_SPR = tankSprites(FAST_PAL);
-const ARMORED_SPR = ARMORED_PALS.map(tankSprites);
+const SHELL_UP = ["khk", "hwh", "hwh", "kdk"];
+const SHELL_PAL = { k: "#5c5c5c", h: "#d8d8d8", w: "#ffffff", d: "#8a8a8a" };
+const SHELL = { up: sprite(SHELL_UP, SHELL_PAL), side: sprite(transpose(SHELL_UP), SHELL_PAL) };
 
-// ── types ──
+// explosions: white-hot centre, red, then a ragged purple edge (seeded noise so they're stable)
+function boomRows(r: number, seed: number) {
+  const n = r * 2 + 1;
+  const rows: string[] = [];
+  for (let y = 0; y < n; y++) {
+    let row = "";
+    for (let x = 0; x < n; x++) {
+      const h = Math.abs(Math.sin(x * 12.9898 + y * 78.233 + seed * 37.7) * 43758.5453) % 1;
+      const d = Math.hypot(x - r, y - r) + (h - 0.5) * r * 0.55;
+      row += h < 0.1 && d > r * 0.45 ? "." : d < r * 0.38 ? "w" : d < r * 0.68 ? "r" : d < r ? "p" : ".";
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+const BOOM_PAL = { w: "#ffffff", r: "#e8401a", p: "#7a2ab0" };
+const BOOM_SMALL = [3, 5, 7].map((r) => sprite(boomRows(r, r), BOOM_PAL));
+const BOOM_BIG = [11, 15].map((r) => sprite(boomRows(r, r + 3), BOOM_PAL));
+
+// power-ups
+type PowKind = "star" | "helmet" | "shovel" | "clock" | "grenade" | "tank";
+const POW_PAL = { k: "#000000", y: "#ffd82a", h: "#c8c8d8", w: "#ffffff", r: "#e8401a", b: "#9a5a2a", g: "#3aa84a", G: "#1a6a2a" };
+const POW_ART: Record<PowKind, string[]> = {
+  star: ["......k......", ".....kyk.....", ".....kyk.....", "....kyyyk....", "kkkkkyyykkkkk", "kyyyyyyyyyyyk", ".kyyywyyyyyk.", "..kyyyyyyyk..", "...kyyyyyk...", "..kyyykyyyk..", "..kyykkkyyk..", ".kyk.....kyk.", ".kk.......kk."],
+  helmet: [".............", "....kkkkk....", "..kkhhhhhkk..", ".khwwhhhhhhk.", ".khwhhhhhhhk.", "khwhhhhhhhhhk", "khhhhhhhhhhhk", "khhhhhhkkkkkk", "khhhhhk......", "khhhhhk......", "kkkkkkk......", ".............", "............."],
+  clock: ["....kkkkk....", "..kkwwwwwkk..", ".kwwwwkwwwwk.", ".kwwwwkwwwwk.", "kwwwwwkwwwwwk", "kwwwwwkwwwwwk", "kwwwwwkkkkwwk", "kwwwwwwwwwwwk", "kwwwwwwwwwwwk", ".kwwwwwwwwwk.", ".kwwwwwwwwwk.", "..kkwwwwwkk..", "....kkkkk...."],
+  shovel: [".........kkk.", "........kbbk.", ".......kbbk..", "......kbbk...", ".....kbbk....", "..kkkbbk.....", ".khhkbk......", "khhhhkk......", "khwhhhk......", "khwhhhk......", ".khhhk.......", "..kkk........", "............."],
+  grenade: ["......kkk....", ".....khhk....", "....kkkkkk...", "...kGgggGk.k.", "..kgggggggkhk", "..kgGgggGgk..", "..kgggggggk..", "..kgGgggGgk..", "..kgggggggk..", "..kgGgggGgk..", "...kgggggk...", "....kkkkk....", "............."],
+  tank: ["......kk.....", "......yk.....", "......yk.....", ".kkk.kykk.kkk", ".kyk.kyyk.kyk", ".kykkyyyykkyk", ".kykyyyyyykyk", ".kykyywyyykyk", ".kykyyyyyykyk", ".kykkyyyykkyk", ".kyk.kkkk.kyk", ".kkk......kkk", "............."],
+};
+const POW_SPR = Object.fromEntries(Object.entries(POW_ART).map(([k, rows]) => [k, sprite(rows, POW_PAL)])) as Record<PowKind, Sprite>;
+
+// HUD icons
+const ICON_ENEMY = sprite(["k.kkk.k", "kkkkkkk", "kkk.kkk", "kk...kk", "kkk.kkk", "kkkkkkk", "k.....k"], { k: INK });
+const ICON_LIFE = sprite(["k.kkk.k", "kkkkkkk", "kkk.kkk", "kk...kk", "kkkkkkk", "k.....k"], { k: INK });
+const ICON_FLAG = sprite(["kooooo..", "kooooooo", "koooooo.", "kooo....", "k.......", "k.......", "k.......", "k.......", "kkk....."], { k: INK, o: "#e86a1a" });
+
+// ── game ──
 type Dir = "up" | "down" | "left" | "right";
-type EnemyKind = "basic" | "fast" | "armored";
-type PowKind = "star" | "shield" | "shovel" | "life" | "freeze";
-const DIR_VEC: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+type EnemyKind = "basic" | "fast" | "power" | "armor";
+const DIRS: Dir[] = ["up", "down", "left", "right"];
+const DV: Record<Dir, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+const ENEMY: Record<EnemyKind, { hp: number; speed: number; shot: number; pts: number }> = {
+  basic: { hp: 1, speed: 0.5, shot: 2.4, pts: 100 },
+  fast: { hp: 1, speed: 1.15, shot: 2.6, pts: 200 },
+  power: { hp: 1, speed: 0.65, shot: 4, pts: 300 },
+  armor: { hp: 4, speed: 0.5, shot: 2.6, pts: 400 },
+};
+const KINDS: EnemyKind[] = ["basic", "fast", "power", "armor"];
 
 interface Tank {
-  x: number;
+  x: number; // sprite top-left (16x16); the hitbox is the 14x14 inside it
   y: number;
   dir: Dir;
-  alive: boolean;
   kind: "player" | EnemyKind;
   hp: number;
-  maxHp: number;
   speed: number;
   cool: number;
   turnT: number;
-  spawnT: number; // >0 while flickering in (intangible)
-  power?: boolean; // flashing enemy: drops a power-up when destroyed
+  spawnT: number; // twinkling in (not solid, can't be hit)
+  step: number; // distance driven, rolls the treads
+  bonus: boolean;
+  alive: boolean;
+  shots: number;
 }
 interface Bullet {
   x: number;
   y: number;
-  vx: number;
-  vy: number;
-  from: "player" | "enemy";
+  dir: Dir;
+  speed: number;
+  owner: Tank;
   pierce: boolean;
-  dead?: boolean;
-}
-interface PowerUp {
-  x: number;
-  y: number;
-  kind: PowKind;
-  t: number;
-}
-interface Spark {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  color: string;
-}
-interface Boom {
-  x: number;
-  y: number;
-  t: number;
-  big: boolean;
-}
-interface Pop {
-  x: number;
-  y: number;
-  t: number;
-  text: string;
-  color: string;
-}
-
-const ENEMY_STATS: Record<EnemyKind, { hp: number; baseSpeed: number; pts: number }> = {
-  basic: { hp: 1, baseSpeed: 0.55, pts: 100 },
-  fast: { hp: 1, baseSpeed: 1.05, pts: 150 },
-  armored: { hp: 3, baseSpeed: 0.5, pts: 300 },
-};
-const SPAWN_POINTS: { c: number; r: number }[] = [
-  { c: 0, r: 0 },
-  { c: 6, r: 0 },
-  { c: 12, r: 0 },
-];
-
-function buildBlocks(stageIdx: number) {
-  const layout = STAGE_LAYOUTS[stageIdx % STAGE_LAYOUTS.length];
-  const blocks: number[][] = Array.from({ length: BROWS }, () => Array(BCOLS).fill(EMPTY));
-  const codeFor = (ch: string) => (ch === "#" ? BRICK : ch === "%" ? STEEL : ch === "~" ? WATER : ch === "*" ? BUSH : EMPTY);
-  const setTile = (tx: number, ty: number, code: number) => {
-    blocks[ty * 2][tx * 2] = code;
-    blocks[ty * 2][tx * 2 + 1] = code;
-    blocks[ty * 2 + 1][tx * 2] = code;
-    blocks[ty * 2 + 1][tx * 2 + 1] = code;
-  };
-  for (let ty = 0; ty < ROWS; ty++) for (let tx = 0; tx < COLS; tx++) setTile(tx, ty, codeFor(layout[ty][tx]));
-  for (const c of [0, 6, 12]) setTile(c, 0, EMPTY); // keep enemy spawn lanes clear
-  setTile(PLAYER_SPAWN_COL, ROWS - 1, EMPTY);
-  // the base nest: bricks boxing in the star on 4 sides
-  const nestTiles: [number, number][] = [
-    [BASE_COL - 1, BASE_ROW - 1],
-    [BASE_COL, BASE_ROW - 1],
-    [BASE_COL + 1, BASE_ROW - 1],
-    [BASE_COL - 1, BASE_ROW],
-    [BASE_COL + 1, BASE_ROW],
-  ];
-  for (const [c, rr] of nestTiles) setTile(c, rr, BRICK);
-  setTile(BASE_COL, BASE_ROW, BASE);
-  return { blocks, nestTiles, baseX: BASE_COL * T, baseY: BASE_ROW * T };
+  dead: boolean;
 }
 
 function create(seed: number): GameInstance {
-  const r = rng(seed);
-  let stageIdx = 0;
-  let { blocks, nestTiles, baseX, baseY } = buildBlocks(stageIdx);
-  let baseAlive = true;
-  let shovelT = 0;
-  let freezeT = 0;
-  let lives = 3;
-  let tankLevel = 1;
-  let shieldT = 0;
-  let score = 0;
-  let over = false;
-  let won = false;
-  let state: "ready" | "play" | "stageclear" = "ready";
+  const rnd = rng(seed);
+  let stage = 0;
+  let map = buildMap(0);
+  let state: "curtain" | "play" | "over" | "tally" | "won" = "curtain";
   let stateT = 0;
   let frame = 0;
-  let shake = 0;
+  let lives = 3;
+  let level = 0; // 0..3 stars
+  let baseAlive = true;
+  let shieldT = 0;
+  let shovelT = 0;
+  let freezeT = 0;
+  let clearT = 0;
+  let slideT = 0;
+  let gameOverSent = false;
 
-  const player: Tank = { x: PLAYER_SPAWN_COL * T, y: BASE_ROW * T, dir: "up", alive: true, kind: "player", hp: 1, maxHp: 1, speed: 1, cool: 0, turnT: 0, spawnT: 30 };
+  const player: Tank = { x: PLAYER_X, y: PLAYER_Y, dir: "up", kind: "player", hp: 1, speed: 1.1, cool: 0, turnT: 0, spawnT: 40, step: 0, bonus: false, alive: true, shots: 0 };
   let respawnT = -1;
-
   let enemies: Tank[] = [];
   let bullets: Bullet[] = [];
-  let powerups: PowerUp[] = [];
-  const sparks: Spark[] = [];
-  const booms: Boom[] = [];
-  let pops: Pop[] = [];
-  let toSpawn = 0;
-  let spawnedCount = 0;
-  let killedCount = 0;
-  let spawnTimer = 60;
-  let spawnIdx = 0;
-  let maxOnField = 3;
+  let roster: EnemyKind[] = [];
+  let spawned = 0;
+  let spawnTimer = 0;
+  let spawnSlot = 0;
+  let kills: Record<EnemyKind, number> = { basic: 0, fast: 0, power: 0, armor: 0 };
+  let pow: { x: number; y: number; kind: PowKind; t: number } | null = null;
+  const booms: { x: number; y: number; t: number; big: boolean }[] = [];
+  let pops: { x: number; y: number; t: number; text: string }[] = [];
 
-  const waveSize = (st: number) => Math.min(18, 13 + st);
+  const makeRoster = (s: number) => {
+    const n = Math.min(20, 12 + s);
+    const out: EnemyKind[] = [];
+    for (let i = 0; i < n; i++) {
+      const v = rnd.next();
+      const armor = Math.min(0.4, 0.04 + s * 0.06);
+      const power = Math.min(0.3, 0.08 + s * 0.035);
+      const fast = Math.min(0.3, 0.14 + s * 0.03);
+      out.push(v < armor ? "armor" : v < armor + power ? "power" : v < armor + power + fast ? "fast" : "basic");
+    }
+    return out;
+  };
+
+  const resetPlayer = () => {
+    Object.assign(player, { x: PLAYER_X, y: PLAYER_Y, dir: "up", alive: true, spawnT: 40, shots: 0, cool: 0 });
+    respawnT = -1;
+  };
 
   const newStage = () => {
-    const built = buildBlocks(stageIdx);
-    blocks = built.blocks;
-    nestTiles = built.nestTiles;
-    baseX = built.baseX;
-    baseY = built.baseY;
+    map = buildMap(stage);
     baseAlive = true;
-    shovelT = 0;
-    freezeT = 0;
+    shovelT = freezeT = clearT = shieldT = 0;
     enemies = [];
     bullets = [];
-    powerups = [];
+    pow = null;
     pops = [];
-    toSpawn = waveSize(stageIdx);
-    spawnedCount = 0;
-    killedCount = 0;
-    spawnTimer = 50;
-    spawnIdx = 0;
-    maxOnField = Math.min(5, 3 + Math.floor(stageIdx / 2));
-    player.x = PLAYER_SPAWN_COL * T;
-    player.y = BASE_ROW * T;
-    player.dir = "up";
-    player.alive = true;
-    player.spawnT = 40;
-    respawnT = -1;
-    state = "ready";
+    roster = makeRoster(stage);
+    spawned = 0;
+    spawnTimer = 20;
+    spawnSlot = 0;
+    kills = { basic: 0, fast: 0, power: 0, armor: 0 };
+    resetPlayer();
+    state = "curtain";
     stateT = 0;
   };
   newStage();
 
-  // ── terrain helpers ──
-  const terrainAt = (bx: number, by: number) => (bx < 0 || by < 0 || bx >= BCOLS || by >= BROWS ? STEEL : blocks[by][bx]);
-  const solidForTank = (code: number) => code === BRICK || code === STEEL || code === WATER || code === BASE;
-  const blockingForBullet = (code: number) => code === BRICK || code === STEEL || code === BASE;
-
-  const tankBlocked = (x: number, y: number, size: number) => {
-    if (x < 0 || y < 0 || x + size > ARENA || y + size > ARENA) return true;
-    const bx0 = Math.floor(x / BLOCK);
-    const bx1 = Math.floor((x + size - 0.01) / BLOCK);
-    const by0 = Math.floor(y / BLOCK);
-    const by1 = Math.floor((y + size - 0.01) / BLOCK);
-    for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++) if (solidForTank(terrainAt(bx, by))) return true;
+  // ── terrain ──
+  const cell = (cx: number, cy: number) => (cx < 0 || cy < 0 || cx >= QN || cy >= QN ? STEEL : map[cy * QN + cx]);
+  const solid = (c: number) => c === BRICK || c === STEEL || c === WATER || c === BASE;
+  const blocked = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x > ARENA - 16 || y > ARENA - 16) return true;
+    const cx0 = Math.floor((x + 1) / Q);
+    const cx1 = Math.floor((x + 14.99) / Q);
+    const cy0 = Math.floor((y + 1) / Q);
+    const cy1 = Math.floor((y + 14.99) / Q);
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) if (solid(cell(cx, cy))) return true;
     return false;
   };
-  const allTanks = (): Tank[] => [player, ...enemies];
-  const overlapsOtherTanks = (self: Tank | null, x: number, y: number, size: number) => {
-    for (const t of allTanks()) {
-      if (t === self || !t.alive || t.spawnT > 0) continue;
-      if (overlap({ x, y, w: size, h: size }, { x: t.x, y: t.y, w: TANK, h: TANK })) return true;
-    }
+  const box = (t: Tank) => ({ x: t.x + 1, y: t.y + 1, w: 14, h: 14 });
+  const tankAt = (self: Tank | null, x: number, y: number) => {
+    const b = { x: x + 1, y: y + 1, w: 14, h: 14 };
+    for (const t of [player, ...enemies]) if (t !== self && t.alive && t.spawnT <= 0 && overlap(b, box(t))) return true;
     return false;
   };
 
-  const burst = (x: number, y: number, color: string, n: number) => {
-    for (let i = 0; i < n; i++) {
-      const a = r.range(0, Math.PI * 2);
-      const s = r.range(0.6, 2.4);
-      sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: r.int(12, 24), color });
-    }
-  };
   const boom = (x: number, y: number, big = false) => booms.push({ x, y, t: 0, big });
-  const popText = (x: number, y: number, text: string, color: string) => pops.push({ x, y, t: 0, text, color });
+  const pop = (x: number, y: number, text: string) => pops.push({ x, y, t: 0, text });
 
-  // ── combat ──
-  const fire = (io: IO, t: Tank, from: "player" | "enemy") => {
-    const [dx, dy] = DIR_VEC[t.dir];
-    const speed = from === "player" ? 3.4 : t.kind === "fast" ? 2.5 : 2.0 + stageIdx * 0.04;
-    const ox = t.x + TANK / 2 - 1.5 + dx * 9;
-    const oy = t.y + TANK / 2 - 1.5 + dy * 9;
-    bullets.push({ x: ox, y: oy, vx: dx * speed, vy: dy * speed, from, pierce: from === "player" && tankLevel >= 3 });
-    io.sfx.play(from === "player" ? "shoot" : "laser");
-  };
-  const maxPlayerShots = () => (tankLevel >= 2 ? 2 : 1);
-
-  const spawnPowerUp = (x: number, y: number) => {
-    const kinds: PowKind[] = ["star", "star", "shield", "shovel", "freeze", "life"];
-    powerups.push({ x, y, kind: r.pick(kinds), t: 0 });
-  };
-
-  const damageEnemy = (io: IO, e: Tank, dmg: number) => {
-    e.hp -= dmg;
-    burst(e.x + TANK / 2, e.y + TANK / 2, PAL.white, 5);
-    io.sfx.play("hit");
-    if (e.hp <= 0) {
-      e.alive = false;
-      killedCount++;
-      score += ENEMY_STATS[e.kind as EnemyKind].pts;
-      io.score(ENEMY_STATS[e.kind as EnemyKind].pts);
-      boom(e.x + TANK / 2, e.y + TANK / 2);
-      io.sfx.play("explode");
-      if (e.power) spawnPowerUp(e.x + 1, e.y + 1);
-    }
-  };
-
-  const killPlayer = (io: IO) => {
-    if (shieldT > 0 || player.spawnT > 0 || !player.alive) return;
-    player.alive = false;
-    respawnT = 0;
-    lives--;
-    boom(player.x + TANK / 2, player.y + TANK / 2, true);
-    io.sfx.play("die");
-    if (lives <= 0) {
-      over = true;
-      io.gameOver();
-    }
-  };
-
-  const destroyBase = (io: IO) => {
-    if (!baseAlive) return;
-    baseAlive = false;
-    boom(baseX + T / 2, baseY + T / 2, true);
-    io.sfx.play("explode");
-    if (!over) {
-      over = true;
-      io.gameOver();
-    }
-  };
-
-  const facingPlayer = (e: Tank) => {
-    if (!player.alive) return false;
-    const dx = player.x - e.x;
-    const dy = player.y - e.y;
-    if (Math.abs(dx) < 6) return (dy > 0 && e.dir === "down") || (dy < 0 && e.dir === "up");
-    if (Math.abs(dy) < 6) return (dx > 0 && e.dir === "right") || (dx < 0 && e.dir === "left");
-    return false;
-  };
-
-  const pickEnemyKind = (): EnemyKind => {
-    const roll = r.next();
-    const armoredChance = Math.min(0.35, 0.05 + stageIdx * 0.05);
-    const fastChance = Math.min(0.4, 0.15 + stageIdx * 0.05);
-    if (roll < armoredChance) return "armored";
-    if (roll < armoredChance + fastChance) return "fast";
-    return "basic";
-  };
-
-  const trySpawnEnemy = () => {
-    if (toSpawn <= 0) return;
-    if (enemies.filter((e) => e.alive).length >= maxOnField) return;
-    spawnTimer--;
-    if (spawnTimer > 0) return;
-    const sp = SPAWN_POINTS[spawnIdx % SPAWN_POINTS.length];
-    spawnIdx++;
-    const x = sp.c * T;
-    const y = sp.r * T;
-    if (tankBlocked(x, y, TANK) || overlapsOtherTanks(null, x, y, TANK)) {
-      spawnTimer = 12;
-      return;
-    }
-    const kind = pickEnemyKind();
-    const stats = ENEMY_STATS[kind];
-    const flashing = spawnedCount % 4 === 3;
-    enemies.push({
-      x,
-      y,
-      dir: "down",
-      alive: true,
-      kind,
-      hp: stats.hp,
-      maxHp: stats.hp,
-      speed: Math.min(1.4, stats.baseSpeed + stageIdx * 0.03),
-      cool: r.int(40, 80),
-      turnT: 0,
-      spawnT: 40,
-      power: flashing,
-    });
-    spawnedCount++;
-    toSpawn--;
-    spawnTimer = Math.max(26, r.int(70 - stageIdx * 4, 130 - stageIdx * 6));
-  };
-
-  const moveTank = (t: Tank, dir: Dir) => {
+  const moveTank = (t: Tank, dir: Dir, dist = t.speed) => {
     if (t.dir !== dir) {
       t.dir = dir;
-      // half-tile snap on the axis we're not travelling along, so corners line up cleanly
-      // (only if the snapped spot is actually free, so turning never clips you into a wall)
+      // turning snaps to the 8 px grid across the travel, so a tank lines up with every gap
       if (dir === "up" || dir === "down") {
-        const snapped = Math.round(t.x / BLOCK) * BLOCK;
-        if (!tankBlocked(snapped, t.y, TANK)) t.x = snapped;
+        const sx = Math.round(t.x / 8) * 8;
+        if (!blocked(sx, t.y)) t.x = sx;
       } else {
-        const snapped = Math.round(t.y / BLOCK) * BLOCK;
-        if (!tankBlocked(t.x, snapped, TANK)) t.y = snapped;
+        const sy = Math.round(t.y / 8) * 8;
+        if (!blocked(t.x, sy)) t.y = sy;
       }
     }
-    const [dx, dy] = DIR_VEC[dir];
-    const nx = t.x + dx * t.speed;
-    const ny = t.y + dy * t.speed;
-    if (!tankBlocked(nx, ny, TANK) && !overlapsOtherTanks(t, nx, ny, TANK)) {
+    if (dist <= 0) return true;
+    const [dx, dy] = DV[dir];
+    const nx = t.x + dx * dist;
+    const ny = t.y + dy * dist;
+    if (!blocked(nx, ny) && !tankAt(t, nx, ny)) {
       t.x = nx;
       t.y = ny;
+      t.step += dist;
       return true;
     }
     return false;
   };
 
-  const updateEnemy = (io: IO, e: Tank) => {
+  const fire = (io: IO, t: Tank) => {
+    const [dx, dy] = DV[t.dir];
+    const isP = t.kind === "player";
+    bullets.push({
+      x: t.x + 8 + dx * 7,
+      y: t.y + 8 + dy * 7,
+      dir: t.dir,
+      speed: isP ? (level >= 1 ? 4.6 : 3.2) : ENEMY[t.kind as EnemyKind].shot,
+      owner: t,
+      pierce: isP && level >= 3,
+      dead: false,
+    });
+    t.shots++;
+    if (isP) io.sfx.play("shoot");
+  };
+
+  const dropPower = () => {
+    const kinds: PowKind[] = ["star", "star", "helmet", "shovel", "clock", "grenade", "tank"];
+    for (let tries = 0; tries < 20; tries++) {
+      const x = rnd.int(0, 24) * 8;
+      const y = rnd.int(0, 22) * 8;
+      if (y > 150 && x > 64 && x < 136) continue; // never on the base
+      pow = { x, y, kind: rnd.pick(kinds), t: 0 };
+      return;
+    }
+  };
+
+  const killEnemy = (io: IO, e: Tank, scored = true) => {
+    e.alive = false;
+    const k = e.kind as EnemyKind;
+    kills[k]++;
+    boom(e.x + 8, e.y + 8, true);
+    io.sfx.play("explode");
+    if (scored) {
+      io.score(ENEMY[k].pts);
+      pop(e.x + 2, e.y + 4, String(ENEMY[k].pts));
+    }
+  };
+
+  const hitEnemy = (io: IO, e: Tank) => {
+    if (e.bonus) {
+      e.bonus = false;
+      dropPower();
+      io.sfx.play("powerup");
+    }
+    e.hp--;
+    if (e.hp <= 0) killEnemy(io, e);
+    else io.sfx.play("hit");
+  };
+
+  const killPlayer = (io: IO) => {
+    if (shieldT > 0 || player.spawnT > 0 || !player.alive) return;
+    player.alive = false;
+    boom(player.x + 8, player.y + 8, true);
+    io.sfx.play("die");
+    lives--;
+    level = 0;
+    if (lives <= 0) {
+      if (state === "play") {
+        state = "over";
+        stateT = 0;
+      }
+    } else respawnT = 0;
+  };
+
+  const loseBase = (io: IO) => {
+    if (!baseAlive) return;
+    baseAlive = false;
+    boom(BASE_X + 8, BASE_Y + 8, true);
+    io.sfx.play("explode");
+    if (state === "play") {
+      state = "over";
+      stateT = 0;
+    }
+  };
+
+  const setNest = (code: number) => {
+    for (const i of NEST) map[i] = code;
+  };
+
+  const applyPower = (io: IO, kind: PowKind) => {
+    io.sfx.play("powerup");
+    io.score(500);
+    pop(player.x, player.y - 4, "500");
+    if (kind === "star") level = Math.min(3, level + 1);
+    else if (kind === "helmet") shieldT = 600;
+    else if (kind === "shovel") {
+      shovelT = 1200;
+      setNest(STEEL);
+    } else if (kind === "clock") freezeT = 600;
+    else if (kind === "tank") lives = Math.min(9, lives + 1);
+    else for (const e of enemies) if (e.alive && e.spawnT <= 0) killEnemy(io, e, false);
+  };
+
+  // a bullet's impact: bricks lose a 4 px strip 16 px wide (two strips deep for a full-power
+  // tank, which also cuts steel 8 px at a time)
+  const impact = (io: IO, b: Bullet, cx: number, cy: number) => {
+    const vertical = b.dir === "up" || b.dir === "down";
+    const along = vertical ? Math.floor(b.x / Q) : Math.floor(b.y / Q);
+    const deep = b.pierce ? 2 : 1;
+    const step = b.dir === "up" || b.dir === "left" ? -1 : 1;
+    let any = false;
+    for (let k = 0; k < deep; k++)
+      for (let o = -2; o < 2; o++) {
+        const x = vertical ? along + o : cx + step * k;
+        const y = vertical ? cy + step * k : along + o;
+        if (x < 0 || y < 0 || x >= QN || y >= QN) continue;
+        const c = map[y * QN + x];
+        if (c === BRICK) {
+          map[y * QN + x] = EMPTY;
+          any = true;
+        } else if (c === STEEL && b.pierce) {
+          const x0 = x & ~1;
+          const y0 = y & ~1;
+          for (const [ax, ay] of [
+            [x0, y0],
+            [x0 + 1, y0],
+            [x0, y0 + 1],
+            [x0 + 1, y0 + 1],
+          ])
+            if (map[ay * QN + ax] === STEEL) map[ay * QN + ax] = EMPTY;
+          any = true;
+        }
+      }
+    boom(b.x, b.y);
+    if (b.owner === player) io.sfx.play(any ? "hit" : "blip");
+  };
+
+  const updateBullets = (io: IO) => {
+    for (const b of bullets) {
+      if (b.dead) continue;
+      const [dx, dy] = DV[b.dir];
+      let left = b.speed;
+      while (left > 0 && !b.dead) {
+        const s = Math.min(2, left);
+        left -= s;
+        b.x += dx * s;
+        b.y += dy * s;
+        if (b.x < 0 || b.y < 0 || b.x >= ARENA || b.y >= ARENA) {
+          b.dead = true;
+          boom(Math.max(0, Math.min(ARENA, b.x)), Math.max(0, Math.min(ARENA, b.y)));
+          if (b.owner === player) io.sfx.play("blip");
+          break;
+        }
+        // the bullet's nose, 4 px wide across its travel
+        const vertical = dy !== 0;
+        const fx = b.x + dx * 2;
+        const fy = b.y + dy * 2;
+        for (const o of [-2, 1.9]) {
+          const cx = Math.floor((vertical ? fx + o : fx) / Q);
+          const cy = Math.floor((vertical ? fy : fy + o) / Q);
+          const c = cell(cx, cy);
+          if (c === BASE) {
+            if (b.owner !== player) loseBase(io);
+            b.dead = true;
+            boom(b.x, b.y);
+            break;
+          }
+          if (c === BRICK || c === STEEL) {
+            impact(io, b, cx, cy);
+            b.dead = true;
+            break;
+          }
+        }
+        if (b.dead) break;
+        const bb = { x: b.x - 2, y: b.y - 2, w: 4, h: 4 };
+        if (b.owner === player) {
+          for (const e of enemies)
+            if (e.alive && e.spawnT <= 0 && overlap(bb, box(e))) {
+              hitEnemy(io, e);
+              b.dead = true;
+              boom(b.x, b.y);
+              break;
+            }
+        } else if (player.alive && player.spawnT <= 0 && overlap(bb, box(player))) {
+          if (shieldT > 0) io.sfx.play("blip");
+          else killPlayer(io);
+          b.dead = true;
+        }
+      }
+    }
+    // shells meeting nose to nose cancel out (only the kid's against the enemies')
+    for (const a of bullets)
+      for (const c of bullets)
+        if (a !== c && !a.dead && !c.dead && (a.owner === player) !== (c.owner === player) && Math.abs(a.x - c.x) < 4 && Math.abs(a.y - c.y) < 4) {
+          a.dead = c.dead = true;
+        }
+    for (const b of bullets) if (b.dead) b.owner.shots = Math.max(0, b.owner.shots - 1);
+    bullets = bullets.filter((b) => !b.dead);
+  };
+
+  const enemyAI = (io: IO, e: Tank) => {
     if (e.spawnT > 0) {
       e.spawnT--;
       return;
     }
     if (freezeT > 0) return;
-    e.cool = Math.max(0, e.cool - 1);
     e.turnT--;
-    if (e.turnT > 0) {
-      if (!moveTank(e, e.dir)) e.turnT = 0;
-    }
-    if (e.turnT <= 0) {
-      const dirs: Dir[] = ["up", "down", "left", "right"];
-      let choice: Dir;
-      if (r.chance(0.4) && player.alive) {
+    const moved = moveTank(e, e.dir);
+    if (!moved || e.turnT <= 0) {
+      // like the classics: mostly they head for your base, sometimes for you, sometimes anywhere
+      const v = rnd.next();
+      let d: Dir;
+      if (v < 0.4) {
+        const dx = BASE_X - e.x;
+        d = rnd.chance(0.5) && Math.abs(dx) > 8 ? (dx > 0 ? "right" : "left") : "down";
+      } else if (v < 0.6 && player.alive) {
         const dx = player.x - e.x;
         const dy = player.y - e.y;
-        choice = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
-      } else choice = r.pick(dirs);
-      e.turnT = r.int(40, 100);
-      moveTank(e, choice);
+        d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
+      } else d = rnd.pick(DIRS);
+      if (!moved && d === e.dir) d = rnd.pick(DIRS);
+      e.turnT = moved ? rnd.int(60, 200) : rnd.int(8, 40);
+      moveTank(e, d, 0);
     }
-    if (e.cool <= 0) {
-      if (facingPlayer(e) && r.chance(0.6)) {
-        fire(io, e, "enemy");
-        e.cool = r.int(55, 95);
-      } else if (r.chance(0.025)) {
-        fire(io, e, "enemy");
-        e.cool = r.int(60, 110);
-      }
+    e.cool--;
+    if (e.cool <= 0 && e.shots === 0) {
+      fire(io, e);
+      e.cool = rnd.int(30, 110);
     }
   };
 
-  const applyPower = (io: IO, kind: PowKind) => {
-    io.sfx.play("powerup");
-    io.score(50);
-    score += 50;
-    if (kind === "star") {
-      tankLevel = Math.min(3, tankLevel + 1);
-      popText(player.x - 4, player.y - 10, "POWER UP!", PAL.yellow);
-    } else if (kind === "shield") {
-      shieldT = 600;
-      popText(player.x - 4, player.y - 10, "SHIELD", PAL.cyan);
-    } else if (kind === "shovel") {
-      shovelT = 900;
-      popText(player.x - 4, player.y - 10, "FORTIFY!", PAL.orange);
-    } else if (kind === "life") {
-      lives = Math.min(9, lives + 1);
-      popText(player.x - 4, player.y - 10, "1UP!", PAL.pink);
-    } else {
-      freezeT = 360;
-      popText(player.x - 4, player.y - 10, "FREEZE!", PAL.sky);
+  const trySpawn = () => {
+    if (spawned >= roster.length || enemies.length >= 4) return;
+    if (--spawnTimer > 0) return;
+    const x = SPAWN_X[spawnSlot % 3];
+    spawnSlot++;
+    if (tankAt(null, x, 0)) {
+      spawnTimer = 10;
+      return;
     }
+    const kind = roster[spawned];
+    enemies.push({ x, y: 0, dir: "down", kind, hp: ENEMY[kind].hp, speed: ENEMY[kind].speed, cool: rnd.int(30, 80), turnT: rnd.int(40, 120), spawnT: 40, step: 0, bonus: spawned % 7 === 3, alive: true, shots: 0 });
+    spawned++;
+    spawnTimer = Math.max(40, 150 - stage * 12);
   };
 
   return {
     update(io) {
       frame++;
-      if (shake > 0) shake--;
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const s = sparks[i];
-        s.x += s.vx;
-        s.y += s.vy;
-        s.vx *= 0.94;
-        s.vy *= 0.94;
-        if (--s.life <= 0) sparks.splice(i, 1);
-      }
-      for (let i = booms.length - 1; i >= 0; i--) if (++booms[i].t > (booms[i].big ? 40 : 24)) booms.splice(i, 1);
+      for (let i = booms.length - 1; i >= 0; i--) if (++booms[i].t > (booms[i].big ? 32 : 12)) booms.splice(i, 1);
       for (const p of pops) p.t++;
-      pops = pops.filter((p) => p.t < 46);
-      if (shieldT > 0) shieldT--;
-      if (shovelT > 0) {
-        shovelT--;
-        for (const [c, rr] of nestTiles) {
-          const bx = c * 2;
-          const by = rr * 2;
-          if (blocks[by][bx] !== EMPTY) {
-            blocks[by][bx] = STEEL;
-            blocks[by][bx + 1] = STEEL;
-            blocks[by + 1][bx] = STEEL;
-            blocks[by + 1][bx + 1] = STEEL;
-          }
-        }
-        if (shovelT === 0) {
-          for (const [c, rr] of nestTiles) {
-            const bx = c * 2;
-            const by = rr * 2;
-            blocks[by][bx] = BRICK;
-            blocks[by][bx + 1] = BRICK;
-            blocks[by + 1][bx] = BRICK;
-            blocks[by + 1][bx + 1] = BRICK;
-          }
-        }
-      }
-      if (freezeT > 0) freezeT--;
+      pops = pops.filter((p) => p.t < 50);
+      stateT++;
 
-      if (over || won) return;
-
-      if (state === "ready") {
-        stateT++;
-        if (stateT > 90) state = "play";
+      if (state === "won") return;
+      if (state === "curtain") {
+        if (stateT === 30) io.sfx.play("powerup");
+        if (stateT >= 110) {
+          state = "play";
+          stateT = 0;
+        }
         return;
       }
-      if (state === "stageclear") {
-        stateT++;
-        if (stateT === 1) io.sfx.play("win");
-        if (stateT > 120) {
-          stageIdx++;
-          if (stageIdx >= TOTAL_STAGES) {
-            won = true;
+      if (state === "tally") {
+        if (stateT % 30 === 0 && stateT <= 120) io.sfx.play("coin");
+        if (stateT > 220) {
+          stage++;
+          if (stage >= TOTAL_STAGES) {
+            state = "won";
             io.score(1000 + lives * 500);
             io.sfx.play("win");
             io.win();
@@ -599,255 +839,181 @@ function create(seed: number): GameInstance {
         }
         return;
       }
+      if (state === "over" && stateT >= 150 && !gameOverSent) {
+        gameOverSent = true;
+        io.gameOver();
+      }
 
-      // ── player ──
-      if (!player.alive) {
-        respawnT++;
-        if (respawnT > 70) {
-          player.x = PLAYER_SPAWN_COL * T;
-          player.y = BASE_ROW * T;
-          player.dir = "up";
-          player.alive = true;
-          player.spawnT = 40;
-          tankLevel = 1;
-          respawnT = -1;
-        }
-      } else if (player.spawnT > 0) {
-        player.spawnT--;
-      } else {
-        player.speed = tankLevel >= 2 ? 1.3 : 1;
-        const inp = io.input;
-        const held = inp.held;
-        let dir: Dir | null = null;
-        if (held.up) dir = "up";
-        else if (held.down) dir = "down";
-        else if (held.left) dir = "left";
-        else if (held.right) dir = "right";
-        if (dir) moveTank(player, dir);
-        player.cool = Math.max(0, player.cool - 1);
-        const myShots = bullets.filter((b) => b.from === "player" && !b.dead).length;
-        if ((inp.pressed.a || inp.held.a) && player.cool === 0 && myShots < maxPlayerShots()) {
-          fire(io, player, "player");
-          player.cool = tankLevel >= 2 ? 12 : 20;
+      if (shieldT > 0) shieldT--;
+      if (freezeT > 0) freezeT--;
+      if (shovelT > 0) {
+        shovelT--;
+        if (shovelT < 180) setNest(Math.floor(shovelT / 16) % 2 ? STEEL : BRICK);
+        if (shovelT === 0) setNest(BRICK);
+      }
+
+      // ── the kid's tank ──
+      if (state === "play") {
+        if (!player.alive) {
+          if (respawnT >= 0 && ++respawnT > 60) resetPlayer();
+        } else if (player.spawnT > 0) {
+          if (--player.spawnT === 0) shieldT = Math.max(shieldT, 180);
+        } else {
+          const h = io.input.held;
+          const dir: Dir | null = h.up ? "up" : h.down ? "down" : h.left ? "left" : h.right ? "right" : null;
+          const onIce = cell(Math.floor((player.x + 8) / Q), Math.floor((player.y + 8) / Q)) === ICE;
+          if (dir) {
+            moveTank(player, dir);
+            slideT = onIce ? 22 : 0;
+          } else if (slideT > 0) {
+            slideT--;
+            if (!moveTank(player, player.dir)) slideT = 0;
+          }
+          player.cool = Math.max(0, player.cool - 1);
+          if ((io.input.held.a || io.input.held.b) && player.cool === 0 && player.shots < (level >= 2 ? 2 : 1)) {
+            fire(io, player);
+            player.cool = level >= 2 ? 10 : 16;
+          }
         }
       }
 
-      // ── enemy spawns + AI ──
-      trySpawnEnemy();
-      for (const e of enemies) if (e.alive) updateEnemy(io, e);
+      // ── enemies ──
+      if (state === "play") trySpawn();
+      for (const e of enemies) if (e.alive) enemyAI(io, e);
       enemies = enemies.filter((e) => e.alive);
+      updateBullets(io);
 
-      // ── bullets ──
-      for (const b of bullets) {
-        if (b.dead) continue;
-        b.x += b.vx;
-        b.y += b.vy;
-        if (b.x < 0 || b.y < 0 || b.x >= ARENA || b.y >= ARENA) {
-          b.dead = true;
-          continue;
-        }
-        const bx = Math.floor(b.x / BLOCK);
-        const by = Math.floor(b.y / BLOCK);
-        const code = blocks[by]?.[bx] ?? STEEL;
-        if (blockingForBullet(code)) {
-          if (code === BASE) {
-            if (b.from === "enemy") destroyBase(io);
-            boom(b.x, b.y);
-          } else if (code === BRICK) {
-            blocks[by][bx] = EMPTY;
-            burst(b.x, b.y, PAL.brown, 6);
-            io.sfx.play("hit");
-          } else if (code === STEEL) {
-            if (b.pierce) {
-              blocks[by][bx] = EMPTY;
-              io.score(5);
-              score += 5;
-            }
-            burst(b.x, b.y, PAL.grey, 5);
-            io.sfx.play("hit");
-          }
-          b.dead = true;
-          continue;
-        }
-        if (b.from === "player") {
-          for (const e of enemies) {
-            if (e.alive && e.spawnT <= 0 && overlap({ x: b.x - 1, y: b.y - 1, w: 3, h: 3 }, { x: e.x, y: e.y, w: TANK, h: TANK })) {
-              damageEnemy(io, e, tankLevel >= 3 ? 2 : 1);
-              b.dead = true;
-              break;
-            }
-          }
-        } else if (player.alive && player.spawnT <= 0 && overlap({ x: b.x - 1, y: b.y - 1, w: 3, h: 3 }, { x: player.x, y: player.y, w: TANK, h: TANK })) {
-          if (shieldT > 0) {
-            burst(b.x, b.y, PAL.cyan, 5);
-            io.sfx.play("hit");
-          } else killPlayer(io);
-          b.dead = true;
+      if (pow) {
+        pow.t++;
+        if (pow.t > 900) pow = null;
+        else if (state === "play" && player.alive && player.spawnT <= 0 && overlap({ x: pow.x, y: pow.y, w: 16, h: 16 }, box(player))) {
+          const k = pow.kind;
+          pow = null;
+          applyPower(io, k);
         }
       }
-      // bullets cancel each other out, nose to nose
-      for (let i = 0; i < bullets.length; i++) {
-        if (bullets[i].dead) continue;
-        for (let j = i + 1; j < bullets.length; j++) {
-          if (bullets[j].dead || bullets[i].from === bullets[j].from) continue;
-          if (Math.abs(bullets[i].x - bullets[j].x) < 4 && Math.abs(bullets[i].y - bullets[j].y) < 4) {
-            bullets[i].dead = true;
-            bullets[j].dead = true;
-            burst(bullets[i].x, bullets[i].y, PAL.white, 4);
-          }
-        }
-      }
-      bullets = bullets.filter((b) => !b.dead);
 
-      // ── power-ups on the ground ──
-      for (const p of powerups) {
-        p.t++;
-        if (player.alive && player.spawnT <= 0 && overlap({ x: p.x, y: p.y, w: 10, h: 10 }, { x: player.x, y: player.y, w: TANK, h: TANK })) {
-          applyPower(io, p.kind);
-          p.t = 99999;
-        }
-      }
-      powerups = powerups.filter((p) => p.t < 600);
-
-      if (!baseAlive) return;
-
-      // ── stage clear? ──
-      if (toSpawn <= 0 && enemies.length === 0 && state === "play") {
-        state = "stageclear";
+      if (state === "play" && spawned >= roster.length && enemies.length === 0 && ++clearT > 90) {
+        state = "tally";
         stateT = 0;
-        io.score(500 * (stageIdx + 1));
-        score += 500 * (stageIdx + 1);
+        io.score(500 * (stage + 1));
       }
     },
 
     draw(g: Gfx) {
-      g.clear("#1b1e14");
-      const sx = shake > 0 ? ((frame % 2) * 2 - 1) * 2 : 0;
-      g.rect(OX - 2 + sx, OY - 2, ARENA + 4, ARENA + 4, "#0d0b1a");
-      g.camera(-OX - sx, -OY);
-      g.rect(0, 0, ARENA, ARENA, "#3a4a28");
+      g.clear(GREY);
+      g.rect(OX, OY, ARENA, ARENA, INK);
+      g.camera(-OX, -OY);
 
-      const bushes: { x: number; y: number }[] = [];
-      for (let by = 0; by < BROWS; by++) {
-        for (let bx = 0; bx < BCOLS; bx++) {
-          const code = blocks[by][bx];
-          const px = bx * BLOCK;
-          const py = by * BLOCK;
-          if (code === BRICK) {
-            g.rect(px, py, BLOCK, BLOCK, "#9a5a32");
-            g.rect(px, py, BLOCK, 3, "#c07a4a");
-            g.rect(px, py + 5, BLOCK, 2, "#6a3a1e");
-          } else if (code === STEEL) {
-            g.rect(px, py, BLOCK, BLOCK, "#8a90b0");
-            g.rect(px, py, 3, 3, "#c0c6e0");
-            g.rect(px + 4, py + 4, 3, 3, "#4a4e6a");
-          } else if (code === WATER) {
-            const k = (frame + bx * 3 + by * 5) % 40;
-            g.rect(px, py, BLOCK, BLOCK, k < 20 ? "#2a6ad0" : "#3c7ce0");
-          } else if (code === BUSH) {
-            bushes.push({ x: px, y: py });
+      // pass 0: ice, walls and water under the tanks; pass 1: the trees over them
+      const layer = (pass: 0 | 1) => {
+        const want = (code: number) => (pass === 1 ? code === BUSH : code !== BUSH && code !== EMPTY && code !== BASE);
+        const fr = (code: number) => (code === WATER ? Math.floor(frame / 30) % 2 : 0);
+        for (let by = 0; by < QN / 2; by++)
+          for (let bx = 0; bx < QN / 2; bx++) {
+            const i = by * 2 * QN + bx * 2;
+            const c = [map[i], map[i + 1], map[i + QN], map[i + QN + 1]];
+            if (c[0] === c[1] && c[0] === c[2] && c[0] === c[3]) {
+              if (want(c[0])) g.sprite(ART[c[0]].full[fr(c[0])], bx * 8, by * 8);
+              continue;
+            }
+            for (let k = 0; k < 4; k++) if (want(c[k])) g.sprite(ART[c[k]].q[fr(c[k])][k], bx * 8 + (k % 2) * 4, by * 8 + (k >> 1) * 4);
           }
-        }
-      }
+      };
+      layer(0);
+      g.sprite(baseAlive ? BASE_SPR : BASE_DEAD_SPR, BASE_X, BASE_Y);
 
-      // base emblem
-      if (baseAlive) {
-        const cx = baseX + T / 2;
-        const cy = baseY + T / 2;
-        g.rect(baseX + 1, baseY + 1, T - 2, T - 2, "#2a1a10");
-        g.circle(cx, cy, 6, PAL.yellow);
-        g.circle(cx, cy, 3, PAL.orange);
-        g.rect(cx - 1, cy - 8, 2, 4, PAL.yellow);
-        g.rect(cx - 1, cy + 4, 2, 4, PAL.yellow);
-        g.rect(cx - 8, cy - 1, 4, 2, PAL.yellow);
-        g.rect(cx + 4, cy - 1, 4, 2, PAL.yellow);
-      } else {
-        g.rect(baseX, baseY, T, T, "#2a2a2a");
-        g.line(baseX + 2, baseY + 2, baseX + T - 2, baseY + T - 2, PAL.red);
-        g.line(baseX + T - 2, baseY + 2, baseX + 2, baseY + T - 2, PAL.red);
-      }
-
-      // power-ups
-      for (const p of powerups) {
-        const blink = p.t > 450 ? Math.floor(p.t / 6) % 2 : 0;
-        if (blink) continue;
-        const col = p.kind === "star" ? PAL.yellow : p.kind === "shield" ? PAL.cyan : p.kind === "shovel" ? PAL.orange : p.kind === "life" ? PAL.pink : PAL.sky;
-        g.rect(p.x, p.y, 10, 10, PAL.black);
-        g.rect(p.x + 1, p.y + 1, 8, 8, col);
-        const label = p.kind === "star" ? "S" : p.kind === "shield" ? "O" : p.kind === "shovel" ? "V" : p.kind === "life" ? "+" : "F";
-        g.text(label, p.x + 3 + OX, p.y + 1 + OY, PAL.black);
-      }
-
-      // bullets
-      for (const b of bullets) g.rect(b.x - 1.5, b.y - 1.5, 3, 3, b.from === "player" ? PAL.yellow : Math.floor(frame / 3) % 2 ? PAL.red : PAL.white);
-
-      // tanks
-      const drawTank = (t: Tank, spr: { up: ReturnType<typeof sprite>; side: ReturnType<typeof sprite> }) => {
-        if (!t.alive) return;
-        if (t.spawnT > 0) {
-          if (Math.floor(t.spawnT / 4) % 2) g.box(t.x, t.y, TANK, TANK, PAL.white);
-          return;
-        }
-        const opts = t.dir === "up" ? {} : t.dir === "down" ? { flipY: true } : t.dir === "left" ? {} : { flipX: true };
-        g.sprite(t.dir === "up" || t.dir === "down" ? spr.up : spr.side, t.x, t.y, opts);
+      const twinkle = (x: number, y: number, t: number) => {
+        const s = [1, 2, 3, 4, 3, 2][Math.floor(t / 3) % 6];
+        const cx = x + 8;
+        const cy = y + 8;
+        g.rect(cx - s * 2, cy, s * 4 + 1, 1, "#8ad0ff");
+        g.rect(cx, cy - s * 2, 1, s * 4 + 1, "#8ad0ff");
+        g.rect(cx - 1, cy - 1, 3, 3, "#ffffff");
+        g.rect(cx - s, cy - s, 1, 1, "#ffffff");
+        g.rect(cx + s, cy - s, 1, 1, "#ffffff");
+        g.rect(cx - s, cy + s, 1, 1, "#ffffff");
+        g.rect(cx + s, cy + s, 1, 1, "#ffffff");
+      };
+      const drawTank = (t: Tank, design: string, pal: string) => {
+        if (t.spawnT > 0) return twinkle(t.x, t.y, t.spawnT);
+        const s = tankSprite(design, pal, Math.floor(t.step / 1.5) % 3);
+        if (t.dir === "up") g.sprite(s.up, t.x, t.y);
+        else if (t.dir === "down") g.sprite(s.up, t.x, t.y, { flipY: true });
+        else if (t.dir === "left") g.sprite(s.side, t.x, t.y);
+        else g.sprite(s.side, t.x, t.y, { flipX: true });
       };
       for (const e of enemies) {
-        const spr = e.kind === "basic" ? BASIC_SPR : e.kind === "fast" ? FAST_SPR : ARMORED_SPR[Math.min(2, Math.max(0, e.maxHp - e.hp))];
-        if (e.power && Math.floor(frame / 6) % 2) g.box(e.x - 1, e.y - 1, TANK + 2, TANK + 2, PAL.yellow);
-        drawTank(e, spr);
+        let pal = "silver";
+        if (e.bonus && Math.floor(frame / 8) % 2) pal = "red";
+        else if (e.kind === "armor") pal = e.hp >= 4 ? "green" : e.hp === 3 ? "amber" : e.hp === 2 ? "violet" : "silver";
+        drawTank(e, e.kind, pal);
       }
       if (player.alive) {
-        drawTank(player, PLAYER_SPR);
-        if (shieldT > 0) g.circle(player.x + TANK / 2, player.y + TANK / 2, 10, "rgba(94,242,255,0.5)");
+        drawTank(player, `p${level}`, "gold");
+        if (shieldT > 0 && player.spawnT <= 0) {
+          const ph = Math.floor(frame / 2) % 2;
+          for (let k = 0; k < 18; k++)
+            if ((k + ph * 2) % 4 < 2) {
+              const c = k % 3 ? "#ffffff" : "#5ef2ff";
+              g.rect(player.x - 1 + k, player.y - 1, 1, 1, c);
+              g.rect(player.x - 1 + k, player.y + 16, 1, 1, c);
+              g.rect(player.x - 1, player.y - 1 + k, 1, 1, c);
+              g.rect(player.x + 16, player.y - 1 + k, 1, 1, c);
+            }
+        }
       }
-
-      // bushes drawn over tanks, so the kid's tank peeks through its hiding spot
-      for (const b of bushes) {
-        g.alpha(0.88);
-        g.rect(b.x, b.y, BLOCK, BLOCK, "#2e7a3e");
-        g.rect(b.x + 1, b.y + 1, 2, 2, "#1f5a2c");
-        g.rect(b.x + 5, b.y + 4, 2, 2, "#1f5a2c");
-        g.alpha(1);
+      for (const b of bullets) {
+        if (b.dir === "up") g.sprite(SHELL.up, b.x - 1.5, b.y - 2);
+        else if (b.dir === "down") g.sprite(SHELL.up, b.x - 1.5, b.y - 2, { flipY: true });
+        else if (b.dir === "left") g.sprite(SHELL.side, b.x - 2, b.y - 1.5);
+        else g.sprite(SHELL.side, b.x - 2, b.y - 1.5, { flipX: true });
       }
-
-      for (const s of sparks) g.rect(s.x, s.y, 2, 2, s.color);
+      layer(1);
       for (const b of booms) {
-        const rr = (b.big ? 15 : 8) * Math.min(1, b.t / 8);
-        g.circle(b.x, b.y, rr, b.t % 6 < 3 ? PAL.orange : PAL.yellow);
-        if (b.t > 6) g.circle(b.x, b.y, rr * 0.5, PAL.white);
+        let s: Sprite;
+        if (!b.big) s = BOOM_SMALL[Math.min(2, Math.floor(b.t / 4))];
+        else s = b.t < 12 ? BOOM_SMALL[Math.floor(b.t / 4)] : b.t < 20 ? BOOM_BIG[0] : b.t < 28 ? BOOM_BIG[1] : BOOM_SMALL[2];
+        const n = s.rows.length;
+        g.sprite(s, b.x - (n - 1) / 2, b.y - (n - 1) / 2);
       }
-      for (const p of pops) g.text(p.text, p.x + OX, p.y + OY - p.t * 0.6, p.color);
-
-      if (freezeT > 0) {
-        g.alpha(0.18);
-        g.rect(0, 0, ARENA, ARENA, PAL.cyan);
-        g.alpha(1);
-      }
+      if (pow && (pow.t < 720 ? Math.floor(frame / 10) % 3 !== 0 : Math.floor(frame / 5) % 2 === 0)) g.sprite(POW_SPR[pow.kind], pow.x + 1, pow.y + 1);
       g.camera(0, 0);
+      for (const p of pops) g.text(p.text, OX + p.x, OY + p.y - Math.min(10, p.t * 0.4), "#ffffff");
 
-      // HUD strip
-      const hx = OX + ARENA + 6;
-      g.rect(hx - 2, 0, W - hx + 2, H, "#0d0b1a");
-      g.text(`STAGE`, hx, 4, PAL.white, { size: 1 });
-      g.text(`${stageIdx + 1}`, hx, 14, PAL.yellow, { size: 2 });
-      g.text("FOES", hx, 34, PAL.white);
-      const left = toSpawn + enemies.length;
-      for (let i = 0; i < Math.min(left, 20); i++) {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        g.rect(hx + col * 9, 44 + row * 9, 6, 6, PAL.grey);
-      }
-      g.text("LIVES", hx, 150, PAL.white);
-      for (let i = 0; i < lives; i++) g.text("♥", hx + i * 8, 160, PAL.red);
-      g.text(`PWR ${tankLevel}`, hx, 176, PAL.cyan);
-      g.text(`${score}`, hx, 196, PAL.yellow);
-      if (state === "ready") {
-        g.rect(OX + 30, OY + 80, ARENA - 60, 44, "rgba(13,11,26,0.82)");
-        g.text(`STAGE ${stageIdx + 1}`, OX + ARENA / 2, OY + 88, PAL.yellow, { align: "center", size: 2 });
-        g.text("READY!", OX + ARENA / 2, OY + 108, PAL.white, { align: "center" });
-      } else if (state === "stageclear") {
-        g.rect(OX + 20, OY + 86, ARENA - 40, 32, "rgba(13,11,26,0.82)");
-        g.text(stageIdx >= TOTAL_STAGES - 1 ? "LAST STAGE CLEAR!" : "STAGE CLEAR!", OX + ARENA / 2, OY + 98, PAL.lime, { align: "center" });
+      // the HUD panel: enemies still to come, lives, stage flag
+      const left = roster.length - spawned;
+      for (let i = 0; i < left; i++) g.sprite(ICON_ENEMY, 230 + (i % 2) * 9, 18 + Math.floor(i / 2) * 9);
+      g.text("IP", 230, 128, INK);
+      g.sprite(ICON_LIFE, 230, 139);
+      g.text(String(lives), 240, 138, INK);
+      g.sprite(ICON_FLAG, 230, 168);
+      g.text(String(stage + 1), 250, 180, INK, { align: "right" });
+
+      // overlays
+      if (state === "curtain") {
+        const t = stateT;
+        const cover = t < 20 ? t / 20 : t < 90 ? 1 : Math.max(0, 1 - (t - 90) / 20);
+        const hh = Math.ceil((H / 2) * cover);
+        g.rect(0, 0, W, hh, GREY);
+        g.rect(0, H - hh, W, hh, GREY);
+        if (cover >= 1) g.text(`STAGE ${stage + 1}`, W / 2, H / 2 - 7, INK, { align: "center", size: 2 });
+      } else if (state === "tally") {
+        g.rect(0, 0, W, H, INK);
+        g.text(`STAGE ${stage + 1}`, W / 2, 24, "#ffffff", { align: "center", size: 2 });
+        g.text("CLEAR!", W / 2, 46, "#ffd82a", { align: "center" });
+        KINDS.forEach((k, i) => {
+          if (stateT < 20 + i * 30) return;
+          const y = 72 + i * 26;
+          g.text(`${ENEMY[k].pts} PTS`, 40, y + 4, "#ffffff");
+          g.text(`${kills[k]}`, 150, y + 4, "#ffffff", { align: "right" });
+          g.sprite(tankSprite(k, k === "armor" ? "green" : "silver", 0).up, 162, y);
+        });
+        if (stateT > 150) g.text(`BONUS ${500 * (stage + 1)}`, W / 2, 186, "#ffd82a", { align: "center" });
+      } else if (state === "over") {
+        const y = Math.max(OY + 86, OY + ARENA - stateT * 1.4);
+        g.text("GAME", OX + ARENA / 2, y, "#e8401a", { align: "center", size: 2 });
+        g.text("OVER", OX + ARENA / 2, y + 18, "#e8401a", { align: "center", size: 2 });
       }
     },
   };
@@ -856,11 +1022,11 @@ function create(seed: number): GameInstance {
 export const tankBattle: RetroGameDef = {
   id: "tank-battle",
   title: "Tank Battle",
-  blurb: "Blast through a brick battlefield and protect your base from enemy tanks!",
+  blurb: "Blast enemy tanks, chew through brick walls and guard your base!",
   genre: "Action",
   emoji: "🛡️",
   color: "#6a9a4a",
-  controls: "✚ drive · A fire · protect your base!",
-  pad: { dpad: "4", a: "Fire" },
+  controls: "✚ drive · A or B fire · protect the bird base!",
+  pad: { dpad: "4", a: "Fire", b: "Fire" },
   create,
 };

@@ -383,30 +383,24 @@ export function RetroPlayer({
           </button>
         </div>
         <div className="retro-pad" style={padRow}>
-          {game.pad.dpad !== "none" ? (
-            <DPad
-              size={pad.d}
-              mode={game.pad.dpad}
-              press={press}
-              // a left/right game still gets ▲ and ▼: ▲ is A (jump / shoot / launch) and ▼ is B,
-              // because that's what every kid tries first on a pad with only two arms
-              alias={game.pad.dpad === "lr" ? { up: game.pad.a ? "a" : undefined, down: game.pad.b ? "b" : undefined } : undefined}
-            />
-          ) : (
-            <div />
-          )}
+          {/* ONE pad for every game, like a real console: the full 4-way D-pad and both A and B are
+              always there, wherever they sit and whatever the game uses (a button a game doesn't
+              use just does nothing in it) */}
+          <DPad
+            size={pad.d}
+            press={press}
+            // a left/right game: ▲ is A (jump / shoot / launch) and ▼ is B, because that's what
+            // every kid tries first
+            alias={game.pad.dpad === "lr" ? { up: game.pad.a ? "a" : undefined, down: game.pad.b ? "b" : undefined } : undefined}
+          />
           {/* A and B staggered like a SNES pad (B up and to the left of A): big thumb targets that still fit beside the D-pad */}
-          <div style={{ position: "relative", width: pad.a + (game.pad.b ? pad.b * 0.92 : 0), height: pad.a + (game.pad.b ? pad.b * 0.55 : 0) + 18, flexShrink: 0 }}>
-            {game.pad.b && (
-              <div style={{ position: "absolute", left: 0, top: 0 }}>
-                <PadButton label="B" hint={game.pad.b} color="#ff6fcf" size={pad.b} onChange={(on) => press("b", on)} />
-              </div>
-            )}
-            {game.pad.a && (
-              <div style={{ position: "absolute", right: 0, bottom: 0 }}>
-                <PadButton label="A" hint={game.pad.a} color="#ffe14d" size={pad.a} onChange={(on) => press("a", on)} />
-              </div>
-            )}
+          <div style={{ position: "relative", width: pad.a + pad.b * 0.92, height: pad.a + pad.b * 0.55 + 18, flexShrink: 0 }}>
+            <div style={{ position: "absolute", left: 0, top: 0 }}>
+              <PadButton label="B" hint={game.pad.b ?? ""} color="#ff6fcf" size={pad.b} onChange={(on) => press("b", on)} />
+            </div>
+            <div style={{ position: "absolute", right: 0, bottom: 0 }}>
+              <PadButton label="A" hint={game.pad.a ?? ""} color="#ffe14d" size={pad.a} onChange={(on) => press("a", on)} />
+            </div>
           </div>
         </div>
       </div>
@@ -422,13 +416,11 @@ export function RetroPlayer({
   );
 }
 
-function DPad({ mode, press, alias, size = 156 }: { mode: "4" | "lr" | "ud"; press: (b: Button, on: boolean) => void; alias?: { up?: Button; down?: Button }; size?: number }) {
+function DPad({ press, alias, size = 156 }: { press: (b: Button, on: boolean) => void; alias?: { up?: Button; down?: Button }; size?: number }) {
   const u = size / 3; // one arm
   // one touch surface: the finger's angle from the centre picks the direction(s), so sliding works
   const ref = useRef<HTMLDivElement | null>(null);
   const [dir, setDir] = useState<Record<string, boolean>>({});
-  const hasUp = mode !== "lr" || !!alias?.up;
-  const hasDown = mode !== "lr" || !!alias?.down;
   const apply = (e: React.PointerEvent | null) => {
     const next = { left: false, right: false, up: false, down: false };
     if (e && ref.current) {
@@ -436,26 +428,19 @@ function DPad({ mode, press, alias, size = 156 }: { mode: "4" | "lr" | "ud"; pre
       const dx = e.clientX - (r.left + r.width / 2);
       const dy = e.clientY - (r.top + r.height / 2);
       const dead = r.width * 0.12;
-      if (mode !== "ud") {
-        if (dx < -dead) next.left = true;
-        if (dx > dead) next.right = true;
-      }
-      if (hasUp && dy < -dead) next.up = true;
-      if (hasDown && dy > dead) next.down = true;
+      if (dx < -dead) next.left = true;
+      if (dx > dead) next.right = true;
+      if (dy < -dead) next.up = true;
+      if (dy > dead) next.down = true;
       // mostly-horizontal drags shouldn't also trigger up/down (and the other way round)
-      if (mode !== "ud" && Math.abs(dx) > Math.abs(dy) * 2) next.up = next.down = false;
-      if (mode !== "lr" && Math.abs(dy) > Math.abs(dx) * 2) next.left = next.right = false;
+      if (Math.abs(dx) > Math.abs(dy) * 2) next.up = next.down = false;
+      if (Math.abs(dy) > Math.abs(dx) * 2) next.left = next.right = false;
     }
     press("left", next.left);
     press("right", next.right);
-    // on a left/right game the ▲ / ▼ arms stand in for the A / B buttons
-    if (mode === "lr") {
-      if (alias?.up) press(alias.up, next.up);
-      if (alias?.down) press(alias.down, next.down);
-    } else {
-      press("up", next.up);
-      press("down", next.down);
-    }
+    // on a left/right game the ▲ / ▼ arms stand in for the A / B buttons (when it has them)
+    press(alias?.up ?? "up", next.up);
+    press(alias?.down ?? "down", next.down);
     setDir(next);
   };
   const arm = (d: string, style: React.CSSProperties, glyph: string) => (
@@ -476,10 +461,10 @@ function DPad({ mode, press, alias, size = 156 }: { mode: "4" | "lr" | "ud"; pre
       onPointerCancel={() => apply(null)}
       aria-label="Direction pad"
     >
-      {mode !== "ud" && arm("left", { left: 0, top: u }, "◀")}
-      {mode !== "ud" && arm("right", { right: 0, top: u }, "▶")}
-      {hasUp && arm("up", { left: u, top: 0 }, "▲")}
-      {hasDown && arm("down", { left: u, bottom: 0 }, "▼")}
+      {arm("left", { left: 0, top: u }, "◀")}
+      {arm("right", { right: 0, top: u }, "▶")}
+      {arm("up", { left: u, top: 0 }, "▲")}
+      {arm("down", { left: u, bottom: 0 }, "▼")}
       <div style={{ position: "absolute", left: u, top: u, width: u, height: u, background: "#2d2a4d", borderRadius: u * 0.16 }} />
     </div>
   );
