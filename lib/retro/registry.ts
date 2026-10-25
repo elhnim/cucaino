@@ -35,5 +35,6 @@ import { bubbleBuddies } from "./games/bubbleBuddies";
 import { roboRunner } from "./games/roboRunner";
 import { miniRacers } from "./games/miniRacers";
 import { puffHop } from "./games/puffHop";
+import { goldDigger } from "./games/goldDigger";
 
-export const RETRO_GAMES: RetroGameDef[] = [jungleCommando, starBlaster, alienWave, spaceRocks, skyClimb, balloonFlap, blockDrop, mazeMuncher, snakeTrail, brickBreaker, bubblePop, jumpyJelly, barrelClimb, dungeonDash, boomBlocks, roadRacer, dirtDash, frogHop, paddleDuel, balloonGallery, kickSoccer, panelPop, cometPatrol, tankBattle, olympicDash, pillDoctor, hoopJam, pictureCross, punchChamp, bubbleBuddies, roboRunner, miniRacers, puffHop];
+export const RETRO_GAMES: RetroGameDef[] = [jungleCommando, starBlaster, alienWave, spaceRocks, skyClimb, balloonFlap, blockDrop, mazeMuncher, snakeTrail, brickBreaker, bubblePop, jumpyJelly, barrelClimb, dungeonDash, boomBlocks, roadRacer, dirtDash, frogHop, paddleDuel, balloonGallery, kickSoccer, panelPop, cometPatrol, tankBattle, olympicDash, pillDoctor, hoopJam, pictureCross, punchChamp, bubbleBuddies, roboRunner, miniRacers, puffHop, goldDigger];
