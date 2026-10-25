@@ -6,7 +6,8 @@
 // Options are little drones that trail behind the ship and copy its shots (max 2). Clear a
 // stage's shielded boss to open its core, then move on; beat the last one to win the patrol.
 // (Original game in the spirit of 8-bit side-scrolling shooters.)
-import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng } from "../engine";
+import { H, PAL, W, clamp, overlap, rng, spriteH, spriteW, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng, type Sprite } from "../engine";
+import { bake, bayer, drawStrip, hash2, mixHex, outlined, shade, tinted } from "../art";
 
 const T = 16;
 const PLAY_TOP = 10;
@@ -21,87 +22,113 @@ const HIT_DY = 4;
 const HIT_W = 8;
 const HIT_H = 5;
 
-// ── ship sprites: a chunky jet, nose to the right (2x scale so it reads on a phone) ──
+// ── ship sprites: a chunky jet, nose to the right, orange nose cone like the cabinet painting.
+// Drawn at SHIP_SCALE so it reads as a proper hero on screen; the hitbox stays the old small
+// size (HIT_DX/DY/W/H below), inset inside the bigger art, so the kid never takes a cheap hit.
 const SHIP_W = 20;
 const SHIP_H = 12;
-const SP = { k: PAL.black, w: PAL.white, b: PAL.blue, c: PAL.cyan, g: PAL.grey };
-const SHIP = sprite(
-  [
-    "......kkwwkk........",
-    "....kkwwwwwwkk......",
-    "....kkwwwwwwkk......",
-    "..kkbbbbbbbbwwwwkk..",
-    "..kkbbbbbbbbwwwwkk..",
-    "kkkkbbbbbbbbbbbbccww",
-    "kkkkbbbbbbbbbbbbccww",
-    "..kkbbbbbbbbwwwwkk..",
-    "..kkbbbbbbbbwwwwkk..",
-    "....kkwwwwwwkk......",
-    "....kkwwwwwwkk......",
-    "......kkwwkk........",
-  ],
-  SP,
+const SHIP_SCALE = 1.3;
+// outlined() grows the sprite by 1px on every side; these keep the bigger, scaled art centred
+// on the same small hitbox the ship has always had.
+const SHIP_DRAW_DX = ((SHIP_W + 2) * SHIP_SCALE - SHIP_W) / 2;
+const SHIP_DRAW_DY = ((SHIP_H + 2) * SHIP_SCALE - SHIP_H) / 2;
+const SP = { k: PAL.black, w: PAL.white, b: PAL.blue, c: PAL.cyan, g: PAL.grey, o: PAL.orange, h: "#cfe6ff" };
+const SHIP = outlined(
+  sprite(
+    [
+      "......kkwwkk........",
+      "....kkwwhwwwkk......",
+      "....kkwwwwwwkk......",
+      "..kkbbbbbbbbwwwwkk..",
+      "..kkbbbbbbbbwwwwkk..",
+      "kkkkbbbbbbbbbbbbccoo",
+      "kkkkbbbbbbbbbbbbccoo",
+      "..kkbbbbbbbbwwwwkk..",
+      "..kkbbbbbbbbwwwwkk..",
+      "....kkwwwwwwkk......",
+      "....kkwwhwwwkk......",
+      "......kkwwkk........",
+    ],
+    SP,
+  ),
 );
-const SHIP_BANK = sprite(
-  [
-    "....kkwwkk..........",
-    "..kkbbbbbbwwwwkk....",
-    "..kkbbbbbbwwwwkk....",
-    "kkkkbbbbbbbbwwcckk..",
-    "kkkkbbbbbbbbwwcckk..",
-    "..kkbbbbbbbbbbbbccww",
-    "..kkbbbbbbbbbbbbccww",
-    "kk..bbbbbbbbwwwwkk..",
-    "kk..bbbbbbbbwwwwkk..",
-    "..kkwwwwwwkk........",
-    "..kkwwwwwwkk........",
-    "....kk..kk..........",
-  ],
-  SP,
+const SHIP_BANK = outlined(
+  sprite(
+    [
+      "....kkwwkk..........",
+      "..kkbbbbbbwwwwkk....",
+      "..kkbbbbbbwwhwkk....",
+      "kkkkbbbbbbbbwwccoo..",
+      "kkkkbbbbbbbbwwccoo..",
+      "..kkbbbbbbbbbbbbccoo",
+      "..kkbbbbbbbbbbbbccoo",
+      "kk..bbbbbbbbwwwwkk..",
+      "kk..bbbbbbbbwwwwkk..",
+      "..kkwwwwwwkk........",
+      "..kkwwwwwwkk........",
+      "....kk..kk..........",
+    ],
+    SP,
+  ),
 );
 
-const DRONE_PAL = { k: PAL.black, w: PAL.grey, y: PAL.yellow };
+// enemy hit-boxes stay exactly the sizes passed to mkFoe (w/h below); the sprites are drawn a
+// little bigger and outlined (via drawBig) so they pop against the new busy backdrops without
+// ever hurting the kid over a bigger area than before.
+const DRONE_PAL = { k: PAL.black, w: PAL.grey, y: PAL.yellow, h: "#d8dce8" };
 const DRONE = [
   sprite(
-    ["..kkkkkkkk......", "..kkkkkkkk......", "kkwwyyyyyywwkk..", "kkwwyyyyyywwkk..", "kk..wwwwwwww..kk", "kk..wwwwwwww..kk", "....kk....kk....", "....kk....kk...."],
+    ["..kkkkkkkk......", "..khkkkkkkk.....", "kkwwyyyyyywwkk..", "kkwwyyyyyywwkk..", "kk..wwwwwwww..kk", "kk..wwwwwwww..kk", "....kk....kk....", "....kk....kk...."],
     DRONE_PAL,
   ),
   sprite(
-    ["..kkkkkkkk......", "..kkkkkkkk......", "kkwwyyyyyywwkk..", "kkwwyyyyyywwkk..", "kk..wwwwwwww..kk", "kk..wwwwwwww..kk", "..kk........kk..", "..kk........kk.."],
+    ["..kkkkkkkk......", "..khkkkkkkk.....", "kkwwyyyyyywwkk..", "kkwwyyyyyywwkk..", "kk..wwwwwwww..kk", "kk..wwwwwwww..kk", "..kk........kk..", "..kk........kk.."],
     DRONE_PAL,
   ),
-];
-const WALKER_PAL = { k: PAL.black, w: PAL.purple, b: PAL.pink };
+].map((s) => outlined(s));
+const WALKER_PAL = { k: PAL.black, w: PAL.purple, b: PAL.pink, d: "#4a1f6e" };
 const WALKER = [
   sprite(
-    ["..kkkkkkkk......", "..kkkkkkkk......", "kkwwwwwwwwwwkk..", "kkwwwwwwwwwwkk..", "kkwwkkkkkkwwkk..", "kkwwkkkkkkwwkk..", "..kk..kkkk..kk..", "..kk..kkkk..kk.."],
+    ["..kkkkkkkk......", "..kdkkkkkkk.....", "kkwwwwwwwwwwkk..", "kkwwwwwwwwwwkk..", "kkwwkkkkkkwwkk..", "kkwwkkkkkkwwkk..", "..kk..kkkk..kk..", "..kk..kkkk..kk.."],
     WALKER_PAL,
   ),
   sprite(
-    ["..kkkkkkkk......", "..kkkkkkkk......", "kkwwwwwwwwwwkk..", "kkwwwwwwwwwwkk..", "kkwwkkkkkkwwkk..", "kkwwkkkkkkwwkk..", "kk..kk....kk..kk", "kk..kk....kk..kk"],
+    ["..kkkkkkkk......", "..kdkkkkkkk.....", "kkwwwwwwwwwwkk..", "kkwwwwwwwwwwkk..", "kkwwkkkkkkwwkk..", "kkwwkkkkkkwwkk..", "kk..kk....kk..kk", "kk..kk....kk..kk"],
     WALKER_PAL,
   ),
-];
-const TURRET_PAL = { k: PAL.black, y: PAL.orange, g: PAL.grey, r: PAL.red, d: PAL.dark };
-const TURRET = sprite(
-  [
-    "....kkkkkkkk........",
-    "....kkkkkkkk........",
-    "..kkyyyyyyyyyykk....",
-    "..kkyyyyyyyyyykk....",
-    "kkyyggggggggggyykk..",
-    "kkyyggggggggggyykk..",
-    "kkyyggrrrrrrggyykk..",
-    "kkyyggrrrrrrggyykk..",
-    "kkyyggggggggggyykk..",
-    "kkyyggggggggggyykk..",
-    "kkkkddddddddddddkkkk",
-    "kkkkddddddddddddkkkk",
-    "..kkddddddddddkk....",
-    "..kkddddddddddkk....",
-  ],
-  TURRET_PAL,
+].map((s) => outlined(s));
+const TURRET_PAL = { k: PAL.black, y: PAL.orange, g: PAL.grey, r: PAL.red, d: PAL.dark, h: "#ffd9a0" };
+const TURRET = outlined(
+  sprite(
+    [
+      "....kkkkkkkk........",
+      "....khhkkkkk........",
+      "..kkyyyyyyyyyykk....",
+      "..kkyyyyyyyyyykk....",
+      "kkyyggggggggggyykk..",
+      "kkyyggggggggggyykk..",
+      "kkyyggrrrrrrggyykk..",
+      "kkyyggrrrrrrggyykk..",
+      "kkyyggggggggggyykk..",
+      "kkyyggggggggggyykk..",
+      "kkkkddddddddddddkkkk",
+      "kkkkddddddddddddkkkk",
+      "..kkddddddddddkk....",
+      "..kkddddddddddkk....",
+    ],
+    TURRET_PAL,
+  ),
 );
+const DRONE_FLASH = DRONE.map((s) => tinted(s, PAL.white));
+const WALKER_FLASH = WALKER.map((s) => tinted(s, PAL.white));
+const TURRET_FLASH = tinted(TURRET, PAL.white);
+/** draws a (possibly outlined) sprite scaled up, centred on its old w x h hitbox — the hitbox
+ *  never grows even though the art does */
+function drawBig(g: Gfx, s: Sprite, x: number, y: number, w: number, h: number, scale: number, flipY = false) {
+  const dw = spriteW(s) * scale;
+  const dh = spriteH(s) * scale;
+  g.sprite(s, x - (dw - w) / 2, y - (dh - h) / 2, { scale, flipY });
+}
 
 type Kind = "drone" | "snake" | "turret" | "hatch" | "walker" | "rock" | "icicle";
 type Mount = "floor" | "ceil" | "float";
@@ -114,16 +141,24 @@ interface StageTheme {
   accent: string;
   floorColor: string;
   ceilColor: string;
+  /** a second, deeper rock/ice/lava tone the terrain bake shades toward */
+  rockColor: string;
+  /** small bright glints/veins/sparkle colour baked into the terrain and distant wall */
+  glowColor: string;
   len: number;
   scroll: number;
   bossName: string;
 }
+// planet colours sampled straight from the cabinet painting (a dusky teal gas giant + a small
+// rusty moon on a flat deep-navy sky)
+const PLANET_TEAL = "#2c5668";
+const PLANET_BROWN = "#9a5a32";
 const STAGES: StageTheme[] = [
-  { kind: "space", name: "Comet Fields", bg: "#120f24", accent: PAL.cyan, floorColor: PAL.dark, ceilColor: PAL.dark, len: 1900, scroll: 1.0, bossName: "SENTRY DRONE" },
-  { kind: "belt", name: "Asteroid Belt", bg: "#0d0b1a", accent: PAL.tan, floorColor: PAL.brown, ceilColor: PAL.brown, len: 2000, scroll: 1.05, bossName: "ROCK CRUSHER" },
-  { kind: "cave", name: "Crystal Caves", bg: "#231938", accent: PAL.purple, floorColor: "#4a3a6a", ceilColor: "#4a3a6a", len: 2150, scroll: 1.1, bossName: "CRYSTAL GOLEM" },
-  { kind: "volcano", name: "Molten Core", bg: "#3a1414", accent: PAL.orange, floorColor: "#5a2a18", ceilColor: "#4a2018", len: 2150, scroll: 1.15, bossName: "MAGMA HATCH" },
-  { kind: "ice", name: "Frozen Reaches", bg: "#12263a", accent: PAL.sky, floorColor: "#7fb8d8", ceilColor: "#7fb8d8", len: 2250, scroll: 1.2, bossName: "COMET CORE" },
+  { kind: "space", name: "Comet Fields", bg: "#120f24", accent: PAL.cyan, floorColor: PAL.dark, ceilColor: PAL.dark, rockColor: "#2a2440", glowColor: PAL.cyan, len: 1900, scroll: 1.0, bossName: "SENTRY DRONE" },
+  { kind: "belt", name: "Asteroid Belt", bg: "#0d0b1a", accent: PAL.tan, floorColor: PAL.brown, ceilColor: PAL.brown, rockColor: "#5a3a22", glowColor: PAL.tan, len: 2000, scroll: 1.05, bossName: "ROCK CRUSHER" },
+  { kind: "cave", name: "Crystal Caves", bg: "#1a1230", accent: PAL.purple, floorColor: "#4a3a6a", ceilColor: "#4a3a6a", rockColor: "#2a2048", glowColor: PAL.pink, len: 2150, scroll: 1.1, bossName: "CRYSTAL GOLEM" },
+  { kind: "volcano", name: "Molten Core", bg: "#2a0e0e", accent: PAL.orange, floorColor: "#5a2a18", ceilColor: "#4a2018", rockColor: "#241012", glowColor: PAL.yellow, len: 2150, scroll: 1.15, bossName: "MAGMA HATCH" },
+  { kind: "ice", name: "Frozen Reaches", bg: "#0e1d30", accent: PAL.sky, floorColor: "#7fb8d8", ceilColor: "#7fb8d8", rockColor: "#3a5f7a", glowColor: PAL.white, len: 2250, scroll: 1.2, bossName: "COMET CORE" },
 ];
 
 const BAR_LABELS = ["SPD", "MSL", "DBL", "LSR", "OPT", "SHD"];
@@ -196,11 +231,219 @@ interface Terrain {
   ceil: number[];
   floor: number[];
 }
+interface Decor {
+  wx: number;
+  y: number;
+  s: Sprite;
+  par: number;
+}
+interface StageArt {
+  /** a tileable glow/dust/asteroid strip drawn behind the terrain, scrolled slower than it */
+  ambient: Sprite | null;
+  /** the whole stage's rock/ice/lava walls baked once, pixel-exact to ceilAt/floorAt */
+  terrain: Sprite | null;
+  /** background planets/moons placed along the stage, parallax-scrolled */
+  decor: Decor[];
+}
+interface Ember {
+  x: number;
+  y: number;
+  vy: number;
+}
 interface StageData {
   terrain: Terrain | null;
   floorAt: (wx: number) => number;
   ceilAt: (wx: number) => number;
   foes: Foe[];
+  art: StageArt;
+  /** rising embers (volcano) or falling snow (ice) drifting across the whole screen */
+  embers: Ember[];
+}
+
+// ── backdrop art: baked once per stage (not per frame) from that stage's own theme/terrain, so
+// a 16-bit cartridge backdrop costs one or two drawImage calls a frame instead of hundreds of
+// rects. Planets are shaded spheres (lit from the upper-left) with a few dimpled craters; the
+// terrain bake turns the flat floor/ceil bands into mottled rock with a jagged, glowing lip.
+function bakePlanet(d: number, base: string, seed: number, craterN = 4): Sprite {
+  const r = d / 2;
+  const cx = d / 2 - 0.5;
+  const cy = cx;
+  const craters = Array.from({ length: craterN }, (_, i) => {
+    const a = hash2(i, 1, seed) * Math.PI * 2;
+    const rr = hash2(i, 2, seed) * r * 0.62;
+    return { x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr, r: r * (0.14 + hash2(i, 3, seed) * 0.16) };
+  });
+  return bake(d, d, (x, y) => {
+    const dx = (x - cx) / r;
+    const dy = (y - cy) / r;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > 1) return null;
+    const z = Math.sqrt(Math.max(0, 1 - d2));
+    const light = dx * -0.55 + dy * -0.65 + z * 0.55;
+    // quantized into 4 bands so the sphere reads as banded pixel-art shading, not a smooth
+    // render — and kept close to the painting's base colour (mostly flat, just a soft terminator)
+    const band = Math.round(clamp((light + 1) / 2, 0, 1) * 3) / 3;
+    let col = shade(base, (band - 0.5) * 0.3);
+    for (const c of craters) {
+      const cdx = x - c.x;
+      const cdy = y - c.y;
+      const cd2 = (cdx * cdx + cdy * cdy) / (c.r * c.r);
+      if (cd2 < 1) col = shade(col, cd2 < 0.55 ? -0.22 : -0.08);
+    }
+    if (d2 > 0.88 && light > 0.3) col = shade(col, 0.12);
+    return col;
+  });
+}
+/** a jagged, cratered, visibly-tumbling rock hazard — deliberately spiky (never a smooth sphere)
+ *  so a kid never mistakes it for a harmless background planet */
+function bakeAsteroid(d: number, seed: number, rotFrame: number): Sprite {
+  const r = d / 2;
+  const cx = d / 2 - 0.5;
+  const cy = cx;
+  const rot = rotFrame * 0.5;
+  const base = mixHex(PAL.dark, PAL.brown, 0.42);
+  return bake(d, d, (x, y) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const ang = Math.atan2(dy, dx) - rot;
+    const jitter = 0.72 + 0.22 * Math.sin(ang * 5 + seed) + 0.1 * Math.cos(ang * 9 - seed * 2);
+    const dist = Math.hypot(dx, dy);
+    if (dist > r * jitter) return null;
+    const light = (-dx / r) * 0.5 + (-dy / r) * 0.6;
+    let col = shade(base, light > 0.15 ? 0.14 : light < -0.2 ? -0.26 : -0.04);
+    if (dist > r * jitter - 1.2 && light > 0.25) col = shade(col, 0.18);
+    return col;
+  });
+}
+// the "rock" hazard only ever spawns with r in [8, 10, 12] (see buildStage); two tumble frames each
+const ASTEROIDS: Record<number, [Sprite, Sprite]> = Object.fromEntries([8, 10, 12].map((rr) => [rr, [outlined(bakeAsteroid(rr * 2, rr, 0)), outlined(bakeAsteroid(rr * 2, rr, 1))]]));
+// precise white hit-flash silhouettes (shaped to each sprite, not a blocky rect overlay)
+const ASTEROID_FLASH: Record<number, [Sprite, Sprite]> = Object.fromEntries(Object.entries(ASTEROIDS).map(([k, [a, b]]) => [k, [tinted(a, PAL.white), tinted(b, PAL.white)]]));
+/** a tapered ice shard, tip down — baked once, reused by every icicle */
+function bakeIcicle(w: number, h: number): Sprite {
+  const cx = w / 2 - 0.5;
+  return bake(w, h, (x, y) => {
+    const t = y / (h - 1);
+    const halfW = (w / 2) * (1 - t * 0.82);
+    const dx = Math.abs(x - cx);
+    if (dx > halfW) return null;
+    if (halfW - dx < 0.9) return shade(PAL.sky, 0.3);
+    if (dx < halfW * 0.4) return shade(PAL.sky, 0.12);
+    return shade(PAL.sky, -0.12);
+  });
+}
+const ICICLE = outlined(bakeIcicle(8, 12));
+const ICICLE_FLASH = tinted(ICICLE, PAL.white);
+/** the power capsule: a glossy pill with a bright white stripe, dark rim and a two-tone glow */
+function bakeCapsule(d: number): Sprite {
+  const cx = d / 2 - 0.5;
+  const r = d / 2 - 0.5;
+  return bake(d, d, (x, y) => {
+    const dx = x - cx;
+    const dy = y - cx;
+    const dist = Math.hypot(dx, dy);
+    if (dist > r) return null;
+    if (dist > r - 1.1) return PAL.black;
+    if (Math.abs(dy) < 1.6) return PAL.white;
+    return dy < 0 ? shade(PAL.yellow, 0.1) : shade(PAL.yellow, -0.18);
+  });
+}
+const CAPSULE = bakeCapsule(11);
+/** a riveted metal hatch plate — the dynamic glowing slit is still drawn on top each frame */
+function bakeHatchPlate(w: number, h: number): Sprite {
+  return bake(w, h, (x, y) => {
+    const edge = x === 0 || x === w - 1 || y === 0 || y === h - 1;
+    if (edge) return shade(PAL.dark, -0.3);
+    if ((x === 2 || x === w - 3) && (y === 2 || y === h - 3)) return shade(PAL.grey, 0.2);
+    return (x + y) % 5 === 0 ? shade(PAL.dark, 0.08) : PAL.dark;
+  });
+}
+const HATCH_PLATE = outlined(bakeHatchPlate(16, 10));
+const HATCH_PLATE_FLASH = tinted(HATCH_PLATE, PAL.white);
+/** a sparse field of jagged dark rock silhouettes — the Asteroid Belt's mid-ground */
+function bakeAsteroidField(w: number, h: number, seed: number, base: string): Sprite {
+  const n = 7;
+  const rocks = Array.from({ length: n }, (_, i) => ({
+    x: hash2(i, 1, seed) * w,
+    y: 4 + hash2(i, 2, seed) * (h - 8),
+    r: 2.5 + hash2(i, 3, seed) * 4.5,
+    id: i,
+  }));
+  return bake(w, h, (x, y) => {
+    for (const rk of rocks) {
+      const dxw = Math.min(Math.abs(x - rk.x), w - Math.abs(x - rk.x));
+      const dy = y - rk.y;
+      const ang = Math.atan2(dy, dxw * Math.sign(x - rk.x || 1));
+      const jitter = 0.78 + 0.26 * hash2(Math.round((ang + Math.PI) * 3), rk.id, seed);
+      const d = Math.hypot(dxw, dy) / (rk.r * jitter);
+      if (d < 1) return d < 0.5 ? shade(base, 0.08) : shade(base, -0.18);
+    }
+    return null;
+  });
+}
+/** sparse, dithered glow motes (crystal glints, embers, ice sparkle) — never a flat glow dome */
+function bakeAmbient(w: number, h: number, glow: string, seed: number, density: number): Sprite {
+  const spots = Array.from({ length: density }, (_, i) => ({ x: hash2(i, 1, seed) * w, y: hash2(i, 2, seed) * h, r: 1.1 + hash2(i, 3, seed) * 2 }));
+  return bake(w, h, (x, y) => {
+    for (const s of spots) {
+      const dxw = Math.min(Math.abs(x - s.x), w - Math.abs(x - s.x));
+      const dy = y - s.y;
+      const d2 = (dxw * dxw + dy * dy) / (s.r * s.r);
+      if (d2 < 1 && 1 - d2 > bayer(x, y) * 0.65) return glow;
+    }
+    return null;
+  });
+}
+/** the whole stage's rock walls, baked pixel-exact to the terrain's ceil/floor arrays: a mottled
+ *  3-tone body, a jagged glowing lip (icicles / crystal shards / crusted lava) and rare glints —
+ *  one big sprite instead of flat rows of rects. */
+function bakeTerrainArt(theme: StageTheme, terrain: Terrain, stageSeed: number): Sprite {
+  const cols = terrain.ceil.length;
+  const w = cols * T;
+  const toothLen = (col: number, k: number) => 2 + Math.floor(hash2(col, k, stageSeed) * 6);
+  const toothOn = (col: number, lx: number, k: number) => {
+    const c0 = Math.floor(2 + hash2(col, k + 1, stageSeed) * (T - 4));
+    const w2 = 3 + Math.floor(hash2(col, k + 2, stageSeed) * 4);
+    return Math.abs(lx - c0) < w2 / 2;
+  };
+  return bake(w, H, (x, y) => {
+    const col = Math.min(cols - 1, Math.floor(x / T));
+    const lx = x - col * T;
+    const ceilH = terrain.ceil[col];
+    const floorH = terrain.floor[col];
+    const mottle = hash2(Math.floor(x / 3), Math.floor(y / 3), stageSeed + 5);
+    const rock = mottle > 0.78 ? shade(theme.rockColor, 0.14) : mottle < 0.22 ? shade(theme.rockColor, -0.16) : theme.rockColor;
+    if (y < ceilH) {
+      const depth = ceilH - y;
+      if (depth <= toothLen(col, 10) && toothOn(col, lx, 10)) return depth <= 1 ? theme.accent : shade(theme.glowColor, depth > 3 ? -0.2 : 0.1);
+      if (depth <= 2) return shade(theme.ceilColor, 0.18);
+      if (Math.abs(Math.sin(x * 0.22 + y * 0.12 + stageSeed) - 0.98) < 0.01) return theme.glowColor;
+      return rock;
+    }
+    if (y >= floorH) {
+      const depth = y - floorH;
+      if (depth <= toothLen(col, 20) && toothOn(col, lx, 20)) return depth <= 1 ? theme.accent : shade(theme.glowColor, depth > 3 ? -0.2 : 0.1);
+      if (depth <= 2) return shade(theme.floorColor, 0.18);
+      if (Math.abs(Math.sin(x * 0.22 - y * 0.12 + stageSeed) - 0.98) < 0.01) return theme.glowColor;
+      return rock;
+    }
+    return null;
+  });
+}
+/** background decor for the open (terrain-less) stages: the painting's big dusky planet + its
+ *  small rust moon for Comet Fields, a tumbling rocky moon for the Asteroid Belt */
+function buildDecor(theme: StageTheme): Decor[] {
+  if (theme.kind === "space") {
+    return [
+      { wx: 60, y: 54, s: bakePlanet(70, PLANET_TEAL, 1, 5), par: 0.22 },
+      { wx: 760, y: 150, s: bakePlanet(26, PLANET_BROWN, 2, 3), par: 0.3 },
+      { wx: 1420, y: 60, s: bakePlanet(46, PAL.purple, 3, 4), par: 0.25 },
+    ];
+  }
+  if (theme.kind === "belt") {
+    return [{ wx: 820, y: 70, s: bakePlanet(40, PAL.grey, 4, 6), par: 0.25 }];
+  }
+  return [];
 }
 interface Panel {
   dx: number;
@@ -304,7 +547,19 @@ function buildStage(stageIdx: number, theme: StageTheme, r: Rng): StageData {
       }
     }
   }
-  return { terrain, floorAt, ceilAt, foes };
+  let art: StageArt;
+  if (terrain) {
+    art = { terrain: bakeTerrainArt(theme, terrain, stageIdx * 97 + 3), ambient: bakeAmbient(128, H, theme.glowColor, stageIdx * 31 + 7, 9), decor: [] };
+  } else if (theme.kind === "belt") {
+    art = { terrain: null, ambient: bakeAsteroidField(170, 150, stageIdx * 41 + 11, theme.rockColor), decor: buildDecor(theme) };
+  } else {
+    art = { terrain: null, ambient: null, decor: buildDecor(theme) };
+  }
+  const embers: Ember[] =
+    theme.kind === "volcano" || theme.kind === "ice"
+      ? Array.from({ length: 16 }, () => ({ x: r.range(0, W), y: r.range(PLAY_TOP, PLAY_BOT), vy: theme.kind === "volcano" ? -(0.2 + r.range(0, 0.35)) : 0.3 + r.range(0, 0.45) }))
+      : [];
+  return { terrain, floorAt, ceilAt, foes, art, embers };
 }
 
 function spawnBoss(stageIdx: number, r: Rng): Boss {
@@ -352,7 +607,7 @@ function create(seed: number): GameInstance {
   const eshots: EShot[] = [];
   const caps: Cap[] = [];
   const parts: Part[] = [];
-  const stars = Array.from({ length: 50 }, (_, i) => ({ x: r.range(0, W), y: r.range(0, H), layer: i % 3 }));
+  const stars = Array.from({ length: 80 }, (_, i) => ({ x: r.range(0, W), y: r.range(0, H), layer: i % 3, tw: r.int(0, 140) }));
 
   const burst = (x: number, y: number, n: number, colors: string[]) => {
     for (let i = 0; i < n && parts.length < MAX_PARTS; i++) {
@@ -380,13 +635,14 @@ function create(seed: number): GameInstance {
       ship.shieldHits--;
       ship.inv = 55;
       burst(ship.x + 10, ship.y + 6, 10, [PAL.cyan, PAL.white]);
-      io.sfx.play("hit");
+      io.sfx.play("zap");
       return;
     }
     ship.dead = 0;
     shake = 14;
     burst(ship.x + 10, ship.y + 6, 26, [PAL.white, PAL.yellow, PAL.orange, PAL.red]);
     io.sfx.play("die");
+    io.sfx.noise?.(260, 0.3, 500, 60);
   };
 
   const respawn = () => {
@@ -424,7 +680,8 @@ function create(seed: number): GameInstance {
   const collectCap = (io: IO) => {
     ship.barIndex = ship.barIndex < 0 ? 0 : (ship.barIndex + 1) % 6;
     io.score(120);
-    io.sfx.play("coin");
+    io.sfx.play("pickup");
+    io.sfx.tone(520 + ship.barIndex * 60, 8, "square", 0.12);
     if (firstCapsule) {
       firstCapsule = false;
       hintT = 200;
@@ -432,7 +689,7 @@ function create(seed: number): GameInstance {
   };
 
   const fireShip = (io: IO) => {
-    const sxp = ship.x + SHIP_W - 3;
+    const sxp = ship.x + SHIP_W + 2;
     const syp = ship.y + 5;
     const spd = 4.2;
     const pierce = ship.gunLevel >= 2 ? 3 : 0;
@@ -505,6 +762,7 @@ function create(seed: number): GameInstance {
     for (let i = 0; i < 8; i++) burst(b.x + r.range(0, BOSS_W), b.y + r.range(0, BOSS_H), 14, [PAL.yellow, PAL.orange, PAL.white, PAL.purple]);
     io.score(2000 + stageIdx * 500);
     io.sfx.play("win");
+    io.sfx.slide?.(500, 1100, 350, "square", 0.22);
     caps.push({ wx: sx + b.x + 20, y: b.y + 20, t: 0 }, { wx: sx + b.x + 36, y: b.y + 10, t: 0 });
     eshots.length = 0;
     if (stageIdx >= STAGES.length - 1) {
@@ -530,6 +788,14 @@ function create(seed: number): GameInstance {
         if (s.x < 0) {
           s.x = W;
           s.y = r.range(0, H);
+        }
+      }
+      for (const e of stageData.embers) {
+        e.y += e.vy;
+        e.x += Math.sin(frame * 0.04 + e.y * 0.1) * 0.15;
+        if (e.y < PLAY_TOP - 4 || e.y > PLAY_BOT + 4) {
+          e.y = e.vy < 0 ? PLAY_BOT + 2 : PLAY_TOP - 2;
+          e.x = r.range(0, W);
         }
       }
 
@@ -563,6 +829,9 @@ function create(seed: number): GameInstance {
           fireShip(io);
           ship.cool = 9;
         }
+        // a small thruster puff every few frames, and a soft low engine hum every couple seconds
+        if (frame % 4 === 0) burst(ship.x - 2, ship.y + 6, 1, [PAL.orange, "#c9541f"]);
+        if (frame % 50 === 0) io.sfx.tone?.(70 + ship.speedLevel * 8, 5, "sawtooth", 0.05);
         if (inp.pressed.b && ship.barIndex >= 0) buyUpgrade(io);
         if (stageData.terrain) {
           const wxAt = sx + ship.x + HIT_DX;
@@ -580,6 +849,8 @@ function create(seed: number): GameInstance {
         if (sx >= theme.len) {
           phase = "bossIn";
           boss = spawnBoss(stageIdx, r);
+          io.sfx.noise?.(50, 0.3, 300, 900);
+          io.sfx.play("hurt");
         }
       } else if (phase === "bossIn") {
         const b = boss!;
@@ -764,70 +1035,103 @@ function create(seed: number): GameInstance {
     draw(g: Gfx) {
       const theme = STAGES[stageIdx];
       g.clear(theme.bg);
-      g.alpha(0.3);
-      g.circle(40, ((frame * 0.1) % (H + 100)) - 50, 34, theme.accent);
-      g.alpha(1);
-      for (const s of stars) {
-        const c = s.layer === 0 ? PAL.dark : s.layer === 1 ? PAL.grey : PAL.white;
-        g.rect(s.x, s.y, s.layer === 2 ? 2 : 1, 1, c);
+      // backdrop: planets / asteroid field / glow motes, parallax-scrolled slower than the
+      // foreground so the stage reads with real depth instead of one flat band of colour
+      const art = stageData.art;
+      if (art.ambient) drawStrip(g, art.ambient, sx * (stageData.terrain ? 0.4 : 0.3), stageData.terrain ? 0 : H / 2 - 75);
+      for (const d of art.decor) {
+        const dxp = d.wx - sx * d.par;
+        if (dxp > -80 && dxp < W + 80) g.sprite(d.s, dxp, d.y);
+      }
+      // stars are the open-space/belt sky; underground stages get their own ambient glow + embers
+      if (!stageData.terrain) {
+        for (const s of stars) {
+          const sparkle = s.layer === 2 && (frame + s.tw) % 140 < 5;
+          if (sparkle) {
+            g.rect(s.x - 1, s.y, 3, 1, PAL.white);
+            g.rect(s.x, s.y - 1, 1, 3, PAL.white);
+          } else {
+            g.rect(s.x, s.y, s.layer === 2 ? 2 : 1, 1, s.layer === 0 ? PAL.dark : s.layer === 1 ? PAL.grey : PAL.white);
+          }
+        }
       }
 
       const sxs = shake ? r.range(-2, 2) : 0;
       const sys = shake ? r.range(-2, 2) : 0;
       g.camera(sxs, sys);
 
-      // terrain
-      if (stageData.terrain) {
-        const t = stageData.terrain;
-        const c0 = Math.floor(sx / T);
-        for (let c = c0; c <= c0 + W / T + 1 && c < t.ceil.length; c++) {
-          const sxp = c * T - sx;
-          g.rect(sxp, 0, T + 1, t.ceil[c], theme.ceilColor);
-          g.rect(sxp, t.ceil[c] - 3, T + 1, 3, theme.accent);
-          g.rect(sxp, t.floor[c], T + 1, H - t.floor[c], theme.floorColor);
-          g.rect(sxp, t.floor[c], T + 1, 3, theme.accent);
-        }
+      // terrain: one big sprite baked pixel-exact to ceilAt/floorAt (see bakeTerrainArt)
+      if (art.terrain) g.sprite(art.terrain, -sx, 0);
+
+      // rising embers (volcano) / falling snow (ice) drifting through the whole corridor
+      for (const e of stageData.embers) {
+        if (theme.kind === "volcano") g.rect(e.x, e.y, 1, 1, frame % 8 < 4 ? PAL.yellow : PAL.orange);
+        else g.rect(e.x, e.y, 1, 1, PAL.white);
       }
 
       // foes
       for (const f of stageData.foes) {
         const sxp = screenX(f);
         if (sxp < -24 || sxp > W + 24) continue;
+        // a hit flash swaps in a precise white silhouette of the same sprite, not a blocky
+        // rectangle, so bigger/jagged art still reads cleanly when it takes a hit
         const flashed = f.flash % 2 === 1;
-        if (f.kind === "drone") g.sprite(DRONE[Math.floor(frame / 8) % 2], sxp, f.y);
-        else if (f.kind === "snake") g.circle(sxp + 5, f.y + 5, 5, flashed ? PAL.white : PAL.pink);
-        else if (f.kind === "turret") g.sprite(TURRET, sxp, f.y, { flipY: f.mount === "ceil" });
+        const frm2 = Math.floor(frame / 8) % 2;
+        if (f.kind === "drone") drawBig(g, (flashed ? DRONE_FLASH : DRONE)[frm2], sxp, f.y, f.w, f.h, 1.2);
+        else if (f.kind === "snake") {
+          g.circle(sxp + 5, f.y + 5, 5, flashed ? PAL.white : shade(PAL.pink, -0.15));
+          g.circle(sxp + 4, f.y + 4, 2.2, flashed ? PAL.white : PAL.pink);
+        } else if (f.kind === "turret") drawBig(g, flashed ? TURRET_FLASH : TURRET, sxp, f.y, f.w, f.h, 1.15, f.mount === "ceil");
         else if (f.kind === "hatch") {
-          g.rect(sxp, f.y, f.w, f.h, PAL.dark);
-          g.rect(sxp + 2, f.y + (f.mount === "ceil" ? f.h - 3 : 0), f.w - 4, 3, PAL.orange);
-        } else if (f.kind === "walker") g.sprite(WALKER[Math.floor(f.t / 6) % 2], sxp, f.y, { flipY: f.mount === "ceil" });
+          g.sprite(flashed ? HATCH_PLATE_FLASH : HATCH_PLATE, sxp - 1, f.y - 1);
+          g.rect(sxp + 2, f.y + (f.mount === "ceil" ? f.h - 3 : 0), f.w - 4, 3, frame % 10 < 5 ? PAL.orange : PAL.yellow);
+        } else if (f.kind === "walker") drawBig(g, (flashed ? WALKER_FLASH : WALKER)[Math.floor(f.t / 6) % 2], sxp, f.y, f.w, f.h, 1.2, f.mount === "ceil");
         else if (f.kind === "rock") {
-          g.circle(sxp, f.y, f.r, PAL.dark);
-          g.circle(sxp - 1, f.y - 1, f.r - 1.5, PAL.brown);
-        } else if (f.kind === "icicle") g.rect(sxp, f.y, f.w, f.h, PAL.sky);
-        if (flashed) g.rect(sxp, f.y, f.w || f.r * 2, f.h || f.r * 2, PAL.white);
+          const set = (flashed ? ASTEROID_FLASH : ASTEROIDS)[f.r] ?? ASTEROIDS[8];
+          g.sprite(set[Math.floor(f.t / 10) % 2], sxp - f.r, f.y - f.r);
+        } else if (f.kind === "icicle") g.sprite(flashed ? ICICLE_FLASH : ICICLE, sxp - 1, f.y - 1);
       }
 
-      // boss
+      // boss: a riveted plated hull with a bright centre keel, each panel shaded/outlined with a
+      // real horizontal health strip, and a dithered pulsing glow once the core is exposed
       if (boss && (phase === "bossIn" || phase === "boss")) {
         const b = boss;
-        g.rect(b.x, b.y, BOSS_W, BOSS_H, "#2a2e4a");
-        g.box(b.x, b.y, BOSS_W, BOSS_H, PAL.dark);
+        g.rect(b.x, b.y, BOSS_W, BOSS_H, "#1c1f36");
+        g.rect(b.x + 3, b.y + 2, BOSS_W - 6, BOSS_H - 4, "#2a2e4a");
+        g.rect(b.x + BOSS_W / 2 - 5, b.y + 2, 10, BOSS_H - 4, "#3a3f66");
+        for (let yy = 4; yy < BOSS_H - 2; yy += 7) {
+          g.rect(b.x + 1, b.y + yy, 2, 2, PAL.grey);
+          g.rect(b.x + BOSS_W - 3, b.y + yy, 2, 2, PAL.grey);
+        }
+        g.box(b.x, b.y, BOSS_W, BOSS_H, PAL.black);
         for (const p of b.panels) {
           if (p.hp <= 0) continue;
-          g.rect(b.x + p.dx, b.y + p.dy, p.w, p.h, PAL.grey);
-          g.rect(b.x + p.dx + 2, b.y + p.dy + 2, p.w - 4, Math.max(2, ((p.w - 4) * p.hp) / p.maxHp), PAL.red);
+          const hurt = p.hp < p.maxHp;
+          g.rect(b.x + p.dx, b.y + p.dy, p.w, p.h, hurt ? shade(PAL.grey, -0.18) : PAL.grey);
+          g.rect(b.x + p.dx + 2, b.y + p.dy + 2, p.w - 4, 2, shade(PAL.grey, 0.3));
+          g.rect(b.x + p.dx + 2, b.y + p.dy + p.h - 5, Math.max(2, ((p.w - 4) * p.hp) / p.maxHp), 3, PAL.red);
+          g.box(b.x + p.dx, b.y + p.dy, p.w, p.h, PAL.black);
         }
         const cc = b.core;
-        g.circle(b.x + cc.dx + cc.w / 2, b.y + cc.dy + cc.h / 2, cc.w / 2, cc.exposed ? (frame % 10 < 5 ? PAL.yellow : PAL.orange) : PAL.dark);
+        const ccx = b.x + cc.dx + cc.w / 2;
+        const ccy = b.y + cc.dy + cc.h / 2;
+        if (cc.exposed) {
+          const pr = cc.w / 2 + 3 + Math.sin(frame * 0.3) * 1.5;
+          for (let a = 0; a < Math.PI * 2; a += 0.35) if (Math.sin(a * 4 + frame * 0.1) > 0) g.rect(ccx + Math.cos(a) * pr, ccy + Math.sin(a) * pr, 1, 1, PAL.orange);
+        }
+        g.circle(ccx, ccy, cc.w / 2, cc.exposed ? (frame % 10 < 5 ? PAL.yellow : PAL.orange) : PAL.dark);
+        g.circle(ccx, ccy, cc.w / 2 - 3, cc.exposed ? PAL.white : shade(PAL.dark, -0.15));
       }
 
-      // capsules
+      // capsules: a soft breathing halo (never a flat glow dome) behind a glossy pill sprite
       for (const c of caps) {
         const sxp = c.wx - sx;
-        if (sxp < -12 || sxp > W + 12) continue;
-        g.rect(sxp, c.y, 11, 11, PAL.black);
-        g.rect(sxp + 1, c.y + 1, 9, 9, frame % 10 < 5 ? PAL.yellow : PAL.white);
+        if (sxp < -14 || sxp > W + 14) continue;
+        const pulse = Math.abs((frame % 20) - 10);
+        g.alpha(0.45 - pulse * 0.03);
+        g.circle(sxp + 5, c.y + 5, 7, PAL.yellow);
+        g.alpha(1);
+        g.sprite(CAPSULE, sxp, c.y);
       }
 
       for (const s of eshots) g.circle(s.x, s.y, 2, Math.floor(frame / 4) % 2 ? PAL.pink : PAL.red);
@@ -847,14 +1151,26 @@ function create(seed: number): GameInstance {
             g.circle(p.x + 4, p.y + 4, 2, PAL.cyan);
           }
         }
-        const flameLen = 4 + (frame % 4 < 2 ? 2 : 0);
-        const flame = frame % 6 < 3 ? PAL.orange : PAL.yellow;
-        g.rect(ship.x - flameLen, ship.y + 5, flameLen, 3, flame);
-        g.sprite(ship.bank > 0 ? SHIP_BANK : SHIP, ship.x, ship.y, { flipY: ship.bank > 0 });
-        if (ship.shieldHits > 0) {
-          g.alpha(0.4);
-          g.circle(ship.x + 10, ship.y + 6, 13, PAL.cyan);
+        // layered engine flame: a longer dim tail with a hot bright core, flickering each frame
+        const flameLen = 5 + (frame % 4 < 2 ? 3 : 0) + (ship.speedLevel >= 2 ? 2 : 0);
+        const tailX = ship.x - 3;
+        g.rect(tailX - flameLen, ship.y + 5, flameLen, 3, frame % 6 < 3 ? PAL.orange : "#c9541f");
+        g.rect(tailX - flameLen * 0.55, ship.y + 5.5, flameLen * 0.55, 2, PAL.yellow);
+        g.rect(tailX - 2, ship.y + 6, 2, 1, PAL.white);
+        g.sprite(ship.bank > 0 ? SHIP_BANK : SHIP, ship.x - SHIP_DRAW_DX, ship.y - SHIP_DRAW_DY, { flipY: ship.bank > 0, scale: SHIP_SCALE });
+        // a quick white muzzle flash right after firing, at the orange nose
+        if (ship.cool > 6) {
+          g.alpha((ship.cool - 6) / 3);
+          g.circle(ship.x + SHIP_W + 2, ship.y + 5, 3, PAL.white);
           g.alpha(1);
+        }
+        if (ship.shieldHits > 0) {
+          // a dithered bubble (never a flat glow dome) that pulses gently
+          const pr = 15 + Math.sin(frame * 0.2) * 1.5;
+          for (let a = 0; a < Math.PI * 2; a += 0.26) {
+            const d = 1 - (0.5 + 0.5 * Math.sin(a * 5 + frame * 0.1));
+            if (d > 0.35) g.rect(ship.x + 10 + Math.cos(a) * pr, ship.y + 6 + Math.sin(a) * pr * 0.85, 1, 1, PAL.cyan);
+          }
         }
       }
       for (const p of parts) g.rect(p.x, p.y, 2, 2, p.color);
@@ -866,8 +1182,11 @@ function create(seed: number): GameInstance {
         g.alpha(1);
       }
 
-      // top HUD
-      g.rect(0, 0, W, PLAY_TOP, "rgba(13,11,26,0.65)");
+      // top HUD: a framed panel (thin lit edge + corner ticks) rather than a plain band
+      g.rect(0, 0, W, PLAY_TOP, "rgba(13,11,26,0.72)");
+      g.rect(0, PLAY_TOP - 1, W, 1, shade(theme.accent, -0.3));
+      g.rect(0, 0, 3, 1, theme.accent);
+      g.rect(W - 3, 0, 3, 1, theme.accent);
       for (let i = 0; i < ship.lives; i++) g.text("♥", 4 + i * 8, 1, PAL.red);
       if (phase === "boss" || phase === "bossIn") g.text(theme.bossName, W / 2, 1, PAL.red, { align: "center" });
       else g.text(theme.name, W / 2, 1, theme.accent, { align: "center" });
