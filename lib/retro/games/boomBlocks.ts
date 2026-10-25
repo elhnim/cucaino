@@ -2,7 +2,13 @@
 // power-ups (more bombs, bigger blasts, faster feet), set off chain reactions and pop every
 // cartoon critter to open the exit door. Eight stages; stay out of your own blast!
 // (Original game in the spirit of 8-bit maze bombers.)
-import { PAL, W, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng } from "../engine";
+//
+// Look: a neon-lit vault — plated stone blocks on a deep navy floor, crates wrapped in orange
+// tape, a cyan dome-head robot bomber, one-eyed jelly critters and a bright white-gold blast
+// cross, matching the cabinet painting (tiles/boomBlocks.png). Big art is baked once, lazily,
+// via `art()` the first time a round needs it, so module load stays tiny.
+import { PAL, W, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng, type Sprite } from "../engine";
+import { bake, hash2, outlined, shade } from "../art";
 
 const T = 16;
 const COLS = 15;
@@ -16,51 +22,230 @@ const FLAME = 26;
 const WALL = 1;
 const CRATE = 2;
 
-// ── sprites ──
-const PP = { k: PAL.black, w: PAL.white, c: PAL.cyan, b: PAL.blue, r: PAL.red };
-const P_HEAD = ["......rr......", ".......k......", "...kkkkkkkk...", "..kwwwwwwwwk.."];
-const P_BODY = ["..kwwwwwwwwk..", "...kkkkkkkk...", "..kbbbbbbbbk..", ".kwkbbbbbbkwk.", ".kk.kbbbbk.kk."];
-const P_FEET = [
-  ["....kbkkbk....", "...kkk..kkk..."],
-  ["...kb....bk...", "..kkk....kkk.."],
-];
-const FACES: Record<string, string[]> = {
-  down: ["..kwkkkkkkwk..", "..kwkckkckwk..", "..kwkkkkkkwk.."],
-  up: ["..kwwwwwwwwk..", "..kwwwwwwwwk..", "..kwwwwwwwwk.."],
-  side: ["..kwwwkkkkwk..", "..kwwwkkckwk..", "..kwwwkkkkwk.."],
-};
-const PLAYER: Record<string, ReturnType<typeof sprite>[]> = {};
-for (const [k, face] of Object.entries(FACES)) PLAYER[k] = P_FEET.map((f) => sprite([...P_HEAD, ...face, ...P_BODY, ...f], PP));
+// ── painting palette ──
+const FLOOR_LO = "#141b42";
+const FLOOR_HI = "#1b245a";
+const WALL_BASE = "#8b93c0";
+const WALL_BORDER = "#5a6294";
+const CRATE_WOOD = "#d08d49";
+const CRATE_TAPE = "#8a4a22";
+const CRATE_EDGE = "#3c2110";
+const BOT_CY = "#49d6ef";
+const BOT_CYL = "#a9f4ff";
+const BOT_CYD = "#1b7f9c";
+const BOT_VISOR = "#0c0e1d";
+const BOT_TREAD = "#2b2f44";
+const BOT_TREADL = "#5a6080";
+const GEM_CY = "#3fe0ff";
+const GEM_HI = "#eaffff";
+const GEM_LO = "#1484b0";
 
-const critter = (color: string, angry: boolean) => {
-  const p = { k: PAL.black, p: color, w: PAL.white };
-  const body = [
-    "...kkkkkk...",
-    ".kkppppppkk.",
-    ".kpwppppppk.",
-    "kpwppppppppk",
-    angry ? "kpkkppppkkpk" : "kppkppppkppk",
-    "kppkppppkppk",
-    "kppppppppppk",
-    angry ? "kppkkkkkkppk" : "kpppkkkkpppk",
-    ".kppppppppk.",
-    "..kkppppkk..",
-    "....kkkk....",
-  ];
-  return [sprite([...body, ".....kk....."], p), sprite([...body, "......kk...."], p)];
-};
+// ── sprites (baked lazily — see art() below) ──
+interface Art {
+  floor: [Sprite, Sprite];
+  wallBorder: Sprite;
+  wallInner: Sprite;
+  crate: Sprite;
+  bombBody: Sprite;
+  gem: Sprite;
+  flameIcon: Sprite;
+  doorFrame: Sprite;
+  player: Record<string, Sprite[]>;
+  critters: Record<EKind, Sprite[]>;
+}
+/** a stone/metal plated block with a bevelled rim and four rivets (the maze's fixed pillars) */
+function wallBlock(base: string): Sprite {
+  return bake(T, T, (x, y) => {
+    // a rounded bevelled plate: corners nick in slightly, a bright top-left rim, a dark seam
+    const cornerCut = (x < 1 && y < 1) || (x > T - 2 && y < 1) || (x < 1 && y > T - 2) || (x > T - 2 && y > T - 2);
+    if (cornerCut) return shade(base, -0.42);
+    if (x === 0 || y === 0) return shade(base, 0.4);
+    if (x === T - 1 || y === T - 1) return shade(base, -0.4);
+    if (x === 1 || y === 1) return shade(base, 0.2);
+    if (x === T - 2 || y === T - 2) return shade(base, -0.2);
+    // scattered dark speckles, like weathered stone
+    const n = hash2(x, y, 7);
+    if (n > 0.9) return shade(base, -0.3);
+    if (n > 0.8) return shade(base, -0.16);
+    return shade(base, (n - 0.5) * 0.05);
+  });
+}
+/** the open vault floor: a flat dark navy tile with a scatter of tiny light specks */
+function floorTile(base: string, variant: number): Sprite {
+  return bake(T, T, (x, y) => {
+    const n = hash2(x + variant * 41, y + variant * 59, 31);
+    if (n > 0.96) return shade(base, 0.35);
+    if (n > 0.92) return shade(base, 0.16);
+    return shade(base, (hash2(x, y, 3) - 0.5) * 0.03);
+  });
+}
+/** a wood crate with a single diagonal strap, like the painting's packing crates */
+function crateSprite(): Sprite {
+  return bake(T, T, (x, y) => {
+    if (x === 0 || y === 0 || x === T - 1 || y === T - 1) return CRATE_EDGE;
+    if (x === 1 || y === 1 || x === T - 2 || y === T - 2) return shade(CRATE_EDGE, 0.5);
+    let base = CRATE_WOOD;
+    const d1 = x - y;
+    if (d1 >= -1 && d1 <= 2) base = shade(CRATE_TAPE, d1 <= 0 ? 0.12 : -0.1);
+    return shade(base, (hash2(x, y, 13) - 0.5) * 0.05);
+  });
+}
+/** a glossy round bomb with a highlight, same art used on the floor and as the ammo icon */
+function bombSprite(): Sprite {
+  return bake(T, T, (x, y) => {
+    const dx = x - 7.5;
+    const dy = y - 8.5;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > 6.6) return null;
+    if (d > 5.9) return "#2a2e44";
+    const hdx = x - 5.2;
+    const hdy = y - 5.6;
+    if (hdx * hdx + hdy * hdy < 2.4) return "#aab0d0";
+    if (hdx * hdx + hdy * hdy < 6) return "#4a4e68";
+    return "#15131f";
+  });
+}
+/** the faceted cyan gem from the painting — used for the speed power-up */
+function gemSprite(): Sprite {
+  return bake(12, 12, (x, y) => {
+    const dx = Math.abs(x - 6);
+    const dy = y - 6;
+    const top = dy < 0 ? -dy * 1.6 : dy;
+    if (dx + top > 6.4) return null;
+    if (dx + top > 5.3) return GEM_LO;
+    if (dy < -1.5 && dx < 2.2) return GEM_HI;
+    if (dx > dy) return shade(GEM_CY, -0.18);
+    return GEM_CY;
+  });
+}
+/** a static teardrop flame icon for the fire-range power-up */
+function flameIconSprite(): Sprite {
+  return bake(T, T, (x, y) => {
+    const cx = 8;
+    const cy = 11;
+    const flick = Math.sin((x - cx) * 0.9) * 0.15;
+    const dx = (x - cx) / 4.4;
+    const dy = (y - cy) / 7 + flick;
+    const d = dx * dx + dy * dy;
+    if (d > 1.1) return null;
+    if (d > 0.78) return "#ff6a1f";
+    if (d > 0.4) return "#ffb23c";
+    return "#fff6c4";
+  });
+}
+/** a plated arch frame; the opening is filled at draw time (plank brown closed, glow when open) */
+function doorFrameSprite(): Sprite {
+  return bake(T, T, (x, y) => {
+    if (x === 0 || y === 0 || x === T - 1 || y === T - 1) return "#232a4a";
+    if (x === 1 || y === 1 || x === T - 2 || y === T - 2) return "#5a6294";
+    return null;
+  });
+}
+/** a round dome-head robot bomber: a cyan head with two round goggle-eyes, a pale belly
+ *  patch, white glove hands and tread feet that alternate for the walk cycle. */
+function robotFrame(facing: "down" | "up" | "side", step: number): Sprite {
+  const GLOVE = "#eef8ff";
+  return bake(16, 20, (x, y) => {
+    if (x === 8 && y <= 1) return y === 0 ? GLOVE : BOT_TREADL; // antenna + ball tip
+    const hx = x - 8;
+    const hy = y - 6;
+    const headD = hx * hx + hy * 1.15 * (hy * 1.15);
+    if (headD <= 25) {
+      if (facing !== "up") {
+        // two round goggle-eyes (one, shifted, when seen from the side)
+        const spread = facing === "side" ? 1.8 : 2.7;
+        const ex = facing === "side" ? 1.4 : 0;
+        for (const sgn of facing === "side" ? [1] : [-1, 1]) {
+          const edx = x - (8 + ex + sgn * spread);
+          const edy = y - 5.6;
+          if (edx * edx / 1.7 + edy * edy / 2.5 <= 1) return BOT_VISOR;
+        }
+      } else if (hy >= -0.6 && hy <= 0.6 && Math.abs(hx) <= 2.2) return BOT_TREAD; // back vent seam
+      if (hx < -1.4 && hy < -1) return BOT_CYL;
+      if (hx > 1.6 || hy > 2.2) return BOT_CYD;
+      return BOT_CY;
+    }
+    if (y >= 11 && y <= 16) {
+      const w = 6 - Math.max(0, y - 14) * 0.6;
+      if (Math.abs(hx) <= w) {
+        if (y === 13) return BOT_CYD; // belt line
+        if (facing !== "up" && y >= 14 && Math.abs(hx) <= 2) return "#dff6ff"; // pale belly patch
+        if (hx < -2 && y < 14) return BOT_CYL;
+        if (hx > 2 || y > 15) return BOT_CYD;
+        return BOT_CY;
+      }
+    }
+    if (y >= 12 && y <= 14 && (Math.abs(x - 1) <= 1 || Math.abs(x - 14) <= 1)) return GLOVE; // glove hands
+    if (y >= 17 && y <= 19) {
+      const lifted = step === 0;
+      const left = x >= 3 && x <= 6;
+      const right = x >= 9 && x <= 12;
+      if (left && !(lifted && y === 19)) return y === 17 ? BOT_TREADL : BOT_TREAD;
+      if (right && !(!lifted && y === 19)) return y === 17 ? BOT_TREADL : BOT_TREAD;
+    }
+    return null;
+  });
+}
+/** a round one-eyed jelly critter; `blink` closes the eye for a frame of personality */
+function critterFrame(color: string, angry: boolean, blink: boolean): Sprite {
+  return bake(14, 13, (x, y) => {
+    const cx = 7;
+    const cy = 7;
+    const dx = (x - cx) / 6.4;
+    const dy = (y - cy) / 6;
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    const ex = cx;
+    const ey = cy - 1.6;
+    const edx = (x - ex) / 3.6;
+    const edy = (y - ey) / (blink ? 0.9 : 2.8);
+    if (edx * edx + edy * edy <= 1) {
+      if (blink) return "#140c28";
+      const pdx = (x - ex) / 1.5;
+      const pdy = (y - (ey + 0.5)) / 1.5;
+      if (pdx * pdx + pdy * pdy <= 1) return "#140c28";
+      return "#fbfbff";
+    }
+    if (angry && y <= cy - 2 && Math.abs(x - cx) <= 4) return "#140c28";
+    const rim = dx < -0.25 && dy < -0.1;
+    const sh = dx > 0.3 || dy > 0.45;
+    return rim ? shade(color, 0.3) : sh ? shade(color, -0.3) : color;
+  });
+}
+
+function buildArt(): Art {
+  const player: Record<string, Sprite[]> = {
+    down: [outlined(robotFrame("down", 0)), outlined(robotFrame("down", 1))],
+    up: [outlined(robotFrame("up", 0)), outlined(robotFrame("up", 1))],
+    side: [outlined(robotFrame("side", 0)), outlined(robotFrame("side", 1))],
+  };
+  const critters = {} as Record<EKind, Sprite[]>;
+  for (const kind of Object.keys(E_INFO) as EKind[]) {
+    const { color, angry } = E_INFO[kind];
+    critters[kind] = [outlined(critterFrame(color, angry, false)), outlined(critterFrame(color, angry, true))];
+  }
+  return {
+    floor: [floorTile(FLOOR_LO, 0), floorTile(FLOOR_HI, 1)],
+    wallBorder: wallBlock(WALL_BORDER),
+    wallInner: wallBlock(WALL_BASE),
+    crate: crateSprite(),
+    bombBody: bombSprite(),
+    gem: gemSprite(),
+    flameIcon: flameIconSprite(),
+    doorFrame: doorFrameSprite(),
+    player,
+    critters,
+  };
+}
+let ART: Art | null = null;
+const art = (): Art => (ART ??= buildArt());
+
 type EKind = "puff" | "drop" | "chaser" | "ghost";
-const CRITTERS: Record<EKind, ReturnType<typeof critter>> = {
-  puff: critter(PAL.pink, false),
-  drop: critter(PAL.sky, false),
-  chaser: critter(PAL.orange, true),
-  ghost: critter(PAL.purple, true),
-};
-const E_INFO: Record<EKind, { speed: number; pts: number }> = {
-  puff: { speed: 0.5, pts: 100 },
-  drop: { speed: 0.7, pts: 200 },
-  chaser: { speed: 0.72, pts: 400 },
-  ghost: { speed: 0.45, pts: 800 },
+const E_INFO: Record<EKind, { speed: number; pts: number; color: string; angry: boolean }> = {
+  puff: { speed: 0.5, pts: 100, color: "#ff4d5e", angry: false },
+  drop: { speed: 0.7, pts: 200, color: "#3ddc7a", angry: false },
+  chaser: { speed: 0.72, pts: 400, color: "#ff9d3c", angry: true },
+  ghost: { speed: 0.45, pts: 800, color: "#a55bff", angry: true },
 };
 
 type PowKind = "bomb" | "fire" | "speed" | "heart";
@@ -262,13 +447,16 @@ function create(seed: number): GameInstance {
     }
   };
 
-  const explode = (io: IO, b: Bomb) => {
+  const explode = (io: IO, b: Bomb, chain = 0) => {
     if (b.done) return;
     b.done = true;
     shake = 6;
     io.sfx.play("explode");
+    io.sfx.tone?.(260 + chain * 90, 70, "square", 0.22);
     flames.push({ c: b.c, r: b.r, t: FLAME, axis: "c" });
-    burst(b.c * T + 8, b.r * T + 8, PAL.orange, 8);
+    burst(b.c * T + 8, b.r * T + 8, PAL.orange, 6);
+    burst(b.c * T + 8, b.r * T + 8, "#fff6c4", 4);
+    let brokeCrate = false;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       for (let i = 1; i <= b.range; i++) {
         const c = b.c + dx * i;
@@ -278,8 +466,9 @@ function create(seed: number): GameInstance {
         flames.push({ c, r: rr, t: FLAME, axis: dx ? "h" : "v" });
         if (g === CRATE) {
           lv.grid[rr][c] = 0;
-          burst(c * T + 8, rr * T + 8, PAL.brown, 7);
+          burst(c * T + 8, rr * T + 8, CRATE_TAPE, 7);
           io.score(10);
+          brokeCrate = true;
           const pw = lv.pows.find((p) => p.c === c && p.r === rr);
           if (pw) pw.hidden = false;
           if (lv.door.c === c && lv.door.r === rr) doorShown = true;
@@ -287,11 +476,12 @@ function create(seed: number): GameInstance {
         }
         const other = bombAt(c, rr);
         if (other) {
-          explode(io, other); // chain reaction!
+          explode(io, other, chain + 1); // chain reaction!
           break;
         }
       }
     }
+    if (brokeCrate) io.sfx.play("thud");
   };
 
   const heroDie = (io: IO) => {
@@ -356,7 +546,8 @@ function create(seed: number): GameInstance {
         io.score(pts);
         pops.push({ x: e.x, y: e.y, t: 0, text: String(pts) });
         io.sfx.play("hit");
-        burst(e.x + 8, e.y + 8, PAL.pink, 10);
+        io.sfx.tone?.(260 + pts / 3, 90, "square", 0.3);
+        burst(e.x + 8, e.y + 8, E_INFO[e.kind].color, 10);
         continue;
       }
       if (state === "play" && Math.abs(e.x - hero.x) < 11 && Math.abs(e.y - hero.y) < 11) heroDie(io);
@@ -403,6 +594,7 @@ function create(seed: number): GameInstance {
       // bombs + flames (keep ticking while the hero is dazed)
       for (const b of bombs) {
         if (b.pass && !(Math.abs(hero.x - b.c * T) < T - 1 && Math.abs(hero.y - b.r * T) < T - 1)) b.pass = false;
+        if (b.t === 45 || b.t === 30 || b.t === 18) io.sfx.tone?.(500, 40, "square", 0.12);
         if (--b.t <= 0) explode(io, b);
       }
       bombs = bombs.filter((b) => !b.done);
@@ -469,6 +661,7 @@ function create(seed: number): GameInstance {
         p.hidden = true;
         p.c = -1;
         io.sfx.play("powerup");
+        io.sfx.slide?.(600, 1000, 180, "triangle", 0.3);
         io.score(200);
         const label = p.kind === "bomb" ? "BOMB +1" : p.kind === "fire" ? "FIRE +1" : p.kind === "speed" ? "SPEED UP" : "1UP";
         if (p.kind === "bomb") maxBombs = Math.min(6, maxBombs + 1);
@@ -489,6 +682,7 @@ function create(seed: number): GameInstance {
           burst(lv.door.c * T + 8, lv.door.r * T + 8, PAL.yellow, 12);
         }
         io.sfx.play("powerup");
+        io.sfx.slide?.(500, 900, 260, "triangle", 0.3);
         pops.push({ x: lv.door.c * T - 16, y: lv.door.r * T - 6, t: -30, text: "EXIT OPEN!" });
       }
       if (state === "play" && doorOpen && lv.grid[lv.door.r][lv.door.c] === 0 && Math.abs(hero.x - lv.door.c * T) < 6 && Math.abs(hero.y - lv.door.r * T) < 6) {
@@ -499,9 +693,11 @@ function create(seed: number): GameInstance {
     },
 
     draw(g: Gfx) {
-      g.clear(PAL.night);
+      const A = art();
+      g.clear(FLOOR_LO);
       const sx = shake ? ((tick % 2) * 2 - 1) * 2 : 0;
-      g.camera(-OX - sx, -OY);
+      const sy = shake ? ((Math.floor(tick / 2) % 2) * 2 - 1) * 2 : 0;
+      g.camera(-OX - sx, -OY - sy);
       // arena
       for (let y = 0; y < ROWS; y++) {
         for (let x = 0; x < COLS; x++) {
@@ -510,102 +706,111 @@ function create(seed: number): GameInstance {
           const cell = lv.grid[y][x];
           if (cell === WALL) {
             const border = x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1;
-            g.rect(px, py, T, T, border ? "#4a4e6a" : "#8a90b0");
-            g.rect(px, py, T, 3, border ? "#6a6e8a" : "#c0c6e0");
-            g.rect(px, py + 13, T, 3, border ? "#34374e" : "#5a6080");
-            if (!border) g.rect(px + 5, py + 6, 6, 4, "#a8aec8");
+            g.sprite(border ? A.wallBorder : A.wallInner, px, py);
+            if (!border && (x + y) % 7 === 0) g.rect(px + 7, py + 7, 2, 2, tick % 40 < 20 ? "#fff6c4" : "#ffd23f");
             continue;
           }
-          g.rect(px, py, T, T, (x + y) % 2 ? "#3a9a4e" : "#44a858");
-          g.rect(px, py, T, 2, "#2e7a3e");
+          g.sprite(A.floor[(x + y) % 2], px, py);
           if (x === lv.door.c && y === lv.door.r && doorShown) {
-            g.rect(px + 2, py + 1, 12, 15, PAL.black);
-            g.rect(px + 3, py + 2, 10, 14, doorOpen ? (Math.floor(tick / 8) % 2 ? PAL.yellow : PAL.orange) : PAL.brown);
-            g.rect(px + 5, py + 4, 6, 12, doorOpen ? PAL.white : "#6a3a1a");
+            g.sprite(A.doorFrame, px, py);
+            if (doorOpen) {
+              const glow = Math.floor(tick / 8) % 2 ? "#ffe38a" : "#ff9d3c";
+              g.rect(px + 2, py + 2, T - 4, T - 4, "#1a0f06");
+              g.rect(px + 3, py + 3, T - 6, T - 6, glow);
+            } else {
+              g.rect(px + 2, py + 2, T - 4, T - 4, "#5c3414");
+              g.rect(px + 4, py + 4, T - 8, T - 8, "#8a4f24");
+              g.rect(px + 4, py + 4, T - 8, 2, "#b1672f");
+            }
           }
           const pw = lv.pows.find((p) => !p.hidden && p.c === x && p.r === y);
           if (pw && cell === 0) {
-            g.rect(px + 1, py + 1, 14, 14, PAL.black);
-            g.rect(px + 2, py + 2, 12, 12, Math.floor(tick / 10) % 2 ? PAL.yellow : PAL.orange);
-            if (pw.kind === "bomb") {
-              g.circle(px + 8, py + 9, 4, PAL.black);
-              g.rect(px + 9, py + 3, 2, 3, PAL.red);
-            } else if (pw.kind === "fire") {
-              g.circle(px + 8, py + 10, 4, PAL.red);
-              g.circle(px + 8, py + 8, 2, PAL.yellow);
-              g.rect(px + 7, py + 3, 2, 4, PAL.red);
-            } else if (pw.kind === "speed") g.text(">>", px + 2 + OX, py + 4 + OY, PAL.blue); // text ignores the camera
+            const pulse = Math.floor(tick / 10) % 2;
+            g.circle(px + 8, py + 9, 7, pulse ? "rgba(255,210,100,0.3)" : "rgba(255,160,60,0.2)");
+            if (pw.kind === "bomb") g.sprite(A.bombBody, px, py);
+            else if (pw.kind === "fire") g.sprite(A.flameIcon, px, py);
+            else if (pw.kind === "speed") g.sprite(A.gem, px + 2, py + 2);
             else g.text("♥", px + 5 + OX, py + 4 + OY, PAL.red);
           }
-          if (cell === CRATE) {
-            g.rect(px, py, T, T, "#6a3a1a");
-            g.rect(px + 1, py + 1, 14, 14, "#b87a3e");
-            g.rect(px + 1, py + 1, 14, 2, "#e0a060");
-            g.rect(px + 1, py + 7, 14, 2, "#8a5a2a");
-            g.line(px + 2, py + 3, px + 13, py + 13, "#8a5a2a");
-          }
+          if (cell === CRATE) g.sprite(A.crate, px, py);
         }
       }
       // bombs
       for (const b of bombs) {
-        const pulse = b.t < 40 ? Math.floor(b.t / 4) % 2 : Math.floor(b.t / 12) % 2;
-        const cx = b.c * T + 8;
-        const cy = b.r * T + 9;
-        g.circle(cx, cy, 6 + pulse, b.t < 40 && pulse ? PAL.red : PAL.black);
-        g.circle(cx - 2, cy - 2, 2, PAL.grey);
-        g.rect(cx + 2, cy - 9, 2, 4, PAL.brown);
-        g.rect(cx + 2 + (tick % 3) - 1, cy - 11, 2, 2, tick % 4 < 2 ? PAL.yellow : PAL.orange);
+        const cx = b.c * T;
+        const cy = b.r * T;
+        const urgent = b.t < 40;
+        if (urgent && Math.floor(b.t / 4) % 2) g.circle(cx + 8, cy + 8, 9, "rgba(255,70,40,0.3)");
+        g.sprite(A.bombBody, cx, cy);
+        const fx = cx + 11;
+        const fy = cy - (urgent ? 2 : 1);
+        g.rect(fx, fy, 2, 4, "#6a4a2a");
+        g.circle(fx + 1, fy - 2, urgent ? (tick % 2 ? 2 : 1) : 1, tick % 4 < 2 ? PAL.yellow : PAL.orange);
       }
       // flames
       for (const f of flames) {
         const k = f.t / FLAME;
-        const th = Math.max(2, Math.round(12 * Math.min(1, k * 1.6)));
+        const th = Math.max(3, Math.round(13 * Math.min(1, k * 1.6)));
         const px = f.c * T;
         const py = f.r * T;
-        const outer = f.t % 4 < 2 ? PAL.orange : PAL.red;
+        const outer = f.t % 4 < 2 ? "#ff7a1f" : "#ff3b30";
         if (f.axis === "h" || f.axis === "c") g.rect(px, py + 8 - th / 2, T, th, outer);
         if (f.axis === "v" || f.axis === "c") g.rect(px + 8 - th / 2, py, th, T, outer);
-        if (f.axis === "h" || f.axis === "c") g.rect(px, py + 8 - th / 4, T, th / 2, PAL.yellow);
-        if (f.axis === "v" || f.axis === "c") g.rect(px + 8 - th / 4, py, th / 2, T, PAL.yellow);
-        if (f.axis === "c") g.circle(px + 8, py + 8, th / 2, PAL.white);
+        const mid = Math.max(2, th - 5);
+        if (f.axis === "h" || f.axis === "c") g.rect(px, py + 8 - mid / 2, T, mid, PAL.yellow);
+        if (f.axis === "v" || f.axis === "c") g.rect(px + 8 - mid / 2, py, mid, T, PAL.yellow);
+        const core = th - 9;
+        if (core > 0) {
+          if (f.axis === "h" || f.axis === "c") g.rect(px + 2, py + 8 - core / 2, T - 4, core, "#fff6c4");
+          if (f.axis === "v" || f.axis === "c") g.rect(px + 8 - core / 2, py + 2, core, T - 4, "#fff6c4");
+        }
+        if (f.axis === "c") {
+          g.circle(px + 8, py + 8, th / 2 + 1, "#fff6c4");
+          if (f.t > FLAME - 7) for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) g.line(px + 8, py + 8, px + 8 + dx * 10, py + 8 + dy * 10, "#ffe38a");
+        }
       }
       // critters
       for (const e of lv.enemies) {
-        const fr = CRITTERS[e.kind][Math.floor(e.t / 10) % 2];
-        const bob = Math.floor(e.t / 15) % 2;
+        const cyc = e.t % 90;
+        const fr = A.critters[e.kind][cyc > 84 ? 1 : 0];
+        const bob = Math.sin(e.t * 0.2) > 0.6 ? 1 : 0;
         if (e.dead >= 0) {
-          if (Math.floor(e.dead / 3) % 2) g.sprite(fr, e.x + 2, e.y + 2, { flipY: true });
+          if (Math.floor(e.dead / 3) % 2) g.sprite(fr, e.x + 1, e.y + 2, { flipY: true });
           continue;
         }
-        if (e.kind === "ghost") g.alpha(0.7);
-        g.sprite(fr, e.x + 2, e.y + 1 - bob, { flipX: e.dx < 0 });
+        if (e.kind === "ghost") g.alpha(0.75);
+        g.sprite(fr, e.x + 1, e.y + 1 - bob, { flipX: e.dx < 0 });
         g.alpha(1);
       }
       // hero
       if (state === "dead") {
-        if (stateT < 50 && Math.floor(stateT / 4) % 2 === 0) g.sprite(PLAYER.down[0], hero.x + 1, hero.y, { flipY: stateT > 20 });
+        if (stateT < 50 && Math.floor(stateT / 4) % 2 === 0) g.sprite(A.player.down[0], hero.x, hero.y - 4, { flipY: stateT > 20 });
       } else if (!(hero.inv > 0 && Math.floor(hero.inv / 3) % 2)) {
-        g.sprite(PLAYER[hero.facing][Math.floor(hero.anim) % 2], hero.x + 1, hero.y + 1, { flipX: hero.flip && hero.facing === "side" });
+        g.sprite(A.player[hero.facing][Math.floor(hero.anim) % 2], hero.x, hero.y - 4, { flipX: hero.flip && hero.facing === "side" });
       }
       for (const p of parts) g.rect(p.x, p.y, 2, 2, p.color);
       for (const p of pops) if (p.t >= 0) g.text(p.text, p.x + OX, p.y + OY - p.t * 0.5, PAL.white);
       g.camera(0, 0);
       // HUD
-      g.rect(0, 0, W, OY, PAL.black);
+      g.rect(0, 0, W, OY, "#0c0f22");
+      g.rect(0, OY - 2, W, 1, "#454d8a");
+      g.rect(0, OY - 1, W, 1, "#05061a");
       g.text(`STAGE ${stage + 1}`, 4, 4, PAL.yellow);
       g.text(`♥X${lives}`, 66, 4, PAL.red);
-      g.circle(106, 8, 4, PAL.grey);
+      g.sprite(A.bombBody, 102, 0);
       g.text(`${maxBombs}`, 113, 4, PAL.white);
-      g.circle(134, 9, 3, PAL.orange);
-      g.text(`${range}`, 140, 4, PAL.white);
-      g.text(">>", 158, 4, PAL.sky);
+      g.sprite(A.flameIcon, 128, 0);
+      g.text(`${range}`, 142, 4, PAL.white);
+      g.sprite(A.gem, 158, 2);
       g.text(`${Math.round((speed - 1.1) / 0.25) + 1}`, 172, 4, PAL.white);
       const left = lv.enemies.filter((e) => e.dead < 0).length;
       g.text(left ? `FOES ${left}` : "EXIT!", W - 4, 4, left ? PAL.pink : PAL.lime, { align: "right" });
       if (state === "intro") {
-        g.rect(40, 96, W - 80, 32, "rgba(13,11,26,0.8)");
+        g.rect(40, 94, W - 80, 36, "#0c0f22");
+        g.rect(40, 94, W - 80, 2, "#5a6294");
+        g.rect(40, 128, W - 80, 2, "#232a4a");
         g.text(`STAGE ${stage + 1}`, W / 2, 102, PAL.yellow, { align: "center" });
-        g.text("POP THEM ALL!", W / 2, 114, PAL.white, { align: "center" });
+        g.text("POP THEM ALL!", W / 2, 116, PAL.white, { align: "center" });
       }
       if (state === "clear") g.text(stage >= STAGES - 1 ? "ALL CLEAR!" : "STAGE CLEAR!", W / 2, 104, PAL.yellow, { align: "center", size: 2 });
     },
