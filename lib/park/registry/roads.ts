@@ -223,6 +223,12 @@ export const H2_RA = H2;
 export const H3_RA = H3;
 export const H4_RA = H4;
 
+// the Giza road: out of the Everest Base Camp car park east along the desert's south side, up onto
+// the plateau on a long diagonal and north over the open sand between Menkaure's queens and the
+// Sphinx's valley to the Giza car park (registry/giza.ts) — sampled on smoothedHeight with the plateau
+// applied, corners rounded, then the same two-sided 9% grade cap as every other leg (ends pinned to the
+// two car parks' own bed heights). Frozen; roads.test.ts re-checks it.
+const PTS_SPUR_GIZA: [number, number, number][] = [[1539.0,-1008.0,7.95],[1544.5,-1007.5,8.45],[1550.1,-1007.1,8.95],[1555.6,-1006.6,9.45],[1561.2,-1006.2,9.02],[1566.7,-1005.7,8.52],[1572.3,-1005.3,8.02],[1577.8,-1004.8,7.52],[1583.4,-1004.4,7.02],[1588.9,-1003.9,6.52],[1594.5,-1003.5,6.01],[1600.2,-1003.2,5.50],[1606.0,-1003.0,5.11],[1611.8,-1002.8,4.81],[1617.7,-1002.7,4.29],[1623.5,-1002.5,3.76],[1629.4,-1002.4,3.23],[1635.3,-1002.3,2.70],[1641.2,-1002.2,2.17],[1647.1,-1002.1,1.64],[1652.9,-1001.9,1.20],[1658.8,-1001.8,1.20],[1664.7,-1001.7,1.20],[1670.6,-1001.6,1.20],[1676.5,-1001.5,1.20],[1682.4,-1001.4,1.20],[1688.2,-1001.2,1.20],[1694.1,-1001.2,1.20],[1700.0,-1001.2,1.20],[1705.9,-1001.2,1.73],[1711.8,-1001.4,2.26],[1717.6,-1001.5,2.79],[1723.5,-1001.7,3.32],[1729.4,-1001.9,3.85],[1735.3,-1002.1,4.38],[1741.2,-1002.2,4.91],[1747.1,-1002.4,5.44],[1752.9,-1002.6,5.97],[1758.8,-1002.8,6.50],[1764.7,-1002.9,7.03],[1770.6,-1003.1,7.56],[1776.5,-1003.3,8.09],[1782.4,-1003.5,8.61],[1788.2,-1003.7,9.14],[1794.1,-1003.9,9.67],[1799.9,-1004.2,10.20],[1805.7,-1004.7,10.72],[1811.4,-1005.2,11.24],[1817.1,-1005.7,11.75],[1822.9,-1006.3,12.27],[1828.6,-1006.9,12.79],[1834.3,-1007.4,13.30],[1840.0,-1008.0,13.82],[1845.7,-1008.6,14.34],[1851.4,-1009.1,14.85],[1857.1,-1009.7,15.37],[1862.9,-1010.3,15.89],[1868.6,-1010.9,16.40],[1874.3,-1011.6,16.92],[1879.9,-1012.7,17.43],[1885.4,-1014.1,17.95],[1890.9,-1015.7,18.46],[1896.4,-1017.5,18.98],[1901.8,-1019.3,19.50],[1907.3,-1021.1,20.02],[1912.7,-1022.9,20.53],[1918.2,-1024.7,21.05],[1923.6,-1026.5,21.57],[1929.1,-1028.4,22.09],[1934.4,-1030.4,22.60],[1939.5,-1033.0,23.11],[1944.2,-1036.1,23.62],[1948.8,-1039.5,24.00],[1953.3,-1043.0,24.00],[1957.8,-1046.7,24.00],[1962.2,-1050.3,24.00],[1966.7,-1054.0,24.00],[1971.1,-1057.7,24.00],[1975.2,-1061.6,24.00],[1978.7,-1066.0,24.00],[1981.5,-1070.9,24.00],[1983.8,-1076.1,24.00],[1985.9,-1081.5,24.00],[1988.0,-1087.0,24.00],[1990.0,-1092.5,24.00],[1992.0,-1098.0,24.00],[1994.0,-1103.5,24.00],[1996.0,-1109.0,24.00],[1997.7,-1114.5,24.00],[1999.0,-1120.2,24.00],[1999.6,-1125.9,24.00],[1999.8,-1131.6,24.00],[1999.9,-1137.4,24.00],[2000.0,-1143.2,24.00],[2000.0,-1148.9,24.00],[2000.0,-1154.7,24.00],[2000.0,-1160.5,24.00],[2000.0,-1166.3,24.00],[2000.0,-1172.1,24.00],[2000.0,-1177.9,24.00],[2000.0,-1183.7,24.00],[2000.0,-1189.5,24.00],[2000.0,-1195.3,24.01],[2000.0,-1201.1,24.10],[2000.0,-1206.8,24.28],[2000.0,-1212.6,24.53],[2000.0,-1218.4,24.83],[2000.0,-1224.2,25.17],[2000.0,-1230.0,25.53]];
 function mk(a: readonly (readonly [number, number, number])[]): RoadPoint[] {
   return a.map(([x, z, y]) => ({ x, z, y }));
 }
@@ -242,6 +248,7 @@ export const ROAD_SEGMENTS: RoadSeg[] = [
   { id: "spur-highstone-a", road: "spur-highstone", kind: "road", points: mk(PTS_SPUR_HIGHSTONE_A) },
   { id: "spur-highstone-b", road: "spur-highstone", kind: "road", points: mk(PTS_SPUR_HIGHSTONE_B) },
   { id: "spur-basecamp", road: "spur-basecamp", kind: "road", points: mk(PTS_SPUR_BASECAMP) },
+  { id: "spur-giza", road: "spur-giza", kind: "road", points: mk(PTS_SPUR_GIZA) },
   { id: "spur-kart", road: "spur-kart", kind: "road", points: mk(PTS_SPUR_KART) },
   { id: "spur-park", road: "spur-park", kind: "road", points: mk(PTS_SPUR_PARK) },
   { id: "spur-canyon-a", road: "spur-canyon", kind: "road", points: mk(PTS_SPUR_CANYON_A) },
@@ -308,6 +315,9 @@ export const CAR_PARKS: CarPark[] = [
   // the canyon road's end: up on the plateau, a short walk from the mule trail's rim trailhead
   // (inside the wonder's reach, off the gorge itself — roadsRail.test.ts checks)
   { id: "cp-canyon", x: 513.3, z: -1717.9, y: 94.96, heading: -1.49, r: 13, serves: ["Grand Canyon"], jeeps: 3 },
+  // the Giza road's end: on the plateau between Khafre's satellite pyramid and Menkaure's
+  // causeway, all three pyramids in view (registry/giza.ts's gizaWorld(-140, 540))
+  { id: "cp-giza", x: 2000, z: -1230, y: 25.53, heading: 3.14, r: 13, serves: ["The Pyramids of Giza"], jeeps: 2 },
   { id: "cp-kart", x: 170.4, z: -139.1, y: 3.56, heading: 1.41, r: 11, serves: ["Cucaino Karts"], jeeps: 2 },
 ];
 

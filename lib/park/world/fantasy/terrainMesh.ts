@@ -12,6 +12,7 @@ import { settlementAt } from "../../registry/settlements";
 import { EVEREST_PEAK } from "../../registry/landform";
 import { canyonFootprintWeight, CANYON_BAND_STOPS, CANYON_BAND_WOBBLE, CANYON_TERRAIN_BAND_EDGE } from "../../registry/grandCanyon";
 import { PARICUTIN_CONE, LAVA_FIELD_OUT, CRATER_U, paricutinFootprintWeight } from "../../registry/paricutin";
+import { gizaDesertK } from "../../registry/giza";
 
 /** the one-piece mesh covers the park's own square */
 const TERRAIN_EXTENT = 200;
@@ -99,6 +100,10 @@ const SAVANNA_GOLD = col("#c8ae66");
 const SAVANNA_STRAW = col("#dccb8c");
 const SAVANNA_EARTH = col("#b68c5e");
 const SAVANNA_OLIVE = col("#9aa04a");
+const GIZA_SAND = col("#d6bb8a");
+const GIZA_SAND_LIGHT = col("#e6d2a8");
+const GIZA_GRAVEL = col("#b49870");
+const GIZA_LIMESTONE = col("#bfae8c");
 const BED_SAND = col("#cdb88a");
 const BED_MUD = col("#6f7a4a");
 const BED_DEEP = col("#3a5a4c");
@@ -198,6 +203,19 @@ export function groundColor(x: number, z: number, h: number, slope: number, out:
     const darken = smoothstep(0.3, 0.85, n1) * 0.16 + smoothstep(0.35, 0.8, n2) * 0.12;
     _canyonBand.multiplyScalar(1 - Math.min(0.3, darken) - 0.06);
     out.lerp(_canyonBand, canyonW);
+  }
+  // the Giza Plateau (registry/giza.ts): pale wind-blown sand over limestone, never grass —
+  // drifts of lighter sand, darker gravelly patches, faint wind ripples running north-east, and
+  // bare grey-gold limestone wherever the shelf breaks into a slope (the escarpment, the
+  // Sphinx's quarried pit)
+  const gizaW = gizaDesertK(x, z);
+  if (gizaW > 0) {
+    const sand = mix(GIZA_SAND, GIZA_SAND_LIGHT, smoothstep(0.35, 0.7, n1), new THREE.Color());
+    sand.lerp(GIZA_GRAVEL, smoothstep(0.62, 0.9, n2) * 0.45);
+    const ripple = 0.5 + 0.5 * Math.sin((x * 0.83 + z * 0.55) * 1.9 + n1 * 6);
+    sand.multiplyScalar(0.96 + ripple * 0.05);
+    sand.lerp(GIZA_LIMESTONE, smoothstep(0.22, 0.5, slope));
+    out.lerp(sand, gizaW);
   }
   // Parícutin's own local override (see PARICUTIN_CINDER's comment above). The cone's flanks are
   // genuinely steep (a real cinder cone's own angle of repose), so — unlike Everest's/the Grand

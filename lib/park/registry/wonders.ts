@@ -4,6 +4,7 @@
 // `onWonder` in lib/park/engine/ParkWorld.ts, the toast + fact card in components/park/ParkApp.tsx,
 // and registry/worldMap.ts's ISLAND_DESTINATIONS). Pure data, no three.js.
 import { CANYON_OPEN, CANYON_TRAILHEAD, CANYON_VIEWPOINTS } from "./grandCanyon";
+import { GIZA_CENTRE, GIZA_VIEWPOINTS } from "./giza";
 
 export interface WonderDef {
   id: string;
@@ -128,6 +129,29 @@ const ALL_WONDERS: WonderDef[] = [
       { x: 916.14, z: 9.97 }, // the crater rim, looking right down into the glowing bowl
       { x: 846.81, z: 128.34 }, // out in the lava field, by the half-buried church towers
     ],
+  },
+  {
+    id: "giza",
+    name: "The Pyramids of Giza",
+    emoji: "\u{1F3DB}\u{FE0F}",
+    realPlace: "Giza, Egypt",
+    // the middle of the plateau, between the Great Pyramid and the Sphinx — the whole complex is
+    // ~600 units across, so the discovery ring is wide (registry/giza.ts)
+    x: GIZA_CENTRE.x,
+    z: GIZA_CENTRE.z,
+    r: 330,
+    blurb: "Three great pyramids and the Sphinx, built for Egypt's kings about 4,500 years ago — here at half their real size.",
+    facts: [
+      "The Great Pyramid was built for King Khufu about 4,500 years ago, from around 2.3 million stone blocks.",
+      "For about 3,800 years the Great Pyramid was the tallest building on Earth: 146 m when it was new.",
+      "The Great Sphinx has a lion's body and a king's head. It is 73 m long, carved from one hill of rock.",
+      "Each pyramid's sides face north, south, east and west almost exactly — the builders used the stars.",
+      "The pyramids were once covered in smooth white stone. You can still see some on top of Khafre's.",
+      "The builders were paid workers who lived in a town nearby and ate bread, onions and fish.",
+      "The Great Pyramid is the only one of the Seven Wonders of the Ancient World still standing.",
+      "Khafre's pyramid looks tallest, but only because it stands on higher rock. Khufu's is bigger.",
+    ],
+    viewpoints: GIZA_VIEWPOINTS,
   },
 ];
 /** the wonders built into the world right now (the Grand Canyon waits behind CANYON_OPEN) */

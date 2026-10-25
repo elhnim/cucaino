@@ -23,6 +23,7 @@ import { KART_SITE, KART_SITE_RADIUS } from "../../registry/kartTrack";
 import { nearGlacier } from "../everestDecor";
 import { nearCanyonFootpath, nearGrandCanyon } from "../../registry/grandCanyon";
 import { nearParicutin } from "../../registry/paricutin";
+import { nearGiza } from "../../registry/giza";
 import { nearRoad, onPaving, ROAD_JUNCTIONS, ROUNDABOUT_OUTER, CAR_PARKS, TUNNELS } from "../../registry/roads";
 import { buildClump, buildJungleTree } from "../jungle/geometry";
 import { TREE_DIMS, T_CANOPY, T_FERN, T_GIANT, T_PALM } from "../jungle/plan";
@@ -114,6 +115,7 @@ export function wildCell(ci: number, cj: number): WildItem[] {
     !nearGlacier(x, z, 3) && // Everest's own glacier ribbon and icefall — no forest growing through the ice
     !nearGrandCanyon(x, z, 90) && // the Grand Canyon's own footprint (+ a wide margin so no stray park tree ever reads as standing on its slopes) — its own desert scatter instead (grandCanyonDecor.ts)
     !nearCanyonFootpath(x, z, 3) && // the footpath in from Park Station
+    !nearGiza(x, z, 120) && // the Giza Plateau and the open desert round it — palms and its own scatter instead (gizaDecor.ts)
     !nearParicutin(x, z, 4) && // Parícutin's cone + lava field — cornfields and farm scenery instead, no ordinary forest
     Math.hypot(x - KART_SITE.x, z - KART_SITE.z) > KART_SITE_RADIUS; // Cucaino Karts' whole site, no trees
   // the rainforest round the Great Falls and along the Wild River: giants, canopy trees, palms and

@@ -26,6 +26,7 @@ import { ABYSS } from "./abyss";
 import { STATIONS } from "./railway";
 import { WILD_LAKE, wildBridgeDeckY } from "./wildWater";
 import { canyonWalkY, grandCanyonDeckY } from "./grandCanyon";
+import { gizaSolidY } from "./giza";
 import { settlementDeckY } from "./settlements";
 import { boatClearance } from "../world/rideables/craft";
 
@@ -415,6 +416,9 @@ export function worldFloorY(x: number, z: number): number {
   const gc = grandCanyonDeckY(x, z);
   if (gc !== null) return Math.max(gc, cw ?? baseFloorY(x, z));
   if (cw !== null) return cw;
+  // the Giza Plateau's monuments: a pyramid's stepped courses, the Sphinx, a temple wall, a tomb
+  const gz = gizaSolidY(x, z);
+  if (gz !== null) return Math.max(gz, baseFloorY(x, z));
   return baseFloorY(x, z);
 }
 

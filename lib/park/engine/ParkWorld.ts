@@ -58,6 +58,7 @@ import { FLY_LAND_R } from "../map/tripMachine";
 import { CAROUSEL, CAROUSEL_RIDE_TURNS } from "../registry/carousel";
 import { newPetBrain, stepPetBrain, type PetBrain } from "../pet/followBrain";
 import { canyonVisualFloorY, grandCanyonDeckY, inCanyonGorge, nearGrandCanyon } from "../registry/grandCanyon";
+import { inGizaSolid } from "../registry/giza";
 import { rawHeight } from "../registry/landform";
 import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
 import { FROST_ISLAND } from "../registry/frostIsland";
@@ -1562,7 +1563,7 @@ export class ParkWorld {
     if (!this.climb && !this.onSky && !this.gliding && !this.mount?.flies) {
       const cp = this.cliffPrev;
       const step = Math.hypot(pos.x - cp.x, pos.z - cp.z);
-      if (cp.ok && step > 0 && step < 3 && (inCanyonGorge(pos.x, pos.z) || inCanyonGorge(cp.x, cp.z))) {
+      if (cp.ok && step > 0 && step < 3 && (inCanyonGorge(pos.x, pos.z) || inCanyonGorge(cp.x, cp.z) || inGizaSolid(pos.x, pos.z) || inGizaSolid(cp.x, cp.z))) {
         const y0 = worldFloor(cp.x, cp.z);
         const wall = (x: number, z: number) => Math.abs(worldFloor(x, z) - y0) > 0.12 + 1.6 * Math.hypot(x - cp.x, z - cp.z);
         if (wall(pos.x, pos.z)) {

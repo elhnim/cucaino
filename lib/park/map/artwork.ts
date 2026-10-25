@@ -22,6 +22,7 @@ import { FOOTPATHS } from "../registry/footpaths";
 import { ROAD_SEGMENTS, BRIDGES as ROAD_BRIDGES, TUNNELS as ROAD_TUNNELS, CAR_PARKS } from "../registry/roads";
 import { EVEREST_SUMMIT, LONE_PEAK, rawHeight } from "../registry/landform";
 import { canyonDesertK, canyonPlateauRaise } from "../registry/grandCanyon";
+import { gizaDesertK, nearGiza, PYRAMIDS, pyramidCourses } from "../registry/giza";
 import { smoothstep } from "../registry/geom2d";
 import { fbm2 } from "../world/fantasy/noise";
 // kartTrack.ts (and its own geometry source, karts/track.ts) are plain 2D maths — verified three.js
@@ -342,6 +343,9 @@ function biomeColor(h: number, wx: number, wz: number): [number, number, number]
     }
     col = mix(col, desert, k);
   }
+  // the Giza Plateau: pale limestone sand
+  const gk = gizaDesertK(wx, wz) + (wob - 0.25) * 0.2;
+  if (gk > 0.02) col = mix(col, [222 + mot * 8, 196 + mot * 8, 146 + mot * 6], smoothstep(0.02, 0.35, gk));
   let [r, gr, b] = [col[0] + mot * 5, col[1] + mot * 5, col[2] + mot * 4];
   if (h > 0.2 && h <= 40) {
     const jk = wildRainforestK(wx, wz);
@@ -355,6 +359,19 @@ function biomeColor(h: number, wx: number, wz: number): [number, number, number]
   // park, but mesaEdgeDist is cheap everywhere so every band can share this one function)
   const med = mesaEdgeDist(wx, wz);
   if (med < 4) [r, gr, b] = med < -1.5 ? [104, 150, 92] : [140, 108, 88];
+  // the Giza pyramids, seen from above the way a satellite sees them: four faces meeting at the
+  // corners' diagonals, the sunlit south and east faces pale, the north and west in shade
+  if (nearGiza(wx, wz)) {
+    for (const def of PYRAMIDS) {
+      const pc = pyramidCourses(def);
+      const dx = wx - pc.cx;
+      const dz = wz - pc.cz;
+      if (Math.abs(dx) > pc.hx || Math.abs(dz) > pc.hz) continue;
+      const ew = Math.abs(dx) / pc.hx > Math.abs(dz) / pc.hz;
+      const lit = ew ? (dx > 0 ? 0.98 : 0.72) : dz > 0 ? 1.04 : 0.62;
+      return [214 * lit, 182 * lit, 128 * lit];
+    }
+  }
   return [r, gr, b];
 }
 
