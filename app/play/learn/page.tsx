@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getKid } from "@/lib/data/stub";
 import KidShell from "@/components/kid/KidShell";
@@ -9,6 +10,8 @@ export default async function LearnPage({
   searchParams: Promise<{ kid?: string }>;
 }) {
   const { kid: kidId } = await searchParams;
+  // kids play this inside Cucaino Park now — send them to the park version
+  if (kidId) redirect(`/park/${kidId}?enter=learn`);
   const kid = kidId ? await getKid(kidId) : null;
   const q = kid ? `?kid=${kid.id}` : "";
 

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/actions/auth";
-import PostLoginLoader from "./PostLoginLoader";
+import CandyLoading from "@/components/park/ui/CandyLoading";
 
 export default function LoginForm() {
   const search = useSearchParams();
+  const router = useRouter();
   const next = search.get("next") ?? "/select-kid";
   const urlError = search.get("error");
 
@@ -23,14 +24,16 @@ export default function LoginForm() {
     startTransition(async () => {
       const result = await signIn({ email, password });
       if (result.ok) {
-        setLoadingShow(true); // the Blast-off loader preloads + navigates
+        // straight in — no artificial loading screen; the kid picker streams its own
+        setLoadingShow(true);
+        router.replace(next);
       } else {
         setError(result.error);
       }
     });
   };
 
-  if (loadingShow) return <PostLoginLoader next={next} />;
+  if (loadingShow) return <CandyLoading />;
 
   return (
     <form onSubmit={submit} className="space-y-3">

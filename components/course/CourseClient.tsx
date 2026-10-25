@@ -139,7 +139,11 @@ export default function CourseClient({
         title={lesson.title}
         questions={lesson.quiz}
         passPct={course.passPct}
-        submit={(s) => (kidId ? completeLesson(kidId, course.id, lesson.id, s).then((r) => (r.ok ? r.starsAwarded : 0)) : Promise.resolve(0))}
+        submit={(s) =>
+          kidId
+            ? completeLesson(kidId, course.id, lesson.id, s).then((r) => ({ ok: r.ok, starsAwarded: r.ok ? r.starsAwarded : 0 }))
+            : Promise.resolve({ ok: true, starsAwarded: 0 })
+        }
         onCancel={() => setView({ mode: "lesson", idx: view.idx })}
         onDone={(score, passed, starsAwarded, total) => {
           setProgress((prev) => {
@@ -167,7 +171,11 @@ export default function CourseClient({
         title="🏆 Final Challenge"
         questions={finalQuestions}
         passPct={course.passPct}
-        submit={(s) => (kidId ? completeFinal(kidId, course.id, s, finalQuestions.length).then((r) => (r.ok ? r.starsAwarded : 0)) : Promise.resolve(0))}
+        submit={(s) =>
+          kidId
+            ? completeFinal(kidId, course.id, s, finalQuestions.length).then((r) => ({ ok: r.ok, starsAwarded: r.ok ? r.starsAwarded : 0 }))
+            : Promise.resolve({ ok: true, starsAwarded: 0 })
+        }
         onCancel={() => setView({ mode: "overview" })}
         onDone={(score, passed, starsAwarded, total) => {
           if (passed) {
@@ -319,7 +327,9 @@ export default function CourseClient({
             <div className="flex-1 min-w-0">
               <div className="font-black text-gray-900">Final Challenge</div>
               <div className="text-xs text-gray-500">
-                {allLessonsDone ? `Mixed quiz from all lessons · +${course.finalReward} ⭐` : "Finish every lesson to unlock"}
+                {allLessonsDone
+                  ? `Mixed quiz from all lessons · +${course.finalReward} ⭐`
+                  : `Finish ${course.lessons.length - doneCount} more lesson${course.lessons.length - doneCount === 1 ? "" : "s"} to unlock`}
               </div>
             </div>
             {finalDone ? (
@@ -347,7 +357,7 @@ function QuizRunner({
   title: string;
   questions: QuizQuestion[];
   passPct: number;
-  submit: (score: number) => Promise<number>;
+  submit: (score: number) => Promise<{ ok: boolean; starsAwarded: number }>;
   onDone: (score: number, passed: boolean, starsAwarded: number, total: number) => void;
   onCancel: () => void;
 }) {
@@ -356,6 +366,7 @@ function QuizRunner({
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const question = questions[qi];
   const answered = picked !== null;
 
@@ -382,14 +393,25 @@ function QuizRunner({
     if (qi + 1 < total) {
       setQi(qi + 1);
       setPicked(null);
+      setSaveError(null);
       return;
     }
     // finished
     const passed = total > 0 && finalScore / total >= passPct;
     setSubmitting(true);
-    const starsAwarded = await submit(finalScore);
-    setSubmitting(false);
-    onDone(finalScore, passed, starsAwarded, total);
+    setSaveError(null);
+    try {
+      const result = await submit(finalScore);
+      if (!result.ok) {
+        setSaveError("Couldn't save your score — check your connection and tap Finish again.");
+        return;
+      }
+      onDone(finalScore, passed, result.starsAwarded, total);
+    } catch {
+      setSaveError("Couldn't save your score — check your connection and tap Finish again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const optionClass = (i: number) => {
@@ -442,6 +464,7 @@ function QuizRunner({
             >
               {submitting ? "Saving…" : qi + 1 < total ? "Next question ▶" : "Finish & see score 🎯"}
             </button>
+            {saveError && <p className="text-xs font-bold text-rose-600 mt-2 text-center">⚠️ {saveError}</p>}
           </>
         )}
       </div>

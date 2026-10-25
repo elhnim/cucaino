@@ -15,11 +15,14 @@ export default function FriendsPage({
   conversations: initialConversations,
   pendingRequests: initialPending,
   accent,
+  onOpenChat,
 }: {
   kidId: string;
   conversations: ConversationSummary[];
   pendingRequests: FriendRequest[];
   accent: string;
+  /** In-world use (3D Friends tower): open the chat inside the panel instead of navigating away. */
+  onOpenChat?: (friendId: string) => void;
 }) {
   const router = useRouter();
   const [conversations, setConversations] = useState<ConversationSummary[]>(initialConversations);
@@ -195,6 +198,10 @@ export default function FriendsPage({
                 className={`bg-white rounded-2xl shadow p-3 flex items-center gap-3 cursor-pointer transition-opacity ${navigatingId === conv.friendId ? "opacity-50" : "active:opacity-70"}`}
                 style={{ touchAction: "manipulation" }}
                 onClick={() => {
+                  if (onOpenChat) {
+                    onOpenChat(conv.friendId);
+                    return;
+                  }
                   if (navigatingId) return;
                   setNavigatingId(conv.friendId);
                   router.push(`/kid/${kidId}/friends/${conv.friendId}`);

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import {
   getKid,
   getTradingPortfolio,
@@ -20,6 +21,8 @@ export default async function TradingPage({
   searchParams: Promise<{ kid?: string }>;
 }) {
   const { kid: kidId } = await searchParams;
+  // kids play this inside Cucaino Park now — send them to the park version
+  if (kidId) redirect(`/park/${kidId}?enter=market`);
 
   const supabase = await createClient();
 

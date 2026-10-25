@@ -332,7 +332,10 @@ export async function creditPendingDividends(kidId: string): Promise<void> {
 
     const asset = dividendAssets.find((a) => a.symbol === holding.asset_symbol)!;
     const price = priceMap.get(holding.asset_symbol) ?? 0;
-    const dividend = Math.max(1, Math.round(Number(holding.quantity) * price * (asset.dividendPct ?? 0.004)));
+    // No minimum floor: a sliver of a holding should earn a sliver of a dividend,
+    // not a flat 1 Nugget (that was paying tiny fractional stakes a huge % return).
+    const dividend = Math.round(Number(holding.quantity) * price * (asset.dividendPct ?? 0.004));
+    if (dividend <= 0) continue;
     totalDividend += dividend;
     divTransactions.push({
       family_id: portfolio.family_id,

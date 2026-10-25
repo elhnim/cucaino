@@ -15,11 +15,12 @@ export async function ensureDailyPrices(supabase: SupabaseClient): Promise<void>
     return utcDateString(d);
   })();
 
-  // Proxy check: if CHOMP already has a row for today, prices are done
+  // Proxy check: if the first asset already has a row for today, prices are done.
+  // Reads straight from TRADING_ASSETS so this can never point at a retired symbol again.
   const { data: existing } = await supabase
     .from("trading_asset_prices")
     .select("id")
-    .eq("symbol", "CHOMP")
+    .eq("symbol", TRADING_ASSETS[0].symbol)
     .eq("price_date", today)
     .maybeSingle();
   if (existing) return;

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getKid } from "@/lib/data/stub";
 import KidShell from "@/components/kid/KidShell";
 import ArcadeHub from "@/components/arcade/ArcadeHub";
@@ -8,6 +9,8 @@ export default async function ArcadeHubPage({
   searchParams: Promise<{ kid?: string }>;
 }) {
   const { kid: kidId } = await searchParams;
+  // kids play this inside Cucaino Park now — send them to the park version
+  if (kidId) redirect(`/park/${kidId}?enter=arcade`);
   const kid = kidId ? await getKid(kidId) : null;
 
   const content = <ArcadeHub kid={kid} />;

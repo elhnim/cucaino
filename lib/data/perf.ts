@@ -10,7 +10,9 @@ export function timed<TArgs extends unknown[], TReturn>(
       return await fn(...args);
     } finally {
       const value = performance.now() - start;
-      logPerfMetric({
+      // Every log is an extra DB insert on the request path. Keep all slow queries (the ones
+      // worth investigating) but only a 10% sample of normal ones.
+      if (value >= 500 || Math.random() < 0.1) void logPerfMetric({
         metric_name: "query",
         query_name: name,
         value,

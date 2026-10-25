@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TRADING_ASSETS } from "@/lib/trading/assets";
 
 interface Props {
   onDone: () => void;
@@ -8,18 +9,13 @@ interface Props {
 
 type Phase = "welcome" | "tour" | "done";
 
-const COMPANIES = [
-  { emoji: "🍿", name: "Chomp Snacks", price: 45 },
-  { emoji: "🎮", name: "Zapp Gaming", price: 85 },
-  { emoji: "🛴", name: "Zoom Wheels", price: 30 },
-  { emoji: "🎬", name: "Flick Studios", price: 120 },
-  { emoji: "🐾", name: "Pawz Pet Co.", price: 25 },
-  { emoji: "⚽", name: "Blast Sports", price: 55 },
-  { emoji: "🍔", name: "Yumm Burgers", price: 40 },
-  { emoji: "💡", name: "Spark Gadgets", price: 95 },
-  { emoji: "🌊", name: "Splash Parks", price: 70 },
-  { emoji: "🍭", name: "Sweet Street", price: 20 },
-];
+// Built straight from the real asset registry so the tour can never show a
+// company that isn't actually in the Market tab.
+const COMPANIES = TRADING_ASSETS.map((a) => ({
+  emoji: a.emoji,
+  name: a.name,
+  price: a.basePriceNuggets,
+}));
 
 interface SlideConfig {
   heroGradient: string;

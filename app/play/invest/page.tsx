@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import {
   ensureInvestAccount,
   ensureInvestLicence,
@@ -15,6 +16,8 @@ import InvestHub from "@/components/invest/InvestHub";
 
 export default async function InvestPage({ searchParams }: { searchParams: Promise<{ kid?: string }> }) {
   const { kid: kidId } = await searchParams;
+  // kids play this inside Cucaino Park now — send them to the park version
+  if (kidId) redirect(`/park/${kidId}?enter=bank`);
   const kid = kidId ? await getKid(kidId) : null;
   const enabled = kid ? await getKidInvestingEnabled(kid.id) : false;
 

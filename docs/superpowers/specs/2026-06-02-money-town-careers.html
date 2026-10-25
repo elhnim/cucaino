@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Money Town — All 12 Careers (Review)</title>
+<style>
+  :root{
+    --bg:#0f1220; --card:#191d2e; --card2:#20253a; --ink:#e9ecf6; --muted:#9aa3c0;
+    --line:#2a3050; --green:#34d399; --red:#f87171; --blue:#60a5fa; --amber:#fbbf24;
+    --violet:#a78bfa; --pill:#262c44;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  a{color:var(--blue);text-decoration:none}
+  header.top{position:sticky;top:0;z-index:20;background:rgba(15,18,32,.95);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);padding:10px 18px}
+  header.top h1{margin:0 0 6px;font-size:17px;letter-spacing:.3px}
+  nav{display:flex;flex-wrap:wrap;gap:6px}
+  nav a{background:var(--pill);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12.5px;color:var(--ink)}
+  nav a:hover{border-color:var(--blue)}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 18px 80px}
+  .legend{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:26px}
+  .legend h2{margin:.1em 0 .5em;font-size:15px}
+  .legend code,code.k{background:var(--pill);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font:12.5px ui-monospace,Menlo,Consolas,monospace;color:#cdd6ff}
+  .legend ul{margin:.3em 0;padding-left:18px;color:var(--muted)}
+  .career{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin:0 0 22px;border-left:5px solid var(--accent,#60a5fa)}
+  .career h2{margin:0;font-size:21px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .career h2 .code{font:12px ui-monospace,monospace;background:var(--pill);border:1px solid var(--line);border-radius:6px;padding:2px 8px;color:#cdd6ff}
+  .gate{font-size:12.5px;color:var(--amber);border:1px solid #4a3c12;background:#241d07;border-radius:999px;padding:2px 9px}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+  .tag{font-size:11.5px;color:var(--muted);background:var(--pill);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+  .ident{color:var(--muted);font-style:italic;margin:6px 0 14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .box{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .box h3{margin:.1em 0 .6em;font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{text-align:left;padding:5px 7px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
+  td.c{white-space:nowrap}
+  .cd{font:12px ui-monospace,monospace;color:#cdd6ff;background:var(--pill);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  .o .cd{color:#bff3df;background:#0e2a22;border-color:#1c5040}
+  .r .cd{color:#ffd9d9;background:#2c1414;border-color:#5a2626}
+  .k .cd{color:#cfe2ff;background:#10233f;border-color:#274a78}
+  .ph2{background:var(--card2);border:1px solid var(--line);border-left:4px solid var(--amber);border-radius:12px;padding:12px 14px;margin:14px 0}
+  .ph2 h3{margin:.1em 0 .5em;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--amber)}
+  .lesson{margin-top:14px;background:linear-gradient(90deg,#15233a,#191d2e);border:1px solid var(--line);
+    border-radius:12px;padding:11px 14px;font-size:14px}
+  .lesson b{color:var(--violet)}
+  .mini{font-size:12.5px;color:var(--muted)}
+  .secthead{display:flex;align-items:center;gap:8px;margin:6px 0 10px}
+  .secthead .o{color:var(--green)} .secthead .r{color:var(--red)} .secthead .k{color:var(--blue)}
+  .badge{font-size:11px;border-radius:999px;padding:1px 8px;border:1px solid var(--line)}
+  .b-green{color:var(--green);background:#0e2a22;border-color:#1c5040}
+  .b-red{color:var(--red);background:#2c1414;border-color:#5a2626}
+  .b-blue{color:var(--blue);background:#10233f;border-color:#274a78}
+  hr.div{border:0;border-top:1px solid var(--line);margin:26px 0}
+  .note{color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>🎲 Money Town — All 12 Careers <span class="note">· design review draft · numbers balance-tunable</span></h1>
+  <nav>
+    <a href="#overview">Overview</a>
+    <a href="#objects">Objects</a>
+    <a href="#spine">Spine</a>
+    <a href="#phase1">Phase 1</a>
+    <a href="#skills">Skills ×4</a>
+    <a href="#reel">Career Reel</a>
+    <a href="#phase2">Phase 2</a>
+    <a href="#phase3">Phase 3</a>
+    <a href="#assets">Asset Engine</a>
+    <a href="#powerups">Power-ups</a>
+    <a href="#careers" style="border-color:var(--violet)">Careers ▾</a>
+  </nav>
+</header>
+
+<div class="wrap">
+
+<!-- ===================== OVERVIEW ===================== -->
+<section class="career" id="overview" style="--accent:#a78bfa">
+  <h2>🎲 Overview &amp; Concept</h2>
+  <p class="ident">Live a whole life in an hour — earn, learn, invest, and out-strategize your friends to financial freedom first.</p>
+  <p>Each <b>turn = one year of your life</b>. Players race from their teens to <b>financial freedom</b> — the moment your money earns enough to cover your living costs, so you never <i>have</i> to work again. <b>First one free wins.</b> The whole design proves there are <b>many roads to freedom</b>: the high earner, the savvy investor, the risk-taking founder, and the frugal saver can all win — so no single strategy dominates.</p>
+
+  <div class="box" style="margin-top:8px">
+    <h3>The journey — 3 phases (age 13 → freedom)</h3>
+    <table><tr><th>Phase</th><th>Name</th><th>Length</th><th>What happens</th></tr>
+      <tr><td class="c">1</td><td>Teen Gigs</td><td>4 turns (13→17)</td><td>random gig; earn, save, build skills; earn your career gate</td></tr>
+      <tr><td class="c">2</td><td>Education / Training</td><td>career-specific</td><td>invest in yourself; learn good vs bad debt</td></tr>
+      <tr><td class="c">3</td><td>Established Career</td><td>until freedom / age 65</td><td>the main game — build a passive-income engine</td></tr>
+    </table>
+  </div>
+
+  <div class="lesson"><b>The two ways to win (the heart):</b> Freedom = <b>passive income ≥ expenses</b> → 📈 <b>grow income</b> (buy assets that pay you) <i>or</i> 📉 <b>shrink expenses</b> (live modestly, own your home, kill debt). A flashy doctor and a frugal tortoise can both cross the line.</div>
+</section>
+
+<!-- ===================== OBJECTS & CONCEPTS ===================== -->
+<section class="career" id="objects" style="--accent:#22d3ee">
+  <h2>🧩 Main Objects &amp; Concepts</h2>
+
+  <div class="grid">
+    <div class="box">
+      <h3>Core objects (the nouns)</h3>
+      <table><tr><th>Object</th><th>Key properties</th></tr>
+        <tr><td><b>Player</b></td><td>cash, net worth, age (=turns), career, skills, assets, debts, power-up hand</td></tr>
+        <tr><td><b>Skill</b> ×4</td><td>💰 Money Smarts · 🏆 Pro Skills · 🛡️ Grit · 🧠 Big Brain — each L1→L10</td></tr>
+        <tr><td><b>Career</b></td><td>12 of them; salary ladder + training timeline + own event deck</td></tr>
+        <tr><td><b>Asset</b></td><td>6 types; <i>growth · income · expenses · risk</i> + unlock level</td></tr>
+        <tr><td><b>Debt</b></td><td>balance + interest; grows if unpaid (mirror of an asset)</td></tr>
+        <tr><td><b>Event Card</b></td><td>+/−; universal life deck + per-asset + per-career decks</td></tr>
+        <tr><td><b>Power-up</b></td><td>held in hand (max 3); permanent / one-off; offensive / defensive</td></tr>
+        <tr><td><b>Mini-game</b></td><td>skill challenge → cash / talent tokens / power-ups</td></tr>
+        <tr><td><b>The Reel</b></td><td>yearly randomizer → an event or a mini-game</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>Core concepts (rules of reality)</h3>
+      <table><tr><th>#</th><th>Concept</th></tr>
+        <tr><td class="c">1</td><td><b>Turn = 1 year</b> — your turn count is your age</td></tr>
+        <tr><td class="c">2</td><td><b>Yearly loop:</b> Act → Reel → Settle → check win</td></tr>
+        <tr><td class="c">3</td><td><b>Skills gate opportunity</b> — “learn before you earn”</td></tr>
+        <tr><td class="c">4</td><td><b>Four-field assets</b> — growth · income · expenses · risk</td></tr>
+        <tr><td class="c">5</td><td><b>Risk = frequency × magnitude</b> of bad events; buy it down with diversify/insurance</td></tr>
+        <tr><td class="c">6</td><td><b>Wealth vs cash flow</b> — net worth grows via appreciation; passive income is cash. Accumulate → harvest</td></tr>
+        <tr><td class="c">7</td><td><b>Win = passive income ≥ expenses</b> (two levers)</td></tr>
+        <tr><td class="c">8</td><td><b>Lifestyle inflation</b> — earn more → auto-spend more (sub-linear)</td></tr>
+        <tr><td class="c">9</td><td><b>Good vs bad debt</b> — borrow to earn, never to lose value</td></tr>
+        <tr><td class="c">10</td><td><b>~75% decision / ~25% luck</b></td></tr>
+        <tr><td class="c">11</td><td><b>Visible race</b> — catch-up tension + cross-player sabotage</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== THE SPINE ===================== -->
+<section class="career" id="spine" style="--accent:#34d399">
+  <h2>🏁 The Spine — win condition &amp; luck</h2>
+  <div class="lesson" style="margin-top:0">🏆 <b>Win:</b> first player whose <b>passive income ≥ expenses</b> wins (FIRE). Passive income = net cash yield of all assets (rent + dividends + interest + profit − asset expenses). Backstop: highest <b>net worth</b> at age 65.</div>
+  <div class="grid" style="margin-top:14px">
+    <div class="box">
+      <h3>Two levers (un-dominable)</h3>
+      <p>📈 <b>Grow income</b> — income assets (commercial, business, paid-off property).<br>
+      📉 <b>Shrink expenses</b> — live modestly, own your home, kill debt interest.</p>
+      <p class="mini"><b>4% rule</b> is taught as a printed rule-of-thumb ("aim for ~25× expenses"), but the <b>win math is real per-asset income</b> — so a growth-only pile (crypto) doesn't win until <b>harvested</b>.</p>
+    </div>
+    <div class="box">
+      <h3>The luck dial (~25%)</h3>
+      <p>≤ 2 random checks/year, capped magnitude, and <b>buy-down</b> (insurance halves bad events; diversification halves variance).</p>
+      <p class="mini">Skilled play pulls realised variance below 25%; reckless play (all crypto, no insurance) pushes it above — their choice, not the baseline.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PHASE 1 ===================== -->
+<section class="career" id="phase1" style="--accent:#fbbf24">
+  <h2>1️⃣ Phase 1 — Teen Gigs <span class="gate" style="color:var(--green);border-color:#1c5040;background:#0e2a22">LOCKED</span></h2>
+  <p class="ident">Ages 13→17, exactly 4 turns. Learn the core loop, build skills, earn your career gate.</p>
+  <div class="tags">
+    <span class="tag">💵 Start: $5,000 cash</span>
+    <span class="tag">🎰 Random Tier-1 starting gig</span>
+    <span class="tag">🔁 Each action max 2× → L3 cap</span>
+    <span class="tag">🛟 Safeguard: can't end a year below $0</span>
+  </div>
+
+  <div class="ph2" style="border-left-color:var(--green)">
+    <h3 style="color:var(--green)">Turn loop — a one-year story</h3>
+    <span class="mini"><b>1. Action</b> (what you do this year) → <b>2. Reel</b> (70% Card ±$100–300 · 30% Mini-game, win ~$200–300/lose nothing) → <b>3. Earn</b> gig income → <b>4. End of turn</b> investments compound. <b>Guaranteed 2 mini-game opportunities</b> per player (pity-timer) so talent gates are skill, not luck.</span>
+  </div>
+
+  <div class="box">
+    <h3>The 4 actions</h3>
+    <table><tr><th>Code</th><th>Action</th><th>This-year cost</th><th>Effect / reveal</th></tr>
+      <tr><td><span class="cd">P1A-INV</span></td><td>💰 Invest</td><td>none (moves cash)</td><td>Money Smarts +1; deposit into unlocked tier</td></tr>
+      <tr><td><span class="cd">P1A-WRK</span></td><td>🏆 Work Harder</td><td>none</td><td>Pro Skills +1; promotion next turn</td></tr>
+      <tr><td><span class="cd">P1A-HUS</span></td><td>🛡️ Hustle</td><td>−20% gross salary</td><td>Grit +1; spin for a better gig next turn</td></tr>
+      <tr><td><span class="cd">P1A-STU</span></td><td>🧠 Study</td><td>−50% gross salary</td><td>Big Brain +1; spin for a knowledge job next turn</td></tr>
+    </table>
+    <p class="mini">Invest &amp; Work Harder are always free → a meaningful action is always affordable (progression never blocked).</p>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box">
+      <h3>Starting gigs (Tier 1 — random)</h3>
+      <table><tr><th>Code</th><th>Gig</th><th>Salary</th><th>Net</th></tr>
+        <tr><td><span class="cd">P1G-01</span></td><td>🛒 Supermarket Cashier</td><td>$10,000</td><td>$2,000</td></tr>
+        <tr><td><span class="cd">P1G-02</span></td><td>☕ Cafe Barista</td><td>$10,200</td><td>$2,000</td></tr>
+        <tr><td><span class="cd">P1G-03</span></td><td>🐕 Dog Walker</td><td>$9,800</td><td>$2,000</td></tr>
+        <tr><td><span class="cd">P1G-04</span></td><td>🍔 Fast Food Crew</td><td>$10,100</td><td>$2,000</td></tr>
+        <tr><td><span class="cd">P1G-05</span></td><td>📦 Delivery Driver</td><td>$10,400</td><td>$2,200</td></tr>
+        <tr><td><span class="cd">P1G-06</span></td><td>🏊 Swim Coach</td><td>$9,900</td><td>$1,800</td></tr>
+        <tr><td><span class="cd">P1G-07</span></td><td>🛍️ Retail Assistant</td><td>$10,000</td><td>$2,000</td></tr>
+        <tr><td><span class="cd">P1G-08</span></td><td>🌿 Lawn Mowing</td><td>$9,800</td><td>$1,900</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>Mini-games (in code)</h3>
+      <table><tr><th>Code</th><th>Game</th></tr>
+        <tr><td><span class="cd">MG-01</span></td><td>🪙 CoinRain</td></tr>
+        <tr><td><span class="cd">MG-02</span></td><td>🍋 LemonSqueeze</td></tr>
+        <tr><td><span class="cd">MG-03</span></td><td>💵 CashGrab</td></tr>
+        <tr><td><span class="cd">MG-04</span></td><td>🐾 PetRush</td></tr>
+      </table>
+      <p class="mini">Reel picks one at random on a Mini-game result. Win = cash bonus + talent tokens (gate the talent careers) + power-ups (in Phase 3).</p>
+    </div>
+  </div>
+
+  <div class="box" style="margin-top:14px">
+    <h3>Phase 1 card deck (`P1C` — 26 cards, ±$100–300)</h3>
+    <div class="grid">
+      <table class="r"><tr><th>Code</th><th>Card</th><th>Effect</th></tr>
+        <tr><td><span class="cd">P1C-01</span></td><td>📱 Over phone plan</td><td>−$150</td></tr>
+        <tr><td><span class="cd">P1C-02</span></td><td>📸 Cracked screen</td><td>−$300</td></tr>
+        <tr><td><span class="cd">P1C-03</span></td><td>👟 Sneakers splurge</td><td>−$250</td></tr>
+        <tr><td><span class="cd">P1C-04</span></td><td>🍕 Too much takeout</td><td>−$150</td></tr>
+        <tr><td><span class="cd">P1C-05</span></td><td>🎵 Concert tickets</td><td>−$200</td></tr>
+        <tr><td><span class="cd">P1C-06</span></td><td>🛒 Impulse shopping</td><td>−$200</td></tr>
+        <tr><td><span class="cd">P1C-07</span></td><td>🤒 Sick week</td><td>−$250</td></tr>
+        <tr><td><span class="cd">P1C-08</span></td><td>🎂 Friend's birthday</td><td>−$150</td></tr>
+        <tr><td><span class="cd">P1C-09</span></td><td>🎮 New game</td><td>−$100</td></tr>
+        <tr><td><span class="cd">P1C-10</span></td><td>🚔 Speeding fine</td><td>−$300</td></tr>
+        <tr><td><span class="cd">P1C-11</span></td><td>💰 Birthday cash</td><td>+$200</td></tr>
+        <tr><td><span class="cd">P1C-12</span></td><td>👴 Grandparent gift</td><td>+$300</td></tr>
+        <tr><td><span class="cd">P1C-13</span></td><td>🔄 Sold old stuff</td><td>+$200</td></tr>
+      </table>
+      <table class="o"><tr><th>Code</th><th>Card</th><th>Effect</th></tr>
+        <tr><td><span class="cd">P1C-14</span></td><td>🏆 Won a raffle</td><td>+$300</td></tr>
+        <tr><td><span class="cd">P1C-15</span></td><td>🎉 Holiday shifts</td><td>+$250</td></tr>
+        <tr><td><span class="cd">P1C-16</span></td><td>🎁 Gift card → cash</td><td>+$100</td></tr>
+        <tr><td><span class="cd">P1C-17</span></td><td>🎂 It's your birthday!</td><td>each rival → you $100</td></tr>
+        <tr><td><span class="cd">P1C-18</span></td><td>🏆 Won the group bet</td><td>each rival pays you $100</td></tr>
+        <tr><td><span class="cd">P1C-19</span></td><td>🎤 Organised hangout</td><td>everyone reimburses $150</td></tr>
+        <tr><td><span class="cd">P1C-20</span></td><td>🎁 Buying the cake</td><td>pay $100 to poorest</td></tr>
+        <tr><td><span class="cd">P1C-21</span></td><td>🍕 Lost the bet</td><td>pay $100 to each rival</td></tr>
+        <tr><td><span class="cd">P1C-22</span></td><td>💸 Help a broke mate</td><td>give $150 to poorest</td></tr>
+        <tr><td><span class="cd">P1C-23</span></td><td>☀️ Long weekend</td><td>all players +$150</td></tr>
+        <tr><td><span class="cd">P1C-24</span></td><td>🌧️ Slow week</td><td>all players −$100</td></tr>
+        <tr><td><span class="cd">P1C-25</span></td><td>🤧 Flu season</td><td>all players −$150</td></tr>
+        <tr><td><span class="cd">P1C-26</span></td><td>🎪 Local festival</td><td>all players +$200</td></tr>
+      </table>
+    </div>
+    <p class="mini">Cards 17–26 are <b>social</b> (cross-player) — the early competitive layer.</p>
+  </div>
+
+  <div class="box" style="margin-top:14px">
+    <h3>Phase 1 skill ladders (L1–L3 — these are the 🔒 locked rungs of the L1–L10 ladders below)</h3>
+    <table><tr><th>Skill</th><th>L1 (start)</th><th>L2</th><th>L3</th></tr>
+      <tr><td>💰 Money Smarts</td><td>🏦 Trust Fund $1K, 10%/yr</td><td>📊 Index Fund $2K, 20%/yr</td><td>📈 Stock Market $3K, 30%/yr</td></tr>
+      <tr><td>🏆 Pro Skills</td><td>Base worker</td><td>Senior +$2K/yr</td><td>Team Leader +$5K/yr total</td></tr>
+      <tr><td>🛡️ Grit</td><td>Tier 1 gigs ~$2K net</td><td>Tier 2 gigs ~$10K net</td><td>Tier 3 gigs ~$13K net</td></tr>
+      <tr><td>🧠 Big Brain</td><td>Tier 1 ~$2K net</td><td>Tier 2 jobs ~$13K net</td><td>Tier 3 jobs ~$18K net</td></tr>
+    </table>
+    <p class="mini">Phase 1 returns are guaranteed/simplified for clarity (10/20/30%); the same asset classes use variable returns in Phase 3 (see Asset Engine).</p>
+  </div>
+</section>
+
+<!-- ===================== SKILLS ===================== -->
+<section class="career" id="skills" style="--accent:#60a5fa">
+  <h2>📊 The Four Skills — L1–L10 ladders <span class="gate" style="color:var(--green);border-color:#1c5040;background:#0e2a22">LOCKED</span></h2>
+  <p class="ident">Four strategic identities — four ways to win the same game. One rule: <b>1 action = +1 level</b>, max <b>L10</b>; L1–L3 🔒 locked to Phase 1. Difficulty = where unlocks sit, not per-level cost.</p>
+  <div class="tags">
+    <span class="tag">💰 Money Smarts → <b>buy</b> (assets)</span>
+    <span class="tag">🏆 Pro Skills → <b>climb</b> (CEO)</span>
+    <span class="tag">🛡️ Grit → <b>endure</b> (grind)</span>
+    <span class="tag">🧠 Big Brain → <b>outsmart</b> (tempo)</span>
+  </div>
+
+  <div class="grid" style="margin-top:8px">
+    <div class="box">
+      <h3>💰 Money Smarts (MS) — Invest</h3>
+      <table class="k"><tr><th>Code</th><th>Benefit</th></tr>
+        <tr><td><span class="cd">MS-L01</span>🔒</td><td>Buy Savings (4% income)</td></tr>
+        <tr><td><span class="cd">MS-L02</span>🔒</td><td>Buy Index Fund</td></tr>
+        <tr><td><span class="cd">MS-L03</span>🔒</td><td>Buy Shares</td></tr>
+        <tr><td><span class="cd">MS-L04</span></td><td>Fee Cut — asset Expenses −25%</td></tr>
+        <tr><td><span class="cd">MS-L05</span></td><td>Buy Residential Property</td></tr>
+        <tr><td><span class="cd">MS-L06</span></td><td>Sharper Eye — +1pp growth, all assets</td></tr>
+        <tr><td><span class="cd">MS-L07</span></td><td>Buy Commercial Property</td></tr>
+        <tr><td><span class="cd">MS-L08</span></td><td>Steady Hand — 🔴 asset events 25% smaller</td></tr>
+        <tr><td><span class="cd">MS-L09</span></td><td>Buy Crypto</td></tr>
+        <tr><td><span class="cd">MS-L10</span></td><td>Master Investor — +1pp income, all assets</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>🏆 Pro Skills (PS) — Work Harder · <i>Corporate Ladder</i></h3>
+      <table class="k"><tr><th>Code</th><th>Benefit</th></tr>
+        <tr><td><span class="cd">PS-L01</span>🔒</td><td>Base salary</td></tr>
+        <tr><td><span class="cd">PS-L02</span>🔒</td><td>+$2K/yr</td></tr>
+        <tr><td><span class="cd">PS-L03</span>🔒</td><td>+$5K/yr total</td></tr>
+        <tr><td><span class="cd">PS-L04</span></td><td>Manager — salary +10% <span class="mini">(career rank ↑)</span></td></tr>
+        <tr><td><span class="cd">PS-L05</span></td><td>Director — +20% + bonus 10%/yr</td></tr>
+        <tr><td><span class="cd">PS-L06</span></td><td>Stock Options — shares 8% of salary/yr</td></tr>
+        <tr><td><span class="cd">PS-L07</span></td><td>Executive — +35%, bonus 15% <span class="mini">(rank ↑)</span></td></tr>
+        <tr><td><span class="cd">PS-L08</span></td><td>Boardroom Network — buys −10%, +2 bid</td></tr>
+        <tr><td><span class="cd">PS-L09</span></td><td>CEO — +60%, bonus 25%, stock 12% <span class="mini">(top rank)</span></td></tr>
+        <tr><td><span class="cd">PS-L10</span></td><td>Chairman — 30% pay passive for life + parachute</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>🛡️ Grit (GR) — Hustle · <i>Self-Made Grind</i></h3>
+      <table class="k"><tr><th>Code</th><th>Benefit</th></tr>
+        <tr><td><span class="cd">GR-L01</span>🔒</td><td>Tier 1 gigs ~$2K net</td></tr>
+        <tr><td><span class="cd">GR-L02</span>🔒</td><td>Tier 2 gigs ~$10K net</td></tr>
+        <tr><td><span class="cd">GR-L03</span>🔒</td><td>Tier 3 gigs ~$13K net</td></tr>
+        <tr><td><span class="cd">GR-L04</span></td><td>Tough — 🔴 life-event loss 25% smaller</td></tr>
+        <tr><td><span class="cd">GR-L05</span></td><td>Side Hustle — +$5K/yr guaranteed</td></tr>
+        <tr><td><span class="cd">GR-L06</span></td><td>Thick Skin — offensive cards hit at 50%</td></tr>
+        <tr><td><span class="cd">GR-L07</span></td><td>Hustle Empire — Side Hustle → +$12K/yr</td></tr>
+        <tr><td><span class="cd">GR-L08</span></td><td>Hardened — immune to injury/illness</td></tr>
+        <tr><td><span class="cd">GR-L09</span></td><td>Relentless — Hustle/Overtime +50%</td></tr>
+        <tr><td><span class="cd">GR-L10</span></td><td>Unbreakable — once/game cancel a disaster</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>🧠 Big Brain (BB) — Study · <i>Knowledge &amp; Strategy</i></h3>
+      <table class="k"><tr><th>Code</th><th>Benefit</th></tr>
+        <tr><td><span class="cd">BB-L01</span>🔒</td><td>Tier 1 ~$2K net</td></tr>
+        <tr><td><span class="cd">BB-L02</span>🔒</td><td>Tier 2 jobs ~$13K net</td></tr>
+        <tr><td><span class="cd">BB-L03</span>🔒</td><td>Tier 3 jobs ~$18K net</td></tr>
+        <tr><td><span class="cd">BB-L04</span></td><td>Quick Learner — rank upgrades 1 turn faster</td></tr>
+        <tr><td><span class="cd">BB-L05</span></td><td>Foresight — see next reel card before acting</td></tr>
+        <tr><td><span class="cd">BB-L06</span></td><td>Planner — 3+ asset types → all growth +1pp</td></tr>
+        <tr><td><span class="cd">BB-L07</span></td><td>Researcher — once/turn reroll a 🔴 reel</td></tr>
+        <tr><td><span class="cd">BB-L08</span></td><td>Analyst — see rivals' full positions</td></tr>
+        <tr><td><span class="cd">BB-L09</span></td><td>Strategist — draw 2 reel cards, keep either</td></tr>
+        <tr><td><span class="cd">BB-L10</span></td><td>Genius — once/game take 2 actions</td></tr>
+      </table>
+    </div>
+  </div>
+  <p class="mini" style="margin-top:10px">🏢 <b>Business</b> asset is gated separately — a multi-skill spread (💰+🏆+🛡️), not one tall ladder — rewarding the generalist. (Levels TBD in Business design.)</p>
+</section>
+
+<!-- ===================== CAREER REEL ===================== -->
+<section class="career" id="reel" style="--accent:#f59e0b">
+  <h2>🎡 The Career Reel (age 17) <span class="gate" style="color:var(--green);border-color:#1c5040;background:#0e2a22">LOCKED</span></h2>
+  <p class="ident">Skill-gated hard gate: your pool = every career you qualify for; you spin randomly among them. Careers you didn't earn show locked.</p>
+  <div class="grid">
+    <div class="box">
+      <h3>Skill-gated (8)</h3>
+      <table><tr><th>Lane</th><th>Skill</th><th>L2 — accessible</th><th>L3 — committed</th></tr>
+        <tr><td>🧠 Knowledge</td><td>Big Brain</td><td>👩‍🏫 Teacher</td><td>🩺 Doctor</td></tr>
+        <tr><td>🏆 People</td><td>Pro Skills</td><td>⚖️ Lawyer</td><td>🏛️ Politician</td></tr>
+        <tr><td>💰 Capital</td><td>Money Smarts</td><td>💼 Tycoon</td><td>📈 Inv. Banker</td></tr>
+        <tr><td>🛡️ Hands-on</td><td>Grit</td><td>🔧 Tradesperson</td><td>🚜 Farmer</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>Talent track (4) — gate = mini-game wins</h3>
+      <table><tr><th>Gate</th><th>Careers</th></tr>
+        <tr><td>1+ talent token</td><td>🎨 Artist · 📱 Influencer</td></tr>
+        <tr><td>2+ talent tokens</td><td>🏅 Pro Athlete · 🎵 Musician</td></tr>
+      </table>
+      <p class="mini"><b>Generalist</b> (1-1-1-1) → L2 in all → wide spin. <b>Specialist</b> (2-2) → L3 in two → narrow, high-end spin. Everyone always qualifies for multiple careers.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== PHASE 2 ===================== -->
+<section class="career" id="phase2" style="--accent:#fb923c">
+  <h2>2️⃣ Phase 2 — Education / Training <span class="gate">framework</span></h2>
+  <p class="ident">Invest years in yourself for a bigger Phase 3, and learn good vs bad debt. Each career has its own timeline — the contrast is the lesson.</p>
+
+  <div class="ph2">
+    <h3>Turn loop &amp; the shared training actions</h3>
+    <span class="mini">Same Act → Reel → Settle rhythm. Each training year, pick one:
+    <span class="cd">TA-MASTER</span> Pro Skills +1 (career rank → graduating salary) ·
+    <span class="cd">TA-INVEST</span> Money Smarts +1 + deploy cash ·
+    <span class="cd">TA-OVERTIME</span> +flat cash, no skill (earn now) ·
+    <span class="cd">TA-TOOLUP</span> good debt → income boost.</span>
+  </div>
+
+  <div class="grid">
+    <div class="box">
+      <h3>Career timelines</h3>
+      <table><tr><th>Archetype</th><th>Length</th><th>While training</th></tr>
+        <tr><td>Earn-while-learn (Tradie, Farmer)</td><td>3 yr</td><td>low rising pay, little debt</td></tr>
+        <tr><td>Study-heavy (Doctor, Lawyer, Banker)</td><td>5–6 yr</td><td>$0 + high debt</td></tr>
+        <tr><td>Mixed (Teacher, Tycoon)</td><td>2–4 yr</td><td>part-time pay</td></tr>
+        <tr><td>Talent (Athlete, Musician, Artist, Influencer)</td><td>0–2 yr</td><td>boom/bust</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>Debt = the mirror of investing</h3>
+      <p class="mini">An investment grows your money; a debt grows what you owe — same compounding, opposite direction. Interest is a recurring expense (pushes the win bar up). Repay anytime.</p>
+      <p class="mini">🟢 <b>Good debt</b> — borrow to buy something that earns (tools, a mortgage).<br>🔴 <b>Bad debt</b> — borrow for things that lose value ("V8 on finance?").</p>
+    </div>
+  </div>
+  <p class="mini" style="margin-top:10px"><b>Open:</b> exact wage curves, Overtime cash, and Tool-Up loan terms per career — to lock career-by-career (Tradesperson first).</p>
+</section>
+
+<!-- ===================== PHASE 3 ===================== -->
+<section class="career" id="phase3" style="--accent:#f472b6">
+  <h2>3️⃣ Phase 3 — Established Career <span class="gate">the main game</span></h2>
+  <p class="ident">Turn = 1 year, graduation → freedom (or 65). A strong player frees themselves in their 30s–40s.</p>
+
+  <div class="ph2" style="border-left-color:var(--green)">
+    <h3 style="color:var(--green)">The yearly loop — plan, then live the year</h3>
+    <span class="mini"><b>1. Act</b> (your plan, resolved first) → <b>2. Reel</b> (life lands on the position you took) → <b>3. Settle</b> (income + passive, pay expenses, assets grow/shrink + events, debts grow) → <b>4. Check win.</b> Insurance bought this turn protects this turn; crypto bought is exposed immediately.</span>
+  </div>
+
+  <div class="grid">
+    <div class="box">
+      <h3>The one action (≈75% decision)</h3>
+      <table><tr><th>Action</th><th>Effect</th></tr>
+        <tr><td>🏠 Buy an asset</td><td>now in play + exposed to its deck</td></tr>
+        <tr><td>📈 Work Harder (rank ↑)</td><td>higher salary + auto lifestyle</td></tr>
+        <tr><td>🏦 Pay down debt</td><td>cuts this year's interest</td></tr>
+        <tr><td>🛡️ Buy insurance</td><td>softens a bad reel this year</td></tr>
+        <tr><td>🏡 Buy home outright</td><td>removes housing slice (lever)</td></tr>
+        <tr><td>🪙 Downsize</td><td>lifestyle a bracket below rank (lever)</td></tr>
+        <tr><td>💱 Harvest / Convert</td><td>sell growth asset → income / debt payoff</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>Lifestyle inflation — auto &amp; sub-linear</h3>
+      <p class="mini">Each rank carries a default lifestyle cost — but a <b>smaller %</b> of salary as you climb (Tradie 68%→65%→61%→57%). Higher ranks get a better savings rate, so climbing stays competitive with frugality.</p>
+      <p class="mini"><b>Expense levers (active):</b> 🪙 Downsize · 🏡 own your home · 🏦 kill debt · 🧗 don't over-climb. This is what makes the 🐢 Frugal Tortoise viable.</p>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box">
+      <h3>Win paths — all viable</h3>
+      <table><tr><th>Path</th><th>Wins by</th><th>Risk</th></tr>
+        <tr><td>🏦 Earner-Saver</td><td>high salary, low lifestyle, steady index/property</td><td>low</td></tr>
+        <tr><td>🏠 Investor</td><td>leverage property + shares</td><td>medium</td></tr>
+        <tr><td>🏢 Entrepreneur</td><td>business owner, huge passive income</td><td>high</td></tr>
+        <tr><td>🐢 Frugal Tortoise</td><td>modest income, tiny expenses → low bar</td><td>low</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h3>Cross-player layer</h3>
+      <p class="mini">🔨 <b>Asset auctions</b> — bid against rivals · 🌍 <b>market events</b> hit everyone · 🃏 <b>social cards</b> help/hinder · 🏆 <b>visible race</b> → catch-up tension to the last turn.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ASSET ENGINE ===================== -->
+<section class="career" id="assets" style="--accent:#34d399">
+  <h2>💎 The Asset Engine <span class="gate" style="color:var(--green);border-color:#1c5040;background:#0e2a22">LOCKED</span></h2>
+  <p class="ident">Four fields each (growth · income · expenses · risk), gated by Money Smarts. Net cash yield = income − expenses feeds the win. Accumulate on the risk side → harvest onto the income side.</p>
+
+  <div class="box">
+    <h3>Master asset table</h3>
+    <table><tr><th>Asset</th><th>🔓 Unlock</th><th>Entry</th><th>Growth</th><th>Income</th><th>Expenses</th><th>Net</th><th>🟢Opp</th><th>🔴Risk</th><th>⚪Calm</th></tr>
+      <tr><td>🏦 Savings</td><td><span class="cd">MS-L01</span></td><td>any</td><td>0%</td><td>4%</td><td>0%</td><td><b>+4%</b></td><td>2%</td><td>3%</td><td>95%</td></tr>
+      <tr><td>📊 Index Fund</td><td><span class="cd">MS-L02</span></td><td>$2,000</td><td>7%</td><td>2%</td><td>0.5%</td><td><b>+1.5%</b></td><td>15%</td><td>12%</td><td>73%</td></tr>
+      <tr><td>📈 Shares</td><td><span class="cd">MS-L03</span></td><td>$3,000</td><td>9%</td><td>2%</td><td>0%</td><td><b>+2%</b></td><td>28%</td><td>25%</td><td>47%</td></tr>
+      <tr><td>🏠 Residential</td><td><span class="cd">MS-L05</span></td><td>$20K dep</td><td>7%</td><td>5%</td><td>5.6%</td><td><b>−0.6%</b></td><td>17%</td><td>18%</td><td>65%</td></tr>
+      <tr><td>🏢 Commercial</td><td><span class="cd">MS-L07</span></td><td>$90K dep</td><td>4%</td><td>8%</td><td>4.85%</td><td><b>+3.15%</b></td><td>16%</td><td>22%</td><td>62%</td></tr>
+      <tr><td>₿ Crypto</td><td><span class="cd">MS-L09</span></td><td>$1,000</td><td>11%</td><td>0%</td><td>0%</td><td><b>0%</b></td><td>38%</td><td>40%</td><td>22%</td></tr>
+      <tr><td>🏢 Business</td><td>multi-skill</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td><td>TBD</td></tr>
+    </table>
+    <p class="mini">Resi: 20% deposit / 4.5% mortgage (negatively geared until paid down → flips to +3%). Commercial: 30% deposit / 5.5% mortgage (positively geared from day one).</p>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box"><h3>🏦 Savings · 📊 Index</h3>
+      <table class="r"><tr><th>Code</th><th>🔴</th><th>Effect</th></tr>
+        <tr><td><span class="cd">SAV-N01</span></td><td>Inflation Bite</td><td>−2% value</td></tr>
+        <tr><td><span class="cd">SAV-N02</span></td><td>Bank Fee</td><td>−$200</td></tr>
+        <tr><td><span class="cd">SAV-N03</span></td><td>Rate Cut</td><td>interest 4→2%</td></tr>
+        <tr><td><span class="cd">IDX-N01</span></td><td>Market Dip</td><td>−4%</td></tr>
+        <tr><td><span class="cd">IDX-N02</span></td><td>Global Wobble</td><td>−12%</td></tr>
+        <tr><td><span class="cd">IDX-N03</span></td><td>Correction</td><td>−15%</td></tr>
+        <tr><td><span class="cd">IDX-N04</span></td><td>Dividend Cut</td><td>income 2→0%</td></tr>
+      </table>
+      <table class="o" style="margin-top:8px"><tr><th>Code</th><th>🟢</th><th>Effect</th></tr>
+        <tr><td><span class="cd">SAV-P01</span></td><td>Bonus Interest</td><td>+3%</td></tr>
+        <tr><td><span class="cd">SAV-P02</span></td><td>Term Deposit</td><td>interest 4→6%</td></tr>
+        <tr><td><span class="cd">SAV-P03</span></td><td>Sign-up Reward</td><td>+$300</td></tr>
+        <tr><td><span class="cd">IDX-P01</span></td><td>Bull Run</td><td>+14%</td></tr>
+        <tr><td><span class="cd">IDX-P02</span></td><td>Steady Climb</td><td>+18%</td></tr>
+        <tr><td><span class="cd">IDX-P03</span></td><td>Santa Rally</td><td>+10%</td></tr>
+        <tr><td><span class="cd">IDX-P04</span></td><td>Dividend Boost</td><td>income 2→3%</td></tr>
+      </table>
+    </div>
+    <div class="box"><h3>🏠 Residential · 🏢 Commercial</h3>
+      <table class="r"><tr><th>Code</th><th>🔴</th><th>Effect</th></tr>
+        <tr><td><span class="cd">RES-N01</span></td><td>Major Repair</td><td>−2% value</td></tr>
+        <tr><td><span class="cd">RES-N02</span></td><td>Vacancy</td><td>rent 5→3%</td></tr>
+        <tr><td><span class="cd">RES-N03</span></td><td>Housing Slump</td><td>−8%</td></tr>
+        <tr><td><span class="cd">RES-N04</span></td><td>Rate Hike</td><td>mortgage 4.5→6%</td></tr>
+        <tr><td><span class="cd">RES-N05</span></td><td>Bad Tenant</td><td>rent 5→2%</td></tr>
+        <tr><td><span class="cd">RES-N06</span></td><td>Land Tax</td><td>expenses +1%</td></tr>
+        <tr><td><span class="cd">COM-N01</span></td><td>Long Vacancy</td><td>rent 8→0%</td></tr>
+        <tr><td><span class="cd">COM-N02</span></td><td>Tenant Downsizes</td><td>rent 8→5%</td></tr>
+        <tr><td><span class="cd">COM-N03</span></td><td>Econ Downturn</td><td>−12%</td></tr>
+        <tr><td><span class="cd">COM-N04</span></td><td>Rate Hike</td><td>mortgage 5.5→7%</td></tr>
+        <tr><td><span class="cd">COM-N05</span></td><td>Re-fit Costs</td><td>−2% value</td></tr>
+        <tr><td><span class="cd">COM-N06</span></td><td>Oversupply</td><td>−8%</td></tr>
+      </table>
+      <table class="o" style="margin-top:8px"><tr><th>Code</th><th>🟢</th><th>Effect</th></tr>
+        <tr><td><span class="cd">RES-P01</span></td><td>Area Booms</td><td>+15% + rent 5→6%</td></tr>
+        <tr><td><span class="cd">RES-P02</span></td><td>Dream Tenant</td><td>rent 5→6%</td></tr>
+        <tr><td><span class="cd">RES-P03</span></td><td>Reno Adds Value</td><td>−1% → +10%</td></tr>
+        <tr><td><span class="cd">RES-P04</span></td><td>Rent Surge</td><td>rent 5→7%</td></tr>
+        <tr><td><span class="cd">RES-P05</span></td><td>Rate Cut</td><td>mortgage 4.5→3.5%</td></tr>
+        <tr><td><span class="cd">COM-P01</span></td><td>Long Lease</td><td>rent 8→9% + stability</td></tr>
+        <tr><td><span class="cd">COM-P02</span></td><td>Blue-chip Tenant</td><td>rent 8→10%</td></tr>
+        <tr><td><span class="cd">COM-P03</span></td><td>Rent Review</td><td>rent 8→9%</td></tr>
+        <tr><td><span class="cd">COM-P04</span></td><td>Area Develops</td><td>+12%</td></tr>
+        <tr><td><span class="cd">COM-P05</span></td><td>Rate Cut</td><td>mortgage 5.5→4.5%</td></tr>
+      </table>
+    </div>
+    <div class="box"><h3>📈 Shares · ₿ Crypto</h3>
+      <table class="r"><tr><th>Code</th><th>🔴</th><th>Effect</th></tr>
+        <tr><td><span class="cd">SHR-N01</span></td><td>Earnings Miss</td><td>−25%</td></tr>
+        <tr><td><span class="cd">SHR-N02</span></td><td>Sector Crash</td><td>−30%</td></tr>
+        <tr><td><span class="cd">SHR-N03</span></td><td>Scandal</td><td>−20%</td></tr>
+        <tr><td><span class="cd">SHR-N04</span></td><td>Profit Warning</td><td>−15%</td></tr>
+        <tr><td><span class="cd">SHR-N05</span></td><td>Dividend Slashed</td><td>income 2→0%</td></tr>
+        <tr><td><span class="cd">CRY-N01</span></td><td>Crypto Crash</td><td>−50%</td></tr>
+        <tr><td><span class="cd">CRY-N02</span></td><td>Bear Winter</td><td>−40%</td></tr>
+        <tr><td><span class="cd">CRY-N03</span></td><td>Exchange Hack</td><td>−60%</td></tr>
+        <tr><td><span class="cd">CRY-N04</span></td><td>Regulation</td><td>−35%</td></tr>
+        <tr><td><span class="cd">CRY-N05</span></td><td>Rug Pull</td><td>−80%</td></tr>
+      </table>
+      <table class="o" style="margin-top:8px"><tr><th>Code</th><th>🟢</th><th>Effect</th></tr>
+        <tr><td><span class="cd">SHR-P01</span></td><td>Earnings Beat</td><td>+30%</td></tr>
+        <tr><td><span class="cd">SHR-P02</span></td><td>Takeover Bid</td><td>+40%</td></tr>
+        <tr><td><span class="cd">SHR-P03</span></td><td>Product Launch</td><td>+20%</td></tr>
+        <tr><td><span class="cd">SHR-P04</span></td><td>Special Dividend</td><td>income 2→3%</td></tr>
+        <tr><td><span class="cd">SHR-P05</span></td><td>Buyback</td><td>+12%</td></tr>
+        <tr><td><span class="cd">CRY-P01</span></td><td>To the Moon</td><td>+100%</td></tr>
+        <tr><td><span class="cd">CRY-P02</span></td><td>Bull Mania</td><td>+70%</td></tr>
+        <tr><td><span class="cd">CRY-P03</span></td><td>Halving Pump</td><td>+50%</td></tr>
+        <tr><td><span class="cd">CRY-P04</span></td><td>Adoption News</td><td>+40%</td></tr>
+        <tr><td><span class="cd">CRY-P05</span></td><td>Whale Buys In</td><td>+30%</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== POWER-UPS ===================== -->
+<section class="career" id="powerups" style="--accent:#a78bfa">
+  <h2>🃏 Power-up Cards</h2>
+  <p class="ident">Held in hand (max 3), played on your terms — deciding when is the strategy. Earned mostly by skill (mini-games, milestones), with a small luck sprinkle (reel).</p>
+  <div class="grid">
+    <div class="box"><h3>⭐ Permanent (milestone, always on)</h3>
+      <table class="k"><tr><th>Code</th><th>Card</th><th>Effect</th></tr>
+        <tr><td><span class="cd">PU-P01</span></td><td>🧰 Master Tradie</td><td>+10% trade income</td></tr>
+        <tr><td><span class="cd">PU-P02</span></td><td>💎 Golden Touch</td><td>+2% all returns</td></tr>
+        <tr><td><span class="cd">PU-P03</span></td><td>🛡️ Iron Body</td><td>immune injury/illness</td></tr>
+        <tr><td><span class="cd">PU-P04</span></td><td>📊 Steady Hand</td><td>crash loss halved</td></tr>
+        <tr><td><span class="cd">PU-P05</span></td><td>👑 Reputation</td><td>offensive cards hit 50%</td></tr>
+        <tr><td><span class="cd">PU-P06</span></td><td>🧲 Dealmaker</td><td>+1 auction bid power</td></tr>
+      </table>
+    </div>
+    <div class="box"><h3>🎯 Offensive one-offs</h3>
+      <table class="r"><tr><th>Code</th><th>Card</th><th>Effect</th></tr>
+        <tr><td><span class="cd">PU-O01</span></td><td>😈 Market Move</td><td>crash a rival's risky asset</td></tr>
+        <tr><td><span class="cd">PU-O02</span></td><td>⚖️ Lawsuit</td><td>rival pays you a settlement</td></tr>
+        <tr><td><span class="cd">PU-O03</span></td><td>🧲 Headhunt</td><td>secretly raise rival's lifestyle</td></tr>
+        <tr><td><span class="cd">PU-O04</span></td><td>📉 Short Sell</td><td>profit when rival's asset drops</td></tr>
+        <tr><td><span class="cd">PU-O05</span></td><td>💼 Poach</td><td>cut rival's business income</td></tr>
+        <tr><td><span class="cd">PU-O06</span></td><td>🎭 Scandal</td><td>halve rival's income this turn</td></tr>
+        <tr><td><span class="cd">PU-O07</span></td><td>🚧 Red Tape</td><td>block rival's next upgrade/buy</td></tr>
+        <tr><td><span class="cd">PU-O08</span></td><td>🪤 Audit</td><td>rival pays a surprise expense</td></tr>
+        <tr><td><span class="cd">PU-O09</span></td><td>🦅 Outbid</td><td>auto-win one auction</td></tr>
+        <tr><td><span class="cd">PU-O10</span></td><td>🔌 Jammer</td><td>cancel a power-up just played</td></tr>
+      </table>
+    </div>
+    <div class="box"><h3>🛡️💰 Support one-offs</h3>
+      <table class="o"><tr><th>Code</th><th>Card</th><th>Effect</th></tr>
+        <tr><td><span class="cd">PU-S01</span></td><td>🪖 Hard Hat</td><td>block a bad event</td></tr>
+        <tr><td><span class="cd">PU-S02</span></td><td>🏥 Safety Net</td><td>ignore next injury</td></tr>
+        <tr><td><span class="cd">PU-S03</span></td><td>🔒 Hedge</td><td>no drop in next crash</td></tr>
+        <tr><td><span class="cd">PU-S04</span></td><td>⚡ Double Down</td><td>2× one return</td></tr>
+        <tr><td><span class="cd">PU-S05</span></td><td>📈 Hot Tip</td><td>best market roll</td></tr>
+        <tr><td><span class="cd">PU-S06</span></td><td>🎟️ Grant</td><td>free upgrade</td></tr>
+        <tr><td><span class="cd">PU-S07</span></td><td>🧾 Tax Break</td><td>no expenses one year</td></tr>
+        <tr><td><span class="cd">PU-S08</span></td><td>➕ Hustle</td><td>2nd action this turn</td></tr>
+        <tr><td><span class="cd">PU-S09</span></td><td>🔄 Pivot</td><td>switch, no penalty</td></tr>
+        <tr><td><span class="cd">PU-S10</span></td><td>🎲 Copycat</td><td>copy a card just played</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">🛡️ <b>Fairness guard:</b> every offensive card has a named answer (Hard Hat / Safety Net / Hedge / 👑 Reputation / Jammer) → rock-paper-scissors, not a pile-on. One power-up per turn (+ reactive). Magnitudes capped so no single card outweighs a year of good decisions.</div>
+</section>
+
+<hr class="div">
+
+<section class="legend" id="careers">
+  <h2>🎓 The 12 Careers · coding scheme</h2>
+  <nav style="margin:6px 0 12px">
+    <a href="#TRD">🔧 Tradesperson</a><a href="#FRM">🚜 Farmer</a><a href="#TCH">👩‍🏫 Teacher</a>
+    <a href="#DOC">🩺 Doctor</a><a href="#LAW">⚖️ Lawyer</a><a href="#POL">🏛️ Politician</a>
+    <a href="#TYC">💼 Tycoon</a><a href="#BNK">📈 Inv. Banker</a><a href="#ART">🎨 Artist</a>
+    <a href="#INF">📱 Influencer</a><a href="#ATH">🏅 Athlete</a><a href="#MUS">🎵 Musician</a>
+  </nav>
+  <h2 id="legend">How to read this · coding scheme</h2>
+  <p class="note">Each career has a 3-letter prefix. Every item is coded so we can reference it precisely during balance + build.</p>
+  <ul>
+    <li><code class="k">XXX-K1…K4</code> — the 4 career <b>ranks</b> (salary tiers). Mapped onto the shared Pro&nbsp;Skills ladder: <code>K1</code>=entry (<code>PS-L01–03</code>) · <code>K2</code>=<code>PS-L04</code> · <code>K3</code>=<code>PS-L07</code> · <code>K4</code>=<code>PS-L09</code>.</li>
+    <li><code class="k">XXX-O01…</code> — <span style="color:var(--green)">Opportunities</span> (positive career events).</li>
+    <li><code class="k">XXX-R01…</code> — <span style="color:var(--red)">Risks</span> (negative career events).</li>
+    <li><b>Phase 3 reel</b> = universal life deck + the asset decks (§6) + <b>this career's</b> O/R decks.</li>
+    <li><b>Lifestyle</b> column = the auto sub-linear living cost baked into each rank (a smaller % of salary as you climb).</li>
+  </ul>
+  <p class="mini"><b>Shared Phase 2 training actions</b> (skinned per career): <code class="k">TA-MASTER</code> Pro Skills +1 (rank) · <code class="k">TA-INVEST</code> Money Smarts +1 + deploy cash · <code class="k">TA-OVERTIME</code> +flat cash, no skill · <code class="k">TA-TOOLUP</code> good debt → income boost. Career length = number of training turns.</p>
+</section>
+
+
+<!-- ===================== 1. TRADESPERSON ===================== -->
+<section class="career" id="TRD" style="--accent:#f59e0b">
+  <h2>🔧 Tradesperson <span class="code">TRD</span> <span class="gate">Gate: Grit L2</span></h2>
+  <div class="tags"><span class="tag">⏱ Earn-early</span><span class="tag">🛡 Risk: medium</span><span class="tag">💵 Debt: low</span><span class="tag">⭐ First build</span></div>
+  <p class="ident">Turn your hands into a business and assets — before your body wears out.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Apprenticeship — 3 yrs (age 17→20)</h3>
+    <span class="mini">Rising apprentice wage <b>$15K → $18K → $22K</b> · low/no debt · graduates straight into earning. The “digging up” career — investing while peers are still studying.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">TRD-K1</span></td><td>Qualified Tradesperson</td><td>$65K</td><td>$44K</td><td>entry</td></tr>
+      <tr><td><span class="cd">TRD-K2</span></td><td>Licensed Specialist</td><td>$85K</td><td>$55K</td><td>L04</td></tr>
+      <tr><td><span class="cd">TRD-K3</span></td><td>Contractor</td><td>$110K</td><td>$67K</td><td>L07</td></tr>
+      <tr><td><span class="cd">TRD-K4</span></td><td>Master Contractor</td><td>$150K</td><td>$85K</td><td>L09</td></tr>
+    </table>
+    <p class="mini">🏢 Owning a scalable trade business = separate multi-skill <b>Business asset</b>, not a rank.</p>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">TRD-O01</span></td><td>Big Tender Win</td><td>+$25K cash</td></tr>
+        <tr><td><span class="cd">TRD-O02</span></td><td>Take on Apprentices</td><td>+$8K/yr passive</td></tr>
+        <tr><td><span class="cd">TRD-O03</span></td><td>Reno Flip</td><td>+$15K (property synergy)</td></tr>
+        <tr><td><span class="cd">TRD-O04</span></td><td>Word-of-Mouth Boom</td><td>salary +15% this yr</td></tr>
+        <tr><td><span class="cd">TRD-O05</span></td><td>Go Out On Your Own</td><td>jump to Contractor early</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">TRD-R01</span></td><td>On-site Injury</td><td>−$12K (worse with age)</td></tr>
+        <tr><td><span class="cd">TRD-R02</span></td><td>Client Won't Pay</td><td>−$8K</td></tr>
+        <tr><td><span class="cd">TRD-R03</span></td><td>Construction Downturn</td><td>salary −20% this yr</td></tr>
+        <tr><td><span class="cd">TRD-R04</span></td><td>Tool Theft</td><td>−$5K</td></tr>
+        <tr><td><span class="cd">TRD-R05</span></td><td>Body Wears Down (late)</td><td>−$15K/yr if still laboring old</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> earn fast and young — but scale into a business + assets before injury and age catch up.</div>
+</section>
+
+
+<!-- ===================== 2. FARMER ===================== -->
+<section class="career" id="FRM" style="--accent:#84cc16">
+  <h2>🚜 Farmer <span class="code">FRM</span> <span class="gate">Gate: Grit L3</span></h2>
+  <div class="tags"><span class="tag">⏱ Earn-early</span><span class="tag">🛡 Risk: high (weather)</span><span class="tag">💵 Debt: moderate (land)</span></div>
+  <p class="ident">Own appreciating land; survive volatile harvests; diversify the income.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Learn the Land — 3 yrs</h3>
+    <span class="mini">Low wage + buy/inherit your <b>first land parcel</b> (good debt). Land appreciates quietly; harvest income swings wildly year to year.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">FRM-K1</span></td><td>Farmhand</td><td>$50K</td><td>$35K</td><td>entry</td></tr>
+      <tr><td><span class="cd">FRM-K2</span></td><td>Farm Manager</td><td>$75K</td><td>$48K</td><td>L04</td></tr>
+      <tr><td><span class="cd">FRM-K3</span></td><td>Landowner</td><td>$105K</td><td>$62K</td><td>L07</td></tr>
+      <tr><td><span class="cd">FRM-K4</span></td><td>Agribusiness Owner</td><td>$160K</td><td>$90K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">FRM-O01</span></td><td>Bumper Harvest</td><td>+$20K cash</td></tr>
+        <tr><td><span class="cd">FRM-O02</span></td><td>Land Value Boom</td><td>farmland +20% value</td></tr>
+        <tr><td><span class="cd">FRM-O03</span></td><td>Government Subsidy</td><td>+$10K</td></tr>
+        <tr><td><span class="cd">FRM-O04</span></td><td>Export Contract</td><td>+$12K/yr passive</td></tr>
+        <tr><td><span class="cd">FRM-O05</span></td><td>Agritourism</td><td>+$8K/yr (diversify)</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">FRM-R01</span></td><td>Drought</td><td>income −$18K</td></tr>
+        <tr><td><span class="cd">FRM-R02</span></td><td>Flood</td><td>−$15K + equipment damage</td></tr>
+        <tr><td><span class="cd">FRM-R03</span></td><td>Crop Price Crash</td><td>income −40% this yr</td></tr>
+        <tr><td><span class="cd">FRM-R04</span></td><td>Equipment Breakdown</td><td>−$10K</td></tr>
+        <tr><td><span class="cd">FRM-R05</span></td><td>Pest / Disease</td><td>−$12K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> land is a wealth-building asset that appreciates — but cash flow is at the mercy of weather. Diversify and keep reserves.</div>
+</section>
+
+
+<!-- ===================== 3. TEACHER ===================== -->
+<section class="career" id="TCH" style="--accent:#22d3ee">
+  <h2>👩‍🏫 Teacher <span class="code">TCH</span> <span class="gate">Gate: Big Brain L2</span></h2>
+  <div class="tags"><span class="tag">⏱ Mixed</span><span class="tag">🛡 Risk: low</span><span class="tag">💵 Debt: moderate</span><span class="tag">🐢 Tortoise-friendly</span></div>
+  <p class="ident">Stable, modest income with a pension — steady + frugal is a real way to win.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Teaching Degree — 4 yrs</h3>
+    <span class="mini">Part-time income, <b>moderate student debt</b>. Reliable salary on graduation with strong job security and a pension that compounds.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">TCH-K1</span></td><td>Graduate Teacher</td><td>$70K</td><td>$46K</td><td>entry</td></tr>
+      <tr><td><span class="cd">TCH-K2</span></td><td>Senior Teacher</td><td>$90K</td><td>$57K</td><td>L04</td></tr>
+      <tr><td><span class="cd">TCH-K3</span></td><td>Head of Department</td><td>$110K</td><td>$66K</td><td>L07</td></tr>
+      <tr><td><span class="cd">TCH-K4</span></td><td>Principal</td><td>$140K</td><td>$80K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">TCH-O01</span></td><td>Private Tutoring</td><td>+$8K/yr side income</td></tr>
+        <tr><td><span class="cd">TCH-O02</span></td><td>Leadership Role</td><td>salary +10%</td></tr>
+        <tr><td><span class="cd">TCH-O03</span></td><td>Education Grant</td><td>+$6K</td></tr>
+        <tr><td><span class="cd">TCH-O04</span></td><td>Pension Boost</td><td>retirement fund +$10K</td></tr>
+        <tr><td><span class="cd">TCH-O05</span></td><td>Write a Textbook</td><td>royalties +$5K/yr passive</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">TCH-R01</span></td><td>Burnout</td><td>take leave, −$8K</td></tr>
+        <tr><td><span class="cd">TCH-R02</span></td><td>Budget Cuts</td><td>no raise + −$4K</td></tr>
+        <tr><td><span class="cd">TCH-R03</span></td><td>Classroom Stress</td><td>−$5K (health)</td></tr>
+        <tr><td><span class="cd">TCH-R04</span></td><td>Relocation</td><td>moving costs −$6K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> you don't need a huge salary to get free — low lifestyle + a steady wage + a compounding pension is the tortoise's road.</div>
+</section>
+
+
+<!-- ===================== 4. DOCTOR ===================== -->
+<section class="career" id="DOC" style="--accent:#f472b6">
+  <h2>🩺 Doctor <span class="code">DOC</span> <span class="gate">Gate: Big Brain L3</span></h2>
+  <div class="tags"><span class="tag">⏱ Study-heavy</span><span class="tag">🛡 Risk: low-med</span><span class="tag">💵 Debt: HIGH</span><span class="tag">📈 Top salary</span></div>
+  <p class="ident">Years of debt, then a huge stable salary — the ultimate delayed-gratification play.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Medical School — 6 yrs</h3>
+    <span class="mini">Income <b>$0</b>, racks up <b>~$60K education debt</b>. Graduates late and indebted (~age 23) but with the highest earning ceiling in the game. The “digging out” career.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">DOC-K1</span></td><td>Intern</td><td>$90K</td><td>$62K</td><td>entry</td></tr>
+      <tr><td><span class="cd">DOC-K2</span></td><td>Resident</td><td>$130K</td><td>$85K</td><td>L04</td></tr>
+      <tr><td><span class="cd">DOC-K3</span></td><td>Specialist</td><td>$200K</td><td>$130K</td><td>L07</td></tr>
+      <tr><td><span class="cd">DOC-K4</span></td><td>Consultant Surgeon</td><td>$300K</td><td>$185K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">DOC-O01</span></td><td>Private Practice</td><td>+$30K/yr passive</td></tr>
+        <tr><td><span class="cd">DOC-O02</span></td><td>Specialization</td><td>salary +25%</td></tr>
+        <tr><td><span class="cd">DOC-O03</span></td><td>Research Grant</td><td>+$15K</td></tr>
+        <tr><td><span class="cd">DOC-O04</span></td><td>Medical Board Seat</td><td>+$10K/yr</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">DOC-R01</span></td><td>Malpractice Suit</td><td>−$40K</td></tr>
+        <tr><td><span class="cd">DOC-R02</span></td><td>Burnout (long hours)</td><td>−$15K</td></tr>
+        <tr><td><span class="cd">DOC-R03</span></td><td>Insurance Premium Hike</td><td>expenses +$8K/yr</td></tr>
+        <tr><td><span class="cd">DOC-R04</span></td><td>Registration Review</td><td>miss work, −$20K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> delayed gratification pays — but the high salary brings high lifestyle inflation. Kill the debt, resist the lifestyle, and the income engine is unmatched.</div>
+</section>
+
+
+<!-- ===================== 5. LAWYER ===================== -->
+<section class="career" id="LAW" style="--accent:#818cf8">
+  <h2>⚖️ Lawyer <span class="code">LAW</span> <span class="gate">Gate: Pro Skills L2</span></h2>
+  <div class="tags"><span class="tag">⏱ Study-heavy</span><span class="tag">🛡 Risk: medium</span><span class="tag">💵 Debt: high</span><span class="tag">🤝 Equity at top</span></div>
+  <p class="ident">Prestige + debt; making partner turns your labor into ownership.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Law School — 5 yrs</h3>
+    <span class="mini">Income <b>$0</b>, <b>~$45K debt</b>. Competitive entry, fast salary growth, and a partnership track that grants equity (passive income) at the top.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">LAW-K1</span></td><td>Associate</td><td>$80K</td><td>$54K</td><td>entry</td></tr>
+      <tr><td><span class="cd">LAW-K2</span></td><td>Lawyer</td><td>$130K</td><td>$84K</td><td>L04</td></tr>
+      <tr><td><span class="cd">LAW-K3</span></td><td>Senior Associate</td><td>$180K</td><td>$115K</td><td>L07</td></tr>
+      <tr><td><span class="cd">LAW-K4</span></td><td>Partner <span class="mini">(+equity)</span></td><td>$280K</td><td>$170K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">LAW-O01</span></td><td>Win a Big Case</td><td>+$35K</td></tr>
+        <tr><td><span class="cd">LAW-O02</span></td><td>Make Partner</td><td>equity, +$20K/yr passive</td></tr>
+        <tr><td><span class="cd">LAW-O03</span></td><td>Corporate Retainer</td><td>+$12K/yr</td></tr>
+        <tr><td><span class="cd">LAW-O04</span></td><td>Headhunted</td><td>salary +20%</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">LAW-R01</span></td><td>Lose a Case</td><td>reputation, −$15K</td></tr>
+        <tr><td><span class="cd">LAW-R02</span></td><td>Overwork Stress</td><td>−$10K</td></tr>
+        <tr><td><span class="cd">LAW-R03</span></td><td>Client Conflict</td><td>−$12K</td></tr>
+        <tr><td><span class="cd">LAW-R04</span></td><td>Disbarment Threat</td><td>−$25K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> high pay, high debt — but partnership is the goal: equity converts a salary into an <i>ownership</i> stake that pays you passively.</div>
+</section>
+
+
+<!-- ===================== 6. POLITICIAN ===================== -->
+<section class="career" id="POL" style="--accent:#fb923c">
+  <h2>🏛️ Politician <span class="code">POL</span> <span class="gate">Gate: Pro Skills L3</span></h2>
+  <div class="tags"><span class="tag">⏱ Boom/bust</span><span class="tag">🛡 Risk: high (elections)</span><span class="tag">💵 Debt: campaign</span></div>
+  <p class="ident">Reputation is your capital; income swings hard on every election.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Campaign & Early Career — 2 yrs</h3>
+    <span class="mini">Low wage + <b>campaign debt</b>. Short runway, but reputation and connections become powerful — and post-politics board seats pay for life.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder <span class="mini">(advance only by winning elections)</span></h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">POL-K1</span></td><td>Councillor</td><td>$60K</td><td>$42K</td><td>entry</td></tr>
+      <tr><td><span class="cd">POL-K2</span></td><td>Member of Parliament</td><td>$120K</td><td>$78K</td><td>L04</td></tr>
+      <tr><td><span class="cd">POL-K3</span></td><td>Minister</td><td>$200K</td><td>$130K</td><td>L07</td></tr>
+      <tr><td><span class="cd">POL-K4</span></td><td>Prime Minister</td><td>$350K</td><td>$210K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">POL-O01</span></td><td>Win the Election</td><td>jump to next rank</td></tr>
+        <tr><td><span class="cd">POL-O02</span></td><td>Approval Surge</td><td>+$15K (donations/standing)</td></tr>
+        <tr><td><span class="cd">POL-O03</span></td><td>Board Appointment</td><td>+$20K/yr passive (post-politics)</td></tr>
+        <tr><td><span class="cd">POL-O04</span></td><td>Influential Connections</td><td>better deal/auction terms</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">POL-R01</span></td><td>Lose the Election</td><td>income → $0 until next term</td></tr>
+        <tr><td><span class="cd">POL-R02</span></td><td>Scandal</td><td>−$30K + reputation</td></tr>
+        <tr><td><span class="cd">POL-R03</span></td><td>Media Storm</td><td>−$15K</td></tr>
+        <tr><td><span class="cd">POL-R04</span></td><td>Policy Backlash</td><td>approval drops, −$10K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> volatile, reputation-driven income (an election loss = $0). Build assets while you're in office so a bad term doesn't sink you.</div>
+</section>
+
+
+<!-- ===================== 7. TYCOON ===================== -->
+<section class="career" id="TYC" style="--accent:#fbbf24">
+  <h2>💼 Tycoon <span class="code">TYC</span> <span class="gate">Gate: Money Smarts L2</span></h2>
+  <div class="tags"><span class="tag">⏱ Boom/bust</span><span class="tag">🛡 Risk: high</span><span class="tag">💵 Debt: leverage</span><span class="tag">🏢 Business-native</span></div>
+  <p class="ident">Deal-maker who builds businesses and assets — leverage, high risk, high return.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Hustle into Business — 2 yrs</h3>
+    <span class="mini">Variable income + <b>startup debt</b>. Early access to the Business asset; lives and dies by leverage and timing.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">TYC-K1</span></td><td>Entrepreneur <span class="mini">(variable)</span></td><td>$60K</td><td>$42K</td><td>entry</td></tr>
+      <tr><td><span class="cd">TYC-K2</span></td><td>Business Owner</td><td>$100K</td><td>$64K</td><td>L04</td></tr>
+      <tr><td><span class="cd">TYC-K3</span></td><td>Mogul</td><td>$180K</td><td>$115K</td><td>L07</td></tr>
+      <tr><td><span class="cd">TYC-K4</span></td><td>Magnate</td><td>$300K</td><td>$180K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">TYC-O01</span></td><td>IPO / Sell a Company</td><td>+$50K windfall</td></tr>
+        <tr><td><span class="cd">TYC-O02</span></td><td>Acquisition</td><td>+$20K/yr passive</td></tr>
+        <tr><td><span class="cd">TYC-O03</span></td><td>Market Timing Win</td><td>investments +15%</td></tr>
+        <tr><td><span class="cd">TYC-O04</span></td><td>Angel Backs You</td><td>+$30K capital</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">TYC-R01</span></td><td>Business Fails</td><td>−$40K</td></tr>
+        <tr><td><span class="cd">TYC-R02</span></td><td>Overleveraged</td><td>interest spike, −$15K/yr</td></tr>
+        <tr><td><span class="cd">TYC-R03</span></td><td>Market Crash</td><td>assets −25%</td></tr>
+        <tr><td><span class="cd">TYC-R04</span></td><td>Partner Dispute</td><td>−$20K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> the fastest, swingiest path — leverage multiplies wins and losses alike. Diversify so one failure doesn't wipe you out.</div>
+</section>
+
+
+<!-- ===================== 8. INVESTMENT BANKER ===================== -->
+<section class="career" id="BNK" style="--accent:#34d399">
+  <h2>📈 Investment Banker <span class="code">BNK</span> <span class="gate">Gate: Money Smarts L3</span></h2>
+  <div class="tags"><span class="tag">⏱ Study + grind</span><span class="tag">🛡 Risk: market-linked</span><span class="tag">💵 Debt: moderate</span><span class="tag">💰 Big bonuses</span></div>
+  <p class="ident">Huge salary + bonuses, but high lifestyle and tied to the markets — invest the bonuses or lose them.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Finance Degree + Grad Program — 5 yrs</h3>
+    <span class="mini">Rising income, <b>moderate debt</b>. Brutal hours but fast money; bonuses dwarf base pay — the question is whether you save them.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">BNK-K1</span></td><td>Analyst</td><td>$100K</td><td>$68K</td><td>entry</td></tr>
+      <tr><td><span class="cd">BNK-K2</span></td><td>Associate</td><td>$160K</td><td>$104K</td><td>L04</td></tr>
+      <tr><td><span class="cd">BNK-K3</span></td><td>Vice President</td><td>$250K</td><td>$160K</td><td>L07</td></tr>
+      <tr><td><span class="cd">BNK-K4</span></td><td>Managing Director</td><td>$400K</td><td>$240K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">BNK-O01</span></td><td>Mega Bonus</td><td>+$40K cash</td></tr>
+        <tr><td><span class="cd">BNK-O02</span></td><td>Close a Huge Deal</td><td>salary +20%</td></tr>
+        <tr><td><span class="cd">BNK-O03</span></td><td>Carried Interest / Equity</td><td>+$25K/yr passive</td></tr>
+        <tr><td><span class="cd">BNK-O04</span></td><td>Market Insight</td><td>best market roll this yr</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">BNK-R01</span></td><td>Market Crash</td><td>bonus gone −$30K + assets −25%</td></tr>
+        <tr><td><span class="cd">BNK-R02</span></td><td>Layoffs</td><td>income $0 for a year</td></tr>
+        <tr><td><span class="cd">BNK-R03</span></td><td>Burnout</td><td>−$15K</td></tr>
+        <tr><td><span class="cd">BNK-R04</span></td><td>Compliance Fine</td><td>−$20K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> a giant income is wasted if lifestyle eats it. Bank the bonuses into assets — when the market turns, salary alone won't save you.</div>
+</section>
+
+
+<!-- ===================== 9. ARTIST ===================== -->
+<section class="career" id="ART" style="--accent:#e879f9">
+  <h2>🎨 Artist <span class="code">ART</span> <span class="gate">Gate: 1 talent token</span></h2>
+  <div class="tags"><span class="tag">⏱ Slow-burn</span><span class="tag">🛡 Risk: high variance</span><span class="tag">💵 Debt: low</span><span class="tag">🎨 IP / royalties</span></div>
+  <p class="ident">Lean years then breakout potential — persist, and turn art into IP that pays.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Build a Portfolio — 1–2 yrs</h3>
+    <span class="mini">Near-$0 income, low debt. Quick to enter Phase 3 but income starts tiny and is highly variable until you “make it”.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">ART-K1</span></td><td>Hobbyist</td><td>$30K</td><td>$24K</td><td>entry</td></tr>
+      <tr><td><span class="cd">ART-K2</span></td><td>Emerging Artist</td><td>$55K</td><td>$40K</td><td>L04</td></tr>
+      <tr><td><span class="cd">ART-K3</span></td><td>Established Artist</td><td>$100K</td><td>$62K</td><td>L07</td></tr>
+      <tr><td><span class="cd">ART-K4</span></td><td>Renowned Artist</td><td>$200K</td><td>$120K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">ART-O01</span></td><td>Viral Piece</td><td>+$25K</td></tr>
+        <tr><td><span class="cd">ART-O02</span></td><td>Gallery Exhibition</td><td>+$15K</td></tr>
+        <tr><td><span class="cd">ART-O03</span></td><td>Commission</td><td>+$10K</td></tr>
+        <tr><td><span class="cd">ART-O04</span></td><td>Licensing / Prints</td><td>royalties +$8K/yr passive</td></tr>
+        <tr><td><span class="cd">ART-O05</span></td><td>NFT Drop</td><td>+$20K (high variance)</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">ART-R01</span></td><td>No Sales This Year</td><td>income −$10K</td></tr>
+        <tr><td><span class="cd">ART-R02</span></td><td>Materials Cost</td><td>−$5K</td></tr>
+        <tr><td><span class="cd">ART-R03</span></td><td>Copycat / Plagiarism</td><td>−$8K</td></tr>
+        <tr><td><span class="cd">ART-R04</span></td><td>Studio Rent Hike</td><td>expenses +$4K/yr</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> survive the lean years and protect your work — IP (prints, licensing) turns one great piece into income that pays for years.</div>
+</section>
+
+
+<!-- ===================== 10. INFLUENCER ===================== -->
+<section class="career" id="INF" style="--accent:#f472b6">
+  <h2>📱 Influencer <span class="code">INF</span> <span class="gate">Gate: 1 talent token</span></h2>
+  <div class="tags"><span class="tag">⏱ Boom/bust</span><span class="tag">🛡 Risk: very high</span><span class="tag">💵 Debt: none</span><span class="tag">📱 Brand asset</span></div>
+  <p class="ident">Fast money, fickle fame — convert virality into a brand/product that outlasts the hype.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Grow Your Following — 0–1 yr</h3>
+    <span class="mini">Spiky income, no debt, almost instant entry to Phase 3. Income can explode or evaporate from one event.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder <span class="mini">(volatile)</span></h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">INF-K1</span></td><td>Micro-Influencer</td><td>$35K</td><td>$28K</td><td>entry</td></tr>
+      <tr><td><span class="cd">INF-K2</span></td><td>Rising Star</td><td>$70K</td><td>$50K</td><td>L04</td></tr>
+      <tr><td><span class="cd">INF-K3</span></td><td>Star Creator</td><td>$140K</td><td>$90K</td><td>L07</td></tr>
+      <tr><td><span class="cd">INF-K4</span></td><td>Media Mogul</td><td>$260K</td><td>$155K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">INF-O01</span></td><td>Post Goes Viral</td><td>+$30K</td></tr>
+        <tr><td><span class="cd">INF-O02</span></td><td>Brand Deal</td><td>+$20K</td></tr>
+        <tr><td><span class="cd">INF-O03</span></td><td>Launch Own Product</td><td>+$15K/yr passive</td></tr>
+        <tr><td><span class="cd">INF-O04</span></td><td>Platform Bonus</td><td>+$10K</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">INF-R01</span></td><td>Cancelled</td><td>income −40% this yr</td></tr>
+        <tr><td><span class="cd">INF-R02</span></td><td>Algorithm Change</td><td>reach drops, −$20K</td></tr>
+        <tr><td><span class="cd">INF-R03</span></td><td>Fad Fades</td><td>−$15K</td></tr>
+        <tr><td><span class="cd">INF-R04</span></td><td>Burnout / Privacy</td><td>−$10K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> attention is fragile income. Turn followers into an owned product/brand before the algorithm moves on.</div>
+</section>
+
+
+<!-- ===================== 11. PRO ATHLETE ===================== -->
+<section class="career" id="ATH" style="--accent:#60a5fa">
+  <h2>🏅 Pro Athlete <span class="code">ATH</span> <span class="gate">Gate: 2 talent tokens</span></h2>
+  <div class="tags"><span class="tag">⏱ Peak-early</span><span class="tag">🛡 Risk: injury</span><span class="tag">💵 Debt: none</span><span class="tag">⏳ Short career</span></div>
+  <p class="ident">Big money young, then it ends — earn fast, invest faster, before the body or the clock stops you.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Academy / Training — 1–2 yrs</h3>
+    <span class="mini">Fast-rising wage, no debt. The catch lives in Phase 3: <b>income peaks then declines sharply with age</b> — after ~age 35 the career effectively ends.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder <span class="mini">(peaks then falls — see ATH-R03)</span></h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">ATH-K1</span></td><td>Rookie</td><td>$80K</td><td>$58K</td><td>entry</td></tr>
+      <tr><td><span class="cd">ATH-K2</span></td><td>Pro</td><td>$150K</td><td>$100K</td><td>L04</td></tr>
+      <tr><td><span class="cd">ATH-K3</span></td><td>Star Player</td><td>$300K</td><td>$190K</td><td>L07</td></tr>
+      <tr><td><span class="cd">ATH-K4</span></td><td>Legend</td><td>$500K</td><td>$300K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">ATH-O01</span></td><td>Championship Win</td><td>+$40K</td></tr>
+        <tr><td><span class="cd">ATH-O02</span></td><td>Sponsorship Deal</td><td>+$30K/yr passive</td></tr>
+        <tr><td><span class="cd">ATH-O03</span></td><td>MVP Season</td><td>salary +25%</td></tr>
+        <tr><td><span class="cd">ATH-O04</span></td><td>Endorsement</td><td>+$20K</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">ATH-R01</span></td><td>Career-Ending Injury</td><td>salary → retirement level</td></tr>
+        <tr><td><span class="cd">ATH-R02</span></td><td>Benched / Slump</td><td>salary −30%</td></tr>
+        <tr><td><span class="cd">ATH-R03</span></td><td>Age Decline</td><td>salary −20%/yr after peak</td></tr>
+        <tr><td><span class="cd">ATH-R04</span></td><td>Scandal</td><td>lose sponsors, −$25K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> your earning window is short and can end with one injury. Convert peak earnings into assets <i>now</i> — freedom must be built before the career ends.</div>
+</section>
+
+
+<!-- ===================== 12. MUSICIAN ===================== -->
+<section class="career" id="MUS" style="--accent:#a78bfa">
+  <h2>🎵 Musician <span class="code">MUS</span> <span class="gate">Gate: 2 talent tokens</span></h2>
+  <div class="tags"><span class="tag">⏱ Slow-then-big</span><span class="tag">🛡 Risk: high variance</span><span class="tag">💵 Debt: low</span><span class="tag">🎶 Royalties = passive</span></div>
+  <p class="ident">A hit creates royalties — passive income that pays for years. The IP dream.</p>
+
+  <div class="ph2">
+    <h3>Phase 2 · Build Your Sound — 1–2 yrs</h3>
+    <span class="mini">Near-$0 (gig money), low debt. Early entry; income is small and erratic until a hit lands — then royalties keep paying.</span>
+  </div>
+
+  <div class="box">
+    <h3>Phase 3 · Rank ladder</h3>
+    <table class="k"><tr><th>Code</th><th>Rank</th><th>Salary</th><th>Lifestyle</th><th>PS</th></tr>
+      <tr><td><span class="cd">MUS-K1</span></td><td>Gigging Musician</td><td>$35K</td><td>$28K</td><td>entry</td></tr>
+      <tr><td><span class="cd">MUS-K2</span></td><td>Signed Artist</td><td>$70K</td><td>$50K</td><td>L04</td></tr>
+      <tr><td><span class="cd">MUS-K3</span></td><td>Recording Star</td><td>$150K</td><td>$95K</td><td>L07</td></tr>
+      <tr><td><span class="cd">MUS-K4</span></td><td>Superstar</td><td>$300K</td><td>$180K</td><td>L09</td></tr>
+    </table>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="box o">
+      <div class="secthead"><span class="badge b-green">🟢 Opportunities</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">MUS-O01</span></td><td>Hit Song</td><td>+$30K + royalties +$10K/yr passive</td></tr>
+        <tr><td><span class="cd">MUS-O02</span></td><td>Sold-Out Tour</td><td>+$25K</td></tr>
+        <tr><td><span class="cd">MUS-O03</span></td><td>Sync Licensing (TV/film)</td><td>royalties +$8K/yr</td></tr>
+        <tr><td><span class="cd">MUS-O04</span></td><td>Streaming Surge</td><td>+$12K</td></tr>
+      </table>
+    </div>
+    <div class="box r">
+      <div class="secthead"><span class="badge b-red">🔴 Risks</span></div>
+      <table><tr><th>Code</th><th>Event</th><th>Effect</th></tr>
+        <tr><td><span class="cd">MUS-R01</span></td><td>Album Flops</td><td>−$20K</td></tr>
+        <tr><td><span class="cd">MUS-R02</span></td><td>Label Drops You</td><td>income −$15K</td></tr>
+        <tr><td><span class="cd">MUS-R03</span></td><td>Piracy / Low Streams</td><td>royalties −50%</td></tr>
+        <tr><td><span class="cd">MUS-R04</span></td><td>Tour Cancelled</td><td>−$18K</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="lesson">💡 <b>Lesson:</b> high variance, but a hit is an <i>asset</i> — royalties are textbook passive income. Create IP that earns while you sleep.</div>
+</section>
+
+
+<hr class="div">
+<p class="note">⚙️ All salary/event numbers are <b>balance-tunable reference values</b> — the absolute scale (salaries vs the scaled-down asset prices: $100K resi / $300K commercial) gets reconciled in the balance-pass re-run. What's locked here is the <b>structure</b>: each career's identity, rank ladder, and coded O/R decks. Build order remains Tradesperson first.</p>
+
+</div>
+</body>
+</html>

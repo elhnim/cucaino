@@ -120,3 +120,23 @@ Every page imports from `@/lib/data/stub`. When Supabase is wired:
 - No page or component changes required
 
 This is the single seam between presentation and persistence.
+
+## Cucaino Park (`/park/[kidId]`) — adding fun without touching the engine
+
+Everything in the park comes from small registries. Append an entry and the engine builds,
+animates and disposes it.
+
+| Want to add… | Edit | Notes |
+|---|---|---|
+| A 3D model | `scripts/park-assets.json`, then `node scripts/park-assets.mjs` | Kenney CC0 kits; merged per kit into `public/park-assets/<kit>.glb`. |
+| A building / station | `lib/park/registry/places.ts` → `PLACES` | Give it an `action`; handle new actions in `handlePlace` in `components/park/ParkApp.tsx`. |
+| A whole land | `lib/park/registry/places.ts` → `LANDS` | A winding path from the plaza is generated through its `via` points. |
+| A Dream Park piece | `lib/park/registry/pieces.ts` → `PIECES` | Footprint in grid cells, ticket cost, optional level/streak unlock. |
+| A playable animal | `lib/park/registry/animals.ts` → `PARK_ANIMALS` | Cube Pets models; also used by the kid picker. |
+| A ride | `lib/park/rides/<ride>.ts` implementing `Ride` (see `ParkWorld.ts`) + an entry in `components/park/RidesMenu.tsx` | Loaded on demand; `world.enterRide(build)` / `exitRide()`. |
+| A game opened in-park | `components/park/RidesMenu.tsx` → `RIDES` with a `route` | Shown in the in-park window. |
+| A mini golf hole | `lib/game3d/minigolf/courses.ts` → `COURSE` | Physics is pure + tested. |
+| A treasure sticker | `lib/park/world/treasures.ts` → `STICKERS` | 6 treasures hide in new spots every day. |
+
+Performance rules: instance anything repeated, no shadow maps or post-processing, keep
+three.js and ride code out of the page's first-load JS, and check the `low` quality tier.

@@ -1,6 +1,11 @@
 "use client"
 
+// Star Pets sprite. Shows the pet as its Cucaino Park chibi (the same 3D character as in the park,
+// rendered to a flat portrait); the hand-drawn SVG below is only the fallback for devices without WebGL.
 import type { PetStage, PetMood } from "@/lib/pet/logic"
+import type { ChibiAction } from "@/lib/park/characters/animate"
+import { parkAnimalForPet } from "@/lib/park/registry/animals"
+import { ChibiPortrait } from "@/components/park/ui/ChibiPortrait"
 
 type MoodId = PetMood["id"]
 
@@ -415,7 +420,35 @@ function UnicornHeadExtras({ p }: { p: typeof DEFAULT_PAL }) {
 
 // ── Main component ───────────────────────────────────────────────────────────
 
-export default function PetSprite({ species, mood, stage, size = 180, animClass = "avatar-idle" }: Props) {
+/** mood -> the chibi pose frozen in the portrait (sad = droopy eyes + frown, sleep = eyes closed) */
+const POSE: Record<MoodId, ChibiAction> = {
+  happy: "idle",
+  ecstatic: "cheer",
+  sleeping: "sleep",
+  tired: "sad",
+  lonely: "sad",
+  starving: "sad",
+  dirty: "sad",
+}
+
+export default function PetSprite(props: Props) {
+  const { species, mood, size = 180, animClass = "avatar-idle" } = props
+  const h = Math.round(size * 1.2)
+  return (
+    <ChibiPortrait
+      id={parkAnimalForPet(species)}
+      pose={POSE[mood] ?? "idle"}
+      width={size}
+      height={h}
+      className={`inline-block select-none ${animClass}`}
+      style={{ filter: "drop-shadow(0 4px 4px rgba(0,0,0,0.16))", verticalAlign: "bottom" }}
+      fallback={<LegacyPetSprite {...props} />}
+    />
+  )
+}
+
+/** The original flat SVG pet (fallback when the chibi portrait can't be rendered). */
+export function LegacyPetSprite({ species, mood, stage, size = 180, animClass = "avatar-idle" }: Props) {
   const p = PAL[species] ?? DEFAULT_PAL
   const evolved = stage === "teen" || stage === "adult"
   const isBlack = species === "panda"

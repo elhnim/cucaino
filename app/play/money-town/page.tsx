@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getKid, listKids } from "@/lib/data/stub";
 import KidShell from "@/components/kid/KidShell";
 import MoneyTownGame from "@/components/money-town/MoneyTownGame";
@@ -9,6 +10,8 @@ export default async function MoneyTownPage({
   searchParams: Promise<{ kid?: string }>;
 }) {
   const { kid: kidId } = await searchParams;
+  // kids play this inside Cucaino Park now — send them to the park version
+  if (kidId) redirect(`/park/${kidId}?enter=money-town`);
   const [kid, kids] = await Promise.all([
     kidId ? getKid(kidId) : Promise.resolve(null),
     listKids(),

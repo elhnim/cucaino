@@ -38,7 +38,7 @@ export async function completeStory(kidId: string, storyId: string, score: numbe
   const story = getStory(storyId);
   if (!story) return { ok: false, error: "Story not found" };
 
-  const total = story.quiz.length;
+  const total = story.quiz?.length ?? 0;
   const safeScore = Math.max(0, Math.min(score, total));
   const passed = total > 0 && safeScore / total >= LIBRARY_PASS_PCT;
 
@@ -85,4 +85,52 @@ export async function completeStory(kidId: string, storyId: string, score: numbe
 
   revalidatePath("/play/library");
   return { ok: true, passed, starsAwarded, total };
+}
+
+/** Marks a no-quiz story as read and awards its starReward once. */
+export async function completeStoryRead(kidId: string, storyId: string): Promise<CompleteStoryResult> {
+  const story = getStory(storyId);
+  if (!story) return { ok: false, error: "Story not found" };
+  if ((story.quiz?.length ?? 0) > 0) return { ok: false, error: "This story has a quiz" };
+
+  const supabase = await createClient();
+  const { data: kid } = await supabase.from("kids").select("family_id").eq("id", kidId).maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const familyId = (kid as any)?.family_id;
+  if (!familyId) return { ok: false, error: "Family not found" };
+
+  const { data: existing } = await supabase
+    .from("course_progress")
+    .select("stars_awarded")
+    .eq("kid_id", kidId)
+    .eq("course_id", LIBRARY_COURSE_ID)
+    .eq("lesson_id", storyId)
+    .maybeSingle();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prevStars = (existing as any)?.stars_awarded ?? 0;
+  const starsAwarded = prevStars === 0 ? story.starReward : 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: any = {
+    family_id: familyId,
+    kid_id: kidId,
+    course_id: LIBRARY_COURSE_ID,
+    lesson_id: storyId,
+    best_score: 0,
+    total: 0,
+    stars_awarded: prevStars + starsAwarded,
+    updated_at: new Date().toISOString(),
+    completed_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase.from("course_progress").upsert(row, { onConflict: "kid_id,course_id,lesson_id" });
+  if (error) return { ok: false, error: error.message };
+
+  if (starsAwarded > 0) {
+    await supabase.rpc("increment_kid_points", { p_kid_id: kidId, p_amount: starsAwarded });
+  }
+
+  revalidatePath("/play/library");
+  return { ok: true, passed: true, starsAwarded, total: 0 };
 }

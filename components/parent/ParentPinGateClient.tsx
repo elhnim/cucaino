@@ -3,14 +3,16 @@
 import { useState, useTransition } from "react";
 import PinPad from "@/components/kid/PinPad";
 import { setParentPinDb } from "@/lib/actions/parent-settings";
+import { verifyParentPin } from "@/lib/actions/auth";
 
 const SESSION_KEY = "parent-unlocked";
 
 export default function ParentPinGateClient({
-  parentPin,
+  hasPin,
   children,
 }: {
-  parentPin: string | null;
+  /** only whether a PIN exists — the (hashed) PIN itself never leaves the server */
+  hasPin: boolean;
   children: React.ReactNode;
 }) {
   // Read sessionStorage synchronously in the lazy initializer so there's no
@@ -19,7 +21,7 @@ export default function ParentPinGateClient({
     if (typeof window === "undefined") return false;
     return sessionStorage.getItem(SESSION_KEY) === "1";
   });
-  const [currentPin, setCurrentPin] = useState(parentPin);
+  const [pinSet, setPinSet] = useState(hasPin);
   const [isPending, startTransition] = useTransition();
 
   const unlock = () => {
@@ -30,7 +32,7 @@ export default function ParentPinGateClient({
   if (unlocked) return <>{children}</>;
 
   // No PIN set — force setup before entering
-  if (!currentPin) {
+  if (!pinSet) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 flex items-start justify-center overflow-y-auto p-4 py-8">
         <div className="w-full max-w-sm">
@@ -48,7 +50,7 @@ export default function ParentPinGateClient({
             onSet={(newPin) => {
               startTransition(async () => {
                 await setParentPinDb(newPin);
-                setCurrentPin(newPin);
+                setPinSet(true);
                 unlock();
               });
             }}
@@ -72,7 +74,8 @@ export default function ParentPinGateClient({
         </div>
         <PinPad
           mode="verify"
-          expected={currentPin}
+          // checked on the server (scrypt hash) — comparing in the browser could never match
+          onVerify={async (pin) => (await verifyParentPin(pin)).ok}
           accent="#4f46e5"
           onSuccess={unlock}
         />

@@ -13,6 +13,7 @@ export default function ChatView({
   friendAvatar,
   initialMessages,
   accent,
+  onBack,
 }: {
   kidId: string;
   friendId: string;
@@ -20,6 +21,8 @@ export default function ChatView({
   friendAvatar: string;
   initialMessages: Message[];
   accent: string;
+  /** In-world use (3D Friends tower): go back to the friend list instead of browser history. */
+  onBack?: () => void;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(initialMessages);
@@ -106,7 +109,7 @@ export default function ChatView({
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => (onBack ? onBack() : router.back())}
           className="text-gray-500 font-bold text-sm px-2 py-1"
         >
           ←

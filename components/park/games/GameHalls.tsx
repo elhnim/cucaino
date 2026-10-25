@@ -1,0 +1,303 @@
+"use client";
+
+// The park-native homes of the learning & money games. Each hall is a candy hub (shelf, game
+// picker, wallet) in the park's glass style that runs the existing game components natively on a GameStage — same
+// server actions, same progress, same rewards — instead of opening the old flat pages.
+import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import { COURSES } from "@/lib/courses/registry";
+import { STORIES } from "@/lib/stories/registry";
+import { ARCADE_GAMES } from "@/lib/arcade/games";
+import { REAL_ASSETS } from "@/lib/invest/assets";
+import { convertStarsToSparks } from "@/lib/actions/arcade";
+import { getArcadeInfo, getBankData, getLearnProgress, getLibraryProgress, getMoneyTownKids } from "@/lib/actions/park-games";
+import { playSfx } from "@/lib/audio/sound-manager";
+import type { Kid } from "@/lib/domain/types";
+import { GameStage } from "./GameStage";
+import { CandyButton } from "../ui/CandySheet";
+import { C, alpha, cardStyle, display } from "../ui/theme";
+import { IconChip } from "../ui/IconChip";
+
+const CourseClient = dynamic(() => import("@/components/course/CourseClient"), { ssr: false });
+const StoryLibrary = dynamic(() => import("@/components/library/StoryLibrary"), { ssr: false });
+const MoneyTownGame = dynamic(() => import("@/components/money-town/MoneyTownGame"), { ssr: false });
+const InvestHub = dynamic(() => import("@/components/invest/InvestHub"), { ssr: false });
+const ARCADE_COMPONENTS = {
+  "emoji-story": dynamic(() => import("@/components/arcade/games/EmojiStory"), { ssr: false }),
+  "what-am-i": dynamic(() => import("@/components/arcade/games/WhatAmI"), { ssr: false }),
+  "stump-the-ai": dynamic(() => import("@/components/arcade/games/StumpTheAI"), { ssr: false }),
+  "doodle-guess": dynamic(() => import("@/components/arcade/games/DoodleGuess"), { ssr: false }),
+  "mystery-detective": dynamic(() => import("@/components/arcade/games/MysteryDetective"), { ssr: false }),
+} as const;
+
+export type HallKind = "learn" | "library" | "theatre" | "arcade" | "money-town" | "bank";
+
+export function GameHall({ kind, kidId, onClose }: { kind: HallKind; kidId: string; onClose: () => void }) {
+  if (kind === "learn") return <LearnHall kidId={kidId} onClose={onClose} />;
+  if (kind === "library") return <LibraryHall kidId={kidId} onClose={onClose} books />;
+  if (kind === "theatre") return <LibraryHall kidId={kidId} onClose={onClose} />;
+  if (kind === "arcade") return <ArcadeHall kidId={kidId} onClose={onClose} />;
+  if (kind === "money-town") return <MoneyTownHall kidId={kidId} onClose={onClose} />;
+  return <BankHall kidId={kidId} onClose={onClose} />;
+}
+
+// ── 🎓 Learn: a candy shelf of mini-courses ──
+function LearnHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
+  const [courseId, setCourseId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<Awaited<ReturnType<typeof getLearnProgress>> | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  useEffect(() => {
+    if (!courseId) return;
+    setProgress(null);
+    setLoadFailed(false);
+    getLearnProgress(kidId, courseId)
+      .then(setProgress)
+      .catch(() => setLoadFailed(true));
+  }, [kidId, courseId, retryKey]);
+  const course = COURSES.find((c) => c.id === courseId);
+  return (
+    <GameStage title={course ? `${course.emoji} ${course.title}` : "🎓 Learning Tree"} color="#f43f5e" onClose={onClose} onBack={course ? () => setCourseId(null) : undefined}>
+      {course ? (
+        progress ? (
+          <CourseClient course={course} kidId={kidId} initialProgress={progress} />
+        ) : loadFailed ? (
+          <LoadError onRetry={() => setRetryKey((k) => k + 1)} />
+        ) : (
+          <Loading />
+        )
+      ) : (
+        <Shelf intro="Mini-courses from the best books — read, take the quiz, earn ⭐ stars!">
+          {COURSES.map((c) => (
+            <ShelfCard key={c.id} emoji={c.emoji} title={c.title} sub={`${c.subtitle} · ${c.lessons.length} lessons`} color="#f43f5e" onClick={() => setCourseId(c.id)} />
+          ))}
+        </Shelf>
+      )}
+    </GameStage>
+  );
+}
+
+// ── 📚 Library (chapter books) and 🎭 Story Theatre (fables, myths and short tales) ──
+const CHAPTER_BOOKS = STORIES.filter((s) => s.chapters?.length);
+const SHORT_TALES = STORIES.filter((s) => !s.chapters?.length);
+function LibraryHall({ kidId, onClose, books }: { kidId: string; onClose: () => void; books?: boolean }) {
+  const [progress, setProgress] = useState<Awaited<ReturnType<typeof getLibraryProgress>> | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  useEffect(() => {
+    setProgress(null);
+    setLoadFailed(false);
+    getLibraryProgress(kidId)
+      .then(setProgress)
+      .catch(() => setLoadFailed(true));
+  }, [kidId, retryKey]);
+  return (
+    <GameStage title={books ? "📚 Library" : "🎭 Story Theatre"} color={books ? "#0ea5e9" : "#e84a8a"} onClose={onClose}>
+      {progress ? (
+        <StoryLibrary
+          stories={books ? CHAPTER_BOOKS : SHORT_TALES}
+          kidId={kidId}
+          initialProgress={progress}
+          title={books ? "📚 Story Library" : "🎭 Story Theatre"}
+        />
+      ) : loadFailed ? (
+        <LoadError onRetry={() => setRetryKey((k) => k + 1)} />
+      ) : (
+        <Loading />
+      )}
+    </GameStage>
+  );
+}
+
+// ── 🕹️ AI Arcade: sparks wallet + game picker ──
+function ArcadeHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
+  const [info, setInfo] = useState<{ sparks: number; stars: number } | null>(null);
+  const [game, setGame] = useState<keyof typeof ARCADE_COMPONENTS | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const reload = () => getArcadeInfo(kidId).then(setInfo);
+  useEffect(() => {
+    void reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kidId]);
+  const convert = async (stars: number) => {
+    const res = await convertStarsToSparks(kidId, stars);
+    if (!res.ok) {
+      setMsg(res.error);
+      playSfx("wrong");
+      return;
+    }
+    playSfx("coin");
+    setMsg(`+${stars * 5} ⚡ sparks!`);
+    window.dispatchEvent(new CustomEvent("stars-spent", { detail: { amount: stars } }));
+    void reload();
+  };
+  const def = game ? ARCADE_GAMES.find((g) => g.id === game) : null;
+  const Game = game ? ARCADE_COMPONENTS[game] : null;
+  return (
+    <GameStage
+      title={def ? `${def.emoji} ${def.name}` : "🕹️ AI Arcade"}
+      color="#06b6d4"
+      onClose={onClose}
+      onBack={game ? () => { setGame(null); void reload(); } : undefined}
+    >
+      {Game && info ? (
+        <div style={{ maxWidth: 720, margin: "0 auto", padding: 12 }}>
+          <Game kidId={kidId} sparksBalance={info.sparks} />
+        </div>
+      ) : !info ? (
+        <Loading />
+      ) : (
+        <Shelf intro="Brain games powered by AI. Each game costs a few ⚡ sparks — turn your stars into sparks here.">
+          <div style={{ ...wallet, gridColumn: "1 / -1" }}>
+            <div style={display(22, C.cyan)}>
+              ⚡ {info.sparks} sparks <span style={{ fontSize: 13, color: C.dim, fontFamily: "inherit" }}>· ⭐ {info.stars} stars · 1 ⭐ = 5 ⚡</span>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[1, 3, 5].map((n) => (
+                <CandyButton key={n} small color="#06b6d4" disabled={info.stars < n} onClick={() => convert(n)}>
+                  ⭐{n} → ⚡{n * 5}
+                </CandyButton>
+              ))}
+            </div>
+            {msg && <div style={{ fontWeight: 900, color: C.gold }}>{msg}</div>}
+          </div>
+          {ARCADE_GAMES.map((g) => (
+            <ShelfCard
+              key={g.id}
+              emoji={g.emoji}
+              title={g.name}
+              sub={`${g.tagline} · ⚡${g.sparkCost}`}
+              color="#06b6d4"
+              locked={info.sparks < g.sparkCost}
+              onClick={() => g.id in ARCADE_COMPONENTS && setGame(g.id as keyof typeof ARCADE_COMPONENTS)}
+            />
+          ))}
+        </Shelf>
+      )}
+    </GameStage>
+  );
+}
+
+// ── 💰 Money Town: the family board game ──
+function MoneyTownHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
+  const [kids, setKids] = useState<Kid[] | null>(null);
+  useEffect(() => {
+    getMoneyTownKids().then(setKids);
+  }, []);
+  return (
+    <GameStage title="💰 Money Town" color="#eab308" onClose={onClose}>
+      {kids ? <div style={{ height: "100%" }}><MoneyTownGame kids={kids} activeKidId={kidId} /></div> : <Loading />}
+    </GameStage>
+  );
+}
+
+// ── 🏦 The Bank: real-money investing, still switched on by a grown-up ──
+function BankHall({ kidId, onClose }: { kidId: string; onClose: () => void }) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof getBankData>> | "loading">("loading");
+  useEffect(() => {
+    getBankData(kidId).then(setData);
+  }, [kidId]);
+  return (
+    <GameStage title="🏦 The Bank" color="#4f46e5" onClose={onClose}>
+      {data === "loading" ? (
+        <Loading />
+      ) : !data || !data.enabled ? (
+        <div style={{ maxWidth: 460, margin: "40px auto", textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 64 }}>🔒</div>
+          <div style={{ ...display(24, "#241c4d") }}>The Bank is locked</div>
+          <p style={{ fontWeight: 800, color: "#5b5486" }}>Ask a grown-up to switch on investing when your family is ready for real money ups and downs. Until then, practise in the Nugget Market! 📈</p>
+        </div>
+      ) : (
+        <InvestHub kid={data.kid} account={data.account} licence={data.licence} holdings={data.holdings} transactions={data.transactions} prices={data.prices} assets={REAL_ASSETS} />
+      )}
+    </GameStage>
+  );
+}
+
+// ── shared bits ──
+function Loading() {
+  return <div style={{ textAlign: "center", padding: "48px 0", fontWeight: 900, color: "#6a64a0", fontSize: 18 }}>✨ Loading…</div>;
+}
+
+/** Shown instead of an endless spinner when the initial progress fetch fails — kid-friendly, with a retry. */
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div style={{ textAlign: "center", padding: "48px 16px" }}>
+      <div style={{ fontSize: 40, marginBottom: 8 }}>😕</div>
+      <div style={{ ...display(18, "#241c4d") }}>Couldn&apos;t load — check your connection</div>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="gp-press"
+        style={{
+          marginTop: 14,
+          ...cardStyle("#f43f5e", "rgba(30,27,74,0.9)"),
+          borderRadius: 14,
+          padding: "10px 20px",
+          fontWeight: 900,
+          color: "#fff",
+          cursor: "pointer",
+        }}
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
+function Shelf({ intro, children }: { intro: string; children: React.ReactNode }) {
+  return (
+    <div style={shelfFloor}>
+      <div style={shelf}>
+        <p style={{ fontWeight: 800, color: C.dim, marginTop: 0 }}>{intro}</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ShelfCard({ emoji, title, sub, color, locked, onClick }: { emoji: string; title: string; sub: string; color: string; locked?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="gp-press"
+      style={{
+        ...cardStyle(color, "rgba(30,27,74,0.9)"),
+        borderRadius: 16,
+        padding: 12,
+        textAlign: "left",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        boxShadow: `0 6px 16px rgba(0,0,0,0.35), 0 0 14px ${alpha(color, 0.25)}`,
+        cursor: "pointer",
+        opacity: locked ? 0.6 : 1,
+      }}
+    >
+      <IconChip color={color} size={56} style={{ fontSize: 30 }}>
+        {emoji}
+      </IconChip>
+      <div style={{ minWidth: 0 }}>
+        <div style={display(18)}>{title}</div>
+        <div style={{ fontWeight: 700, fontSize: 12.5, color: C.dim, marginTop: 2 }}>{locked ? "🔒 Need more ⚡ sparks" : sub}</div>
+      </div>
+    </button>
+  );
+}
+
+const wallet: React.CSSProperties = {
+  ...cardStyle(C.cyan, "rgba(18,40,70,0.85)"),
+  borderRadius: 16,
+  padding: 14,
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+};
+/** the hall picker screens sit on a dark glass floor (the games themselves keep their light skin) */
+const shelfFloor: React.CSSProperties = {
+  minHeight: "100%",
+  background: "radial-gradient(120% 70% at 50% 0%, #2c2572, #120f33 65%)",
+  color: C.text,
+};
+const shelf: React.CSSProperties = { maxWidth: 860, margin: "0 auto", padding: 16 };

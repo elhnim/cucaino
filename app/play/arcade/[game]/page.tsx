@@ -4,11 +4,10 @@ import { getKid } from "@/lib/data/stub";
 import KidShell from "@/components/kid/KidShell";
 import GameShell from "@/components/arcade/GameShell";
 import EmojiStory from "@/components/arcade/games/EmojiStory";
-import WouldYouRather from "@/components/arcade/games/WouldYouRather";
 import WhatAmI from "@/components/arcade/games/WhatAmI";
-import WordDetective from "@/components/arcade/games/WordDetective";
 import StumpTheAI from "@/components/arcade/games/StumpTheAI";
-import AILieDetector from "@/components/arcade/games/AILieDetector";
+import DoodleGuess from "@/components/arcade/games/DoodleGuess";
+import MysteryDetective from "@/components/arcade/games/MysteryDetective";
 import type { ReactNode } from "react";
 
 export default async function ArcadeGamePage({
@@ -31,16 +30,14 @@ export default async function ArcadeGamePage({
   let gameComponent: ReactNode;
   if (gameSlug === "emoji-story") {
     gameComponent = <EmojiStory kidId={kidIdStr} sparksBalance={sparksBalance} />;
-  } else if (gameSlug === "would-you-rather") {
-    gameComponent = <WouldYouRather kidId={kidIdStr} sparksBalance={sparksBalance} />;
   } else if (gameSlug === "what-am-i") {
     gameComponent = <WhatAmI kidId={kidIdStr} sparksBalance={sparksBalance} />;
-  } else if (gameSlug === "word-detective") {
-    gameComponent = <WordDetective kidId={kidIdStr} sparksBalance={sparksBalance} />;
   } else if (gameSlug === "stump-the-ai") {
     gameComponent = <StumpTheAI kidId={kidIdStr} sparksBalance={sparksBalance} />;
-  } else if (gameSlug === "ai-lie-detector") {
-    gameComponent = <AILieDetector kidId={kidIdStr} sparksBalance={sparksBalance} />;
+  } else if (gameSlug === "doodle-guess") {
+    gameComponent = <DoodleGuess kidId={kidIdStr} sparksBalance={sparksBalance} />;
+  } else if (gameSlug === "mystery-detective") {
+    gameComponent = <MysteryDetective kidId={kidIdStr} sparksBalance={sparksBalance} />;
   } else {
     notFound();
     return null;

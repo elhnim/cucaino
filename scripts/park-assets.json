@@ -1,0 +1,66 @@
+{
+  "_comment": "Kenney CC0 kits used by Cucaino Park. Add a model id to a kit's list, then run `node scripts/park-assets.mjs` to rebuild public/park/**. Kits merge into one meshopt-compressed .glb each; 'separate' kits (animated animals) get one file per model.",
+  "kits": {
+    "coaster": {
+      "zip": "https://kenney.nl/media/pages/assets/coaster-kit/546fdc554f-1731487890/kenney_coaster-kit.zip",
+      "dir": "Models/GLB format",
+      "models": [
+        "park-entrance", "stall-food", "stall-drinks", "stall-information", "stall-toilets",
+        "bench", "trash", "flowers", "grass", "tree", "tree-large",
+        "path-straight", "path-corner", "path-crossing", "path-split", "path-exit", "path-steps",
+        "station", "ride-entrance", "ride-exit", "coaster-train-front", "coaster-train"
+      ]
+    },
+    "town": {
+      "zip": "https://kenney.nl/media/pages/assets/fantasy-town-kit/efe948d309-1754222374/kenney_fantasy-town-kit_2.0.zip",
+      "dir": "Models/GLB format",
+      "models": [
+        "fountain-round-detail", "stall", "stall-red", "stall-green", "stall-bench",
+        "banner-red", "banner-green", "lantern", "hedge", "hedge-curved", "cart", "windmill",
+        "tree-high-round", "fence", "rock-large"
+      ]
+    },
+    "holiday": {
+      "zip": "https://kenney.nl/media/pages/assets/holiday-kit/3976a6496a-1733923970/kenney_holiday-kit.zip",
+      "dir": "Models/GLB format",
+      "models": [
+        "candy-cane-red", "candy-cane-green", "present-a-cube", "present-a-round", "present-b-cube",
+        "present-b-rectangle", "gingerbread-man", "gingerbread-woman", "lights-colored", "lantern-hanging"
+      ]
+    },
+    "food": {
+      "zip": "https://kenney.nl/media/pages/assets/food-kit/83086fa91c-1719418518/kenney_food-kit.zip",
+      "dir": "Models/GLB format",
+      "models": [
+        "lollypop", "cupcake", "donut-sprinkles", "donut-chocolate", "ice-cream", "ice-cream-cne", "sundae",
+        "cake-birthday", "candy-bar", "cookie-chocolate", "popsicle", "strawberry", "cherries",
+        "watermelon", "muffin", "whipped-cream"
+      ]
+    },
+    "city": {
+      "zip": "https://kenney.nl/media/pages/assets/city-kit-commercial/a742d900eb-1753115042/kenney_city-kit-commercial_2.1.zip",
+      "dir": "Models/GLB format",
+      "models": ["building-a", "building-c", "building-e", "building-g", "building-k", "detail-awning", "detail-parasol-a"]
+    },
+    "nature": {
+      "zip": "https://kenney.nl/media/pages/assets/nature-kit/37ac38a37b-1677698939/kenney_nature-kit.zip",
+      "dir": "Models/GLTF format",
+      "models": [
+        "tree_default", "tree_oak", "tree_fat", "tree_blocks", "tree_cone", "plant_bush", "plant_bushLarge",
+        "flower_purpleA", "flower_redA", "flower_yellowA", "mushroom_red", "mushroom_redGroup",
+        "mushroom_tanTall", "grass_large", "lily_large", "stump_round"
+      ]
+    },
+    "pets": {
+      "zip": "https://kenney.nl/media/pages/assets/cube-pets/44e58e945f-1774520254/kenney_cube-pets_1.0.zip",
+      "dir": "Models/GLB format",
+      "separate": true,
+      "models": [
+        "animal-beaver", "animal-bee", "animal-bunny", "animal-cat", "animal-caterpillar", "animal-chick",
+        "animal-cow", "animal-crab", "animal-deer", "animal-dog", "animal-elephant", "animal-fish",
+        "animal-fox", "animal-giraffe", "animal-hog", "animal-koala", "animal-lion", "animal-monkey",
+        "animal-panda", "animal-parrot", "animal-penguin", "animal-pig", "animal-polar", "animal-tiger"
+      ]
+    }
+  }
+}

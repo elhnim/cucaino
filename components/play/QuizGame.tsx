@@ -37,12 +37,15 @@ export default function QuizGame({
   players,
   backHref = "/play/quiz",
   soloPlayerId,
+  onExit,
 }: {
   bankName: string;
   questions: Question[];
   players: Player[];
   backHref?: string;
   soloPlayerId?: string;
+  /** In-world use (3D Play Hall): leave the quiz without navigating away from the world. */
+  onExit?: () => void;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("setup");
@@ -152,9 +155,10 @@ export default function QuizGame({
 
   const handleQuit = useCallback(() => {
     if (window.confirm("Quit the quiz? Your progress will be lost.")) {
-      router.push(backHref);
+      if (onExit) onExit();
+      else router.push(backHref);
     }
-  }, [router, backHref]);
+  }, [router, backHref, onExit]);
 
   // ---------- SETUP ----------
   if (mode === "setup") {
@@ -163,9 +167,7 @@ export default function QuizGame({
         <GameAudio track="quiz" className="fixed top-16 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
         <GameFullscreen className="fixed top-[112px] right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-          <Link href={backHref} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
-            ← Back to quizzes
-          </Link>
+          <BackLink href={backHref} onExit={onExit}>← Back to quizzes</BackLink>
           <span className="font-black text-gray-900 truncate px-2">{bankName}</span>
           <div className="w-24" />
         </header>
@@ -390,9 +392,7 @@ export default function QuizGame({
       <GameAudio track="quiz" className="fixed top-16 right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       <GameFullscreen className="fixed top-[112px] right-3 z-30 w-10 h-10 rounded-full bg-white/80 backdrop-blur shadow flex items-center justify-center text-lg active:scale-95 transition-transform" />
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-        <Link href={backHref} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
-          ← Quizzes
-        </Link>
+        <BackLink href={backHref} onExit={onExit}>← Quizzes</BackLink>
         <span className="font-black text-gray-900">{bankName}</span>
         <div className="w-16" />
       </header>
@@ -432,5 +432,20 @@ export default function QuizGame({
         </div>
       </div>
     </div>
+  );
+}
+
+function BackLink({ href, onExit, children }: { href: string; onExit?: () => void; children: React.ReactNode }) {
+  if (onExit) {
+    return (
+      <button type="button" onClick={onExit} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={href} className="text-sm font-bold text-gray-600 hover:text-gray-900 flex items-center gap-1">
+      {children}
+    </Link>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createTycoonHost } from "@/lib/games/harbour-city/host";
+import { isEmbedded, closeWorldWindow } from "@/lib/embed";
 
 /**
  * Full-screen Harbour City Tycoon. The game itself is a self-contained three.js page in
@@ -20,7 +21,9 @@ export default function HarbourCity({ kidId, kidName, familyId }: { kidId: strin
       familyId,
       kidId,
       kidName,
-      onExit: () => router.push(`/kid/${kidId}/play`),
+      // Opened from the park's Rides & Games window: just close that window. Otherwise go
+      // back to the play hub (which lives in the park now).
+      onExit: () => (isEmbedded() ? closeWorldWindow() : router.push(`/park/${kidId}?enter=rides`)),
     });
     (window as unknown as { __tycoonHost?: unknown }).__tycoonHost = host;
     setReady(true);

@@ -92,7 +92,10 @@ export default function AssetDetailSheet({
     startBuyTransition(async () => {
       const result = await buyAsset(kidId, asset.symbol, quantity);
       if (!result.ok) setError(result.error);
-      else playSfx("coin");
+      else {
+        playSfx("coin");
+        onClose();
+      }
     });
   }
 
@@ -102,7 +105,10 @@ export default function AssetDetailSheet({
     startSellTransition(async () => {
       const result = await sellAsset(kidId, asset.symbol, quantity);
       if (!result.ok) setError(result.error);
-      else playSfx("coin");
+      else {
+        playSfx("coin");
+        onClose();
+      }
     });
   }
 
@@ -249,6 +255,7 @@ export default function AssetDetailSheet({
                 </label>
                 <input
                   type="number"
+                  inputMode="decimal"
                   min={0.1}
                   step={0.1}
                   value={quantity}
@@ -257,6 +264,9 @@ export default function AssetDetailSheet({
                   }
                   className="w-full border border-gray-300 rounded-xl px-3 py-2 text-lg font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-400"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  You can buy fractions, like 0.5 or 0.1 shares.
+                </p>
               </div>
 
               {/* Cost preview */}

@@ -14,7 +14,7 @@ export default async function ParentLayout({
     getFamily(),
   ]);
   return (
-    <ParentPinGateClient parentPin={parentPin}>
+    <ParentPinGateClient hasPin={!!parentPin}>
       <ParentShell
         pendingCount={pending.length}
         displayName={family?.parentDisplayName ?? null}

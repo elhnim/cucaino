@@ -35,6 +35,11 @@ yarn-error.log*
 # netlify (local build cache from `netlify build`/`netlify dev`)
 .netlify
 
+# Gutenberg import pipeline (regenerable — see scripts/lookup-books.mjs / import-books.mjs)
+.gutenberg-cache/
+scripts/books-manifest.json
+scripts/import-results.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -60,3 +65,16 @@ public/swe-worker-*.js
 mockups/2026-06-12-game-world/canvas-smoke.js
 mockups/2026-06-12-game-world/game/
 mockups/2026-06-12-game-world/smoke-*.png
+
+# Cucaino Park asset pipeline download cache (scripts/park-assets.mjs)
+.park-assets-cache/
+
+# local scratch: dev logs, screenshots, mockup images, brainstorm output, unused art
+.next-*.log
+.next-*.err.log
+screenshots/
+mockups/2026-06-12-cartoon-pet-art/
+mockups/2026-06-12-game-world/
+mockups/2026-06-12-pixel-pet-art/
+.superpowers/
+public/game/

@@ -21,9 +21,9 @@ export interface LibraryStory {
   /** Collection this story belongs to, e.g. "Aesop's Fables". */
   collection: string;
   title: string;
-  emoji: string;
-  /** Emoji scene used as the storybook banner. */
-  illustration: string;
+  /** Legacy emoji fields — unused now that covers are generated (see BookCover). */
+  emoji?: string;
+  illustration?: string;
   level: string;
   minutes: number;
   /** Single-read stories use paragraphs… */
@@ -32,7 +32,8 @@ export interface LibraryStory {
   chapters?: StoryChapter[];
   author?: string;
   moral?: string;
-  quiz: StoryQuestion[];
-  /** Stars awarded the first time the comprehension quiz is passed. */
+  /** Omit (or leave empty) for stories that award stars on finishing the read, with no quiz gate. */
+  quiz?: StoryQuestion[];
+  /** Stars awarded the first time the story is completed (quiz passed, or read to the end if no quiz). */
   starReward: number;
 }
