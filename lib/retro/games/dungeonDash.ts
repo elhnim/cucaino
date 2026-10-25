@@ -3,7 +3,8 @@
 // gems, push a block onto a switch, find three keys for the locked doors, beat the
 // Goo Giant (it splits when hit hard!) and grab the Golden Star.
 // (Original game in the spirit of 8-bit top-down adventures.)
-import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { H, PAL, W, clamp, overlap, rng, sprite, spriteH, spriteW, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, fbm, hash2, shade, tinted } from "../art";
 
 const T = 16;
 const COLS = 16;
@@ -120,16 +121,26 @@ const HP_ = { k: PAL.black, b: PAL.blue, w: PAL.white, s: PAL.tan, o: PAL.orange
 const HERO_DOWN = sprite(["...kkkkkk...", "..kbbbbbbk..", ".kbbwbbbbbk.", ".kbbbbbbbbk.", ".kssssssssk.", ".kskssssksk.", ".kssssssssk.", "..kooooook..", ".kbbbbbbbbk.", "ksbbbbbbbbsk", ".kbbk..kbbk.", "..kk....kk.."], HP_);
 const HERO_UP = sprite(["...kkkkkk...", "..kbbbbbbk..", ".kbbwbbbbbk.", ".kbbbbbbbbk.", ".kbbbbbbbbk.", ".kbbbbbbbbk.", ".kbbbbbbbbk.", "..kooooook..", ".kbbbbbbbbk.", "ksbbbbbbbbsk", ".kbbk..kbbk.", "..kk....kk.."], HP_);
 const HERO_SIDE = sprite(["...kkkkk....", "..kbbbbbk...", ".kbbwbbbbk..", ".kbbbbbbbbk.", ".kbbbsssssk.", ".kbbssssksk.", ".kbbsssssk..", "..kooooook..", "..kbbbbbk...", "..ksbbbbk...", "..kbbkbbk...", "..kk..kk...."], HP_);
+/** replace one character of a fixed-width ascii row by index (safer than hand-retyping strings) */
+const setCh = (row: string, i: number, ch: string) => row.slice(0, i) + ch + row.slice(i + 1);
 const slimeSprites = (body: string, shine: string) => {
-  const p = { k: PAL.black, g: body, w: shine };
-  return [
-    sprite(["....kkkk....", "..kkggggkk..", ".kgwwgggggk.", "kgwggggggggk", "kggkggggkggk", "kggkggggkggk", "kggggggggggk", "kggggkkggggk", ".kggggggggk.", "..kkkkkkkk.."], p),
-    sprite(["............", "............", "...kkkkkk...", ".kkggggggkk.", "kgwwgggggggk", "kggkggggkggk", "kggkggggkggk", "kggggkkggggk", "kggggggggggk", ".kkkkkkkkkk."], p),
-  ];
+  const p = { k: PAL.black, g: body, w: shine, e: "#140c28" };
+  const f0 = ["....kkkk....", "..kkggggkk..", ".kgwwgggggk.", "kgwggggggggk", "kggkggggkggk", "kggkggggkggk", "kggggggggggk", "kggggkkggggk", ".kggggggggk.", "..kkkkkkkk.."];
+  const f1 = ["............", "............", "...kkkkkk...", ".kkggggggkk.", "kgwwgggggggk", "kggkggggkggk", "kggkggggkggk", "kggggkkggggk", "kggggggggggk", ".kkkkkkkkkk."];
+  // a round goo face: two dot eyes over a tiny dark mouth notch, built by index so the
+  // silhouette (and row widths) never drift from the hand-tuned art above
+  const addFace = (rows: string[], eyeRow: number, mouthRow: number) => {
+    const out = [...rows];
+    out[eyeRow] = setCh(setCh(out[eyeRow], 3, "e"), 8, "e");
+    out[eyeRow + 1] = setCh(setCh(out[eyeRow + 1], 3, "e"), 8, "e");
+    out[mouthRow] = setCh(setCh(out[mouthRow], 5, "e"), 6, "e");
+    return out;
+  };
+  return [sprite(addFace(f0, 4, 7), p), sprite(addFace(f1, 5, 7), p)];
 };
 const SLIME = slimeSprites(PAL.green, PAL.lime);
-const KING = slimeSprites(PAL.purple, PAL.pink);
-const BP_ = { k: PAL.black, p: PAL.purple, w: PAL.yellow };
+const KING = slimeSprites(PAL.lime, "#eeffc4"); // the Goo Giant family: a brighter, glowing green so it reads as the big feature slime, not a recolour of the small ones
+const BP_ = { k: PAL.black, p: shade(PAL.purple, -0.3), w: PAL.yellow };
 const BAT = [
   sprite(["k..........k", "kk........kk", "kpk.kkkk.kpk", "kppkppppkppk", ".kppwppwppk.", "..kppppppk..", "...kpkkpk...", "....k..k...."], BP_),
   sprite(["............", "....kkkk....", "...kppppk...", "kkkpwppwpkkk", "kppppppppppk", "kpk.kppk.kpk", "k....kk....k", "............"], BP_),
@@ -139,9 +150,117 @@ const SKEL = [
   sprite(["...kkkkkk...", "..kwwwwwwk..", ".kwrkwwkrwk.", ".kwwwwwwwwk.", "..kwkwkwkk..", "...kkkkkk...", "..kggggggk..", ".kgkwwwwkgk.", "kgkkwwwwkkgk", "kk.kwwwwk.kk", "...kwwwwk...", "...kwkkwk...", "...kwk.kwk..", "..kkk..kkk.."], SKP),
   sprite(["...kkkkkk...", "..kwwwwwwk..", ".kwrkwwkrwk.", ".kwwwwwwwwk.", "..kwkwkwkk..", "...kkkkkk...", "..kggggggk..", ".kgkwwwwkgk.", "kgkkwwwwkkgk", "kk.kwwwwk.kk", "...kwwwwk...", "...kwkkwk...", "..kwk..kwk..", "..kkk...kkk."], SKP),
 ];
-const BOOMER = sprite(["kkk.....", "kyyk....", "kyyyk...", ".kyyyk..", "..kyyyk.", "...kyyk.", "..kyyk..", ".kkkk..."], { k: PAL.black, y: PAL.orange });
-const GEM = sprite(["..kk..", ".kcck.", "kcwcck", "kcccck", ".kcck.", "..kk.."], { k: PAL.black, c: PAL.cyan, w: PAL.white });
-const KEY = sprite([".kkk....", "kyyyk...", "kykykkkk", "kyyyyyyk", ".kkkkyky", "....kkk."], { k: PAL.black, y: PAL.yellow });
+// a brief white hit-flash (instead of blinking the enemy away to nothing) when something is hurt
+const WHITE_SLIME = SLIME.map((s) => tinted(s, "#ffffff"));
+const WHITE_KING = KING.map((s) => tinted(s, "#ffffff"));
+const WHITE_BAT = BAT.map((s) => tinted(s, "#ffffff"));
+const WHITE_SKEL = SKEL.map((s) => tinted(s, "#ffffff"));
+const BOOMER = sprite(["kkkk.....", "kyywk....", "kyyywk...", ".kyyywk..", "..kyyywk.", "...kyywk.", "..kyywk..", ".kkkkk..."], { k: PAL.black, y: PAL.orange, w: PAL.yellow });
+const GEM = sprite(["..kk..", ".kwck.", "kcwcck", "kcccck", ".kcdk.", "..kk.."], { k: PAL.black, c: PAL.cyan, w: PAL.white, d: shade(PAL.cyan, -0.3) });
+const RGEM = sprite(["..kk..", ".kwck.", "kcwcck", "kcccck", ".kcdk.", "..kk.."], { k: PAL.black, c: PAL.red, w: PAL.white, d: shade(PAL.red, -0.3) });
+const KEY = sprite([".kkk....", "kyyyk...", "kywykkkk", "kyyyyyyk", ".kkkkyky", "....kkk."], { k: PAL.black, y: PAL.yellow, w: shade(PAL.yellow, 0.35) });
+
+// ── lazily-baked backdrop art (one drawImage per tile after the first bake) ──
+// the painting is cold SLATE blue-grey stone (sampled from tiles/dungeonDash.png), never purple
+const STONE = "#2d3340"; // dark ashlar wall background
+const BLOCK = "#5b6472"; // lit grey-blue block face (pilasters + interior pillars)
+const WATER_C = "#1a5186";
+function bakeFloor(variant: 0 | 1): Sprite {
+  const base = variant ? "#3a4150" : "#343b49";
+  const light = shade(base, 0.22);
+  const dark = shade(base, -0.28);
+  const mortar = shade(base, -0.42);
+  return bake(T, T, (x, y) => {
+    if (x === 0 || y === 0) return mortar; // grid seam between flagstones
+    if (x === T - 1 || y === T - 1) return dark; // bottom-right bevel shadow
+    if (x === 1 || y === 1) return light; // top-left bevel highlight
+    const n = hash2(x + variant * 40, y, 71);
+    if (n > 0.95) return dark; // a little crack / grime fleck
+    return base;
+  });
+}
+/** 4 ashlar-block variants, only the last carrying a faint rune glint (picked by tile position in
+ *  drawRoom) so the accent reads as a rare, scattered detail, not a repeating grid */
+function bakeWallBlock(seed: number, glint: boolean): Sprite {
+  const light = shade(STONE, 0.3);
+  const dark = shade(STONE, -0.28);
+  const mortar = shade(STONE, -0.5);
+  return bake(T, T, (x, y) => {
+    if (x === 0 || y === 0) return mortar;
+    if (x === T - 1 || y === T - 1) return dark;
+    if (x === 1 || y === 1) return light;
+    if (glint && x === 9 && y === 8) return "#7fd8ff";
+    const n = hash2(x, y, seed);
+    return n > 0.92 ? light : n < 0.12 ? dark : STONE;
+  });
+}
+const wallVariants = () => [0, 1, 2, 3].map((i) => bakeWallBlock(51 + i * 7, i === 3)) as [Sprite, Sprite, Sprite, Sprite];
+const wallVariant = (c: number, rr: number) => (c * 5 + rr * 11) % 4;
+/** a chunky raised block with a lit bevel frame and a sunken inner panel, like the painting's grey
+ *  pedestal pillars — distinct from the flush wall blocks so obstacles read apart from walls */
+function bakePillarBlock(): Sprite {
+  const light = shade(BLOCK, 0.3);
+  const dark = shade(BLOCK, -0.32);
+  const panel = shade(BLOCK, -0.3);
+  const panelLight = shade(BLOCK, -0.12);
+  const panelDark = shade(BLOCK, -0.42);
+  return bake(T, T, (x, y) => {
+    if (x === 0 || y === 0) return "#15181f";
+    if (x === T - 1 || y === T - 1) return dark;
+    if (x === 1 || y === 1) return light;
+    if (x >= 4 && x <= T - 5 && y >= 4 && y <= T - 5) {
+      if (x === 4 || y === 4) return panelLight;
+      if (x === T - 5 || y === T - 5) return panelDark;
+      return panel;
+    }
+    return BLOCK;
+  });
+}
+function bakeWaterTile(frame: number): Sprite {
+  return bake(T, T, (x, y) => {
+    const n = fbm((x + frame * 6) * 0.5, y * 0.5, 2, 31);
+    if (n > 0.62) return shade(WATER_C, 0.18);
+    if (n < 0.22) return shade(WATER_C, -0.22);
+    if (hash2(x, y, frame * 13 + 5) > 0.97) return PAL.cyan; // a little glinting ripple, like the painting's lit water
+    return WATER_C;
+  });
+}
+const FLAME = [
+  sprite(["..y..", ".yoy.", "yoooy", ".ooo.", "..o.."], { y: PAL.yellow, o: PAL.orange }),
+  sprite(["..o..", ".yyy.", "yoooy", ".ooy.", "..o.."], { y: PAL.yellow, o: PAL.orange }),
+  sprite(["..y..", ".oyo.", "yooy.", ".ooo.", "..o.."], { y: PAL.yellow, o: PAL.orange }),
+];
+function bakeHud(): Sprite {
+  return bake(W, OY, (x, y) => {
+    if (y === OY - 1) return "#5ad8c8"; // a teal rule, echoes the painting's trim
+    if (y === OY - 2) return shade(PAL.black, -0.15);
+    const n = hash2(x, y, 13);
+    return shade("#171231", y === 0 ? 0.08 : n > 0.92 ? 0.05 : 0);
+  });
+}
+function makeArt() {
+  return {
+    floor: [bakeFloor(0), bakeFloor(1)] as [Sprite, Sprite],
+    wallOuter: wallVariants(),
+    pillar: bakePillarBlock(),
+    water: [bakeWaterTile(0), bakeWaterTile(1), bakeWaterTile(2)] as [Sprite, Sprite, Sprite],
+    hud: bakeHud(),
+  };
+}
+let ART: ReturnType<typeof makeArt> | null = null;
+const art = () => (ART ??= makeArt());
+
+// ── wall-mounted set dressing (drawn ONLY on border wall tiles, which are always solid, so none
+// of this can ever block a lane) ──
+const BANNER = sprite(
+  ["kkkkkkkk", "kyyyyyyk", "kybbbbyk", "kybwwbyk", "kybwwbyk", "kybbbbyk", "kyyyyyyk", ".kyyyyk.", "..kbbk..", "...kk..."],
+  { k: PAL.black, y: "#d8b24a", b: "#2a5ea8", w: "#cfd8e6" },
+);
+const BARRELS = sprite(
+  ["..kkkk..kkkk..", ".kbbbbkkbbbbk.", "kbdbbbkkbbdbkk", "kbbbbbkkbbbbbk", "kbdbbbkkbbdbkk", ".kbbbbkkbbbbk.", "..kkkk..kkkk.."],
+  { k: PAL.black, b: PAL.brown, d: shade(PAL.brown, -0.3) },
+);
+const SHIELD = sprite(["..kkk..", ".kgggk.", "kgggggk", "kggyggk", ".kgggk.", "..kkk.."], { k: PAL.black, g: PAL.grey, y: PAL.yellow });
 
 type EKind = "slime" | "bat" | "skel" | "boss" | "mslime" | "sslime";
 interface Enemy {
@@ -386,6 +505,7 @@ function create(seed: number): GameInstance {
     e.kbx = Math.cos(a) * kb;
     e.kby = Math.sin(a) * kb;
     io.sfx.play("hit");
+    burst(e.x + e.w / 2, e.y + e.h / 2, PAL.white, 4, 1);
     if (e.hp > 0) return;
     e.dead = true;
     burst(e.x + e.w / 2, e.y + e.h / 2, e.kind === "bat" ? PAL.purple : e.kind === "skel" ? PAL.white : e.kind === "slime" ? PAL.lime : PAL.pink, 10);
@@ -407,7 +527,10 @@ function create(seed: number): GameInstance {
         k.hurt = 24;
         room.enemies.push(k);
       }
-      if (e.kind === "boss") say("THE GOO GIANT SPLITS!", 90);
+      if (e.kind === "boss") {
+        say("THE GOO GIANT SPLITS!", 90);
+        io.sfx.noise?.(0.2, 0.2, 500, 120);
+      }
     } else dropLoot(e);
   };
 
@@ -522,12 +645,14 @@ function create(seed: number): GameInstance {
     if (inp.pressed.a && hero.swing === 0 && hero.cool === 0) {
       hero.swing = 14;
       hero.cool = 18;
-      io.sfx.play("shoot");
+      io.sfx.play("whoosh");
+      io.sfx.slide?.(900, 320, 0.08, "sine", 0.05);
     }
     if (inp.pressed.b && !boom && hero.swing === 0) {
       const [dx, dy] = dirVec(hero.facing);
       boom = { x: hero.x + 2, y: hero.y + 2, dx: dx * 3.2, dy: dy * 3.2, t: 0, back: false, hit: new Set() };
       io.sfx.play("laser");
+      io.sfx.slide?.(400, 760, 0.12, "square", 0.04);
     }
     if (hero.swing > 0) {
       hero.swing--;
@@ -575,7 +700,10 @@ function create(seed: number): GameInstance {
     } else hero.push = 0;
     hero.x = b.x;
     hero.y = b.y;
-    if (Math.floor(hero.anim * 2) !== Math.floor((hero.anim - 0.12) * 2) && Math.floor(hero.anim * 2) % 3 === 0) io.sfx.play("step");
+    if (Math.floor(hero.anim * 2) !== Math.floor((hero.anim - 0.12) * 2) && Math.floor(hero.anim * 2) % 3 === 0) {
+      io.sfx.play("step");
+      burst(hero.x + 6, hero.y + 12, shade(PAL.dark, -0.1), 3, 0.4);
+    }
   };
 
   const updateBoomerang = (io: IO) => {
@@ -597,6 +725,7 @@ function create(seed: number): GameInstance {
       boom.y += ((ty - boom.y) / d) * 3.6;
     }
     if (boom.t % 8 === 0) io.sfx.tone(880 - (boom.t % 16) * 20, 0.03, "square", 0.05);
+    if (boom.t % 3 === 0) parts.push({ x: boom.x + 3, y: boom.y + 3, vx: 0, vy: 0, life: 10, color: PAL.yellow });
     const bb = { x: boom.x, y: boom.y, w: 8, h: 8 };
     for (const e of room.enemies) {
       if (e.dead || boom.hit.has(e) || !overlap(bb, e)) continue;
@@ -624,11 +753,14 @@ function create(seed: number): GameInstance {
       keys++;
       io.score(200);
       io.sfx.play("powerup");
+      io.sfx.tone(660, 0.07, "square", 0.06);
+      io.sfx.slide?.(660, 1100, 0.12, "square", 0.05);
       say("GOT A KEY!", 80);
     } else {
       state = "win";
       stateT = 0;
       io.sfx.play("win");
+      io.sfx.play("cheer");
       io.score(5000 + gems * 10 + lives * 1000);
       say("YOU FOUND THE GOLDEN STAR!", 400);
     }
@@ -746,6 +878,17 @@ function create(seed: number): GameInstance {
   };
 
   // ── drawing helpers ──
+  // wall-mounted set dressing: picked purely by (column, row), drawn only where the border wall
+  // sprite already sits (always solid, every room), so none of this can ever sit in a walkable lane
+  const drawWallProp = (g: Gfx, c: number, rr: number, x: number, y: number) => {
+    if (rr === 2 && (c === 0 || c === COLS - 1)) g.sprite(BANNER, x, y - 2);
+    else if (rr === 1 && c === 0) g.sprite(BARRELS, x - 2, y + 3);
+    else if (rr === ROWS - 1 && (c === 4 || c === COLS - 5)) {
+      for (let i = 0; i < 3; i++) g.rect(x + 3 + i * 4, y + 1 + (i % 2), 2, 7 - (i % 2) * 2, "#b9c2cc");
+      g.rect(x + 2, y + 8, 12, 3, "#2a2e38");
+      g.rect(x + 2, y + 8, 12, 1, shade(BLOCK, 0.2));
+    }
+  };
   const drawRoom = (g: Gfx, rm: Room, ox: number, oy: number) => {
     for (let rr = 0; rr < ROWS; rr++) {
       for (let c = 0; c < COLS; c++) {
@@ -755,15 +898,24 @@ function create(seed: number): GameInstance {
         const border = rr === 0 || rr === ROWS - 1 || c === 0 || c === COLS - 1;
         if (side) {
           const e = rm.doors[side];
-          g.rect(x, y, T, T, "#2a2442");
-          if (!e) wall(g, x, y, true);
-          else if (doorClosed(rm, side)) {
+          g.sprite(art().floor[(c + rr) % 2], x, y);
+          if (!e) {
+            g.sprite(art().wallOuter[wallVariant(c, rr)], x, y);
+            drawWallProp(g, c, rr, x, y);
+          } else if (doorClosed(rm, side)) {
             if (e.kind === "locked" && !e.open) {
-              g.rect(x + 1, y + 1, 14, 14, PAL.brown);
-              g.rect(x + 1, y + 7, 14, 2, "#6a3a1a");
-              g.rect(x + 6, y + 4, 4, 5, PAL.yellow);
-              g.rect(x + 7, y + 6, 2, 2, PAL.black);
+              g.rect(x, y, T, T, "#1b1f27");
+              g.rect(x + 1, y, 1, T, "#5ad8c8");
+              g.rect(x + T - 2, y, 1, T, "#5ad8c8");
+              g.rect(x + 2, y + 1, 12, 14, PAL.brown);
+              g.rect(x + 2, y + 1, 12, 2, shade(PAL.brown, 0.25));
+              g.rect(x + 2, y + 13, 12, 1, "#2a1608");
+              g.rect(x + 7, y + 1, 2, 14, "#6a3a1a");
+              g.circle(x + 8, y + 7, 3, "rgba(255,225,77,0.25)");
+              g.rect(x + 6, y + 5, 4, 5, PAL.yellow);
+              g.rect(x + 7, y + 7, 2, 2, PAL.black);
             } else {
+              g.rect(x, y, T, T, "#1b1f27");
               for (let i = 0; i < 4; i++) g.rect(x + 1 + i * 4, y, 2, T, PAL.grey);
               g.rect(x, y + 6, T, 2, PAL.dark);
             }
@@ -772,23 +924,34 @@ function create(seed: number): GameInstance {
         }
         const ch = rm.grid[rr][c];
         if (border) {
-          wall(g, x, y, true);
+          g.sprite(art().wallOuter[wallVariant(c, rr)], x, y);
+          drawWallProp(g, c, rr, x, y);
           continue;
         }
-        g.rect(x, y, T, T, (c + rr) % 2 ? "#2b2745" : "#312b4f");
-        if ((c * 7 + rr * 3) % 5 === 0) g.rect(x + 4, y + 9, 2, 2, "#3d3660");
-        if (ch === "#") wall(g, x, y, false);
+        g.sprite(art().floor[(c + rr) % 2], x, y);
+        if (ch === "#") g.sprite(art().pillar, x, y);
         else if (ch === "t") {
-          wall(g, x, y, false);
+          g.sprite(art().pillar, x, y);
           const fl = Math.floor((tick + c * 7) / 6) % 3;
-          g.rect(x + 6, y + 6, 4, 7, PAL.brown);
-          g.circle(x + 8, y + 5 - fl * 0.5, 3 + (fl % 2), PAL.orange);
-          g.circle(x + 8, y + 5, 2, PAL.yellow);
+          // a warm light pool spilling onto the floor, like the painting's lit torches
+          g.circle(x + 8, y + 9, 13, "rgba(255,140,40,0.07)");
+          g.circle(x + 8, y + 8, 8, "rgba(255,160,50,0.14)");
+          g.circle(x + 8, y + 7, 4, "rgba(255,210,100,0.22)");
+          g.rect(x + 7, y + 8, 2, 5, "#3a2414");
+          g.rect(x + 6, y + 12, 4, 2, PAL.black);
+          g.sprite(FLAME[fl], x + 6, y + (fl === 1 ? 3 : 2));
         } else if (ch === "w") {
-          g.rect(x, y, T, T, PAL.blue);
-          const wv = Math.floor((tick + c * 4 + rr * 6) / 12) % 4;
-          g.rect(x + 2 + wv, y + 4, 5, 1, PAL.sky);
-          g.rect(x + 8 - wv, y + 11, 5, 1, PAL.sky);
+          const wf = Math.floor((tick + c * 4 + rr * 6) / 10) % 3;
+          g.sprite(art().water[wf as 0 | 1 | 2], x, y);
+          const up = rm.grid[rr - 1]?.[c];
+          const down = rm.grid[rr + 1]?.[c];
+          const left = rm.grid[rr]?.[c - 1];
+          const right = rm.grid[rr]?.[c + 1];
+          const foam = "rgba(180,230,255,0.55)";
+          if (up !== "w") g.rect(x, y, T, 1, foam);
+          if (down !== "w") g.rect(x, y + T - 1, T, 1, foam);
+          if (left !== "w") g.rect(x, y, 1, T, foam);
+          if (right !== "w") g.rect(x + T - 1, y, 1, T, foam);
         } else if (ch === "M" || ch === "m") {
           let px = x;
           let py = y;
@@ -801,6 +964,7 @@ function create(seed: number): GameInstance {
           g.rect(px + 1, py + 13, 14, 2, "#6a4a2a");
           g.box(px + 4, py + 5, 8, 6, "#6a4a2a");
         } else if (ch === "_") {
+          g.circle(x + 8, y + 8, 7, "rgba(255,74,74,0.12)");
           g.rect(x + 2, y + 2, 12, 12, PAL.dark);
           g.rect(x + 4, y + 4, 8, 8, PAL.grey);
           g.circle(x + 8, y + 8, 2, PAL.red);
@@ -808,19 +972,14 @@ function create(seed: number): GameInstance {
           g.rect(x + 1, y + 3, 14, 12, PAL.black);
           g.rect(x + 2, y + 4, 12, 10, ch === "o" ? "#5a3a1a" : PAL.brown);
           if (ch !== "o") {
+            g.rect(x + 2, y + 4, 12, 2, shade(PAL.brown, 0.3));
             g.rect(x + 2, y + 7, 12, 2, ch === "H" ? PAL.pink : PAL.yellow);
             g.rect(x + 7, y + 7, 2, 4, PAL.yellow);
+            g.rect(x + 2, y + 13, 12, 1, "#1a0e06");
           } else g.rect(x + 3, y + 5, 10, 4, PAL.black);
         }
       }
     }
-  };
-  const wall = (g: Gfx, x: number, y: number, outer: boolean) => {
-    g.rect(x, y, T, T, outer ? "#4a3e6a" : "#5e5288");
-    g.rect(x, y, T, 2, outer ? "#6a5e8e" : "#8a7eb8");
-    g.rect(x, y + 7, T, 1, "#2e2548");
-    g.rect(x + (y % 32 ? 4 : 10), y, 1, 7, "#2e2548");
-    g.rect(x + (y % 32 ? 11 : 3), y + 8, 1, 8, "#2e2548");
   };
   const heroSprite = (): { s: Sprite; flipX: boolean } => {
     const step = Math.floor(hero.anim * 2) % 2 === 1;
@@ -907,28 +1066,57 @@ function create(seed: number): GameInstance {
         g.camera(0, -OY);
         for (const it of room.items) {
           const bob = Math.floor(it.t / 12) % 2;
-          if (it.kind === "gem") g.sprite(GEM, it.x + 1, it.y + bob);
-          else if (it.kind === "heart") g.text("♥", it.x + 1, it.y + bob + OY, PAL.red); // text ignores the camera
-          else if (it.kind === "key") g.sprite(KEY, it.x, it.y + 1 + bob);
+          if (it.kind === "gem") {
+            const s = hash2(it.x, it.y, 3) > 0.5 ? RGEM : GEM;
+            const sc = 1.6;
+            const sw = spriteW(s) * sc;
+            const sh = spriteH(s) * sc;
+            g.sprite(s, it.x + 4 - sw / 2, it.y + bob + 3 - sh / 2, { scale: sc });
+          } else if (it.kind === "heart") g.text("♥", it.x + 1, it.y + bob + OY, PAL.red); // text ignores the camera
+          else if (it.kind === "key") {
+            const sc = 1.3;
+            const sw = spriteW(KEY) * sc;
+            const sh = spriteH(KEY) * sc;
+            g.sprite(KEY, it.x + 4 - sw / 2, it.y + bob + 4 - sh / 2, { scale: sc });
+          }
           else {
-            g.circle(it.x + 6, it.y + 6, 10 + (Math.floor(it.t / 8) % 2), "rgba(255,225,77,0.35)");
+            const pulse = Math.floor(it.t / 8) % 2;
+            g.circle(it.x + 6, it.y + 6, 9 + pulse, "rgba(255,225,77,0.14)");
+            g.circle(it.x + 6, it.y + 6, 4 + pulse, "rgba(255,245,180,0.3)");
             g.text("★", it.x + 1, it.y - 1 + OY, PAL.yellow, { size: 2 });
           }
         }
         for (const e of room.enemies) {
           if (e.dead) continue;
-          if (e.hurt > 0 && Math.floor(e.hurt / 2) % 2) continue;
+          const flash = e.hurt > 6; // a brief white hit-flash, then the enemy keeps fighting (not a vanishing blink)
           const fr = e.stun > 0 ? 0 : Math.floor(e.t / 12) % 2;
-          if (e.kind === "slime") g.sprite(SLIME[fr], e.x, e.y);
-          else if (e.kind === "sslime") g.sprite(KING[fr], e.x, e.y);
-          else if (e.kind === "mslime") g.sprite(KING[fr], e.x - 2, e.y - 4, { scale: 2 });
+          const pick = <T,>(norm: T[], white: T[], i: number) => (flash ? white[i] : norm[i]);
+          if (e.kind === "slime" || e.kind === "sslime") {
+            const s = pick(e.kind === "slime" ? SLIME : KING, e.kind === "slime" ? WHITE_SLIME : WHITE_KING, fr);
+            const sc = 1.35;
+            const sw = spriteW(s) * sc;
+            const sh = spriteH(s) * sc;
+            g.sprite(s, e.x + e.w / 2 - sw / 2, e.y + e.h - sh, { scale: sc });
+          } else if (e.kind === "mslime") g.sprite(pick(KING, WHITE_KING, fr), e.x - 2, e.y - 4, { scale: 2 });
           else if (e.kind === "boss") {
             const squash = e.t % 80 < 30 ? 1 : 0;
-            g.sprite(KING[squash], e.x - 2, e.y - 4, { scale: 3 });
-            for (let i = 0; i < 3; i++) g.rect(e.x + 8 + i * 6, e.y - 8 + squash * 6, 4, 6 - (i % 2) * 2, PAL.yellow);
-            g.rect(e.x + 8, e.y - 3 + squash * 6, 16, 3, PAL.yellow);
-          } else if (e.kind === "bat") g.sprite(BAT[Math.floor(e.t / 6) % 2], e.x, e.y);
-          else g.sprite(SKEL[e.charge > 0 ? Math.floor(e.t / 3) % 2 : fr], e.x, e.y - 1, { flipX: e.vx < 0 });
+            g.sprite(pick(KING, WHITE_KING, squash), e.x - 2, e.y - 4, { scale: 3 });
+            // a jeweled crown + star, so the Goo Giant reads as the big boss the painting shows
+            const cx = e.x + e.w / 2;
+            const cy = e.y - 9 + squash * 6;
+            g.rect(cx - 11, cy + 4, 22, 3, PAL.yellow);
+            for (let i = 0; i < 3; i++) g.rect(cx - 9 + i * 9, cy - (i === 1 ? 3 : 0), 5, 7 - (i % 2) * 2, PAL.yellow);
+            g.text("★", cx - 4, cy - 14 + OY, PAL.white);
+          } else if (e.kind === "bat") {
+            const s = pick(BAT, WHITE_BAT, Math.floor(e.t / 6) % 2);
+            const sc = 1.3;
+            const sw = spriteW(s) * sc;
+            const sh = spriteH(s) * sc;
+            g.sprite(s, e.x + e.w / 2 - sw / 2, e.y + e.h / 2 - sh / 2, { scale: sc });
+          } else {
+            g.sprite(SHIELD, e.x - 3, e.y + 4, { flipX: e.vx < 0 });
+            g.sprite(pick(SKEL, WHITE_SKEL, e.charge > 0 ? Math.floor(e.t / 3) % 2 : fr), e.x, e.y - 1, { flipX: e.vx < 0 });
+          }
           if (e.stun > 0) g.text("*", e.x + e.w / 2 - 3 + Math.sin(e.t * 0.3) * 4, e.y - 8 + OY, PAL.yellow);
         }
         // hero + sword
@@ -952,7 +1140,11 @@ function create(seed: number): GameInstance {
             }
             if (hero.swing > 3 && hero.swing < 12) g.box(sb.x + 2, sb.y + 2, sb.w - 4, sb.h - 4, "rgba(255,255,255,0.25)");
           }
-          g.sprite(hs.s, hero.x, hero.y - 1, { flipX: hs.flipX });
+          // drawn bigger than the hitbox (HB) so the knight reads clearly, feet anchored to the hitbox floor
+          const scale = 1.6;
+          const sw = spriteW(hs.s) * scale;
+          const sh = spriteH(hs.s) * scale;
+          g.sprite(hs.s, hero.x + HB.w / 2 - sw / 2, hero.y + HB.h - sh, { flipX: hs.flipX, scale });
         }
         if (boom) {
           const spin = Math.floor(boom.t / 3) % 4;
@@ -961,8 +1153,8 @@ function create(seed: number): GameInstance {
         for (const p of parts) g.rect(p.x, p.y, 2, 2, p.color);
         g.camera(0, 0);
       }
-      // HUD
-      g.rect(0, 0, W, OY, PAL.black);
+      // HUD — a framed panel (baked texture + teal rule) with small dividers between the groups
+      g.sprite(art().hud, 0, 0);
       for (let i = 0; i < hero.maxHp / 2; i++) {
         const hx = 4 + i * 9;
         const full = hero.hp >= i * 2 + 2;
@@ -970,19 +1162,24 @@ function create(seed: number): GameInstance {
         g.text("♥", hx, 4, full || half ? PAL.red : PAL.dark);
         if (half) g.rect(hx + 3, 4, 4, 8, PAL.black);
       }
+      g.rect(60, 2, 1, 12, "#2e2548");
       g.sprite(GEM, 64, 4);
-      g.text(`${gems}`, 72, 4, PAL.cyan);
+      g.text(`${gems}`, 74, 4, PAL.cyan);
+      g.rect(92, 2, 1, 12, "#2e2548");
       g.sprite(KEY, 96, 5);
       g.text(`${keys}`, 106, 4, PAL.yellow);
-      g.text(`X${lives}`, 124, 4, PAL.white);
-      g.sprite(HERO_DOWN, 142, 2);
-      // mini map
+      g.rect(122, 2, 1, 12, "#2e2548");
+      g.text(`X${lives}`, 126, 4, PAL.white);
+      g.rect(148, 2, 1, 12, "#2e2548");
+      g.sprite(HERO_DOWN, 152, 2);
+      // mini map, boxed so it reads as its own gadget on the panel
+      g.rect(208, 0, 1, OY - 1, "#2e2548");
+      g.box(210, 0, 42, 13, "#2e2548");
       for (const rm of rooms.values()) {
         const mx = 212 + rm.def.x * 10;
         const my = 1 + rm.def.y * 4;
         g.rect(mx, my, 9, 3, rm === room ? PAL.yellow : rm.visited ? PAL.grey : PAL.dark);
       }
-      g.rect(0, OY - 1, W, 1, PAL.dark);
       if (msgT > 0) {
         const y = H - 22;
         g.rect(0, y - 3, W, 13, "rgba(13,11,26,0.8)");

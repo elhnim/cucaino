@@ -5,7 +5,8 @@
 // things just vanish but special critters hand over a copy power (fire breath, a zap ring, a
 // sword swipe) used with B until it's spat out (▼+B) or knocked loose by a hit. Four candy
 // worlds, each ending with a friendly boss. (Original game, not affiliated with any series.)
-import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, bakeGradient, drawStrip, hash2, mixHex, shade } from "../art";
 
 const T = 16; // tile size
 const ROWS = 14; // 14 x 16 = 224 = screen height
@@ -304,6 +305,281 @@ const WORLDS: WorldDef[] = [
   },
 ];
 
+// ── theme backdrops & ground tiles: baked ONCE per theme the first time that world is shown
+// (cached in themeArtCache), never at module load and never inside draw() — the arcade imports
+// 34 games at once, so only tiny string-building may happen eagerly. A screen-wide strip tiles
+// seamlessly at SW px, so drawStrip can scroll it at any parallax speed for free. ──
+const SW = 256;
+const GROUND_OVERHANG = 6; // how far the grass cap pokes up above its tile, Mario-style
+
+interface ThemeArt {
+  sky: Sprite;
+  cloudsBack: Sprite;
+  cloudsFront: Sprite;
+  farRange: Sprite;
+  hillsBack: Sprite;
+  hillsFront: Sprite;
+  groundTop: Sprite[];
+  groundUnder: Sprite[];
+  floatTile: Sprite;
+  blockTile: Sprite;
+  bouncer: [Sprite, Sprite];
+}
+const themeArtCache = new Map<Theme, ThemeArt>();
+function getThemeArt(def: WorldDef): ThemeArt {
+  let a = themeArtCache.get(def.theme);
+  if (!a) {
+    a = buildThemeArt(def);
+    themeArtCache.set(def.theme, a);
+  }
+  return a;
+}
+
+/** a wrap-around puffy cloud strip: a few overlapping-circle puffs with a bright top highlight
+ *  and a soft underside shadow (drawn in that order so the highlight/shadow only shows at each
+ *  puff's fringe), checked at x-SW/x/x+SW so puffs crossing the seam still tile cleanly. */
+function bakeCloudStrip(w: number, h: number, base: string, spread: number): Sprite {
+  const hi = shade(base, 0.45);
+  const shadow = shade(base, -0.1);
+  type C = [number, number, number];
+  const main: C[] = [];
+  const hiC: C[] = [];
+  const shC: C[] = [];
+  [0.16, 0.48, 0.8].forEach((f, i) => {
+    const cx = f * w;
+    const cy = h * 0.5 + (i % 2 === 0 ? -2 : 3);
+    const r = h * (0.26 + (i === 1 ? 0.1 : 0)) * spread;
+    for (const [ox, rf] of [
+      [-0.95, 0.75],
+      [0, 1],
+      [0.95, 0.7],
+      [0.4, 0.55],
+      [-0.4, 0.55],
+    ] as [number, number][]) {
+      const rr = r * rf;
+      const px = cx + ox * r;
+      main.push([px, cy, rr]);
+      hiC.push([px - rr * 0.3, cy - rr * 0.45, rr * 0.42]);
+      shC.push([px, cy + rr * 0.4, rr * 0.82]);
+    }
+  });
+  const hit = (list: C[], x: number, y: number) => {
+    for (const dx of [-w, 0, w]) for (const [cx, cy, r] of list) if ((x + dx - cx) ** 2 + (y - cy) ** 2 <= r * r) return true;
+    return false;
+  };
+  return bake(w, h, (x, y) => (hit(hiC, x, y) ? hi : hit(main, x, y) ? base : hit(shC, x, y) ? shadow : null));
+}
+
+/** a wrap-around rolling-hill strip: round, overlapping domes (jittered centres/radii, never
+ *  identical semicircles) instead of a sine ridge — a sine silhouette reads as sharp mountain
+ *  spikes at this scale, domes read as soft candy hills. A thin lit rim traces each dome's top
+ *  edge; `textured` adds grass-blade streaks just under the rim plus the odd flower. */
+function bakeHillStrip(w: number, h: number, base: string, baseY: number, count: number, rMin: number, rMax: number, seed: number, textured: boolean, flower?: string): Sprite {
+  const rim = shade(base, 0.26);
+  const blade = shade(base, -0.1);
+  type C = [number, number, number];
+  const domes: C[] = Array.from({ length: count }, (_, i) => {
+    const cx = ((i + 0.5) / count) * w + (hash2(i, seed, 3) - 0.5) * (w / count) * 0.6;
+    const r = rMin + hash2(i, seed, 7) * (rMax - rMin);
+    return [cx, baseY + (hash2(i, seed, 13) - 0.5) * 6, r];
+  });
+  const inDome = (x: number, y: number) => {
+    for (const dx of [-w, 0, w]) for (const [cx, cy, r] of domes) if ((x + dx - cx) ** 2 + (y - cy) ** 2 <= r * r) return true;
+    return false;
+  };
+  return bake(w, h, (x, y) => {
+    if (!inDome(x, y)) return null;
+    if (!inDome(x, y - 2)) return rim;
+    if (textured) {
+      if (!inDome(x, y - 7) && (x + y) % 5 < 2) return blade;
+      if (flower && !inDome(x, y - 5) && hash2(x, 19, seed) < 0.05) return flower;
+    }
+    return base;
+  });
+}
+
+/** the ground tile the kid stands on: a thick overhanging cap (grass / icing drizzle / stone
+ *  battlement / cloud puff, by theme) over a textured body (soil with stones+roots+strata,
+ *  a chocolate-chip biscuit, coarse masonry, or soft cloud fluff). `variant` just reseeds the
+ *  noise so a few baked tiles can be mixed so the ground isn't visibly repeating. */
+function bakeGroundTop(theme: Theme, def: WorldDef, variant: number): Sprite {
+  const h = T + GROUND_OVERHANG;
+  const cap = def.icing;
+  const capHi = shade(cap, 0.3);
+  const capLo = shade(cap, -0.18);
+  const body = def.ground;
+  const bodyHi = shade(body, 0.14);
+  const bodyLo = shade(body, -0.2);
+  return bake(T, h, (x, y) => {
+    if (theme === "cloud") {
+      const wob = Math.sin(x * 0.9 + variant * 3) * 2;
+      const capLine = GROUND_OVERHANG - 2 + wob;
+      if (y < capLine) return null;
+      if (y < capLine + 5) return y < capLine + 1 ? capHi : "#ffffff";
+      const n = hash2(x, y - capLine + variant * 9, 21);
+      return n > 0.82 ? bodyHi : body;
+    }
+    if (theme === "castle") {
+      if (y < GROUND_OVERHANG - 2) return null;
+      if (y < GROUND_OVERHANG + 2) return y < GROUND_OVERHANG - 1 ? capHi : cap;
+      const brick = (x + (Math.floor((y + variant * 2) / 4) % 2) * 3) % 8 < 1 || y % 4 === 0;
+      return brick ? bodyLo : body;
+    }
+    if (theme === "sweets") {
+      const wob = Math.sin(x * 1.1 + variant * 5) * 1.5;
+      const capLine = GROUND_OVERHANG - 1 + wob;
+      if (y < capLine) return hash2(x, variant, 6) < 0.3 && y > capLine - 3 ? capHi : null;
+      if (y < capLine + 4) return y < capLine + 1 ? capHi : cap;
+      const sy = y - (capLine + 4);
+      const n = hash2(x, sy + variant * 13, 17);
+      if (n > 0.9) return "#5a3a22";
+      return sy % 5 === 0 ? bodyLo : body;
+    }
+    // meadow: a thick grass cap with a few tufts poking above the line, over soil full of
+    // stone flecks, root-dark specks and horizontal strata bands
+    const wob = Math.sin(x * 1.3 + variant * 7) * 1.6;
+    const capLine = GROUND_OVERHANG - 2 + wob;
+    if (y < capLine) return hash2(x, variant, 5) < 0.3 && y > capLine - 3 ? capLo : null;
+    if (y < capLine + 2) return capHi;
+    if (y < capLine + 5) return cap;
+    if (y < GROUND_OVERHANG + 7) return capLo;
+    const sy = y - (GROUND_OVERHANG + 7);
+    const n = hash2(x, sy + variant * 13, 9);
+    if (n > 0.93) return bodyLo;
+    if (n < 0.06) return bodyHi;
+    if (sy % 6 === 0) return bodyLo;
+    return body;
+  });
+}
+/** the same ground, one tile below the surface: no cap, just the textured body. */
+function bakeGroundUnder(theme: Theme, def: WorldDef, variant: number): Sprite {
+  const body = def.ground;
+  const bodyHi = shade(body, 0.1);
+  const bodyLo = shade(body, -0.18);
+  return bake(T, T, (x, y) => {
+    if (theme === "cloud") {
+      const n = hash2(x, y + variant * 9, 21);
+      return n > 0.82 ? bodyHi : body;
+    }
+    if (theme === "castle") {
+      const brick = (x + (Math.floor((y + variant * 2) / 4) % 2) * 3) % 8 < 1 || y % 4 === 0;
+      return brick ? bodyLo : body;
+    }
+    const n = hash2(x, y + variant * 13, theme === "sweets" ? 17 : 9);
+    if (n > (theme === "sweets" ? 0.92 : 0.93)) return theme === "sweets" ? "#5a3a22" : bodyLo;
+    if (n < 0.06) return bodyHi;
+    if (y % 6 === variant % 6) return bodyLo;
+    return body;
+  });
+}
+function bakeFloatTile(theme: Theme, def: WorldDef): Sprite {
+  const icing = def.icing;
+  return bake(T, T, (x, y) => {
+    const cx = x + 0.5;
+    const cy = y + 0.5;
+    if (theme === "sweets") {
+      if (y < 3) return icing;
+      if ((x === 3 || x === 4) && y >= 3 && y < 8) return icing;
+      if ((x === 10 || x === 11) && y >= 2 && y < 8) return icing;
+      return "#f2c48d";
+    }
+    if (theme === "cloud") {
+      const inC = (ccx: number, ccy: number, r: number) => (cx - ccx) ** 2 + (cy - ccy) ** 2 <= r * r;
+      if (inC(8, 5, 8)) return shade("#ffffff", 0.2);
+      if (inC(4, 9, 6.5) || inC(12, 9, 6.5)) return "#ffffff";
+      return null;
+    }
+    if (theme === "castle") {
+      if (y === 0) return "#c8c8dc";
+      if (y < 3) return "#b0b0c4";
+      return y % 4 === 0 ? shade("#9a9ab0", -0.12) : "#9a9ab0";
+    }
+    if (y < 3) return icing;
+    if (y === 3) return shade(icing, -0.15);
+    return hash2(x, y, 31) > 0.85 ? shade("#8a5a2c", -0.15) : "#8a5a2c";
+  });
+}
+function bakeBlockTile(theme: Theme): Sprite {
+  const edge = (x: number, y: number) => x < 1 || y < 1 || x > T - 2 || y > T - 2;
+  return bake(T, T, (x, y) => {
+    const cx = x + 0.5;
+    const cy = y + 0.5;
+    if (theme === "sweets") {
+      if (edge(x, y)) return "#caa06a";
+      if ((cx - 5) ** 2 + (cy - 5) ** 2 <= 1.4) return "#8a5a2c";
+      if ((cx - 11) ** 2 + (cy - 9) ** 2 <= 1.4) return "#8a5a2c";
+      if ((cx - 8) ** 2 + (cy - 11) ** 2 <= 1.4) return "#8a5a2c";
+      return hash2(x, y, 41) > 0.9 ? shade("#e8c48a", -0.1) : "#e8c48a";
+    }
+    if (theme === "cloud") {
+      if ((cx - 8) ** 2 + (cy - 8) ** 2 <= 49) return "#eaf8ff";
+      if (edge(x, y)) return "#9ecfe8";
+      return "#bfe8ff";
+    }
+    if (theme === "castle") {
+      if (edge(x, y)) return "#7a7a90";
+      if (y === 8 || x === 8) return "#9a9ab0";
+      return hash2(x, y, 51) > 0.88 ? shade("#b0b0c4", 0.08) : "#b0b0c4";
+    }
+    if (edge(x, y)) return "#8a6a3a";
+    return hash2(x, y, 51) > 0.88 ? shade("#caa06a", -0.15) : "#caa06a";
+  });
+}
+/** a bouncer tile: mushroom (meadow), gumdrop (sweets), cloud puff (cloud), banner (castle) —
+ *  two baked bob frames so the idle animation is a sprite swap, not per-frame circle math. */
+function bakeBouncer(theme: Theme, bob: number): Sprite {
+  const oy = bob; // bob offset (0 or 1 px), matching the old animation
+  return bake(T, 16, (x, y) => {
+    const cx = x + 0.5;
+    const cy = y + 0.5 - oy;
+    const inC = (ccx: number, ccy: number, r: number) => (cx - ccx) ** 2 + (cy - ccy) ** 2 <= r * r;
+    if (theme === "sweets") {
+      if (inC(8, 10, 6)) return inC(8, 10, 3) ? "#ffffff" : shade(PAL.pink, -0.1);
+      return null;
+    }
+    if (theme === "cloud") {
+      if (inC(8, 10, 7) || inC(5, 9, 3) || inC(11, 9, 3)) return inC(7, 8, 3) ? shade("#ffffff", 0.3) : "#ffffff";
+      return null;
+    }
+    if (theme === "castle") {
+      if (x >= 3 && x <= 12 && y >= 3 - oy && y <= 5 - oy) return PAL.red;
+      if (x >= 6 && x <= 9 && y >= 4 - oy && y <= 13 - oy) return shade(PAL.red, -0.12);
+      return null;
+    }
+    if (x >= 6 && x <= 9 && y >= 8 - oy && y <= 13 - oy) return "#f2c48d";
+    if (inC(8, 4 - oy, 7)) return inC(8, 3 - oy, 7) && cy < 4 - oy ? shade(PAL.red, 0.18) : PAL.red;
+    if (inC(5, 3 - oy, 1.2) || inC(11, 3 - oy, 1.2) || inC(8, 5 - oy, 1.2)) return PAL.white;
+    return null;
+  });
+}
+function buildThemeArt(def: WorldDef): ThemeArt {
+  const theme = def.theme;
+  const skyStops = [def.sky[0], mixHex(def.sky[0], def.sky[1], 0.5), def.sky[1]];
+  const sky = bakeGradient(SW, H, skyStops);
+  const cloudCol = theme === "castle" ? "#fff6e0" : theme === "sweets" ? "#fff0fa" : "#ffffff";
+  const cloudsBack = bakeCloudStrip(SW, 34, cloudCol, 0.6);
+  const cloudsFront = bakeCloudStrip(SW, 44, cloudCol, 0.95);
+  const farBase = mixHex(def.hills[0], def.sky[1], 0.4);
+  const farRange = bakeHillStrip(SW, 58, farBase, 48, 4, 26, 36, 1, false);
+  const hillsBack = bakeHillStrip(SW, 88, def.hills[0], 78, 5, 36, 48, 2, true);
+  const hillsFront = bakeHillStrip(SW, 100, def.hills[1], 86, 5, 24, 31, 3, true, theme === "meadow" ? "#ff8f7a" : undefined);
+  const groundTop = [0, 1, 2].map((v) => bakeGroundTop(theme, def, v));
+  const groundUnder = [0, 1].map((v) => bakeGroundUnder(theme, def, v));
+  return {
+    sky,
+    cloudsBack,
+    cloudsFront,
+    farRange,
+    hillsBack,
+    hillsFront,
+    groundTop,
+    groundUnder,
+    floatTile: bakeFloatTile(theme, def),
+    blockTile: bakeBlockTile(theme),
+    bouncer: [bakeBouncer(theme, 0), bakeBouncer(theme, 1)],
+  };
+}
+
 // ── hero sprite: a big round, puffy cloud, drawn from repeat-counts so every row comes
 // out exactly 18 wide (no hand-counted pixel art to miscount) ──
 const CP = (cheek: string) => ({ k: PAL.black, w: PAL.white, c: cheek });
@@ -328,7 +604,28 @@ const feetRow = (gap: number) => {
 };
 const bodyRows = (mouth: string[], feet: string) => [BUMPS, TOP2, PLAIN, EYES, CHEEKS, PLAIN, mouth[0], mouth[1], TOP2, TAPER2, TAPER3, feet];
 if (bodyRows(MOUTH_SHUT, feetRow(2)).some((row) => row.length !== 18)) throw new Error("puffHop: hero sprite rows must all be 18 wide");
-const puffSprite = (mouth: string[], feet: string, cheek: string = PAL.pink) => sprite(bodyRows(mouth, feet), CP(cheek));
+/** turns the flat white body fill into 3 tones (lit from the top-left, like every other baked
+ *  shape here) — a bright highlight on the upper-left puff, a soft shadow on the lower-right
+ *  underside, a gentle off-white in between — without touching the outline/eyes/cheek pixels. */
+function shadeBody(s: Sprite): Sprite {
+  const w = s.rows[0]?.length ?? 0;
+  const h = s.rows.length;
+  const rows = s.rows.map((row, y) =>
+    row
+      .split("")
+      .map((ch, x) => {
+        if (ch !== "w") return ch;
+        const cx = x - w / 2;
+        if (y <= 2 && cx <= 1) return "h";
+        if (y >= h - 3 || cx >= 4) return "s";
+        return "w";
+      })
+      .join(""),
+  );
+  const mid = "#f4f7ff";
+  return sprite(rows, { ...s.pal, w: mid, h: "#ffffff", s: shade(mid, -0.16) });
+}
+const puffSprite = (mouth: string[], feet: string, cheek: string = PAL.pink) => shadeBody(sprite(bodyRows(mouth, feet), CP(cheek)));
 const HERO_WALK = [puffSprite(MOUTH_SHUT, feetRow(4)), puffSprite(MOUTH_SHUT, feetRow(0))];
 const HERO_AIR = puffSprite(MOUTH_SHUT, feetRow(0));
 const HERO_INHALE = puffSprite(MOUTH_OPEN, feetRow(2));
@@ -427,6 +724,9 @@ function create(seed: number): GameInstance {
     hold: null as HoldKind | null,
     power: null as PowerKind | null,
     powerCD: 0,
+    // purely cosmetic squash/stretch pulse: >0 squashes (just landed), <0 stretches (just
+    // launched); eases back to 0 every frame. Never read by physics/collision.
+    squash: 0,
   };
   let lastSafe = { x: hero.x, y: hero.y };
   // keep the hero about a third of the way in from the left, with a little look-ahead in
@@ -525,7 +825,7 @@ function create(seed: number): GameInstance {
     if (hero.inv > 0 || phase !== "play") return;
     hp -= dmg;
     hero.inv = 100;
-    io.sfx.play("hit");
+    io.sfx.play("hurt");
     burst(hero.x + hero.w / 2, hero.y + hero.h / 2, PAL.white, 8);
     if (hero.power) {
       stars.push({ x: hero.x, y: hero.y, w: 7, h: 7, vx: -hero.facing * 2, vy: -2, life: 260, power: hero.power });
@@ -553,7 +853,7 @@ function create(seed: number): GameInstance {
   const popMob = (io: IO, m: Mob) => {
     if (m.dead) return;
     m.dead = true;
-    io.sfx.play("hit");
+    io.sfx.play("pop");
     addScore(io, 100, m.x, m.y - 6);
     burst(m.x + m.w / 2, m.y + m.h / 2, mobColor(m.kind, lvl.boss.fruitColor), 7);
   };
@@ -562,11 +862,12 @@ function create(seed: number): GameInstance {
     if (!b.active || b.dead) return;
     b.hp -= amt;
     b.hitFlash = 12;
-    io.sfx.play("hit");
+    io.sfx.play("thud");
     burst(b.x, b.y - 30, PAL.white, 6, 1);
     if (b.hp <= 0) {
       b.dead = true;
       io.sfx.play("explode");
+      io.sfx.play("cheer");
       addScore(io, 2000, b.x, b.y - 40);
       burst(b.x, b.y - 30, PAL.yellow, 18, 2.5);
     }
@@ -590,6 +891,7 @@ function create(seed: number): GameInstance {
     const facing = hero.facing;
     const mx = hero.x + (facing > 0 ? hero.w + 2 : -2);
     const my = hero.y + hero.h * 0.5;
+    if (tick % 18 === 0) io.sfx.tone(180, 90, "triangle", 0.18);
     for (let d = 1; d <= 2; d++) {
       const tx = Math.floor((mx + facing * d * T) / T);
       const ty = Math.floor(my / T);
@@ -637,7 +939,7 @@ function create(seed: number): GameInstance {
       hero.powerCD = 0;
       io.sfx.play("powerup");
       burst(hero.x + hero.w / 2, hero.y, PAL.yellow, 10);
-    } else io.sfx.play("step");
+    } else io.sfx.play("pickup");
   };
   const spit = (io: IO) => {
     const mx = hero.x + (hero.facing > 0 ? hero.w : -8);
@@ -649,7 +951,7 @@ function create(seed: number): GameInstance {
     const mx = hero.x + (hero.facing > 0 ? hero.w : -8);
     stars.push({ x: mx, y: hero.y + hero.h * 0.4, w: 7, h: 7, vx: hero.facing * 2.3, vy: -2, life: 260, power: hero.power });
     hero.power = null;
-    io.sfx.play("hit");
+    io.sfx.play("whoosh");
   };
   const usePower = (io: IO, type: PowerKind) => {
     const facing = hero.facing;
@@ -660,7 +962,7 @@ function create(seed: number): GameInstance {
     for (const m of lvl.mobs) if (!m.dead && overlap(box, m)) popMob(io, m);
     if (overlap(box, bossHurtbox(lvl.boss))) damageBoss(io, 1);
     fx.push({ type, x: hero.x + hero.w / 2, y: hero.y + hero.h / 2, t: 0, facing });
-    io.sfx.play(type === "spark" ? "laser" : type === "blade" ? "hit" : "shoot");
+    io.sfx.play(type === "spark" ? "zap" : type === "blade" ? "kick" : "whoosh");
   };
 
   const updateHero = (io: IO) => {
@@ -688,20 +990,26 @@ function create(seed: number): GameInstance {
       hero.jumping = true;
       hero.puffed = false;
       hero.puffCharges = PUFF_MAX;
+      hero.squash = -6;
       io.sfx.play("jump");
     } else if (inp.pressed.a && !hero.onGround && hero.puffCharges > 0) {
       hero.puffed = true;
       hero.vy = FLAP_VY;
       hero.puffCharges--;
+      hero.squash = -4;
       io.sfx.play("bounce");
       burst(hero.x + hero.w / 2, hero.y + hero.h, PAL.white, 4, 0.8);
-      if (hero.puffCharges <= 0) hero.puffed = false;
+      if (hero.puffCharges <= 0) {
+        hero.puffed = false;
+        io.sfx.slide?.(640, 260, 140, "sine", 0.22);
+      }
     }
     if (hero.jumping && !inp.held.a && hero.vy < -2) hero.vy = -2;
     hero.vy = Math.min(MAXFALL, hero.vy + (hero.puffed ? GRAV_FLOAT : GRAV));
 
     if (moveX(hero, hero.vx)) hero.vx = 0;
     hero.anim += Math.abs(hero.vx) * 0.09;
+    if (hero.onGround && Math.abs(hero.vx) > 0.3 && tick % 14 === 0) io.sfx.play("step");
     hero.onGround = false;
     const res = moveY(hero, hero.vy);
     if (res === 1) {
@@ -710,12 +1018,14 @@ function create(seed: number): GameInstance {
         hero.vy = -7.2;
         hero.onGround = false;
         hero.jumping = true;
+        hero.squash = -7;
         io.sfx.play("bounce");
         burst(hero.x + hero.w / 2, hero.y + hero.h, PAL.white, 6);
       } else {
         hero.vy = 0;
         hero.onGround = true;
         hero.jumping = false;
+        hero.squash = 8;
         lastSafe = { x: hero.x, y: hero.y };
       }
       hero.puffed = false;
@@ -734,7 +1044,7 @@ function create(seed: number): GameInstance {
       if (ch === "o") {
         lvl.grid[row][c] = ".";
         hp = Math.min(HP_MAX, hp + 1);
-        io.sfx.play("powerup");
+        io.sfx.play("pickup");
         burst(c * T + 8, row * T + 8, PAL.pink, 6);
       } else if (ch === "*") {
         lvl.grid[row][c] = ".";
@@ -824,7 +1134,11 @@ function create(seed: number): GameInstance {
   const updateBoss = (io: IO) => {
     const b = lvl.boss;
     if (!b.active) {
-      if (hero.x > lvl.arenaStartX - 30) b.active = true;
+      if (hero.x > lvl.arenaStartX - 30) {
+        b.active = true;
+        io.sfx.play("thud");
+        io.sfx.slide?.(220, 90, 260, "sawtooth", 0.5);
+      }
       return;
     }
     if (b.dead) return;
@@ -864,6 +1178,7 @@ function create(seed: number): GameInstance {
     update(io) {
       if (over || won) return;
       tick++;
+      if (tick === 1) io.sfx.play("select");
       banner = Math.max(0, banner - 1);
       if (phase === "play") {
         updateHero(io);
@@ -885,8 +1200,10 @@ function create(seed: number): GameInstance {
             return;
           }
           loadWorld(wi + 1);
+          io.sfx.play("select");
         }
       }
+      hero.squash += hero.squash > 0 ? -1 : hero.squash < 0 ? 1 : 0;
       for (const f of fx) f.t++;
       fx = fx.filter((f) => f.t < 20);
       for (const p of parts) {
@@ -905,25 +1222,28 @@ function create(seed: number): GameInstance {
     draw(g: Gfx) {
       const d = lvl.def;
       const cam = Math.round(camX);
-      g.clear(d.sky[0]);
-      g.rect(0, 80, W, 144, d.sky[1]);
+      const art = getThemeArt(d);
+      // 6 parallax depth layers behind the playfield: dithered sky gradient, two cloud decks,
+      // a hazy far candy-mountain range, then the two textured rolling-hill bands up front.
+      g.sprite(art.sky, 0, 0);
+      drawStrip(g, art.cloudsBack, cam * 0.04, 14);
       for (const s of lvl.bgStars) {
         const x = (((s.x - cam * 0.15) % (lvl.cols * T)) + lvl.cols * T) % (lvl.cols * T);
         if (x < cam - 20 || x > cam + W + 20) continue;
         g.rect(x - cam * 0.15 - (x - cam), s.y, s.s, s.s, "#ffffffaa");
       }
+      drawStrip(g, art.cloudsFront, cam * 0.09, 30);
+      drawStrip(g, art.farRange, cam * 0.18, 170 - 58);
       for (let i = 0; i < 6; i++) {
-        const x = ((i * 110 - cam * 0.25) % 660 + 660) % 660 - 80;
-        g.circle(x, 200, 70, d.hills[0]);
+        const x = ((i * 130 - cam * 0.3) % 780 + 780) % 780 - 70;
+        drawThemeProp(g, d.theme, x, 182, 1);
       }
-      for (let i = 0; i < 8; i++) {
-        const x = ((i * 76 - cam * 0.5) % 608 + 608) % 608 - 50;
-        g.circle(x, 205, 36, d.hills[1]);
-      }
+      drawStrip(g, art.hillsBack, cam * 0.38, 196 - 88);
       for (let i = 0; i < 5; i++) {
-        const x = ((i * 150 - cam * 0.45) % 750 + 750) % 750 - 60;
-        drawThemeProp(g, d.theme, x, 196);
+        const x = ((i * 150 - cam * 0.5) % 750 + 750) % 750 - 60;
+        drawThemeProp(g, d.theme, x, 198, 0);
       }
+      drawStrip(g, art.hillsFront, cam * 0.62, 202 - 100);
 
       g.camera(cam, 0);
       const c0 = Math.floor(cam / T);
@@ -934,10 +1254,17 @@ function create(seed: number): GameInstance {
           const x = c * T;
           const y = row * T;
           const above = row > 0 ? lvl.grid[row - 1][c] : ".";
-          if (ch === "#") drawGroundTile(g, x, y, d.theme, d.ground, d.icing, above !== "#", c);
-          else if (ch === "=") drawFloatTile(g, x, y, d.theme, d.icing);
-          else if (ch === "x") drawBlockTile(g, x, y, d.theme);
-          else if (ch === "^") drawBouncer(g, x, y, d.theme, tick);
+          if (ch === "#") {
+            const variant = Math.floor(hash2(c, row, 2) * 3) % 3;
+            if (above !== "#") {
+              g.sprite(art.groundTop[variant], x, y - GROUND_OVERHANG);
+              if (d.theme === "meadow") drawGroundSparkle(g, x, y, c, tick);
+            } else {
+              g.sprite(art.groundUnder[variant % art.groundUnder.length], x, y);
+            }
+          } else if (ch === "=") g.sprite(art.floatTile, x, y);
+          else if (ch === "x") g.sprite(art.blockTile, x, y);
+          else if (ch === "^") g.sprite(art.bouncer[Math.floor(tick / 6) % 2], x, y);
           else if (ch === "o") {
             const f = Math.floor(tick / 10) % 2;
             g.circle(x + 8, y + 9 - f, 6, PAL.pink);
@@ -982,7 +1309,8 @@ function create(seed: number): GameInstance {
                 : Math.abs(hero.vx) > 0.1
                   ? HERO_WALK[Math.floor(hero.anim) % 2]
                   : HERO_WALK[0];
-        const scale = hero.puffed ? 1.6 : 1.4;
+        const squashK = hero.squash > 0 ? 1 - (hero.squash / 8) * 0.16 : hero.squash < 0 ? 1 + (-hero.squash / 7) * 0.12 : 1;
+        const scale = (hero.puffed ? 1.9 : 1.7) * squashK;
         const drawX = hero.x + hero.w / 2 - (HERO_SPRITE_W * scale) / 2;
         const drawY = hero.y + hero.h - HERO_SPRITE_H * scale;
         drawArms(g, hero.x + hero.w / 2, hero.y + hero.h * 0.6, scale, hero.anim, hero.onGround);
@@ -1024,111 +1352,68 @@ function create(seed: number): GameInstance {
 }
 
 // ── shared drawing helpers (pure, no engine state) ──
-// one background prop per theme, drawn as a small parallax layer: a candy-cane post for the
-// meadow, a lollipop for the sweets world, a little rainbow for the clouds, a castle tower
-// with a banner for the sky castle.
-function drawThemeProp(g: Gfx, theme: Theme, x: number, baseY: number) {
+/** a tiny 4-point sparkle/twinkle cross — the little magic-dust mark scattered through the
+ *  candy worlds (ground flowers, ambient dust around puffs), drawn as two thin crossed bars
+ *  so it stays a crisp plus-shape at any size instead of a blobby circle. */
+function drawSparkle(g: Gfx, cx: number, cy: number, color: string, arm = 2) {
+  g.rect(cx - 0.5, cy - arm, 1, arm * 2 + 1, color);
+  g.rect(cx - arm, cy - 0.5, arm * 2 + 1, 1, color);
+}
+// two background props per theme, drawn as small parallax decorations: a near one (variant 0)
+// and a smaller/further one (variant 1) — a candy-cane post + a lollipop tree for the meadow,
+// a lollipop + a candy cane for the sweets world, a rainbow + a little cloud puff for the
+// clouds, a castle tower with a banner + a lone flag spire for the sky castle.
+function drawThemeProp(g: Gfx, theme: Theme, x: number, baseY: number, variant: number) {
   if (theme === "sweets") {
+    if (variant === 1) {
+      g.rect(x - 1, baseY - 20, 2, 20, "#caa06a");
+      for (let i = 0; i < 3; i++) g.rect(x - 4, baseY - 19 + i * 6, 8, 3, i % 2 ? PAL.white : PAL.pink);
+      return;
+    }
     g.rect(x - 1, baseY - 26, 2, 26, "#caa06a");
     g.circle(x, baseY - 32, 8, PAL.pink);
     g.circle(x, baseY - 32, 4, PAL.white);
+    g.circle(x - 2, baseY - 35, 2, "#ffffffaa");
   } else if (theme === "cloud") {
+    if (variant === 1) {
+      g.circle(x + 3, baseY - 12, 5, "#ffffff");
+      g.circle(x - 3, baseY - 11, 4, "#ffffff");
+      g.circle(x, baseY - 16, 5, shade("#ffffff", 0.2));
+      return;
+    }
     const colors = [PAL.pink, PAL.orange, PAL.yellow, PAL.green, PAL.blue];
     for (let i = 0; i < 5; i++) g.rect(x - 20 + i * 10, baseY - 20 - Math.abs(i - 2) * 4, 10, 4, colors[i]);
   } else if (theme === "castle") {
+    if (variant === 1) {
+      g.rect(x - 1, baseY - 24, 2, 24, "#8a8aa0");
+      g.rect(x - 1, baseY - 32, 7, 5, PAL.red);
+      return;
+    }
     g.rect(x - 8, baseY - 50, 16, 50, "#8a8aa0");
     g.rect(x - 10, baseY - 56, 20, 8, "#6a6e8a");
     g.rect(x - 1, baseY - 70, 2, 16, PAL.red);
     g.rect(x - 1, baseY - 70, 9, 6, PAL.red);
+    g.line(x - 7, baseY - 44, x - 7, baseY - 8, "#6a6e8a");
+  } else if (variant === 1) {
+    // a lollipop tree: a brown trunk under a big swirled candy canopy
+    g.rect(x - 2, baseY - 18, 4, 18, "#8a5a2c");
+    g.circle(x, baseY - 28, 12, "#ff8fb8");
+    g.circle(x, baseY - 28, 8, "#ffffff");
+    g.circle(x, baseY - 28, 4, "#ff8fb8");
   } else {
     g.rect(x - 1, baseY - 30, 2, 30, PAL.white);
     for (let i = 0; i < 4; i++) g.rect(x - 2, baseY - 28 + i * 7, 6, 3, i % 2 ? PAL.red : PAL.white);
+    g.circle(x, baseY + 1, 2, "#ff8f7a");
   }
 }
-function drawGroundTile(g: Gfx, x: number, y: number, theme: Theme, ground: string, icing: string, topExposed: boolean, c: number) {
-  if (theme === "sweets") {
-    g.rect(x, y, T, T, ground);
-    if (!topExposed) return;
-    g.rect(x, y, T, 6, icing);
-    g.rect(x + 2 + (c % 3) * 2, y + 5, 2, 3 + (c % 3), icing);
-    g.rect(x + 10 - (c % 2) * 2, y + 5, 2, 4, icing);
-  } else if (theme === "cloud") {
-    g.circle(x + 4, y + 9, 7, ground);
-    g.circle(x + 12, y + 9, 7, ground);
-    g.circle(x + 8, y + 5, 8, ground);
-  } else if (theme === "castle") {
-    g.rect(x, y, T, T, ground);
-    g.box(x, y, T, T, "#5a5a70");
-    if (topExposed) g.rect(x, y, T, 3, "#b0b0c4");
-  } else {
-    g.rect(x, y, T, T, ground);
-    if (!topExposed) return;
-    g.rect(x, y, T, 5, icing);
-    if (c % 3 === 0) {
-      g.circle(x + 8, y - 1, 2, PAL.pink);
-      g.circle(x + 8, y - 1, 1, PAL.yellow);
-    }
-  }
-}
-function drawFloatTile(g: Gfx, x: number, y: number, theme: Theme, icing: string) {
-  if (theme === "sweets") {
-    g.rect(x, y, T, T, "#f2c48d");
-    g.rect(x, y, T, 3, icing);
-    g.rect(x + 3, y + 3, 2, 5, icing);
-    g.rect(x + 10, y + 2, 2, 6, icing);
-  } else if (theme === "cloud") {
-    g.circle(x + 4, y + 8, 6, "#ffffff");
-    g.circle(x + 12, y + 8, 6, "#ffffff");
-    g.circle(x + 8, y + 5, 7, "#ffffff");
-  } else if (theme === "castle") {
-    g.rect(x, y, T, T, "#9a9ab0");
-    g.rect(x, y, T, 3, "#c8c8dc");
-    g.rect(x + 2, y - 3, 3, 3, "#9a9ab0");
-    g.rect(x + 11, y - 3, 3, 3, "#9a9ab0");
-  } else {
-    g.rect(x, y, T, T, "#8a5a2c");
-    g.rect(x, y, T, 3, icing);
-    g.circle(x + 8, y - 1, 3, PAL.white);
-  }
-}
-function drawBlockTile(g: Gfx, x: number, y: number, theme: Theme) {
-  if (theme === "sweets") {
-    g.rect(x + 1, y + 1, T - 2, T - 2, "#e8c48a");
-    g.circle(x + 5, y + 5, 1, "#8a5a2c");
-    g.circle(x + 11, y + 9, 1, "#8a5a2c");
-    g.circle(x + 8, y + 11, 1, "#8a5a2c");
-  } else if (theme === "cloud") {
-    g.circle(x + 8, y + 8, 7, "#eaf8ff");
-    g.box(x + 1, y + 1, T - 2, T - 2, "#bfe8ff");
-  } else if (theme === "castle") {
-    g.rect(x + 1, y + 1, T - 2, T - 2, "#b0b0c4");
-    g.line(x + 1, y + 8, x + 15, y + 8, "#7a7a90");
-    g.line(x + 8, y + 1, x + 8, y + 8, "#7a7a90");
-  } else {
-    g.rect(x + 1, y + 1, T - 2, T - 2, "#caa06a");
-    g.box(x + 1, y + 1, T - 2, T - 2, "#8a6a3a");
-  }
-}
-/** a bouncer tile: mushroom (meadow), gumdrop (sweets), cloud puff (cloud), banner (castle). */
-function drawBouncer(g: Gfx, x: number, y: number, theme: Theme, tick: number) {
-  const bob = Math.floor(tick / 6) % 2;
-  if (theme === "sweets") {
-    g.circle(x + 8, y + 10 - bob, 6, PAL.pink);
-    g.circle(x + 8, y + 10 - bob, 3, PAL.white);
-  } else if (theme === "cloud") {
-    g.circle(x + 8, y + 10 - bob, 7, "#ffffff");
-    g.circle(x + 5, y + 9 - bob, 3, "#ffffff");
-    g.circle(x + 11, y + 9 - bob, 3, "#ffffff");
-  } else if (theme === "castle") {
-    g.rect(x + 3, y + 3 - bob, 10, 3, PAL.red);
-    g.rect(x + 6, y + 4 - bob, 4, 10, PAL.red);
-  } else {
-    g.rect(x + 6, y + 8 - bob, 4, 6, "#f2c48d");
-    g.circle(x + 8, y + 4 - bob, 7, PAL.red);
-    g.circle(x + 5, y + 3 - bob, 1, PAL.white);
-    g.circle(x + 11, y + 3 - bob, 1, PAL.white);
-    g.circle(x + 8, y + 5 - bob, 1, PAL.white);
-  }
+/** the little twinkling coral sparkle that sits in the grass on top of a meadow ground tile —
+ *  animated (so it can't be baked into the static tile sprite), drawn on top of it every 3rd
+ *  column, matching the cabinet painting's scattered ground twinkles. */
+function drawGroundSparkle(g: Gfx, x: number, y: number, c: number, tick: number) {
+  if (c % 3 !== 0) return;
+  const big = (tick + c * 11) % 90 < 45;
+  drawSparkle(g, x + 8, y - 1, "#ff8f7a", big ? 2 : 1);
+  g.rect(x + 7, y - 2, 1, 1, "#fff3d6");
 }
 function mobColor(kind: HoldKind, fruitColor: string) {
   if (kind === "puff") return "#c9d4ea";
@@ -1141,25 +1426,45 @@ function mobColor(kind: HoldKind, fruitColor: string) {
 function drawMob(g: Gfx, m: Mob, fruitColor: string, tick: number) {
   const bob = Math.sin(tick * 0.2 + m.x) * 1;
   const color = mobColor(m.kind, fruitColor);
-  const rad = m.w / 2;
+  const rad = m.w / 2; // the (unchanged) hazard hitbox radius
   const cx = m.x + rad;
   const cy = m.y + m.h / 2 + bob;
-  g.circle(cx, cy, rad, color);
-  g.circle(cx - rad * 0.4, cy - rad * 0.2, rad * 0.18, PAL.black);
-  g.circle(cx + rad * 0.4, cy - rad * 0.2, rad * 0.18, PAL.black);
-  g.line(cx - rad * 0.3, cy + rad * 0.4, cx + rad * 0.3, cy + rad * 0.4, PAL.black);
-  const top = cy - m.h * 0.75;
+  // drawn ~1.4x the hitbox for readability — purely cosmetic, the hurt-box above stays put
+  const vrad = rad * 1.4;
+  g.circle(cx, cy, vrad + 1.3, PAL.black);
+  g.circle(cx + 1, cy + 1.3, vrad, shade(color, -0.24));
+  g.circle(cx - 0.4, cy - 0.4, vrad * 0.93, color);
+  g.circle(cx - vrad * 0.32, cy - vrad * 0.4, vrad * 0.4, shade(color, 0.42));
+  g.circle(cx - vrad * 0.4, cy - vrad * 0.2, vrad * 0.16, PAL.black);
+  g.circle(cx + vrad * 0.4, cy - vrad * 0.2, vrad * 0.16, PAL.black);
+  g.line(cx - vrad * 0.3, cy + vrad * 0.42, cx + vrad * 0.3, cy + vrad * 0.42, PAL.black);
+  const top = cy - vrad - 3;
   if (m.kind === "flame") {
     g.rect(cx - 2, top, 3, 7, PAL.red);
     g.circle(cx, top - 2, 3, PAL.yellow);
   } else if (m.kind === "spark") {
-    g.line(cx - 4, top + 6, cx + 2, top, PAL.yellow);
-    g.line(cx + 2, top, cx - 2, top + 3, PAL.yellow);
+    // a little sparkler: a white wick topped with a warm, flickering bead
+    g.rect(cx - 1, top - 2, 2, 8, PAL.white);
+    const flick = Math.floor(tick / 4 + m.x) % 3;
+    g.circle(cx, top - 4, 2 + (flick === 0 ? 1 : 0), "#ff6a4a");
+    if (flick === 1) drawSparkle(g, cx + 3, top - 5, PAL.yellow, 1);
   } else if (m.kind === "blade") {
     g.rect(cx - 1, top - 3, 3, 9, PAL.white);
     g.rect(cx - 4, top - 4, 9, 3, PAL.grey);
   } else if (m.kind === "fruit") {
     g.rect(cx - 1, top - 1, 2, 4, PAL.green);
+  }
+  if (m.kind === "puff") {
+    // ambient magic dust drifting around the puff — purely cosmetic, deterministic per mob
+    const seed = hash2(Math.floor(m.x), Math.floor(m.y));
+    for (let i = 0; i < 3; i++) {
+      const ph = seed * 6.28 + i * 2.1;
+      const a = tick * 0.03 + ph;
+      const dx = Math.cos(a) * (vrad + 5 + i * 2);
+      const dy = Math.sin(a * 1.3) * (vrad * 0.7) - vrad * 0.3;
+      const tw = Math.floor(tick / 10 + i * 3) % 2;
+      if (tw === 0) drawSparkle(g, cx + dx, cy + dy, "#ffffffcc", 1);
+    }
   }
 }
 function drawBoss(g: Gfx, b: Boss, tick: number) {
