@@ -43,6 +43,8 @@ import { createDragonFlight, type DragonFlight } from "../world/rideables/dragon
 import { hintsReady } from "../world/rideables/dragonSpace";
 import { bigFrame, forEachBigSea, setOccluderFocus, type BigBody } from "../world/sea/bigSea";
 import { RIDEABLE_SPOTS } from "../registry/rideables";
+/** every dragon on the island (a kid friends with one is friends with them all) */
+const ALL_DRAGON_IDS: string[] = RIDEABLE_SPOTS.filter((s) => s.kind === "dragon").map((s) => s.id);
 import { DRAGON_BREEDS, type DragonBreed } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaDist } from "../registry/island";
@@ -1878,7 +1880,9 @@ export class ParkWorld {
       this.park.rides.setTarget(this.hopNear && this.hopNear.kind === "dragon" ? this.hopNear.id : null);
       const bondId = this.park.rides.takeBonded();
       if (bondId) {
-        this.bondedDragons.add(bondId);
+        // (friends with one = friends with them all: see setBondedDragons)
+        this.bondedDragons = new Set(ALL_DRAGON_IDS);
+        this.park.rides.setBonded(this.bondedDragons);
         this.opts.onDragonBond?.(bondId);
         const nm = DRAGON_BREEDS[RIDEABLE_SPOTS.find((q) => q.id === bondId)?.breed ?? "roostwarden"].name;
         // the kid said hi to ride it: friends now, so climb on and off we go
@@ -2900,7 +2904,10 @@ export class ParkWorld {
 
   /** the dragons this kid has already made friends with (saved per kid by the app) */
   setBondedDragons(ids: string[]) {
-    this.bondedDragons = new Set(ids);
+    // dragons talk to each other: once a kid has made friends with one, every dragon on the
+    // island knows them (it used to be one "say hi" per dragon, so a kid met a stranger at every
+    // station and had to make friends all over again)
+    this.bondedDragons = new Set(ids.length > 0 ? ALL_DRAGON_IDS : []);
     this.bondSync = true;
   }
 
