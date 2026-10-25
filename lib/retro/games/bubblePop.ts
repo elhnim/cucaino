@@ -3,7 +3,8 @@
 // bubbles left hanging with nothing holding them up fall away for bonus points. Every few
 // shots the candy ceiling presses down one row — clear the board before the bubbles reach
 // the line at the bottom! Tap anywhere above the cannon to aim and fire in one go.
-import { H, PAL, W, clamp, rng, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+import { clamp, H, PAL, W, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, bakeGradient, hash2, outlined, ramp, shade } from "../art";
 
 const FL = 48;
 const FR = 208;
@@ -14,8 +15,14 @@ const MAXR = 16;
 const DEADLINE = 184;
 const CX = 128;
 const CY = 204;
-const COLORS = [PAL.red, PAL.yellow, PAL.green, PAL.blue, PAL.purple, PAL.orange];
-const DARKS = ["#a82a3a", "#b89a20", "#23853a", "#2242a0", "#5f36a8", "#b8601e"];
+const COLORS = [PAL.red, PAL.yellow, PAL.green, PAL.blue, PAL.purple, PAL.orange] as const;
+const GOLD = "#d9a23c";
+const AIM_MIN = -1.3;
+const AIM_MAX = 1.3;
+const BARREL_FRAMES = 21;
+const BUBBLE_D = 15;
+const BARREL_L = 20;
+const MUZZLE_DIST = 17;
 
 const colsIn = (r: number) => (r % 2 ? 9 : 10);
 
@@ -27,17 +34,150 @@ function neighbours(r: number, c: number): [number, number][] {
   return out.filter(([rr, cc]) => rr >= 0 && rr < MAXR && cc >= 0 && cc < colsIn(rr));
 }
 
-function drawBubble(g: Gfx, x: number, y: number, ci: number, face = true) {
-  g.circle(x, y, RAD - 1, DARKS[ci] ?? PAL.dark);
-  g.circle(x - 0.5, y - 0.5, RAD - 2, COLORS[ci] ?? PAL.grey);
-  g.rect(x - 4, y - 4, 2, 2, PAL.white);
-  if (face) {
-    g.rect(x - 3, y, 1, 2, PAL.black);
-    g.rect(x + 2, y, 1, 2, PAL.black);
+// ── baked art (built once, lazily, at the start of a round — never at module load) ──
+
+/** a glossy pixel-art sphere: lit from the top-left, rim-darkened at the edge, with a bright
+ *  specular highlight and a small secondary glint, like a hard-candy marble */
+function bubbleGlossPixel(dx: number, dy: number, R: number, tone: string[]): string | null {
+  const d = Math.hypot(dx, dy);
+  if (d > R) return null;
+  const nx = dx / R;
+  const ny = dy / R;
+  let t = (1 - (nx * 0.58 + ny * 0.78)) / 2; // 0 = lit, 1 = shadowed
+  if (d / R > 0.86) t = Math.min(1, t + 0.32); // dark rim
+  const idx = Math.min(3, Math.max(0, Math.floor((1 - t) * 4)));
+  let col = tone[idx];
+  const hd = Math.hypot(dx - R * -0.4, dy - R * -0.5);
+  if (hd < R * 0.34) col = shade(col, 0.55 * (1 - hd / (R * 0.34)));
+  if (hd < R * 0.13) col = "#ffffff";
+  if (Math.hypot(dx - R * 0.32, dy - R * 0.12) < R * 0.16) col = shade(col, 0.2);
+  return col;
+}
+function bakeBubble(color: string): Sprite {
+  const R = BUBBLE_D / 2;
+  const c = R;
+  const tone = ramp(color, 4, 0.5);
+  return outlined(
+    bake(BUBBLE_D, BUBBLE_D, (x, y) => bubbleGlossPixel(x + 0.5 - c, y + 0.5 - c, R, tone)),
+    "#140c28"
+  );
+}
+
+/** the gold cannon barrel + its red swivel-gem joint, baked once per aim angle so firing never
+ *  rotates anything at draw time: local space has lx across the barrel, ly running from the
+ *  pivot (0) up to the muzzle (negative) */
+function barrelPixel(lx: number, ly: number, gold: string[], gem: string[]): string | null {
+  const gR = 5.2;
+  const gy = ly - 1.6;
+  const gd = Math.hypot(lx, gy);
+  if (ly > -2 && gd < gR) {
+    const nx = lx / gR;
+    const ny = gy / gR;
+    let t = (1 - (nx * 0.5 + ny * 0.75)) / 2;
+    if (gd / gR > 0.85) t = Math.min(1, t + 0.3);
+    let col = gem[Math.min(3, Math.max(0, Math.floor((1 - t) * 4)))];
+    if (Math.hypot(lx - gR * -0.35, gy - gR * -0.5) < gR * 0.32) col = "#ffffff";
+    return col;
   }
+  if (ly > 2 || ly < -BARREL_L) return null;
+  const t = clamp(-ly / BARREL_L, 0, 1);
+  const flare = t > 0.86 ? (t - 0.86) * 9 : 0;
+  const halfW = 3.6 + flare;
+  if (Math.abs(lx) > halfW) return null;
+  if (t > 0.93 && Math.abs(lx) < halfW * 0.5) return "#140c28"; // bore
+  const edge = lx / halfW;
+  let idx = edge < -0.5 ? 0 : edge < 0 ? 1 : edge < 0.55 ? 2 : 3;
+  for (const bt of [0.3, 0.6]) if (Math.abs(t - bt) < 0.045) idx = Math.max(0, idx - 1);
+  return gold[idx];
+}
+function bakeBarrelFrame(aim: number, gold: string[], gem: string[]): Sprite {
+  const d = 48;
+  const c = d / 2;
+  const cosA = Math.cos(aim);
+  const sinA = Math.sin(aim);
+  return outlined(
+    bake(d, d, (x, y) => {
+      const X = x + 0.5 - c;
+      const Y = y + 0.5 - c;
+      const lx = X * cosA + Y * sinA;
+      const ly = -X * sinA + Y * cosA;
+      return barrelPixel(lx, ly, gold, gem);
+    }),
+    "#140c28"
+  );
+}
+
+/** the static mount the barrel swivels on: a flared trapezoid with a gold rim and two feet */
+function basePixel(x: number, y: number, w: number, h: number, gold: string[]): string | null {
+  const cx = w / 2;
+  const topW = w * 0.3;
+  const botW = w * 0.94;
+  const t = clamp(y / (h - 3), 0, 1);
+  const halfW = (topW + (botW - topW) * t) / 2;
+  if (y < h - 2 && Math.abs(x - cx) <= halfW) {
+    if (y < 2) return gold[2];
+    const edge = (x - cx) / halfW;
+    return edge < -0.45 ? "#262b50" : edge < 0.25 ? "#363c68" : "#474d86";
+  }
+  for (const fx of [cx - botW * 0.3, cx + botW * 0.3]) {
+    if (Math.hypot(x - fx, y - (h - 2)) < 2.6) return y < h - 1 ? "#20223e" : "#14162a";
+  }
+  return null;
+}
+const bakeBase = (gold: string[]) => outlined(bake(30, 13, (x, y) => basePixel(x, y, 30, 13, gold)), "#140c28");
+
+/** a small radiating sparkle used for the pop-burst, scaled up and faded as it plays */
+function starPixel(x: number, y: number, c: number): string | null {
+  const dx = x + 0.5 - c;
+  const dy = y + 0.5 - c;
+  const d = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx);
+  const arm = Math.abs(Math.sin(ang * 4));
+  const R = c * (0.22 + arm * 0.78);
+  if (d > R) return null;
+  return d < c * 0.22 ? "#ffffff" : d < c * 0.5 ? "#fff6c8" : "#ffe14d";
+}
+const bakeStar = () => bake(18, 18, (x, y) => starPixel(x, y, 9));
+
+/** a quiet diagonal-stripe tile for the cabinet side panels */
+const bakeSidePanel = () => bake(16, 16, (x, y) => (Math.floor((x - y) / 5) % 2 === 0 ? "#232d60" : "#2a3670"));
+
+/** the playfield's deep-navy backdrop, a soft vertical gradient so it isn't a flat slab */
+const bakeFieldBg = () => bakeGradient(FR - FL, H, ["#140c38", "#1c1552", "#241a5e"]);
+
+interface BubbleArt {
+  bubbles: Sprite[];
+  ghost: Sprite;
+  barrel: Sprite[];
+  base: Sprite;
+  side: Sprite;
+  fieldBg: Sprite;
+  star: Sprite;
+}
+let A: BubbleArt | null = null;
+function makeArt(): BubbleArt {
+  const gold = ramp(GOLD, 4, 0.55);
+  const gem = ramp(PAL.red, 4, 0.55);
+  return {
+    bubbles: COLORS.map((c) => bakeBubble(c)),
+    ghost: bakeBubble(PAL.grey),
+    barrel: Array.from({ length: BARREL_FRAMES }, (_, i) => bakeBarrelFrame(AIM_MIN + ((AIM_MAX - AIM_MIN) * i) / (BARREL_FRAMES - 1), gold, gem)),
+    base: bakeBase(gold),
+    side: bakeSidePanel(),
+    fieldBg: bakeFieldBg(),
+    star: bakeStar(),
+  };
+}
+const art = () => (A ??= makeArt());
+const barrelIdx = (aim: number) => Math.round(((clamp(aim, AIM_MIN, AIM_MAX) - AIM_MIN) / (AIM_MAX - AIM_MIN)) * (BARREL_FRAMES - 1));
+
+function drawBubbleAt(g: Gfx, a: BubbleArt, x: number, y: number, ci: number) {
+  const s = ci >= 0 ? a.bubbles[ci] ?? a.bubbles[0] : a.ghost;
+  g.sprite(s, x - s.rows[0].length / 2, y - s.rows.length / 2);
 }
 
 function create(seed: number): GameInstance {
+  art(); // warm the sprite cache once, at round start, never mid-draw
   const r = rng(seed);
   let grid: number[][] = [];
   let level = 1;
@@ -51,6 +191,7 @@ function create(seed: number): GameInstance {
   const pops: { x: number; y: number; c: number; t: number }[] = [];
   const falls: { x: number; y: number; vy: number; vx: number; c: number }[] = [];
   const sparks: { x: number; y: number; vx: number; vy: number; life: number; c: string }[] = [];
+  const flashes: { x: number; y: number; life: number; max: number; color: string }[] = [];
   const texts: { x: number; y: number; s: string; t: number }[] = [];
   let clearT = -1;
   let lose = -1;
@@ -130,7 +271,7 @@ function create(seed: number): GameInstance {
   };
 
   const burst = (x: number, y: number, ci: number) => {
-    for (let i = 0; i < 6; i++) sparks.push({ x, y, vx: r.range(-2, 2), vy: r.range(-2.4, 0.6), life: r.int(12, 24), c: COLORS[ci] });
+    for (let i = 0; i < 7; i++) sparks.push({ x, y, vx: r.range(-2.2, 2.2), vy: r.range(-2.6, 0.6), life: r.int(12, 26), c: COLORS[ci] });
   };
 
   const settle = (rr: number, c: number, color: number, io: IO) => {
@@ -151,7 +292,8 @@ function create(seed: number): GameInstance {
         grid[a][b] = -1;
       }
       io.score(group.length * 10);
-      io.sfx.play("coin");
+      io.sfx.play("pop");
+      io.sfx.tone(440 + Math.min(10, group.length) * 36, 0.09, "square", 0.18);
       // anything no longer hanging from the ceiling falls
       const held = new Set<number>();
       const q: [number, number][] = [];
@@ -178,7 +320,8 @@ function create(seed: number): GameInstance {
         const pts = dropped * 20 * Math.min(8, dropped);
         io.score(pts);
         texts.push({ x: cx(rr, c), y: cy(rr), s: `+${pts}`, t: 0 });
-        io.sfx.play("powerup");
+        io.sfx.play("whoosh");
+        io.sfx.noise?.(0.3, 0.22, 700, 180);
       } else texts.push({ x: cx(rr, c), y: cy(rr), s: `+${group.length * 10}`, t: 0 });
     } else io.sfx.play("step");
 
@@ -186,29 +329,38 @@ function create(seed: number): GameInstance {
       clearT = 0;
       io.score(1000 * level);
       io.sfx.play("win");
+      io.sfx.play("cheer");
+      io.sfx.slide?.(500, 1000, 0.4, "square", 0.2);
       return;
     }
     shotsLeft--;
     if (shotsLeft <= 0) {
       ceil++;
       shotsLeft = perDrop();
-      shake = 12;
-      io.sfx.play("explode");
+      shake = 14;
+      flashes.push({ x: (FL + FR) / 2, y: ceilingY(), life: 14, max: 14, color: "#e85a9a" });
+      io.sfx.play("thud");
+      io.sfx.noise?.(0.3, 0.3, 220, 70);
     }
     // keep the next bubbles to colours still on the board
     const p = present();
     if (!p.includes(cur)) cur = pickColor();
     if (!p.includes(next)) next = pickColor();
     for (let a = 0; a < MAXR; a++) for (let b = 0; b < colsIn(a); b++) if (grid[a][b] >= 0 && cy(a) + RAD - 1 >= DEADLINE) lose = 0;
-    if (lose === 0) io.sfx.play("die");
+    if (lose === 0) io.sfx.play("hurt");
   };
 
   const fire = (io: IO) => {
     if (shot) return;
-    shot = { x: CX, y: CY, vx: Math.sin(aim) * 6, vy: -Math.cos(aim) * 6, c: cur };
+    const mx = CX + Math.sin(aim) * MUZZLE_DIST;
+    const my = CY + 4 - Math.cos(aim) * MUZZLE_DIST;
+    shot = { x: mx, y: my, vx: Math.sin(aim) * 6, vy: -Math.cos(aim) * 6, c: cur };
+    flashes.push({ x: mx, y: my, life: 8, max: 8, color: "#fff6c8" });
+    for (let i = 0; i < 4; i++) sparks.push({ x: mx, y: my, vx: Math.sin(aim) + r.range(-0.6, 0.6), vy: -Math.cos(aim) + r.range(-0.6, 0.6), life: r.int(6, 12), c: PAL.white });
     cur = next;
     next = pickColor();
     io.sfx.play("shoot");
+    io.sfx.slide?.(520, 880, 0.08, "square", 0.16);
   };
 
   const stepShot = (io: IO) => {
@@ -240,7 +392,7 @@ function create(seed: number): GameInstance {
       frame++;
       if (shake > 0) shake--;
       for (const p of pops) p.t++;
-      for (let i = pops.length - 1; i >= 0; i--) if (pops[i].t > 12) pops.splice(i, 1);
+      for (let i = pops.length - 1; i >= 0; i--) if (pops[i].t > 16) pops.splice(i, 1);
       for (const f of falls) {
         f.vy += 0.25;
         f.y += f.vy;
@@ -254,6 +406,10 @@ function create(seed: number): GameInstance {
         s.life--;
       }
       for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i].life <= 0) sparks.splice(i, 1);
+      for (let i = flashes.length - 1; i >= 0; i--) {
+        flashes[i].life--;
+        if (flashes[i].life <= 0) flashes.splice(i, 1);
+      }
       for (const t of texts) t.t++;
       for (let i = texts.length - 1; i >= 0; i--) if (texts[i].t > 40) texts.splice(i, 1);
       if (over) return;
@@ -262,6 +418,7 @@ function create(seed: number): GameInstance {
         lose++;
         if (lose > 70) {
           over = true;
+          io.sfx.slide?.(260, 60, 0.5, "sawtooth", 0.24);
           io.gameOver();
         }
         return;
@@ -284,58 +441,95 @@ function create(seed: number): GameInstance {
         aim += dir * (aimHold > 20 ? 0.04 : 0.02);
         if (aimHold % 6 === 1) io.sfx.tone(700, 0.015, "square", 0.03);
       } else aimHold = 0;
-      aim = clamp(aim, -1.3, 1.3);
+      aim = clamp(aim, AIM_MIN, AIM_MAX);
       if (inp.pressed.b && !shot) {
         [cur, next] = [next, cur];
-        io.sfx.play("blip");
+        io.sfx.play("select");
       }
       if (inp.tap && inp.tap.y < CY - 8) {
-        aim = clamp(Math.atan2(inp.tap.x - CX, CY - inp.tap.y), -1.3, 1.3);
+        aim = clamp(Math.atan2(inp.tap.x - CX, CY - inp.tap.y), AIM_MIN, AIM_MAX);
         fire(io);
       } else if (inp.pressed.a) fire(io);
       stepShot(io);
     },
 
     draw(g) {
+      const a = art();
       g.clear(PAL.navy);
-      // side panels
-      for (let y = 0; y < H; y += 12)
-        for (let x = 0; x < W; x += 12) if ((x < FL || x >= FR) && ((x + y) / 12) % 2 === 0) g.rect(x, y, 12, 12, "#2c3a7a");
-      const sx = shake > 0 ? (shake % 2 ? 1 : -1) : 0;
-      g.camera(sx, 0);
-      g.rect(FL, 0, FR - FL, H, PAL.night);
+      // cabinet side panels
+      const sw = a.side.rows[0].length;
+      const sh = a.side.rows.length;
+      for (let y = 0; y < H; y += sh) {
+        for (let x = 0; x < FL; x += sw) g.sprite(a.side, x, y);
+        for (let x = FR; x < W; x += sw) g.sprite(a.side, x, y);
+      }
+      g.rect(FL - 2, 0, 2, H, "#120c2c");
+      g.rect(FR, 0, 2, H, "#120c2c");
+
+      let ox = 0;
+      let oy = 0;
+      if (shake > 0) {
+        const k = shake / 14;
+        ox = (hash2(frame, 11, 7) - 0.5) * 6 * k;
+        oy = (hash2(frame, 29, 13) - 0.5) * 3 * k;
+      }
+      g.camera(ox, oy);
+      g.sprite(a.fieldBg, FL, 0);
       g.rect(FL - 3, 0, 3, H, PAL.pink);
       g.rect(FR, 0, 3, H, PAL.pink);
-      // the pressing ceiling
+
+      // the pressing candy-metal ceiling
       const cyl = ceilingY();
-      g.rect(FL, 0, FR - FL, cyl, PAL.purple);
-      for (let x = FL; x < FR; x += 10) g.rect(x, cyl - 4, 5, 4, PAL.pink);
+      g.rect(FL, 0, FR - FL, cyl, "#241a52");
+      for (let x = FL + 5; x < FR; x += 13)
+        for (let y = 4; y < cyl - 5; y += 13) g.rect(x, y, 2, 2, hash2(x, y, 3) > 0.5 ? "#4a3a8a" : "#140e30");
+      for (let x = FL; x < FR; x += 10) {
+        g.circle(x + 5, cyl - 2, 5, "#c23a7a");
+        g.circle(x + 5, cyl - 4, 3, "#e85a9a");
+      }
       g.rect(FL, cyl - 1, FR - FL, 1, PAL.white);
-      // danger line
+
+      // danger line: a hazard stripe that flashes red when bubbles are close
       const danger = grid.some((row, rr) => row.some((v) => v >= 0 && cy(rr) + RAD >= DEADLINE - ROW_H * 2));
-      for (let x = FL; x < FR; x += 8) g.rect(x, DEADLINE, 4, 1, danger && frame % 20 < 10 ? PAL.red : PAL.grey);
+      for (let x = FL; x < FR; x += 6) g.rect(x, DEADLINE, 4, 2, danger && frame % 20 < 10 ? PAL.red : Math.floor(x / 6) % 2 === 0 ? PAL.yellow : PAL.black);
 
       for (let rr = 0; rr < MAXR; rr++)
         for (let c = 0; c < colsIn(rr); c++) {
           const v = grid[rr][c];
           if (v < 0) continue;
-          if (lose >= 0 && lose > (MAXR - rr) * 4) drawBubble(g, cx(rr, c), cy(rr), -1, false);
-          else drawBubble(g, cx(rr, c), cy(rr), v);
+          if (lose >= 0 && lose > (MAXR - rr) * 4) drawBubbleAt(g, a, cx(rr, c), cy(rr), -1);
+          else drawBubbleAt(g, a, cx(rr, c), cy(rr), v);
         }
-      for (const p of pops) {
-        g.circle(p.x, p.y, RAD - 1 + p.t * 0.6, p.t % 4 < 2 ? PAL.white : COLORS[p.c]);
-        g.circle(p.x, p.y, Math.max(0, RAD - 2 + p.t * 0.6 - 2), PAL.night);
-      }
-      for (const f of falls) drawBubble(g, f.x, f.y, f.c);
-      for (const s of sparks) g.rect(s.x - 1, s.y - 1, 2, 2, s.life % 6 < 3 ? PAL.white : s.c);
 
-      // aim guide: follow the path with wall bounces until it would stick
+      for (const p of pops) {
+        const t = p.t / 16;
+        g.alpha(Math.max(0, 1 - t));
+        const scale = 0.5 + t * 1.6;
+        const s = a.star;
+        g.sprite(s, p.x - (s.rows[0].length * scale) / 2, p.y - (s.rows.length * scale) / 2, { scale });
+        g.alpha(1);
+      }
+      for (const f of falls) drawBubbleAt(g, a, f.x, f.y, f.c);
+      for (const s of sparks) {
+        if (Math.abs(s.vx) + Math.abs(s.vy) > 1.6 && s.life > 4) g.line(s.x, s.y, s.x - s.vx * 1.6, s.y - s.vy * 1.6, s.c);
+        else g.rect(s.x - 1, s.y - 1, 2, 2, s.life % 6 < 3 ? PAL.white : s.c);
+      }
+      for (const f of flashes) {
+        const t = f.life / f.max;
+        g.alpha(t * 0.85);
+        g.circle(f.x, f.y, (1 - t) * 14 + 3, f.color);
+        g.alpha(1);
+      }
+
+      // aim guide: a travelling dashed red line, following the path with wall bounces
       if (!shot && lose < 0 && clearT < 0) {
-        let x = CX;
-        let y = CY;
+        let x = CX + Math.sin(aim) * MUZZLE_DIST;
+        let y = CY + 4 - Math.cos(aim) * MUZZLE_DIST;
         let vx = Math.sin(aim) * 4;
         const vy = -Math.cos(aim) * 4;
         for (let i = 0; i < 70; i++) {
+          const px = x;
+          const py = y;
           x += vx;
           y += vy;
           if (x < FL + RAD) {
@@ -346,37 +540,62 @@ function create(seed: number): GameInstance {
             vx = -vx;
           }
           if (touching(x, y)) break;
-          if ((i + Math.floor(frame / 4)) % 3 === 0 && i > 3) g.rect(x - 1, y - 1, 2, 2, COLORS[cur]);
+          if (i > 3 && (Math.floor(i / 2) + Math.floor(frame / 3)) % 2 === 0) g.line(px, py, x, y, PAL.red);
         }
       }
-      if (shot) drawBubble(g, shot.x, shot.y, shot.c);
+      if (shot) drawBubbleAt(g, a, shot.x, shot.y, shot.c);
 
-      // cannon
-      const bx = CX + Math.sin(aim) * 16;
-      const by = CY - Math.cos(aim) * 16;
-      for (let o = -3; o <= 3; o++) g.line(CX + Math.cos(aim) * o, CY + Math.sin(aim) * o, bx + Math.cos(aim) * o, by + Math.sin(aim) * o, o === -3 || o === 3 ? PAL.dark : PAL.grey);
-      g.circle(CX, CY + 4, 12, PAL.dark);
-      g.circle(CX, CY + 4, 10, PAL.pink);
-      if (!shot) drawBubble(g, CX, CY, cur);
-      drawBubble(g, CX - 32, CY + 8, next);
+      // cannon: a static gold-trimmed mount, a rotating gold barrel with a red swivel gem,
+      // and the loaded bubble seated in the muzzle
+      const pivotY = CY + 4;
+      g.sprite(a.base, CX - a.base.rows[0].length / 2, pivotY - 3);
+      const barrel = a.barrel[barrelIdx(aim)];
+      g.sprite(barrel, CX - barrel.rows[0].length / 2, pivotY - barrel.rows.length / 2);
+      const mx = CX + Math.sin(aim) * MUZZLE_DIST;
+      const my = pivotY - Math.cos(aim) * MUZZLE_DIST;
+      if (!shot) drawBubbleAt(g, a, mx, my, cur);
+
+      // next-up holder
+      g.box(CX - 40, CY, 16, 16, "#120c2c");
+      g.rect(CX - 39, CY + 1, 14, 14, "rgba(20,12,40,0.55)");
+      drawBubbleAt(g, a, CX - 32, CY + 8, next);
       g.camera(0, 0);
       g.text("NEXT", CX - 32, CY - 6, PAL.white, { align: "center" });
 
       // HUD panels
-      g.text("LEVEL", 24, 8, PAL.cyan, { align: "center" });
-      g.text(String(level), 24, 20, PAL.white, { align: "center" });
-      g.text("DROP", 232, 8, PAL.cyan, { align: "center" });
+      g.box(3, 1, 42, 21, "#120c2c");
+      g.rect(4, 2, 40, 19, "rgba(20,12,40,0.55)");
+      g.text("LEVEL", 24, 4, PAL.cyan, { align: "center" });
+      g.text(String(level), 24, 14, PAL.white, { align: "center" });
+
+      g.box(220, 1, 24, 100, "#120c2c");
+      g.rect(221, 2, 22, 98, "rgba(20,12,40,0.4)");
+      g.text("DROP", 232, 4, PAL.cyan, { align: "center" });
       const per = perDrop();
       for (let i = 0; i < per; i++) {
         const on = i < shotsLeft;
-        g.circle(232, 26 + i * 10, 3, on ? (shotsLeft <= 2 && frame % 20 < 10 ? PAL.red : PAL.yellow) : PAL.dark);
+        const py = 24 + i * 10;
+        g.circle(232, py, 4, on ? "#140e30" : "#241c44");
+        g.circle(232, py, 3, on ? (shotsLeft <= 2 && frame % 20 < 10 ? PAL.red : PAL.yellow) : PAL.dark);
+        if (on) g.rect(231, py - 2, 1, 1, PAL.white);
       }
-      g.text("B", 24, 190, PAL.yellow, { align: "center" });
-      g.text("SWAP", 24, 200, PAL.grey, { align: "center" });
+
+      g.box(3, 185, 42, 18, "#120c2c");
+      g.rect(4, 186, 40, 16, "rgba(20,12,40,0.5)");
+      g.text("B", 24, 188, PAL.yellow, { align: "center" });
+      g.text("SWAP", 24, 196, PAL.grey, { align: "center" });
+
       for (const t of texts) g.text(t.s, t.x, t.y - t.t * 0.5, PAL.white, { align: "center" });
       if (clearT >= 0) {
-        g.rect(FL + 10, 100, FR - FL - 20, 14, "rgba(13,11,26,0.75)");
+        g.alpha(0.75);
+        g.rect(FL + 10, 96, FR - FL - 20, 22, "#140c28");
+        g.alpha(1);
+        g.box(FL + 10, 96, FR - FL - 20, 22, "#e85a9a");
         g.text("ALL POPPED!", W / 2, 104, frame % 10 < 5 ? PAL.yellow : PAL.pink, { align: "center" });
+        const sBounce = 1 + Math.sin(frame * 0.2) * 0.15;
+        const s = a.star;
+        g.sprite(s, FL + 16 - (s.rows[0].length * sBounce) / 2 + 9, 100 - (s.rows.length * sBounce) / 2 + 9, { scale: sBounce * 0.6 });
+        g.sprite(s, FR - 24 - (s.rows[0].length * sBounce) / 2 + 9, 100 - (s.rows.length * sBounce) / 2 + 9, { scale: sBounce * 0.6 });
       }
     },
   };

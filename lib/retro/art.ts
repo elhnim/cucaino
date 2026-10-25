@@ -73,7 +73,7 @@ export const bayer = (x: number, y: number) => (BAYER[(y & 3) * 4 + (x & 3)] + 0
 // ── baking ──
 const KEYS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&()*+,-/:;<=>?@[]^_{|}~";
 /** Bake a picture from a function giving each pixel's colour (a hex string, or null for
- *  transparent). Up to ~90 distinct colours per picture. Call once (at load), keep the Sprite. */
+ *  transparent). Any number of distinct colours. Call once (lazily), keep the Sprite. */
 export function bake(w: number, h: number, px: (x: number, y: number) => string | null): Sprite {
   const pal: Record<string, string> = {};
   const index = new Map<string, string>();
@@ -88,7 +88,8 @@ export function bake(w: number, h: number, px: (x: number, y: number) => string 
       }
       let k = index.get(c);
       if (!k) {
-        k = KEYS[index.size] ?? KEYS[KEYS.length - 1];
+        // past the printable keys, any other single character works as a palette key too
+        k = index.size < KEYS.length ? KEYS[index.size] : String.fromCharCode(0x100 + index.size);
         index.set(c, k);
         pal[k] = c;
       }
