@@ -53,7 +53,7 @@ import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { settlementAt, settlementDeckY } from "../registry/settlements";
 import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
 import { wildBridgeDeckY } from "../registry/wildWater";
-import { roadConfine, roadDeckY, inWildlandsZone, carRoadBound, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
+import { roadConfine, roadDeckY, inWildlandsZone, carRoadBound, tunnelCeilingAt, levelCrossingBlocks, laneAssist } from "../registry/roads";
 import { FLY_LAND_R } from "../map/tripMachine";
 import { CAROUSEL, CAROUSEL_RIDE_TURNS } from "../registry/carousel";
 import { newPetBrain, stepPetBrain, type PetBrain } from "../pet/followBrain";
@@ -1383,6 +1383,17 @@ export class ParkWorld {
       const sp = WALK_SPEED * (caps ? caps.speed * (this.autoFly ? 2.6 : 1) : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
       const px = pos.x;
       const pz = pos.z;
+      // Lane-keeping for a car on the open road: the stick says "forward" or "back" far more
+      // often than an exact compass heading, and the camera swings as the road curves, so a kid
+      // could never hold the line — every slightly-off push scraped the car along the kerb. When
+      // the stick points roughly along the road, the car follows the road's own heading and eases
+      // back toward the middle; a clearly sideways push still wins (turning off, U-turns), and
+      // roundabouts and car parks keep the plain controls.
+      if (caps && this.mount!.kind === "car" && carRoadBound(pos.x, pos.z)) {
+        const a = laneAssist(pos.x, pos.z, vx, vz);
+        vx = a.vx;
+        vz = a.vz;
+      }
       pos.x += vx * sp * dt;
       pos.z += vz * sp * dt;
       // every ride keeps to its element: bikes, buggies and unicorns stop at the shore, mantas stay
@@ -1881,6 +1892,7 @@ export class ParkWorld {
           kid.rig?.play("cheer", true);
         }
       }
+      this.tickSummon(dt);
       // point out a parked dragon close by (once each), and a manta that's come to a diving kid
       // (on foot: how far the kid has walked, for the hints' wait)
       if (!Number.isNaN(this.hintLast.x) && !this.mount) this.hintWalk += Math.min(2, Math.hypot(pos.x - this.hintLast.x, pos.z - this.hintLast.z));
@@ -2956,6 +2968,153 @@ export class ParkWorld {
     this.rideId = n.id;
     this.hopNear = null;
     return n.kind;
+  }
+
+  // ── calling a dragon friend ──
+  /** a dragon friend flying in to pick the kid up (null when none is on its way) */
+  private summon: { id: string; breed: DragonBreed; rig: MountRig; t: number; dur: number; home: { x: number; y: number; z: number; yaw: number }; a: THREE.Vector3; b: THREE.Vector3; side: number; accent?: string; skin?: MountSkin; prev: THREE.Vector3 } | null = null;
+
+  /** the dragon friend that would come if called now: the nearest one standing free, or null */
+  private summonable(): { id: string; breed: DragonBreed; x: number; y: number; z: number; yaw: number; d: number } | null {
+    if (!this.park || !this.kid) return null;
+    const kp = this.kid.root.position;
+    let best: { id: string; breed: DragonBreed; x: number; y: number; z: number; yaw: number; d: number } | null = null;
+    for (const id of this.bondedDragons) {
+      const p = this.park.rides.peek(id);
+      if (!p || p.state !== "idle") continue;
+      const d = Math.hypot(p.x - kp.x, p.z - kp.z);
+      if (!best || d < best.d) best = { id, breed: p.breed ?? "roostwarden", x: p.x, y: p.y, z: p.z, yaw: p.yaw, d };
+    }
+    return best;
+  }
+
+  /** Can a dragon friend be called right now? (on foot, on dry land, not mid-ride or mid-climb) */
+  get canCallDragon(): boolean {
+    if (!this.kid || !this.park || this.mount || this.ride || this.sky || this.climb || this.slide || this.skiLock || this.building || this.summon) return false;
+    if (this.gliding || this.onSky || this.launch) return false;
+    const kp = this.kid.root.position;
+    return seaDepth(kp.x, kp.z) <= SWIM_DEPTH;
+  }
+  /** is a dragon on its way right now? */
+  get dragonComing(): boolean {
+    return !!this.summon;
+  }
+  /** has this kid made friends with any dragon yet? */
+  get hasDragonFriend(): boolean {
+    return this.bondedDragons.size > 0;
+  }
+
+  /** Call the nearest dragon friend: it flies over from wherever it is, lands beside the kid, the
+   *  kid climbs on and off they go. Returns the dragon's name, or why it can't come. */
+  callDragon(accent?: string, skin?: MountSkin): { ok: true; name: string } | { ok: false; why: "no-friend" | "busy" | "here" } {
+    if (!this.canCallDragon || !this.park || !this.kid) return { ok: false, why: "busy" };
+    if (this.bondedDragons.size === 0) return { ok: false, why: "no-friend" };
+    const f = this.summonable();
+    if (!f) return { ok: false, why: "busy" };
+    const name = DRAGON_BREEDS[f.breed].name;
+    const kp = this.kid.root.position;
+    // already standing right by it: just climb on
+    if (f.d < 7) return { ok: false, why: "here" };
+    this.park.rides.take(f.id);
+    // it takes off from where it was (or, if that's a long way off, comes in over the horizon from
+    // that direction), climbs, and swoops down to land beside the kid
+    const dir = Math.atan2(f.x - kp.x, f.z - kp.z);
+    const far = Math.min(f.d, 240);
+    const a = new THREE.Vector3(kp.x + Math.sin(dir) * far, 0, kp.z + Math.cos(dir) * far);
+    a.y = f.d <= 240 ? f.y : Math.max(worldFloor(a.x, a.z), WATER_Y) + 45;
+    const rig = buildMount("dragon", accent ?? this.opts.accent, skin, f.breed);
+    rig.root.traverse((o) => ((o as THREE.Mesh).isMesh && o.name !== "mount-shadow" && (o.castShadow = true)));
+    rig.root.position.copy(a);
+    this.scene.add(rig.root);
+    this.summon = {
+      id: f.id,
+      breed: f.breed,
+      rig,
+      t: 0,
+      dur: Math.min(7, Math.max(3.2, far / 30)),
+      home: { x: f.x, y: f.y, z: f.z, yaw: f.yaw },
+      a,
+      b: new THREE.Vector3(),
+      side: Math.random() < 0.5 ? -1 : 1,
+      accent,
+      skin,
+      prev: a.clone(),
+    };
+    return { ok: true, name };
+  }
+
+  /** where the called dragon is at time u (0..1) of its flight: up from its spot, over, and down beside the kid */
+  private summonPoint(s: NonNullable<ParkWorld["summon"]>, u: number, out: THREE.Vector3): THREE.Vector3 {
+    const kp = this.kid!.root.position;
+    // the landing spot: a few steps to the kid's side (it follows a kid who keeps walking)
+    const land = s.b.set(kp.x + Math.cos(this.kid!.facing) * 3.6 * s.side, 0, kp.z - Math.sin(this.kid!.facing) * 3.6 * s.side);
+    land.y = worldFloor(land.x, land.z);
+    const dist = Math.hypot(land.x - s.a.x, land.z - s.a.z);
+    const cruise = Math.max(s.a.y, land.y) + 14 + Math.min(30, dist * 0.12);
+    // a cubic: lift off steeply, cruise high, and come down steeply to land
+    const p1x = s.a.x + (land.x - s.a.x) * 0.15;
+    const p1z = s.a.z + (land.z - s.a.z) * 0.15;
+    const p2x = s.a.x + (land.x - s.a.x) * 0.85;
+    const p2z = s.a.z + (land.z - s.a.z) * 0.85;
+    const v = 1 - u;
+    out.x = v * v * v * s.a.x + 3 * v * v * u * p1x + 3 * v * u * u * p2x + u * u * u * land.x;
+    out.z = v * v * v * s.a.z + 3 * v * v * u * p1z + 3 * v * u * u * p2z + u * u * u * land.z;
+    out.y = v * v * v * s.a.y + 3 * v * v * u * cruise + 3 * v * u * u * cruise + u * u * u * land.y;
+    // never through a hill on the way
+    if (u < 0.97) out.y = Math.max(out.y, Math.max(worldFloor(out.x, out.z), WATER_Y) + 3 * Math.min(1, (1 - u) * 6));
+    return out;
+  }
+
+  private tickSummon(dt: number) {
+    const s = this.summon;
+    if (!s || !this.park || !this.kid) return;
+    // the kid got on something else, or went somewhere a dragon can't land: it heads home
+    if (this.mount || this.ride || this.sky || this.climb) {
+      this.cancelSummon();
+      return;
+    }
+    s.t += dt;
+    const u = Math.min(1, s.t / s.dur);
+    // ease in and out along the curve
+    const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    const p = this.summonPoint(s, e, new THREE.Vector3());
+    const vx = p.x - s.prev.x;
+    const vz = p.z - s.prev.z;
+    const speed = Math.hypot(vx, vz) / Math.max(dt, 1e-3);
+    if (Math.hypot(vx, vz) > 1e-3) s.rig.root.rotation.y = Math.atan2(vx, vz);
+    s.rig.root.rotation.x = Math.max(-0.35, Math.min(0.35, -(p.y - s.prev.y) / Math.max(0.05, Math.hypot(vx, vz)) * 0.25));
+    s.rig.root.position.copy(p);
+    s.prev.copy(p);
+    const floor = Math.max(worldFloor(p.x, p.z), WATER_Y);
+    s.rig.update(dt, speed, u < 0.96, this.park.atmosphere.glow, p.y - floor);
+    if (u >= 1) {
+      // landed: climb on, and up we go
+      const yaw = s.rig.root.rotation.y;
+      const at = s.rig.root.position.clone();
+      this.scene.remove(s.rig.root);
+      s.rig.dispose();
+      this.summon = null;
+      const kp = this.kid.root.position;
+      kp.set(at.x, kp.y, at.z);
+      this.kid.facing = yaw;
+      this.kid.root.rotation.y = yaw;
+      this.prevFacing = yaw;
+      this.mountUp("dragon", s.accent, s.skin, s.breed);
+      this.helm.speed = this.craftSpeed = 0;
+      this.rideId = s.id;
+      this.hopNear = null;
+      this.opts.onRideHint?.(`\u{1F409} ${DRAGON_BREEDS[s.breed].name} came to pick you up! Hold ▲ to fly higher`);
+    }
+  }
+
+  /** the called dragon gives up and goes back to its own spot */
+  private cancelSummon() {
+    const s = this.summon;
+    if (!s || !this.park) return;
+    this.scene.remove(s.rig.root);
+    s.rig.dispose();
+    this.park.rides.release(s.id, s.home.x, s.home.y, s.home.z, s.home.yaw);
+    this.summon = null;
   }
 
   /** Which floating mountains' chests this kid has opened (they stay open). */

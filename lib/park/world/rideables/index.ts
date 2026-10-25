@@ -59,7 +59,7 @@ export interface Rideables {
    *  subs, and the sea friends at the surface (refilled every update; read-only) */
   seaBodies(): readonly SeaBody[];
   /** (tests / smoke harness) where a ride is and what it's doing */
-  peek(id: string): { state: "idle" | "taken" | "away" | "coming" | "waiting" | "leaving"; x: number; y: number; z: number; yaw: number; act?: DragonAct; bonded?: boolean } | null;
+  peek(id: string): { state: "idle" | "taken" | "away" | "coming" | "waiting" | "leaving"; x: number; y: number; z: number; yaw: number; act?: DragonAct; bonded?: boolean; breed?: DragonBreed } | null;
   /** the kid hops on: hide it from the world (the engine builds a MountRig) */
   take(id: string): void;
   /** the kid hops off: leave it where they got off, facing yaw (bikes/cars/unicorns stay; dragons stay; mantas/whales/dolphins swim off and later respawn) */
@@ -1295,7 +1295,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       const r = byId.get(id);
       if (!r) return null;
       const states = ["idle", "taken", "away", "coming", "waiting", "leaving"] as const;
-      return { state: states[r.state], x: r.x, y: r.y, z: r.z, yaw: r.yaw, act: r.drv ? r.act : undefined, bonded: r.drv ? r.bonded : undefined };
+      return { state: states[r.state], x: r.x, y: r.y, z: r.z, yaw: r.yaw, act: r.drv ? r.act : undefined, bonded: r.drv ? r.bonded : undefined, breed: r.breed };
     },
 
     take(id) {
