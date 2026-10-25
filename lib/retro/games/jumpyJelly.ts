@@ -3,7 +3,8 @@
 // blobs, kick shelled beetles, ride moving platforms, bounce on springs and reach the
 // flag at the end of every level. 100 coins = an extra life. (Original game in the spirit
 // of 8-bit platformers.)
-import { H, PAL, W, clamp, overlap, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+import { H, PAL, W, clamp, overlap, sprite, spriteH, spriteW, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, drawStrip, hash2, mixHex, shade } from "../art";
 
 const T = 16; // tile size
 const ROWS = 14; // 14 x 16 = 224 = the whole screen height
@@ -241,6 +242,8 @@ interface LevelDef {
   chunks: string[];
   sky: [string, string];
   hills: [string, string];
+  /** near-hill dome colour variety (pastel candy domes); falls back to [hills[1]] when absent */
+  domeColors?: string[];
   icing: string;
   dirt: string;
   speed: number;
@@ -249,10 +252,11 @@ const LEVELS: LevelDef[] = [
   {
     name: "CANDY MEADOW",
     chunks: ["start", "blocks", "hop", "pipes", "heights", "check", "spring", "pyramid", "mixed", "stairs", "finish"],
-    sky: ["#6cb6ff", "#a8dcff"],
-    hills: ["#8fe07a", "#3ecf55"],
-    icing: PAL.lime,
-    dirt: "#b0703e",
+    sky: ["#7a4a9e", "#ffc3ea"],
+    hills: ["#dba6d8", "#8a5a34"],
+    domeColors: ["#ff9fd0", "#c9a6e8", "#ffcf9e", "#9df0c9"],
+    icing: "#fff0f6",
+    dirt: "#5c3620",
     speed: 0.45,
   },
   {
@@ -284,8 +288,148 @@ const LEVELS: LevelDef[] = [
   },
 ];
 
+// ── baked backdrop art (lazy memo: baked once, the SAME Sprite objects are reused every frame) ──
+const SPRINKLE_DOTS = [PAL.yellow, PAL.cyan, PAL.white, PAL.orange, PAL.pink];
+
+interface Dome { cx: number; cy: number; r: number; color: string }
+/** lay out overlapping round dome/cupcake/gumdrop bumps in one or more staggered rows */
+function layoutDomes(w: number, baseline: number, rows: { n: number; r: number; yOff: number }[], colors: string[], seed: number): Dome[] {
+  const domes: Dome[] = [];
+  let idx = 0;
+  for (const row of rows) {
+    for (let i = 0; i < row.n; i++) {
+      const cx = ((i + 0.5) / row.n) * w + (hash2(i, seed + idx, 3) - 0.5) * (w / row.n) * 0.35;
+      const r = row.r * (0.78 + 0.46 * hash2(i, seed + idx, 11));
+      const cy = baseline - r * 0.8 + row.yOff;
+      const color = colors[Math.floor(hash2(i, seed + idx, 17) * colors.length) % colors.length];
+      domes.push({ cx, cy, r, color });
+      idx++;
+    }
+  }
+  return domes; // earlier = further back, later = painted on top
+}
+/** bake a row of round, overlapping candy domes — never a ridge silhouette or a triangle.
+ *  `detailed` adds a thick icing cap with hanging drips (for the near row); the far row is a
+ *  flatter, hazier silhouette of the same round shapes. */
+function bakeDomes(w: number, h: number, domes: Dome[], icing: string, detailed: boolean): Sprite {
+  return bake(w, h, (x, y) => {
+    for (let i = domes.length - 1; i >= 0; i--) {
+      const dm = domes[i];
+      const dx = x - dm.cx;
+      const dy = y - dm.cy;
+      const d = Math.hypot(dx, dy);
+      if (d > dm.r) continue;
+      if (detailed) {
+        const icy = dm.cy - dm.r * 0.55;
+        const ex = dx / (dm.r * 0.86);
+        const ey = (y - icy) / (dm.r * 0.5);
+        if (ex * ex + ey * ey <= 1 && y < dm.cy - dm.r * 0.05) return ey > 0.5 ? shade(icing, -0.14) : icing;
+        for (let k = 0; k < 3; k++) {
+          const dcx = dm.cx + (k - 1) * dm.r * 0.55;
+          const dripLen = dm.r * (0.22 + 0.3 * hash2(i, k, 9));
+          const dripBot = icy + dm.r * 0.36 + dripLen;
+          const dripR = dm.r * 0.13;
+          const kdx = x - dcx;
+          const kdy = y - (dripBot - dripR);
+          if (y > icy + dm.r * 0.14 && y < dripBot && kdx * kdx + kdy * kdy * 1.4 <= dripR * dripR) return icing;
+        }
+      }
+      const nx = dx / dm.r;
+      const ny = dy / dm.r;
+      const light = -(nx * 0.55 + ny * 0.8);
+      return shade(dm.color, light * (detailed ? 0.3 : 0.16));
+    }
+    return null;
+  });
+}
+const bakeFarHill = (d: LevelDef, seed: number) => {
+  const w = 220, h = 100, baseline = 86;
+  const colors = d.name === "CANDY MEADOW" ? [d.hills[0], "#8a5a34"] : [d.hills[0]];
+  return bakeDomes(w, h, layoutDomes(w, baseline, [{ n: 4, r: 46, yOff: 0 }], colors, seed), d.icing, false);
+};
+const bakeNearHill = (d: LevelDef, seed: number) => {
+  const w = 192, h = 128, baseline = 112;
+  const colors = d.domeColors ?? [d.hills[1]];
+  const rows = [
+    { n: 3, r: 34, yOff: -8 },
+    { n: 4, r: 30, yOff: 8 },
+  ];
+  return bakeDomes(w, h, layoutDomes(w, baseline, rows, colors, seed + 101), d.icing, true);
+};
+const LOLLI_COLORS: [string, string][] = [
+  ["#ff5075", "#fff6fa"],
+  ["#8a5cff", "#f3ecff"],
+  ["#2fd0c0", "#eafffa"],
+  ["#ff9a3c", "#fff3e0"],
+];
+const bakeLollipop = ([head, swirl]: [string, string]) => {
+  const w = 56, h = 70, cx = 26, cy = 24, R = 15;
+  return bake(w, h, (x, y) => {
+    const dx = x - cx + 0.5;
+    const dy = y - cy + 0.5;
+    const r = Math.hypot(dx, dy);
+    if (r <= R) {
+      if (r > R - 1.3) return shade(head, -0.35);
+      const ang = Math.atan2(dy, dx);
+      return Math.floor(r * 0.85 + ang * 2.1) % 2 ? head : swirl;
+    }
+    if (x >= cx - 2 && x < cx + 2 && y >= cy + R - 2 && y < h - 4) return "#fff6fa";
+    if ((x === cx - 3 || x === cx + 1) && y >= cy + R - 2 && y < h - 4) return "#d8c6d0";
+    return null;
+  });
+};
+const bakeCandyBeam = () =>
+  bake(48, 8, (x, y) => {
+    if (y === 0) return "#ffd9ec";
+    if (y === 7) return "#7a2f5a";
+    return Math.floor((x + y * 2) / 6) % 2 ? PAL.red : PAL.white;
+  });
+/** a glossy pink/gold candy square with diagonal stripes and a bevelled edge */
+const bakeCoinFrame = () => {
+  const w = 16, h = 16;
+  return bake(w, h, (x, y) => {
+    const edge = x === 0 || y === 0 || x === w - 1 || y === h - 1;
+    if (edge) return "#7a2f5a";
+    const stripe = Math.floor((x + y) / 4) % 2;
+    const base = stripe ? "#ff6fb0" : "#ffd34d";
+    if (x === 1 || y === 1) return shade(base, 0.35);
+    if (x === w - 2 || y === h - 2) return shade(base, -0.3);
+    return base;
+  });
+};
+/** a big shiny gold coin, several widths so a spin cycle can pick between them */
+const COIN_WIDTHS = [12, 8, 3, 8];
+const bakeCoin = (w: number, h: number) =>
+  bake(w, h, (x, y) => {
+    const dx = (x + 0.5 - w / 2) / (w / 2);
+    const dy = (y + 0.5 - h / 2) / (h / 2);
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    if (d > 0.76) return "#b3720f";
+    if (dx < -0.05 && dy < -0.1 && d < 0.42) return "#fff3b0";
+    return PAL.yellow;
+  });
+const makeArt = () => ({
+  farHills: LEVELS.map((d, i) => bakeFarHill(d, i * 97 + 13)),
+  nearHills: LEVELS.map((d, i) => bakeNearHill(d, i * 131 + 53)),
+  lollipops: LOLLI_COLORS.map(bakeLollipop),
+  candyBeam: bakeCandyBeam(),
+  coinFrame: bakeCoinFrame(),
+  coins: COIN_WIDTHS.map((w) => bakeCoin(w, 12)),
+});
+let A: ReturnType<typeof makeArt> | null = null;
+const art = () => (A ??= makeArt());
+
+/** draw a sprite scaled up, anchored at the bottom-centre of a (small, unchanged) hitbox —
+ *  so the art reads bigger while the collision box stays exactly as before. */
+function drawBig(g: Gfx, s: Sprite, boxX: number, boxY: number, boxW: number, boxH: number, sc: number, opts?: { flipX?: boolean; flipY?: boolean }) {
+  const w = spriteW(s) * sc;
+  const h = spriteH(s) * sc;
+  g.sprite(s, boxX + boxW / 2 - w / 2, boxY + boxH - h, { ...opts, scale: sc });
+}
+
 // ── sprites ──
-const JP = { k: PAL.black, r: PAL.red, w: PAL.white, p: PAL.pink };
+const JP = { k: PAL.black, r: PAL.red, w: PAL.white, p: "#c2282f" };
 const J_TOP = ["...kkkkkk...", "..krrrrrrk..", ".krwwrrrrrk.", "krwrrrwkrwkk", "krrrrrwkrwkk"];
 const J_R5 = "krrrrrrrrrrk";
 const J_MID = [J_R5, "krrrrprrrrpk", "krrrrrrkkkrk", "krrrrrrrrrrk"];
@@ -296,10 +440,12 @@ const jelly = (big: boolean, feet: string) =>
 const HERO = { small: FEET.map((f) => jelly(false, f)), big: FEET.map((f) => jelly(true, f)) };
 
 const BP = { k: PAL.black, g: PAL.green, w: PAL.white };
+const BP2 = { k: PAL.black, g: "#8a4fd6", w: PAL.white };
 const BLOB_BODY = ["....kkkk....", "..kkggggkk..", ".kgwggggwgk.", "kggggggggggk", "kgkkggggkkgk", "kgwkggggwkgk", "kggggggggggk", "kggggkkggggk", "kggggggggggk", ".kkkkkkkkkk."];
 const BLOB = [sprite([...BLOB_BODY, ".kk......kk."], BP), sprite([...BLOB_BODY, "...kk..kk..."], BP)];
+const BLOB_PURPLE = [sprite([...BLOB_BODY, ".kk......kk."], BP2), sprite([...BLOB_BODY, "...kk..kk..."], BP2)];
 const BLOB_FLAT = sprite([".kkkkkkkkkk.", "kgwgggggwggk", "kgkkggggkkgk", "kggggggggggk", ".kkkkkkkkkk."], BP);
-const BEP = { k: PAL.black, p: PAL.purple, w: PAL.white, y: PAL.yellow };
+const BEP = { k: PAL.black, p: "#9a6a42", w: PAL.white, y: "#6fbf5a" };
 const BEETLE_BODY = ["......kkkk..", "....kkppppk.", "...kpwpppppk", "..kpwppppppk", "kyykpppppppk", "kywkpppppppk", "kykkpppppppk", "kyykkkkkkkkk"];
 const BEETLE = [sprite([...BEETLE_BODY, ".kk.k..k..k.", ".k...k..k..."], BEP), sprite([...BEETLE_BODY, "..k..k..k.k.", "..k.k..k..k."], BEP)];
 const SHELL = sprite(["...kkkkkk...", "..kpwppppk..", ".kpwppppppk.", "kppppppppppk", "kpppyyyypppk", "kppppppppppk", "kkkkkkkkkkkk"], BEP);
@@ -322,6 +468,7 @@ interface Mob {
   dead: number; // >0 = squashed/popped animation frames left; -1 = alive
   grace: number;
   flip: boolean; // popped enemies fly off upside down
+  tint: 0 | 1; // blob colour variant (green/purple), fixed by spawn position
 }
 interface Plat {
   x: number;
@@ -383,7 +530,21 @@ function buildLevel(li: number) {
   let start = { x: 24, y: 180 };
   let check = { x: -1, y: 0 };
   let goalX = (cols - 6) * T;
-  const mob = (kind: MobKind, x: number, y: number): Mob => ({ kind, x, y, vx: -def.speed, vy: 0, w: 12, h: 11, t: 0, active: false, dead: -1, grace: 0, flip: false });
+  const mob = (kind: MobKind, x: number, y: number): Mob => ({
+    kind,
+    x,
+    y,
+    vx: -def.speed,
+    vy: 0,
+    w: 12,
+    h: 11,
+    t: 0,
+    active: false,
+    dead: -1,
+    grace: 0,
+    flip: false,
+    tint: kind === "blob" && hash2(Math.floor(x / T), Math.floor(y / T), 55) > 0.5 ? 1 : 0,
+  });
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < cols; c++) {
       const ch = grid[r][c];
@@ -405,6 +566,7 @@ function buildLevel(li: number) {
 }
 
 function create(_seed: number): GameInstance {
+  const ART = art();
   let li = 0;
   let lv = buildLevel(0);
   let lives = 3;
@@ -417,7 +579,7 @@ function create(_seed: number): GameInstance {
   let banner = 150;
   let state: "play" | "dead" | "clear" = "play";
   let stateT = 0;
-  const hero = { x: 0, y: 0, vx: 0, vy: 0, w: 10, h: 12, big: false, onGround: false, coyote: 0, buffer: 0, jumping: false, facing: 1, inv: 0, anim: 0, plat: null as Plat | null };
+  const hero = { x: 0, y: 0, vx: 0, vy: 0, w: 10, h: 12, big: false, onGround: false, coyote: 0, buffer: 0, jumping: false, facing: 1, inv: 0, anim: 0, plat: null as Plat | null, pop: 0, popDir: 1 as 1 | -1 };
   let parts: Part[] = [];
   let pops: Pop[] = [];
   let bumps: { c: number; r: number; t: number }[] = [];
@@ -539,7 +701,7 @@ function create(_seed: number): GameInstance {
     } else if (ch === "P") {
       lv.grid[r][c] = "U";
       io.sfx.play("powerup");
-      lv.mobs.push({ kind: "gum", x: c * T + 2, y: r * T, vx: 0.9, vy: 0, w: 12, h: 9, t: 0, active: true, dead: -1, grace: 0, flip: false });
+      lv.mobs.push({ kind: "gum", x: c * T + 2, y: r * T, vx: 0.9, vy: 0, w: 12, h: 9, t: 0, active: true, dead: -1, grace: 0, flip: false, tint: 0 });
     } else if (ch === "B") {
       if (hero.big) {
         lv.grid[r][c] = ".";
@@ -596,6 +758,8 @@ function create(_seed: number): GameInstance {
       hero.onGround = false;
       hero.jumping = true;
       hero.plat = null;
+      hero.pop = 8;
+      hero.popDir = 1;
       io.sfx.play("jump");
     }
     if (hero.jumping && !inp.held.a && hero.vy < -2) hero.vy = -2; // short hop when A is let go early
@@ -608,7 +772,12 @@ function create(_seed: number): GameInstance {
     hero.plat = null;
     const res = moveY(hero, hero.vy);
     if (res === 1) {
-      if (!wasGround && hero.vy > 3) parts.push({ x: hero.x + 5, y: hero.y + hero.h, vx: 0, vy: 0, life: 12, color: "dust", size: 3 });
+      if (!wasGround && hero.vy > 3) {
+        parts.push({ x: hero.x + 5, y: hero.y + hero.h, vx: 0, vy: 0, life: 12, color: "dust", size: 3 });
+        if (hero.vy > 4.2) io.sfx.play("thud");
+        hero.pop = 8;
+        hero.popDir = -1;
+      }
       hero.vy = 0;
       hero.onGround = true;
       hero.jumping = false;
@@ -640,6 +809,7 @@ function create(_seed: number): GameInstance {
           hero.coyote = 0;
           s.t = 12;
           io.sfx.play("bounce");
+          if (hero.vy <= -9) io.sfx.play("whoosh");
         }
       }
     }
@@ -654,6 +824,7 @@ function create(_seed: number): GameInstance {
       }
     }
     hero.inv = Math.max(0, hero.inv - 1);
+    hero.pop = Math.max(0, hero.pop - 1);
     if (hero.y > H + 16) die(io, false);
     // checkpoint + goal
     if (!checkpoint && lv.check.x >= 0 && hero.x > lv.check.x) {
@@ -767,7 +938,7 @@ function create(_seed: number): GameInstance {
           m.grace = 14;
           m.t = 0;
           if (stomp) bounce();
-          io.sfx.play("hit");
+          io.sfx.play("kick");
           addScore(io, 100, m.x, m.y - 6);
         } else if (stomp) {
           m.vx = 0;
@@ -871,12 +1042,23 @@ function create(_seed: number): GameInstance {
     draw(g: Gfx) {
       const d = lv.def;
       const cam = Math.round(camX);
-      // sky bands + parallax
+      // sky bands + parallax backdrop (baked round candy-dome hills, lollipops, a lake, clouds/stars)
       g.clear(d.sky[0]);
       g.rect(0, 70, W, 20, d.sky[1]);
       g.rect(0, 96, W, 128, d.sky[1]);
       if (li === 2) {
+        // ROCK CANDY CAVE stays a night cave — gem-coloured stars
         for (let i = 0; i < 20; i++) g.rect(((i * 53 - cam * 0.1) % 300 + 300) % 300 - 20, (i * 37) % 120 + 10, 2, 2, i % 3 ? PAL.cyan : PAL.pink);
+      } else if (li === 0) {
+        // bright pastel candy-land sky: no sun, no moon — just puffy pink/lilac clouds
+        for (let i = 0; i < 6; i++) {
+          const x = ((i * 72 - cam * 0.12) % 432 + 432) % 432 - 60;
+          const y = 18 + (i * 19) % 46;
+          const c = i % 2 ? "#f6cdee" : "#ffffff";
+          g.circle(x, y, 9, c);
+          g.circle(x + 11, y - 3, 11, c);
+          g.circle(x + 23, y, 8, c);
+        }
       } else {
         g.circle(210, 40, 14, li === 1 ? "#fff0a0" : "#fff6c8");
         for (let i = 0; i < 5; i++) {
@@ -887,17 +1069,19 @@ function create(_seed: number): GameInstance {
           g.circle(x + 24, y, 9, PAL.white);
         }
       }
-      for (let i = 0; i < 6; i++) {
-        const x = ((i * 110 - cam * 0.25) % 660 + 660) % 660 - 80;
-        g.circle(x, 200, 70, d.hills[0]);
-      }
-      for (let i = 0; i < 8; i++) {
-        const x = ((i * 76 - cam * 0.5) % 608 + 608) % 608 - 50;
-        g.circle(x, 205, 38, d.hills[1]);
-        if (li !== 3) {
-          // lollipop trees / crystals on the near hills
-          g.rect(x - 1, 150, 2, 20, li === 2 ? PAL.purple : PAL.white);
-          g.circle(x, 148, 6, li === 2 ? PAL.cyan : i % 2 ? PAL.pink : PAL.orange);
+      const far = ART.farHills[li];
+      const near = ART.nearHills[li];
+      drawStrip(g, far, cam * 0.2, 192 - spriteH(far), W);
+      // a lake glimpsed in the middle distance, peeking between the far and near hill rows
+      for (let yy = 0; yy < 12; yy++) g.rect(0, 168 + yy, W, 1, mixHex("#ffe0f6", "#c87ec0", yy / 11));
+      drawStrip(g, near, cam * 0.4, 192 - spriteH(near), W);
+      if (li !== 3) {
+        for (let i = 0; i < 7; i++) {
+          const sp = ART.lollipops[i % ART.lollipops.length];
+          const sc = 0.75 + ((i * 37) % 3) * 0.18;
+          const spacing = 92;
+          const x = ((i * spacing - cam * 0.4) % (spacing * 7) + spacing * 7) % (spacing * 7) - 60;
+          g.sprite(sp, x, 190 - spriteH(sp) * sc, { scale: sc });
         }
       }
 
@@ -916,12 +1100,20 @@ function create(_seed: number): GameInstance {
           if (ch === "#") {
             g.rect(x, y, T, T, d.dirt);
             if (above !== "#") {
-              g.rect(x, y, T, 5, d.icing);
-              g.rect(x + 3, y + 5, 3, (c % 3) + 2, d.icing);
-              g.rect(x + 10, y + 5, 2, ((c + 1) % 3) + 2, d.icing);
+              // thick icing cap with rounded hanging drips
+              g.rect(x, y, T, 6, d.icing);
+              g.rect(x, y + 5, T, 1, shade(d.icing, -0.18));
+              g.circle(x + 3, y + 7, 3, d.icing);
+              g.circle(x + 9, y + 8, 3 + (c % 2), d.icing);
+              g.circle(x + 13, y + 6, 2, d.icing);
             } else {
-              const sp = [PAL.yellow, PAL.pink, PAL.cyan, PAL.white][(c * 7 + r * 3) % 4];
+              if (r % 2 === 0) g.rect(x, y, T, 1, shade(d.dirt, -0.12));
+              const sp = SPRINKLE_DOTS[(c * 7 + r * 3) % SPRINKLE_DOTS.length];
               g.rect(x + ((c * 5) % 11) + 2, y + ((r * 7) % 9) + 3, 3, 2, sp);
+              if (hash2(c, r, 42) > 0.5) {
+                const sp2 = SPRINKLE_DOTS[(c * 11 + r * 5 + 2) % SPRINKLE_DOTS.length];
+                g.rect(x + ((c * 9 + 3) % 11) + 2, y + ((r * 11 + 2) % 9) + 3, 2, 2, sp2);
+              }
             }
           } else if (ch === "B") {
             g.rect(x, y, T, T, "#d0763a");
@@ -933,10 +1125,8 @@ function create(_seed: number): GameInstance {
             g.rect(x, y, T, 1, "#f0a060");
           } else if (ch === "?" || ch === "P") {
             const shine = Math.floor(tick / 10) % 4 === 0;
-            g.rect(x, y, T, T, PAL.black);
-            g.rect(x + 1, y + 1, 14, 14, shine ? "#fff09a" : PAL.yellow);
-            g.rect(x + 1, y + 13, 14, 2, PAL.orange);
-            g.text("?", x + 5, y + 4, PAL.orange);
+            g.sprite(ART.coinFrame, x, y);
+            g.text("?", x + 5, y + 4, shine ? "#ffffff" : "#7a2f5a");
           } else if (ch === "U") {
             g.rect(x, y, T, T, PAL.black);
             g.rect(x + 1, y + 1, 14, 14, "#b08a60");
@@ -955,23 +1145,21 @@ function create(_seed: number): GameInstance {
             }
             g.rect(ch === "[" ? x : x + 15, y, 1, T, PAL.black);
           } else if (ch === "o") {
-            const f = Math.floor((tick + c * 5) / 8) % 4;
-            const cw = [8, 6, 2, 6][f];
-            g.rect(x + 8 - cw / 2, y + 3, cw, 10, PAL.orange);
-            g.rect(x + 8 - cw / 2 + (cw > 2 ? 1 : 0), y + 4, Math.max(1, cw - 2), 8, PAL.yellow);
+            const coin = ART.coins[Math.floor((tick + c * 5) / 8) % 4];
+            g.sprite(coin, x + 8 - spriteW(coin) / 2, y + 2);
           }
         }
       }
       // platforms, springs
       for (const p of lv.plats) {
-        g.rect(p.x, p.y, 48, 8, PAL.pink);
-        g.rect(p.x, p.y, 48, 2, "#ffc4ec");
-        for (let s = 0; s < 4; s++) g.rect(p.x + 4 + s * 12, p.y + 3, 5, 3, PAL.white);
+        g.circle(p.x - 2, p.y + 4, 5, "#e85fa0");
+        g.circle(p.x + 50, p.y + 4, 5, "#e85fa0");
+        g.sprite(ART.candyBeam, p.x, p.y);
       }
       for (const s of lv.springs) {
         const sq = s.t > 6 ? 5 : 0;
-        g.rect(s.x + 2, s.y + 7, 12, 3, PAL.dark);
-        for (let i = 0; i < 3; i++) g.rect(s.x + 4, s.y + 3 + sq / 2 + i * (2 - sq / 5), 8, 1, PAL.grey);
+        g.rect(s.x + 2, s.y + 7, 12, 3, "#7a2222");
+        for (let i = 0; i < 3; i++) g.rect(s.x + 4, s.y + 3 + sq / 2 + i * (2 - sq / 5), 8, 1, PAL.white);
         g.rect(s.x + 1, s.y + sq, 14, 3, PAL.red);
       }
       // checkpoint lollipop + goal flag + candy house
@@ -992,27 +1180,29 @@ function create(_seed: number): GameInstance {
       g.circle(gx + 72, 9 * T, 4, PAL.yellow);
       g.circle(gx + 104, 9 * T, 4, PAL.yellow);
 
-      // mobs
+      // mobs (bigger, readable art; collision boxes are unchanged — see `drawBig`)
       for (const m of lv.mobs) {
         if (!m.active) continue;
         const flipY = m.flip;
         if (m.kind === "blob") {
           if (m.dead >= 0 && !m.flip) g.sprite(BLOB_FLAT, m.x, m.y + 6);
-          else g.sprite(BLOB[Math.floor(m.t / 10) % 2], m.x, m.y, { flipY });
-        } else if (m.kind === "beetle") g.sprite(BEETLE[Math.floor(m.t / 8) % 2], m.x, m.y - 1, { flipX: m.vx > 0, flipY });
+          else drawBig(g, (m.tint ? BLOB_PURPLE : BLOB)[Math.floor(m.t / 10) % 2], m.x, m.y, m.w, m.h, 1.3, { flipY });
+        } else if (m.kind === "beetle") drawBig(g, BEETLE[Math.floor(m.t / 8) % 2], m.x, m.y, m.w, m.h + 1, 1.3, { flipX: m.vx > 0, flipY });
         else if (m.kind === "shell") {
           const wob = m.vx === 0 && m.t > 340 && Math.floor(m.t / 4) % 2 ? 1 : 0;
-          g.sprite(SHELL, m.x + wob, m.y + 2, { flipY });
-        } else g.sprite(GUM, m.x, m.y);
+          drawBig(g, SHELL, m.x + wob, m.y, m.w, m.h + 2, 1.3, { flipY });
+        } else drawBig(g, GUM, m.x, m.y, m.w, m.h, 1.25);
       }
-      // hero
+      // hero — same hitbox (hero.w/hero.h), art drawn bigger via drawBig
       const blink = hero.inv > 0 && Math.floor(hero.inv / 3) % 2 === 1;
       if (!blink) {
         const set = hero.big ? HERO.big : HERO.small;
         let f = 0;
         if (state === "dead" || !hero.onGround) f = 2;
         else if (Math.abs(hero.vx) > 0.1) f = Math.floor(hero.anim) % 2;
-        g.sprite(set[f], hero.x - 1, hero.y, { flipX: hero.facing < 0, flipY: state === "dead" && stateT > 20 });
+        const pop = 1 + (hero.pop / 8) * 0.12 * hero.popDir; // a quick squash (landing) / stretch (jump) pop
+        const sc = (hero.big ? 1.7 : 1.85) * pop;
+        drawBig(g, set[f], hero.x, hero.y, hero.w, hero.h, sc, { flipX: hero.facing < 0, flipY: state === "dead" && stateT > 20 });
       }
       // particles + score pops
       for (const p of parts) {
