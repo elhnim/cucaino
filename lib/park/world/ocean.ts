@@ -56,6 +56,11 @@ export interface Ocean {
 //   crested tern ~0.45 m (model 0.67 long)         giant manta ~6 m wingspan (model 3.2: x3, already true)
 //   flying fish ~0.4 m (model 0.74 at 0.9: already true)
 //   (the jellies drifting through the air over the Glow Forest are fairy-tale: storybook size)
+/** Wild mantas cruise this deep (body centre; its back is ~0.9 up, so the top stays under the
+ *  lowest swell trough ~-1.4), breach to this height, and a breach lasts this long (s). */
+export const MANTA_Y = -2.6;
+export const MANTA_LEAP = 2.4;
+export const MANTA_BREACH_T = 1.7;
 export const OCEAN_K = { dolphin: (1.6 * 2.5) / 3.42, turtle: (1.6 * 1.4) / 2.58, starfish: (1.6 * 0.25) / 1.1, tern: (1.6 * 0.45) / 0.67, manta: 3 } as const;
 
 export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; z: number; radius: number }; lowQuality?: boolean }): Ocean {
@@ -303,13 +308,32 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
 
   // ── manta rays gliding and hopping, dolphin pods leaping, turtles paddling — all roaming ──
   const mantaGeo = track(mantaGeometry());
-  const mantas = add(new THREE.InstancedMesh(mantaGeo, toon("#4a5a8f"), low ? 3 : 6));
+  // the wings really beat: a wave runs out along each wing in the vertex shader (body still, tips
+  // swinging most), each manta on its own beat (phase from where it is)
+  const mantaMat = toon("#ffffff", { vertexColors: true });
+  const mantaFlapT = { value: 0 };
+  mantaMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uFlapT = mantaFlapT;
+    sh.vertexShader = "uniform float uFlapT;\n" + sh.vertexShader.replace(
+      "#include <begin_vertex>",
+      `#include <begin_vertex>
+      {
+        float ax = abs( transformed.x );
+        float ph = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.53;
+        float w = pow( max( ax - 0.3, 0.0 ) / 1.9, 1.5 );
+        transformed.y += sin( uFlapT * 2.2 + ph - ax * 0.9 ) * w * 0.5;
+        transformed.z -= abs( sin( uFlapT * 2.2 + ph - ax * 0.9 ) ) * w * 0.08;
+      }`
+    );
+  };
+  const mantas = add(new THREE.InstancedMesh(mantaGeo, mantaMat, low ? 3 : 6));
   mantas.frustumCulled = false;
+  mantas.name = "wild-mantas";
   const MANTA: SwimStyle = { speed: [2, 3.2], turn: 0.25, wander: 0.05, depth: [0.3, 0.6], clear: 1.5, need: 4, look: 20, climb: 0.5, bank: 1.2 };
   const mantaState = Array.from({ length: mantas.count }, (_, i) => {
     const a = parkSeaA(rnd());
     const r = SHORE_R + 24 + rnd() * 70;
-    return { sw: makeSwimmer(Math.sin(a) * r, 0, Math.cos(a) * r, a + (i % 2 ? 1 : -1) * Math.PI / 2, 60 + i, 2.5), ph: rnd() * 10 };
+    return { sw: makeSwimmer(Math.sin(a) * r, 0, Math.cos(a) * r, a + (i % 2 ? 1 : -1) * Math.PI / 2, 60 + i, 2.5), ph: rnd() * 10, next: 15 + rnd() * 40, b: -1 };
   });
   const dolphinGeo = track(dolphinGeometry());
   const dolphins = add(new THREE.InstancedMesh(dolphinGeo, toon("#8fb6e8"), low ? 4 : 8));
@@ -375,6 +399,7 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
       const dt = Math.min(0.1, Math.max(0, dtIn));
       const focus = focusIn ?? origin;
       waterMat.uniforms.uTime.value = t;
+      mantaFlapT.value = t;
       waterMat.uniforms.uGlow.value = glow;
       waterMat.uniforms.uFogColor.value.copy(fog.color);
       waterMat.uniforms.uFogNear.value = fog.near;
@@ -444,9 +469,30 @@ export function buildOcean(scene: THREE.Scene, opts: { skyJellies: { x: number; 
         const m = mantaState[i];
         if (dist2(m.sw, focus) > 260 * 260) respawn(m.sw, MANTA, focus, ft.vx, ft.vz, rnd, 150, 230, 1.3);
         swim(m.sw, MANTA, dt, t, focus, 4);
-        const hop = Math.max(0, Math.sin(t * 0.35 + m.ph) - 0.93) * 60;
-        const flap = Math.sin(t * 3 + m.ph) * 0.15;
-        tmpM.compose(tmpV.set(m.sw.x, -0.75 + hop, m.sw.z), tmpQ.setFromEuler(tmpE.set(-hop * 0.08, m.sw.yaw, m.sw.roll * 0.6 + flap, "YXZ")), tmpS.set(OCEAN_K.manta, OCEAN_K.manta * (1 + flap), OCEAN_K.manta));
+        // cruise deep enough that the swells (troughs ~1.4 below the still sea) never bare its back;
+        // now and then a breach: one quick arc out of the water, nose up then nose down, splashes
+        // where it leaves and where it lands
+        m.next -= dt;
+        if (m.b < 0 && m.next <= 0) {
+          m.next = 35 + rnd() * 45;
+          if (dist2(m.sw, focus) < 120 * 120) m.b = 0;
+        }
+        let y = MANTA_Y + Math.sin(t * 0.4 + m.ph) * 0.25;
+        let pitch = 0;
+        if (m.b >= 0) {
+          m.b += dt / MANTA_BREACH_T;
+          const u = m.b;
+          if (u >= 1) {
+            m.b = -1;
+            emit(m.sw.x, WATER_Y, m.sw.z, 14, 6, 3.5);
+          } else {
+            // under -> up through the surface -> over the top -> back down
+            y = MANTA_Y + (MANTA_LEAP - MANTA_Y) * Math.sin(Math.PI * u);
+            pitch = Math.cos(Math.PI * u) * 0.75;
+            if (u - dt / MANTA_BREACH_T < 0.25 && u >= 0.25) emit(m.sw.x, WATER_Y, m.sw.z, 10, 7, 2.5);
+          }
+        }
+        tmpM.compose(tmpV.set(m.sw.x, y, m.sw.z), tmpQ.setFromEuler(tmpE.set(-pitch, m.sw.yaw, m.sw.roll * 0.6, "YXZ")), tmpS.setScalar(OCEAN_K.manta));
         mantas.setMatrixAt(i, tmpM);
       }
       mantas.instanceMatrix.needsUpdate = true;
@@ -701,19 +747,85 @@ function jellyTentacleGeometry() {
   return mergeGeometries(parts)!;
 }
 
-function mantaGeometry() {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 1);
-  shape.quadraticCurveTo(0.9, 0.6, 1.6, -0.1);
-  shape.quadraticCurveTo(0.6, -0.1, 0.2, -0.6);
-  shape.lineTo(0.05, -2);
-  shape.lineTo(-0.05, -2);
-  shape.lineTo(-0.2, -0.6);
-  shape.quadraticCurveTo(-0.6, -0.1, -1.6, -0.1);
-  shape.quadraticCurveTo(-0.9, 0.6, 0, 1);
-  const g = new THREE.ExtrudeGeometry(shape, { depth: 0.12, bevelEnabled: true, bevelSize: 0.06, bevelThickness: 0.06, bevelSegments: 2, curveSegments: 8 });
-  g.rotateX(-Math.PI / 2);
-  return g;
+/** A wild manta ray (vertex-coloured; nose +z, wingspan ~4.4 on x). It used to be one flat 2D
+ *  cut-out extruded like a biscuit — under the water it read as a flat arrow, not an animal. Now:
+ *  a thick rounded body, wings lofted with a real airfoil profile (thick at the body, paper-thin at
+ *  the swept-back tips, which lift a little), a dark back with the pale "shoulder" patches reef
+ *  mantas have, a white belly, the two curled head fins (cephalic lobes) and a long whip tail. */
+export function mantaGeometry() {
+  const BACK = new THREE.Color("#283650");
+  const PATCH = new THREE.Color("#8d9bb0");
+  const BELLY = new THREE.Color("#eef2f8");
+  const parts: THREE.BufferGeometry[] = [];
+  const paint = (g: THREE.BufferGeometry, fn: (x: number, y: number, z: number) => THREE.Color) => {
+    const p = g.attributes.position;
+    const col = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      const c = fn(p.getX(i), p.getY(i), p.getZ(i));
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    return g;
+  };
+  // the body: dark on top, white underneath
+  const body = new THREE.SphereGeometry(1, 16, 10);
+  body.scale(0.62, 0.3, 1.08);
+  body.translate(0, 0, 0.05);
+  parts.push(paint(body.toNonIndexed(), (x, y, z) => (y < -0.02 ? BELLY : Math.abs(x) > 0.3 && z > 0.2 && z < 0.75 ? PATCH : BACK)));
+  // the wings: a lofted surface per side
+  const NU = 14;
+  const NV = 10;
+  for (const side of [-1, 1]) {
+    const pos: number[] = [];
+    const col: number[] = [];
+    const at = (u: number, v: number, top: boolean) => {
+      const span = 0.45 + u * 1.75;
+      const lead = 0.85 - u * 1.05 - u * u * 0.25; // swept back
+      const chord = 1.55 * Math.pow(1 - u, 0.75) + 0.08;
+      const z = lead - v * chord;
+      const thick = 0.24 * Math.pow(1 - u, 1.4) + 0.012;
+      const prof = Math.pow(Math.sin(Math.PI * v), 0.7) * (v < 0.35 ? 1 : 0.85);
+      const y = 0.1 * u * u + (top ? thick * prof : -thick * prof * 0.55);
+      return [side * span, y, z] as const;
+    };
+    const colAt = (u: number, v: number, top: boolean) => (!top ? BELLY : u < 0.38 && v < 0.45 && u > 0.05 ? PATCH : BACK);
+    for (const top of [true, false])
+      for (let i = 0; i < NU; i++)
+        for (let j = 0; j < NV; j++) {
+          const u0 = i / NU;
+          const u1 = (i + 1) / NU;
+          const v0 = j / NV;
+          const v1 = (j + 1) / NV;
+          const quad = [at(u0, v0, top), at(u1, v0, top), at(u1, v1, top), at(u0, v1, top)];
+          const tri = top === side > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
+          const c = colAt((u0 + u1) / 2, (v0 + v1) / 2, top);
+          for (const k of tri) {
+            pos.push(...quad[k]);
+            col.push(c.r, c.g, c.b);
+          }
+        }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    parts.push(g);
+  }
+  // the head fins: two curled lobes either side of the mouth
+  for (const side of [-1, 1]) {
+    const fin = new THREE.CapsuleGeometry(0.075, 0.32, 4, 6);
+    fin.rotateX(Math.PI / 2 - 0.35);
+    fin.rotateY(side * 0.25);
+    fin.translate(side * 0.36, 0.02, 1.12);
+    parts.push(paint(fin.toNonIndexed(), () => BACK));
+  }
+  // the whip tail
+  const tail = new THREE.ConeGeometry(0.055, 1.9, 6);
+  tail.rotateX(-Math.PI / 2);
+  tail.translate(0, 0.02, -1.95);
+  parts.push(paint(tail.toNonIndexed(), () => BACK));
+  for (const p of parts) for (const k of Object.keys(p.attributes)) if (k !== "position" && k !== "normal" && k !== "color") p.deleteAttribute(k);
+  for (const p of parts) if (!p.attributes.normal) p.computeVertexNormals();
+  return mergeGeometries(parts)!;
 }
 
 function dolphinGeometry() {
