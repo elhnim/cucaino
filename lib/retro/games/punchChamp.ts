@@ -6,7 +6,8 @@
 // opponent is open. Fill the star meter by dodging well, then ▲+A unleashes a Star Punch.
 // Win 3 rounds by knockdown or on points to move on; beat the big-hearted champ to win it all.
 // (Original game in the spirit of 8-bit boxing classics — no real people or trademarks.)
-import { H, PAL, W, clamp, rng, type GameInstance, type Gfx, type IO, type Input, type RetroGameDef } from "../engine";
+import { H, PAL, W, clamp, rng, type GameInstance, type Gfx, type IO, type Input, type RetroGameDef, type Sprite } from "../engine";
+import { bake, bakeShadow, hash2, mixHex, shade } from "../art";
 
 const PLAYER_MAX = 100;
 const ROUND_FRAMES = 60 * 40; // 40s rounds — plenty of time, clock stops during a knockdown
@@ -29,6 +30,64 @@ const COUNTER_STAR = 20;
 const RING_CX = W / 2;
 const OPP_Y = 92;
 const PLAYER_Y = 182;
+
+// ── baked backdrop (built once, cached, never baked inside the draw loop) ──
+interface PunchArt {
+  sky: Sprite;
+  floor: Sprite;
+  post: Sprite;
+  pad: Sprite;
+  gloveShadow: Sprite;
+  burstStar: Sprite;
+}
+function makeArt(): PunchArt {
+  const SKY_H = 34;
+  const sky = bake(W, SKY_H, (x, y) => {
+    const t = y / (SKY_H - 1);
+    const base = mixHex("#171033", "#241a44", t);
+    if (hash2(x, y, 7) > 0.994) return shade(base, 0.3); // the odd faint floodlight glint
+    return base;
+  });
+  const FLOOR_H = 26;
+  const floor = bake(W, FLOOR_H, (x, y) => {
+    let base = y < 3 ? shade(PAL.brown, 0.3) : mixHex(PAL.brown, "#2a160a", ((y - 3) / (FLOOR_H - 3)) * 0.65);
+    const n = hash2(Math.floor(x / 3), Math.floor(y / 2), 3);
+    if (x % 32 === 0 || x % 32 === 31) base = shade(base, -0.3); // plank seams
+    else if (n > 0.9) base = shade(base, -0.14); // grain streak
+    else if (n < 0.08) base = shade(base, 0.1);
+    return base;
+  });
+  const POST_W = 10;
+  const POST_H = 150;
+  const postBase = "#aab0c8";
+  const post = bake(POST_W, POST_H, (x, y) => {
+    const edge = Math.abs(x - (POST_W - 1) / 2) / ((POST_W - 1) / 2);
+    if (y < 6) return shade(postBase, 0.32 - edge * 0.3); // cap
+    if (y === 6) return "#5a5e78";
+    return shade(postBase, 0.22 - edge * 0.6);
+  });
+  const PAD_W = 16;
+  const PAD_H = 22;
+  const pad = bake(PAD_W, PAD_H, (x, y) => {
+    const edgeK = x === 0 || x === PAD_W - 1 || y === 0 || y === PAD_H - 1 ? -0.4 : 0;
+    const stitch = x === 4 || x === 11 ? -0.28 : 0;
+    const topLight = y < 3 ? 0.18 : 0;
+    return shade(PAL.red, edgeK + stitch + topLight);
+  });
+  const gloveShadow = bakeShadow(24, 7, "#120a1e");
+  const burstStar = bake(7, 7, (x, y) => {
+    const cx = 3;
+    const cy = 3;
+    const d = Math.abs(x - cx) + Math.abs(y - cy);
+    if (x === cx && y === cy) return "#fffde8";
+    if (d <= 1) return PAL.yellow;
+    if (d <= 3 && (x === cx || y === cy)) return shade(PAL.yellow, -0.1);
+    return null;
+  });
+  return { sky, floor, post, pad, gloveShadow, burstStar };
+}
+let PA: PunchArt | null = null;
+const art = () => (PA ??= makeArt());
 
 type Dir = "left" | "right" | "body" | "special" | "feint";
 type OppState = "idle" | "tell" | "attack" | "open" | "recover" | "dizzy" | "down";
@@ -180,6 +239,31 @@ function tellLabel(dir: Dir): string {
   return "< DODGE!! >";
 }
 
+/** fixed relative fur/texture flecks on a body block (fractions of body width/height) so the
+ *  fill reads as fur, not a flat slab — fixed offsets keep them deterministic, no flicker */
+const FUR_SPECKS = [
+  { dx: 0.18, dy: 0.15 },
+  { dx: 0.62, dy: 0.3 },
+  { dx: 0.32, dy: 0.42 },
+  { dx: 0.78, dy: 0.12 },
+  { dx: 0.08, dy: 0.38 },
+];
+
+/** a shiny pixel-art ball: dark rim, base fill, small top-left highlight — three cheap draws
+ *  instead of one flat circle, used for heads, ears, gloves and bellies. */
+function shadedBall(g: Gfx, cx: number, cy: number, r: number, base: string) {
+  g.circle(cx + r * 0.12, cy + r * 0.16, r, shade(base, -0.4));
+  g.circle(cx, cy, r * 0.96, base);
+  g.circle(cx - r * 0.32, cy - r * 0.34, r * 0.3, shade(base, 0.35));
+}
+/** a block with a dark outline, a darker shadowed bottom and a lighter top edge */
+function shadedBlock(g: Gfx, x: number, y: number, w: number, h: number, base: string) {
+  g.box(x - 1, y - 1, w + 2, h + 2, shade(base, -0.5));
+  g.rect(x, y, w, h, base);
+  g.rect(x, y, w, Math.max(1, h * 0.22), shade(base, 0.22));
+  g.rect(x, y + h * 0.78, w, h * 0.22, shade(base, -0.22));
+}
+
 function create(seed: number): GameInstance {
   const r = rng(seed);
   let oi = 0;
@@ -221,8 +305,9 @@ function create(seed: number): GameInstance {
     player.hitFlash = 12;
     shake = 9;
     flash = 5;
-    io.sfx.play("hit");
-    pop(RING_CX, OPP_Y + 70, "OOF!", PAL.red);
+    io.sfx.play("hurt");
+    io.sfx.noise?.(10, 0.2, 500, 180);
+    pop(RING_CX, PLAYER_Y - 36, "OOF!", PAL.red);
     if (player.hp <= 0) loseBout(io);
   };
 
@@ -230,6 +315,7 @@ function create(seed: number): GameInstance {
     fightState = "lost";
     msg = "KNOCKED OUT!";
     io.sfx.play("die");
+    io.sfx.slide?.(220, 70, 24, "sawtooth", 0.3);
     io.gameOver();
   }
 
@@ -238,6 +324,12 @@ function create(seed: number): GameInstance {
       fightState = "won";
       msg = "YOU'RE THE CHAMP!";
       io.sfx.play("win");
+      io.sfx.play("cheer");
+      io.sfx.noise?.(40, 0.18, 1200, 2200);
+      for (let i = 0; i < 24; i++) {
+        const c = r.pick([PAL.pink, PAL.sky, PAL.yellow, PAL.lime, PAL.cyan]);
+        sparks.push({ x: r.range(20, W - 20), y: r.range(-10, 0), vx: r.range(-0.6, 0.6), vy: r.range(0.6, 1.6), life: r.int(60, 110), c });
+      }
       io.win();
     } else {
       oi++;
@@ -286,6 +378,7 @@ function create(seed: number): GameInstance {
       player.star = 0;
       starHit = true;
       io.sfx.play("powerup");
+      io.sfx.play("zap");
     }
     if (opp.state === "idle") dmg *= 1.0;
     else if (opp.state === "open") {
@@ -390,7 +483,7 @@ function create(seed: number): GameInstance {
           opp.timer = d.openWin;
           addStar(DODGE_STAR);
           io.score(5);
-          io.sfx.play("blip");
+          io.sfx.play(opp.dir === "body" ? "thud" : "whoosh");
           pop(RING_CX - 40, PLAYER_Y - 10, "DODGED!", PAL.cyan);
         } else {
           opp.timer--;
@@ -459,6 +552,7 @@ function create(seed: number): GameInstance {
       }
       if (fightState === "roundcard") {
         stateT--;
+        if (stateT === 8 || stateT === 1) io.sfx.tone(880, 0.09, "square", 0.25); // bell ding-ding to start the round
         if (stateT <= 0) fightState = "fight";
         return;
       }
@@ -472,29 +566,45 @@ function create(seed: number): GameInstance {
     },
 
     draw(g: Gfx) {
+      const a = art();
       const sx = shake > 0 ? (frame % 2 ? 3 : -3) : 0;
-      // ── arena ──
+      // ── arena: night sky, confetti, canvas ring, roped posts, wood apron ──
       g.clear("#14102a");
-      g.rect(0, 0, W, 34, "#201a40");
+      g.sprite(a.sky, 0, 0);
+      const confettiCols = [PAL.pink, PAL.sky, PAL.yellow, PAL.lime];
       for (let i = 0; i < 16; i++) {
         const cxp = (i * 17 + 8 + Math.sin(frame * 0.02 + i) * 2) % (W + 16);
-        g.circle(cxp, 14 + ((i * 7) % 12), 5, i % 3 === 0 ? PAL.pink : i % 3 === 1 ? PAL.sky : PAL.yellow);
+        const cyp = 14 + ((i * 7) % 12) + Math.sin(frame * 0.05 + i * 1.7) * 1.5;
+        const c = confettiCols[i % confettiCols.length];
+        g.rect(cxp - 2, cyp, 4, 1, shade(c, -0.2));
+        g.rect(cxp - 1, cyp - 1, 2, 3, c);
       }
-      g.rect(0, 34, W, H - 34, flash > 0 ? "#3a2f5a" : "#2a2250");
-      g.rect(0, H - 26, W, 26, "#3a2a1a");
-      g.rect(0, H - 26, W, 4, "#6a4a2a");
-      // ropes
+      g.rect(0, 34, W, H - 34 - 26, flash > 0 ? "#473a6e" : mixHex("#241d46", "#2e2558", 0.5));
+      // soft spotlight glow over the ring centre
+      g.rect(RING_CX - 70, 40, 140, 70, "rgba(255,241,189,0.05)");
+      g.rect(RING_CX - 40, 46, 80, 40, "rgba(255,241,189,0.05)");
+      g.sprite(a.floor, 0, H - 26);
+      // ropes: shaded top highlight + base + shadow row for a rounded look
       for (let i = 0; i < 3; i++) {
         const ry = 48 + i * 18;
-        g.rect(0 + sx, ry, W, 3, i % 2 ? PAL.white : PAL.red);
+        const base = i % 2 ? PAL.white : PAL.red;
+        g.rect(0 + sx, ry - 1, W, 1, shade(base, 0.35));
+        g.rect(0 + sx, ry, W, 2, base);
+        g.rect(0 + sx, ry + 2, W, 1, shade(base, -0.3));
       }
-      g.rect(6 + sx, 36, 6, H - 60, PAL.dark);
-      g.rect(W - 12 + sx, 36, 6, H - 60, PAL.dark);
+      g.sprite(a.post, 4 + sx, 36);
+      g.sprite(a.post, W - 14 + sx, 36);
+      g.sprite(a.pad, 2 + sx, 40);
+      g.sprite(a.pad, W - 18 + sx, 40);
 
       drawOpponent(g, sx);
       drawPlayer(g, sx);
 
-      for (const s of sparks) g.rect(s.x + sx, s.y, 2, 2, s.c);
+      for (const s of sparks) {
+        g.alpha(clamp(s.life / 18, 0.25, 1));
+        g.rect(s.x + sx - 1, s.y - 1, 3, 3, s.c);
+        g.alpha(1);
+      }
       for (const p of pops) g.text(p.text, RING_CX, p.y, p.color, { align: "center", size: p.text.length > 10 ? 1 : 2 });
 
       drawHud(g);
@@ -542,7 +652,7 @@ function create(seed: number): GameInstance {
     let bodyY = 0;
     const dirNow: Dir | null = opp.dir === "feint" ? opp.fakeDir : opp.dir;
     if (opp.state === "down") {
-      cy = OPP_Y + 52;
+      cy = OPP_Y + 40; // a touch less than before: the bigger sprite already reaches low enough
       bodyY = 18;
     } else if (opp.state === "dizzy") {
       tilt = Math.sin(frame * 0.3) * 7;
@@ -574,9 +684,9 @@ function create(seed: number): GameInstance {
       bodyY = 4;
     }
     const s = d.scale;
-    const headR = 22 * s;
-    const bodyW = 46 * s;
-    const bodyH = 48 * s;
+    const headR = 26 * s;
+    const bodyW = 54 * s;
+    const bodyH = 54 * s;
     const bx = cx + tilt;
     const by = cy + bodyY;
 
@@ -584,32 +694,44 @@ function create(seed: number): GameInstance {
     if (opp.state === "tell" && frame % 8 < 4) g.circle(bx, by + 6, headR + bodyW * 0.42, "rgba(255,225,77,0.22)");
     if (opp.state === "open") g.circle(bx, by + 6, headR + bodyW * 0.4, "rgba(92,242,255,0.2)");
 
-    // body + belly patch
-    g.rect(bx - bodyW / 2, by + headR * 0.6, bodyW, bodyH * (opp.state === "down" ? 0.55 : 1), d.color);
-    g.rect(bx - bodyW * 0.32, by + headR * 0.6 + bodyH * 0.18, bodyW * 0.64, bodyH * 0.5, d.accent);
-    if (d.ear === "big") g.rect(bx - bodyW * 0.55, by + headR * 1.4, bodyW * 1.1, 6 * s, PAL.yellow); // championship belt
+    // body + belly patch, shaded with an outline so it pops off the dark ring
+    const bodyTop = by + headR * 0.6;
+    const bodyHNow = bodyH * (opp.state === "down" ? 0.55 : 1);
+    shadedBlock(g, bx - bodyW / 2, bodyTop, bodyW, bodyHNow, d.color);
+    shadedBlock(g, bx - bodyW * 0.32, bodyTop + bodyHNow * 0.18, bodyW * 0.64, bodyHNow * 0.5, d.accent);
+    // a couple of fixed fur/feather flecks so the fill isn't a flat slab
+    for (const f of FUR_SPECKS) {
+      if (d.ear === "feather") continue;
+      g.rect(bx - bodyW / 2 + f.dx * bodyW, bodyTop + f.dy * bodyHNow, 3, 2, shade(d.color, -0.2));
+    }
+    if (d.ear === "big") {
+      shadedBlock(g, bx - bodyW * 0.55, by + headR * 1.4, bodyW * 1.1, 6 * s, PAL.yellow); // championship belt
+      g.circle(bx, by + headR * 1.4 + 3 * s, 3 * s, shade(PAL.yellow, -0.3)); // belt buckle
+    }
 
     // ears / crest per animal
     if (d.ear === "round") {
-      g.circle(bx - headR * 0.8, cy - headR * 0.9, headR * 0.4, d.color);
-      g.circle(bx + headR * 0.8, cy - headR * 0.9, headR * 0.4, d.color);
+      shadedBall(g, bx - headR * 0.8, cy - headR * 0.9, headR * 0.42, d.color);
+      shadedBall(g, bx + headR * 0.8, cy - headR * 0.9, headR * 0.42, d.color);
+      g.circle(bx - headR * 0.8, cy - headR * 0.9, headR * 0.2, shade(d.accent, -0.1));
+      g.circle(bx + headR * 0.8, cy - headR * 0.9, headR * 0.2, shade(d.accent, -0.1));
     } else if (d.ear === "point") {
-      g.rect(bx - headR * 0.9, cy - headR * 1.5, headR * 0.35, headR * 0.9, d.color);
-      g.rect(bx + headR * 0.55, cy - headR * 1.5, headR * 0.35, headR * 0.9, d.color);
+      shadedBlock(g, bx - headR * 0.9, cy - headR * 1.5, headR * 0.35, headR * 0.9, d.color);
+      shadedBlock(g, bx + headR * 0.55, cy - headR * 1.5, headR * 0.35, headR * 0.9, d.color);
     } else if (d.ear === "feather") {
       const spread = opp.state === "tell" || opp.state === "attack" ? 1.5 : 1;
       const fcols = [PAL.pink, PAL.purple, PAL.yellow, PAL.cyan, PAL.lime];
       for (let i = 0; i < 5; i++) {
         const a = (-0.9 + i * 0.45) * spread;
-        g.circle(bx + Math.sin(a) * headR * 1.8, cy - headR * 1.1 - Math.cos(a) * headR * 1.3, headR * 0.3, fcols[i]);
+        shadedBall(g, bx + Math.sin(a) * headR * 1.8, cy - headR * 1.1 - Math.cos(a) * headR * 1.3, headR * 0.32, fcols[i]);
       }
     } else if (d.ear === "big") {
-      g.circle(bx - headR * 1.05, cy - headR * 0.3, headR * 0.55, d.accent);
-      g.circle(bx + headR * 1.05, cy - headR * 0.3, headR * 0.55, d.accent);
+      shadedBall(g, bx - headR * 1.05, cy - headR * 0.3, headR * 0.58, d.accent);
+      shadedBall(g, bx + headR * 1.05, cy - headR * 0.3, headR * 0.58, d.accent);
     }
 
     // head + face
-    g.circle(bx, cy, headR, d.color);
+    shadedBall(g, bx, cy, headR, d.color);
     const sleepy = d.name.startsWith("BOOMER") && opp.state === "idle";
     const eyeOpen = !sleepy || frame % 90 < 10;
     for (const side of [-1, 1]) {
@@ -618,6 +740,7 @@ function create(seed: number): GameInstance {
       if (eyeOpen) {
         g.circle(ex, ey, headR * 0.17, PAL.white);
         g.circle(ex + side * 1, ey + 1, headR * 0.08, PAL.black);
+        g.circle(ex - 1, ey - 1, headR * 0.05, PAL.white); // eye glint
       } else {
         g.rect(ex - headR * 0.14, ey, headR * 0.28, 2, PAL.black);
       }
@@ -627,12 +750,20 @@ function create(seed: number): GameInstance {
       const wig = Math.sin(frame * 0.6) * 3;
       g.rect(bx - headR * 0.55, cy - headR * 0.55 + wig, headR * 0.9, 3, PAL.yellow);
     }
-    g.circle(bx, cy + headR * 0.4, headR * 0.3, d.accent); // snout/beak patch
+    shadedBall(g, bx, cy + headR * 0.4, headR * 0.32, d.accent); // snout/beak patch
+    g.circle(bx, cy + headR * 0.34, headR * 0.08, shade(d.accent, -0.4)); // nose dot
 
-    // arms/gloves
+    // arms/gloves — bigger, shiny, with a stitched cuff
     const gloveY = cy + headR * 0.3;
-    g.circle(bx - headR * 1.3 + armL * -0.3, gloveY + Math.abs(armL) * 0.1, headR * 0.5, PAL.red);
-    g.circle(bx + headR * 1.3 + armR * 0.3, gloveY + Math.abs(armR) * 0.1, headR * 0.5, PAL.red);
+    const glR = headR * 0.56;
+    const glLx = bx - headR * 1.3 + armL * -0.3;
+    const glLy = gloveY + Math.abs(armL) * 0.1;
+    const glRx = bx + headR * 1.3 + armR * 0.3;
+    const glRy = gloveY + Math.abs(armR) * 0.1;
+    shadedBall(g, glLx, glLy, glR, PAL.red);
+    shadedBall(g, glRx, glRy, glR, PAL.red);
+    g.rect(glLx - glR * 0.7, glLy + glR * 0.55, glR * 1.4, glR * 0.35, shade(PAL.red, -0.35));
+    g.rect(glRx - glR * 0.7, glRy + glR * 0.55, glR * 1.4, glR * 0.35, shade(PAL.red, -0.35));
 
     if (opp.state === "dizzy") {
       for (let i = 0; i < 3; i++) {
@@ -644,57 +775,74 @@ function create(seed: number): GameInstance {
       g.text("X", bx - headR * 0.4, cy - headR * 0.15, PAL.black, { align: "center" });
       g.text("X", bx + headR * 0.4, cy - headR * 0.15, PAL.black, { align: "center" });
     }
-    // opponent health bar just above the ring action
+    // opponent health bar just above the ring action — a thick framed strip like the cabinet art
     const hpFrac = clamp(opp.hp / d.hp, 0, 1);
-    g.rect(RING_CX - 60, 36, 120, 7, PAL.black);
+    g.box(RING_CX - 61, 35, 122, 9, PAL.black);
+    g.rect(RING_CX - 60, 36, 120, 7, "#1a1530");
     g.rect(RING_CX - 59, 37, 118 * hpFrac, 5, hpFrac > 0.3 ? d.color : PAL.red);
+    g.rect(RING_CX - 59, 37, 118 * hpFrac, 2, shade(hpFrac > 0.3 ? d.color : PAL.red, 0.3));
     g.box(RING_CX - 60, 36, 120, 7, PAL.white);
   }
 
   // ── player: back view, big gloves, shifts with dodge and swings to punch ──
   function drawPlayer(g: Gfx, sx: number) {
+    const a = art();
     const cx = RING_CX + sx + player.dodge * 18;
     const duck = player.guard;
     const cy = PLAYER_Y + (duck ? 10 : 0);
     const tint = player.hitFlash > 0 && player.hitFlash % 4 < 2 ? PAL.red : PAL.cyan;
-    // body (back view)
-    g.rect(cx - 18, cy - 10, 36, duck ? 26 : 34, tint);
-    g.rect(cx - 10, cy - 28, 20, 20, PAL.tan); // head/neck from behind
-    g.rect(cx - 10, cy - 34, 20, 8, PAL.navy); // headband
+    g.alpha(0.5);
+    g.sprite(a.gloveShadow, cx - 12, cy + 23); // soft contact shadow on the canvas
+    g.alpha(1);
+    // body (back view) — shaded with shoulder seams
+    shadedBlock(g, cx - 19, cy - 10, 38, duck ? 27 : 35, tint);
+    g.rect(cx - 19, cy - 10, 38, 3, shade(tint, -0.15)); // collar seam
+    shadedBall(g, cx, cy - 18, 12, PAL.tan); // head/neck from behind
+    shadedBlock(g, cx - 11, cy - 35, 22, 9, PAL.navy); // headband
+    g.rect(cx - 11, cy - 32, 22, 2, PAL.red); // headband stripe
     // gloves: idle resting near shoulders, punch extends one up/forward
     const extend = player.punchT > 0 ? Math.min(1, player.punchT / (player.punch === "u" ? UPPER_ANIM : PUNCH_ANIM)) : 0;
     const activePunch = player.punch;
     const lOff = activePunch === "l" ? extend * 30 : 0;
     const rOff = activePunch === "r" ? extend * 30 : 0;
     const uOff = activePunch === "u" ? extend * 24 : 0;
-    g.circle(cx - 22, cy - 6 - lOff * 0.6 - (activePunch === "u" ? uOff * 0.2 : 0), 10, "#ff4a4a");
-    g.circle(cx + 22, cy - 6 - rOff * 0.6 - (activePunch === "u" ? uOff * 0.2 : 0), 10, "#ff4a4a");
-    if (activePunch === "l" && extend > 0) g.line(cx - 22, cy - 6, cx - 22, cy - 6 - 10, "rgba(255,255,255,0.5)");
-    if (activePunch === "r" && extend > 0) g.line(cx + 22, cy - 6, cx + 22, cy - 6 - 10, "rgba(255,255,255,0.5)");
+    const glLy = cy - 6 - lOff * 0.6 - (activePunch === "u" ? uOff * 0.2 : 0);
+    const glRy = cy - 6 - rOff * 0.6 - (activePunch === "u" ? uOff * 0.2 : 0);
+    shadedBall(g, cx - 23, glLy, 12, "#ff4a4a");
+    shadedBall(g, cx + 23, glRy, 12, "#ff4a4a");
+    g.rect(cx - 23 - 8, glLy + 7, 16, 4, shade("#ff4a4a", -0.35)); // cuff
+    g.rect(cx + 23 - 8, glRy + 7, 16, 4, shade("#ff4a4a", -0.35));
+    if (activePunch === "l" && extend > 0) g.line(cx - 23, cy - 6, cx - 23, cy - 6 - 12, "rgba(255,255,255,0.5)");
+    if (activePunch === "r" && extend > 0) g.line(cx + 23, cy - 6, cx + 23, cy - 6 - 12, "rgba(255,255,255,0.5)");
     if (activePunch === "u" && extend > 0) {
-      g.circle(cx, cy - 20 - uOff, 11, PAL.yellow);
+      shadedBall(g, cx, cy - 20 - uOff, 13, PAL.yellow);
       g.line(cx, cy - 10, cx, cy - 20 - uOff, "rgba(255,255,255,0.6)");
     }
-    if (duck) g.text("BLOCK", cx, cy - 46, PAL.cyan, { align: "center" });
+    if (duck) g.text("BLOCK", cx, cy - 58, PAL.cyan, { align: "center" });
     // player health bar
     const hpFrac = clamp(player.hp / PLAYER_MAX, 0, 1);
-    g.rect(8, 180, 60, 7, PAL.black);
+    g.box(7, 179, 62, 9, PAL.black);
+    g.rect(8, 180, 60, 7, "#1a1530");
     g.rect(9, 181, 58 * hpFrac, 5, hpFrac > 0.3 ? PAL.cyan : PAL.red);
     g.box(8, 180, 60, 7, PAL.white);
   }
 
   function drawHud(g: Gfx) {
+    const a = art();
     g.rect(0, 0, W, 11, "rgba(13,11,26,0.6)");
     g.text("YOU", 4, 2, PAL.cyan);
     g.text(opp.def.name, W - 4, 2, opp.def.color, { align: "right" });
     g.text(`ROUND ${round}/${ROUNDS}`, RING_CX, 2, PAL.white, { align: "center" });
     const secs = Math.max(0, Math.ceil(roundTimer / 60));
     g.text(`${secs}s`, RING_CX, 22, PAL.grey, { align: "center" });
-    // star meter
+    // star meter — a little framed gauge with a spark icon, fills gold when ready
     const full = player.star >= STAR_MAX;
-    g.rect(W - 70, H - 14, 62, 8, PAL.black);
+    g.box(W - 71, H - 15, 64, 10, PAL.black);
+    g.rect(W - 70, H - 14, 62, 8, "#1a1530");
     g.rect(W - 69, H - 13, 60 * (player.star / STAR_MAX), 6, full ? PAL.yellow : PAL.purple);
+    g.rect(W - 69, H - 13, 60 * (player.star / STAR_MAX), 2, shade(full ? PAL.yellow : PAL.purple, 0.3));
     g.box(W - 70, H - 14, 62, 8, PAL.white);
+    if (full && frame % 10 < 5) g.sprite(a.burstStar, W - 76, H - 18);
     g.text(full && frame % 20 < 12 ? "★ READY!" : "STAR", W - 39, H - 23, PAL.yellow, { align: "center" });
   }
 }

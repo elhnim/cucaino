@@ -7,6 +7,7 @@
 // move up the ladder; beat all 3 to take the trophy. (Original game — made-up animal teams,
 // in the spirit of 90s arcade basketball, no real leagues, players or logos.)
 import { H, PAL, W, clamp, rng, sprite, type GameInstance, type Gfx, type IO, type Input, type RetroGameDef, type Sprite } from "../engine";
+import { bake, bakeShadow, drawStrip, fbm, hash2, outlined, shade } from "../art";
 
 // ── court geometry ──
 const COURT_L = 40; // left baseline (x)
@@ -36,6 +37,55 @@ const PLAYER_SPD_D = 0.023;
 const PLAYER_ROWS = 12; // every body sprite is 12 rows tall, feet on the bottom row
 const PLAYER_SCALE_FAR = 1.8; // ~22px tall at the far sideline
 const PLAYER_SCALE_NEAR = 2.3; // ~28px tall at the near sideline — big and readable on a phone
+
+// ── palette sampled straight off the cabinet painting (night arena, orange-wood court) ──
+const COURT_BG = "#0f0b21";
+const COURT_WOOD = "#b4773a";
+const CROWD_A = "#494e68";
+const CROWD_B = "#2f1d51";
+
+// ── baked backdrop + prop art (built once lazily, never inside draw/update) ──
+interface CourtArt {
+  floor: Sprite;
+  crowd: Sprite;
+  ball: Sprite;
+  shadow: Sprite;
+}
+function bakeCourtArt(): CourtArt {
+  const floorW = COURT_R - COURT_L + 20;
+  const floorH = D_BOT - D_TOP;
+  const floor = bake(floorW, floorH, (x, y) => {
+    const seam = ((x % 40) + 40) % 40;
+    const grain = fbm(x * 0.12, y * 0.5, 2, 5);
+    let c = shade(COURT_WOOD, (grain - 0.5) * 0.1);
+    if (seam === 0) c = shade(c, -0.22);
+    else if (seam === 1) c = shade(c, 0.1);
+    if (y < 2 || y > floorH - 3) c = shade(c, -0.1); // baseline boards read a touch darker
+    return c;
+  });
+  // one tile = two staggered rows of crowd "seats", a bit of per-seat hash variance for texture
+  const crowd = bake(16, 12, (x, y) => {
+    const cellW = 4,
+      cellH = 6;
+    if (x % cellW === cellW - 1 || y % cellH === cellH - 1) return null;
+    const cx = Math.floor(x / cellW);
+    const cy = Math.floor(y / cellH);
+    const base = (cx + cy) % 2 === 0 ? CROWD_A : CROWD_B;
+    return shade(base, (hash2(cx, cy, 11) - 0.5) * 0.35);
+  });
+  const ball = bake(8, 8, (x, y) => {
+    const dx = x - 3.5,
+      dy = y - 3.5;
+    const d = Math.hypot(dx, dy);
+    if (d > 3.7) return null;
+    if (Math.abs(dx) < 0.5 || Math.abs(dy) < 0.5) return "#2a1608";
+    return d > 2.7 ? shade(PAL.orange, -0.18) : shade(PAL.orange, 0.12);
+  });
+  const shadow = bakeShadow(16, 7, "rgba(0,0,0,0.38)");
+  return { floor, crowd, ball, shadow };
+}
+let COURT_ART: CourtArt | null = null;
+const art = () => (COURT_ART ??= bakeCourtArt());
 
 const screenY = (d: number) => D_TOP + d * (D_BOT - D_TOP);
 /** small-prop perspective scale (ball, shadows, the net) */
@@ -74,8 +124,43 @@ const CPU_TEAMS: Team[] = [
 
 // ── pixel art: one body, recoloured per team; the ball is drawn separately so it can fly ──
 const SKIN = PAL.tan;
+/** recolour the first/last char of any run of 3+ `target` chars to `hi`/`lo` — gives every flat
+ *  patch of skin/jersey/trim a highlight + shadow edge (3-tone shading) without ever changing a
+ *  row's length, so the body's silhouette (and hitbox) can never drift. */
+function shadeRuns(row: string, target: string, hi: string, lo: string): string {
+  const chars = row.split("");
+  let i = 0;
+  while (i < chars.length) {
+    if (chars[i] !== target) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < chars.length && chars[j] === target) j++;
+    if (j - i >= 3) {
+      chars[i] = hi;
+      chars[j - 1] = lo;
+    }
+    i = j;
+  }
+  return chars.join("");
+}
 function teamSprite(rows: string[], jersey: string, trim: string): Sprite {
-  return sprite(rows, { k: PAL.black, s: SKIN, j: jersey, t: trim, w: PAL.white });
+  const shaded = rows.map((row) => shadeRuns(shadeRuns(shadeRuns(row, "s", "H", "G"), "j", "L", "D"), "t", "T", "U"));
+  const pal = {
+    k: PAL.black,
+    s: SKIN,
+    j: jersey,
+    t: trim,
+    w: PAL.white,
+    H: shade(SKIN, 0.22),
+    G: shade(SKIN, -0.22),
+    L: shade(jersey, 0.22),
+    D: shade(jersey, -0.22),
+    T: shade(trim, 0.25),
+    U: shade(trim, -0.25),
+  };
+  return outlined(sprite(shaded, pal));
 }
 const RUN_A = [
   "....tttt.....",
@@ -200,11 +285,14 @@ interface Spark {
 }
 
 function create(seed: number): GameInstance {
+  const A = art();
   const r = rng(seed);
   let frame = 0;
   let ti = 0;
   let opp: Team = CPU_TEAMS[0];
   let cpuSprites: SpriteSet = buildSprites(opp);
+  // a couple of frames of wobble on the backboard the shot just hit — [left hoop, right hoop]
+  const rimShake: [number, number] = [0, 0];
 
   const kid: [Ply, Ply] = [makePlayer(0, 240, 0.5), makePlayer(0, 200, 0.3)];
   const cpu: [Ply, Ply] = [makePlayer(1, 240, 0.5), makePlayer(1, 280, 0.7)];
@@ -246,6 +334,10 @@ function create(seed: number): GameInstance {
 
   const burst = (x: number, y: number, c: string, n = 10) => {
     for (let i = 0; i < n; i++) sparks.push({ x, y, vx: r.range(-2.2, 2.2), vy: r.range(-2.6, 1), life: r.int(14, 26), c });
+  };
+  // a little low, slow puff of court dust at a sprinting sneaker — never a shower of sparks
+  const dustPuff = (x: number, y: number) => {
+    sparks.push({ x, y, vx: r.range(-0.5, 0.5), vy: r.range(-0.5, -0.05), life: r.int(10, 16), c: "rgba(210,180,135,0.5)" });
   };
 
   // ── formation / possession ──
@@ -330,6 +422,7 @@ function create(seed: number): GameInstance {
     ball.targetTeam = team;
     ball.isDunk = isDunk;
     io.sfx.play(isDunk ? "jump" : "shoot");
+    if (isThree) io.sfx.noise?.(16, 0.2, 2600, 900);
   }
   function updateShotAnim(p: Ply, io: IO, isHuman: boolean, humanReleased: boolean) {
     p.shotT++;
@@ -415,7 +508,7 @@ function create(seed: number): GameInstance {
         shotClock = SHOT_CLOCK_MAX;
         msg = "STEAL!";
         msgT = 40;
-        io.sfx.play("hit");
+        io.sfx.play("pop");
         io.score(p.team === 0 ? 50 : 0);
         burst(p.x, screenY(p.d) - 20, PAL.yellow, 8);
       } else io.sfx.play("blip");
@@ -428,9 +521,12 @@ function create(seed: number): GameInstance {
     if (team === 0) {
       kidScore += ball.points;
       streak++;
+      const justCaughtFire = streak >= 3 && !onFire;
       if (streak >= 3) onFire = true;
       io.score(ball.points * 100 + (ball.isDunk ? 150 : 0));
       io.sfx.play(ball.isDunk ? "explode" : "win");
+      io.sfx.play("cheer");
+      if (justCaughtFire) io.sfx.play("powerup");
     } else {
       oppScore += ball.points;
       io.sfx.play("coin");
@@ -559,6 +655,7 @@ function create(seed: number): GameInstance {
         msg = "OFF THE RIM!";
         msgT = 30;
         io.sfx.play("bounce");
+        rimShake[ball.targetTeam === 0 ? 1 : 0] = 10;
       }
     }
   }
@@ -618,6 +715,8 @@ function create(seed: number): GameInstance {
       frame++;
       if (shake > 0) shake--;
       if (msgT > 0) msgT--;
+      if (rimShake[0] > 0) rimShake[0]--;
+      if (rimShake[1] > 0) rimShake[1]--;
       for (let i = sparks.length - 1; i >= 0; i--) {
         const s = sparks[i];
         s.x += s.vx;
@@ -658,6 +757,7 @@ function create(seed: number): GameInstance {
         stateT = 80;
         msg = quarter <= 4 ? `END OF Q${quarter}` : "END OF OT";
         msgT = 80;
+        io.sfx.noise?.(26, 0.3, 700, 180);
         return;
       }
       if (ball.mode === "held" && shotClock <= 0 && ball.holder) {
@@ -706,7 +806,11 @@ function create(seed: number): GameInstance {
           }
         }
         if (p.coolSteal > 0) p.coolSteal--;
+        // sneaker dust while sprinting on the court — small, throttled, never a shower
+        if (p.state === "run" && p.animT > 0 && (frame + Math.floor(p.x)) % 11 === 0) dustPuff(p.x, screenY(p.d));
       }
+      if (human.state === "run" && human.animT > 0 && frame % 16 === 0) io.sfx.play("step");
+      if (ball.mode === "held" && ball.holder?.state === "run" && ball.holder.animT > 0 && frame % 14 === 0) io.sfx.tone(140, 30, "sine", 0.1);
 
       if (ball.mode === "pass") updatePass(io);
       else if (ball.mode === "shotFlight") updateShotFlight(io);
@@ -724,30 +828,30 @@ function create(seed: number): GameInstance {
       const camX = clamp(ball.x - W / 2, 0, WORLD_W - W);
       const sx = shake > 0 ? (frame % 2 ? 2 : -2) : 0;
 
-      g.clear("#17123a");
-      // crowd (background, parallax)
-      for (let row = 0; row < 2; row++) {
-        const y = 18 + row * 8;
-        for (let i = 0; i < 40; i++) {
-          const x = (((i * 14 - camX * 0.4) % 560) + 560) % 560;
-          g.rect(x, y, 6, 6, i % 3 === 0 ? PAL.purple : i % 3 === 1 ? PAL.pink : PAL.navy);
-        }
-      }
-      g.rect(0, 34, W, 6, PAL.dark);
+      g.clear(COURT_BG);
+      // crowd — two staggered rows of baked stadium seats, scrolling slower than the court
+      drawStrip(g, A.crowd, camX * 0.3, 2, W);
+      drawStrip(g, A.crowd, camX * 0.45 + 6, 15, W);
+      g.rect(0, 32, W, 2, "rgba(10,8,24,0.6)");
+      g.rect(0, 34, W, 2, PAL.dark);
 
       g.camera(camX + sx, 0);
-      // court floor
-      g.rect(COURT_L - 10, D_TOP, COURT_R - COURT_L + 20, D_BOT - D_TOP, "#b5793a");
-      for (let i = 0; i < 10; i++) g.rect(COURT_L - 10 + i * ((COURT_R - COURT_L + 20) / 10), D_TOP, 1, D_BOT - D_TOP, "rgba(0,0,0,0.08)");
+      // court floor — one baked wood sprite (grain, plank seams, darker baseline boards)
+      g.sprite(A.floor, COURT_L - 10, D_TOP);
       g.rect(COURT_L - 10, D_TOP, COURT_R - COURT_L + 20, 3, PAL.white);
       g.rect(COURT_L - 10, D_BOT - 3, COURT_R - COURT_L + 20, 3, PAL.white);
       const midX = (COURT_L + COURT_R) / 2;
       g.rect(midX - 1, D_TOP, 2, D_BOT - D_TOP, PAL.white);
-      g.circle(midX, screenY(0.5), 18, "rgba(255,255,255,0.25)");
-      // key + 3pt arc at each hoop
+      g.circle(midX, screenY(0.5), 18, "rgba(255,255,255,0.22)");
+      // key + 3pt arc + restricted-area cross at each hoop
       for (const side of [-1, 1] as const) {
         const hoopX = side > 0 ? COURT_R : COURT_L;
         g.rect(side > 0 ? hoopX - 46 : hoopX, screenY(0.22), 46, screenY(0.78) - screenY(0.22), "rgba(255,255,255,0.14)");
+        g.box(side > 0 ? hoopX - 46 : hoopX, screenY(0.22), 46, screenY(0.78) - screenY(0.22), "rgba(255,255,255,0.3)");
+        const markX = side > 0 ? hoopX - 30 : hoopX + 30;
+        const markY = screenY(0.5);
+        g.line(markX - 3, markY, markX + 3, markY, PAL.orange);
+        g.line(markX, markY - 3, markX, markY + 3, PAL.orange);
         // 3-point arc: a handful of line segments around the hoop
         let prev: { x: number; y: number } | null = null;
         for (let i = 0; i <= 16; i++) {
@@ -756,7 +860,7 @@ function create(seed: number): GameInstance {
           const px = hoopX - side * Math.cos(a) * THREE_PT_R * 0.72;
           const pd = clamp(0.5 + Math.sin(a) * 0.46, 0.04, 0.96);
           const py = screenY(pd);
-          if (prev) g.line(prev.x, prev.y, px, py, "rgba(255,255,255,0.3)");
+          if (prev) g.line(prev.x, prev.y, px, py, "rgba(255,240,220,0.4)");
           prev = { x: px, y: py };
         }
       }
@@ -769,17 +873,33 @@ function create(seed: number): GameInstance {
         const bbW = 24,
           bbH = 28,
           bbTop = sy - RIM_Z - bbH + 8;
+        const shakeIdx = side > 0 ? 1 : 0;
+        const wob = rimShake[shakeIdx] > 0 ? (frame % 2 ? 1.4 : -1.4) * (rimShake[shakeIdx] / 10) : 0;
         // support pole, behind the board
-        g.rect(hoopX - 2, bbTop + bbH - 4, 4, 22, "#cfcfcf");
-        // backboard
-        g.rect(hoopX - bbW / 2, bbTop, bbW, bbH, "rgba(248,248,255,0.95)");
-        g.box(hoopX - bbW / 2, bbTop, bbW, bbH, "rgba(20,20,40,0.5)");
-        g.rect(hoopX - 7, bbTop + bbH - 12, 14, 9, PAL.red);
+        g.rect(hoopX - 2, bbTop + bbH - 4, 4, 22, shade("#cfcfcf", -0.12));
+        // backboard, with a bright top edge and a dark frame
+        g.rect(hoopX - bbW / 2 + wob, bbTop, bbW, bbH, "#eef1ff");
+        g.rect(hoopX - bbW / 2 + wob, bbTop, bbW, 3, "#ffffff");
+        g.box(hoopX - bbW / 2 + wob, bbTop, bbW, bbH, "#1c1933");
+        g.rect(hoopX - 7 + wob, bbTop + bbH - 12, 14, 9, PAL.red);
+        g.box(hoopX - 7 + wob, bbTop + bbH - 12, 14, 9, shade(PAL.red, -0.3));
         // rim
-        g.rect(hoopX - 12, sy - RIM_Z, 24, 4, PAL.orange);
-        g.box(hoopX - 12, sy - RIM_Z, 24, 4, "#a65a10");
-        // net: a few swaying strands
-        for (let i = -2; i <= 2; i++) g.line(hoopX - 10 + i * 5, sy - RIM_Z + 3, hoopX - 3 + i * 2.4 + netWiggle, sy - RIM_Z + 19, "rgba(255,255,255,0.85)");
+        g.rect(hoopX - 12 + wob, sy - RIM_Z, 24, 4, PAL.orange);
+        g.box(hoopX - 12 + wob, sy - RIM_Z, 24, 4, "#7a3c08");
+        // net: strands funnelling from the rim to a point, plus a couple of weave rungs
+        const netTopY = sy - RIM_Z + 3;
+        const netBotY = sy - RIM_Z + (justScored ? 20 : 17);
+        const spread = justScored ? 7 : 4;
+        for (let i = -3; i <= 3; i++) {
+          const topX = hoopX + wob + i * 3.3;
+          const botX = hoopX + wob + i * (spread / 3) + netWiggle;
+          g.line(topX, netTopY, botX, netBotY, "rgba(255,255,255,0.8)");
+        }
+        for (let k = 1; k <= 2; k++) {
+          const ry = netTopY + k * ((netBotY - netTopY) / 3);
+          const rw = 10 - k * 2.5;
+          g.line(hoopX + wob - rw, ry, hoopX + wob + rw, ry, "rgba(255,255,255,0.3)");
+        }
       }
 
       const offenseTeam: 0 | 1 | null = ball.mode === "held" && ball.holder ? ball.holder.team : ball.mode === "pass" || ball.mode === "shotFlight" ? ball.targetTeam : null;
@@ -800,12 +920,10 @@ function create(seed: number): GameInstance {
         const pScale = playerScale(p.d);
         const feetY = sy; // the player's shadow always sits on the floor, however high they've jumped
         const topY = sy - p.z - PLAYER_ROWS * pScale;
-        // a small flat shadow under the feet — shrinks as the player jumps, never a big dark blob
+        // a soft baked shadow under the feet — shrinks as the player jumps, never a big dark blob
         const shrink = clamp(1 - p.z / 46, 0.35, 1);
-        const shW = 11 * pScale * shrink;
-        g.alpha(0.3);
-        g.rect(p.x - shW / 2, feetY - 1.5, shW, 3, "#000000");
-        g.alpha(1);
+        const shScale = pScale * shrink * 0.7;
+        g.sprite(A.shadow, p.x - 8 * shScale, feetY - 3.5 * shScale, { scale: shScale });
         g.sprite(spr, p.x - 7 * pScale, topY, { flipX: p.facing < 0, scale: pScale });
         if (p === human) {
           const bob = Math.sin(frame * 0.2) * 2;
@@ -825,11 +943,8 @@ function create(seed: number): GameInstance {
           bz = ball.holder.z + 10 * holderScale * 0.5 + (ball.holder.state === "run" ? Math.abs(Math.sin(ball.holder.animT * 2)) * 3 : 0);
         }
         const scale = depthScale(bd);
-        const ballR = 3.2 * scale;
         const sy = screenY(bd) - bz;
-        g.alpha(0.3);
-        g.rect(bx - ballR, screenY(bd) - 1, ballR * 2, 2, "#000000");
-        g.alpha(1);
+        g.sprite(A.shadow, bx - 8 * scale * 0.5, screenY(bd) - 2.5 * scale * 0.5, { scale: scale * 0.5 });
         if (onFire && kidBallish) {
           for (let i = 0; i < 3; i++) {
             const fx = bx + Math.sin(frame * 0.5 + i) * 4;
@@ -837,9 +952,7 @@ function create(seed: number): GameInstance {
             g.circle(fx, fy, (3 - i * 0.6) * scale, i % 2 ? PAL.yellow : PAL.orange);
           }
         }
-        g.circle(bx, sy, ballR, PAL.orange);
-        g.line(bx - ballR * 0.7, sy, bx + ballR * 0.7, sy, "#0d0b1a");
-        g.line(bx, sy - ballR * 0.7, bx, sy + ballR * 0.7, "#0d0b1a");
+        g.sprite(A.ball, bx - 4 * scale, sy - 4 * scale, { scale });
       }
       for (const s of sparks) g.circle(s.x, s.y, 2, s.c);
 
