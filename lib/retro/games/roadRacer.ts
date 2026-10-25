@@ -4,57 +4,36 @@
 // adds time to the clock. Run out of fuel or time and the race is over.
 // (Original game in the spirit of 8-bit top-down racers.)
 import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, fbm, hash2, mixHex, outlined, shade } from "../art";
 
 const PY = 170; // the player's car sits on this screen row; the world scrolls past it
 const CP_DIST = 6000; // world distance between checkpoints
 const TOP_SPEED = 5;
 const GRASS_SPEED = 2;
+const CAR_W = 16;
+const CAR_H = 24;
+const TRUCK_W = 18;
+const TRUCK_H = 40;
+const OIL_W = 20;
+const OIL_H = 14;
+const FUEL_W = 12;
+const FUEL_H = 16;
+const TREE_W = 22;
+const TREE_H = 26;
+const ROCK_W = 10;
+const ROCK_H = 8;
+// collision boxes stay INSET inside the drawn sprite (kid-friendly — dodging must not get
+// harder just because the art got bigger); sprite size (CAR_W etc.) is only for drawing/placement
+const CAR_HB_W = 12;
+const CAR_HB_H = 19;
+const TRUCK_HB_W = 14;
+const TRUCK_HB_H = 34;
+const OIL_HB_W = 14;
+const OIL_HB_H = 9;
+const FUEL_HB_W = 9;
+const FUEL_HB_H = 12;
+const COIN_HB = 7;
 
-// ── pixel art ──
-const CAR_ROWS = [
-  "..cccccc..",
-  ".cyccccyc.",
-  "kcccccccck",
-  "kcccccccck",
-  ".ccwwwwcc.",
-  ".cwwwwwwc.",
-  ".cddddddc.",
-  ".cddddddc.",
-  ".cddddddc.",
-  ".cwwwwwwc.",
-  ".ccwwwwcc.",
-  "kcccccccck",
-  "kcccccccck",
-  ".cccccccc.",
-  ".crccccrc.",
-  "..cccccc..",
-];
-const TRUCK_ROWS = [
-  "..cccccccc..",
-  ".cyccccccyc.",
-  ".cccccccccc.",
-  "kcwwwwwwwwck",
-  "kcwwwwwwwwck",
-  ".cccccccccc.",
-  ".cccccccccc.",
-  "..kkkkkkkk..",
-  "bbbbbbbbbbbb",
-  "kbeeeeeeeebk",
-  "kbbbbbbbbbbk",
-  "bbeeeeeeeebb",
-  "bbbbbbbbbbbb",
-  "bbeeeeeeeebb",
-  "kbbbbbbbbbbk",
-  "kbeeeeeeeebk",
-  "bbbbbbbbbbbb",
-  "bbeeeeeeeebb",
-  "bbbbbbbbbbbb",
-  "kbeeeeeeeebk",
-  "kbbbbbbbbbbk",
-  "bbbbbbbbbbbb",
-  "brbbbbbbbbrb",
-  "bbbbbbbbbbbb",
-];
 /** rotate pixel rows 90° clockwise (front of the car ends up facing right) */
 const rot = (rows: string[]) => {
   const out: string[] = [];
@@ -65,22 +44,157 @@ const rot = (rows: string[]) => {
   }
   return out;
 };
-const mkCar = (c: string, d: string) => {
-  const pal = { c, d, w: "#bfefff", y: PAL.yellow, k: PAL.black, r: PAL.red };
-  return { up: sprite(CAR_ROWS, pal), side: sprite(rot(CAR_ROWS), pal) };
+
+// ── all baked pixel art lives behind one lazy memo: the arcade imports every game's module at
+//    once, so none of this runs until this game is actually created ──
+
+// a top-down car, baked from one shape function so every colour shares the same boxy sedan
+// body (squared shoulders, short nose/tail bumpers, wheels peeking at the corners) with a
+// distinct roof/cabin rectangle — windscreen at the front, a separate rear window at the back —
+// like the cabinet painting's sedans rather than a rounded "egg"
+function carRaw(base: string, stripe = false): Sprite {
+  const dark = shade(base, -0.42);
+  const roof = shade(base, -0.2);
+  return bake(CAR_W, CAR_H, (x, y) => {
+    const nx = (x + 0.5 - CAR_W / 2) / (CAR_W / 2);
+    const ny = (y + 0.5 - CAR_H / 2) / (CAR_H / 2);
+    // mostly a flat-sided rectangle: only the very tip of the nose and tail taper in, so the
+    // body reads as squared shoulders rather than a continuous egg curve
+    const nose = ny < -0.78 ? clamp((ny + 1) / 0.22, 0.35, 1) : 1;
+    const tail = ny > 0.85 ? clamp((1 - ny) / 0.15, 0.6, 1) : 1;
+    let hw = 0.84 * nose * tail;
+    const corner = Math.max(0, Math.abs(ny) - 0.85) / 0.15;
+    hw -= corner * corner * 0.1; // a touch of corner rounding, not a full taper
+    if (Math.abs(nx) > hw) {
+      // a side mirror pokes just past the body, level with the windscreen
+      if (ny > -0.3 && ny < -0.1 && Math.abs(nx) < hw + 0.16) return shade(PAL.black, 0.1);
+      return null;
+    }
+    // wheels peeking at the front and rear corners
+    if ((ny > -0.62 && ny < -0.4) || (ny > 0.36 && ny < 0.58)) {
+      if (Math.abs(nx) > hw - 0.12) return shade(PAL.black, -0.3);
+    }
+    // the cabin/roof is a separate, narrower rectangle inset from the body — a windscreen band
+    // at its front edge, a smaller rear-window band at its back edge, flat roof colour between
+    if (ny > -0.52 && ny < 0.46 && Math.abs(nx) < hw * 0.72) {
+      if (ny < -0.3) return ny < -0.42 && nx > -0.12 && nx < 0.16 ? "#b8e8ff" : "#1c2440"; // windscreen (+ glare)
+      if (ny > 0.26) return "#232c46"; // rear window
+      return roof;
+    }
+    if (stripe && Math.abs(nx) > 0.16 && Math.abs(nx) < 0.3) return PAL.white;
+    if (ny < -0.86 && Math.abs(Math.abs(nx) - hw * 0.55) < 0.14) return "#fff6c8"; // headlights
+    if (ny > 0.84 && Math.abs(Math.abs(nx) - hw * 0.55) < 0.16) return PAL.red; // taillights
+    const edge = hw - Math.abs(nx);
+    return edge < 0.08 ? dark : base;
+  });
+}
+const mkCar = (base: string, stripe = false) => outlined(carRaw(base, stripe));
+const mkCarPair = (base: string) => {
+  const raw = carRaw(base);
+  return { up: outlined(raw), side: outlined(sprite(rot(raw.rows), raw.pal)) };
 };
-const PLAYER = mkCar(PAL.red, "#b8262e");
-const CARS = [mkCar(PAL.blue, PAL.navy), mkCar(PAL.green, "#1f8a3a"), mkCar(PAL.purple, "#5a2ea0"), mkCar(PAL.pink, "#b0408f"), mkCar(PAL.teal, "#11756b")];
-const WEAVER = mkCar(PAL.orange, "#c05a10");
-const TRUCKS = [
-  sprite(TRUCK_ROWS, { c: PAL.yellow, b: PAL.grey, e: "#c4c8dc", w: "#bfefff", y: PAL.white, k: PAL.black, r: PAL.red }),
-  sprite(TRUCK_ROWS, { c: PAL.sky, b: PAL.tan, e: "#ffe0b8", w: "#bfefff", y: PAL.white, k: PAL.black, r: PAL.red }),
-];
-const OIL = sprite(
-  ["....kkkkk.....", "..kkkkkkkkk...", ".kkkpkkkkkkkk.", "kkkkkkkkpkkkkk", "kkpkkkkkkkkkk.", ".kkkkkkkkkkk..", "...kkkkkkkk...", ".....kkkk....."],
-  { k: "#2a2240", p: PAL.purple },
-);
-const FUEL = sprite(["..kk....", ".krrkkk.", "krrrrrrk", "krwrrrrk", "krrwrrrk", "krrrwrrk", "krrrrwrk", "krrrrrrk", "krrrrrrk", ".kkkkkk."], { k: PAL.black, r: PAL.red, w: PAL.white });
+
+// trucks: a boxy container trailer and a cylindrical fuel tanker, cab up top
+function truckRaw(cab: string, kind: "box" | "tank"): Sprite {
+  const cabDark = shade(cab, -0.35);
+  const bodyBase = kind === "box" ? "#d8dbe6" : "#b8bcc8";
+  const cabH = 10;
+  return bake(TRUCK_W, TRUCK_H, (x, y) => {
+    const cx = (x + 0.5 - TRUCK_W / 2) / (TRUCK_W / 2);
+    if (y < cabH) {
+      const nose = clamp((y + 1) / 3, 0, 1);
+      const hw = 0.92 * (0.45 + 0.55 * nose);
+      if (Math.abs(cx) > hw) {
+        if (y >= 7 && Math.abs(cx) < hw + 0.13) return shade(PAL.black, 0.1); // mirrors
+        return null;
+      }
+      if (y < 2 && Math.abs(Math.abs(cx) - hw * 0.6) < 0.18) return "#fff6c8"; // headlights
+      if (y > 2 && y < 6 && Math.abs(cx) < hw * 0.65) return "#9fd8ff"; // windshield
+      return Math.abs(cx) > hw - 0.12 ? cabDark : cab;
+    }
+    if (y === cabH) return shade(PAL.black, -0.2); // coupling gap
+    const hw = 0.94;
+    if (Math.abs(cx) > hw) return null;
+    if (y > TRUCK_H - 3 && Math.abs(Math.abs(cx) - hw * 0.6) < 0.2) return PAL.red; // tail lights
+    if ((Math.abs(y - (cabH + 11)) < 2 || Math.abs(y - (TRUCK_H - 5)) < 2) && Math.abs(cx) > hw - 0.16) return PAL.black; // wheels
+    if (kind === "box") {
+      const ridge = x % 3 === 0 || y === cabH + 1 || y === TRUCK_H - 6;
+      return ridge ? shade(bodyBase, -0.12) : Math.abs(cx) > hw - 0.08 ? shade(bodyBase, -0.2) : bodyBase;
+    }
+    if (y > TRUCK_H - 13 && y < TRUCK_H - 10) return y % 2 === 0 ? PAL.black : PAL.yellow; // hazard band
+    const round = 1 - Math.abs(cx) / hw;
+    const lit = mixHex(shade(bodyBase, -0.3), "#eef3fb", Math.pow(round, 1.4));
+    return y === cabH + 3 ? shade(lit, 0.15) : lit;
+  });
+}
+
+// roadside scenery: a tree cluster and a boulder, baked from shape functions
+function treeRaw(): Sprite {
+  return bake(TREE_W, TREE_H, (x, y) => {
+    const cx = (x + 0.5 - TREE_W / 2) / (TREE_W * 0.46);
+    const cy = (y + 0.5 - TREE_H * 0.34) / (TREE_H * 0.46);
+    if (y > TREE_H * 0.74 && Math.abs(x - TREE_W / 2) <= 1) return y % 2 === 0 ? "#6b4a28" : "#54381e";
+    const d = cx * cx + cy * cy;
+    if (d > 1) return null;
+    const n = fbm(x * 0.3, y * 0.3, 2, 31);
+    const lit = cx < -0.1 && cy < -0.15;
+    if (d > 0.74) return lit ? "#56b852" : "#194f22";
+    return lit ? (n > 0.5 ? "#469e49" : "#368a38") : n > 0.5 ? "#275f24" : "#1c4b1e";
+  });
+}
+function rockRaw(): Sprite {
+  return bake(ROCK_W, ROCK_H, (x, y) => {
+    const nx = (x + 0.5 - ROCK_W / 2) / (ROCK_W / 2);
+    const ny = (y + 0.5 - ROCK_H * 0.6) / (ROCK_H * 0.5);
+    const d = nx * nx + ny * ny;
+    if (d > 1) return null;
+    const lit = nx < 0 && ny < -0.1;
+    return lit ? "#b9bcc9" : d > 0.7 ? "#6a6d7c" : "#888b99";
+  });
+}
+const mkFlower = (petal: string, mid: string) =>
+  bake(5, 5, (x, y) => {
+    if (x === 2 && y === 2) return mid;
+    if ((x === 2 && y !== 2) || (y === 2 && x !== 2)) return petal;
+    return null;
+  });
+
+/** every baked sprite, built once the first time a round starts (never at module load) */
+function makeArt() {
+  const player = mkCarPair(PAL.red);
+  const cars = [mkCar(PAL.blue, true), mkCar(PAL.pink), mkCar(PAL.purple), mkCar(PAL.yellow), mkCar(PAL.green)];
+  const weaver = mkCar(PAL.orange);
+  const trucks = [outlined(truckRaw(PAL.sky, "box")), outlined(truckRaw(PAL.orange, "tank"))];
+  const oil = outlined(
+    bake(OIL_W, OIL_H, (x, y) => {
+      const nx = (x + 0.5 - OIL_W / 2) / (OIL_W / 2);
+      const ny = (y + 0.5 - OIL_H / 2) / (OIL_H / 2);
+      const n = fbm(x * 0.35, y * 0.45, 2, 77);
+      const d = nx * nx * 0.9 + ny * ny * 1.7;
+      if (d > 0.55 + n * 0.4) return null;
+      if (d > 0.38 + n * 0.3) return "#473a74";
+      return n > 0.68 ? "#5a4a8c" : "#160f28";
+    }),
+  );
+  const fuel = outlined(
+    bake(FUEL_W, FUEL_H, (x, y) => {
+      if (y < 3) return x >= 5 && x <= 7 ? shade(PAL.grey, y === 0 ? 0.2 : -0.1) : null;
+      const nx = (x + 0.5 - FUEL_W / 2) / (FUEL_W / 2);
+      const edge = Math.abs(nx);
+      if (y === 3 && edge > 0.75) return null;
+      const label = Math.round(FUEL_H * 0.55);
+      if (y === label) return PAL.white;
+      if (y > label && y < label + 3 && edge < 0.8) return shade(PAL.red, 0.1);
+      return edge > 0.82 ? shade(PAL.red, -0.3) : shade(PAL.red, 0.2 - edge * 0.4);
+    }),
+  );
+  const tree = outlined(treeRaw());
+  const rock = outlined(rockRaw());
+  const flowers = [mkFlower(PAL.yellow, PAL.white), mkFlower(PAL.white, PAL.yellow)];
+  return { player, cars, weaver, trucks, oil, fuel, tree, rock, flowers };
+}
+let ART: ReturnType<typeof makeArt> | null = null;
+const art = () => (ART ??= makeArt());
 
 type Kind = "car" | "weaver" | "truck" | "oil" | "fuel" | "coin";
 interface Thing {
@@ -92,6 +206,8 @@ interface Thing {
   t: number;
   w: number;
   h: number;
+  hw: number; // hit box width — inset within the drawn sprite (w), not the same thing
+  hh: number; // hit box height — inset within the drawn sprite (h)
   spr: Sprite | null;
   gone: boolean;
   passed: boolean;
@@ -107,6 +223,7 @@ interface Bit {
 }
 
 function create(seed: number): GameInstance {
+  const A = art();
   const r = rng(seed);
   const ph = [r.range(0, 6.28), r.range(0, 6.28), r.range(0, 6.28)];
   const hash = (i: number) => {
@@ -171,14 +288,16 @@ function create(seed: number): GameInstance {
     const lane = r.int(0, n - 1);
     const lf = n > 1 ? -1 + ((lane + 0.5) * 2) / n : 0;
     const traffic = kind === "car" || kind === "weaver" || kind === "truck";
+    const w = kind === "truck" ? TRUCK_W : kind === "oil" ? OIL_W : kind === "coin" ? 8 : CAR_W;
+    const h = kind === "truck" ? TRUCK_H : kind === "oil" ? OIL_H : kind === "coin" ? 8 : CAR_H;
+    const hw = kind === "truck" ? TRUCK_HB_W : kind === "oil" ? OIL_HB_W : kind === "coin" ? COIN_HB : CAR_HB_W;
+    const hh = kind === "truck" ? TRUCK_HB_H : kind === "oil" ? OIL_HB_H : kind === "coin" ? COIN_HB : CAR_HB_H;
     // never stack two things on top of each other
-    for (const o of things) if (Math.abs(o.d - d) < (traffic ? 46 : 26) && Math.abs(o.lf - lf) < 0.45) return;
-    const w = kind === "truck" ? 12 : kind === "oil" ? 14 : kind === "coin" ? 8 : 10;
-    const h = kind === "truck" ? 24 : kind === "oil" ? 8 : kind === "coin" ? 8 : 16;
+    if (things.some((o) => Math.abs(o.d - d) < h + (traffic ? 26 : 14) && Math.abs(o.lf - lf) < 0.45)) return;
     const ramp = Math.min(1.2, level * 0.15);
     const v = kind === "truck" ? r.range(1.5, 2.1) : kind === "weaver" ? r.range(2.5, 3.2) + ramp * 0.5 : kind === "car" ? r.range(2.1, 3.3) + ramp * 0.4 : 0;
-    const spr = kind === "truck" ? r.pick(TRUCKS) : kind === "weaver" ? WEAVER.up : kind === "car" ? r.pick(CARS).up : kind === "oil" ? OIL : null;
-    things.push({ kind, d, lf, base: lf, v, t: r.int(0, 200), w, h, spr, gone: false, passed: false });
+    const spr = kind === "truck" ? r.pick(A.trucks) : kind === "weaver" ? A.weaver : kind === "car" ? r.pick(A.cars) : kind === "oil" ? A.oil : null;
+    things.push({ kind, d, lf, base: lf, v, t: r.int(0, 200), w, h, hw, hh, spr, gone: false, passed: false });
   };
 
   const startSpin = (dir: number, io: IO) => {
@@ -187,6 +306,7 @@ function create(seed: number): GameInstance {
     hitCool = 70;
     shake = 8;
     io.sfx.play("hit");
+    io.sfx.slide?.(260, 90, 0.3, "sawtooth", 0.1);
     for (let i = 0; i < 6; i++) puff(px + 5, PY + 8, PAL.white, 1, 1.4);
   };
 
@@ -231,6 +351,8 @@ function create(seed: number): GameInstance {
         shake = Math.max(shake, 2);
       }
       if (speed > 0.3 && frame % 8 === 0) io.sfx.tone(70 + speed * 28, 0.06, "square", 0.02);
+      if (speed > 0.6 && frame % 24 === 0) io.sfx.noise?.(0.12, 0.03 + speed * 0.01, 110, 60);
+      if (fuel < 25 && fuel > 0 && !ending && frame % 50 === 0) io.sfx.play("blip");
 
       // ── fuel + clock ──
       if (started && !ending) {
@@ -270,6 +392,7 @@ function create(seed: number): GameInstance {
         time += bonus;
         io.score(500 * cps);
         io.sfx.play("win");
+        io.sfx.slide?.(440, 880, 0.35, "triangle", 0.12);
         say(`CHECKPOINT! +${bonus} SEC`, 90);
       }
 
@@ -283,12 +406,14 @@ function create(seed: number): GameInstance {
         const rd = road(nextFuel);
         const n = lanes(rd.hw);
         const lf = -1 + ((r.int(0, n - 1) + 0.5) * 2) / n;
-        things.push({ kind: "fuel", d: nextFuel, lf, base: lf, v: 0, t: 0, w: 8, h: 10, spr: FUEL, gone: false, passed: false });
+        things.push({ kind: "fuel", d: nextFuel, lf, base: lf, v: 0, t: 0, w: FUEL_W, h: FUEL_H, hw: FUEL_HB_W, hh: FUEL_HB_H, spr: A.fuel, gone: false, passed: false });
         nextFuel += r.range(1500, 2300) + cps * 150;
       }
 
       // ── traffic + pickups ──
-      const me = { x: px + 1, y: PY + 1, w: 8, h: 14 };
+      // the player's hit box is inset inside the drawn car (kid-friendly — bigger art must
+      // not make dodging harder), centred the same way as every other thing's hw/hh below
+      const me = { x: px + (CAR_W - CAR_HB_W) / 2, y: PY + (CAR_H - CAR_HB_H) / 2, w: CAR_HB_W, h: CAR_HB_H };
       for (const o of things) {
         o.t++;
         if (o.v > 0) {
@@ -300,10 +425,13 @@ function create(seed: number): GameInstance {
           if (!o.passed && o.d + o.h < dist - 4) {
             o.passed = true;
             io.score(20);
+            if (o.kind === "truck") io.sfx.play("whoosh");
           }
         }
         const box = { x: xOf(o), y: yOf(o), w: o.w, h: o.h };
-        if (ending || !overlap(me, box)) continue;
+        // the collision box is the inset hw/hh, centred inside the drawn sprite (box)
+        const hb = { x: box.x + (o.w - o.hw) / 2, y: box.y + (o.h - o.hh) / 2, w: o.hw, h: o.hh };
+        if (ending || !overlap(me, hb)) continue;
         if (o.kind === "coin") {
           o.gone = true;
           io.score(100);
@@ -319,12 +447,14 @@ function create(seed: number): GameInstance {
           if (spin === 0 && speed > 1 && hitCool === 0) {
             startSpin(r.chance(0.5) ? -1 : 1, io);
             io.sfx.play("bounce");
+            io.sfx.noise?.(0.22, 0.08, 300, 700);
             say("OIL SLICK!", 40);
           }
         } else if (hitCool === 0) {
           startSpin(px + 5 < box.x + o.w / 2 ? -1 : 1, io);
           speed = Math.min(speed, o.v) * 0.5;
           o.d += 8;
+          if (o.kind === "truck") io.sfx.play("thud");
           say("BONK!", 30);
         }
       }
@@ -343,21 +473,30 @@ function create(seed: number): GameInstance {
 
     draw(g: Gfx) {
       const sx = shake > 0 ? (frame % 2 ? 1 : -1) : 0;
-      g.clear("#3aa845");
-      // road, drawn in 2px strips from the world distance under each row
+      // lane count frozen for the whole frame (road half-width barely moves, but recomputing it
+      // every 2px row let it round up/down mid-screen and the dividers would jump — "doubled"
+      // dashes); one stable count per frame keeps every divider a single clean line
+      const laneN = lanes(road(dist + 85).hw);
+      g.clear("#1d5a2d");
+      // road, drawn in 2px strips from the world distance under each row: dark lush grass either
+      // side, a tan shoulder, a steady silver guardrail on posts, then asphalt with a lane rumble
       for (let sy = 0; sy < H; sy += 2) {
         const d = dist + (PY - sy);
         const rd = road(d);
-        if (Math.floor(d / 24) & 1) g.rect(0, sy, W, 2, "#34993f");
+        if (hash2(Math.floor(d / 16), 0, 3) > 0.55) g.rect(0, sy, W, 2, "#215f31");
         const L = rd.cx - rd.hw + sx;
         const R = rd.cx + rd.hw + sx;
-        const stripe = Math.floor(d / 12) & 1;
-        g.rect(L - 6, sy, 6, 2, stripe ? PAL.red : PAL.white);
-        g.rect(R, sy, 6, 2, stripe ? PAL.red : PAL.white);
-        g.rect(L, sy, R - L, 2, Math.floor(d / 40) & 1 ? "#565a72" : "#5c6078");
+        g.rect(L - 8, sy, 8, 2, "#c6b280");
+        g.rect(R, sy, 8, 2, "#c6b280");
+        const onPost = Math.floor(d) % 48 < 4;
+        const rail = onPost ? "#575b6c" : "#d9dce4";
+        g.rect(L - 6, sy, 2, 2, rail);
+        g.rect(R + 4, sy, 2, 2, rail);
+        g.rect(L, sy, R - L, 2, Math.floor(d / 36) & 1 ? "#3c3f4c" : "#454858");
+        g.rect(L, sy, 2, 2, "#575b6c");
+        g.rect(R - 2, sy, 2, 2, "#575b6c");
         if (Math.floor(d / 18) & 1) {
-          const n = lanes(rd.hw);
-          for (let i = 1; i < n; i++) g.rect(L + ((R - L) * i) / n - 1, sy, 2, 2, "#e4e6f2");
+          for (let i = 1; i < laneN; i++) g.rect(L + ((R - L) * i) / laneN - 1, sy, 2, 2, "#eef0f6");
         }
       }
       // start line + checkpoint banners
@@ -375,27 +514,38 @@ function create(seed: number): GameInstance {
         g.rect(rd.cx + rd.hw + 7 + sx, y - 12, 3, 20, PAL.dark);
         if (cd > 40) g.text("CHECKPOINT", rd.cx + sx, y - 10, PAL.yellow, { align: "center" });
       }
-      // roadside trees and flowers
-      for (let i = Math.floor((dist - 60) / 34); i <= Math.floor((dist + PY + 30) / 34); i++) {
-        const d = i * 34;
+      // roadside bushes, trees, rocks and flowers — dense, overlapping clumps packed right up
+      // against the guardrail (like the painting's lush dark verge), plus a dimmer, smaller far
+      // row behind them so the tree-line reads with real depth instead of scattered dots
+      const STEP = 18;
+      for (let i = Math.floor((dist - 90) / STEP); i <= Math.floor((dist + PY + 30) / STEP); i++) {
+        const d = i * STEP;
         const rd = road(d);
         const y = PY - (d - dist);
-        const a = hash(i);
-        const b = hash(i + 0.37);
-        const lx = rd.cx - rd.hw - 18 - a * 60 + sx;
-        const rx = rd.cx + rd.hw + 18 + b * 60 + sx;
-        for (const [x, v] of [
-          [lx, a],
-          [rx, b],
-        ]) {
-          if (x < -12 || x > W + 12) continue;
-          if (v < 0.25) {
-            g.circle(x, y, 3, "#2a8a38");
-            g.rect(x - 1, y - 1, 2, 2, v < 0.12 ? PAL.pink : PAL.yellow);
-          } else {
-            g.circle(x + 2, y + 3, 8, "#1f6a2c");
-            g.circle(x, y, 8, "#2f9a44");
-            g.circle(x - 2, y - 2, 4, PAL.lime);
+        for (const side of [-1, 1] as const) {
+          const edge = side < 0 ? rd.cx - rd.hw : rd.cx + rd.hw;
+          // a dim, smaller far row sits behind the near clump about 40% of the time
+          const farV = hash(i * 1.7 + side * 9.3);
+          if (farV > 0.6) {
+            const fx = edge + side * (40 + farV * 44) + sx;
+            if (fx > -18 && fx < W + 18) {
+              g.alpha(0.8);
+              g.sprite(A.tree, fx - (TREE_W * 0.65) / 2, y - TREE_H * 0.42, { scale: 0.65 });
+              g.alpha(1);
+            }
+          }
+          // two near clump slots per side, packed close enough to overlap — a lush dense verge
+          for (let k = 0; k < 2; k++) {
+            const v = hash(i * 2.3 + side * 5.1 + k * 3.7);
+            if (v < 0.1) continue; // the occasional gap, so it isn't a solid wall
+            const x = edge + side * (8 + k * 12 + v * 9) + sx;
+            if (x < -14 || x > W + 14) continue;
+            if (v < 0.18) g.sprite(A.rock, x - ROCK_W / 2, y - ROCK_H * 0.5);
+            else if (v < 0.25) g.sprite(A.flowers[v < 0.21 ? 0 : 1], x - 2, y - 2);
+            else {
+              const scl = 0.85 + hash(i + side + k + 3.1) * 0.4;
+              g.sprite(A.tree, x - (TREE_W * scl) / 2, y - TREE_H * scl * 0.58, { scale: scl });
+            }
           }
         }
       }
@@ -408,13 +558,15 @@ function create(seed: number): GameInstance {
           const y = yOf(o);
           if (y < -30 || y > H + 4) continue;
           if (o.kind === "coin") {
-            const w = Math.max(1, Math.abs(Math.cos(o.t * 0.12)) * 8);
+            const w = Math.max(2, Math.abs(Math.cos(o.t * 0.12)) * 8);
+            g.rect(x + 4 - w / 2 - 1, y - 1, w + 2, 10, "#8a5a10");
             g.rect(x + 4 - w / 2, y, w, 8, PAL.orange);
             g.rect(x + 4 - w / 2 + 1, y + 1, Math.max(1, w - 2), 6, PAL.yellow);
+            if (w > 5) g.rect(x + 3, y + 2, 1, 2, PAL.white);
           } else if (o.spr) {
             if (traffic) g.rect(x + 1, y + 2, o.w, o.h, "rgba(13,11,26,0.3)");
             g.sprite(o.spr, x, y);
-            if (o.kind === "fuel" && Math.floor(o.t / 10) % 2) g.box(x - 2, y - 2, 12, 14, PAL.yellow);
+            if (o.kind === "fuel" && Math.floor(o.t / 10) % 2) g.box(x - 2, y - 2, o.w + 4, o.h + 4, PAL.yellow);
           }
         }
       }
@@ -422,19 +574,20 @@ function create(seed: number): GameInstance {
       const f = spin > 0 ? Math.floor(spin / 3) % 4 : 0;
       const blink = hitCool > 0 && spin === 0 && Math.floor(hitCool / 4) % 2;
       if (!blink) {
-        g.rect(px + 1 + sx, PY + 2, 10, 16, "rgba(13,11,26,0.3)");
-        if (f === 0) g.sprite(PLAYER.up, px + sx, PY);
-        else if (f === 2) g.sprite(PLAYER.up, px + sx, PY, { flipY: true });
-        else g.sprite(PLAYER.side, px - 3 + sx, PY + 3, { flipX: f === 3 });
+        g.rect(px + 1 + sx, PY + 3, CAR_W - 2, CAR_H - 3, "rgba(13,11,26,0.3)");
+        if (f === 0) g.sprite(A.player.up, px + sx, PY);
+        else if (f === 2) g.sprite(A.player.up, px + sx, PY, { flipY: true });
+        else g.sprite(A.player.side, px - 4 + sx, PY + 4, { flipX: f === 3 });
       }
       for (const b of bits) g.rect(b.x - b.r / 2, b.y - b.r / 2, b.r, b.r, b.c);
 
       // HUD
       g.rect(0, 0, W, 12, "rgba(13,11,26,0.65)");
-      g.text("FUEL", 4, 3, PAL.white);
-      g.rect(30, 3, 52, 6, PAL.dark);
+      g.sprite(A.fuel, 2, 0, { scale: 0.5 });
+      g.text("FUEL", 12, 3, PAL.white);
+      g.rect(38, 3, 52, 6, PAL.dark);
       const low = fuel < 25;
-      g.rect(31, 4, 50 * (fuel / 100), 4, low ? (Math.floor(frame / 8) % 2 ? PAL.red : PAL.orange) : PAL.lime);
+      g.rect(39, 4, 50 * (fuel / 100), 4, low ? (Math.floor(frame / 8) % 2 ? PAL.red : PAL.orange) : PAL.lime);
       g.text(`TIME ${Math.ceil(time)}`, 128, 3, time < 10 && Math.floor(frame / 10) % 2 ? PAL.red : PAL.yellow, { align: "center" });
       g.text(`${Math.round(speed * 36)} KMH`, W - 4, 3, PAL.cyan, { align: "right" });
       const prog = clamp(1 - (nextCp - dist) / CP_DIST, 0, 1);

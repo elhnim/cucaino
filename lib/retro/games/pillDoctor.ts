@@ -5,6 +5,7 @@
 // capsule halves tumble down, and bigger cascades score more. Clear every germ to cure the
 // stage; let the bottle fill to the neck and it's game over. Ten stages cured wins the cup.
 import { H, PAL, W, clamp, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, hash2, shade } from "../art";
 
 const COLS = 8;
 const ROWS = 16;
@@ -17,7 +18,6 @@ const GERM_TOP = ROWS - 10; // germs only seed in the bottom 10 rows — the nec
 const MAX_STAGE = 10;
 const FLASH_FRAMES = 22;
 const GRAVITY_TICK = 4; // frames between gravity drop steps while pieces settle
-const PSCALE = CELL / 10; // capsule art was authored for a 10px cell; scale it to match CELL
 const GERM_SCALE = CELL / 10; // germ sprites are 10px wide, drawn 1:1 with the (bigger) cell
 const DANCER_SCALE = 1.8; // the magnified germ "dancers" beside the bottle
 
@@ -77,22 +77,59 @@ const BUNNY_B = ["........", "k......k", "kf....fk", ".kffffk.", ".kfppfk.", ".k
 const BUNNY_PAL = { k: PAL.black, f: PAL.tan, p: PAL.pink, w: PAL.white };
 const BUNNY: Sprite[] = [sprite(BUNNY_A, BUNNY_PAL), sprite(BUNNY_B, BUNNY_PAL)];
 
-/** one half of a capsule: a bevelled circle with a colour-blind-friendly mark (dot/stripe/ring) */
+// ── lazily-baked art: a scalloped "flower pill" per colour (matches the cabinet painting's
+// notched capsule rim) and a mottled dark-navy backdrop texture, built once and reused every
+// frame (one drawImage each) instead of live circle math ──
+function bakePillHalf(color: Color): Sprite {
+  const hex = COLOR_HEX[color];
+  const light = shade(hex, 0.22);
+  const c0 = (CELL - 1) / 2;
+  const R = CELL * 0.36; // a small round pixel-art pill, outlined and shaded like the painting's
+  return bake(CELL, CELL, (x, y) => {
+    const dx = x - c0;
+    const dy = y - c0;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > R) return null;
+    if (d > R - 1.1) return PAL.black; // outline
+    if (color === 0 && d < 1.5) return PAL.white; // dot
+    else if (color === 1 && Math.abs(dy) < 1.1 && Math.abs(dx) < CELL * 0.3) return PAL.white; // stripe
+    else if (color === 2 && d < 2.3) return d < 1.1 ? hex : PAL.white; // donut ring
+    const hdx = x - c0 + 1.3;
+    const hdy = y - c0 + 1.3;
+    return Math.sqrt(hdx * hdx + hdy * hdy) < R * 0.55 ? light : hex;
+  });
+}
+function bakeBackdrop(): Sprite {
+  const cell = 7;
+  return bake(W, H, (x, y) => {
+    const cx = Math.floor(x / cell);
+    const cy = Math.floor(y / cell);
+    const n = hash2(cx, cy, 91);
+    const diag = ((cx + cy) & 1) * 0.035;
+    return shade(PAL.black, -0.06 + n * 0.09 + diag);
+  });
+}
+function makeArt() {
+  return { pill: [0, 1, 2].map((c) => bakePillHalf(c as Color)) as [Sprite, Sprite, Sprite], backdrop: bakeBackdrop() };
+}
+let ART: ReturnType<typeof makeArt> | null = null;
+const art = () => (ART ??= makeArt());
+
+/** one half of a capsule: a baked, scalloped circle with a colour-blind-friendly mark (dot/stripe/ring) */
 function drawPillHalf(g: Gfx, cx: number, cy: number, color: Color, alpha = 1) {
   g.alpha(alpha);
-  g.circle(cx, cy, 4.4 * PSCALE, PAL.black);
-  g.circle(cx - 0.4 * PSCALE, cy - 0.4 * PSCALE, 3.6 * PSCALE, COLOR_HEX[color]);
-  if (color === 0) g.circle(cx, cy, 1.3 * PSCALE, PAL.white); // dot
-  else if (color === 1) g.rect(cx - 2.6 * PSCALE, cy - PSCALE, 5.2 * PSCALE, 2 * PSCALE, PAL.white); // stripe
-  else {
-    g.circle(cx, cy, 2.2 * PSCALE, PAL.white); // ring
-    g.circle(cx, cy, 1.1 * PSCALE, COLOR_HEX[color]);
-  }
+  g.sprite(art().pill[color], cx - CELL / 2, cy - CELL / 2);
   g.alpha(1);
 }
 function drawConnector(g: Gfx, cx: number, cy: number, conn: Conn, color: Color) {
-  if (conn === "R") g.rect(cx, cy - 3, CELL, 6, COLOR_HEX[color]);
-  else if (conn === "D") g.rect(cx - 3, cy, 6, CELL, COLOR_HEX[color]);
+  const hex = COLOR_HEX[color];
+  if (conn === "R") {
+    g.rect(cx, cy - 3, CELL, 6, hex);
+    g.rect(cx, cy - 3, CELL, 1.4, shade(hex, 0.3));
+  } else if (conn === "D") {
+    g.rect(cx - 3, cy, 6, CELL, hex);
+    g.rect(cx - 3, cy, 1.4, CELL, shade(hex, 0.3));
+  }
 }
 
 /** Pure matching rule, exported so it can be unit-tested directly: any run of 4+ cells of the
@@ -162,7 +199,15 @@ function create(seed: number): GameInstance {
   let banner = "";
   let bannerT = 0;
   let cheerT = 0; // Dr. Cotton bounces and sparkles for a moment after a pop
+  let shakeT = 0; // brief screen shake on a germ zap / combo
+  let shakeMag = 0;
+  let warned = false; // one "!" chime per close call, not every frame
   const sparks: Spark[] = [];
+
+  function topFilledRow(): number {
+    for (let y = 0; y < ROWS; y++) if (grid[y].some((c) => c)) return y;
+    return ROWS;
+  }
 
   const gravityFrames = () => Math.max(8, 34 - (stage - 1) * 3);
   const germCountFor = (s: number) => Math.min(4 + (s - 1) * 4, 60);
@@ -338,6 +383,7 @@ function create(seed: number): GameInstance {
       bannerT = 110;
       cheerT = 110;
       io.sfx.play("win");
+      io.sfx.slide?.(520, 1180, 0.45, "triangle", 0.2); // a rising "cured!" sweep
       return;
     }
     const m = findMatches();
@@ -351,11 +397,21 @@ function create(seed: number): GameInstance {
       io.score(Math.round((m.size * 50 + germN * 80) * mult));
       banner = mult >= 4 ? "MEGA COMBO!" : mult >= 2 ? `COMBO x${mult}!` : m.size >= 7 ? "SUPER CLEAR!" : germN > 0 ? "GERM ZAPPED!" : "NICE!";
       bannerT = 50;
-      io.sfx.play(mult >= 2 ? "win" : germN > 0 ? "powerup" : "coin");
+      if (mult >= 2) {
+        io.sfx.play("win");
+        io.sfx.slide?.(360 + combo * 40, 680 + combo * 70, 0.2, "square", 0.14); // combo chime rises with the streak
+      } else if (germN > 0) {
+        io.sfx.play("zap");
+      } else {
+        io.sfx.play("pop");
+      }
+      if (mult >= 4) io.sfx.play("cheer");
       flashCells = m;
       flashT = FLASH_FRAMES;
       combo++;
       cheerT = germN > 0 || mult >= 2 ? 60 : 36;
+      shakeT = germN > 0 || mult >= 2 ? 10 : 0;
+      shakeMag = mult >= 4 ? 3 : mult >= 2 ? 2 : 1.4;
     } else {
       spawnNext(io);
     }
@@ -391,9 +447,12 @@ function create(seed: number): GameInstance {
     const oy = p.py + dy;
     grid[p.py][p.px] = { kind: "pill", color: p.colorA, conn: PIVOT_CONN[p.ori] };
     grid[oy][ox] = { kind: "pill", color: p.colorB, conn: OTHER_CONN[p.ori] };
+    for (const [lx, ly] of [[p.px, p.py], [ox, oy]] as [number, number][])
+      for (let k = 0; k < 2; k++)
+        sparks.push({ x: WX + lx * CELL + CELL / 2 + r.range(-3, 3), y: WY + ly * CELL + CELL - 1, vx: r.range(-0.6, 0.6), vy: r.range(-0.7, -0.1), life: r.int(8, 14), color: PAL.grey });
     piece = null;
     combo = 0;
-    io.sfx.play("step");
+    io.sfx.play("thud");
     checkMatches(io);
   }
   function startStage(io: IO) {
@@ -407,6 +466,8 @@ function create(seed: number): GameInstance {
     flashT = 0;
     gravActive = false;
     gravTickT = 0;
+    warned = false;
+    io.sfx.tone(660, 0.05, "square", 0.1); // a little chime as a fresh bottle arrives
     spawnNext(io);
   }
 
@@ -426,6 +487,7 @@ function create(seed: number): GameInstance {
       for (let i = sparks.length - 1; i >= 0; i--) if (sparks[i].life <= 0) sparks.splice(i, 1);
       if (bannerT > 0) bannerT--;
       if (cheerT > 0) cheerT--;
+      if (shakeT > 0) shakeT--;
 
       if (over) {
         overT++;
@@ -481,6 +543,12 @@ function create(seed: number): GameInstance {
         if (!piece) return;
       }
 
+      const tr = topFilledRow();
+      if (tr <= 3 && !warned) {
+        warned = true;
+        io.sfx.play("hurt"); // one warning chime when the bottle gets dangerously full
+      } else if (tr > 6) warned = false;
+
       const inp = io.input;
       if (inp.pressed.a) tryRotate(1, io);
       if (inp.pressed.b) tryRotate(-1, io);
@@ -520,8 +588,13 @@ function create(seed: number): GameInstance {
     },
 
     draw(g: Gfx) {
-      g.clear(PAL.night);
-      for (let i = -H; i < W; i += 24) g.line(i, 0, i + H, H, "#1d2a4a");
+      g.clear(PAL.black);
+      g.sprite(art().backdrop, 0, 0);
+      // a short screen shake on a germ zap / big combo (camera resets once shakeT runs out)
+      if (shakeT > 0) {
+        const m = shakeMag * (shakeT / 10);
+        g.camera(Math.sin(frame * 7.3) * m, Math.cos(frame * 5.1) * m);
+      } else g.camera(0, 0);
 
       // bottle frame + neck (kept well clear of the top status bar — see NECK_TOP)
       g.rect(WX + (COLS * CELL - NECK_W) / 2, NECK_TOP, NECK_W, WY - NECK_TOP, PAL.sky);
@@ -546,9 +619,20 @@ function create(seed: number): GameInstance {
           }
           const cx = WX + x * CELL + CELL / 2;
           const cy = WY + y * CELL + CELL / 2;
-          if (cell.kind === "germ")
-            g.sprite(GERM_FRAMES[cell.color][wiggle], WX + x * CELL, WY + y * CELL + (CELL - 8 * GERM_SCALE) / 2, { scale: GERM_SCALE });
-          else {
+          if (cell.kind === "germ") {
+            const bob = Math.sin(frame * 0.12 + x * 0.9 + y * 0.6) * 0.8;
+            const baseX = WX + x * CELL;
+            const baseY = WY + y * CELL + (CELL - 8 * GERM_SCALE) / 2 + bob;
+            // a spiky colour halo peeking from behind the face sprite, closer to the painting's
+            // sunburst germs, cheap (4 small rects) and drawn before the face covers the centre
+            const nub = 1.6;
+            const rad = 5.4;
+            for (let i = 0; i < 4; i++) {
+              const a = (i / 4) * Math.PI * 2 + Math.PI / 4 + (wiggle ? 0.2 : 0);
+              g.rect(cx + Math.cos(a) * rad - nub / 2, cy + bob + Math.sin(a) * rad - nub / 2, nub, nub, COLOR_HEX[cell.color]);
+            }
+            g.sprite(GERM_FRAMES[cell.color][wiggle], baseX, baseY, { scale: GERM_SCALE });
+          } else {
             if (cell.conn === "R" || cell.conn === "D") drawConnector(g, cx, cy, cell.conn, cell.color);
             drawPillHalf(g, cx, cy, cell.color);
           }
@@ -617,13 +701,7 @@ function create(seed: number): GameInstance {
       // right: Dr. Cotton (bounces + sparkles after a pop, droops when the bottle is nearly full)
       const RX = W - 6 - LW;
       const RW = LW;
-      let topRow = ROWS;
-      for (let y = 0; y < ROWS; y++)
-        if (grid[y].some((c) => c)) {
-          topRow = y;
-          break;
-        }
-      const worried = topRow <= 3 && !over;
+      const worried = topFilledRow() <= 3 && !over;
       const cheering = cheerT > 0;
       panel(RX, WY, RW, 88, "DR. COTTON");
       {
