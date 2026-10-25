@@ -288,9 +288,10 @@ export function RetroPlayer({
         const a = clampN(h * 0.2, 80, 112);
         setPad({ d: clampN(h * 0.36, 150, 196), a, b: Math.round(a * 0.86) });
       } else {
-        const avail = Math.min(w, 720) - 40;
-        const a = clampN(avail * 0.29, 82, 124);
-        setPad({ d: clampN(avail * 0.5, 150, 236), a, b: Math.round(a * 0.86) });
+        // (D-pad + the staggered A/B pair must fit side by side: d + a + 0.92 b <= avail)
+        const avail = Math.min(w, 720) - 26;
+        const a = clampN(avail * 0.27, 82, 124);
+        setPad({ d: clampN(avail * 0.48, 150, 236), a, b: Math.round(a * 0.86) });
       }
     };
     fit();
@@ -395,7 +396,7 @@ export function RetroPlayer({
             <div />
           )}
           {/* A and B staggered like a SNES pad (B up and to the left of A): big thumb targets that still fit beside the D-pad */}
-          <div style={{ position: "relative", width: pad.a + (game.pad.b ? pad.b * 0.72 : 0), height: pad.a + (game.pad.b ? pad.b * 0.5 : 0) + 18, flexShrink: 0 }}>
+          <div style={{ position: "relative", width: pad.a + (game.pad.b ? pad.b * 0.92 : 0), height: pad.a + (game.pad.b ? pad.b * 0.55 : 0) + 18, flexShrink: 0 }}>
             {game.pad.b && (
               <div style={{ position: "absolute", left: 0, top: 0 }}>
                 <PadButton label="B" hint={game.pad.b} color="#ff6fcf" size={pad.b} onChange={(on) => press("b", on)} />
@@ -534,4 +535,4 @@ const screenWrap: React.CSSProperties = { position: "relative", width: "min(100%
 const screen: React.CSSProperties = { width: "100%", height: "100%", imageRendering: "pixelated", borderRadius: 10, boxShadow: "0 0 0 4px #2d2a4d, 0 0 40px rgba(154,92,255,0.45)", touchAction: "none", background: "#0d0b1a", display: "block" };
 const overlay: React.CSSProperties = { position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "rgba(13,11,26,0.78)", borderRadius: 10, textAlign: "center", padding: 12 };
 const bigBtn: React.CSSProperties = { minHeight: 48, border: "1.5px solid #fff0b8", borderRadius: 12, padding: "0 16px", fontFamily: FONT.display, fontWeight: 400, letterSpacing: 0.4, fontSize: 16, color: "#2a1a00", background: "linear-gradient(#ffe9a8, #ffd36b 50%, #e89a1c)", boxShadow: "0 3px 0 #9a5c00, 0 6px 12px rgba(0,0,0,0.4)", cursor: "pointer" };
-const padRow: React.CSSProperties = { width: "100%", maxWidth: 720, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 14px max(14px, env(safe-area-inset-bottom))", gap: 8 };
+const padRow: React.CSSProperties = { boxSizing: "border-box", width: "100%", maxWidth: 720, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px max(14px, env(safe-area-inset-bottom))", gap: 6 };
