@@ -6,7 +6,8 @@
 // Fortress unlocks: a tougher run, a rematch with all four bosses, then a final boss that cycles
 // through their attacks (and their weaknesses) as it fights. Enemies "fizz" into bolts and sparks
 // — no real-world violence. (Original game, original art, original characters.)
-import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef } from "../engine";
+import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type SfxName } from "../engine";
+import { hash2, shade, tinted } from "../art";
 
 const T = 16;
 const ROWS = 14; // chunks are 9 rows tall (7 content + 2 ground); top 5 rows are sky
@@ -35,6 +36,7 @@ const WEAPONS: WeaponDef[] = [
 ];
 const WEAPON_BY_STAGE: WeaponId[] = ["bubble", "leaf", "spark", "ice"]; // beating boss i grants this
 const AMMO_MAX = 100;
+const weaponSfx = (id: WeaponId): SfxName => (id === "bubble" ? "splash" : id === "leaf" ? "whoosh" : id === "spark" ? "zap" : id === "ice" ? "pop" : "shoot");
 
 // ── bosses: each weak to exactly one weapon, forming a 4-way rock-paper-scissors ring ──
 // one shared face template (two eyes + a mouth), recoloured per boss with its own "fin" on top
@@ -118,7 +120,10 @@ const BOSS_DEFS: BossDef[] = [
   },
 ];
 const bossPal = (d: BossDef) => ({ k: PAL.black, a: d.body, w: PAL.white });
-const bossIcon = (d: BossDef) => spr(d.icon, 12, bossPal(d));
+// memoized once per boss (never rebuild the Sprite object inside draw — the host caches it as a canvas)
+const BOSS_ICON_SPRITES = BOSS_DEFS.map((d) => spr(d.icon, 12, bossPal(d)));
+const BOSS_ICON_FLASH = BOSS_ICON_SPRITES.map((s) => tinted(s, PAL.white));
+const bossIcon = (d: BossDef) => BOSS_ICON_SPRITES[d.id];
 
 // ── themed tile/background art: one shared renderer per stage "look" ──
 type ThemeId = "coral" | "jungle" | "factory" | "ice" | "fortress";
@@ -141,10 +146,14 @@ function drawTile(g: Gfx, th: Theme, ch: string, x: number, y: number) {
       g.rect(x + 2, y + 4, 2, 11, th.groundDark);
       g.rect(x + 9, y + 2, 2, 13, th.groundDark);
     } else if (th.id === "factory") {
-      g.rect(x + 1, y + 1, 2, 2, th.detail);
-      g.rect(x + 13, y + 1, 2, 2, th.detail);
-      g.rect(x + 1, y + 13, 2, 2, th.detail);
-      g.rect(x + 13, y + 13, 2, 2, th.detail);
+      // runway lights with a soft glow halo, set into a seamed metal plate
+      for (const [lx, ly] of [[1, 1], [13, 1], [1, 13], [13, 13]] as const) {
+        g.alpha(0.35);
+        g.rect(x + lx - 1, y + ly - 1, 4, 4, th.detail);
+        g.alpha(1);
+        g.rect(x + lx, y + ly, 2, 2, th.detail);
+      }
+      g.rect(x + T / 2, y + 2, 1, T - 4, th.groundDark);
     } else if (th.id === "ice") {
       g.line(x + 2, y + 2, x + 7, y + 9, "#ffffffaa");
       g.line(x + 10, y + 3, x + 14, y + 10, "#ffffffaa");
@@ -157,11 +166,17 @@ function drawTile(g: Gfx, th: Theme, ch: string, x: number, y: number) {
     g.rect(x, y, T, 3, th.blockLight);
     g.rect(x, y + T - 2, T, 2, th.groundDark);
     g.rect(x + 1, y + T / 2, T - 2, 1, th.groundDark);
+    // rivets — turns a flat slab into a riveted metal plate
+    g.rect(x + 2, y + 2, 2, 2, th.groundDark);
+    g.rect(x + T - 4, y + 2, 2, 2, th.groundDark);
+    g.rect(x + 2, y + T - 6, 2, 2, th.groundDark);
+    g.rect(x + T - 4, y + T - 6, 2, 2, th.groundDark);
   }
 }
-function drawBG(g: Gfx, th: Theme, cam: number) {
+function drawBG(g: Gfx, th: Theme, cam: number, t: number) {
   g.clear(th.sky[0]);
   g.rect(0, 90, W, 70, th.sky[1]);
+  const night = th.id === "factory" || th.id === "fortress";
   for (let i = 0; i < 6; i++) {
     const x = (((i * 90 - cam * 0.22) % 540) + 540) % 540 - 60;
     if (th.id === "coral") {
@@ -170,10 +185,19 @@ function drawBG(g: Gfx, th: Theme, cam: number) {
     } else if (th.id === "jungle") {
       g.rect(x + 16, 60, 8, 100, th.groundDark);
       g.circle(x + 20, 54, 26, th.ground);
-    } else if (th.id === "factory") {
-      g.rect(x + 10, 70, 12, 90, th.groundDark);
-      g.rect(x + 12, 40, 8, 32, th.block);
-      g.circle(x + 16, 38, 5, th.detail);
+    } else if (night) {
+      // a tall floodlight pylon: two-tone shaft + dark seam + dark cap + a small glowing
+      // lamp with soft dithered falloff (never a flat glow dome)
+      const px = x + 14;
+      g.rect(px - 5, 18, 10, 150, shade(th.block, -0.1));
+      g.rect(px - 5, 18, 4, 150, shade(th.block, 0.12));
+      g.rect(px - 1, 18, 1, 150, th.groundDark);
+      g.rect(px - 2, 11, 4, 7, th.groundDark);
+      g.alpha(0.22);
+      g.circle(px, 15, 10, th.detail);
+      g.alpha(1);
+      g.circle(px, 15, 4, th.detail);
+      g.circle(px - 1, 14, 1.3, PAL.white);
     } else if (th.id === "ice") {
       g.rect(x + 20, 90, 14, 70, th.block);
       g.circle(x + 27, 86, 10, th.blockLight);
@@ -182,11 +206,32 @@ function drawBG(g: Gfx, th: Theme, cam: number) {
       g.circle(x + 18, 42, 4, th.detail);
     }
   }
+  if (night) {
+    // a riveted watchtower with a tiny sentry peeking round its base — hazier & muted so it never
+    // reads as a walkable foreground block, just distant scenery
+    g.alpha(0.6);
+    for (let i = 0; i < 2; i++) {
+      const tx = (((i * 300 + 170 - cam * 0.3) % 1200) + 1200) % 1200 - 140;
+      g.rect(tx, 86, 16, 76, shade(th.sky[1], -0.08));
+      g.rect(tx, 86, 16, 3, th.groundDark);
+      for (let ry = 96; ry < 158; ry += 15) {
+        g.rect(tx + 2, ry, 12, 2, th.groundDark);
+        g.rect(tx + 3, ry + 4, 2, 2, th.blockLight);
+        g.rect(tx + 11, ry + 4, 2, 2, th.blockLight);
+      }
+      g.circle(tx + 18, 150, 3, th.groundDark);
+      g.circle(tx + 19, 149, 1, th.detail);
+    }
+    g.alpha(1);
+  }
   for (let i = 0; i < 12; i++) {
     const x = (((i * 47 - cam * 0.08) % 564) + 564) % 564 - 20;
     const y = ((i * 37) % 110) + 10;
     const c = th.id === "coral" ? PAL.cyan : th.id === "jungle" ? PAL.lime : th.id === "factory" ? PAL.yellow : th.id === "ice" ? PAL.white : th.detail;
-    g.circle(x, y, th.id === "ice" ? 1 : 1.5, c);
+    const tw = 0.55 + 0.45 * Math.sin(t * 0.08 + i * 1.7);
+    g.alpha(tw);
+    g.circle(x, y, th.id === "ice" ? 1 : i % 4 === 0 ? 2 : 1.3, c);
+    g.alpha(1);
   }
 }
 
@@ -247,6 +292,11 @@ const HOPPER = [spr(["..kkkk..", ".kmmmmk.", "kmmeemmk", "kmmmmmmk", ".kmmmmk.",
 const FLYER = [spr(["kk......kk", ".kmmmmmmk.", "kmeemmeemk", ".kmmmmmmk.", "..kk..kk.."], 11, BOTC), spr([".kk....kk.", "kkmmmmmmkk", "kmeemmeemk", ".kmmmmmmk.", "...kkkk..."], 11, BOTC)];
 const TURRET = spr(["..kkkk..", ".kddddk.", "kddeeddk", "kddddddk", "mmmmmmmm", "kk....kk"], 8, BOTC);
 const SHIELD = [spr(["..kkkk....", ".kmmmmk...", "kmmeemmk..", "kmmmmmmk..", ".kg..gk...", ".kk..kk.."], 10, BOTC), spr(["..kkkk....", ".kmmmmk...", "kmmeemmk..", "kmmmmmmk..", "..kg.gk...", "..kk.kk.."], 10, BOTC)];
+// a bright hit-flash twin of each frame — precomputed once, never rebuilt in draw
+const HOPPER_FLASH = HOPPER.map((s) => tinted(s, PAL.white));
+const FLYER_FLASH = FLYER.map((s) => tinted(s, PAL.white));
+const TURRET_FLASH = tinted(TURRET, PAL.white);
+const SHIELD_FLASH = SHIELD.map((s) => tinted(s, PAL.white));
 
 type MobKind = "hopper" | "flyer" | "turret" | "shield";
 interface Mob {
@@ -263,6 +313,7 @@ interface Mob {
   active: boolean;
   shieldUp: boolean;
   dead: number;
+  flash: number;
 }
 interface Bullet { x: number; y: number; vx: number; vy: number; life: number; dmg: number; color: string; size: number; arc?: boolean }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; color: string }
@@ -284,7 +335,7 @@ function buildRun(def: StageDef, r: ReturnType<typeof rng>) {
   let start = { x: 24, y: 150 };
   let checkpoint: { x: number; y: number } | null = null;
   let doorX = (cols - 2) * T;
-  const mk = (kind: MobKind, hp: number, w: number, h: number, bx: number, by: number): Mob => ({ kind, x: bx, y: by, vx: 0, vy: 0, w, h, hp: Math.ceil(hp * def.hpMul), t: r.range(0, 40), baseY: by, active: false, shieldUp: false, dead: -1 });
+  const mk = (kind: MobKind, hp: number, w: number, h: number, bx: number, by: number): Mob => ({ kind, x: bx, y: by, vx: 0, vy: 0, w, h, hp: Math.ceil(hp * def.hpMul), t: r.range(0, 40), baseY: by, active: false, shieldUp: false, dead: -1, flash: 0 });
   for (let row = 0; row < ROWS; row++) {
     for (let c = 0; c < cols; c++) {
       const ch = grid[row][c];
@@ -315,6 +366,11 @@ function create(seed: number): GameInstance {
   let over = false;
   let won = false;
   let tick = 0;
+  let shakeT = 0;
+  const shakeOffset = () => {
+    if (shakeT <= 0) return { x: 0, y: 0 };
+    return { x: (hash2(tick, 1) - 0.5) * shakeT, y: (hash2(tick, 2) - 0.5) * shakeT * 0.6 };
+  };
 
   // ── scene machine ──
   type Scene = "select" | "run" | "boss";
@@ -331,7 +387,7 @@ function create(seed: number): GameInstance {
   let camX = 0;
   let doorTimer = 0;
 
-  interface BossRoom { def: BossDef; baseDef: BossDef; hp: number; maxHp: number; x: number; y: number; baseX: number; baseY: number; t: number; dead: boolean }
+  interface BossRoom { def: BossDef; baseDef: BossDef; hp: number; maxHp: number; x: number; y: number; baseX: number; baseY: number; t: number; dead: boolean; hitFlash: number }
   let boss: BossRoom | null = null;
 
   let shots: Bullet[] = [];
@@ -369,7 +425,7 @@ function create(seed: number): GameInstance {
 
   const spawnBoss = (def: BossDef, hpMul: number) => {
     const maxHp = Math.ceil(26 * hpMul);
-    boss = { def, baseDef: def, hp: maxHp, maxHp, x: W - 74, y: 100, baseX: W - 74, baseY: 100, t: 0, dead: false };
+    boss = { def, baseDef: def, hp: maxHp, maxHp, x: W - 74, y: 100, baseX: W - 74, baseY: 100, t: 0, dead: false, hitFlash: 0 };
     hero.x = 30;
     hero.y = H - 32 - hero.h;
     hero.vx = hero.vy = 0;
@@ -393,8 +449,9 @@ function create(seed: number): GameInstance {
     if (hero.inv > 0 || hero.dying >= 0 || scene === "select") return;
     hero.hp -= dmg;
     hero.inv = 80;
-    io.sfx.play("hit");
+    io.sfx.play("hurt");
     burst(hero.x + hero.w / 2, hero.y + hero.h / 2, 6, PAL.yellow);
+    shakeT = Math.max(shakeT, 6);
     if (hero.hp <= 0) {
       hero.dying = 0;
       io.sfx.play("die");
@@ -424,8 +481,14 @@ function create(seed: number): GameInstance {
     const inp = io.input;
     const w = curWeapon();
     if (w.id === "buster") {
-      if (inp.held.b) hero.chargeT = Math.min(70, hero.chargeT + 1);
-      else if (hero.chargeT > 0) {
+      if (inp.held.b) {
+        hero.chargeT = Math.min(70, hero.chargeT + 1);
+        if (hero.chargeT > 18 && tick % 4 === 0) {
+          const a = hash2(tick, 3) * Math.PI * 2;
+          const gx = hero.x + (hero.facing > 0 ? hero.w : 0);
+          parts.push({ x: gx + Math.cos(a) * 6, y: hero.y + 11 + Math.sin(a) * 6, vx: -Math.cos(a) * 0.5, vy: -Math.sin(a) * 0.5, life: 10, color: PAL.cyan });
+        }
+      } else if (hero.chargeT > 0) {
         const big = hero.chargeT >= 42;
         const ox = hero.x + (hero.facing > 0 ? hero.w : -4);
         shots.push({ x: ox, y: hero.y + 11, vx: hero.facing * (big ? 4.2 : 3.4), vy: 0, life: 70, dmg: big ? 3 : 1, color: big ? PAL.cyan : PAL.yellow, size: big ? 6 : 4 });
@@ -441,7 +504,7 @@ function create(seed: number): GameInstance {
       hero.shootCd = 13;
       const ox = hero.x + (hero.facing > 0 ? hero.w : -4);
       for (const a of w.angles) shots.push({ x: ox, y: hero.y + 11, vx: hero.facing * w.speed * Math.cos(a), vy: w.speed * Math.sin(a), life: 70, dmg: w.dmg, color: w.color, size: 5, arc: w.arc });
-      io.sfx.play("shoot");
+      io.sfx.play(weaponSfx(w.id));
       hero.shootFlash = 6;
     }
   };
@@ -555,13 +618,24 @@ function create(seed: number): GameInstance {
       if (!hero.climbing) hero.vy = Math.min(MAXFALL, hero.vy + GRAV);
       if (moveX(hero, hero.vx)) hero.vx = 0;
       hero.anim += Math.abs(hero.vx) * 0.1;
+      const wasGround = hero.onGround;
+      const fallSpeed = hero.vy;
       hero.onGround = false;
       const res = moveY(hero, hero.vy);
       if (res === 1) {
         hero.vy = 0;
         hero.onGround = true;
         hero.jumping = false;
+        if (!wasGround && fallSpeed > 3.2) {
+          io.sfx.play("thud");
+          burst(hero.x + hero.w / 2, hero.y + hero.h, 5, PAL.grey);
+        }
       } else if (res === -1) hero.vy = 0.5;
+      if (hero.onGround && Math.abs(hero.vx) > 0.4 && tick % 7 === 0) {
+        const gth = THEMES[lvl.def.theme];
+        parts.push({ x: hero.x + (hero.facing > 0 ? 2 : hero.w - 3), y: hero.y + hero.h - 1, vx: -hero.facing * 0.4, vy: -0.3, life: 12, color: gth.groundDark });
+        if (tick % 14 === 0) io.sfx.play("step");
+      }
     }
     fireHero(io);
     regenAmmo();
@@ -582,7 +656,7 @@ function create(seed: number): GameInstance {
       } else if (lvl.grid[row]?.[c] === "C") {
         lvl.checkpoint = { x: c * T, y: (row + 1) * T - HERO_H };
         lvl.grid[row][c] = ".";
-        io.sfx.play("blip");
+        io.sfx.play("pickup");
       }
     }
     if (hero.y > H + 20) hurtHero(io, MAXHP);
@@ -607,6 +681,7 @@ function create(seed: number): GameInstance {
         else continue;
       }
       m.t++;
+      if (m.flash > 0) m.flash--;
       if (m.dead >= 0) {
         m.dead--;
         continue;
@@ -651,6 +726,7 @@ function create(seed: number): GameInstance {
           }
           m.hp -= s.dmg;
           s.life = 0;
+          m.flash = 6;
           io.sfx.play("hit");
           if (m.hp <= 0) {
             m.dead = 20;
@@ -722,6 +798,7 @@ function create(seed: number): GameInstance {
 
     // boss move + fire (final boss swaps its attack pattern every 220 frames through the ring)
     bs.t++;
+    bs.hitFlash = Math.max(0, bs.hitFlash - 1);
     if (finalBoss) bs.def = BOSS_DEFS[Math.floor(bs.t / 220) % 4];
     if (bs.t >= introT) {
       bs.x = bs.baseX + Math.sin(bs.t * 0.014) * 22;
@@ -743,6 +820,8 @@ function create(seed: number): GameInstance {
         const mult = curWeapon().id === bs.def.weak ? 2.5 : 1;
         bs.hp -= s.dmg * mult;
         s.life = 0;
+        bs.hitFlash = 5;
+        shakeT = Math.max(shakeT, mult > 1 ? 5 : 2);
         io.sfx.play("hit");
         if (bs.hp <= 0) bossDefeated(io);
       }
@@ -767,6 +846,7 @@ function create(seed: number): GameInstance {
     bs.dead = true;
     for (let i = 0; i < 4; i++) burst(bs.x + r.range(-10, 10), bs.y + r.range(-10, 10), 10, PAL.white);
     io.sfx.play("explode");
+    shakeT = Math.max(shakeT, 16);
     if (runCtx === "stage") {
       defeated[stageIdx] = true;
       addScore(io, 2000, bs.x, bs.y);
@@ -775,6 +855,7 @@ function create(seed: number): GameInstance {
     } else if (finalBoss) {
       addScore(io, 8000 + lives * 1000, bs.x, bs.y);
       won = true;
+      io.sfx.play("cheer");
       io.win();
     } else {
       addScore(io, 1200, bs.x, bs.y);
@@ -807,17 +888,20 @@ function create(seed: number): GameInstance {
         stageIdx = cursor;
         runCtx = "stage";
         finalBoss = false;
+        io.sfx.play("select");
         enterScene(io, "run");
       } else if (defeated.every(Boolean)) {
         runCtx = "fortress";
         rushIdx = 0;
         finalBoss = false;
+        io.sfx.play("select");
         enterScene(io, "run");
       } else io.sfx.play("blip");
     }
   };
 
   const updateFx = () => {
+    shakeT = Math.max(0, shakeT - 1);
     shots = shots.filter((s) => s.life > 0);
     enemyShots = enemyShots.filter((s) => s.life > 0);
     for (const p of parts) {
@@ -897,8 +981,9 @@ function create(seed: number): GameInstance {
     const d = run.def;
     const th = THEMES[d.theme];
     const cam = Math.round(camX);
-    drawBG(g, th, cam);
-    g.camera(cam, 0);
+    drawBG(g, th, cam, tick);
+    const shk = shakeOffset();
+    g.camera(cam + shk.x, shk.y);
     const c0 = Math.floor(cam / T);
     for (let row = 0; row < ROWS; row++) {
       for (let c = c0; c <= c0 + W / T + 1 && c < run.cols; c++) {
@@ -933,11 +1018,12 @@ function create(seed: number): GameInstance {
         g.circle(m.x + m.w / 2, m.y + m.h / 2, (20 - m.dead) * 0.6, PAL.white);
         continue;
       }
-      if (m.kind === "hopper") g.sprite(HOPPER[f], m.x, m.y, { flipX: m.vx > 0 });
-      else if (m.kind === "flyer") g.sprite(FLYER[f], m.x, m.y);
-      else if (m.kind === "turret") g.sprite(TURRET, m.x, m.y);
+      const flashOn = m.flash > 0 && Math.floor(m.flash / 2) % 2 === 1;
+      if (m.kind === "hopper") g.sprite(flashOn ? HOPPER_FLASH[f] : HOPPER[f], m.x, m.y, { flipX: m.vx > 0 });
+      else if (m.kind === "flyer") g.sprite(flashOn ? FLYER_FLASH[f] : FLYER[f], m.x, m.y);
+      else if (m.kind === "turret") g.sprite(flashOn ? TURRET_FLASH : TURRET, m.x, m.y);
       else {
-        g.sprite(SHIELD[f], m.x, m.y, { flipX: m.vx > 0 });
+        g.sprite(flashOn ? SHIELD_FLASH[f] : SHIELD[f], m.x, m.y, { flipX: m.vx > 0 });
         g.circle(m.x + (m.vx >= 0 ? m.w + 2 : -2), m.y + m.h / 2, 5, m.shieldUp ? PAL.cyan : "#3a3f5a");
       }
     }
@@ -974,15 +1060,18 @@ function create(seed: number): GameInstance {
     const fillH = hbH * clamp(bs.hp / bs.maxHp, 0, 1);
     g.rect(hbX + 1, hbY0 + (hbH - fillH), 8, fillH, bs.def.accent);
     for (let i = 1; i < 10; i++) g.rect(hbX, hbY0 + (i * hbH) / 10, 10, 1, PAL.black);
+    const shk = shakeOffset();
+    g.camera(shk.x, shk.y);
+    const bossSprite = bs.hitFlash > 0 && Math.floor(bs.hitFlash / 2) % 2 ? BOSS_ICON_FLASH[bs.def.id] : bossIcon(bs.def);
     if (bs.t < introT) {
       const s = 3 + Math.sin(bs.t * 0.3) * 0.5;
-      g.sprite(bossIcon(bs.def), bs.x - 18, bs.y - 18, { scale: s, flipX: true });
+      g.sprite(bossSprite, bs.x - 18, bs.y - 18, { scale: s, flipX: true });
       g.rect(0, 96, W, 24, "rgba(13,11,26,0.75)");
       g.text(bs.def.name, W / 2, 100, PAL.white, { align: "center", size: 2 });
       g.text(finalBoss ? "FINAL BOSS" : runCtx === "fortress" ? `BOSS RUSH ${rushIdx + 1}/4` : "STAGE BOSS", W / 2, 113, PAL.yellow, { align: "center" });
     } else if (!bs.dead) {
       const flash = bs.t % bs.def.cooldown >= bs.def.cooldown - 14;
-      g.sprite(bossIcon(bs.def), bs.x - 18, bs.y - 18, { scale: 3, flipX: bs.x < hero.x });
+      g.sprite(bossSprite, bs.x - 18, bs.y - 18, { scale: 3, flipX: bs.x < hero.x });
       if (flash && Math.floor(tick / 4) % 2) g.circle(bs.x, bs.y, 22, "#ffffff55");
     }
     for (const s of shots) g.rect(s.x - s.size / 2, s.y - s.size / 2, s.size, s.size, s.color);
@@ -990,6 +1079,7 @@ function create(seed: number): GameInstance {
     drawHero(g);
     for (const p of parts) g.rect(p.x, p.y, 2, 2, p.color);
     for (const p of pops) g.text(p.text, p.x, p.y - p.t * 0.6, PAL.white);
+    g.camera(0, 0);
     if (bs.t >= introT) {
       if (finalBoss) g.text("FINAL BOSS!", W / 2, 10, PAL.red, { align: "center" });
       else if (runCtx === "fortress") g.text(`BOSS RUSH ${rushIdx + 1}/4`, W / 2, 10, PAL.orange, { align: "center" });
@@ -1017,15 +1107,23 @@ function create(seed: number): GameInstance {
   }
 
   function drawHUD(g: Gfx) {
-    g.rect(0, 0, W, 13, "rgba(13,11,26,0.6)");
-    g.text(`x${lives}`, 4, 2, PAL.white);
-    g.rect(16, 3, 30, 6, PAL.dark);
-    g.rect(16, 3, 30 * clamp(hero.hp / MAXHP, 0, 1), 6, hero.hp > MAXHP * 0.3 ? PAL.lime : PAL.red);
+    g.rect(0, 0, W, 13, "rgba(13,11,26,0.7)");
+    g.rect(0, 12, W, 1, PAL.black);
+    g.rect(2, 2, 9, 9, PAL.navy);
+    g.box(2, 2, 9, 9, PAL.black);
+    g.circle(6, 6, 2, PAL.cyan);
+    g.text(`x${lives}`, 13, 2, PAL.white);
+    g.box(27, 1, 34, 10, PAL.black);
+    g.rect(28, 3, 32, 6, PAL.dark);
+    g.rect(28, 3, 32 * clamp(hero.hp / MAXHP, 0, 1), 6, hero.hp > MAXHP * 0.3 ? PAL.lime : PAL.red);
     const w = curWeapon();
-    g.text(w.name, 52, 2, w.color);
+    g.rect(66, 3, 6, 6, w.color);
+    g.box(66, 3, 6, 6, PAL.black);
+    g.text(w.name, 75, 2, w.color);
     if (w.id !== "buster") {
-      g.rect(90, 3, 26, 6, PAL.dark);
-      g.rect(90, 3, 26 * clamp(ammo[w.id] / AMMO_MAX, 0, 1), 6, w.color);
+      g.box(113, 1, 30, 10, PAL.black);
+      g.rect(114, 3, 28, 6, PAL.dark);
+      g.rect(114, 3, 28 * clamp(ammo[w.id] / AMMO_MAX, 0, 1), 6, w.color);
     }
     g.text(`${defeated.filter(Boolean).length}/4`, W - 4, 2, PAL.yellow, { align: "right" });
   }
