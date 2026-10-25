@@ -46,6 +46,7 @@ import { RIDEABLE_SPOTS } from "../registry/rideables";
 import { DRAGON_BREEDS, type DragonBreed } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaDist } from "../registry/island";
+import { MANTA_CALL } from "../world/rideables/plan";
 import { stationAt, type Station } from "../registry/railway";
 import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../registry/jungle";
 import { waterSdf } from "../registry/waterways";
@@ -2968,6 +2969,27 @@ export class ParkWorld {
     this.rideId = n.id;
     this.hopNear = null;
     return n.kind;
+  }
+
+  // ── calling a sea friend ──
+  /** What a swimming kid could call right now: a manta (diving in deep water), a dolphin (swimming
+   *  out at sea), "shallow" (swimming, but too near the shore for either), or null (not swimming) */
+  get seaCall(): "manta" | "dolphin" | "shallow" | null {
+    if (!this.kid || !this.park || this.mount || this.ride || this.sky || !this.wasInSea) return null;
+    const p = this.kid.root.position;
+    const depth = seaDepth(p.x, p.z);
+    if (this.swimDepth > 0.6 && p.y < WATER_Y - 0.5 && depth >= MANTA_CALL.minDepth) return "manta";
+    if (depth > 2.5 && seaDist(p.x, p.z) > 0) return "dolphin";
+    return "shallow";
+  }
+  /** Call a sea friend over (see seaCall). */
+  callSeaFriend(): { ok: true; kind: "manta" | "dolphin" } | { ok: false; why: "shallow" | "already" | "busy" } {
+    const k = this.seaCall;
+    if (!k || !this.park) return { ok: false, why: "busy" };
+    if (k === "shallow") return { ok: false, why: "shallow" };
+    const r = this.park.rides.callSea(k);
+    if (r === "coming") return { ok: true, kind: k };
+    return { ok: false, why: r === "already" ? "already" : "busy" };
   }
 
   // ── calling a dragon friend ──
