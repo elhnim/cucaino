@@ -1,3 +1,4 @@
+import type { Tune } from "./music";
 // Browser implementations of the retro console: a pixel-perfect canvas Gfx with a built-in
 // 5x7 pixel font, and a WebAudio chiptune synth for sound effects.
 import { H, W, type Gfx, type Sfx, type SfxName, type Sprite } from "./engine";
@@ -199,7 +200,7 @@ export function canvasGfx(ctx: CanvasRenderingContext2D): Gfx {
 }
 
 // ── chiptune sound effects ──
-export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; close(): void } {
+export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; close(): void; music(t: Tune | null): void } {
   let ac: AudioContext | null = null;
   let noise: AudioBuffer | null = null;
   const get = () => {
@@ -248,15 +249,121 @@ export function webAudioSfx(isMuted: () => boolean): Sfx & { resume(): void; clo
     src.stop(t + dur);
   };
 
+  // ── background music (lib/retro/music.ts composes it; this plays it) ──
+  let musicGain: GainNode | null = null;
+  let pulse25: PeriodicWave | null = null;
+  let pulse12: PeriodicWave | null = null;
+  let tune: Tune | null = null;
+  let timer: number | null = null;
+  let step = 0;
+  let nextAt = 0;
+  /** a pulse wave of the given duty cycle (the NES's thin, buzzy square), from its Fourier series */
+  const pulse = (a: AudioContext, duty: number) => {
+    const N = 32;
+    const re = new Float32Array(N);
+    const im = new Float32Array(N);
+    for (let n = 1; n < N; n++) im[n] = (2 / (n * Math.PI)) * Math.sin(n * Math.PI * duty);
+    return a.createPeriodicWave(re, im);
+  };
+  const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+  const note = (a: AudioContext, out: GainNode, wave: PeriodicWave | OscillatorType, midi: number, t: number, dur: number, vol: number) => {
+    const o = a.createOscillator();
+    if (wave instanceof PeriodicWave) o.setPeriodicWave(wave);
+    else o.type = wave;
+    o.frequency.setValueAtTime(mtof(midi), t);
+    const g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.setValueAtTime(vol, t + Math.max(0.01, dur * 0.7));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(out);
+    o.start(t);
+    o.stop(t + dur + 0.02);
+  };
+  const drum = (a: AudioContext, out: GainNode, hit: "kick" | "snare" | "hat", t: number) => {
+    if (hit === "kick") {
+      const o = a.createOscillator();
+      const g = a.createGain();
+      o.type = "sine";
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+      g.gain.setValueAtTime(0.5, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      o.connect(g).connect(out);
+      o.start(t);
+      o.stop(t + 0.16);
+      return;
+    }
+    if (!noise) return;
+    const src = a.createBufferSource();
+    src.buffer = noise;
+    const f = a.createBiquadFilter();
+    f.type = hit === "hat" ? "highpass" : "bandpass";
+    f.frequency.setValueAtTime(hit === "hat" ? 7000 : 1800, t);
+    const g = a.createGain();
+    const dur = hit === "hat" ? 0.035 : 0.11;
+    g.gain.setValueAtTime(hit === "hat" ? 0.12 : 0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(out);
+    src.start(t);
+    src.stop(t + dur + 0.01);
+  };
+  /** schedule every note starting in the next ~150 ms (called every 40 ms: steady timing even if a frame stutters) */
+  const schedule = () => {
+    const a = ac;
+    if (!a || !tune || !musicGain) return;
+    const sd = 60 / tune.bpm / 4;
+    if (nextAt < a.currentTime - 0.2) nextAt = a.currentTime + 0.05; // (after a long stall: don't rush to catch up)
+    while (nextAt < a.currentTime + 0.15) {
+      const s = step % tune.steps;
+      if (!isMuted()) {
+        for (const n of tune.lead) if (n.at === s) note(a, musicGain, pulse25 ?? "square", n.midi, nextAt, n.len * sd * 0.9, 0.055);
+        for (const n of tune.arp) if (n.at === s) note(a, musicGain, pulse12 ?? "square", n.midi, nextAt, sd * 0.8, 0.02);
+        for (const n of tune.bass) if (n.at === s) note(a, musicGain, "triangle", n.midi, nextAt, n.len * sd * 0.92, 0.16);
+        for (const d of tune.drums) if (d.at === s) drum(a, musicGain, d.hit, nextAt);
+      }
+      step++;
+      nextAt += sd;
+    }
+  };
+
   return {
     resume() {
       const a = get();
       if (a?.state === "suspended") void a.resume();
     },
     close() {
+      if (timer !== null) window.clearInterval(timer);
+      timer = null;
+      tune = null;
       void ac?.close();
       ac = null;
+      musicGain = null;
       lastAt = {};
+    },
+    music(t) {
+      if (t === tune) return;
+      if (timer !== null) window.clearInterval(timer);
+      timer = null;
+      const a = get();
+      if (musicGain && a) {
+        // fade the old tune out rather than cutting it dead
+        const old = musicGain;
+        old.gain.setTargetAtTime(0.0001, a.currentTime, 0.06);
+        window.setTimeout(() => old.disconnect(), 400);
+      }
+      musicGain = null;
+      tune = t;
+      if (!t || !a) return;
+      pulse25 ??= pulse(a, 0.25);
+      pulse12 ??= pulse(a, 0.125);
+      musicGain = a.createGain();
+      musicGain.gain.value = 0.55;
+      musicGain.connect(a.destination);
+      step = 0;
+      nextAt = a.currentTime + 0.08;
+      schedule();
+      timer = window.setInterval(schedule, 40);
     },
     tone: (f, d, w, v) => tone(f, d, w, v),
     play(name) {

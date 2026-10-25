@@ -1,0 +1,909 @@
+// HOOP JAM — an over-the-top 2-on-2 arcade basketball game. Move with the D-pad (▲▼ step
+// across the court's width, with a touch of perspective — far players look smaller), hold A
+// to jump then let go at the TOP of the timing ring for the best shot (get in close and a
+// press of A is an automatic flying DUNK!), and press B to dish to your teammate on offence
+// or to swipe for a steal/block on defence. Sink 3 in a row and the ball catches fire —
+// "SUPER HOT!" — and shots get easier to drain. Win 4 quick quarters to topple a team and
+// move up the ladder; beat all 3 to take the trophy. (Original game — made-up animal teams,
+// in the spirit of 90s arcade basketball, no real leagues, players or logos.)
+import { H, PAL, W, clamp, rng, sprite, type GameInstance, type Gfx, type IO, type Input, type RetroGameDef, type Sprite } from "../engine";
+
+// ── court geometry ──
+const COURT_L = 40; // left baseline (x)
+const COURT_R = 440; // right baseline (x)
+const WORLD_W = 480;
+const D_TOP = 58; // screen y of the far sideline (depth 0)
+const D_BOT = 190; // screen y of the near sideline (depth 1)
+const RIM_Z = 56; // rim height above the floor
+const DUNK_RANGE = 52;
+const THREE_PT_R = 118;
+const STEAL_RANGE = 24;
+const BLOCK_RANGE = 22;
+const DEPTH_UNIT = 150; // how "wide" the court reads in x-equivalent units, for distance math
+
+const GRAVITY = 0.2;
+const JUMP_V = 3.5;
+const RING_PERIOD = 56; // frames for one up-down sweep of the timing ring
+const MAX_CHARGE = 72;
+const PASS_DUR = 14;
+const REBOUND_DUR = 34;
+
+const QUARTER_FRAMES = 60 * 60; // ~60s quarters
+const SHOT_CLOCK_MAX = 17 * 60;
+
+const PLAYER_SPD_X = 1.85;
+const PLAYER_SPD_D = 0.023;
+const PLAYER_ROWS = 12; // every body sprite is 12 rows tall, feet on the bottom row
+const PLAYER_SCALE_FAR = 1.8; // ~22px tall at the far sideline
+const PLAYER_SCALE_NEAR = 2.3; // ~28px tall at the near sideline — big and readable on a phone
+
+const screenY = (d: number) => D_TOP + d * (D_BOT - D_TOP);
+/** small-prop perspective scale (ball, shadows, the net) */
+const depthScale = (d: number) => 0.82 + d * 0.36;
+/** players are drawn noticeably bigger than everything else so they read clearly on a phone */
+const playerScale = (d: number) => PLAYER_SCALE_FAR + d * (PLAYER_SCALE_NEAR - PLAYER_SCALE_FAR);
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const worldDist = (ax: number, ad: number, bx: number, bd: number) => Math.hypot(ax - bx, (ad - bd) * DEPTH_UNIT);
+/** distance from point (px,pd) to the segment (ax,ad)-(bx,bd), in the same mixed units */
+const segDist = (px: number, pd: number, ax: number, ad: number, bx: number, bd: number) => {
+  const ay = ad * DEPTH_UNIT,
+    by = bd * DEPTH_UNIT,
+    py = pd * DEPTH_UNIT;
+  const vx = bx - ax,
+    vy = by - ay;
+  const len2 = vx * vx + vy * vy || 1;
+  const t = clamp(((px - ax) * vx + (py - ay) * vy) / len2, 0, 1);
+  return Math.hypot(px - (ax + vx * t), py - (ay + vy * t));
+};
+
+// ── teams: made-up animal squads, no real leagues or logos ──
+interface Team {
+  name: string;
+  jersey: string;
+  trim: string;
+  speed: number;
+  shoot: number;
+  defend: number;
+}
+const KID_TEAM: Team = { name: "BLAZE BADGERS", jersey: PAL.orange, trim: PAL.white, speed: 1.0, shoot: 0.74, defend: 0.6 };
+const CPU_TEAMS: Team[] = [
+  { name: "THUNDER WOLVES", jersey: PAL.blue, trim: PAL.cyan, speed: 0.92, shoot: 0.54, defend: 0.42 },
+  { name: "JUNGLE GORILLAS", jersey: PAL.green, trim: PAL.lime, speed: 1.02, shoot: 0.64, defend: 0.56 },
+  { name: "COSMIC YETIS", jersey: PAL.purple, trim: PAL.pink, speed: 1.12, shoot: 0.74, defend: 0.67 },
+];
+
+// ── pixel art: one body, recoloured per team; the ball is drawn separately so it can fly ──
+const SKIN = PAL.tan;
+function teamSprite(rows: string[], jersey: string, trim: string): Sprite {
+  return sprite(rows, { k: PAL.black, s: SKIN, j: jersey, t: trim, w: PAL.white });
+}
+const RUN_A = [
+  "....tttt.....",
+  "...sssssss...",
+  "...sksksks...",
+  "...sssssss...",
+  "....jjj......",
+  "..jjjjjjjkkk.",
+  "..sjjjjj.....",
+  "...jjjjj.....",
+  "...ttttt.....",
+  "...ss.ss.....",
+  "..ss...ss....",
+  "..kk...kk....",
+];
+const RUN_B = [...RUN_A.slice(0, 8), "...jjjjj.....", "....jjj......", "....jjj......", "....kkk......"];
+const JUMP_ROWS = [
+  "......k......",
+  "...tttt......",
+  "..ssssssk....",
+  "...sksksk....",
+  "...sssss.....",
+  "....jjjj.....",
+  "..jjjjjj.....",
+  "..sjjjjj.....",
+  "...jjjjj.....",
+  "...ttttt.....",
+  "..ss...ss....",
+  "..kk...kk....",
+];
+const DUNK_ROWS = [
+  "..k......k...",
+  "...tttt......",
+  "..ssssssss...",
+  "...sksksks...",
+  "...sssssss...",
+  "..jjjjjjjjj..",
+  "..jjjjjjjjj..",
+  "..sjjjjjjjs..",
+  "...jjjjjjj...",
+  "...ttttttt...",
+  "..sss...sss..",
+  "..kkk...kkk..",
+];
+const DEFEND_ROWS = [
+  "...tttt......",
+  "..sssssss....",
+  "...sksksks...",
+  "..jjjjjjjjj..",
+  ".jjjjjjjjjjj.",
+  "..sjjjjjjjs..",
+  "...jjjjjjj...",
+  "...ttttttt...",
+  "..ss.....ss..",
+  "..kk.....kk..",
+];
+interface SpriteSet {
+  run: [Sprite, Sprite];
+  jump: Sprite;
+  dunk: Sprite;
+  defend: Sprite;
+}
+function buildSprites(team: Team): SpriteSet {
+  return {
+    run: [teamSprite(RUN_A, team.jersey, team.trim), teamSprite(RUN_B, team.jersey, team.trim)],
+    jump: teamSprite(JUMP_ROWS, team.jersey, team.trim),
+    dunk: teamSprite(DUNK_ROWS, team.jersey, team.trim),
+    defend: teamSprite(DEFEND_ROWS, team.jersey, team.trim),
+  };
+}
+const KID_SPRITES = buildSprites(KID_TEAM);
+
+// ── player + ball state ──
+type PState = "run" | "jump" | "dunk";
+interface Ply {
+  team: 0 | 1;
+  x: number;
+  d: number;
+  z: number;
+  vz: number;
+  facing: 1 | -1;
+  animT: number;
+  state: PState;
+  shotT: number;
+  isDunkAttempt: boolean;
+  released: boolean;
+  ringVal: number;
+  coolSteal: number;
+  coolAi: number;
+}
+function makePlayer(team: 0 | 1, x: number, d: number): Ply {
+  return { team, x, d, z: 0, vz: 0, facing: team === 0 ? 1 : -1, animT: 0, state: "run", shotT: 0, isDunkAttempt: false, released: false, ringVal: 0, coolSteal: 0, coolAi: 0 };
+}
+
+type BMode = "held" | "pass" | "shotFlight" | "rebound";
+interface Ball {
+  x: number;
+  d: number;
+  z: number;
+  mode: BMode;
+  holder: Ply | null;
+  from: { x: number; d: number };
+  to: { x: number; d: number };
+  t: number;
+  dur: number;
+  targetTeam: 0 | 1;
+  willMake: boolean;
+  points: 2 | 3;
+  isDunk: boolean;
+  passTo: Ply | null;
+  interceptChance: number;
+  reboundTeamFavor: 0 | 1;
+}
+
+interface Spark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  c: string;
+}
+
+function create(seed: number): GameInstance {
+  const r = rng(seed);
+  let frame = 0;
+  let ti = 0;
+  let opp: Team = CPU_TEAMS[0];
+  let cpuSprites: SpriteSet = buildSprites(opp);
+
+  const kid: [Ply, Ply] = [makePlayer(0, 240, 0.5), makePlayer(0, 200, 0.3)];
+  const cpu: [Ply, Ply] = [makePlayer(1, 240, 0.5), makePlayer(1, 280, 0.7)];
+  const players = [kid[0], kid[1], cpu[0], cpu[1]];
+
+  const ball: Ball = {
+    x: 240,
+    d: 0.5,
+    z: 0,
+    mode: "held",
+    holder: kid[0],
+    from: { x: 0, d: 0.5 },
+    to: { x: 0, d: 0.5 },
+    t: 0,
+    dur: 1,
+    targetTeam: 0,
+    willMake: false,
+    points: 2,
+    isDunk: false,
+    passTo: null,
+    interceptChance: 0,
+    reboundTeamFavor: 0,
+  };
+
+  let state: "intro" | "play" | "qend" | "final" | "won" | "lost" = "intro";
+  let stateT = 140;
+  let quarter = 1;
+  let clock = QUARTER_FRAMES;
+  let shotClock = SHOT_CLOCK_MAX;
+  let kidScore = 0;
+  let oppScore = 0;
+  let streak = 0;
+  let onFire = false;
+  let msg = `VS ${opp.name}`;
+  let msgT = 140;
+  let shake = 0;
+  let prevHeldA = false;
+  const sparks: Spark[] = [];
+
+  const burst = (x: number, y: number, c: string, n = 10) => {
+    for (let i = 0; i < n; i++) sparks.push({ x, y, vx: r.range(-2.2, 2.2), vy: r.range(-2.6, 1), life: r.int(14, 26), c });
+  };
+
+  // ── formation / possession ──
+  function formation(offenseTeam: 0 | 1) {
+    const midX = (COURT_L + COURT_R) / 2;
+    const off = offenseTeam === 0 ? kid : cpu;
+    const def = offenseTeam === 0 ? cpu : kid;
+    const sign = offenseTeam === 0 ? -1 : 1;
+    off[0].x = midX + sign * 20;
+    off[0].d = 0.5;
+    off[1].x = midX + sign * 70;
+    off[1].d = offenseTeam === 0 ? 0.25 : 0.75;
+    def[0].x = midX - sign * 50;
+    def[0].d = 0.5;
+    def[1].x = midX - sign * 90;
+    def[1].d = offenseTeam === 0 ? 0.75 : 0.25;
+    for (const p of players) {
+      p.z = 0;
+      p.vz = 0;
+      p.state = "run";
+      p.shotT = 0;
+      p.released = false;
+    }
+  }
+  function setPossession(team: 0 | 1, handler?: Ply) {
+    ball.holder = handler ?? (team === 0 ? kid[0] : cpu[0]);
+    ball.mode = "held";
+    ball.t = 0;
+    shotClock = SHOT_CLOCK_MAX;
+    formation(team);
+  }
+  function newMatch() {
+    opp = CPU_TEAMS[ti];
+    cpuSprites = buildSprites(opp);
+    quarter = 1;
+    clock = QUARTER_FRAMES;
+    kidScore = 0;
+    oppScore = 0;
+    streak = 0;
+    onFire = false;
+    state = "intro";
+    stateT = 140;
+    msg = `VS ${opp.name}`;
+    msgT = 140;
+    setPossession(0);
+  }
+  newMatch();
+
+  // ── shooting ──
+  function startShotCharge(p: Ply, isDunk: boolean) {
+    p.state = isDunk ? "dunk" : "jump";
+    p.shotT = 0;
+    p.vz = JUMP_V;
+    p.isDunkAttempt = isDunk;
+    p.released = false;
+    p.ringVal = 0;
+  }
+  function resolveShot(p: Ply, qualityBase: number, isDunk: boolean, io: IO) {
+    if (ball.holder !== p) return;
+    const team = p.team;
+    const hoopX = team === 0 ? COURT_R : COURT_L;
+    const d2hoop = worldDist(p.x, p.d, hoopX, 0.5);
+    const isThree = !isDunk && d2hoop > THREE_PT_R;
+    const defs = team === 0 ? cpu : kid;
+    const nearestDef = Math.min(worldDist(p.x, p.d, defs[0].x, defs[0].d), worldDist(p.x, p.d, defs[1].x, defs[1].d));
+    const contest = nearestDef < 28 ? ((28 - nearestDef) / 28) * 0.38 : 0;
+    const skill = team === 0 ? KID_TEAM.shoot : opp.shoot;
+    let quality = qualityBase * 0.7 + skill * 0.5 - contest - 0.08;
+    if (onFire && team === 0) quality += 0.3;
+    if (isThree) quality *= 0.86;
+    quality = clamp(quality, 0.04, 0.95);
+    const made = isDunk ? r.chance(clamp(quality + 0.25, 0.55, 0.97)) : r.chance(quality);
+    ball.mode = "shotFlight";
+    ball.holder = null;
+    ball.t = 0;
+    ball.dur = isDunk ? 16 : 30;
+    ball.from = { x: p.x, d: p.d };
+    const missOff = made ? { x: 0, d: 0 } : { x: r.range(-30, 30), d: r.range(-0.16, 0.16) };
+    ball.to = { x: hoopX + missOff.x, d: clamp(0.5 + missOff.d, 0.05, 0.95) };
+    ball.points = isDunk ? 2 : isThree ? 3 : 2;
+    ball.willMake = made;
+    ball.targetTeam = team;
+    ball.isDunk = isDunk;
+    io.sfx.play(isDunk ? "jump" : "shoot");
+  }
+  function updateShotAnim(p: Ply, io: IO, isHuman: boolean, humanReleased: boolean) {
+    p.shotT++;
+    p.z += p.vz;
+    p.vz -= GRAVITY;
+    if (!p.released) {
+      if (p.isDunkAttempt) {
+        if (p.shotT >= 12) {
+          p.released = true;
+          resolveShot(p, 0.92, true, io);
+        }
+      } else {
+        const phase = (p.shotT % RING_PERIOD) / RING_PERIOD;
+        p.ringVal = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+        let release = p.shotT >= MAX_CHARGE;
+        if (isHuman) {
+          if (humanReleased) release = true;
+        } else if (p.shotT > 10 && r.chance(0.1)) release = true;
+        if (release) {
+          p.released = true;
+          resolveShot(p, p.ringVal, false, io);
+        }
+      }
+    }
+    if (p.z <= 0) {
+      p.z = 0;
+      p.vz = 0;
+      if (p.released) p.state = "run";
+    }
+  }
+
+  // ── passing / steals / blocks ──
+  function startPass(p: Ply, io: IO) {
+    const mate = p.team === 0 ? (p === kid[0] ? kid[1] : kid[0]) : p === cpu[0] ? cpu[1] : cpu[0];
+    const opps = p.team === 0 ? cpu : kid;
+    const nearestOpp = Math.min(segDist(opps[0].x, opps[0].d, p.x, p.d, mate.x, mate.d), segDist(opps[1].x, opps[1].d, p.x, p.d, mate.x, mate.d));
+    const oppSkill = p.team === 0 ? opp.defend : KID_TEAM.defend;
+    ball.interceptChance = nearestOpp < 42 ? clamp(((42 - nearestOpp) / 42) * oppSkill * 0.7, 0, 0.55) : 0;
+    ball.mode = "pass";
+    ball.holder = null;
+    ball.from = { x: p.x, d: p.d };
+    ball.to = { x: mate.x, d: mate.d };
+    ball.t = 0;
+    ball.dur = PASS_DUR;
+    ball.passTo = mate;
+    ball.targetTeam = p.team;
+    io.sfx.play("blip");
+  }
+  function blockShot(h: Ply, p: Ply, io: IO) {
+    h.state = "run";
+    h.released = true;
+    h.z = 0;
+    h.vz = 0;
+    setPossession(p.team, p);
+    msg = "BLOCKED!";
+    msgT = 50;
+    shake = 10;
+    io.sfx.play("explode");
+    io.score(p.team === 0 ? 75 : 0);
+    burst(h.x, screenY(h.d) - 30, PAL.white, 12);
+  }
+  function attemptSteal(p: Ply, io: IO) {
+    if (p.coolSteal > 0) return;
+    if (!ball.holder || ball.mode !== "held" || ball.holder.team === p.team) {
+      p.coolSteal = 10;
+      return;
+    }
+    const h = ball.holder;
+    p.coolSteal = 22;
+    const dist = worldDist(p.x, p.d, h.x, h.d);
+    const mySkill = p.team === 0 ? KID_TEAM.defend : opp.defend;
+    if (h.state === "jump" || h.state === "dunk") {
+      if (dist < BLOCK_RANGE) {
+        const chance = clamp(0.5 - (dist / BLOCK_RANGE) * 0.25 + mySkill * 0.3, 0.08, 0.8);
+        if (r.chance(chance)) blockShot(h, p, io);
+      }
+      return;
+    }
+    if (dist < STEAL_RANGE) {
+      const chance = clamp(0.4 - (dist / STEAL_RANGE) * 0.2 + mySkill * 0.25, 0.06, 0.6);
+      if (r.chance(chance)) {
+        ball.holder = p;
+        shotClock = SHOT_CLOCK_MAX;
+        msg = "STEAL!";
+        msgT = 40;
+        io.sfx.play("hit");
+        io.score(p.team === 0 ? 50 : 0);
+        burst(p.x, screenY(p.d) - 20, PAL.yellow, 8);
+      } else io.sfx.play("blip");
+    }
+  }
+
+  // ── basket resolution ──
+  function madeBasket(io: IO) {
+    const team = ball.targetTeam;
+    if (team === 0) {
+      kidScore += ball.points;
+      streak++;
+      if (streak >= 3) onFire = true;
+      io.score(ball.points * 100 + (ball.isDunk ? 150 : 0));
+      io.sfx.play(ball.isDunk ? "explode" : "win");
+    } else {
+      oppScore += ball.points;
+      io.sfx.play("coin");
+    }
+    shake = ball.isDunk ? 14 : 5;
+    msg = ball.isDunk ? "SLAM DUNK!" : ball.points === 3 ? "SPLASH! 3PT!" : "SWISH!";
+    msgT = 60;
+    const hoopX = team === 0 ? COURT_R : COURT_L;
+    burst(hoopX, screenY(0.5) - RIM_Z, team === 0 ? PAL.yellow : PAL.red, ball.isDunk ? 18 : 10);
+    setPossession(team === 0 ? 1 : 0);
+  }
+
+  // ── AI ──
+  function moveToward(p: Ply, tx: number, td: number, spd: number) {
+    const dx = clamp(tx - p.x, -spd, spd);
+    const dd = clamp(td - p.d, -spd * 0.013, spd * 0.013);
+    p.x = clamp(p.x + dx, COURT_L + 6, COURT_R - 6);
+    p.d = clamp(p.d + dd, 0, 1);
+    if (Math.abs(dx) > 0.05) p.facing = dx > 0 ? 1 : -1;
+    if (Math.abs(dx) > 0.05 || Math.abs(dd) > 0.001) p.animT += 0.16;
+    else p.animT = 0;
+  }
+  function defendAI(p: Ply) {
+    const opps = p.team === 0 ? cpu : kid;
+    const mine = p.team === 0 ? kid : cpu;
+    const myIdx = mine[0] === p ? 0 : 1;
+    const mark = opps[myIdx];
+    const ownHoopX = p.team === 0 ? COURT_L : COURT_R;
+    const dir = ownHoopX < mark.x ? -1 : 1;
+    const spd = PLAYER_SPD_X * 0.95 * (p.team === 0 ? KID_TEAM.speed : opp.speed);
+    moveToward(p, clamp(mark.x + dir * 14, COURT_L + 6, COURT_R - 6), mark.d, spd);
+  }
+  function offSupportAI(p: Ply) {
+    const hoopX = p.team === 0 ? COURT_R : COURT_L;
+    const dir = p.team === 0 ? -1 : 1;
+    const handler = ball.holder;
+    const td = handler ? (handler.d > 0.5 ? 0.18 : 0.82) : 0.5;
+    const spd = PLAYER_SPD_X * 0.9 * (p.team === 0 ? KID_TEAM.speed : opp.speed);
+    moveToward(p, clamp(hoopX + dir * 85, COURT_L + 16, COURT_R - 16), td, spd);
+  }
+  function cpuBallHandlerAI(p: Ply, io: IO) {
+    const hoopX = COURT_L;
+    const dist = worldDist(p.x, p.d, hoopX, 0.5);
+    const nearestDef = Math.min(worldDist(p.x, p.d, kid[0].x, kid[0].d), worldDist(p.x, p.d, kid[1].x, kid[1].d));
+    p.coolAi = Math.max(0, p.coolAi - 1);
+    if (p.coolAi === 0 && dist < DUNK_RANGE && r.chance(0.07 + opp.shoot * 0.04)) {
+      p.coolAi = 40;
+      startShotCharge(p, true);
+      return;
+    }
+    if (p.coolAi === 0 && dist < THREE_PT_R * 0.85 && nearestDef > 26 && r.chance(0.015 + opp.shoot * 0.03)) {
+      p.coolAi = 40;
+      startShotCharge(p, false);
+      return;
+    }
+    if (p.coolAi === 0 && nearestDef < 22 && r.chance(0.3)) {
+      p.coolAi = 30;
+      startPass(p, io);
+      return;
+    }
+    const jukeD = nearestDef < 36 ? (p.d > 0.5 ? -1 : 1) : 0;
+    moveToward(p, hoopX + 28, clamp(0.5 + jukeD * 0.3, 0.08, 0.92), PLAYER_SPD_X * opp.speed);
+  }
+  function humanMove(p: Ply, inp: Input) {
+    let dx = 0,
+      dd = 0;
+    if (inp.held.left) dx -= 1;
+    if (inp.held.right) dx += 1;
+    if (inp.held.up) dd -= 1;
+    if (inp.held.down) dd += 1;
+    p.x = clamp(p.x + dx * PLAYER_SPD_X, COURT_L + 6, COURT_R - 6);
+    p.d = clamp(p.d + dd * PLAYER_SPD_D, 0, 1);
+    if (dx) p.facing = dx > 0 ? 1 : -1;
+    if (dx || dd) p.animT += 0.18;
+    else p.animT = 0;
+  }
+  function controlledKid(): Ply {
+    if (ball.holder && ball.holder.team === 0 && ball.mode === "held") return ball.holder;
+    const bx = ball.holder ? ball.holder.x : ball.x;
+    const bd = ball.holder ? ball.holder.d : ball.d;
+    return worldDist(kid[0].x, kid[0].d, bx, bd) <= worldDist(kid[1].x, kid[1].d, bx, bd) ? kid[0] : kid[1];
+  }
+
+  // ── ball flight ──
+  function updatePass(io: IO) {
+    ball.t++;
+    const u = clamp(ball.t / ball.dur, 0, 1);
+    ball.x = lerp(ball.from.x, ball.to.x, u);
+    ball.d = lerp(ball.from.d, ball.to.d, u);
+    ball.z = Math.sin(Math.PI * u) * 14;
+    if (ball.t >= ball.dur) {
+      if (r.chance(ball.interceptChance)) {
+        const opps = ball.targetTeam === 0 ? cpu : kid;
+        const stealer = worldDist(opps[0].x, opps[0].d, ball.x, ball.d) <= worldDist(opps[1].x, opps[1].d, ball.x, ball.d) ? opps[0] : opps[1];
+        ball.holder = stealer;
+        ball.mode = "held";
+        shotClock = SHOT_CLOCK_MAX;
+        msg = "INTERCEPTED!";
+        msgT = 40;
+        io.sfx.play("hit");
+      } else {
+        ball.holder = ball.passTo;
+        ball.mode = "held";
+      }
+    }
+  }
+  function updateShotFlight(io: IO) {
+    ball.t++;
+    const u = clamp(ball.t / ball.dur, 0, 1);
+    ball.x = lerp(ball.from.x, ball.to.x, u);
+    ball.d = lerp(ball.from.d, ball.to.d, u);
+    const peak = ball.isDunk ? 42 : 74;
+    ball.z = Math.sin(Math.PI * u) * peak + 8;
+    if (ball.t >= ball.dur) {
+      if (ball.willMake) madeBasket(io);
+      else {
+        if (ball.targetTeam === 0) {
+          streak = 0;
+          onFire = false;
+        }
+        const defendingTeam: 0 | 1 = ball.targetTeam === 0 ? 1 : 0;
+        ball.reboundTeamFavor = r.chance(0.58) ? defendingTeam : ball.targetTeam;
+        ball.mode = "rebound";
+        ball.t = 0;
+        ball.dur = REBOUND_DUR;
+        msg = "OFF THE RIM!";
+        msgT = 30;
+        io.sfx.play("bounce");
+      }
+    }
+  }
+  function updateRebound(io: IO) {
+    ball.t++;
+    ball.z = Math.abs(Math.sin(ball.t * 0.5)) * Math.max(0, 16 - ball.t);
+    if (ball.t >= ball.dur) {
+      setPossession(ball.reboundTeamFavor);
+      msg = ball.reboundTeamFavor === 0 ? "KID BALL!" : "REBOUND";
+      msgT = 30;
+      void io;
+    }
+  }
+
+  function advanceQuarter() {
+    quarter++;
+    if (quarter > 4) {
+      if (kidScore === oppScore) kidScore++; // a tie goes the kid's way — the home crowd roars
+      state = "final";
+      stateT = 170;
+      return;
+    }
+    clock = QUARTER_FRAMES;
+    setPossession(quarter % 2 === 1 ? 0 : 1);
+    state = "play";
+  }
+  function enterFinal(io: IO) {
+    if (kidScore > oppScore) {
+      io.sfx.play("win");
+      msg = ti >= CPU_TEAMS.length - 1 ? "CHAMPIONS!" : `YOU BEAT ${opp.name}!`;
+      io.score(1000 * (ti + 1));
+    } else {
+      io.sfx.play("die");
+      msg = `${opp.name} WIN THE GAME`;
+    }
+    msgT = 170;
+  }
+  function afterFinal(io: IO) {
+    if (kidScore > oppScore) {
+      if (ti >= CPU_TEAMS.length - 1) {
+        state = "won";
+        io.win();
+      } else {
+        ti++;
+        newMatch();
+      }
+    } else {
+      state = "lost";
+      io.gameOver();
+    }
+  }
+
+  let finalAnnounced = false;
+
+  return {
+    update(io: IO) {
+      frame++;
+      if (shake > 0) shake--;
+      if (msgT > 0) msgT--;
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.x += s.vx;
+        s.y += s.vy;
+        s.vy += 0.12;
+        if (--s.life <= 0) sparks.splice(i, 1);
+      }
+
+      if (state === "intro") {
+        stateT--;
+        if (stateT <= 0) state = "play";
+        return;
+      }
+      if (state === "qend") {
+        stateT--;
+        if (stateT <= 0) advanceQuarter();
+        return;
+      }
+      if (state === "final") {
+        if (!finalAnnounced) {
+          finalAnnounced = true;
+          enterFinal(io);
+        }
+        stateT--;
+        if (stateT <= 0) {
+          finalAnnounced = false;
+          afterFinal(io);
+        }
+        return;
+      }
+      if (state === "won" || state === "lost") return;
+
+      // ── live quarter ──
+      clock--;
+      if (ball.mode === "held") shotClock--;
+      if (clock <= 0) {
+        state = "qend";
+        stateT = 80;
+        msg = quarter <= 4 ? `END OF Q${quarter}` : "END OF OT";
+        msgT = 80;
+        return;
+      }
+      if (ball.mode === "held" && shotClock <= 0 && ball.holder) {
+        const t = ball.holder.team;
+        msg = "SHOT CLOCK!";
+        msgT = 40;
+        setPossession(t === 0 ? 1 : 0);
+      }
+
+      const inp = io.input;
+      const human = controlledKid();
+      const humanReleased = prevHeldA && !inp.held.a;
+      let offenseTeam: 0 | 1 | null = null;
+      if (ball.mode === "held" && ball.holder) offenseTeam = ball.holder.team;
+      else if (ball.mode === "pass" || ball.mode === "shotFlight") offenseTeam = ball.targetTeam;
+
+      for (const p of players) {
+        if (p.state === "jump" || p.state === "dunk") {
+          updateShotAnim(p, io, p === human, humanReleased);
+          continue;
+        }
+        const amOffense = offenseTeam !== null && offenseTeam === p.team;
+        if (p === human) {
+          if (ball.holder === p && ball.mode === "held") {
+            if (inp.pressed.a) {
+              const hoopX = p.team === 0 ? COURT_R : COURT_L;
+              startShotCharge(p, worldDist(p.x, p.d, hoopX, 0.5) < DUNK_RANGE);
+            } else if (inp.pressed.b) startPass(p, io);
+            else humanMove(p, inp);
+          } else {
+            humanMove(p, inp);
+            if (!amOffense && inp.pressed.b) attemptSteal(p, io);
+          }
+        } else if (p.team === 0) {
+          if (amOffense) offSupportAI(p);
+          else {
+            defendAI(p);
+            if (r.chance(0.01)) attemptSteal(p, io);
+          }
+        } else {
+          if (ball.holder === p && ball.mode === "held") cpuBallHandlerAI(p, io);
+          else if (amOffense) offSupportAI(p);
+          else {
+            defendAI(p);
+            if (ball.holder && ball.holder.team === 0 && r.chance(0.015 * opp.defend)) attemptSteal(p, io);
+          }
+        }
+        if (p.coolSteal > 0) p.coolSteal--;
+      }
+
+      if (ball.mode === "pass") updatePass(io);
+      else if (ball.mode === "shotFlight") updateShotFlight(io);
+      else if (ball.mode === "rebound") updateRebound(io);
+      else if (ball.holder) {
+        ball.x = ball.holder.x;
+        ball.d = ball.holder.d;
+        ball.z = ball.holder.z;
+      }
+
+      prevHeldA = inp.held.a;
+    },
+
+    draw(g: Gfx) {
+      const camX = clamp(ball.x - W / 2, 0, WORLD_W - W);
+      const sx = shake > 0 ? (frame % 2 ? 2 : -2) : 0;
+
+      g.clear("#17123a");
+      // crowd (background, parallax)
+      for (let row = 0; row < 2; row++) {
+        const y = 18 + row * 8;
+        for (let i = 0; i < 40; i++) {
+          const x = (((i * 14 - camX * 0.4) % 560) + 560) % 560;
+          g.rect(x, y, 6, 6, i % 3 === 0 ? PAL.purple : i % 3 === 1 ? PAL.pink : PAL.navy);
+        }
+      }
+      g.rect(0, 34, W, 6, PAL.dark);
+
+      g.camera(camX + sx, 0);
+      // court floor
+      g.rect(COURT_L - 10, D_TOP, COURT_R - COURT_L + 20, D_BOT - D_TOP, "#b5793a");
+      for (let i = 0; i < 10; i++) g.rect(COURT_L - 10 + i * ((COURT_R - COURT_L + 20) / 10), D_TOP, 1, D_BOT - D_TOP, "rgba(0,0,0,0.08)");
+      g.rect(COURT_L - 10, D_TOP, COURT_R - COURT_L + 20, 3, PAL.white);
+      g.rect(COURT_L - 10, D_BOT - 3, COURT_R - COURT_L + 20, 3, PAL.white);
+      const midX = (COURT_L + COURT_R) / 2;
+      g.rect(midX - 1, D_TOP, 2, D_BOT - D_TOP, PAL.white);
+      g.circle(midX, screenY(0.5), 18, "rgba(255,255,255,0.25)");
+      // key + 3pt arc at each hoop
+      for (const side of [-1, 1] as const) {
+        const hoopX = side > 0 ? COURT_R : COURT_L;
+        g.rect(side > 0 ? hoopX - 46 : hoopX, screenY(0.22), 46, screenY(0.78) - screenY(0.22), "rgba(255,255,255,0.14)");
+        // 3-point arc: a handful of line segments around the hoop
+        let prev: { x: number; y: number } | null = null;
+        for (let i = 0; i <= 16; i++) {
+          const t = i / 16;
+          const a = lerp(-1.15, 1.15, t);
+          const px = hoopX - side * Math.cos(a) * THREE_PT_R * 0.72;
+          const pd = clamp(0.5 + Math.sin(a) * 0.46, 0.04, 0.96);
+          const py = screenY(pd);
+          if (prev) g.line(prev.x, prev.y, px, py, "rgba(255,255,255,0.3)");
+          prev = { x: px, y: py };
+        }
+      }
+      // hoops — a big backboard, a wide orange rim and a net that swishes on a make
+      const justScored = msgT > 30 && (msg === "SWISH!" || msg === "SPLASH! 3PT!" || msg === "SLAM DUNK!");
+      const netWiggle = Math.sin(frame * 0.35) * (justScored ? 4 : 0.7);
+      for (const side of [-1, 1] as const) {
+        const hoopX = side > 0 ? COURT_R : COURT_L;
+        const sy = screenY(0.5);
+        const bbW = 24,
+          bbH = 28,
+          bbTop = sy - RIM_Z - bbH + 8;
+        // support pole, behind the board
+        g.rect(hoopX - 2, bbTop + bbH - 4, 4, 22, "#cfcfcf");
+        // backboard
+        g.rect(hoopX - bbW / 2, bbTop, bbW, bbH, "rgba(248,248,255,0.95)");
+        g.box(hoopX - bbW / 2, bbTop, bbW, bbH, "rgba(20,20,40,0.5)");
+        g.rect(hoopX - 7, bbTop + bbH - 12, 14, 9, PAL.red);
+        // rim
+        g.rect(hoopX - 12, sy - RIM_Z, 24, 4, PAL.orange);
+        g.box(hoopX - 12, sy - RIM_Z, 24, 4, "#a65a10");
+        // net: a few swaying strands
+        for (let i = -2; i <= 2; i++) g.line(hoopX - 10 + i * 5, sy - RIM_Z + 3, hoopX - 3 + i * 2.4 + netWiggle, sy - RIM_Z + 19, "rgba(255,255,255,0.85)");
+      }
+
+      const offenseTeam: 0 | 1 | null = ball.mode === "held" && ball.holder ? ball.holder.team : ball.mode === "pass" || ball.mode === "shotFlight" ? ball.targetTeam : null;
+      const human = controlledKid();
+      const kidBallish = (ball.holder && ball.holder.team === 0) || ((ball.mode === "pass" || ball.mode === "shotFlight") && ball.targetTeam === 0);
+
+      // players, drawn back-to-front by depth
+      const order = [...players].sort((a, b) => a.d - b.d);
+      for (const p of order) {
+        const sets = p.team === 0 ? KID_SPRITES : cpuSprites;
+        const defending = offenseTeam !== null && offenseTeam !== p.team;
+        let spr: Sprite;
+        if (p.state === "dunk") spr = sets.dunk;
+        else if (p.state === "jump") spr = sets.jump;
+        else if (defending && p.animT < 0.1) spr = sets.defend;
+        else spr = sets.run[Math.floor(p.animT) % 2];
+        const sy = screenY(p.d);
+        const pScale = playerScale(p.d);
+        const feetY = sy; // the player's shadow always sits on the floor, however high they've jumped
+        const topY = sy - p.z - PLAYER_ROWS * pScale;
+        // a small flat shadow under the feet — shrinks as the player jumps, never a big dark blob
+        const shrink = clamp(1 - p.z / 46, 0.35, 1);
+        const shW = 11 * pScale * shrink;
+        g.alpha(0.3);
+        g.rect(p.x - shW / 2, feetY - 1.5, shW, 3, "#000000");
+        g.alpha(1);
+        g.sprite(spr, p.x - 7 * pScale, topY, { flipX: p.facing < 0, scale: pScale });
+        if (p === human) {
+          const bob = Math.sin(frame * 0.2) * 2;
+          g.circle(p.x, topY - 5 + bob, 3, PAL.yellow);
+        }
+      }
+
+      // ball — small (~6-7px across) with its own flat shadow, never as big as a player
+      {
+        let bx = ball.x,
+          bd = ball.d,
+          bz = ball.z;
+        if (ball.mode === "held" && ball.holder) {
+          const holderScale = playerScale(ball.holder.d);
+          bx = ball.holder.x + ball.holder.facing * 7 * holderScale * 0.5;
+          bd = ball.holder.d;
+          bz = ball.holder.z + 10 * holderScale * 0.5 + (ball.holder.state === "run" ? Math.abs(Math.sin(ball.holder.animT * 2)) * 3 : 0);
+        }
+        const scale = depthScale(bd);
+        const ballR = 3.2 * scale;
+        const sy = screenY(bd) - bz;
+        g.alpha(0.3);
+        g.rect(bx - ballR, screenY(bd) - 1, ballR * 2, 2, "#000000");
+        g.alpha(1);
+        if (onFire && kidBallish) {
+          for (let i = 0; i < 3; i++) {
+            const fx = bx + Math.sin(frame * 0.5 + i) * 4;
+            const fy = sy - 2 - i * 3 + Math.cos(frame * 0.4 + i) * 2;
+            g.circle(fx, fy, (3 - i * 0.6) * scale, i % 2 ? PAL.yellow : PAL.orange);
+          }
+        }
+        g.circle(bx, sy, ballR, PAL.orange);
+        g.line(bx - ballR * 0.7, sy, bx + ballR * 0.7, sy, "#0d0b1a");
+        g.line(bx, sy - ballR * 0.7, bx, sy + ballR * 0.7, "#0d0b1a");
+      }
+      for (const s of sparks) g.circle(s.x, s.y, 2, s.c);
+
+      g.camera(0, 0);
+      // ── HUD / scoreboard ──
+      g.rect(0, 0, W, 34, "rgba(13,11,26,0.75)");
+      g.rect(0, 33, W, 1, PAL.dark);
+      g.text("BADGERS", 6, 3, KID_TEAM.jersey);
+      g.text(`${kidScore}`, 6, 13, PAL.white, { size: 2 });
+      g.text(opp.name, W - 6, 3, opp.jersey, { align: "right" });
+      g.text(`${oppScore}`, W - 6, 13, PAL.white, { align: "right", size: 2 });
+      g.text(quarter <= 4 ? `Q${quarter}` : "OT", W / 2, 3, PAL.grey, { align: "center" });
+      const secs = Math.max(0, Math.ceil(clock / 60));
+      g.text(`${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`, W / 2, 13, PAL.white, { align: "center" });
+      const shotSecs = Math.max(0, Math.ceil(shotClock / 60));
+      g.text(`${shotSecs}`, W / 2, 24, shotSecs <= 5 ? PAL.red : PAL.yellow, { align: "center" });
+      if (onFire) g.text("SUPER HOT!", W / 2, 38, frame % 20 < 10 ? PAL.orange : PAL.yellow, { align: "center" });
+
+      // timing ring for a human-controlled charging jump shot
+      if ((human.state === "jump" || human.state === "dunk") && !human.isDunkAttempt && !human.released) {
+        const bx = 10,
+          bw = W - 20,
+          by = H - 22;
+        g.rect(bx, by, bw, 6, "rgba(13,11,26,0.7)");
+        g.rect(bx + bw * 0.78, by, bw * 0.2, 6, "rgba(80,220,120,0.5)");
+        g.rect(bx + human.ringVal * (bw - 4), by, 4, 6, PAL.white);
+        g.text("RELEASE AT THE TOP!", W / 2, by - 10, PAL.white, { align: "center" });
+      }
+
+      if (msgT > 0 && state === "play") g.text(msg, W / 2, 48, PAL.white, { align: "center", size: 2 });
+
+      if (state === "intro") {
+        g.rect(30, 80, W - 60, 56, "rgba(13,11,26,0.85)");
+        g.text(`MATCH ${ti + 1} / ${CPU_TEAMS.length}`, W / 2, 90, PAL.yellow, { align: "center", size: 2 });
+        g.text(msg, W / 2, 112, opp.jersey, { align: "center" });
+        g.text("A: HOLD TO JUMP, RELEASE AT THE TOP", W / 2, 124, PAL.white, { align: "center" });
+      } else if (state === "qend") {
+        g.rect(40, 90, W - 80, 40, "rgba(13,11,26,0.85)");
+        g.text(msg, W / 2, 104, PAL.yellow, { align: "center", size: 2 });
+      } else if (state === "final") {
+        g.rect(20, 80, W - 40, 60, "rgba(13,11,26,0.9)");
+        g.text(msg, W / 2, 96, kidScore > oppScore ? PAL.lime : PAL.red, { align: "center", size: 2 });
+        g.text(`${kidScore} - ${oppScore}`, W / 2, 118, PAL.white, { align: "center", size: 2 });
+      } else if (state === "won") {
+        g.rect(20, 80, W - 40, 60, "rgba(13,11,26,0.9)");
+        g.text("CHAMPIONS!", W / 2, 100, PAL.yellow, { align: "center", size: 3 });
+      } else if (state === "lost") {
+        g.rect(20, 80, W - 40, 60, "rgba(13,11,26,0.9)");
+        g.text("GAME OVER", W / 2, 100, PAL.red, { align: "center", size: 3 });
+      } else if (state === "play" && ball.mode === "held" && ball.holder && ball.holder.team === 0 && ball.holder === human) {
+        g.text("A JUMP · B PASS", W / 2, H - 10, "rgba(255,255,255,0.6)", { align: "center" });
+      }
+    },
+  };
+}
+
+export const hoopJam: RetroGameDef = {
+  id: "hoop-jam",
+  title: "Hoop Jam",
+  blurb: "2-on-2 arcade hoops — get on fire and throw down flying dunks!",
+  genre: "Sports",
+  emoji: "🏀",
+  color: "#ff9a3c",
+  controls: "D-PAD move (▲▼ = step across the court) · hold A to jump, let go at the TOP for the best shot (auto DUNK up close!) · B pass on offence, steal/block on defence · win 4 quarters to face a tougher team, beat all 3 to win it all",
+  pad: { dpad: "4", a: "Shoot", b: "Pass/Steal" },
+  create,
+};

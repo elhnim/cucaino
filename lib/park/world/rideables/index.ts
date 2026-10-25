@@ -49,6 +49,10 @@ export interface Rideables {
   parkedNear(kid: THREE.Vector3, kind: MountKind, r: number): string | null;
   /** a manta has just come gliding up to a diving kid (true once per visit; clears itself) */
   takeMantaArrival(): boolean;
+  /** the kid calls a sea friend: a manta (diving in deep water) or a dolphin (swimming out at sea).
+   *  "coming" = it sets off now (the same arrival as when one comes by itself), "already" = one is
+   *  already on its way or waiting, "none" = it can't come right now */
+  callSea(kind: "manta" | "dolphin"): "coming" | "already" | "none";
   /** where the rides kids can find are, for the map */
   pins(): RidePin[];
   /** the dragon "Say hi" / "Fly" is for right now (a glowing ring at its feet and a bobbing arrow over it), or null */
@@ -59,7 +63,7 @@ export interface Rideables {
    *  subs, and the sea friends at the surface (refilled every update; read-only) */
   seaBodies(): readonly SeaBody[];
   /** (tests / smoke harness) where a ride is and what it's doing */
-  peek(id: string): { state: "idle" | "taken" | "away" | "coming" | "waiting" | "leaving"; x: number; y: number; z: number; yaw: number; act?: DragonAct; bonded?: boolean } | null;
+  peek(id: string): { state: "idle" | "taken" | "away" | "coming" | "waiting" | "leaving"; x: number; y: number; z: number; yaw: number; act?: DragonAct; bonded?: boolean; breed?: DragonBreed } | null;
   /** the kid hops on: hide it from the world (the engine builds a MountRig) */
   take(id: string): void;
   /** the kid hops off: leave it where they got off, facing yaw (bikes/cars/unicorns stay; dragons stay; mantas/whales/dolphins swim off and later respawn) */
@@ -1278,6 +1282,19 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       return a;
     },
 
+    callSea(kind) {
+      const r = kind === "manta" ? visitor : dolphin;
+      if (!r) return "none";
+      if (r.state === COMING || r.state === WAITING) return "already";
+      if (r.state === TAKEN) return "none";
+      // (one swimming off: it turns round and comes straight back)
+      if (r.state === LEAVING || r.state === IDLE) r.state = AWAY;
+      r.timer = 0;
+      // the manta comes once the kid has dived long enough: they called, so that's now
+      if (kind === "manta") diveT = Math.max(diveT, diveNeed);
+      return "coming";
+    },
+
     pins() {
       return ridePins();
     },
@@ -1295,7 +1312,7 @@ export function buildRideables(scene: THREE.Scene, opts: { lowQuality?: boolean 
       const r = byId.get(id);
       if (!r) return null;
       const states = ["idle", "taken", "away", "coming", "waiting", "leaving"] as const;
-      return { state: states[r.state], x: r.x, y: r.y, z: r.z, yaw: r.yaw, act: r.drv ? r.act : undefined, bonded: r.drv ? r.bonded : undefined };
+      return { state: states[r.state], x: r.x, y: r.y, z: r.z, yaw: r.yaw, act: r.drv ? r.act : undefined, bonded: r.drv ? r.bonded : undefined, breed: r.breed };
     },
 
     take(id) {

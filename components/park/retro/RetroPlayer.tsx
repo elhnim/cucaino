@@ -2,10 +2,11 @@
 
 // Runs one retro game: a pixel-perfect 256x224 screen, a fixed 60 fps loop, keyboard + touch
 // D-pad / A / B controls, and the title -> play -> pause -> game over flow with best scores.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { H, W, emptyInput, type Button, type GameInstance, type IO, type Input, type RetroGameDef } from "@/lib/retro/engine";
 import { canvasGfx, webAudioSfx } from "@/lib/retro/canvas";
 import { getMuted } from "@/lib/audio/sound-manager";
+import { composeTune } from "@/lib/retro/music";
 import { FONT } from "../ui/theme";
 
 type Phase = "title" | "play" | "paused" | "over" | "won";
@@ -77,6 +78,20 @@ export function RetroPlayer({
   const pointerRef = useRef<{ x: number; y: number; down: boolean } | null>(null);
   const scoreRef = useRef(0);
   const sfx = useRef<ReturnType<typeof webAudioSfx> | null>(null);
+  // background music: this game's own chiptune (lib/retro/music.ts), playing while a round is on;
+  // a kid can switch it off (remembered on this device)
+  const tune = useMemo(() => composeTune(game), [game]);
+  const [musicOn, setMusicOn] = useState(true);
+  useEffect(() => {
+    try {
+      setMusicOn(window.localStorage.getItem("cucaino.retro.music") !== "off");
+    } catch {
+      /* storage blocked: music stays on */
+    }
+  }, []);
+  useEffect(() => {
+    sfx.current?.music(musicOn && phase === "play" ? tune : null);
+  }, [musicOn, phase, tune]);
 
   useEffect(() => setBest(readBest(kidId, game.id)), [kidId, game.id]);
 
@@ -260,6 +275,30 @@ export function RetroPlayer({
     return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
   };
 
+  // the pad's size follows the screen: as big as fits beside the other buttons (it used to be a
+  // fixed 156 px D-pad and 82/66 px buttons, small on a phone with room to spare)
+  const [pad, setPad] = useState({ d: 156, a: 86, b: 72 });
+  useEffect(() => {
+    const fit = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const clampN = (v: number, lo: number, hi: number) => Math.round(Math.max(lo, Math.min(hi, v)));
+      if (w > h && w >= 700) {
+        // landscape: the pad sits either side of the screen
+        const a = clampN(h * 0.2, 80, 112);
+        setPad({ d: clampN(h * 0.36, 150, 196), a, b: Math.round(a * 0.86) });
+      } else {
+        // (D-pad + the staggered A/B pair must fit side by side: d + a + 0.92 b <= avail)
+        const avail = Math.min(w, 720) - 26;
+        const a = clampN(avail * 0.27, 82, 124);
+        setPad({ d: clampN(avail * 0.48, 150, 236), a, b: Math.round(a * 0.86) });
+      }
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
+
   const press = (b: Button, on: boolean) => {
     if (on && !held.current[b]) latched.current[b] = true;
     held.current[b] = on;
@@ -323,14 +362,45 @@ export function RetroPlayer({
           )}
         </div>
 
-        <div className="retro-hint" style={{ color: "#cfd2e6", fontSize: 14, fontWeight: 800, textAlign: "center", padding: "0 12px" }}>
-          {game.controls}
+        <div className="retro-hint" style={{ color: "#cfd2e6", fontSize: 14, fontWeight: 800, textAlign: "center", padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+          <span>{game.controls}</span>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !musicOn;
+              setMusicOn(next);
+              sfx.current?.resume();
+              try {
+                window.localStorage.setItem("cucaino.retro.music", next ? "on" : "off");
+              } catch {
+                /* not remembered */
+              }
+            }}
+            aria-label={musicOn ? "Turn the music off" : "Turn the music on"}
+            style={{ border: "1px solid #4a4e6a", borderRadius: 999, padding: "4px 10px", background: musicOn ? "#2d2a4d" : "transparent", color: musicOn ? "#5ef2ff" : "#9aa0b8", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+          >
+            {musicOn ? "🎵 Music on" : "🔇 Music off"}
+          </button>
         </div>
         <div className="retro-pad" style={padRow}>
-          {game.pad.dpad !== "none" ? <DPad mode={game.pad.dpad} press={press} /> : <div />}
-          <div style={{ display: "flex", gap: 14, alignItems: "flex-end" }}>
-            {game.pad.b && <PadButton label="B" hint={game.pad.b} color="#ff6fcf" onChange={(on) => press("b", on)} />}
-            {game.pad.a && <PadButton label="A" hint={game.pad.a} color="#ffe14d" onChange={(on) => press("a", on)} big />}
+          {/* ONE pad for every game, like a real console: the full 4-way D-pad and both A and B are
+              always there, wherever they sit and whatever the game uses (a button a game doesn't
+              use just does nothing in it) */}
+          <DPad
+            size={pad.d}
+            press={press}
+            // a left/right game: ▲ is A (jump / shoot / launch) and ▼ is B, because that's what
+            // every kid tries first
+            alias={game.pad.dpad === "lr" ? { up: game.pad.a ? "a" : undefined, down: game.pad.b ? "b" : undefined } : undefined}
+          />
+          {/* A and B staggered like a SNES pad (B up and to the left of A): big thumb targets that still fit beside the D-pad */}
+          <div style={{ position: "relative", width: pad.a + pad.b * 0.92, height: pad.a + pad.b * 0.55 + 18, flexShrink: 0 }}>
+            <div style={{ position: "absolute", left: 0, top: 0 }}>
+              <PadButton label="B" hint={game.pad.b ?? ""} color="#ff6fcf" size={pad.b} onChange={(on) => press("b", on)} />
+            </div>
+            <div style={{ position: "absolute", right: 0, bottom: 0 }}>
+              <PadButton label="A" hint={game.pad.a ?? ""} color="#ffe14d" size={pad.a} onChange={(on) => press("a", on)} />
+            </div>
           </div>
         </div>
       </div>
@@ -346,7 +416,8 @@ export function RetroPlayer({
   );
 }
 
-function DPad({ mode, press }: { mode: "4" | "lr" | "ud"; press: (b: Button, on: boolean) => void }) {
+function DPad({ press, alias, size = 156 }: { press: (b: Button, on: boolean) => void; alias?: { up?: Button; down?: Button }; size?: number }) {
+  const u = size / 3; // one arm
   // one touch surface: the finger's angle from the centre picks the direction(s), so sliding works
   const ref = useRef<HTMLDivElement | null>(null);
   const [dir, setDir] = useState<Record<string, boolean>>({});
@@ -357,30 +428,30 @@ function DPad({ mode, press }: { mode: "4" | "lr" | "ud"; press: (b: Button, on:
       const dx = e.clientX - (r.left + r.width / 2);
       const dy = e.clientY - (r.top + r.height / 2);
       const dead = r.width * 0.12;
-      if (mode !== "ud") {
-        if (dx < -dead) next.left = true;
-        if (dx > dead) next.right = true;
-      }
-      if (mode !== "lr") {
-        if (dy < -dead) next.up = true;
-        if (dy > dead) next.down = true;
-      }
-      // mostly-horizontal drags shouldn't also trigger up/down
-      if (mode === "4" && Math.abs(dx) > Math.abs(dy) * 2) next.up = next.down = false;
-      if (mode === "4" && Math.abs(dy) > Math.abs(dx) * 2) next.left = next.right = false;
+      if (dx < -dead) next.left = true;
+      if (dx > dead) next.right = true;
+      if (dy < -dead) next.up = true;
+      if (dy > dead) next.down = true;
+      // mostly-horizontal drags shouldn't also trigger up/down (and the other way round)
+      if (Math.abs(dx) > Math.abs(dy) * 2) next.up = next.down = false;
+      if (Math.abs(dy) > Math.abs(dx) * 2) next.left = next.right = false;
     }
-    (Object.keys(next) as Button[]).forEach((k) => press(k, next[k as keyof typeof next]));
+    press("left", next.left);
+    press("right", next.right);
+    // on a left/right game the ▲ / ▼ arms stand in for the A / B buttons (when it has them)
+    press(alias?.up ?? "up", next.up);
+    press(alias?.down ?? "down", next.down);
     setDir(next);
   };
   const arm = (d: string, style: React.CSSProperties, glyph: string) => (
-    <div style={{ position: "absolute", ...style, width: 52, height: 52, borderRadius: 12, background: dir[d] ? "#5ef2ff" : "#2d2a4d", color: dir[d] ? "#0d0b1a" : "#9aa0b8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 900, boxShadow: "0 4px 0 #120f24" }}>
+    <div style={{ position: "absolute", ...style, width: u, height: u, borderRadius: u * 0.24, background: dir[d] ? "#5ef2ff" : "#2d2a4d", color: dir[d] ? "#0d0b1a" : "#9aa0b8", display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.round(u * 0.4), fontWeight: 900, boxShadow: "0 4px 0 #120f24" }}>
       {glyph}
     </div>
   );
   return (
     <div
       ref={ref}
-      style={{ position: "relative", width: 156, height: 156, touchAction: "none", flexShrink: 0 }}
+      style={{ position: "relative", width: size, height: size, touchAction: "none", flexShrink: 0 }}
       onPointerDown={(e) => {
         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
         apply(e);
@@ -390,18 +461,18 @@ function DPad({ mode, press }: { mode: "4" | "lr" | "ud"; press: (b: Button, on:
       onPointerCancel={() => apply(null)}
       aria-label="Direction pad"
     >
-      {mode !== "ud" && arm("left", { left: 0, top: 52 }, "◀")}
-      {mode !== "ud" && arm("right", { right: 0, top: 52 }, "▶")}
-      {mode !== "lr" && arm("up", { left: 52, top: 0 }, "▲")}
-      {mode !== "lr" && arm("down", { left: 52, bottom: 0 }, "▼")}
-      <div style={{ position: "absolute", left: 52, top: 52, width: 52, height: 52, background: "#2d2a4d", borderRadius: 8 }} />
+      {arm("left", { left: 0, top: u }, "◀")}
+      {arm("right", { right: 0, top: u }, "▶")}
+      {arm("up", { left: u, top: 0 }, "▲")}
+      {arm("down", { left: u, bottom: 0 }, "▼")}
+      <div style={{ position: "absolute", left: u, top: u, width: u, height: u, background: "#2d2a4d", borderRadius: u * 0.16 }} />
     </div>
   );
 }
 
-function PadButton({ label, hint, color, big, onChange }: { label: string; hint: string; color: string; big?: boolean; onChange: (on: boolean) => void }) {
+function PadButton({ label, hint, color, size, onChange }: { label: string; hint: string; color: string; size: number; onChange: (on: boolean) => void }) {
   const [on, setOn] = useState(false);
-  const size = big ? 82 : 66;
+  const big = size >= 90;
   const set = (v: boolean) => {
     setOn(v);
     onChange(v);
@@ -411,7 +482,7 @@ function PadButton({ label, hint, color, big, onChange }: { label: string; hint:
       <div
         role="button"
         aria-label={`${label}: ${hint}`}
-        style={{ width: size, height: size, borderRadius: 999, background: color, opacity: on ? 1 : 0.88, transform: on ? "translateY(3px)" : undefined, boxShadow: on ? "0 1px 0 rgba(0,0,0,0.4)" : "0 5px 0 rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: big ? 30 : 24, color: "#0d0b1a", touchAction: "none", userSelect: "none" }}
+        style={{ width: size, height: size, borderRadius: 999, background: color, opacity: on ? 1 : 0.88, transform: on ? "translateY(3px)" : undefined, boxShadow: on ? "0 1px 0 rgba(0,0,0,0.4)" : "0 5px 0 rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: Math.round(size * 0.36), color: "#0d0b1a", touchAction: "none", userSelect: "none" }}
         onPointerDown={(e) => {
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
           set(true);
@@ -422,7 +493,7 @@ function PadButton({ label, hint, color, big, onChange }: { label: string; hint:
       >
         {label}
       </div>
-      <div style={{ color: "#9aa0b8", fontSize: 11, fontWeight: 800 }}>{hint}</div>
+      <div style={{ color: "#9aa0b8", fontSize: big ? 13 : 11, fontWeight: 800 }}>{hint}</div>
     </div>
   );
 }
@@ -449,4 +520,4 @@ const screenWrap: React.CSSProperties = { position: "relative", width: "min(100%
 const screen: React.CSSProperties = { width: "100%", height: "100%", imageRendering: "pixelated", borderRadius: 10, boxShadow: "0 0 0 4px #2d2a4d, 0 0 40px rgba(154,92,255,0.45)", touchAction: "none", background: "#0d0b1a", display: "block" };
 const overlay: React.CSSProperties = { position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "rgba(13,11,26,0.78)", borderRadius: 10, textAlign: "center", padding: 12 };
 const bigBtn: React.CSSProperties = { minHeight: 48, border: "1.5px solid #fff0b8", borderRadius: 12, padding: "0 16px", fontFamily: FONT.display, fontWeight: 400, letterSpacing: 0.4, fontSize: 16, color: "#2a1a00", background: "linear-gradient(#ffe9a8, #ffd36b 50%, #e89a1c)", boxShadow: "0 3px 0 #9a5c00, 0 6px 12px rgba(0,0,0,0.4)", cursor: "pointer" };
-const padRow: React.CSSProperties = { width: "100%", maxWidth: 720, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 14px max(14px, env(safe-area-inset-bottom))", gap: 8 };
+const padRow: React.CSSProperties = { boxSizing: "border-box", width: "100%", maxWidth: 720, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px max(14px, env(safe-area-inset-bottom))", gap: 6 };

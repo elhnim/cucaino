@@ -15,6 +15,7 @@ import { RAIL_POINTS, STATIONS, railIndexAt } from "./railway";
 import { DREAM_ZONE } from "../builder/rules";
 import { SETTLEMENTS, settlePadHeight } from "./settlements";
 import { paricutinY } from "./paricutin";
+import { gizaGroundY } from "./giza";
 import { CANYON_FOOTPATH, canyonPlateauRaise, grandCanyonGroundY, nearGrandCanyon } from "./grandCanyon";
 import { ROAD_SEGMENTS, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROAD_BED_INNER, ROAD_BED_OUTER, ROUNDABOUT_OUTER, densifyRoad, roadCentreDist } from "./roads";
 import { CART_ROAD } from "./cartRoad";
@@ -353,6 +354,11 @@ function finish(x: number, z: number, h: number): number {
   // findGrandCanyonSite keeps it clear of everything else with a wide margin)
   const gc = grandCanyonGroundY(x, z, h);
   if (gc !== null) h = gc;
+  // the Giza Plateau: the pyramids' limestone shelf, falling away south-east to the Sphinx's pit
+  // (registry/giza.ts) — a replacement too, blending back to the land round its own box
+  // (the Giza road's own levelled bed wins right under it, as at the Batoka Gorge's foot)
+  const gz = gizaGroundY(x, z, h);
+  if (gz !== null) h += (gz - h) * smooth(ROAD_BED_INNER, ROAD_BED_OUTER + 8, roadCentreDist(x, z));
   if (inland > 0) {
     const d = bed === null ? 9 : waterSdf(x, z);
     const floor = WATER_Y + 0.35 + 0.04 * Math.min(Math.max(d, 0), 6);

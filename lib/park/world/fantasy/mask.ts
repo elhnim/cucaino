@@ -21,6 +21,7 @@ import { kartTrackWorld } from "../../registry/kartTrack";
 import { TRACK_WIDTH } from "../../karts/track";
 import { canyonDesertK, CANYON_FOOTPATH } from "../../registry/grandCanyon";
 import { paricutinFootprintWeight } from "../../registry/paricutin";
+import { gizaDesertK } from "../../registry/giza";
 import { ROAD_SEGMENTS, ROAD_HALF, TUNNELS, CAR_PARKS, ROAD_JUNCTIONS, ROUNDABOUT_INNER, ROUNDABOUT_OUTER } from "../../registry/roads";
 
 /** The mask's pixel grid: pixel (i, j) covers x from -MASK_HALF + i * px (and z likewise) — for
@@ -47,6 +48,7 @@ export function terrainGrassFactor(x: number, z: number, h: number, slope: numbe
   v *= 1 - smoothstep(30, 44, h); // thin out towards the peaks
   v *= 1 - canyonDesertK(x, z); // the Grand Canyon's own footprint: dry desert, no grass at all
   v *= 1 - paricutinFootprintWeight(x, z); // Parícutin's own footprint: bare cinder/lava, no grass
+  v *= 1 - gizaDesertK(x, z); // the Giza Plateau: bare desert sand
   return v;
 }
 

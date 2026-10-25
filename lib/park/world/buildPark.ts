@@ -55,6 +55,8 @@ import { buildEverestDecor } from "./everestDecor";
 import { buildEverestClimbDecor } from "./everestClimbDecor";
 import { buildParicutinDecor } from "./paricutinDecor";
 import { buildGrandCanyonDecor } from "./grandCanyonDecor";
+import { buildGizaDecor } from "./gizaDecor";
+import { GIZA_CENTRE } from "../registry/giza";
 import { CANYON_OPEN, CANYON_SITE } from "../registry/grandCanyon";
 import { EVEREST_PEAK } from "../registry/landform";
 import { PARICUTIN_CONE } from "../registry/paricutin";
@@ -722,6 +724,10 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
   // Grand-Canyon-local colour override
   const grandCanyonDecor = CANYON_OPEN ? lazyNear(CANYON_SITE, 1200, () => buildGrandCanyonDecor(scene)) : null;
   if (grandCanyonDecor) disposables.push(grandCanyonDecor);
+  // the Giza Plateau's pyramids, Sphinx, temples and tombs (registry/giza.ts) — the plateau's own
+  // ground is the ordinary terrain (gizaGroundY); this is everything standing on it
+  const gizaDecor = lazyNear(GIZA_CENTRE, 1500, () => buildGizaDecor(scene));
+  disposables.push(gizaDecor);
   // the island's road network (Agent R, registry/roads.ts): the long ribbon streams in round the
   // kid like the railway track; the bridges, tunnels, car parks and junction signs are built once
   // (there are only a couple of dozen of them)
@@ -897,6 +903,7 @@ export async function buildPark(scene: THREE.Scene, assets: ParkAssets, opts: { 
       everestClimbDecor.update(dt, t, { kid: focus ?? origin0 });
       paricutinDecor.near(focus ?? origin0)?.update(dt, t, atmosphere.glow, focus ?? origin0);
       grandCanyonDecor?.near(focus ?? origin0)?.update(dt, t);
+      gizaDecor.near(focus ?? origin0)?.update(dt, t);
       for (const b of skyBuildings) b.update(dt, t, atmosphere.glow);
       for (const sp of skyPlaces) {
         const top = skyTopY(sp.x, sp.z, t);

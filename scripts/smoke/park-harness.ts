@@ -16,7 +16,15 @@ const world = new ParkWorld(document.getElementById("app")!, {
   // ?hour=21 to see the glowing twilight, ?hour=12 for day
   hour: q.get("hour") ? () => Number(q.get("hour")) : undefined,
   onPlace: (p) => console.log("[park] place", p.id),
-  onReady: () => console.log("[park] ready"),
+  onReady: () => {
+    console.log("[park] ready");
+    // ?at=x,z[,facing] drops the kid straight there (e.g. the Grand Canyon's rim) for a screenshot
+    const at = q.get("at");
+    if (at) {
+      const [x, z, f] = at.split(",").map(Number);
+      if (Number.isFinite(x) && Number.isFinite(z)) world.placeKidAt(x, z, Number.isFinite(f) ? f : undefined);
+    }
+  },
   onError: (e) => console.log("[park] error", String(e)),
 });
 (window as unknown as Record<string, unknown>).__park = world;

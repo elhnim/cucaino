@@ -300,6 +300,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
   const slideHinted = useRef({ start: false, splash: false });
   // a ride waiting close by (you find rides round the world now — no summoning)
   const [hopTarget, setHopTarget] = useState<{ kind: MountKind; label: string } | null>(null);
+  // calling a dragon friend to come and pick the kid up: "ready" (on foot, can call), "coming", or null
+  const [dragonCall, setDragonCall] = useState<"ready" | "coming" | null>(null);
+  // calling a sea friend while swimming: a manta under the water, a dolphin out at sea
+  const [seaCall, setSeaCall] = useState<"manta" | "dolphin" | "shallow" | null>(null);
   const skyKey = `cucaino.skychests.${kidId}`;
   const [skyFound, setSkyFound] = useState<string[]>([]);
   // discoveries on the floating mountains (caves, nests, rune circles, telescopes …)
@@ -984,6 +988,10 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
       setRiding((cur) => (cur?.kind === r?.kind && cur?.flying === r?.flying && cur?.landing === r?.landing ? cur : r));
       const ht = worldRef.current?.hopTarget ?? null;
       setHopTarget((cur) => (cur?.label === ht?.label && cur?.kind === ht?.kind ? cur : ht));
+      const dc = worldRef.current?.dragonComing ? "coming" : worldRef.current?.canCallDragon ? "ready" : null;
+      setDragonCall((cur) => (cur === dc ? cur : dc));
+      const sc = worldRef.current?.seaCall ?? null;
+      setSeaCall((cur) => (cur === sc ? cur : sc));
       const so = worldRef.current?.slideOffer ?? null;
       setSlideOffer((cur) => (cur === so ? cur : so));
       const ao = worldRef.current?.activityOffer ?? null;
@@ -1560,6 +1568,55 @@ export default function ParkApp({ data }: { data: ParkInitialData }) {
               aria-label={`Get off at ${railStop.name}`}
             >
               {`Get off: ${railStop.emoji} ${railStop.name}`}
+            </RoundButton>
+          )}
+          {seaCall && !riding && !hopTarget && (
+            <RoundButton
+              size={62}
+              active={seaCall !== "shallow"}
+              style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 84, borderRadius: 20 }}
+              onClick={() => {
+                const r = worldRef.current?.callSeaFriend();
+                if (!r) return;
+                if (r.ok) {
+                  playSfx("sparkle");
+                  toast(r.kind === "manta" ? "🐟 A manta ray heard you! Stay down here, it's gliding over" : "🐬 A dolphin heard you! Wait here, it's swimming over");
+                } else if (r.why === "shallow") {
+                  toast("🌊 Swim out further! Mantas come to deep water when you dive, and dolphins come out at sea");
+                } else if (r.why === "already") {
+                  toast("🐬 Your sea friend is already on the way. Look around!");
+                } else {
+                  toast("🌊 No sea friend can come right now. Try again in a moment!");
+                }
+              }}
+              aria-label={seaCall === "dolphin" ? "Call a dolphin" : "Call a manta ray"}
+            >
+              {seaCall === "dolphin" ? "🐬 Call dolphin" : "🐟 Call manta"}
+            </RoundButton>
+          )}
+          {dragonCall && !riding && !hopTarget && (
+            <RoundButton
+              size={62}
+              active={dragonCall === "ready"}
+              style={{ fontSize: 13, lineHeight: 1.05, textAlign: "center", width: 84, borderRadius: 20 }}
+              onClick={() => {
+                if (dragonCall !== "ready") return;
+                const r = worldRef.current?.callDragon(theme.accent, skin);
+                if (!r) return;
+                if (r.ok) {
+                  playSfx("sparkle");
+                  toast(`🐉 ${r.name} heard you! Stay there, it's flying over to pick you up`);
+                } else if (r.why === "no-friend") {
+                  toast("🐉 Make friends with a dragon first! Walk up to one slowly and say hi. There's one at the Dragon Roost and at every Wildlands station");
+                } else if (r.why === "here") {
+                  toast("🐉 Your dragon friend is right here! Walk up to it and tap Fly");
+                } else {
+                  toast("🐉 Your dragon friends are all busy right now. Try again in a moment!");
+                }
+              }}
+              aria-label={dragonCall === "coming" ? "Your dragon is coming" : "Call your dragon"}
+            >
+              {dragonCall === "coming" ? "🐉 Coming…" : "🐉 Call dragon"}
             </RoundButton>
           )}
           {(riding || hopTarget) && (

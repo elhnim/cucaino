@@ -43,9 +43,12 @@ import { createDragonFlight, type DragonFlight } from "../world/rideables/dragon
 import { hintsReady } from "../world/rideables/dragonSpace";
 import { bigFrame, forEachBigSea, setOccluderFocus, type BigBody } from "../world/sea/bigSea";
 import { RIDEABLE_SPOTS } from "../registry/rideables";
+/** every dragon on the island (a kid friends with one is friends with them all) */
+const ALL_DRAGON_IDS: string[] = RIDEABLE_SPOTS.filter((s) => s.kind === "dragon").map((s) => s.id);
 import { DRAGON_BREEDS, type DragonBreed } from "../characters/mounts";
 import { groundY, WATER_Y, wrapWorld } from "../registry/terrain";
 import { seaDist } from "../registry/island";
+import { MANTA_CALL } from "../world/rideables/plan";
 import { stationAt, type Station } from "../registry/railway";
 import { findWalkPath, pushOutOfThicket, thicketSdf, underCanopy } from "../registry/jungle";
 import { waterSdf } from "../registry/waterways";
@@ -53,11 +56,12 @@ import { VILLAGE_ISLAND } from "../registry/villageIsland";
 import { settlementAt, settlementDeckY } from "../registry/settlements";
 import { wonderAt, wonderSignAt, type WonderDef } from "../registry/wonders";
 import { wildBridgeDeckY } from "../registry/wildWater";
-import { roadConfine, roadDeckY, inWildlandsZone, carRoadBound, tunnelCeilingAt, levelCrossingBlocks } from "../registry/roads";
+import { roadConfine, roadDeckY, inWildlandsZone, carRoadBound, tunnelCeilingAt, levelCrossingBlocks, laneAssist } from "../registry/roads";
 import { FLY_LAND_R } from "../map/tripMachine";
 import { CAROUSEL, CAROUSEL_RIDE_TURNS } from "../registry/carousel";
 import { newPetBrain, stepPetBrain, type PetBrain } from "../pet/followBrain";
-import { canyonVisualFloorY, canyonWalkY, grandCanyonDeckY, nearGrandCanyon } from "../registry/grandCanyon";
+import { canyonVisualFloorY, grandCanyonDeckY, inCanyonGorge, nearGrandCanyon } from "../registry/grandCanyon";
+import { inGizaSolid } from "../registry/giza";
 import { rawHeight } from "../registry/landform";
 import { climbRouteById, type ClimbRouteDef } from "../registry/climbRoutes";
 import { FROST_ISLAND } from "../registry/frostIsland";
@@ -1382,6 +1386,17 @@ export class ParkWorld {
       const sp = WALK_SPEED * (caps ? caps.speed * (this.autoFly ? 2.6 : 1) : swimming ? (this.swimDepth > 0.6 ? 1.05 : 0.8) : this.routing && this.walkTarget ? 1.6 : 1);
       const px = pos.x;
       const pz = pos.z;
+      // Lane-keeping for a car on the open road: the stick says "forward" or "back" far more
+      // often than an exact compass heading, and the camera swings as the road curves, so a kid
+      // could never hold the line — every slightly-off push scraped the car along the kerb. When
+      // the stick points roughly along the road, the car follows the road's own heading and eases
+      // back toward the middle; a clearly sideways push still wins (turning off, U-turns), and
+      // roundabouts and car parks keep the plain controls.
+      if (caps && this.mount!.kind === "car" && carRoadBound(pos.x, pos.z)) {
+        const a = laneAssist(pos.x, pos.z, vx, vz);
+        vx = a.vx;
+        vz = a.vz;
+      }
       pos.x += vx * sp * dt;
       pos.z += vz * sp * dt;
       // every ride keeps to its element: bikes, buggies and unicorns stop at the shore, mantas stay
@@ -1553,12 +1568,18 @@ export class ParkWorld {
     // the Grand Canyon's cliffs are walls: on foot (or on a land mount) a step that would change
     // height by more than a real step — up a sheer face, or off a ledge — isn't taken; the kid slides
     // along the foot or the edge instead and goes up and down by the trail's ramps
-    if (!this.climb && !this.onSky && !this.gliding && !aloft && !this.mount?.flies) {
+    // (a SLOPE rule, not a fixed step height: the cliffs are smoothstep faces a few units wide, so
+    // a fixed "more than 1.2 units" allowance let a kid creeping along at a slow joystick tilt
+    // walk straight down a 28-unit face in 0.4-unit nibbles — a canyon-floor landing from the rim.
+    // Anything steeper than ~58° (1.6 : 1) over the step taken is a wall at every speed; a small
+    // constant covers floor noise at a near-standstill. The rule holds while jumping too, so a
+    // hop off the rim lands back on the rim, not in the gorge.)
+    if (!this.climb && !this.onSky && !this.gliding && !this.mount?.flies) {
       const cp = this.cliffPrev;
       const step = Math.hypot(pos.x - cp.x, pos.z - cp.z);
-      if (cp.ok && step > 0 && step < 3 && (canyonWalkY(pos.x, pos.z) !== null || canyonWalkY(cp.x, cp.z) !== null)) {
+      if (cp.ok && step > 0 && step < 3 && (inCanyonGorge(pos.x, pos.z) || inCanyonGorge(cp.x, cp.z) || inGizaSolid(pos.x, pos.z) || inGizaSolid(cp.x, cp.z))) {
         const y0 = worldFloor(cp.x, cp.z);
-        const wall = (x: number, z: number) => Math.abs(worldFloor(x, z) - y0) > 1.2 + 1.5 * Math.hypot(x - cp.x, z - cp.z);
+        const wall = (x: number, z: number) => Math.abs(worldFloor(x, z) - y0) > 0.12 + 1.6 * Math.hypot(x - cp.x, z - cp.z);
         if (wall(pos.x, pos.z)) {
           if (!wall(pos.x, cp.z)) pos.z = cp.z;
           else if (!wall(cp.x, pos.z)) pos.x = cp.x;
@@ -1859,7 +1880,9 @@ export class ParkWorld {
       this.park.rides.setTarget(this.hopNear && this.hopNear.kind === "dragon" ? this.hopNear.id : null);
       const bondId = this.park.rides.takeBonded();
       if (bondId) {
-        this.bondedDragons.add(bondId);
+        // (friends with one = friends with them all: see setBondedDragons)
+        this.bondedDragons = new Set(ALL_DRAGON_IDS);
+        this.park.rides.setBonded(this.bondedDragons);
         this.opts.onDragonBond?.(bondId);
         const nm = DRAGON_BREEDS[RIDEABLE_SPOTS.find((q) => q.id === bondId)?.breed ?? "roostwarden"].name;
         // the kid said hi to ride it: friends now, so climb on and off we go
@@ -1874,6 +1897,7 @@ export class ParkWorld {
           kid.rig?.play("cheer", true);
         }
       }
+      this.tickSummon(dt);
       // point out a parked dragon close by (once each), and a manta that's come to a diving kid
       // (on foot: how far the kid has walked, for the hints' wait)
       if (!Number.isNaN(this.hintLast.x) && !this.mount) this.hintWalk += Math.min(2, Math.hypot(pos.x - this.hintLast.x, pos.z - this.hintLast.z));
@@ -2880,7 +2904,10 @@ export class ParkWorld {
 
   /** the dragons this kid has already made friends with (saved per kid by the app) */
   setBondedDragons(ids: string[]) {
-    this.bondedDragons = new Set(ids);
+    // dragons talk to each other: once a kid has made friends with one, every dragon on the
+    // island knows them (it used to be one "say hi" per dragon, so a kid met a stranger at every
+    // station and had to make friends all over again)
+    this.bondedDragons = new Set(ids.length > 0 ? ALL_DRAGON_IDS : []);
     this.bondSync = true;
   }
 
@@ -2949,6 +2976,174 @@ export class ParkWorld {
     this.rideId = n.id;
     this.hopNear = null;
     return n.kind;
+  }
+
+  // ── calling a sea friend ──
+  /** What a swimming kid could call right now: a manta (diving in deep water), a dolphin (swimming
+   *  out at sea), "shallow" (swimming, but too near the shore for either), or null (not swimming) */
+  get seaCall(): "manta" | "dolphin" | "shallow" | null {
+    if (!this.kid || !this.park || this.mount || this.ride || this.sky || !this.wasInSea) return null;
+    const p = this.kid.root.position;
+    const depth = seaDepth(p.x, p.z);
+    if (this.swimDepth > 0.6 && p.y < WATER_Y - 0.5 && depth >= MANTA_CALL.minDepth) return "manta";
+    if (depth > 2.5 && seaDist(p.x, p.z) > 0) return "dolphin";
+    return "shallow";
+  }
+  /** Call a sea friend over (see seaCall). */
+  callSeaFriend(): { ok: true; kind: "manta" | "dolphin" } | { ok: false; why: "shallow" | "already" | "busy" } {
+    const k = this.seaCall;
+    if (!k || !this.park) return { ok: false, why: "busy" };
+    if (k === "shallow") return { ok: false, why: "shallow" };
+    const r = this.park.rides.callSea(k);
+    if (r === "coming") return { ok: true, kind: k };
+    return { ok: false, why: r === "already" ? "already" : "busy" };
+  }
+
+  // ── calling a dragon friend ──
+  /** a dragon friend flying in to pick the kid up (null when none is on its way) */
+  private summon: { id: string; breed: DragonBreed; rig: MountRig; t: number; dur: number; home: { x: number; y: number; z: number; yaw: number }; a: THREE.Vector3; b: THREE.Vector3; side: number; accent?: string; skin?: MountSkin; prev: THREE.Vector3 } | null = null;
+
+  /** the dragon friend that would come if called now: the nearest one standing free, or null */
+  private summonable(): { id: string; breed: DragonBreed; x: number; y: number; z: number; yaw: number; d: number } | null {
+    if (!this.park || !this.kid) return null;
+    const kp = this.kid.root.position;
+    let best: { id: string; breed: DragonBreed; x: number; y: number; z: number; yaw: number; d: number } | null = null;
+    for (const id of this.bondedDragons) {
+      const p = this.park.rides.peek(id);
+      if (!p || p.state !== "idle") continue;
+      const d = Math.hypot(p.x - kp.x, p.z - kp.z);
+      if (!best || d < best.d) best = { id, breed: p.breed ?? "roostwarden", x: p.x, y: p.y, z: p.z, yaw: p.yaw, d };
+    }
+    return best;
+  }
+
+  /** Can a dragon friend be called right now? (on foot, on dry land, not mid-ride or mid-climb) */
+  get canCallDragon(): boolean {
+    if (!this.kid || !this.park || this.mount || this.ride || this.sky || this.climb || this.slide || this.skiLock || this.building || this.summon) return false;
+    if (this.gliding || this.onSky || this.launch) return false;
+    const kp = this.kid.root.position;
+    return seaDepth(kp.x, kp.z) <= SWIM_DEPTH;
+  }
+  /** is a dragon on its way right now? */
+  get dragonComing(): boolean {
+    return !!this.summon;
+  }
+  /** has this kid made friends with any dragon yet? */
+  get hasDragonFriend(): boolean {
+    return this.bondedDragons.size > 0;
+  }
+
+  /** Call the nearest dragon friend: it flies over from wherever it is, lands beside the kid, the
+   *  kid climbs on and off they go. Returns the dragon's name, or why it can't come. */
+  callDragon(accent?: string, skin?: MountSkin): { ok: true; name: string } | { ok: false; why: "no-friend" | "busy" | "here" } {
+    if (!this.canCallDragon || !this.park || !this.kid) return { ok: false, why: "busy" };
+    if (this.bondedDragons.size === 0) return { ok: false, why: "no-friend" };
+    const f = this.summonable();
+    if (!f) return { ok: false, why: "busy" };
+    const name = DRAGON_BREEDS[f.breed].name;
+    const kp = this.kid.root.position;
+    // already standing right by it: just climb on
+    if (f.d < 7) return { ok: false, why: "here" };
+    this.park.rides.take(f.id);
+    // it takes off from where it was (or, if that's a long way off, comes in over the horizon from
+    // that direction), climbs, and swoops down to land beside the kid
+    const dir = Math.atan2(f.x - kp.x, f.z - kp.z);
+    const far = Math.min(f.d, 240);
+    const a = new THREE.Vector3(kp.x + Math.sin(dir) * far, 0, kp.z + Math.cos(dir) * far);
+    a.y = f.d <= 240 ? f.y : Math.max(worldFloor(a.x, a.z), WATER_Y) + 45;
+    const rig = buildMount("dragon", accent ?? this.opts.accent, skin, f.breed);
+    rig.root.traverse((o) => ((o as THREE.Mesh).isMesh && o.name !== "mount-shadow" && (o.castShadow = true)));
+    rig.root.position.copy(a);
+    this.scene.add(rig.root);
+    this.summon = {
+      id: f.id,
+      breed: f.breed,
+      rig,
+      t: 0,
+      dur: Math.min(7, Math.max(3.2, far / 30)),
+      home: { x: f.x, y: f.y, z: f.z, yaw: f.yaw },
+      a,
+      b: new THREE.Vector3(),
+      side: Math.random() < 0.5 ? -1 : 1,
+      accent,
+      skin,
+      prev: a.clone(),
+    };
+    return { ok: true, name };
+  }
+
+  /** where the called dragon is at time u (0..1) of its flight: up from its spot, over, and down beside the kid */
+  private summonPoint(s: NonNullable<ParkWorld["summon"]>, u: number, out: THREE.Vector3): THREE.Vector3 {
+    const kp = this.kid!.root.position;
+    // the landing spot: a few steps to the kid's side (it follows a kid who keeps walking)
+    const land = s.b.set(kp.x + Math.cos(this.kid!.facing) * 3.6 * s.side, 0, kp.z - Math.sin(this.kid!.facing) * 3.6 * s.side);
+    land.y = worldFloor(land.x, land.z);
+    const dist = Math.hypot(land.x - s.a.x, land.z - s.a.z);
+    const cruise = Math.max(s.a.y, land.y) + 14 + Math.min(30, dist * 0.12);
+    // a cubic: lift off steeply, cruise high, and come down steeply to land
+    const p1x = s.a.x + (land.x - s.a.x) * 0.15;
+    const p1z = s.a.z + (land.z - s.a.z) * 0.15;
+    const p2x = s.a.x + (land.x - s.a.x) * 0.85;
+    const p2z = s.a.z + (land.z - s.a.z) * 0.85;
+    const v = 1 - u;
+    out.x = v * v * v * s.a.x + 3 * v * v * u * p1x + 3 * v * u * u * p2x + u * u * u * land.x;
+    out.z = v * v * v * s.a.z + 3 * v * v * u * p1z + 3 * v * u * u * p2z + u * u * u * land.z;
+    out.y = v * v * v * s.a.y + 3 * v * v * u * cruise + 3 * v * u * u * cruise + u * u * u * land.y;
+    // never through a hill on the way
+    if (u < 0.97) out.y = Math.max(out.y, Math.max(worldFloor(out.x, out.z), WATER_Y) + 3 * Math.min(1, (1 - u) * 6));
+    return out;
+  }
+
+  private tickSummon(dt: number) {
+    const s = this.summon;
+    if (!s || !this.park || !this.kid) return;
+    // the kid got on something else, or went somewhere a dragon can't land: it heads home
+    if (this.mount || this.ride || this.sky || this.climb) {
+      this.cancelSummon();
+      return;
+    }
+    s.t += dt;
+    const u = Math.min(1, s.t / s.dur);
+    // ease in and out along the curve
+    const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+    const p = this.summonPoint(s, e, new THREE.Vector3());
+    const vx = p.x - s.prev.x;
+    const vz = p.z - s.prev.z;
+    const speed = Math.hypot(vx, vz) / Math.max(dt, 1e-3);
+    if (Math.hypot(vx, vz) > 1e-3) s.rig.root.rotation.y = Math.atan2(vx, vz);
+    s.rig.root.rotation.x = Math.max(-0.35, Math.min(0.35, -(p.y - s.prev.y) / Math.max(0.05, Math.hypot(vx, vz)) * 0.25));
+    s.rig.root.position.copy(p);
+    s.prev.copy(p);
+    const floor = Math.max(worldFloor(p.x, p.z), WATER_Y);
+    s.rig.update(dt, speed, u < 0.96, this.park.atmosphere.glow, p.y - floor);
+    if (u >= 1) {
+      // landed: climb on, and up we go
+      const yaw = s.rig.root.rotation.y;
+      const at = s.rig.root.position.clone();
+      this.scene.remove(s.rig.root);
+      s.rig.dispose();
+      this.summon = null;
+      const kp = this.kid.root.position;
+      kp.set(at.x, kp.y, at.z);
+      this.kid.facing = yaw;
+      this.kid.root.rotation.y = yaw;
+      this.prevFacing = yaw;
+      this.mountUp("dragon", s.accent, s.skin, s.breed);
+      this.helm.speed = this.craftSpeed = 0;
+      this.rideId = s.id;
+      this.hopNear = null;
+      this.opts.onRideHint?.(`\u{1F409} ${DRAGON_BREEDS[s.breed].name} came to pick you up! Hold ▲ to fly higher`);
+    }
+  }
+
+  /** the called dragon gives up and goes back to its own spot */
+  private cancelSummon() {
+    const s = this.summon;
+    if (!s || !this.park) return;
+    this.scene.remove(s.rig.root);
+    s.rig.dispose();
+    this.park.rides.release(s.id, s.home.x, s.home.y, s.home.z, s.home.yaw);
+    this.summon = null;
   }
 
   /** Which floating mountains' chests this kid has opened (they stay open). */
@@ -3801,6 +3996,24 @@ export class ParkWorld {
     const dir = new THREE.Vector3(-p.x, 0, -p.z).normalize();
     this.kid.root.position.set(p.x, 0, p.z).addScaledVector(dir, p.doorRadius + 1);
     this.kid.facing = Math.atan2(dir.x, dir.z);
+    this.nearPlace = null;
+  }
+
+  /** Put the kid down at (x, z) on whatever ground is there, facing `facing` (radians, the kid's
+   *  own atan2(dx, dz) convention) — a plain teleport with no travel: the camera snaps across on the
+   *  next frame (its own >60 m jump rule). For the smoke harness and anything that needs the kid
+   *  somewhere specific without a dragon flight. */
+  placeKidAt(x: number, z: number, facing?: number) {
+    if (!this.kid) return;
+    this.endSlide(false);
+    this.endSki();
+    this.endLift();
+    this.walkTarget = null;
+    this.walkQueue = [];
+    this.kid.root.position.set(x, worldFloor(x, z), z);
+    if (facing !== undefined) this.kid.facing = facing;
+    this.cliffPrev.ok = false;
+    this.deckPrev.on = false;
     this.nearPlace = null;
   }
 
