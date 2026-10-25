@@ -6,6 +6,7 @@
 // tutorial to fast multi-goblin digging puzzles with bars and stone blockers.
 // (Original game in the spirit of classic dig-and-run platformers.)
 import { H, PAL, W, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Sprite } from "../engine";
+import { bake, fbm, hash2, outlined, shade } from "../art";
 
 export const TILE = 16;
 export const COLS = 16; // 256 / 16
@@ -118,42 +119,55 @@ export function levelReachability(level: LevelDef): boolean[][] {
   return seen;
 }
 
-// ── sprites ──
-const HP = { h: PAL.yellow, l: PAL.white, f: PAL.tan, k: PAL.black, b: PAL.blue, n: PAL.dark, p: PAL.grey, g: PAL.tan };
-const HEAD = ["..hhhhhhhh..", ".hhhhhhhhhh.", ".hlhhhhhhh..", ".hffffffhh..", ".kfkffkfkh..", "..kkkkkk...."];
-const BODY_STAND = [".bbbbbbbbbb.", "bbbbbbbbbbbb", "bbb.bbbb.bbb", "bbb.bbbb.bbb", "bbbbbbbbbbbb", ".bb.bbbb.bb."];
+// ── sprites ── (3-4 tone shaded: a bright highlight down the left, a dark shadow down the
+// right, a 1px outline added at bake time so the miner and goblins pop off the brick walls)
+const HP = { h: PAL.yellow, L: "#fff3b0", l: PAL.white, f: PAL.tan, k: PAL.black, b: PAL.blue, c: "#7fb0ff", m: "#1c2f73", n: PAL.dark, p: PAL.grey, g: PAL.tan };
+const HEAD = ["..hLLhhhhh..", ".hLhhhhhhh..", ".hlhhhhhhh..", ".hffffffhh..", ".kfkffkfkh..", "..kkkkkk...."];
+const BODY_STAND = [".ccbbbbbbmm.", "ccbbbbbbbbmm", "ccb.bbbb.mmb", "ccb.bbbb.mmb", "ccbbbbbbbbmm", ".cb.bbbb.bm."];
 const LEGS_A = ["..nn....nn..", "..nn....nn..", ".nnn....nnn.", "nnnn....nnnn"];
 const LEGS_B = [".nn......nn.", "nnn......nnn", "nnn......nnn", ".nn......nn."];
 /** 2-frame run cycle */
 export const HERO_RUN: Sprite[] = [sprite(fit([...HEAD, ...BODY_STAND, ...LEGS_A], 12), HP), sprite(fit([...HEAD, ...BODY_STAND, ...LEGS_B], 12), HP)];
 
-const BODY_CLIMB = ["g.bbbbbbbb.g", "g.bbbbbbbb.g", "..bbbbbbbb..", "..bb.bb.bb..", "..bb.bb.bb..", "..bb.bb.bb.."];
+const BODY_CLIMB = ["g.ccbbmm.g.g", "g.ccbbmm.g.g", "..ccbbbbmm..", "..bb.bb.bb..", "..bb.bb.bb..", "..bb.bb.bb.."];
 const LEGS_CLIMB1 = ["..nn....nn..", "nnnn....nnnn", "..nn....nn..", "..nn....nn.."];
 const LEGS_CLIMB2 = ["..nn....nn..", "..nn....nn..", "nnnn....nnnn", "..nn....nn.."];
 /** 2-frame climb cycle — hands on the ladder, feet alternating */
 export const HERO_CLIMB: Sprite[] = [sprite(fit([...HEAD, ...BODY_CLIMB, ...LEGS_CLIMB1], 12), HP), sprite(fit([...HEAD, ...BODY_CLIMB, ...LEGS_CLIMB2], 12), HP)];
 
-const BODY_HANG = ["g.bbbbbbbb.g", "..bbbbbbbb..", "..bbbbbbbb..", "..bbbbbbbb..", "..bbbbbbbb..", "..bb....bb.."];
+const BODY_HANG = ["g.ccbbmm.g.g", "..ccbbbbmm..", "..ccbbbbmm..", "..bbbbbbbb..", "..bbbbbbbb..", "..bb....bb.."];
 const LEGS_HANG = ["..nn....nn..", "..nn....nn..", "...nnnnnn...", "............"];
 /** hanging from a bar, dangling */
 export const HERO_HANG: Sprite = sprite(fit([...HEAD, ...BODY_HANG, ...LEGS_HANG], 12), HP);
 
-const BODY_DIG = ["..bbbbbbbb..", ".bbbbbbbbbbp", "bbbbbbbbbbpp", "bb.bbbb.bb.p", "bb.bbbb.bb..", ".bb.bbbb.bb."];
+const BODY_DIG = ["..ccbbmm....", ".ccbbbbbbbbp", "ccbbbbbbbbpp", "bb.bbbb.bb.p", "bb.bbbb.bb..", ".bb.bbbb.bb."];
 const LEGS_DIG = [".nnn....nnn.", "nnnn....nnnn", "nn........nn", "............"];
 /** swinging the pickaxe to the right; flip for the other side */
 export const HERO_DIG: Sprite = sprite(fit([...HEAD, ...BODY_DIG, ...LEGS_DIG], 12), HP);
 
-const GP = { g: PAL.green, d: PAL.teal, k: PAL.black, w: PAL.white, r: PAL.red, n: PAL.dark };
-const GOBLIN_A = ["..gggggg....", ".gggggggg...", "ggkggggkggg.", "ggggggggggg.", "gg.rrrr.ggg.", "ggggggggggg.", ".dd.gggg.dd.", "nn........nn"];
-const GOBLIN_B = ["..gggggg....", ".gggggggg...", "ggkggggkggg.", "ggggggggggg.", "gg.rrrr.ggg.", "ggggggggggg.", ".dd.gggg.dd.", ".nn......nn."];
+const GP = { g: PAL.green, G: "#8df26a", d: PAL.teal, D: "#0f8075", k: PAL.black, w: PAL.white, r: PAL.red, n: PAL.dark };
+const GOBLIN_A = ["..GGgggg....", ".GGggggggg..", "ggkggggkggg.", "ggggggggggg.", "gg.rrrr.ggg.", "ggdddddddgg.", ".dD.gggg.Dd.", "nn........nn"];
+const GOBLIN_B = ["..GGgggg....", ".GGggggggg..", "ggkggggkggg.", "ggggggggggg.", "gg.rrrr.ggg.", "ggdddddddgg.", ".dD.gggg.Dd.", ".nn......nn."];
 /** 2-frame grumpy-goblin shuffle */
 export const GOBLIN_WALK: Sprite[] = [sprite(fit(GOBLIN_A, 12), GP), sprite(fit(GOBLIN_B, 12), GP)];
 /** stuck in a hole: just the annoyed head and waving arms poking out */
-export const GOBLIN_STUCK: Sprite = sprite(fit(["..gggggg....", ".gggggggg...", "ggkggggkggg.", "n.ggggggg.n.", "............", "............", "............", "............"], 12), GP);
+export const GOBLIN_STUCK: Sprite = sprite(fit(["..GGgggg....", ".GGggggggg..", "ggkggggkggg.", "n.ggggggg.n.", "............", "............", "............", "............"], 12), GP);
 
-const GOLD_PAL = { y: PAL.yellow, o: PAL.orange, k: PAL.black };
-/** a little sack of gold */
-export const GOLD_SPRITE: Sprite = sprite(["..oooo..", ".oyyyyo.", "oyyyyyyo", "oyyyyyyo", "oyoyyoyo", ".oyyyyo.", "..kook..", "...kk..."], GOLD_PAL);
+const GOLD_PAL = { y: PAL.yellow, o: PAL.orange, k: PAL.black, w: PAL.white, d: "#b36a1e" };
+const GOLD_ROWS = [
+  "..kooook..",
+  ".okyyyyko.",
+  "SHINE_ROW2",
+  "okyyyyyyko",
+  "okyoyyoyko",
+  "okyyyyyyko",
+  ".okddddo..",
+  "..kdkkd...",
+  "...kkkk...",
+];
+/** a fatter, shinier sack of gold with a 2-frame glint so it twinkles in the dark */
+export const GOLD_SPRITE: Sprite = sprite(GOLD_ROWS.map((r) => (r === "SHINE_ROW2" ? "okyywyyyko" : r)), GOLD_PAL);
+export const GOLD_SPRITE_2: Sprite = sprite(GOLD_ROWS.map((r) => (r === "SHINE_ROW2" ? "okyyyywyko" : r)), GOLD_PAL);
 
 // ── levels ── (ten handcrafted single-screen maps that ramp up)
 export const LEVELS: LevelDef[] = [
@@ -429,7 +443,9 @@ function create(seed: number): GameInstance {
   let state: "ready" | "play" | "caught" | "clear" = "ready";
   let stateT = 0;
   let pops: { x: number; y: number; t: number; text: string }[] = [];
-  let digFx: { x: number; y: number; t: number }[] = [];
+  /** debris, dust and sparkle bursts — dig chips, coin sparkle, trap-poof, hole-collapse dust */
+  let fx: { x: number; y: number; vx: number; vy: number; t: number; life: number; color: string; size: number }[] = [];
+  let shake = 0;
 
   const loadLevel = () => {
     level = LEVELS[levelIdx];
@@ -465,6 +481,14 @@ function create(seed: number): GameInstance {
   const isBrickBase = (c: number, rr: number) => inBounds(c, rr) && level.terrain[rr][c] === "#";
   const goblinSpeed = () => Math.min(1.8, 0.75 + levelIdx * 0.11);
 
+  /** a little burst of particles radiating out from a tile centre — used for every bit of juice */
+  const burst = (cx: number, cy: number, n: number, speed: number, life: number, colors: string[], size = 2) => {
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2 + 0.3;
+      fx.push({ x: cx, y: cy, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed - speed * 0.4, t: 0, life, color: colors[i % colors.length], size });
+    }
+  };
+
   const collectGold = (c: number, rr: number, io: IO) => {
     if (!inBounds(c, rr) || !goldGrid[rr][c]) return;
     goldGrid[rr][c] = false;
@@ -472,17 +496,22 @@ function create(seed: number): GameInstance {
     io.sfx.play("coin");
     io.score(50);
     pops.push({ x: c * TILE + 4, y: GY + rr * TILE, t: 0, text: "+50" });
+    burst(c * TILE + 8, GY + rr * TILE + 8, 6, 0.7, 18, [PAL.yellow, PAL.white, PAL.orange]);
     if (goldLeft <= 0) {
       escapeActive = true;
       io.sfx.play("powerup");
+      io.sfx.slide?.(400, 900, 0.5, "square", 0.22);
     }
   };
   const trapGoblin = (gb: Goblin, io: IO) => {
     gb.stuck = STUCK_LIFE;
     gb.dir = null;
     io.sfx.play("hit");
+    io.sfx.noise?.(0.15, 0.2, 320, 120);
     io.score(75);
     pops.push({ x: gb.col * TILE + 2, y: GY + gb.row * TILE, t: 0, text: "+75" });
+    burst(gb.col * TILE + 8, GY + gb.row * TILE + 8, 5, 0.55, 20, [PAL.tan, PAL.brown]);
+    shake = Math.max(shake, 4);
   };
   const respawnGoblin = (gb: Goblin) => {
     gb.col = r.int(0, COLS - 1);
@@ -504,7 +533,8 @@ function create(seed: number): GameInstance {
     hero.digT = 14;
     hero.digSide = side;
     io.sfx.play("blip");
-    digFx.push({ x: tc * TILE + 4, y: GY + tr * TILE + 4, t: 0 });
+    io.sfx.noise?.(0.12, 0.2, 900, 240);
+    burst(tc * TILE + 8, GY + tr * TILE + 6, 6, 0.65, 16, [PAL.tan, PAL.brown, "#6e3a1c"]);
     for (const gb of goblins) if (gb.stuck <= 0 && gb.ox === 0 && gb.oy === 0 && gb.col === tc && gb.row === tr) trapGoblin(gb, io);
   };
 
@@ -534,8 +564,11 @@ function create(seed: number): GameInstance {
       if (hero.dir === null) hero.dir = decideHeroDir(io);
     }
     if (hero.dir) {
+      const movingDir = hero.dir;
       hero.anim += 0.15;
       stepActor(hero, STEP);
+      if ((movingDir === "L" || movingDir === "R") && tick % 8 === 0) io.sfx.play("step");
+      else if ((movingDir === "U" || movingDir === "D") && tick % 10 === 0) io.sfx.tone(300, 0.05, "square", 0.14);
       if (hero.dir === null) collectGold(hero.col, hero.row, io);
     }
   };
@@ -592,13 +625,19 @@ function create(seed: number): GameInstance {
     }
   };
 
-  const updateHoles = () => {
+  const updateHoles = (io: IO) => {
     for (const [k, t] of holes) {
       const nt = t - 1;
       if (nt <= 0) {
         holes.delete(k);
         const [cs, rs] = k.split(",").map(Number);
-        for (const gb of goblins) if (gb.stuck > 0 && gb.col === cs && gb.row === rs) respawnGoblin(gb);
+        io.sfx.play("thud");
+        burst(cs * TILE + 8, GY + rs * TILE + 12, 4, 0.35, 14, [PAL.dark, "#140f22"]);
+        for (const gb of goblins)
+          if (gb.stuck > 0 && gb.col === cs && gb.row === rs) {
+            io.sfx.play("pop");
+            respawnGoblin(gb);
+          }
       } else holes.set(k, nt);
     }
   };
@@ -610,10 +649,16 @@ function create(seed: number): GameInstance {
     update(io) {
       if (over || won) return;
       tick++;
+      if (shake > 0) shake--;
       for (const p of pops) p.t++;
       pops = pops.filter((p) => p.t < 40);
-      for (const d of digFx) d.t++;
-      digFx = digFx.filter((d) => d.t < 16);
+      for (const d of fx) {
+        d.t++;
+        d.x += d.vx;
+        d.y += d.vy;
+        d.vy += 0.05; // a little gravity so debris and dust arc and fall
+      }
+      fx = fx.filter((d) => d.t < d.life);
 
       if (state === "ready") {
         stateT++;
@@ -625,6 +670,7 @@ function create(seed: number): GameInstance {
       }
       if (state === "caught") {
         stateT++;
+        if (stateT === 1) io.sfx.noise?.(0.3, 0.3, 480, 90);
         if (stateT > 70) {
           lives--;
           if (lives <= 0) {
@@ -638,6 +684,7 @@ function create(seed: number): GameInstance {
       }
       if (state === "clear") {
         stateT++;
+        if (stateT === 1) io.sfx.slide?.(440, 1100, 0.4, "square", 0.26);
         if (stateT > 90) {
           levelIdx++;
           if (levelIdx >= LEVELS.length) {
@@ -652,7 +699,7 @@ function create(seed: number): GameInstance {
       }
 
       updateHero(io);
-      updateHoles();
+      updateHoles(io);
       for (const gb of goblins) updateGoblin(gb, io);
 
       for (const gb of goblins) {
@@ -688,7 +735,8 @@ function create(seed: number): GameInstance {
         goldLeft,
         escapeActive,
         pops,
-        digFx,
+        fx,
+        shake,
         tick,
       });
     },
@@ -709,66 +757,192 @@ interface DrawState {
   goldLeft: number;
   escapeActive: boolean;
   pops: { x: number; y: number; t: number; text: string }[];
-  digFx: { x: number; y: number; t: number }[];
+  fx: { x: number; y: number; vx: number; vy: number; t: number; life: number; color: string; size: number }[];
+  shake: number;
   tick: number;
 }
 
+// ── baked environment art — a dark mineshaft behind everything, running-bond brick walls,
+// cracked stone blockers, round-railed gold ladders and a twisted rope bar, all baked once
+// (lazily, on first draw) from the painting's warm brick / gold-ladder / deep-navy palette so
+// the whole screen reads as a real cartridge mine instead of flat coloured rects.
 const BRICK_FACE = "#b06a36";
 const BRICK_TOP = "#d08a4e";
-const BRICK_MORTAR = "#6e3a1c";
+const BRICK_MORTAR = "#5a2f17";
+const STONE_BASE = PAL.grey;
 const STONE_LIGHT = "#b7bdd4";
-const LADDER_RAIL = "#caa15a";
+const STONE_DARK = "#4a4e6a";
+const LADDER_RAIL = "#e0a84e";
 const LADDER_RUNG = "#8a6a30";
 const BAR_ROPE = "#c9a35a";
 const BAR_HI = "#efd08a";
+const HOLE_DIRT = "#1c1430";
+const HOLE_DIRT_LO = "#0a0716";
+const BRICK_VARIANTS = 3;
+const STONE_VARIANTS = 2;
+
+/** a 16x16 brick course, two half-height rows in a running bond so adjacent cells tile into a
+ *  continuous wall; each individual brick gets its own bevel, shaded underside and a touch of
+ *  per-brick colour speckle (from `variant` + its position) instead of one flat slab. */
+function bakeBrickTile(variant: number): Sprite {
+  return bake(TILE, TILE, (x, y) => {
+    if (y === 0) return BRICK_TOP; // the course's own top rim catches the lamp light
+    if (y === 7 || y === TILE - 1) return BRICK_MORTAR; // the two brick rows' grout lines
+    const rowB = y < 7 ? 0 : 1;
+    const shiftedX = rowB === 0 ? x : x + 4;
+    const bx = ((shiftedX % 8) + 8) % 8;
+    if (bx === 0) return BRICK_MORTAR; // vertical joints, offset for a running bond
+    const brickId = Math.floor(shiftedX / 8) + rowB * 2;
+    const tone = hash2(brickId, variant, 71);
+    const base = tone > 0.78 ? shade(BRICK_FACE, 0.07) : tone < 0.22 ? shade(BRICK_FACE, -0.09) : BRICK_FACE;
+    if (y === 1 || y === 8) return shade(base, 0.16); // each brick's own bevel
+    if (y === 6 || y === 13) return shade(base, -0.14); // each brick's shaded underside
+    return base;
+  });
+}
+/** a cracked stone blocker: mottled light/dark patches over a dark rim, never diggable */
+function bakeStoneTile(variant: number): Sprite {
+  return bake(TILE, TILE, (x, y) => {
+    if (x === 0 || x === TILE - 1 || y === 0 || y === TILE - 1) return STONE_DARK;
+    const n = fbm(x * 0.4 + variant * 11, y * 0.4 + variant * 7, 2, variant * 13 + 4);
+    if (n > 0.68) return STONE_LIGHT;
+    if (n < 0.32) return STONE_DARK;
+    return STONE_BASE;
+  });
+}
+/** a round-railed ladder: each rail has a lit edge and a shadow edge, rungs shaded top-to-bottom */
+function bakeLadderTile(): Sprite {
+  return bake(TILE, TILE, (x, y) => {
+    if (x >= 2 && x < 4) return x === 2 ? shade(LADDER_RAIL, 0.3) : shade(LADDER_RAIL, -0.1);
+    if (x >= TILE - 4 && x < TILE - 2) return x === TILE - 4 ? shade(LADDER_RAIL, 0.3) : shade(LADDER_RAIL, -0.1);
+    const ry = y - 2;
+    if (ry >= 0 && ry % 5 < 2 && x >= 4 && x < TILE - 4) return ry % 5 === 0 ? shade(LADDER_RUNG, 0.15) : LADDER_RUNG;
+    return null;
+  });
+}
+/** a twisted rope bar with a lit top strand */
+function bakeBarTile(): Sprite {
+  return bake(TILE, TILE, (x, y) => {
+    if (y === 6) return BAR_HI;
+    if (y >= 7 && y <= 9) return (x + y) % 4 < 2 ? BAR_ROPE : shade(BAR_ROPE, -0.18);
+    return null;
+  });
+}
+/** a dug pit: a crumbly broken rim over loose dark dirt */
+function bakeHoleTile(): Sprite {
+  return bake(TILE, TILE, (x, y) => {
+    if (x < 1 || x >= TILE - 1 || y < 2) return null;
+    const n = fbm(x * 0.5, y * 0.5, 2, 19);
+    if (y < 4) return n > 0.5 ? HOLE_DIRT : null;
+    return n > 0.75 ? shade(HOLE_DIRT, 0.12) : HOLE_DIRT_LO;
+  });
+}
+/** the mineshaft's back wall behind every empty cell: a vertical gradient, soft distant rock
+ *  shadows and a scatter of mineral sparkle — three depth layers baked into one big picture so
+ *  the whole playfield's background costs a single sprite blit a frame. */
+function bakeCaveBg(): Sprite {
+  const w = COLS * TILE;
+  const h = ROWS * TILE;
+  return bake(w, h, (x, y) => {
+    const grad = shade(PAL.night, -0.08 + 0.1 * (y / h));
+    const rock = fbm(x * 0.045, y * 0.045, 3, 5);
+    const wall = rock > 0.66 ? shade(grad, -0.05) : rock < 0.3 ? shade(grad, 0.02) : grad;
+    if (hash2(x, y, 3) > 0.9994) return hash2(x, y, 4) > 0.5 ? "#dff6ff" : "#8fd8ff"; // a rare mineral glint
+    return wall;
+  });
+}
+/** a riveted dark metal strip behind the HUD, instead of a flat black bar */
+function bakeHudPanel(): Sprite {
+  return bake(W, GY, (x, y) => {
+    if (y === GY - 1) return BRICK_MORTAR;
+    const base = shade(PAL.black, 0.07 + 0.1 * (1 - y / GY));
+    if (y === 3 && x % 18 === 9) return shade(PAL.brown, 0.25);
+    return base;
+  });
+}
+const PICK_ICON: Sprite = sprite(["..kk....", ".kppppk.", "kpp..ppk", ".k....k.", "...nn...", "...nh...", "...nn...", "........"], { k: PAL.black, p: PAL.grey, n: PAL.brown, h: "#b36a1e" });
+
+function buildArt() {
+  return {
+    brickTiles: Array.from({ length: BRICK_VARIANTS }, (_, i) => bakeBrickTile(i)),
+    stoneTiles: Array.from({ length: STONE_VARIANTS }, (_, i) => bakeStoneTile(i)),
+    ladderTile: bakeLadderTile(),
+    barTile: bakeBarTile(),
+    holeTile: bakeHoleTile(),
+    caveBg: bakeCaveBg(),
+    hudPanel: bakeHudPanel(),
+    heroRun: HERO_RUN.map((sp) => outlined(sp)),
+    heroClimb: HERO_CLIMB.map((sp) => outlined(sp)),
+    heroHang: outlined(HERO_HANG),
+    heroDig: outlined(HERO_DIG),
+    goblinWalk: GOBLIN_WALK.map((sp) => outlined(sp)),
+    goblinStuck: outlined(GOBLIN_STUCK),
+  };
+}
+let A: ReturnType<typeof buildArt> | null = null;
+const art = () => (A ??= buildArt());
 
 function drawGame(g: Gfx, s: DrawState) {
-  const { level, get, holes, goldGrid, goblins, hero, state, stateT, levelIdx, lives, goldLeft, escapeActive, pops, digFx, tick } = s;
-  g.clear(PAL.night);
-  g.rect(0, 0, W, GY, PAL.black);
+  const { level, get, holes, goldGrid, goblins, hero, state, stateT, levelIdx, lives, goldLeft, escapeActive, pops, fx, shake, tick } = s;
+  const A = art();
+  g.clear(PAL.black);
+
+  // a tiny shake on a caught kid or a trapped goblin — applied only to the playfield, never the HUD
+  const sx = shake > 0 ? (tick % 2 === 0 ? 1 : -1) * Math.min(2, shake) : 0;
+  const sy = shake > 1 ? (tick % 2 === 0 ? -1 : 1) : 0;
+  g.camera(sx, sy);
+
+  g.sprite(A.caveBg, 0, GY);
 
   for (let rr = 0; rr < ROWS; rr++) {
     for (let c = 0; c < COLS; c++) {
       const t = get(c, rr);
       const x = c * TILE;
       const y = GY + rr * TILE;
-      if (t === "#") {
-        g.rect(x, y, TILE, TILE, BRICK_FACE);
-        g.rect(x, y, TILE, 2, BRICK_TOP);
-        g.rect(x, y + 7, TILE, 1, BRICK_MORTAR);
-        g.rect(x, y + TILE - 1, TILE, 1, BRICK_MORTAR);
-        g.rect(x + 7, y, 1, 7, BRICK_MORTAR);
-        g.rect(x + 3, y + 8, 1, 8, BRICK_MORTAR);
-        g.rect(x + 11, y + 8, 1, 8, BRICK_MORTAR);
-      } else if (t === "X") {
-        g.rect(x, y, TILE, TILE, PAL.grey);
-        g.box(x + 1, y + 1, TILE - 2, TILE - 2, PAL.dark);
-        g.rect(x + 2, y + 2, 5, 5, STONE_LIGHT);
-        g.rect(x + 9, y + 9, 5, 5, STONE_LIGHT);
-      } else if (t === "H") {
-        g.rect(x + 2, y, 2, TILE, LADDER_RAIL);
-        g.rect(x + TILE - 4, y, 2, TILE, LADDER_RAIL);
-        for (let i = 2; i < TILE; i += 5) g.rect(x + 2, y + i, TILE - 4, 2, LADDER_RUNG);
-      } else if (t === "-") {
-        g.rect(x, y + 6, TILE, 1, BAR_HI);
-        g.rect(x, y + 7, TILE, 3, BAR_ROPE);
+      if (t === "#") g.sprite(A.brickTiles[Math.floor(hash2(c, rr, 41) * BRICK_VARIANTS)], x, y);
+      else if (t === "X") g.sprite(A.stoneTiles[Math.floor(hash2(c, rr, 53) * STONE_VARIANTS)], x, y);
+      else if (t === "H") g.sprite(A.ladderTile, x, y);
+      else if (t === "-") g.sprite(A.barTile, x, y);
+      const life = holes.get(holeKey(c, rr));
+      if (life !== undefined) {
+        g.sprite(A.holeTile, x, y);
+        if (life < 40 && Math.floor(tick / 6) % 2 === 0) g.box(x + 1, y + 1, TILE - 2, TILE - 2, PAL.orange); // telegraph the refill
       }
-      if (holes.has(holeKey(c, rr))) g.rect(x + 1, y + 2, TILE - 2, TILE - 3, "#140f22");
     }
   }
 
-  for (let rr = 0; rr < ROWS; rr++) for (let c = 0; c < COLS; c++) if (goldGrid[rr][c]) g.sprite(GOLD_SPRITE, c * TILE + 4, GY + rr * TILE + 6);
-
-  for (const d of digFx) {
-    g.rect(d.x - d.t, d.y - d.t * 0.6, 2, 2, PAL.tan);
-    g.rect(d.x + d.t, d.y - d.t * 0.6, 2, 2, PAL.brown);
+  if (escapeActive) {
+    // a few lights climbing the newly-opened escape ladder so it reads as the goal
+    const ecol = level.escapeCol;
+    for (let i = 0; i < 3; i++) {
+      const travel = (tick * 2 + i * 70) % (ROWS * TILE);
+      g.rect(ecol * TILE + 7, GY + ROWS * TILE - travel, 2, 2, i % 2 === 0 ? PAL.lime : PAL.yellow);
+    }
   }
+
+  for (let rr = 0; rr < ROWS; rr++)
+    for (let c = 0; c < COLS; c++)
+      if (goldGrid[rr][c]) {
+        const shine = Math.floor((tick + Math.floor(hash2(c, rr, 77) * 40)) / 20) % 2 === 0;
+        g.sprite(shine ? GOLD_SPRITE : GOLD_SPRITE_2, c * TILE + 3, GY + rr * TILE + 5);
+      }
+
+  for (const d of fx) {
+    g.alpha(Math.max(0.2, 1 - d.t / d.life));
+    g.rect(Math.round(d.x - d.size / 2), Math.round(d.y - d.size / 2), d.size, d.size, d.color);
+  }
+  g.alpha(1);
 
   for (const gb of goblins) {
     const x = actorPx(gb) + 1;
     const y = actorPy(gb);
-    if (gb.stuck > 0) g.sprite(GOBLIN_STUCK, x, y, { flipX: gb.facing < 0 });
-    else g.sprite(GOBLIN_WALK[Math.floor(gb.anim) % 2], x, y, { flipX: gb.facing < 0 });
+    if (gb.stuck > 0) {
+      g.sprite(A.goblinStuck, x, y, { flipX: gb.facing < 0 });
+      for (let i = 0; i < 3; i++) {
+        const ang = tick * 0.12 + (i * Math.PI * 2) / 3;
+        g.text("★", x + 5 + Math.cos(ang) * 7, y - 2 + Math.sin(ang) * 3, PAL.yellow, { align: "center" });
+      }
+    } else g.sprite(A.goblinWalk[Math.floor(gb.anim) % 2], x, y, { flipX: gb.facing < 0 });
   }
 
   {
@@ -780,17 +954,22 @@ function drawGame(g: Gfx, s: DrawState) {
     if (hero.dir === "U" || hero.dir === "D") pose = "climb";
     else if (onBar) pose = "hang";
     else if (hero.dir === null && onLadder) pose = "climb";
-    if (hero.digT > 0) g.sprite(HERO_DIG, x, y, { flipX: hero.digSide < 0 });
-    else if (pose === "climb") g.sprite(HERO_CLIMB[Math.floor(hero.anim) % 2], x, y);
-    else if (pose === "hang") g.sprite(HERO_HANG, x, y, { flipX: hero.facing < 0 });
-    else g.sprite(HERO_RUN[Math.floor(hero.anim) % 2], x, y, { flipX: hero.facing < 0 });
+    if (hero.digT > 0) g.sprite(A.heroDig, x, y, { flipX: hero.digSide < 0 });
+    else if (pose === "climb") g.sprite(A.heroClimb[Math.floor(hero.anim) % 2], x, y);
+    else if (pose === "hang") g.sprite(A.heroHang, x, y, { flipX: hero.facing < 0 });
+    else g.sprite(A.heroRun[Math.floor(hero.anim) % 2], x, y, { flipX: hero.facing < 0 });
   }
+
+  g.camera(0, 0); // the HUD, popups and banners never shake
 
   for (const p of pops) g.text(p.text, p.x, p.y - p.t * 0.6, PAL.white, { align: "center" });
 
+  g.sprite(A.hudPanel, 0, 0);
   g.text(`L${levelIdx + 1}`, 4, 4, PAL.yellow);
+  g.sprite(PICK_ICON, 42, 3);
   g.text(`x${lives}`, 56, 4, PAL.red);
   g.text(`GOLD ${goldLeft}`, 160, 4, PAL.cyan, { align: "right" });
+  g.sprite(GOLD_SPRITE, 166, 1, { scale: 0.65 });
 
   if (escapeActive && state === "play") {
     const blink = Math.floor(tick / 15) % 2 === 0;
