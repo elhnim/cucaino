@@ -7,7 +7,7 @@
 // move up the ladder; beat all 3 to take the trophy. (Original game — made-up animal teams,
 // in the spirit of 90s arcade basketball, no real leagues, players or logos.)
 import { H, PAL, W, clamp, rng, sprite, type GameInstance, type Gfx, type IO, type Input, type RetroGameDef, type Sprite } from "../engine";
-import { bake, bakeShadow, drawStrip, fbm, hash2, outlined, shade } from "../art";
+import { bake, bakeShadow, bayer, drawStrip, fbm, hash2, outlined, rgb, shade } from "../art";
 
 // ── court geometry ──
 const COURT_L = 40; // left baseline (x)
@@ -35,21 +35,72 @@ const SHOT_CLOCK_MAX = 17 * 60;
 const PLAYER_SPD_X = 1.85;
 const PLAYER_SPD_D = 0.023;
 const PLAYER_ROWS = 12; // every body sprite is 12 rows tall, feet on the bottom row
-const PLAYER_SCALE_FAR = 1.8; // ~22px tall at the far sideline
-const PLAYER_SCALE_NEAR = 2.3; // ~28px tall at the near sideline — big and readable on a phone
+const PLAYER_SCALE_FAR = 2.05; // ~25px tall at the far sideline
+const PLAYER_SCALE_NEAR = 2.55; // ~31px tall at the near sideline — big and readable on a phone
+const BALL_SIZE = 12; // the ball sprite is baked at this size (seams readable, never as big as a player)
 
 // ── palette sampled straight off the cabinet painting (night arena, orange-wood court) ──
 const COURT_BG = "#0f0b21";
 const COURT_WOOD = "#b4773a";
-const CROWD_A = "#494e68";
-const CROWD_B = "#2f1d51";
+const ROOF_DARK = "#0a0817";
+const ROOF_TRUSS = "#201c3a";
+const LIGHT_CORE = "#fffde0";
+const LIGHT_GLOW = "#ffe9a0";
+const BENCH_WOOD = "#5a3d22";
+const PAD_WALL = "#201839"; // the padded wall beyond the baseline — never black, whatever the camera
+const AD_COLORS = [PAL.blue, PAL.red, PAL.lime, PAL.purple] as const;
+const HUD_H = 22; // a compact jumbotron bar — leaves the rest of the stands fully visible
+const BALL_MID = (BALL_SIZE - 1) / 2;
+// a few fan colourways so the stands read as a real packed crowd, not a flat band
+const HAIR_TONES = ["#2a1c12", "#120d0a", "#caa06a", "#6b4a2a", "#e8e2d8", "#5c3a22"];
+const SKIN_TONES = ["#e8b48a", "#caa06a", "#8a5a3a", "#5c3a22", "#f2c48d", "#d99a6c"];
+const FAN_SHIRTS = [PAL.blue, PAL.red, PAL.lime, PAL.purple, PAL.yellow, PAL.cyan, PAL.orange, PAL.pink, PAL.teal];
+/** hex -> "rgba(r,g,b,a)" so baked/decorative colours can be laid over the court translucently */
+function rgba(hex: string, a: number) {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+}
 
 // ── baked backdrop + prop art (built once lazily, never inside draw/update) ──
 interface CourtArt {
   floor: Sprite;
-  crowd: Sprite;
+  crowdFar: Sprite;
+  roof: Sprite;
+  bench: Sprite;
   ball: Sprite;
   shadow: Sprite;
+}
+/** one packed-stands fan: a round head (hair + skin) with dark background showing all round it —
+ *  so it reads as a head, not a stripe — sitting above a solid team-coloured shirt, separated by
+ *  a dark collar gap. `headR` is the head's radius in px; bigger fans (`headR` ~3) read better
+ *  than many thin ones. Built once per cell so the tile reads as a crowd of people. */
+function fanCell(cx: number, cy: number, lx: number, ly: number, cellW: number, cellH: number, headR: number, shirts: readonly string[]): string | null {
+  const hair = HAIR_TONES[Math.floor(hash2(cx, cy, 31) * HAIR_TONES.length)];
+  const skin = SKIN_TONES[Math.floor(hash2(cx, cy, 47) * SKIN_TONES.length)];
+  const shirt = shirts[Math.floor(hash2(cx, cy, 61) * shirts.length)];
+  const raised = hash2(cx, cy, 83) < 0.28;
+  const midX = (cellW - 2) / 2; // centre of the visible columns (the last column is the gap)
+  const headCy = headR + 0.5;
+  const headBand = Math.ceil(headR * 2) + 1;
+  if (ly < headBand) {
+    // a genuinely ROUND head: background shows on every side of it, so it never blends into a stripe
+    const dx = lx - midX,
+      dy = ly - headCy;
+    const d = Math.hypot(dx, dy);
+    if (d > headR) {
+      if (raised && ly === 0 && Math.abs(dx) < 1.2) return shade(shirt, 0.45); // an arm/sign over the row
+      return null;
+    }
+    if (dy < -headR * 0.25) return hair; // hair on top
+    return d > headR - 1.1 ? shade(hair, -0.1) : skin; // a skin disc, rimmed by hair at the sides
+  }
+  const collarRow = headBand;
+  if (ly === collarRow) return null; // a dark gap always separates the head from the shoulders
+  if (ly === collarRow + 1) return shade(shirt, 0.18); // bright shoulders catch the arena lights
+  const bodyRow = ly - (collarRow + 2);
+  const last = cellH - (collarRow + 3);
+  if (bodyRow === last && Math.abs(lx - midX) < 1) return shade(shirt, -0.28); // a fold down the middle
+  return bodyRow % 3 === 0 ? shade(shirt, 0.06) : shirt;
 }
 function bakeCourtArt(): CourtArt {
   const floorW = COURT_R - COURT_L + 20;
@@ -61,31 +112,88 @@ function bakeCourtArt(): CourtArt {
     if (seam === 0) c = shade(c, -0.22);
     else if (seam === 1) c = shade(c, 0.1);
     if (y < 2 || y > floorH - 3) c = shade(c, -0.1); // baseline boards read a touch darker
+    // a long glossy shine band, as if catching the arena lights — soft dithered edges, not a slab
+    const band = (x * 0.4 + y) % 90;
+    if (band < 14) c = shade(c, (1 - Math.abs(band - 7) / 7) * 0.16 * (bayer(x, y) > 0.3 ? 1 : 0.7));
     return c;
   });
-  // one tile = two staggered rows of crowd "seats", a bit of per-seat hash variance for texture
-  const crowd = bake(16, 12, (x, y) => {
-    const cellW = 4,
-      cellH = 6;
-    if (x % cellW === cellW - 1 || y % cellH === cellH - 1) return null;
+  // back tier: small, dim, distant silhouettes — reads as "far away" under the lights, hidden
+  // mostly behind the jumbotron so no budget is spent making it individually readable. A wide
+  // tile (8 fans) before it repeats, so it never reads as a regular stripe pattern.
+  const crowdFar = bake(48, 12, (x, y) => {
+    const cellW = 6,
+      cellH = 12;
+    if (x % cellW === cellW - 1) return null;
     const cx = Math.floor(x / cellW);
-    const cy = Math.floor(y / cellH);
-    const base = (cx + cy) % 2 === 0 ? CROWD_A : CROWD_B;
-    return shade(base, (hash2(cx, cy, 11) - 0.5) * 0.35);
+    const lx = x % cellW;
+    const c = fanCell(cx, 0, lx, y, cellW, cellH, 1.8, FAN_SHIRTS);
+    return c ? shade(c, -0.32) : null;
   });
-  const ball = bake(8, 8, (x, y) => {
-    const dx = x - 3.5,
-      dy = y - 3.5;
+  // arena roof: dark trusses + a couple of bright floodlights with a soft dithered falloff
+  const roof = bake(32, 13, (x, y) => {
+    const lampX = x % 32 < 16 ? 8 : 24;
+    const d = Math.hypot(x - lampX, y - 3);
+    if (d < 1.6) return LIGHT_CORE;
+    if (d < 6 && 1 - d / 6 > bayer(x, y) * 0.75) return shade(LIGHT_GLOW, (1 - d / 6) * 0.3 - 0.1);
+    const truss = (x % 8 === 0 || (x + y) % 11 === 0) && y > 2;
+    return truss ? ROOF_TRUSS : ROOF_DARK;
+  });
+  // courtside team benches + ad boards along the baseline, players' legs implied by the gap below seats
+  const bench = bake(48, 18, (x, y) => {
+    if (y < 3) {
+      // low ad boards behind the bench
+      const panel = Math.floor(x / 12) % AD_COLORS.length;
+      return y === 0 ? shade(AD_COLORS[panel], -0.35) : AD_COLORS[panel];
+    }
+    if (y < 5) return shade(BENCH_WOOD, 0.25); // bench seat top
+    if (y < 12) {
+      // seated figures, spaced out along the bench
+      const seatX = x % 8;
+      if (seatX >= 2 && seatX <= 5 && y < 10) {
+        const cx = Math.floor(x / 8);
+        const skin = SKIN_TONES[Math.floor(hash2(cx, 1, 71) * SKIN_TONES.length)];
+        const shirt = FAN_SHIRTS[Math.floor(hash2(cx, 1, 73) * FAN_SHIRTS.length)];
+        return y < 7 ? skin : shirt;
+      }
+      return shade(BENCH_WOOD, -0.1);
+    }
+    return shade(BENCH_WOOD, -0.3); // bench legs / shadow under the seats
+  });
+  // a bigger ball with real seams: a dark cross plus two curved stitch arcs, lit from upper-left
+  const ball = bake(BALL_SIZE, BALL_SIZE, (x, y) => {
+    const dx = x - BALL_MID,
+      dy = y - BALL_MID;
     const d = Math.hypot(dx, dy);
-    if (d > 3.7) return null;
-    if (Math.abs(dx) < 0.5 || Math.abs(dy) < 0.5) return "#2a1608";
-    return d > 2.7 ? shade(PAL.orange, -0.18) : shade(PAL.orange, 0.12);
+    const r = BALL_MID + 0.3;
+    if (d > r) return null;
+    const lit = (-dx - dy) / (r * 1.6); // simple top-left light term, in roughly [-1,1]
+    const base = shade(PAL.orange, clamp(lit * 0.35, -0.3, 0.3));
+    const onSeam = Math.abs(dx) < 0.55 || Math.abs(dy) < 0.55;
+    const arc1 = Math.abs(Math.hypot(dx - r * 0.55, dy) - r * 0.78) < 0.5;
+    const arc2 = Math.abs(Math.hypot(dx + r * 0.55, dy) - r * 0.78) < 0.5;
+    if (onSeam || arc1 || arc2) return "#3a1c08";
+    return d > r - 1 ? shade(base, -0.15) : base; // a dark rim where the ball turns away from us
   });
-  const shadow = bakeShadow(16, 7, "rgba(0,0,0,0.38)");
-  return { floor, crowd, ball, shadow };
+  const shadow = bakeShadow(18, 8, "rgba(0,0,0,0.38)");
+  return { floor, crowdFar, roof, bench, ball, shadow };
 }
 let COURT_ART: CourtArt | null = null;
 const art = () => (COURT_ART ??= bakeCourtArt());
+/** the front row of the crowd, right behind the baseline — rebuilt only when the match-up
+ *  changes (never per-frame) so the fans can wear THIS match's two team colours. */
+function bakeCrowdNear(teamA: string, teamB: string): Sprite {
+  // an even mix of both teams' colours plus a neutral fan here and there — and enough unique fans
+  // per tile (9, each a full 8px wide) that the repeat never reads as a strict stripe pattern
+  const shirts = [teamA, teamB, teamA, teamB, teamA, teamB, PAL.white] as const;
+  const cellW = 9,
+    cellH = 25;
+  return bake(cellW * 9, cellH, (x, y) => {
+    if (x % cellW === cellW - 1) return null;
+    const cx = Math.floor(x / cellW);
+    const lx = x % cellW;
+    return fanCell(cx, 1, lx, y, cellW, cellH, 3, shirts);
+  });
+}
 
 const screenY = (d: number) => D_TOP + d * (D_BOT - D_TOP);
 /** small-prop perspective scale (ball, shadows, the net) */
@@ -250,9 +358,10 @@ interface Ply {
   ringVal: number;
   coolSteal: number;
   coolAi: number;
+  num: number;
 }
-function makePlayer(team: 0 | 1, x: number, d: number): Ply {
-  return { team, x, d, z: 0, vz: 0, facing: team === 0 ? 1 : -1, animT: 0, state: "run", shotT: 0, isDunkAttempt: false, released: false, ringVal: 0, coolSteal: 0, coolAi: 0 };
+function makePlayer(team: 0 | 1, x: number, d: number, num: number): Ply {
+  return { team, x, d, z: 0, vz: 0, facing: team === 0 ? 1 : -1, animT: 0, state: "run", shotT: 0, isDunkAttempt: false, released: false, ringVal: 0, coolSteal: 0, coolAi: 0, num };
 }
 
 type BMode = "held" | "pass" | "shotFlight" | "rebound";
@@ -291,11 +400,14 @@ function create(seed: number): GameInstance {
   let ti = 0;
   let opp: Team = CPU_TEAMS[0];
   let cpuSprites: SpriteSet = buildSprites(opp);
+  // the front crowd row is rebaked (not per-frame — only between matches) so the fans wear
+  // THIS match's two team colours instead of a generic rainbow
+  let crowdNear: Sprite = bakeCrowdNear(KID_TEAM.jersey, opp.jersey);
   // a couple of frames of wobble on the backboard the shot just hit — [left hoop, right hoop]
   const rimShake: [number, number] = [0, 0];
 
-  const kid: [Ply, Ply] = [makePlayer(0, 240, 0.5), makePlayer(0, 200, 0.3)];
-  const cpu: [Ply, Ply] = [makePlayer(1, 240, 0.5), makePlayer(1, 280, 0.7)];
+  const kid: [Ply, Ply] = [makePlayer(0, 240, 0.5, 23), makePlayer(0, 200, 0.3, 11)];
+  const cpu: [Ply, Ply] = [makePlayer(1, 240, 0.5, 7), makePlayer(1, 280, 0.7, 9)];
   const players = [kid[0], kid[1], cpu[0], cpu[1]];
 
   const ball: Ball = {
@@ -331,6 +443,9 @@ function create(seed: number): GameInstance {
   let shake = 0;
   let prevHeldA = false;
   const sparks: Spark[] = [];
+  const stars: { x: number; y: number; life: number; max: number }[] = [];
+  // crowd goes wild for a few seconds after any basket: arms/signs wave and the flashbulbs pop
+  let hypeT = 0;
 
   const burst = (x: number, y: number, c: string, n = 10) => {
     for (let i = 0; i < n; i++) sparks.push({ x, y, vx: r.range(-2.2, 2.2), vy: r.range(-2.6, 1), life: r.int(14, 26), c });
@@ -338,6 +453,10 @@ function create(seed: number): GameInstance {
   // a little low, slow puff of court dust at a sprinting sneaker — never a shower of sparks
   const dustPuff = (x: number, y: number) => {
     sparks.push({ x, y, vx: r.range(-0.5, 0.5), vy: r.range(-0.5, -0.05), life: r.int(10, 16), c: "rgba(210,180,135,0.5)" });
+  };
+  // a little twinkling sparkle (never a circle) for a clean swish
+  const sparkle = (x: number, y: number, n = 5) => {
+    for (let i = 0; i < n; i++) stars.push({ x: x + r.range(-10, 10), y: y + r.range(-6, 10), life: r.int(16, 26), max: 26 });
   };
 
   // ── formation / possession ──
@@ -372,6 +491,7 @@ function create(seed: number): GameInstance {
   function newMatch() {
     opp = CPU_TEAMS[ti];
     cpuSprites = buildSprites(opp);
+    crowdNear = bakeCrowdNear(KID_TEAM.jersey, opp.jersey);
     quarter = 1;
     clock = QUARTER_FRAMES;
     kidScore = 0;
@@ -526,16 +646,21 @@ function create(seed: number): GameInstance {
       io.score(ball.points * 100 + (ball.isDunk ? 150 : 0));
       io.sfx.play(ball.isDunk ? "explode" : "win");
       io.sfx.play("cheer");
+      io.sfx.noise?.(42, 0.3, 380, 900); // the crowd roars
       if (justCaughtFire) io.sfx.play("powerup");
+      hypeT = 70;
     } else {
       oppScore += ball.points;
       io.sfx.play("coin");
+      io.sfx.noise?.(18, 0.16, 260, 220); // a smaller, disappointed murmur
+      hypeT = Math.max(hypeT, 30);
     }
     shake = ball.isDunk ? 14 : 5;
     msg = ball.isDunk ? "SLAM DUNK!" : ball.points === 3 ? "SPLASH! 3PT!" : "SWISH!";
     msgT = 60;
     const hoopX = team === 0 ? COURT_R : COURT_L;
     burst(hoopX, screenY(0.5) - RIM_Z, team === 0 ? PAL.yellow : PAL.red, ball.isDunk ? 18 : 10);
+    if (!ball.isDunk) sparkle(hoopX, screenY(0.5) - RIM_Z - 6, 6);
     setPossession(team === 0 ? 1 : 0);
   }
 
@@ -655,6 +780,8 @@ function create(seed: number): GameInstance {
         msg = "OFF THE RIM!";
         msgT = 30;
         io.sfx.play("bounce");
+        io.sfx.tone(240, 70, "square", 0.22); // a metallic clang off the rim
+        shake = Math.max(shake, 5);
         rimShake[ball.targetTeam === 0 ? 1 : 0] = 10;
       }
     }
@@ -715,6 +842,7 @@ function create(seed: number): GameInstance {
       frame++;
       if (shake > 0) shake--;
       if (msgT > 0) msgT--;
+      if (hypeT > 0) hypeT--;
       if (rimShake[0] > 0) rimShake[0]--;
       if (rimShake[1] > 0) rimShake[1]--;
       for (let i = sparks.length - 1; i >= 0; i--) {
@@ -724,6 +852,7 @@ function create(seed: number): GameInstance {
         s.vy += 0.12;
         if (--s.life <= 0) sparks.splice(i, 1);
       }
+      for (let i = stars.length - 1; i >= 0; i--) if (--stars[i].life <= 0) stars.splice(i, 1);
 
       if (state === "intro") {
         stateT--;
@@ -809,7 +938,10 @@ function create(seed: number): GameInstance {
         // sneaker dust while sprinting on the court — small, throttled, never a shower
         if (p.state === "run" && p.animT > 0 && (frame + Math.floor(p.x)) % 11 === 0) dustPuff(p.x, screenY(p.d));
       }
-      if (human.state === "run" && human.animT > 0 && frame % 16 === 0) io.sfx.play("step");
+      if (human.state === "run" && human.animT > 0 && frame % 16 === 0) {
+        io.sfx.play("step");
+        io.sfx.slide?.(1500, 2200, 35, "triangle", 0.1); // a quick sneaker squeak on the hardwood
+      }
       if (ball.mode === "held" && ball.holder?.state === "run" && ball.holder.animT > 0 && frame % 14 === 0) io.sfx.tone(140, 30, "sine", 0.1);
 
       if (ball.mode === "pass") updatePass(io);
@@ -828,26 +960,79 @@ function create(seed: number): GameInstance {
       const camX = clamp(ball.x - W / 2, 0, WORLD_W - W);
       const sx = shake > 0 ? (frame % 2 ? 2 : -2) : 0;
 
-      g.clear(COURT_BG);
-      // crowd — two staggered rows of baked stadium seats, scrolling slower than the court
-      drawStrip(g, A.crowd, camX * 0.3, 2, W);
-      drawStrip(g, A.crowd, camX * 0.45 + 6, 15, W);
-      g.rect(0, 32, W, 2, "rgba(10,8,24,0.6)");
-      g.rect(0, 34, W, 2, PAL.dark);
+      g.clear(ROOF_DARK);
+      // arena roof — dark trusses + a couple of bright floodlights, soft dithered falloff
+      // (mostly hidden behind the compact jumbotron, which is fine — it's meant to feel distant)
+      drawStrip(g, A.roof, camX * 0.1, 0, W);
+      drawStrip(g, A.crowdFar, camX * 0.2, HUD_H, W);
+      // the near tier sits right behind the baseline, fully visible, heads-and-shoulders readable
+      drawStrip(g, crowdNear, camX * 0.4, D_TOP - 25, W);
+      // two floodlight beams glowing down onto the stands — a small source + soft falloff
+      for (const lx of [W * 0.28, W * 0.72]) {
+        g.circle(lx, HUD_H + 4, 3, "rgba(255,253,224,0.45)");
+        g.circle(lx, HUD_H + 4, 6, "rgba(255,233,160,0.16)");
+      }
+      // the crowd goes wild after a basket: arms and signs pump, flashbulbs pop
+      if (hypeT > 0) {
+        const hp = hypeT / 70;
+        const span = W + 20;
+        for (let i = 0; i < 9; i++) {
+          let fx = (i * 28 + 14 - camX * 0.4) % span;
+          if (fx < 0) fx += span;
+          fx -= 10;
+          const bob = Math.abs(Math.sin(frame * 0.6 + i * 1.7)) * 7 * hp;
+          const fy = D_TOP - 10 - (i % 3) * 7 - bob;
+          g.line(fx, fy + 7, fx, fy, shade(FAN_SHIRTS[i % FAN_SHIRTS.length], 0.25));
+        }
+      }
+      const flashChance = hypeT > 0 ? 0.1 : 0.012;
+      for (let i = 0; i < 4; i++) {
+        if (hash2(Math.floor(frame / 3), i, 97) < flashChance) {
+          const fx = hash2(i, Math.floor(frame / 3), 5) * W;
+          const fy = HUD_H + 2 + hash2(i, Math.floor(frame / 3), 9) * (D_TOP - HUD_H - 4);
+          g.circle(fx, fy, 1.4, "rgba(255,255,255,0.9)");
+        }
+      }
+      g.rect(0, D_TOP - 1, W, 1, "rgba(10,8,24,0.8)");
+      // courtside benches + ad boards along the baseline — drawn here, in screen space with the
+      // SAME scroll as the floor below, so the tiled strip always fills the full width (a sprite
+      // tiled by drawStrip must never be drawn again inside an active g.camera() shift)
+      drawStrip(g, A.bench, camX + sx, D_BOT + 2, W);
 
       g.camera(camX + sx, 0);
+      // a padded wall behind the baseline, full world width — the court floor never leaves a
+      // black void when the camera reaches either end of the arena (cheap flat fill, no per-pixel loop)
+      g.rect(-20, D_TOP, WORLD_W + 40, D_BOT - D_TOP, PAD_WALL);
+      g.rect(-20, D_TOP, WORLD_W + 40, 4, shade(PAD_WALL, 0.15));
       // court floor — one baked wood sprite (grain, plank seams, darker baseline boards)
       g.sprite(A.floor, COURT_L - 10, D_TOP);
       g.rect(COURT_L - 10, D_TOP, COURT_R - COURT_L + 20, 3, PAL.white);
       g.rect(COURT_L - 10, D_BOT - 3, COURT_R - COURT_L + 20, 3, PAL.white);
       const midX = (COURT_L + COURT_R) / 2;
       g.rect(midX - 1, D_TOP, 2, D_BOT - D_TOP, PAL.white);
-      g.circle(midX, screenY(0.5), 18, "rgba(255,255,255,0.22)");
-      // key + 3pt arc + restricted-area cross at each hoop
+      // centre-court logo: painted FLAT into the wood, like a stain under varnish — a thin ring
+      // and a simple paw-print emblem, both just a shade off the floor colour, no shading, no ball
+      // (never the ball sprite itself: a kid must never mistake this for the live ball)
+      {
+        const lcy = screenY(0.5);
+        const ink = shade(COURT_WOOD, 0.13);
+        g.circle(midX, lcy, 19, ink);
+        g.circle(midX, lcy, 17, COURT_WOOD); // punches the ring hollow, leaving a thin painted edge
+        g.circle(midX, lcy + 3, 4.5, ink); // paw pad
+        for (const [ox, oy] of [
+          [-4.5, -3],
+          [-1.6, -5.5],
+          [1.6, -5.5],
+          [4.5, -3],
+        ])
+          g.circle(midX + ox, lcy + oy, 2.1, ink); // four toes
+      }
+      // key + 3pt arc + restricted-area cross at each hoop — each key painted in its team's colour
       for (const side of [-1, 1] as const) {
         const hoopX = side > 0 ? COURT_R : COURT_L;
-        g.rect(side > 0 ? hoopX - 46 : hoopX, screenY(0.22), 46, screenY(0.78) - screenY(0.22), "rgba(255,255,255,0.14)");
-        g.box(side > 0 ? hoopX - 46 : hoopX, screenY(0.22), 46, screenY(0.78) - screenY(0.22), "rgba(255,255,255,0.3)");
+        const keyTeam = side > 0 ? KID_TEAM : opp;
+        g.rect(side > 0 ? hoopX - 46 : hoopX, screenY(0.22), 46, screenY(0.78) - screenY(0.22), rgba(keyTeam.jersey, 0.22));
+        g.box(side > 0 ? hoopX - 46 : hoopX, screenY(0.22), 46, screenY(0.78) - screenY(0.22), rgba(keyTeam.jersey, 0.55));
         const markX = side > 0 ? hoopX - 30 : hoopX + 30;
         const markY = screenY(0.5);
         g.line(markX - 3, markY, markX + 3, markY, PAL.orange);
@@ -880,6 +1065,8 @@ function create(seed: number): GameInstance {
         // backboard, with a bright top edge and a dark frame
         g.rect(hoopX - bbW / 2 + wob, bbTop, bbW, bbH, "#eef1ff");
         g.rect(hoopX - bbW / 2 + wob, bbTop, bbW, 3, "#ffffff");
+        // a diagonal glassy highlight catching the arena lights
+        g.line(hoopX - bbW / 2 + wob + 2, bbTop + bbH - 4, hoopX - bbW / 2 + wob + 9, bbTop + 3, "rgba(255,255,255,0.65)");
         g.box(hoopX - bbW / 2 + wob, bbTop, bbW, bbH, "#1c1933");
         g.rect(hoopX - 7 + wob, bbTop + bbH - 12, 14, 9, PAL.red);
         g.box(hoopX - 7 + wob, bbTop + bbH - 12, 14, 9, shade(PAL.red, -0.3));
@@ -923,28 +1110,32 @@ function create(seed: number): GameInstance {
         // a soft baked shadow under the feet — shrinks as the player jumps, never a big dark blob
         const shrink = clamp(1 - p.z / 46, 0.35, 1);
         const shScale = pScale * shrink * 0.7;
-        g.sprite(A.shadow, p.x - 8 * shScale, feetY - 3.5 * shScale, { scale: shScale });
+        g.sprite(A.shadow, p.x - 9 * shScale, feetY - 4 * shScale, { scale: shScale });
         g.sprite(spr, p.x - 7 * pScale, topY, { flipX: p.facing < 0, scale: pScale });
+        // a small jersey number on the chest — skip it on far, tiny players so it never blurs into noise.
+        // NOTE: unlike g.sprite(), g.text() does NOT subtract the active g.camera() shift, so while
+        // the world camera is on we must subtract it ourselves or the number drifts off the player.
+        if (pScale > 2.2) g.text(`${p.num}`, p.x - (camX + sx), topY + 4 * pScale, "rgba(255,255,255,0.85)", { align: "center", size: pScale / 2.6 });
         if (p === human) {
           const bob = Math.sin(frame * 0.2) * 2;
           g.circle(p.x, topY - 5 + bob, 3, PAL.yellow);
         }
       }
 
-      // ball — small (~6-7px across) with its own flat shadow, never as big as a player
+      // ball — bigger, with visible seams — and its own flat shadow, never as big as a player
       {
         let bx = ball.x,
           bd = ball.d,
           bz = ball.z;
         if (ball.mode === "held" && ball.holder) {
           const holderScale = playerScale(ball.holder.d);
-          bx = ball.holder.x + ball.holder.facing * 7 * holderScale * 0.5;
+          bx = ball.holder.x + ball.holder.facing * 9 * holderScale * 0.5;
           bd = ball.holder.d;
-          bz = ball.holder.z + 10 * holderScale * 0.5 + (ball.holder.state === "run" ? Math.abs(Math.sin(ball.holder.animT * 2)) * 3 : 0);
+          bz = ball.holder.z + 13 * holderScale * 0.5 + (ball.holder.state === "run" ? Math.abs(Math.sin(ball.holder.animT * 2)) * 3 : 0);
         }
         const scale = depthScale(bd);
         const sy = screenY(bd) - bz;
-        g.sprite(A.shadow, bx - 8 * scale * 0.5, screenY(bd) - 2.5 * scale * 0.5, { scale: scale * 0.5 });
+        g.sprite(A.shadow, bx - 9 * scale * 0.6, screenY(bd) - 2.8 * scale * 0.6, { scale: scale * 0.6 });
         if (onFire && kidBallish) {
           for (let i = 0; i < 3; i++) {
             const fx = bx + Math.sin(frame * 0.5 + i) * 4;
@@ -952,24 +1143,39 @@ function create(seed: number): GameInstance {
             g.circle(fx, fy, (3 - i * 0.6) * scale, i % 2 ? PAL.yellow : PAL.orange);
           }
         }
-        g.sprite(A.ball, bx - 4 * scale, sy - 4 * scale, { scale });
+        g.sprite(A.ball, bx - BALL_MID * scale, sy - BALL_MID * scale, { scale });
       }
       for (const s of sparks) g.circle(s.x, s.y, 2, s.c);
+      // swish sparkles — little twinkling crosses, never plain dots
+      for (const st of stars) {
+        const a = st.life / st.max;
+        const r2 = 1 + (1 - Math.abs(a - 0.5) * 2) * 2.5;
+        const c = a > 0.5 ? "#ffffff" : PAL.yellow;
+        g.line(st.x - r2, st.y, st.x + r2, st.y, c);
+        g.line(st.x, st.y - r2, st.x, st.y + r2, c);
+      }
 
       g.camera(0, 0);
-      // ── HUD / scoreboard ──
-      g.rect(0, 0, W, 34, "rgba(13,11,26,0.75)");
-      g.rect(0, 33, W, 1, PAL.dark);
-      g.text("BADGERS", 6, 3, KID_TEAM.jersey);
-      g.text(`${kidScore}`, 6, 13, PAL.white, { size: 2 });
-      g.text(opp.name, W - 6, 3, opp.jersey, { align: "right" });
-      g.text(`${oppScore}`, W - 6, 13, PAL.white, { align: "right", size: 2 });
-      g.text(quarter <= 4 ? `Q${quarter}` : "OT", W / 2, 3, PAL.grey, { align: "center" });
+      // ── HUD / scoreboard — a COMPACT jumbotron, team colours either side, so the stands behind
+      // it stay mostly visible ──
+      g.rect(0, 0, W, HUD_H, "rgba(10,8,22,0.72)");
+      g.rect(0, 0, 3, HUD_H, KID_TEAM.jersey);
+      g.rect(W - 3, 0, 3, HUD_H, opp.jersey);
+      g.box(2, 1, W - 4, HUD_H - 3, "rgba(255,255,255,0.14)");
+      g.rect(0, HUD_H - 1, W, 1, PAL.dark);
+      g.text("BADGERS", 6, 2, KID_TEAM.jersey);
+      g.text(`${kidScore}`, 6, 11, PAL.white);
+      g.text(opp.name, W - 6, 2, opp.jersey, { align: "right" });
+      g.text(`${oppScore}`, W - 6, 11, PAL.white, { align: "right" });
+      g.text(quarter <= 4 ? `Q${quarter}` : "OT", W / 2, 2, PAL.grey, { align: "center" });
       const secs = Math.max(0, Math.ceil(clock / 60));
-      g.text(`${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`, W / 2, 13, PAL.white, { align: "center" });
+      g.text(`${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")}`, W / 2, 11, PAL.white, { align: "center" });
       const shotSecs = Math.max(0, Math.ceil(shotClock / 60));
-      g.text(`${shotSecs}`, W / 2, 24, shotSecs <= 5 ? PAL.red : PAL.yellow, { align: "center" });
-      if (onFire) g.text("SUPER HOT!", W / 2, 38, frame % 20 < 10 ? PAL.orange : PAL.yellow, { align: "center" });
+      g.text(`${shotSecs}`, W / 2 + 22, 11, shotSecs <= 5 ? PAL.red : PAL.yellow, { align: "center" });
+      if (onFire) {
+        g.rect(W / 2 - 34, HUD_H + 2, 68, 8, "rgba(10,8,22,0.75)");
+        g.text("SUPER HOT!", W / 2, HUD_H + 4, frame % 20 < 10 ? PAL.orange : PAL.yellow, { align: "center" });
+      }
 
       // timing ring for a human-controlled charging jump shot
       if ((human.state === "jump" || human.state === "dunk") && !human.isDunkAttempt && !human.released) {
@@ -982,7 +1188,20 @@ function create(seed: number): GameInstance {
         g.text("RELEASE AT THE TOP!", W / 2, by - 10, PAL.white, { align: "center" });
       }
 
-      if (msgT > 0 && state === "play") g.text(msg, W / 2, 48, PAL.white, { align: "center", size: 2 });
+      if (msgT > 0 && state === "play") {
+        const hypeMsg = msg === "SWISH!" || msg === "SPLASH! 3PT!" || msg === "SLAM DUNK!" || msg === "BLOCKED!" || msg === "STEAL!";
+        if (hypeMsg) {
+          const bw = msg.length * 11 + 16;
+          const bx = W / 2 - bw / 2;
+          const bannerColor = msg === "BLOCKED!" ? opp.jersey : KID_TEAM.jersey;
+          g.rect(bx, 40, bw, 14, "rgba(10,8,22,0.8)");
+          g.rect(bx, 40, 3, 14, bannerColor);
+          g.rect(bx + bw - 3, 40, 3, 14, bannerColor);
+          g.box(bx, 40, bw, 14, "rgba(255,255,255,0.5)");
+          g.text(msg, W / 2 + 1, 44, "#140c28", { align: "center", size: 2 });
+          g.text(msg, W / 2, 43, frame % 10 < 5 ? PAL.yellow : PAL.white, { align: "center", size: 2 });
+        } else g.text(msg, W / 2, 48, PAL.white, { align: "center", size: 2 });
+      }
 
       if (state === "intro") {
         g.rect(30, 80, W - 60, 56, "rgba(13,11,26,0.85)");

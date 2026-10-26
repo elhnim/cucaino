@@ -7,7 +7,7 @@
 // Win 3 rounds by knockdown or on points to move on; beat the big-hearted champ to win it all.
 // (Original game in the spirit of 8-bit boxing classics — no real people or trademarks.)
 import { H, PAL, W, clamp, rng, type GameInstance, type Gfx, type IO, type Input, type RetroGameDef, type Sprite } from "../engine";
-import { bake, bakeShadow, hash2, mixHex, shade } from "../art";
+import { bake, bakeShadow, bayer, drawStrip, hash2, mixHex, ramp, shade } from "../art";
 
 const PLAYER_MAX = 100;
 const ROUND_FRAMES = 60 * 40; // 40s rounds — plenty of time, clock stops during a knockdown
@@ -34,27 +34,412 @@ const PLAYER_Y = 182;
 // ── baked backdrop (built once, cached, never baked inside the draw loop) ──
 interface PunchArt {
   sky: Sprite;
+  crowdBack: Sprite;
+  crowdMid: Sprite;
+  crowdFront: Sprite;
+  banner: Sprite;
+  spotL: Sprite;
+  spotR: Sprite;
   floor: Sprite;
   post: Sprite;
   pad: Sprite;
   gloveShadow: Sprite;
   burstStar: Sprite;
+  sweat: Sprite;
+  oppHeads: Anchored[];
+  oppTorsos: Anchored[];
+  glove: Anchored;
+  playerHead: Anchored;
+  playerTorso: Anchored;
 }
+
+/** a baked sprite plus the (cx, cy) point inside it that should land on the world position it's
+ *  drawn at — so a pose can say "head centre goes here" without caring about the sprite's padding. */
+interface Anchored {
+  sprite: Sprite;
+  cx: number;
+  cy: number;
+}
+/** draw an Anchored sprite so its anchor point lands at (wx, wy) */
+function drawAnchored(g: Gfx, a: Anchored, wx: number, wy: number, opts?: { flipX?: boolean; scale?: number }) {
+  const scale = opts?.scale ?? 1;
+  const flipX = !!opts?.flipX;
+  const cx = flipX ? (a.sprite.rows[0]?.length ?? 0) - a.cx : a.cx;
+  g.sprite(a.sprite, wx - cx * scale, wy - a.cy * scale, opts);
+}
+
+const OPP_HEAD_R = 28;
+const OPP_BODY_W = 58;
+const OPP_BODY_H = 58;
+
+/** the player's hair-and-ears head, seen from the back, with a neck tucked under it. */
+function bakePlayerHead(r: number): Anchored {
+  const w = Math.ceil(r * 3);
+  const h = Math.ceil(r * 2.7);
+  const cx = w / 2;
+  const cy = r * 1.05;
+  const hairTones = ramp("#4a2f1d", 4, 0.5);
+  const earTones = ramp(PAL.tan, 3, 0.4);
+  const tufts = [-0.55, 0, 0.55].map((o) => ({ x: cx + o * r * 0.85, y: cy - r * 0.92 - Math.abs(o) * r * 0.15, rx: r * 0.24, ry: r * 0.36 }));
+  const sprite = bake(w, h, (x, y) => {
+    for (const s of [-1, 1]) {
+      const edx = (x - (cx + s * r * 0.92)) / (r * 0.24);
+      const edy = (y - cy) / (r * 0.3);
+      const re = Math.hypot(edx, edy);
+      if (re <= 1) {
+        const b = bright2(edx, edy);
+        return earTones[toneIdx(b, 3)];
+      }
+    }
+    for (const t of tufts) {
+      const tdx = (x - t.x) / t.rx;
+      const tdy = (y - t.y) / t.ry;
+      if (Math.hypot(tdx, tdy) <= 1) return hairTones[toneIdx(bright2(tdx, tdy), 4)];
+    }
+    const dx = (x - cx) / r;
+    const dy = (y - cy) / r;
+    const rr = Math.hypot(dx, dy);
+    if (rr <= 1) {
+      let t = hairTones[toneIdx(bright2(dx, dy), 4)];
+      if (rr > 0.78 && bright2(dx, dy) > 0.5) t = shade(t, 0.22);
+      return t;
+    }
+    if (y > cy + r * 0.72 && y < cy + r * 1.35 && Math.abs(x - cx) < r * 0.55) return earTones[1]; // neck
+    if (rr > 1 && rr < 1 + 1.3 / r) return "#140c28";
+    return null;
+  });
+  return { sprite, cx, cy };
+}
+
+/** the player's back: trapezius shoulders tapering to the waist, a singlet with a collar stripe. */
+function bakePlayerTorso(bodyW: number, bodyH: number, tint: string): Anchored {
+  const w = Math.ceil(bodyW + 6);
+  const PAD = 5;
+  const h = Math.ceil(bodyH + 4) + PAD;
+  const cx = w / 2;
+  const topHW = bodyW / 2; // trapezius / shoulder width — clearly wider than the hem
+  const waistHW = topHW * 0.56;
+  const capRY = bodyH * 0.34; // a pronounced trapezius slope from the neck down to the shoulders
+  const tones = ramp(tint, 4, 0.5);
+  const strapColor = shade(tint, -0.4);
+  const stripeColor = shade(mixHex(tint, PAL.navy, 0.6), 0.05);
+  const sprite = bake(w, h, (x, rawY) => {
+    const y = rawY - PAD;
+    const dx = x - cx;
+    const cdx = dx / topHW;
+    const cdy = (y - capRY * 0.45) / (capRY * 1.1);
+    const rCap = Math.hypot(cdx, cdy);
+    const t = Math.min(1, Math.max(0, (y - capRY * 0.35) / Math.max(1, h - capRY * 0.35)));
+    const hw = topHW + (waistHW - topHW) * Math.pow(t, 1.1); // shoulders -> noticeably narrower hem
+    const rBody = Math.abs(dx) / hw;
+    const inCap = y < capRY * 1.5 && rCap <= 1;
+    const inBody = y >= capRY * 0.1 && rBody <= 1;
+    if (!inCap && !inBody) {
+      if (y < capRY * 1.5 && rCap > 1 && rCap < 1 + 1.4 / capRY) return "#140c28";
+      if (rBody > 1 && rBody < 1 + 1.4 / Math.max(4, hw)) return "#140c28";
+      return null;
+    }
+    const nx = inCap && rCap >= rBody ? cdx : dx / hw;
+    const ny = inCap && rCap >= rBody ? cdy : t * 0.6 - 0.3;
+    const b = bright2(nx, ny);
+    const onEdge = (inCap ? rCap : rBody) > 0.84;
+    let tcol = tones[toneIdx(b, 4)];
+    // shoulder-blade shading: two soft darker patches either side of the spine, upper back
+    const bladeL = Math.hypot((x - (cx - topHW * 0.4)) / (topHW * 0.34), (y - h * 0.32) / (h * 0.26));
+    const bladeR = Math.hypot((x - (cx + topHW * 0.4)) / (topHW * 0.34), (y - h * 0.32) / (h * 0.26));
+    if (Math.min(bladeL, bladeR) <= 1) tcol = shade(tcol, -0.14);
+    // singlet straps running from each shoulder down the back
+    const strapHW = topHW * 0.1;
+    const inStrapL = Math.abs(x - (cx - topHW * 0.46)) < strapHW && y < h * 0.42;
+    const inStrapR = Math.abs(x - (cx + topHW * 0.46)) < strapHW && y < h * 0.42;
+    if ((inStrapL || inStrapR) && !onEdge) tcol = shade(strapColor, b * 0.15);
+    // a bold back stripe lower down, where the singlet design shows clearly
+    if (y >= h * 0.5 && y <= h * 0.64 && !onEdge) tcol = shade(stripeColor, b * 0.1);
+    if (onEdge && b > 0.4) tcol = shade(tcol, 0.2);
+    if (onEdge) tcol = "#140c28";
+    return tcol;
+  });
+  return { sprite, cx, cy: PAD };
+}
+
+/** a tileable row of chunky, readable heads-and-shoulders silhouettes (5-7px heads on wider
+ *  shoulder blocks), a lit rim on every head catching the spotlights, a few raised cheering arms,
+ *  and — for the row nearest the ring — a handful of heads lit in colour by the spotlights. */
+function bakeCrowdRow(w: number, h: number, period: number, base: string, rim: string, colorful: boolean): Sprite {
+  const n = Math.max(4, Math.round(w / period));
+  const P = w / n;
+  const headR = Math.max(2.6, period * 0.26);
+  const hues = [PAL.orange, PAL.pink, PAL.cyan, PAL.lime, PAL.yellow];
+  const people = Array.from({ length: n }, (_, i) => ({
+    jitter: (hash2(i, 0, 41) - 0.5) * 2.4,
+    armUp: hash2(i, 1, 42) > 0.8,
+    armSide: hash2(i, 2, 43) > 0.5 ? 1 : -1,
+    lit: colorful && hash2(i, 3, 44) > 0.68,
+    hue: hues[Math.floor(hash2(i, 4, 45) * hues.length)],
+  }));
+  return bake(w, h, (x, y) => {
+    for (const k of [0, -1, 1]) {
+      const col = Math.floor(x / P) + k;
+      const idx = ((col % n) + n) % n;
+      const person = people[idx];
+      const px = col * P + P / 2;
+      const headCy = h - headR * 1.5 + person.jitter;
+      const hdx = (x - px) / headR;
+      const hdy = (y - headCy) / headR;
+      const rh = Math.hypot(hdx, hdy);
+      if (rh <= 1) return rh > 0.8 ? rim : person.lit ? person.hue : base;
+      if (person.armUp) {
+        const ax = px + person.armSide * P * 0.4;
+        const armTop = headCy - headR * 1.5;
+        if (y >= armTop && y <= headCy + headR * 0.2 && Math.abs(x - ax) <= 1) return y < armTop + 1.3 ? rim : base;
+        if (Math.hypot((x - ax) / 1.5, (y - armTop) / 1.5) <= 1) return base; // a small raised fist
+      }
+      const shTop = headCy + headR * 0.6;
+      if (y >= shTop) {
+        const t = (y - shTop) / Math.max(1, h - shTop);
+        const halfW = P * 0.3 + P * 0.26 * t;
+        if (Math.abs(x - px) <= halfW) return y < shTop + 1 ? rim : base;
+      }
+    }
+    return null;
+  });
+}
+
+/** a hanging ring banner: striped pennant with a small star emblem, flat colour blocks only. */
+function bakeBanner(w: number, h: number, stripeA: string, stripeB: string): Sprite {
+  return bake(w, h, (x, y) => {
+    if (y === 0) return shade(stripeA, -0.4); // hanging rod
+    const stripe = Math.floor(x / 3) % 2 === 0 ? stripeA : stripeB;
+    const emblemY = h * 0.42;
+    if (Math.abs(x - w / 2) + Math.abs(y - emblemY) < 3) return y < 1 ? stripe : "#fff6df";
+    if (y > h - 3 && Math.abs(x - w / 2) > (h - y) * 1.4) return null; // pennant V-cut bottom
+    return stripe;
+  });
+}
+
+/** a soft dithered spotlight cone, narrow near the ceiling and widening as it falls, using the
+ *  ordered-dither threshold so it reads as a classic 16-bit light beam, not a flat glow blob. */
+function bakeSpot(w: number, h: number, color: string): Sprite {
+  return bake(w, h, (x, y) => {
+    const t = y / (h - 1);
+    const halfW = (0.12 + 0.88 * t) * (w / 2);
+    const dx = Math.abs(x - w / 2);
+    if (dx > halfW) return null;
+    const edge = 1 - dx / halfW;
+    const density = edge * (1.05 - t * 0.55);
+    return density > bayer(x, y) ? color : null;
+  });
+}
+
+// ── real shaded pixel-art bodies: light comes from the upper-left, 3-4 tone ramps, a 1px dark
+// outline and a rim highlight crescent on the lit edge — baked once per opponent so the result
+// is a proper illustrated sprite, not a flat circle-on-rectangle. ──
+const LX = -0.6;
+const LY = -0.8; // unit "towards the light" direction (upper-left)
+const bright2 = (nx: number, ny: number) => -(nx * LX + ny * LY) * -1; // dot(normal, light) via -(n·-L)
+const toneIdx = (b: number, n: number) => Math.min(n - 1, Math.max(0, Math.floor(((b + 1) / 2) * n)));
+
+type EarKind = OppDef["ear"];
+
+/** an opponent's head as one illustrated sprite: a fur-shaded ball, round/point/big ears baked
+ *  on (feathers stay procedural — they move), a muzzle patch, nose and a neutral mouth line. */
+function bakeOppHead(headR: number, base: string, accent: string, ear: EarKind): Anchored {
+  const R = headR;
+  const padTop = ear === "point" ? R * 1.9 : ear === "big" ? R * 1.05 : R * 1.5;
+  const padSide = ear === "big" ? R * 1.95 : R * 0.7;
+  const w = Math.ceil(R * 2 + padSide * 2);
+  const h = Math.ceil(R * 2 + padTop * 0.65 + R * 0.75);
+  const cx = w / 2;
+  const cy = padTop + R * 0.4;
+  const tones = ramp(base, 4, 0.52);
+  const muzzleTones = ramp(accent, 3, 0.42);
+  const ears: { x: number; y: number; rx: number; ry: number }[] =
+    ear === "round"
+      ? [-1, 1].map((s) => ({ x: cx + s * R * 0.78, y: cy - R * 0.92, rx: R * 0.44, ry: R * 0.44 }))
+      : ear === "big"
+        ? [-1, 1].map((s) => ({ x: cx + s * R * 1.18, y: cy - R * 0.22, rx: R * 0.6, ry: R * 0.64 }))
+        : ear === "point"
+          ? [-1, 1].map((s) => ({ x: cx + s * R * 0.72, y: cy - R * 1.18, rx: R * 0.3, ry: R * 0.62 }))
+          : [];
+  const sprite = bake(w, h, (x, y) => {
+    const hdx = (x - cx) / R;
+    const hdy = (y - cy) / R;
+    const rHead = Math.hypot(hdx, hdy);
+    if (rHead <= 1) {
+      const b = bright2(hdx, hdy);
+      // muzzle patch (lower-centre) and nose
+      const mdx = (x - cx) / (R * 0.36);
+      const mdy = (y - (cy + R * 0.42)) / (R * 0.32);
+      const rm = Math.hypot(mdx, mdy);
+      if (rm <= 1) {
+        const nose = Math.hypot((x - cx) / (R * 0.1), (y - (cy + R * 0.3)) / (R * 0.1));
+        if (nose <= 1) return shade(accent, -0.45);
+        // mouth: a short neutral line under the nose
+        if (Math.abs(y - (cy + R * 0.58)) < 1.1 && Math.abs(x - cx) < R * 0.18) return shade(accent, -0.4);
+        let t = muzzleTones[toneIdx(b, 3)];
+        if (rm > 0.8) t = shade(t, -0.5); // outline the muzzle patch itself so it reads as separate
+        return t;
+      }
+      let t = tones[toneIdx(b, 4)];
+      if (rHead > 0.82 && b > 0.5) t = shade(t, 0.24); // rim highlight crescent on the lit side
+      const speck = hash2(x, y, 61);
+      if (speck > 0.965) t = shade(t, -0.16); // fur fleck texture
+      return t;
+    }
+    // ears
+    for (const e of ears) {
+      const edx = (x - e.x) / e.rx;
+      const edy = (y - e.y) / e.ry;
+      const re = Math.hypot(edx, edy);
+      if (re <= 1) {
+        const b = bright2(edx, edy);
+        const inner = Math.hypot(edx / 0.6, edy / 0.6) <= 1;
+        let t = inner ? muzzleTones[toneIdx(b, 3)] : tones[toneIdx(b, 4)];
+        if (re > 0.84 && b > 0.5) t = shade(t, 0.22);
+        return t;
+      }
+      if (re > 1 && re < 1 + 1.3 / Math.min(e.rx, e.ry)) return "#140c28"; // ear outline
+    }
+    if (rHead > 1 && rHead < 1 + 1.3 / R) return "#140c28"; // head outline
+    return null;
+  });
+  return { sprite, cx, cy };
+}
+
+/** an opponent's torso as one illustrated sprite: rounded shoulders tapering to the waist,
+ *  3-4 tone fur shading, a belly patch, boxing shorts with a waistband + shine, an outline and
+ *  (for the big-hearted champ) a baked championship belt — a real body, not a flat rectangle. */
+function bakeOppTorso(bodyW: number, bodyH: number, base: string, accent: string, belt: boolean): Anchored {
+  const w = Math.ceil(bodyW + 6);
+  const PAD = 4;
+  const h = Math.ceil(bodyH + 4) + PAD;
+  const cx = w / 2;
+  const topHW = bodyW / 2;
+  const waistHW = bodyW * 0.36;
+  const capRY = bodyH * 0.22;
+  const bodyTones = ramp(base, 4, 0.5);
+  const shortsBase = mixHex(base, "#16102c", 0.4);
+  const shortsTones = ramp(shortsBase, 3, 0.4);
+  const bellyTones = ramp(accent, 3, 0.4);
+  const shortsTopY = h - bodyH * 0.32;
+  const sprite = bake(w, h, (x, rawY) => {
+    const y = rawY - PAD;
+    const dx = x - cx;
+    // rounded shoulder cap union'd with a tapering body
+    const cdx = dx / topHW;
+    const cdy = (y - capRY * 0.5) / (capRY * 1.05);
+    const rCap = Math.hypot(cdx, cdy);
+    const t = Math.min(1, Math.max(0, (y - capRY * 0.35) / Math.max(1, h - capRY * 0.35)));
+    const hw = topHW + (waistHW - topHW) * Math.pow(t, 1.25);
+    const rBody = Math.abs(dx) / hw;
+    const inCap = y < capRY * 1.5 && rCap <= 1;
+    const inBody = y >= capRY * 0.15 && rBody <= 1;
+    if (!inCap && !inBody) {
+      // a thin outline just outside the silhouette
+      if (y < capRY * 1.5 && rCap > 1 && rCap < 1 + 1.4 / capRY) return "#140c28";
+      if (y >= 0 && rBody > 1 && rBody < 1 + 1.4 / Math.max(4, hw)) return "#140c28";
+      return null;
+    }
+    const nx = inCap && rCap >= rBody ? cdx : dx / hw;
+    const ny = inCap && rCap >= rBody ? cdy : t * 0.7 - 0.35;
+    const b = bright2(nx, ny);
+    const onEdge = (inCap ? rCap : rBody) > 0.86;
+    // shorts band near the bottom
+    if (y >= shortsTopY) {
+      let st = shortsTones[toneIdx(b, 3)];
+      if (y < shortsTopY + 1.4) st = belt ? PAL.yellow : shade(st, 0.3); // waistband (or a belt stripe)
+      if (y < shortsTopY + 1.4 && belt && Math.abs(dx) < bodyW * 0.1) st = shade("#9a742a", -0.1); // buckle
+      if (onEdge) st = "#140c28";
+      return st;
+    }
+    // belly / chest patch
+    const be = Math.hypot(dx / (topHW * 0.52), (y - h * 0.4) / (h * 0.24));
+    if (be <= 1 && y < shortsTopY - 2) {
+      let bt = bellyTones[toneIdx(b, 3)];
+      if (be > 0.85) bt = shade(bt, -0.3);
+      return bt;
+    }
+    let bt2 = bodyTones[toneIdx(b, 4)];
+    if (onEdge && b > 0.4) bt2 = shade(bt2, 0.2); // rim highlight along the lit shoulder
+    const speck = hash2(x, y, 62);
+    if (speck > 0.965 && !onEdge) bt2 = shade(bt2, -0.16);
+    if (onEdge) bt2 = "#140c28";
+    return bt2;
+  });
+  return { sprite, cx, cy: PAD };
+}
+
+/** one shared boxing glove — a padded ball with a cuff, a thumb bump on its inner edge and a
+ *  bright highlight crescent — reused at any size/side via the sprite's scale + flipX. */
+function bakeGlove(r: number): Anchored {
+  const pad = r * 0.5;
+  const w = Math.ceil(r * 2.3 + pad);
+  const h = Math.ceil(r * 2.6);
+  const cx = w / 2 + pad * 0.3;
+  const cy = r * 1.05;
+  const tones = ramp("#ff4a4a", 4, 0.5);
+  const cuffY = cy + r * 0.62;
+  const sprite = bake(w, h, (x, y) => {
+    const dx = (x - cx) / r;
+    const dy = (y - cy) / r;
+    const rMain = Math.hypot(dx, dy);
+    const tdx = (x - (cx - r * 1.05)) / (r * 0.46);
+    const tdy = (y - (cy + r * 0.1)) / (r * 0.4);
+    const rThumb = Math.hypot(tdx, tdy);
+    const inCuff = y >= cuffY - 1 && y <= cuffY + r * 0.5 && Math.abs(x - cx) <= r * 0.95;
+    if (rMain <= 1 || rThumb <= 1 || inCuff) {
+      const nx = rThumb <= 1 && rThumb < rMain ? tdx : dx;
+      const ny = rThumb <= 1 && rThumb < rMain ? tdy : dy;
+      const b = bright2(nx, ny);
+      if (inCuff && rMain > 1 && rThumb > 1) {
+        const cuffT = ramp(shade("#ff4a4a", -0.3), 3, 0.35);
+        const edge = Math.abs(x - cx) > r * 0.88 || y > cuffY + r * 0.4;
+        return edge ? "#140c28" : cuffT[toneIdx(b, 3)];
+      }
+      let t = tones[toneIdx(b, 4)];
+      // a bright highlight crescent on the upper-left shine
+      if (rMain <= 1 && rMain > 0.45 && b > 0.6 && dx < -0.1 && dy < 0) t = shade(t, 0.3 + 0.2 * (1 - rMain));
+      const edge = (rMain > 1 ? false : rMain > 0.9) || (rThumb <= 1 && rThumb > 0.88);
+      if (edge) t = "#140c28";
+      return t;
+    }
+    if ((rMain > 1 && rMain < 1 + 1.3 / r) || (rThumb > 1 && rThumb < 1 + 1.3 / (r * 0.4))) return "#140c28";
+    return null;
+  });
+  return { sprite, cx, cy };
+}
+
 function makeArt(): PunchArt {
-  const SKY_H = 34;
+  const SKY_H = 20;
   const sky = bake(W, SKY_H, (x, y) => {
     const t = y / (SKY_H - 1);
-    const base = mixHex("#171033", "#241a44", t);
-    if (hash2(x, y, 7) > 0.994) return shade(base, 0.3); // the odd faint floodlight glint
+    const base = mixHex("#0c0920", "#171033", t);
+    if (hash2(x, y, 7) > 0.994) return shade(base, 0.3); // the odd faint ceiling light glint
     return base;
   });
+  const crowdBack = bakeCrowdRow(96, 13, 14, "#271f4c", "#4e4086", false);
+  const crowdMid = bakeCrowdRow(104, 18, 16, "#352a62", "#6d5aad", true);
+  const crowdFront = bakeCrowdRow(112, 24, 18, "#453674", "#a68ee6", true);
+  const banner = bakeBanner(12, 15, PAL.pink, PAL.purple);
+  const spotL = bakeSpot(96, 120, "#ffe9b0");
+  const spotR = bakeSpot(96, 120, "#bdeaff");
   const FLOOR_H = 26;
+  const matBase = "#e9ddc3";
   const floor = bake(W, FLOOR_H, (x, y) => {
-    let base = y < 3 ? shade(PAL.brown, 0.3) : mixHex(PAL.brown, "#2a160a", ((y - 3) / (FLOOR_H - 3)) * 0.65);
-    const n = hash2(Math.floor(x / 3), Math.floor(y / 2), 3);
-    if (x % 32 === 0 || x % 32 === 31) base = shade(base, -0.3); // plank seams
-    else if (n > 0.9) base = shade(base, -0.14); // grain streak
-    else if (n < 0.08) base = shade(base, 0.1);
+    if (y < 3) return Math.floor(x / 4) % 2 === 0 ? shade(PAL.navy, -0.1) : shade(PAL.red, -0.1); // skirt trim
+    const ty = y - 3;
+    const th = FLOOR_H - 3;
+    let base = mixHex("#c9b78e", matBase, ty / th);
+    const n = hash2(Math.floor(x / 2), Math.floor(ty / 2), 9);
+    if (n > 0.92) base = shade(base, -0.12); // woven canvas texture
+    else if (n < 0.06) base = shade(base, 0.1);
+    // centre emblem: a printed diamond star logo
+    const dx = Math.abs(x - W / 2);
+    const dy = Math.abs(ty - 13) * 1.7;
+    const d = dx + dy;
+    if (d < 2) return "#fff6df";
+    if (d < 5) return shade(PAL.red, 0.05);
+    if (d < 8 && (dx < 2.2 || dy < 2.2)) return shade(PAL.navy, 0.1);
     return base;
   });
   const POST_W = 10;
@@ -84,7 +469,19 @@ function makeArt(): PunchArt {
     if (d <= 3 && (x === cx || y === cy)) return shade(PAL.yellow, -0.1);
     return null;
   });
-  return { sky, floor, post, pad, gloveShadow, burstStar };
+  const sweat = bake(4, 6, (x, y) => {
+    const cx = 1.5;
+    const d = Math.hypot(x - cx, y - 3.2);
+    if (y < 2 && Math.abs(x - cx) < 2 - y) return "#bdeaff";
+    if (d < 1.6) return y < 3 ? "#eaf9ff" : "#7fd4ff";
+    return null;
+  });
+  const oppHeads = OPPONENTS.map((d) => bakeOppHead(OPP_HEAD_R, d.color, d.accent, d.ear));
+  const oppTorsos = OPPONENTS.map((d) => bakeOppTorso(OPP_BODY_W, OPP_BODY_H, d.color, d.accent, d.ear === "big"));
+  const glove = bakeGlove(15);
+  const playerHead = bakePlayerHead(13);
+  const playerTorso = bakePlayerTorso(40, 34, PAL.cyan);
+  return { sky, crowdBack, crowdMid, crowdFront, banner, spotL, spotR, floor, post, pad, gloveShadow, burstStar, sweat, oppHeads, oppTorsos, glove, playerHead, playerTorso };
 }
 let PA: PunchArt | null = null;
 const art = () => (PA ??= makeArt());
@@ -205,6 +602,7 @@ interface OppRuntime {
   fakeDir: Dir | null;
   comboCount: number;
   anim: number;
+  hitT: number;
 }
 
 interface Pop {
@@ -256,12 +654,93 @@ function shadedBall(g: Gfx, cx: number, cy: number, r: number, base: string) {
   g.circle(cx, cy, r * 0.96, base);
   g.circle(cx - r * 0.32, cy - r * 0.34, r * 0.3, shade(base, 0.35));
 }
+/** a small outlined, 3-tone ball for moving parts that can't be baked (feather tips) — a dark
+ *  rim ring, base fill, and an upper-left highlight, so it reads as solid rather than flat. */
+function furBall(g: Gfx, cx: number, cy: number, r: number, base: string) {
+  g.circle(cx, cy, r + 1, "#140c28");
+  g.circle(cx, cy, r * 0.92, shade(base, -0.15));
+  g.circle(cx - r * 0.25, cy - r * 0.25, r * 0.6, base);
+  g.circle(cx - r * 0.32, cy - r * 0.34, r * 0.28, shade(base, 0.35));
+}
+/** a long teardrop peacock tail feather — narrow at its base, rounding out near the tip, with a
+ *  classic eye-spot (a gold ring round a dark-blue centre) a bit before the very end. Built as a
+ *  chain of circles along its length (outline pass, then a shaded fill pass) so it reads as one
+ *  solid barbed plume, not a string of beads. */
+function drawFeather(g: Gfx, baseX: number, baseY: number, ang: number, length: number, width: number) {
+  const N = 8;
+  const dx = Math.sin(ang);
+  const dy = -Math.cos(ang);
+  const radiusAt = (t: number) => width * Math.sin(Math.min(1, t * 1.08) * (Math.PI / 2));
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const x = baseX + dx * length * t;
+    const y = baseY + dy * length * t;
+    g.circle(x, y, radiusAt(t) + 1, "#0b2a20");
+  }
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const x = baseX + dx * length * t;
+    const y = baseY + dy * length * t;
+    const c = mixHex("#1f8f5e", "#2fcf9a", Math.min(1, t * 1.15));
+    g.circle(x, y, Math.max(0.7, radiusAt(t) * 0.86), shade(c, 0.12 - t * 0.1));
+  }
+  // the eye-spot: a gold ring round a dark blue-black centre, set a little before the tip
+  const et = 0.8;
+  const ex = baseX + dx * length * et;
+  const ey = baseY + dy * length * et;
+  const er = width * 0.68;
+  g.circle(ex, ey, er, "#8a6a1a");
+  g.circle(ex, ey, er * 0.78, "#ffd34d");
+  g.circle(ex, ey, er * 0.4, "#15224a");
+  g.circle(ex - er * 0.12, ey - er * 0.12, er * 0.14, "#5d7dff"); // a tiny glint
+}
+/** a short shaded, outlined limb connecting a shoulder to a glove (a chain of circles tapering
+ *  slightly from shoulder to wrist) so the arm reads as going somewhere, not just a floating fist. */
+function drawLimb(g: Gfx, x0: number, y0: number, x1: number, y1: number, r0: number, r1: number, tint: string) {
+  const N = 4;
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    g.circle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r0 + (r1 - r0) * t + 1, "#140c28");
+  }
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    g.circle(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, (r0 + (r1 - r0) * t) * 0.88, shade(tint, 0.1 - t * 0.2));
+  }
+}
 /** a block with a dark outline, a darker shadowed bottom and a lighter top edge */
 function shadedBlock(g: Gfx, x: number, y: number, w: number, h: number, base: string) {
   g.box(x - 1, y - 1, w + 2, h + 2, shade(base, -0.5));
   g.rect(x, y, w, h, base);
   g.rect(x, y, w, Math.max(1, h * 0.22), shade(base, 0.22));
   g.rect(x, y + h * 0.78, w, h * 0.22, shade(base, -0.22));
+}
+
+/** fixed camera-flash positions scattered over the crowd tiers (fractions of W/band height) */
+const FLASH_SPOTS = [
+  { fx: 0.08, fy: 0.3, cycle: 131, off: 11 },
+  { fx: 0.21, fy: 0.62, cycle: 157, off: 54 },
+  { fx: 0.34, fy: 0.18, cycle: 113, off: 83 },
+  { fx: 0.66, fy: 0.42, cycle: 149, off: 29 },
+  { fx: 0.8, fy: 0.22, cycle: 121, off: 71 },
+  { fx: 0.92, fy: 0.58, cycle: 167, off: 6 },
+  { fx: 0.46, fy: 0.75, cycle: 139, off: 97 },
+];
+
+/** a sagging rope across the ring, drawn as a shallow polyline so it reads as taut cloth-covered
+ *  cable rather than a perfectly straight bar — top highlight, base, bottom shadow per segment */
+function drawRope(g: Gfx, y: number, color: string, sx: number, sag: number) {
+  const N = 6;
+  let px = 0;
+  let py = y;
+  const hi = shade(color, 0.35);
+  for (let i = 1; i <= N; i++) {
+    const x = (W * i) / N;
+    const yy = y + Math.sin((x / W) * Math.PI) * sag;
+    g.line(px + sx, py - 1, x + sx, yy - 1, hi);
+    g.line(px + sx, py, x + sx, yy, color);
+    px = x;
+    py = yy;
+  }
 }
 
 function create(seed: number): GameInstance {
@@ -291,6 +770,7 @@ function create(seed: number): GameInstance {
     fakeDir: null,
     comboCount: 0,
     anim: 0,
+    hitT: 0,
   });
   let opp = makeOpp(0);
 
@@ -308,6 +788,7 @@ function create(seed: number): GameInstance {
     io.sfx.play("hurt");
     io.sfx.noise?.(10, 0.2, 500, 180);
     pop(RING_CX, PLAYER_Y - 36, "OOF!", PAL.red);
+    burst(RING_CX, PLAYER_Y - 30, "#bdeaff", 5); // sweat flecks on a big hit
     if (player.hp <= 0) loseBout(io);
   };
 
@@ -394,11 +875,13 @@ function create(seed: number): GameInstance {
       return;
     }
     opp.hp = clamp(opp.hp - dmg, 0, opp.def.hp);
+    opp.hitT = starHit ? 16 : 10;
     io.score(Math.round(dmg));
     io.sfx.play("hit");
     shake = Math.max(shake, starHit ? 12 : 5);
     flash = Math.max(flash, starHit ? 8 : 3);
     burst(RING_CX, OPP_Y + 10, PAL.white, starHit ? 16 : 7);
+    burst(RING_CX, OPP_Y, "#bdeaff", 3); // sweat flecks
     pop(RING_CX, OPP_Y - 36, starHit ? "STAR PUNCH!" : "BOINK!", starHit ? PAL.yellow : PAL.white);
     if (opp.hp <= 0 && opp.state !== "dizzy" && opp.state !== "down") {
       opp.state = "dizzy";
@@ -413,6 +896,7 @@ function create(seed: number): GameInstance {
     player.punch = kind;
     player.punchT = kind === "u" ? UPPER_ANIM : PUNCH_ANIM;
     player.cool = kind === "u" ? UPPER_COOL : PUNCH_COOL;
+    io.sfx.play("whoosh");
     landPunch(io, kind);
   }
 
@@ -457,6 +941,7 @@ function create(seed: number): GameInstance {
 
   function updateOpponent(io: IO, inp: Input) {
     opp.anim++;
+    if (opp.hitT > 0) opp.hitT--;
     const d = opp.def;
     switch (opp.state) {
       case "idle":
@@ -510,6 +995,8 @@ function create(seed: number): GameInstance {
           opp.state = "down";
           downCount.n = 0;
           downCount.t = DOWN_TICK;
+          io.sfx.play("cheer");
+          io.sfx.noise?.(30, 0.14, 900, 1800);
         }
         break;
       case "down":
@@ -568,30 +1055,39 @@ function create(seed: number): GameInstance {
     draw(g: Gfx) {
       const a = art();
       const sx = shake > 0 ? (frame % 2 ? 3 : -3) : 0;
-      // ── arena: night sky, confetti, canvas ring, roped posts, wood apron ──
-      g.clear("#14102a");
+      const BAND_TOP = 20;
+      const BAND_H = H - BAND_TOP - 26;
+      // ── arena: dark ceiling, tiered crowd silhouettes lit at the edges, dithered spotlight
+      // cones, hanging banners, canvas ring with a printed logo, roped posts ──
+      g.clear("#0c0920");
       g.sprite(a.sky, 0, 0);
-      const confettiCols = [PAL.pink, PAL.sky, PAL.yellow, PAL.lime];
-      for (let i = 0; i < 16; i++) {
-        const cxp = (i * 17 + 8 + Math.sin(frame * 0.02 + i) * 2) % (W + 16);
-        const cyp = 14 + ((i * 7) % 12) + Math.sin(frame * 0.05 + i * 1.7) * 1.5;
-        const c = confettiCols[i % confettiCols.length];
-        g.rect(cxp - 2, cyp, 4, 1, shade(c, -0.2));
-        g.rect(cxp - 1, cyp - 1, 2, 3, c);
+      g.rect(0, BAND_TOP, W, BAND_H, flash > 0 ? "#473a6e" : "#120c28");
+      drawStrip(g, a.crowdBack, Math.round(frame * 0.02), BAND_TOP + 4, W);
+      drawStrip(g, a.crowdMid, Math.round(frame * 0.035), BAND_TOP + 14, W);
+      // dithered spotlight beams falling from the ceiling, crossing over the ring
+      g.alpha(0.7);
+      g.sprite(a.spotL, RING_CX - 104, -4);
+      g.sprite(a.spotR, RING_CX + 8, -4, { flipX: true });
+      g.alpha(1);
+      drawStrip(g, a.crowdFront, Math.round(frame * 0.05), BAND_TOP + 26, W);
+      // camera flashes popping in the crowd — small 4-point sparkle stars, not solid blocks
+      for (const f of FLASH_SPOTS) {
+        const on = (frame + f.off) % f.cycle < 3;
+        if (!on) continue;
+        const fx = f.fx * W;
+        const fy = BAND_TOP + f.fy * BAND_H;
+        g.rect(fx, fy - 3, 1, 7, "rgba(255,255,240,0.55)"); // long vertical point
+        g.rect(fx - 3, fy, 7, 1, "rgba(255,255,240,0.55)"); // long horizontal point
+        g.rect(fx - 1, fy - 1, 3, 3, "#fffef2"); // bright core
       }
-      g.rect(0, 34, W, H - 34 - 26, flash > 0 ? "#473a6e" : mixHex("#241d46", "#2e2558", 0.5));
-      // soft spotlight glow over the ring centre
-      g.rect(RING_CX - 70, 40, 140, 70, "rgba(255,241,189,0.05)");
-      g.rect(RING_CX - 40, 46, 80, 40, "rgba(255,241,189,0.05)");
+      // pennant banners hanging either side of the ring, tucked above the turnbuckles
+      g.sprite(a.banner, 26, BAND_TOP);
+      g.sprite(a.banner, W - 38, BAND_TOP);
       g.sprite(a.floor, 0, H - 26);
-      // ropes: shaded top highlight + base + shadow row for a rounded look
-      for (let i = 0; i < 3; i++) {
-        const ry = 48 + i * 18;
-        const base = i % 2 ? PAL.white : PAL.red;
-        g.rect(0 + sx, ry - 1, W, 1, shade(base, 0.35));
-        g.rect(0 + sx, ry, W, 2, base);
-        g.rect(0 + sx, ry + 2, W, 1, shade(base, -0.3));
-      }
+      // ropes: shaded, sagging across the ring like taut cloth-covered cable
+      drawRope(g, 48, PAL.red, sx, 5);
+      drawRope(g, 66, PAL.white, sx, 4);
+      drawRope(g, 84, PAL.red, sx, 3);
       g.sprite(a.post, 4 + sx, 36);
       g.sprite(a.post, W - 14 + sx, 36);
       g.sprite(a.pad, 2 + sx, 40);
@@ -608,6 +1104,13 @@ function create(seed: number): GameInstance {
       for (const p of pops) g.text(p.text, RING_CX, p.y, p.color, { align: "center", size: p.text.length > 10 ? 1 : 2 });
 
       drawHud(g);
+
+      // a bright white hit-flash overlay on big impacts, not just a tint
+      if (flash > 4) {
+        g.alpha(((flash - 4) / 4) * 0.45);
+        g.rect(0, 0, W, H, PAL.white);
+        g.alpha(1);
+      }
 
       if (fightState === "intro") {
         g.rect(14, 60, W - 28, 100, "rgba(13,11,26,0.85)");
@@ -642,6 +1145,7 @@ function create(seed: number): GameInstance {
 
   // ── opponent drawing: every animal is a few circles/rects, posed by state ──
   function drawOpponent(g: Gfx, sx: number) {
+    const a = art();
     const d = opp.def;
     const cx = RING_CX + sx;
     const bob = opp.state === "down" ? 0 : Math.sin(frame * 0.08) * d.bob;
@@ -683,57 +1187,54 @@ function create(seed: number): GameInstance {
       tilt = 6;
       bodyY = 4;
     }
-    const s = d.scale;
-    const headR = 26 * s;
-    const bodyW = 54 * s;
-    const bodyH = 54 * s;
+    const hitSquash = opp.hitT / 16; // a quick squash-and-stun flinch, layered over any state pose
+    if (hitSquash > 0) {
+      bodyY += hitSquash * 5;
+      tilt += (opp.anim % 2 ? 1 : -1) * hitSquash * 3;
+    }
+    const s = d.scale * (opp.state === "down" ? 0.86 : 1); // a squashed scale while knocked down
+    const headR = OPP_HEAD_R * d.scale;
+    const bodyW = OPP_BODY_W * d.scale;
+    const bodyH = OPP_BODY_H * d.scale;
     const bx = cx + tilt;
     const by = cy + bodyY;
+    const head = a.oppHeads[oi];
+    const torso = a.oppTorsos[oi];
 
     // telegraph glow ring behind the body while winding up or vulnerable
     if (opp.state === "tell" && frame % 8 < 4) g.circle(bx, by + 6, headR + bodyW * 0.42, "rgba(255,225,77,0.22)");
     if (opp.state === "open") g.circle(bx, by + 6, headR + bodyW * 0.4, "rgba(92,242,255,0.2)");
 
-    // body + belly patch, shaded with an outline so it pops off the dark ring
+    // body: one illustrated sprite — rounded shoulders tapering to the waist, shaded fur, a
+    // belly patch, boxing shorts (+ a baked belt for the big-hearted champ)
     const bodyTop = by + headR * 0.6;
-    const bodyHNow = bodyH * (opp.state === "down" ? 0.55 : 1);
-    shadedBlock(g, bx - bodyW / 2, bodyTop, bodyW, bodyHNow, d.color);
-    shadedBlock(g, bx - bodyW * 0.32, bodyTop + bodyHNow * 0.18, bodyW * 0.64, bodyHNow * 0.5, d.accent);
-    // a couple of fixed fur/feather flecks so the fill isn't a flat slab
-    for (const f of FUR_SPECKS) {
-      if (d.ear === "feather") continue;
-      g.rect(bx - bodyW / 2 + f.dx * bodyW, bodyTop + f.dy * bodyHNow, 3, 2, shade(d.color, -0.2));
-    }
-    if (d.ear === "big") {
-      shadedBlock(g, bx - bodyW * 0.55, by + headR * 1.4, bodyW * 1.1, 6 * s, PAL.yellow); // championship belt
-      g.circle(bx, by + headR * 1.4 + 3 * s, 3 * s, shade(PAL.yellow, -0.3)); // belt buckle
-    }
+    drawAnchored(g, torso, bx, bodyTop, { scale: s });
 
-    // ears / crest per animal
-    if (d.ear === "round") {
-      shadedBall(g, bx - headR * 0.8, cy - headR * 0.9, headR * 0.42, d.color);
-      shadedBall(g, bx + headR * 0.8, cy - headR * 0.9, headR * 0.42, d.color);
-      g.circle(bx - headR * 0.8, cy - headR * 0.9, headR * 0.2, shade(d.accent, -0.1));
-      g.circle(bx + headR * 0.8, cy - headR * 0.9, headR * 0.2, shade(d.accent, -0.1));
-    } else if (d.ear === "point") {
-      shadedBlock(g, bx - headR * 0.9, cy - headR * 1.5, headR * 0.35, headR * 0.9, d.color);
-      shadedBlock(g, bx + headR * 0.55, cy - headR * 1.5, headR * 0.35, headR * 0.9, d.color);
-    } else if (d.ear === "feather") {
-      const spread = opp.state === "tell" || opp.state === "attack" ? 1.5 : 1;
-      const fcols = [PAL.pink, PAL.purple, PAL.yellow, PAL.cyan, PAL.lime];
-      for (let i = 0; i < 5; i++) {
-        const a = (-0.9 + i * 0.45) * spread;
-        shadedBall(g, bx + Math.sin(a) * headR * 1.8, cy - headR * 1.1 - Math.cos(a) * headR * 1.3, headR * 0.32, fcols[i]);
+    // ears / crest per animal — round/point/big are baked onto the head; a peacock's tail fans
+    // out BEHIND the head (drawn first, so the head sprite overlaps and hides the feather bases)
+    if (d.ear === "feather") {
+      const spread = opp.state === "tell" || opp.state === "attack" ? 1.12 : 1;
+      const baseX = bx;
+      const baseY = cy - headR * 0.2;
+      const count = 6;
+      for (let i = 0; i < count; i++) {
+        const ang = (-1.05 + (i * 2.1) / (count - 1)) * spread;
+        drawFeather(g, baseX, baseY, ang, headR * 2.1, headR * 0.42);
       }
-    } else if (d.ear === "big") {
-      shadedBall(g, bx - headR * 1.05, cy - headR * 0.3, headR * 0.58, d.accent);
-      shadedBall(g, bx + headR * 1.05, cy - headR * 0.3, headR * 0.58, d.accent);
     }
 
-    // head + face
-    shadedBall(g, bx, cy, headR, d.color);
+    // head: one illustrated sprite — fur-shaded ball with the ears, muzzle, nose and mouth baked in
+    drawAnchored(g, head, bx, cy, { scale: s });
+    if (d.ear === "feather") {
+      // a small 3-quill crest on TOP of the head, same teardrop feathers, much shorter
+      for (let i = 0; i < 3; i++) {
+        const ang = -0.3 + i * 0.3;
+        drawFeather(g, bx, cy - headR * 0.88, ang, headR * 0.55, headR * 0.16);
+      }
+    }
     const sleepy = d.name.startsWith("BOOMER") && opp.state === "idle";
-    const eyeOpen = !sleepy || frame % 90 < 10;
+    const stunned = hitSquash > 0.2;
+    const eyeOpen = !stunned && (!sleepy || frame % 90 < 10);
     for (const side of [-1, 1]) {
       const ex = bx + side * headR * 0.42;
       const ey = cy - headR * 0.05;
@@ -741,8 +1242,22 @@ function create(seed: number): GameInstance {
         g.circle(ex, ey, headR * 0.17, PAL.white);
         g.circle(ex + side * 1, ey + 1, headR * 0.08, PAL.black);
         g.circle(ex - 1, ey - 1, headR * 0.05, PAL.white); // eye glint
+      } else if (stunned) {
+        // a squashed "X_X" flinch instead of a flat closed lid
+        g.line(ex - headR * 0.16, ey - headR * 0.12, ex + headR * 0.16, ey + headR * 0.12, PAL.black);
+        g.line(ex - headR * 0.16, ey + headR * 0.12, ex + headR * 0.16, ey - headR * 0.12, PAL.black);
       } else {
         g.rect(ex - headR * 0.14, ey, headR * 0.28, 2, PAL.black);
+      }
+    }
+    if (stunned || opp.state === "down") {
+      // an open "o" mouth over the baked neutral line, while dazed
+      g.circle(bx, cy + headR * 0.56, headR * 0.1, shade(d.accent, -0.5));
+    }
+    if (stunned) {
+      for (let i = 0; i < 2; i++) {
+        const a2 = frame * 0.2 + i * Math.PI;
+        g.text("★", bx + Math.cos(a2) * headR * 1.3, cy - headR * 1.5 + Math.sin(a2) * headR * 0.3, PAL.yellow, { align: "center" });
       }
     }
     // eyebrow wiggle — the readable "tell" cue
@@ -750,20 +1265,17 @@ function create(seed: number): GameInstance {
       const wig = Math.sin(frame * 0.6) * 3;
       g.rect(bx - headR * 0.55, cy - headR * 0.55 + wig, headR * 0.9, 3, PAL.yellow);
     }
-    shadedBall(g, bx, cy + headR * 0.4, headR * 0.32, d.accent); // snout/beak patch
-    g.circle(bx, cy + headR * 0.34, headR * 0.08, shade(d.accent, -0.4)); // nose dot
 
-    // arms/gloves — bigger, shiny, with a stitched cuff
+    // arms/gloves — the shared baked glove, scaled to this opponent, thumbs facing inward
     const gloveY = cy + headR * 0.3;
-    const glR = headR * 0.56;
+    const glR = headR * 0.6;
+    const glSc = (glR / 15) * s;
     const glLx = bx - headR * 1.3 + armL * -0.3;
     const glLy = gloveY + Math.abs(armL) * 0.1;
     const glRx = bx + headR * 1.3 + armR * 0.3;
     const glRy = gloveY + Math.abs(armR) * 0.1;
-    shadedBall(g, glLx, glLy, glR, PAL.red);
-    shadedBall(g, glRx, glRy, glR, PAL.red);
-    g.rect(glLx - glR * 0.7, glLy + glR * 0.55, glR * 1.4, glR * 0.35, shade(PAL.red, -0.35));
-    g.rect(glRx - glR * 0.7, glRy + glR * 0.55, glR * 1.4, glR * 0.35, shade(PAL.red, -0.35));
+    drawAnchored(g, a.glove, glLx, glLy, { scale: glSc, flipX: true });
+    drawAnchored(g, a.glove, glRx, glRy, { scale: glSc });
 
     if (opp.state === "dizzy") {
       for (let i = 0; i < 3; i++) {
@@ -774,6 +1286,12 @@ function create(seed: number): GameInstance {
     if (opp.state === "down") {
       g.text("X", bx - headR * 0.4, cy - headR * 0.15, PAL.black, { align: "center" });
       g.text("X", bx + headR * 0.4, cy - headR * 0.15, PAL.black, { align: "center" });
+    }
+    // a worried sweat drop once the opponent is hurting, dripping down the temple on a loop
+    const hpFrac0 = opp.hp / d.hp;
+    if (hpFrac0 < 0.4 && opp.state !== "down") {
+      const dripT = (frame + Math.round(headR)) % 50;
+      g.sprite(a.sweat, bx + headR * 0.95, cy - headR * 0.3 + dripT * 0.6);
     }
     // opponent health bar just above the ring action — a thick framed strip like the cabinet art
     const hpFrac = clamp(opp.hp / d.hp, 0, 1);
@@ -790,17 +1308,23 @@ function create(seed: number): GameInstance {
     const cx = RING_CX + sx + player.dodge * 18;
     const duck = player.guard;
     const cy = PLAYER_Y + (duck ? 10 : 0);
-    const tint = player.hitFlash > 0 && player.hitFlash % 4 < 2 ? PAL.red : PAL.cyan;
+    const flashOn = player.hitFlash > 0 && player.hitFlash % 4 < 2;
     g.alpha(0.5);
     g.sprite(a.gloveShadow, cx - 12, cy + 23); // soft contact shadow on the canvas
     g.alpha(1);
-    // body (back view) — shaded with shoulder seams
-    shadedBlock(g, cx - 19, cy - 10, 38, duck ? 27 : 35, tint);
-    g.rect(cx - 19, cy - 10, 38, 3, shade(tint, -0.15)); // collar seam
-    shadedBall(g, cx, cy - 18, 12, PAL.tan); // head/neck from behind
-    shadedBlock(g, cx - 11, cy - 35, 22, 9, PAL.navy); // headband
-    g.rect(cx - 11, cy - 32, 22, 2, PAL.red); // headband stripe
-    // gloves: idle resting near shoulders, punch extends one up/forward
+    // body (back view): one illustrated sprite — trapezius shoulders tapering to the waist, a
+    // singlet with a collar stripe — squashed a touch while blocking, flashed red when hurt
+    drawAnchored(g, a.playerTorso, cx, cy - 10, { scale: duck ? 0.86 : 1 });
+    if (flashOn) {
+      g.alpha(0.45);
+      g.rect(cx - 21, cy - 12, 42, duck ? 32 : 37, PAL.red);
+      g.alpha(1);
+    }
+    // head: hair, ears and neck baked in, from the back
+    drawAnchored(g, a.playerHead, cx, cy - 19);
+    shadedBlock(g, cx - 11, cy - 34, 22, 8, PAL.navy); // headband
+    g.rect(cx - 11, cy - 31, 22, 2, PAL.red); // headband stripe
+    // gloves: idle resting near shoulders, punch extends one up/forward, thumbs facing inward
     const extend = player.punchT > 0 ? Math.min(1, player.punchT / (player.punch === "u" ? UPPER_ANIM : PUNCH_ANIM)) : 0;
     const activePunch = player.punch;
     const lOff = activePunch === "l" ? extend * 30 : 0;
@@ -808,14 +1332,16 @@ function create(seed: number): GameInstance {
     const uOff = activePunch === "u" ? extend * 24 : 0;
     const glLy = cy - 6 - lOff * 0.6 - (activePunch === "u" ? uOff * 0.2 : 0);
     const glRy = cy - 6 - rOff * 0.6 - (activePunch === "u" ? uOff * 0.2 : 0);
-    shadedBall(g, cx - 23, glLy, 12, "#ff4a4a");
-    shadedBall(g, cx + 23, glRy, 12, "#ff4a4a");
-    g.rect(cx - 23 - 8, glLy + 7, 16, 4, shade("#ff4a4a", -0.35)); // cuff
-    g.rect(cx + 23 - 8, glRy + 7, 16, 4, shade("#ff4a4a", -0.35));
+    const glSc = 12 / 15;
+    // arms: a short shaded limb from each shoulder out to its glove, so they read as connected
+    drawLimb(g, cx - 15, cy - 6, cx - 23, glLy + 4, 8, 6, PAL.cyan);
+    drawLimb(g, cx + 15, cy - 6, cx + 23, glRy + 4, 8, 6, PAL.cyan);
+    drawAnchored(g, a.glove, cx - 23, glLy, { scale: glSc, flipX: true });
+    drawAnchored(g, a.glove, cx + 23, glRy, { scale: glSc });
     if (activePunch === "l" && extend > 0) g.line(cx - 23, cy - 6, cx - 23, cy - 6 - 12, "rgba(255,255,255,0.5)");
     if (activePunch === "r" && extend > 0) g.line(cx + 23, cy - 6, cx + 23, cy - 6 - 12, "rgba(255,255,255,0.5)");
     if (activePunch === "u" && extend > 0) {
-      shadedBall(g, cx, cy - 20 - uOff, 13, PAL.yellow);
+      furBall(g, cx, cy - 20 - uOff, 13, PAL.yellow);
       g.line(cx, cy - 10, cx, cy - 20 - uOff, "rgba(255,255,255,0.6)");
     }
     if (duck) g.text("BLOCK", cx, cy - 58, PAL.cyan, { align: "center" });
@@ -830,13 +1356,20 @@ function create(seed: number): GameInstance {
   function drawHud(g: Gfx) {
     const a = art();
     g.rect(0, 0, W, 11, "rgba(13,11,26,0.6)");
-    g.text("YOU", 4, 2, PAL.cyan);
-    g.text(opp.def.name, W - 4, 2, opp.def.color, { align: "right" });
+    shadedBall(g, 9, 5, 3, PAL.red); // little glove icon by the kid's name
+    g.text("YOU", 15, 2, PAL.cyan);
+    g.text(opp.def.name.split(" ")[0], W - 10, 2, opp.def.color, { align: "right" }); // first word: full name has no room beside ROUND x/y
+    shadedBall(g, W - 6, 5, 3, opp.def.color); // the opponent's colour chip
     g.text(`ROUND ${round}/${ROUNDS}`, RING_CX, 2, PAL.white, { align: "center" });
     const secs = Math.max(0, Math.ceil(roundTimer / 60));
     g.text(`${secs}s`, RING_CX, 22, PAL.grey, { align: "center" });
-    // star meter — a little framed gauge with a spark icon, fills gold when ready
+    // star meter — a little framed gauge with a spark icon, glowing panel when ready
     const full = player.star >= STAR_MAX;
+    if (full) {
+      g.alpha(0.25 + 0.2 * Math.sin(frame * 0.3));
+      g.rect(W - 76, H - 20, 72, 18, PAL.yellow);
+      g.alpha(1);
+    }
     g.box(W - 71, H - 15, 64, 10, PAL.black);
     g.rect(W - 70, H - 14, 62, 8, "#1a1530");
     g.rect(W - 69, H - 13, 60 * (player.star / STAR_MAX), 6, full ? PAL.yellow : PAL.purple);

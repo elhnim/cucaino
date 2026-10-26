@@ -10,7 +10,7 @@
 // walkers, jumpers, flyers and critters that lob things joining in as you go. No critter is
 // ever really hurt: caught ones simply float away and turn into fruit.
 import { H, PAL, W, clamp, overlap, rng, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng, type Sprite } from "../engine";
-import { bake, bayer, fbm, hash2, mixHex, shade } from "../art";
+import { bake, bakeGradient, bakeRidge, bayer, drawStrip, fbm, hash2, mixHex, shade } from "../art";
 
 const T = 16; // tile size
 const COLS = 16; // 16 * 16 = 256 = W
@@ -20,8 +20,8 @@ const MAXFALL = 5.2;
 const COYOTE = 6;
 const BUFFER = 6;
 const WALK = 1.05;
-const HW = 14; // hero footprint — platform landing, bubble/fruit pickup (bigger here is never harder)
-const HH = 15;
+const HW = 17; // hero footprint — platform landing, bubble/fruit pickup (bigger here is never harder)
+const HH = 20;
 const HURT_W = 12; // the hero's ORIGINAL hurt-box, centred inside the bigger sprite: the bigger
 const HURT_H = 13; // art must not make critters/projectiles easier to touch the kid with
 const TOTAL_ROUNDS = 12;
@@ -107,11 +107,36 @@ for (const l of LAYOUTS) {
   if (l.length !== ROWS || l.some((row) => row.length !== COLS)) throw new Error("bubbleBuddies: bad layout size");
 }
 const STARTS = [40, 40, 40, 24];
-const SKYS: [string, string][] = [
-  ["#6cb6ff", "#a8dcff"],
-  ["#ff9a3c", "#ffc1e6"],
-  ["#5ec8ff", "#c8f4ff"],
-  ["#9a5cff", "#c89aff"],
+// ── four backdrop THEMES the round cycles through — sky, sunset, night, cave/undersea — so the
+// world itself feels different every round, not just the platform layout (brief: "the backdrop
+// theme should change every few rounds")
+const THEME_COUNT = 4;
+const THEME_SKY: string[][] = [
+  ["#3d7de0", "#6cb6ff", "#cdeeff"], // day
+  ["#5a2a66", "#ff7a3c", "#ffd9a0"], // sunset
+  ["#05030f", "#140c3a", "#2a1f5e"], // night
+  ["#021a22", "#063b48", "#0e5a6e"], // undersea cave
+];
+// the ridge's "true" hue — ridgeSprite blends this toward the sky's horizon colour for
+// atmospheric perspective (far ridge mostly sky-coloured, near ridge a soft hazy version of the
+// hue), so the backdrop always stays paler/less saturated than the platforms sitting in front of it
+const THEME_RIDGE_HUE: { hue: string; rim: string }[] = [
+  { hue: "#8a93e0", rim: "#eef1ff" }, // day: mid-tone lavender-blue hills (never platform-pink)
+  { hue: "#b06a84", rim: "#ffd9c2" }, // sunset: mid-tone dusty mauve-rose hills
+  { hue: "#6a60c4", rim: "#b0a8f0" }, // night: mid-tone periwinkle-violet hills
+  { hue: "#2fa0b8", rim: "#8bf0e0" }, // undersea: mid-tone aqua-teal reef
+];
+const THEME_STREAK: [string, string][] = [
+  ["#eaffff", "#bfe8ff"], // waterfall
+  ["#fff2d9", "#ffd27a"], // golden-hour falls
+  ["#d9d2ff", "#a699ff"], // moonlit falls
+  ["#8bffe0", "#45d9c0"], // glowing vent
+];
+const THEME_GROUND: { band: string; glint: string; dots: boolean }[] = [
+  { band: "#cdeeff", glint: "#ffffff", dots: false },
+  { band: "#ffd9a0", glint: "#fff3d6", dots: false },
+  { band: "#241a4a", glint: "#ffe8a0", dots: true },
+  { band: "#0e5a6e", glint: "#8be8ff", dots: true },
 ];
 
 type CritterKind = "walker" | "jumper" | "flyer" | "thrower";
@@ -130,32 +155,52 @@ const OUTLINE = "#140c28";
 
 // ── baked backdrop + tile art (see "BAKE LAZILY" at the top of the brief) ──
 const DITHER_W = 4; // kept narrow (and identical across its width) so it tiles seamlessly
-function skyStrip(stops: [string, string]): Sprite {
-  // a smooth vertical blend — the two stops are close in hue, so an ordered dither here just
-  // reads as sparkly noise; a plain blend is the cleaner 16-bit look
-  return bake(DITHER_W, H, (_x, y) => mixHex(stops[0], stops[1], y / (H - 1)));
+const RIDGE_W = 128; // ridge/mountain strips tile seamlessly at this width (frequencies below are
+// whole cycles across it, so wrap-around is exact, no seam)
+function skyStrip(stops: string[]): Sprite {
+  return bakeGradient(DITHER_W, H, stops);
 }
-function groundStrip(bandColor: string): Sprite {
-  // the pale horizon band under the sky: a soft syrupy shimmer, not a flat rect
+function groundStrip(themeIdx: number): Sprite {
+  // the band under the hills: a shimmering LAKE (day/sunset/night — soft dashed horizontal
+  // reflection streaks + sparkle, instead of the flat diagonal-line "blank floor"), or for
+  // undersea (already underwater) a sandy seabed MEADOW with coral/seaweed tufts poking up
+  const st = THEME_GROUND[themeIdx];
   const w = 32, h = 28;
+  if (themeIdx === 3) {
+    return bake(w, h, (x, y) => {
+      const tuftH = hash2(x, 0, 310) > 0.45 ? 1 + Math.floor(hash2(x, 1, 311) * 3) : 0;
+      if (y < tuftH) return y === 0 ? st.glint : shade(st.glint, -0.15);
+      const wave = fbm(x * 0.15, y * 0.4, 2, 73);
+      const base = mixHex(st.band, "#000000", 0.05 + wave * 0.06);
+      if (y === tuftH) return shade(base, 0.22);
+      return hash2(Math.floor(x / 3), Math.floor(y / 4), 90) > 0.93 ? st.glint : base;
+    });
+  }
   return bake(w, h, (x, y) => {
-    const wave = fbm(x * 0.15, y * 0.4, 2, 40);
-    const base = mixHex(bandColor, "#ffffff", 0.12 + wave * 0.07);
-    if (y === 0) return shade(base, 0.22);
-    const glint = Math.sin((x - y * 0.6) * 0.4) > 0.97;
-    return glint ? mixHex(base, "#ffffff", 0.6) : base;
+    const wave = fbm(x * 0.15, y * 0.4, 2, 40 + themeIdx * 11);
+    const base = mixHex(st.band, themeIdx === 2 ? "#000000" : "#ffffff", 0.08 + wave * 0.06);
+    if (y === 0) return shade(base, 0.26); // the bright waterline where hill meets lake
+    const rowOff = Math.sin(y * 0.7 + themeIdx) * 3;
+    if (y % 3 === 1 && Math.sin((x + rowOff) * 0.5) > 0.55) return mixHex(base, st.glint, 0.55); // a dashed, rippling reflection streak
+    if (hash2(x, y, 90 + themeIdx) > 0.965) return st.glint; // a sparkle of sunlight/moonlight on the water
+    return base;
   });
 }
-/** a fluffy cloud silhouette made of overlapping puffs, lit from the top-left */
-function cloudPuff(w: number, h: number, dim: boolean): Sprite {
+/** a fluffy cloud silhouette made of overlapping puffs, lit from the top-left; an optional warm
+ * tint for the sunset sky so clouds aren't always plain white */
+function cloudPuff(w: number, h: number, dim: boolean, tint?: string, strength = 0.35): Sprite {
   const puffs: [number, number, number][] = [
     [w * 0.22, h * 0.58, w * 0.24],
     [w * 0.46, h * 0.36, w * 0.32],
     [w * 0.72, h * 0.5, w * 0.27],
     [w * 0.88, h * 0.62, w * 0.17],
   ];
-  const lit = dim ? "#dcebff" : "#ffffff";
-  const soft = dim ? "#b9d2f0" : "#cfe6ff";
+  let lit = dim ? "#dcebff" : "#ffffff";
+  let soft = dim ? "#b9d2f0" : "#cfe6ff";
+  if (tint) {
+    lit = mixHex(lit, tint, strength);
+    soft = mixHex(soft, tint, Math.min(1, strength + 0.1));
+  }
   return bake(w, h, (x, y) => {
     let inside = false;
     for (const [bx, by, br] of puffs) {
@@ -167,19 +212,261 @@ function cloudPuff(w: number, h: number, dim: boolean): Sprite {
     return y < h * 0.42 ? lit : soft;
   });
 }
-/** one candy-pink platform tile: glossy top rim, faint diagonal stripe, sprinkled underside */
-function platformTile(): Sprite {
-  const w = T;
-  const h = 12;
-  const top = "#ffc8ea";
-  const base = shade(PAL.pink, -0.06);
-  const dark = shade(PAL.pink, -0.34);
-  const darker = shade(PAL.pink, -0.48);
+/** a tiled starfield strip for the night theme: scattered dots with varied brightness */
+function starStrip(): Sprite {
+  const w = 96, h = 90;
   return bake(w, h, (x, y) => {
-    if (y === 0) return top;
-    if (y <= 6) return (x + y) % 9 < 2 ? shade(base, 0.2) : base;
-    if (y === 7) return dark;
-    return hash2(x, y, 31) > 0.84 ? mixHex(darker, "#ffffff", 0.45) : darker;
+    const v = hash2(x, y, 211);
+    if (v > 0.986) return "#ffffff";
+    if (v > 0.965) return "#cfe0ff";
+    return null;
+  });
+}
+/** the sun (day/sunset), moon (night, with craters) or a soft bioluminescent glow (undersea) —
+ * a small disc with a soft TWO-STEP dithered halo (no ray-burst: that read as noisy spiky static
+ * in a corner, which fought the sky instead of sitting quietly in it) */
+function orbSprite(themeIdx: number): Sprite {
+  const size = 26;
+  const r = size / 2;
+  const cfg = [
+    { core: "#fff6d2", mid: "#ffe17a", craters: false },
+    { core: "#fff0e0", mid: "#ff9a4a", craters: false },
+    { core: "#f2f0ff", mid: "#cfc6ff", craters: true },
+    { core: "#d9fff5", mid: "#7fe0c8", craters: false },
+  ][themeIdx];
+  const spots: [number, number, number][] = [[-3, -2.4, 2.4], [3, 3, 1.8], [-1.8, 4, 1.4]];
+  const coreR = r * 0.56;
+  return bake(size, size, (x, y) => {
+    const dx = x - r + 0.5, dy = y - r + 0.5;
+    const dist = Math.hypot(dx, dy);
+    if (dist < coreR) {
+      if (cfg.craters) for (const [sx, sy, sr] of spots) if (Math.hypot(dx - sx, dy - sy) < sr) return shade(cfg.core, -0.16);
+      return cfg.core;
+    }
+    // halo step 1: a denser dithered ring right against the disc
+    if (dist < coreR + 3) {
+      const fall = 1 - (dist - coreR) / 3;
+      if (fall > bayer(x, y) * 0.75) return cfg.mid;
+    }
+    // halo step 2: a sparser, softer ring further out
+    if (dist < coreR + 7) {
+      const fall = 1 - (dist - coreR - 3) / 4;
+      if (fall > 0.35 + bayer(x, y) * 0.85) return cfg.mid;
+    }
+    return null;
+  });
+}
+/** the height envelope of a row of round, overlapping domed hills (never a spiky zigzag ridge
+ * line) — wrap-aware so it tiles seamlessly at width `w` */
+function domeHeight(x: number, domes: { cx: number; r: number; h: number }[], w: number): number {
+  let best = 0;
+  for (const d of domes) {
+    let dx = Math.abs(x - d.cx);
+    dx = Math.min(dx, w - dx);
+    const t = dx / d.r;
+    if (t < 1) best = Math.max(best, d.h * Math.sqrt(1 - t * t));
+  }
+  return best;
+}
+/** small life growing on the ridge line: lollipop/crystal/coral "trees", gumdrop/anemone
+ * "bushes" (near layer, up close) and a tiny distant candy-castle/windmill/shipwreck silhouette
+ * (far layer) — all added as extra height ON TOP of the hill silhouette at a few fixed spots, so
+ * they plant themselves naturally on the hill surface rather than floating */
+function ridgeDecor(themeIdx: number, near: boolean, w: number): { extra: number[]; color: string[]; hi: string[]; win: (string | null)[] } {
+  const extra = new Array<number>(w).fill(0);
+  const color = new Array<string>(w).fill("");
+  const hi = new Array<string>(w).fill("");
+  const win = new Array<string | null>(w).fill(null);
+  const put = (cx: number, r: number, peak: number, c: string, h: string) => {
+    for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+      const x = ((Math.round(cx) + dx) % w + w) % w;
+      const t = Math.abs(dx) / r;
+      if (t >= 1) continue;
+      const e = peak * Math.sqrt(1 - t * t);
+      if (e > extra[x]) {
+        extra[x] = e;
+        color[x] = c;
+        hi[x] = h;
+      }
+    }
+  };
+  if (near) {
+    const treeC = ["#ff8fd6", "#ffb24a", "#aea4f0", "#2fb8a6"][themeIdx];
+    const bushC = ["#8ee678", "#e0855a", "#5a4fae", "#ff9a6a"][themeIdx];
+    put(w * 0.12, 3, 9, treeC, shade(treeC, 0.3));
+    put(w * 0.87, 3.4, 8, treeC, shade(treeC, 0.3));
+    put(w * 0.36, 6, 4.5, bushC, shade(bushC, 0.3));
+    put(w * 0.66, 5.4, 4, bushC, shade(bushC, 0.3));
+  } else {
+    const cx = w * 0.52;
+    const wallC = ["#ffe3f3", "#ffd9a0", "#3a3570", "#0a3a46"][themeIdx];
+    const roofC = ["#ff6fcf", "#b1538f", "#211c48", "#052226"][themeIdx];
+    const litWindow = themeIdx >= 2; // night + undersea get lit/glowing windows (reads nicely dark)
+    const windowC = themeIdx === 2 ? "#ffe14d" : "#8bffe0";
+    for (let dx = -6; dx <= 6; dx++) {
+      const x = ((Math.round(cx) + dx) % w + w) % w;
+      const notch = Math.abs(dx) % 3 === 0 ? 0 : 1.6; // crenellation along the top
+      extra[x] = 8 + notch;
+      color[x] = wallC;
+      hi[x] = roofC;
+      if (litWindow && Math.abs(dx) !== 0 && Math.abs(dx) % 3 === 1) win[x] = windowC;
+    }
+    extra[Math.round(cx) % w] += 5; // a little central spire/flag
+  }
+  return { extra, color, hi, win };
+}
+/** distant/near candy-HILL ridge, themed: soft rounded gumdrop mountains (two overlapping rows
+ * of domes — a hazier back row, a richer front row, both a clear MID-tone — kept less saturated
+ * than the platforms and never platform-pink), with a lit rim, a shaded side, hill-top decor
+ * (trees/bushes/a tiny distant castle) and one soft dithered streak on the near face */
+function ridgeSprite(themeIdx: number, near: boolean): Sprite {
+  const { hue, rim } = THEME_RIDGE_HUE[themeIdx];
+  // blend toward the sky's own horizon colour for real atmospheric perspective (this correctly
+  // lightens hazy hills in a bright sky AND darkens them in a dark one), but keep most of the hue
+  // so the hills stay a clear, visible mid-tone rather than washing out
+  const skyHorizon = THEME_SKY[themeIdx][2];
+  const frontColor = mixHex(skyHorizon, hue, near ? 0.92 : 0.68);
+  const backColor = mixHex(skyHorizon, hue, near ? 0.74 : 0.5);
+  const rimColor = mixHex(skyHorizon, rim, near ? 0.85 : 0.6);
+  const streak = THEME_STREAK[themeIdx];
+  const w = RIDGE_W;
+  const h = near ? 42 : 30;
+  const baseH = near ? 17 : 12;
+  const n = near ? 4 : 3;
+  const spacing = w / n;
+  const backDomes = Array.from({ length: n }, (_, i) => ({
+    cx: ((i + 0.5) * spacing + themeIdx * 9) % w,
+    r: spacing * 0.78,
+    h: baseH + ((i * 37 + themeIdx * 13) % 9),
+  }));
+  const frontN = Math.max(3, n);
+  const frontSpacing = w / frontN;
+  const frontDomes = Array.from({ length: frontN }, (_, i) => ({
+    cx: ((i + 0.5) * frontSpacing + themeIdx * 5 + spacing * 0.3) % w,
+    r: frontSpacing * 0.74,
+    h: baseH * 1.4 + ((i * 23 + themeIdx * 17) % 10),
+  }));
+  const heights = new Array<number>(w);
+  const isFront = new Array<boolean>(w);
+  for (let x = 0; x < w; x++) {
+    const hb = domeHeight(x, backDomes, w);
+    const hf = domeHeight(x, frontDomes, w);
+    heights[x] = Math.max(hb, hf);
+    isFront[x] = hf >= hb;
+  }
+  const decor = ridgeDecor(themeIdx, near, w);
+  const topHeights = heights.map((hh, x) => hh + decor.extra[x]);
+  const notchX = Math.round(w * 0.56);
+  return bakeRidge(w, h, (x) => topHeights[x], frontColor, {
+    rim: rimColor,
+    tex: (x, y, depth) => {
+      if (decor.extra[x] > 0 && depth < decor.extra[x]) {
+        if (decor.win[x] && depth > 2 && depth < decor.extra[x] - 1.5) return decor.win[x];
+        return depth < 1.4 ? decor.hi[x] : decor.color[x];
+      }
+      if (depth < 1) return null; // let the lit rim edge show, same as every other theme
+      if (near && Math.abs(x - notchX) <= 2) return bayer(x, y) > 0.5 ? streak[0] : mixHex(streak[0], streak[1], 0.5);
+      const base = isFront[x] ? frontColor : backColor;
+      if (hash2(x, y, 55 + themeIdx) > 0.93) return shade(base, -0.1);
+      const slope = heights[(x + 1) % w] - heights[(x - 1 + w) % w];
+      return slope > 0.6 ? shade(base, 0.08) : slope < -0.6 ? shade(base, -0.08) : base;
+    },
+  });
+}
+/** a small floating island drifting across the very top strip of sky (kept short so it never
+ * overlaps a platform row), candy-topped with a short waterfall/glow streak trailing off one side */
+function islandSprite(themeIdx: number): Sprite {
+  const w = 34, h = 16;
+  const top = [PAL.lime, "#ffb27a", "#8d7dfb", "#45d9c0"][themeIdx];
+  const rock = ["#caa6d9", "#8a4f6e", "#201a44", "#06303a"][themeIdx];
+  const streak = THEME_STREAK[themeIdx];
+  const cx = w / 2;
+  return bake(w, h, (x, y) => {
+    const topY = 3 + Math.abs(x - cx) * 0.1;
+    if (y < topY - 1.6) return null;
+    if (y < topY) return shade(top, 0.25);
+    if (y < topY + 3) return top;
+    const half = cx * 0.92;
+    const bodyBottom = 5 + (h - 5) * (1 - Math.min(1, Math.abs(x - cx) / half));
+    if (y > bodyBottom) return null;
+    if (Math.abs(x - (cx + 5)) <= 1.6 && y > topY + 3) return bayer(x, y) > 0.5 ? streak[0] : streak[1];
+    const deep = y - (topY + 3) > (bodyBottom - topY - 3) * 0.6;
+    const base = deep ? shade(rock, -0.15) : rock;
+    return hash2(x, y, 70 + themeIdx) > 0.88 ? shade(base, -0.2) : base;
+  });
+}
+/** full-screen god rays for the undersea/cave theme — sheared, dithered-edge beams of light,
+ * drawn once with low alpha rather than a flat glow dome */
+function godRaySprite(): Sprite {
+  const beamW = 46, period = 140, shear = 0.35;
+  return bake(W, H, (x, y) => {
+    const bx = x + y * shear;
+    const phase = ((bx % period) + period) % period;
+    if (phase >= beamW) return null;
+    const edge = Math.min(phase, beamW - phase) / (beamW / 2);
+    return edge > bayer(x, y) * 1.15 ? "#bfffe8" : null;
+  });
+}
+/** one platform tile per theme: candy brick, frosted biscuit, gem crystal, coral/cave rock — each
+ * a proper 14px-thick BLOCK: a dripping frosting cap, a patterned body, a dark outline edge and a
+ * shaded underside. These are deliberately the most saturated, darkest-outlined things baked (the
+ * ridge/backdrop colours are all blended toward the sky so the platforms always read on top). */
+function platformTile(themeIdx: number): Sprite {
+  const w = T, h = 14;
+  const dripAt = (x: number) => hash2(Math.floor(x / 3), themeIdx, 301) > 0.5;
+  if (themeIdx === 0) {
+    const top = "#ffd3ee";
+    const base = shade(PAL.pink, 0.04);
+    const dark = shade(PAL.pink, -0.4);
+    const darker = shade(PAL.pink, -0.55);
+    return bake(w, h, (x, y) => {
+      if (y <= 1) return y === 0 ? top : shade(top, -0.06);
+      if (y === 2 && dripAt(x)) return shade(top, -0.1);
+      if (y <= 8) return (x + y) % 9 < 2 ? shade(base, 0.22) : base;
+      if (y === 9) return dark;
+      return hash2(x, y, 31) > 0.84 ? mixHex(darker, "#ffffff", 0.4) : darker;
+    });
+  }
+  if (themeIdx === 1) {
+    const frosting = "#fffaf0";
+    const base = "#e8c79a";
+    const dark = shade(base, -0.34);
+    const darker = shade(base, -0.5);
+    const chip = "#4a2c18";
+    return bake(w, h, (x, y) => {
+      if (y <= 1) return y === 0 ? frosting : mixHex(frosting, base, 0.3);
+      if (y === 2 && dripAt(x)) return frosting;
+      if (y <= 8) return hash2(x, y, 44) > 0.85 ? chip : base;
+      if (y === 9) return dark;
+      return hash2(x, y, 45) > 0.8 ? mixHex(darker, "#2a1a0c", 0.4) : darker;
+    });
+  }
+  if (themeIdx === 2) {
+    const topC = "#f2ffff";
+    const base = "#2fc0da";
+    const dark = "#0a5a63";
+    const darker = "#052e35";
+    return bake(w, h, (x, y) => {
+      if (y <= 1) return y === 0 ? topC : shade(topC, -0.08);
+      if (y === 2 && dripAt(x)) return shade(topC, -0.1);
+      if (y <= 8) {
+        const facet = (x * 2 + y * 3) % 10 < 1;
+        return facet ? shade(base, 0.4) : base;
+      }
+      if (y === 9) return dark;
+      return hash2(x, y, 61) > 0.85 ? shade(darker, 0.35) : darker;
+    });
+  }
+  const topC = "#bfe8e2";
+  const base = "#3f6666";
+  const dark = "#1c3030";
+  const darker = "#101f1f";
+  return bake(w, h, (x, y) => {
+    if (y <= 1) return y === 0 ? topC : shade(topC, -0.1);
+    if (y === 2 && dripAt(x)) return shade(topC, -0.14);
+    if (y <= 8) return hash2(x, y, 73) > 0.88 ? shade(PAL.green, -0.1) : base;
+    if (y === 9) return dark;
+    return hash2(x, y, 74) > 0.8 ? shade(darker, -0.2) : darker;
   });
 }
 /** a soft dithered glow core — used for the empty "sparkle" bubbles, echoing the painting's
@@ -196,18 +483,19 @@ function sparkSprite(r: number, color: string): Sprite {
   });
 }
 function fruitSprite(color: string): Sprite {
-  const w = 12;
-  const hi = shade(color, 0.3);
+  const w = 14;
+  const hi = shade(color, 0.36);
   const lo = shade(color, -0.3);
   return bake(w, w, (x, y) => {
-    if (x >= 5 && x <= 6 && y <= 1) return "#1f9a3f"; // stem
-    if (y === 1 && x >= 7 && x <= 9) return "#3ecf55"; // little leaf
-    const dx = (x - 5.5) / 4.6;
-    const dy = (y - 6.5) / 4.6;
+    if (x >= 6 && x <= 7 && y <= 1) return "#1f9a3f"; // stem
+    if (y === 1 && x >= 8 && x <= 11) return "#3ecf55"; // little leaf
+    const dx = (x - 6.5) / 5.4;
+    const dy = (y - 7.5) / 5.4;
     const d = dx * dx + dy * dy;
     if (d > 1) return null;
     const light = -dx - dy * 0.7;
-    return light > 0.5 ? hi : light < -0.55 ? lo : color;
+    if (light > 0.65) return "#ffffff"; // a bright glossy pinpoint shine
+    return light > 0.35 ? hi : light < -0.55 ? lo : color;
   });
 }
 function pebbleSprite(): Sprite {
@@ -220,17 +508,58 @@ function pebbleSprite(): Sprite {
     return light > 0.4 ? "#c9a876" : light < -0.5 ? shade(PAL.brown, -0.3) : PAL.brown;
   });
 }
+/** a small drifting balloon (sunset theme's bit of life in the sky), with a string and a glossy
+ * highlight */
+function balloonSprite(color: string): Sprite {
+  const w = 7, h = 10;
+  return bake(w, h, (x, y) => {
+    if (y >= 7) return x === 3 && y < 9 ? "#5a4530" : null; // a thin string
+    const dx = (x - 3) / 3, dy = (y - 3.2) / 3.6;
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    const light = -dx - dy * 0.6;
+    return light > 0.5 ? shade(color, 0.4) : light < -0.4 ? shade(color, -0.22) : color;
+  });
+}
+/** a tiny swimming fish (the undersea theme's bit of life), a round body, a tail fin and an eye */
+function fishSprite(color: string): Sprite {
+  const w = 9, h = 5;
+  return bake(w, h, (x, y) => {
+    if (x <= 1) return Math.abs(y - 2) <= 1 - x * 0.6 ? shade(color, -0.25) : null;
+    const dx = (x - 5.2) / 3, dy = (y - 2) / 2;
+    const d = dx * dx + dy * dy;
+    if (d > 1) return null;
+    if (x === 7 && y === 1) return "#140c28"; // eye
+    const light = -dx - dy * 0.5;
+    return light > 0.4 ? shade(color, 0.32) : color;
+  });
+}
 function makeArt() {
+  const idx = Array.from({ length: THEME_COUNT }, (_, i) => i);
   return {
-    skies: SKYS.map((s) => skyStrip(s)),
-    grounds: SKYS.map((s) => groundStrip(s[1])),
+    skies: THEME_SKY.map((s) => skyStrip(s)),
+    orbs: idx.map((i) => orbSprite(i)),
+    ridgesFar: idx.map((i) => ridgeSprite(i, false)),
+    ridgesNear: idx.map((i) => ridgeSprite(i, true)),
+    islands: idx.map((i) => islandSprite(i)),
+    grounds: idx.map((i) => groundStrip(i)),
+    plats: idx.map((i) => platformTile(i)),
     cloudNearA: cloudPuff(46, 20, false),
     cloudNearB: cloudPuff(36, 17, false),
     cloudFar: cloudPuff(38, 16, true),
-    plat: platformTile(),
+    cloudWarmA: cloudPuff(46, 20, false, "#ffcf9e"),
+    cloudWarmB: cloudPuff(36, 17, true, "#ffcf9e"),
+    mistFar: cloudPuff(38, 16, true, "#241a4a", 0.82),
+    mistNear: cloudPuff(46, 20, false, "#241a4a", 0.78),
+    stars: starStrip(),
+    ambBubbleSmall: sparkSprite(3, "#bfffe8"),
+    ambBubbleBig: sparkSprite(5, "#9bf5e0"),
+    godRay: godRaySprite(),
     sparkWhite: sparkSprite(7, "#dff3ff"),
     fruit: FRUIT_COLORS.map((c) => fruitSprite(c)),
     pebble: pebbleSprite(),
+    balloons: ["#ff6a6a", "#ffd24a", "#5ef2ff"].map((c) => balloonSprite(c)),
+    fish: ["#ffb347", "#5ef2ff"].map((c) => fishSprite(c)),
   };
 }
 let A: ReturnType<typeof makeArt> | null = null;
@@ -456,54 +785,82 @@ function drawCritter(g: Gfx, c: Critter) {
   g.circle(cx, cy, r, col);
   g.circle(cx - r * 0.35, cy - r * 0.35, r * 0.42, hi);
 
+  // a little wind-up key on the back — every critter is a wind-up toy
+  if (c.kind !== "flyer") {
+    const keyX = cx - c.dir * r * 0.7;
+    const spin = Math.floor(c.t * 0.15) % 2 === 0;
+    g.rect(keyX - 1, cy - r * 0.6, 2, 3.2, "#8a8a9a");
+    g.rect(keyX - (spin ? 1.6 : 0.2), cy - r * 0.6 - 1.6, spin ? 3.2 : 0.4, 1.6, "#bcbccb");
+    g.rect(keyX - (spin ? 0.2 : 1.6), cy - r * 0.6 - 0.2, spin ? 0.4 : 3.2, 1.6, "#bcbccb");
+  }
+
   // eyes
   const eyeY = cy - r * 0.08;
   bigEye(g, cx - r * 0.34, eyeY, r * 0.4, 0.4);
   bigEye(g, cx + r * 0.34, eyeY, r * 0.4, 0.4);
 }
 
-/** Bubblo, the chubby baby dino hero — bigger body, back spikes, a big friendly eye, a dark
- * outline silhouette and a bit of squash/stretch on jumps and landings. */
+/** three small dorsal spines along the hero's back (opposite the facing side) — the painting's
+ * baby-dino silhouette reads "dino" mostly from this ridge */
+function backSpines(g: Gfx, cx: number, cy: number, r: number, dir: 1 | -1, color: string) {
+  const dk = shade(color, -0.25);
+  const bx = cx - dir * r * 0.6;
+  for (let i = 0; i < 3; i++) {
+    const yy = cy - r * 0.75 + (i / 2) * r * 1.2;
+    g.rect(bx - 1.6, yy - 0.5, 3.2, 2.6, dk);
+    g.rect(bx - 1.1, yy - 1.8, 2.2, 1.8, color);
+  }
+}
+
+/** Bubblo, the chubby baby dino hero — a bigger body (to match the painting's proportions), back
+ * spikes, a belly patch, a big friendly eye, a dark outline silhouette, a walk cycle and a bit of
+ * squash/stretch on jumps, landings and the blow pose. */
 function drawHero(g: Gfx, hero: Hero) {
   const dir = hero.facing;
   const cx = hero.x + hero.w / 2;
   const bodyCy = hero.y + hero.h / 2 + 2;
   const legSwing = hero.onGround && Math.abs(hero.vx) > 0.1 ? Math.sin(hero.anim * 2) : 0;
-  const squashY = hero.vy < -1.5 ? 0.86 : hero.vy > 2.2 ? 1.14 : 1;
-  const bodyR = 7.6;
-  const headR = 6.2;
-  const headX = cx + dir * 6;
-  const headY = hero.y + 6;
+  const squashY = hero.vy < -1.5 ? 0.84 : hero.vy > 2.2 ? 1.16 : 1;
+  const bodyR = 9.4;
+  const headR = 7.6;
+  const headX = cx + dir * 7.5;
+  const headY = hero.y + 7.5;
 
   // outline silhouette behind body + head
-  g.circle(cx, bodyCy, bodyR * squashY + 1.4, OUTLINE);
-  g.circle(headX, headY, headR + 1.2, OUTLINE);
+  g.circle(cx, bodyCy, bodyR * squashY + 1.5, OUTLINE);
+  g.circle(headX, headY, headR + 1.3, OUTLINE);
 
   // legs + tail, overlapped by the body on top
-  const legY = hero.y + hero.h - 4;
-  g.rect(cx - 5, legY, 3.4, legSwing > 0.15 ? 5 : 3.4, shade(PAL.green, -0.35));
-  g.rect(cx + 1.6, legY, 3.4, legSwing < -0.15 ? 5 : 3.4, shade(PAL.green, -0.35));
-  g.circle(cx - dir * 8, bodyCy + 2, 2.6, shade(PAL.green, -0.12));
+  const legY = hero.y + hero.h - 5;
+  g.rect(cx - 6, legY, 4.2, legSwing > 0.15 ? 6.5 : 4.2, shade(PAL.green, -0.35));
+  g.rect(cx + 2, legY, 4.2, legSwing < -0.15 ? 6.5 : 4.2, shade(PAL.green, -0.35));
+  g.circle(cx - dir * 9.5, bodyCy + 2.5, 3.3, shade(PAL.green, -0.12));
+
+  // the back spine ridge, drawn before the body so it reads as rooted in the silhouette
+  backSpines(g, cx, bodyCy, bodyR, dir, PAL.orange);
 
   // body + a soft belly patch + head
   g.circle(cx, bodyCy, bodyR * squashY, PAL.green);
-  g.circle(cx - dir * 1.5, bodyCy - 1.5, bodyR * 0.55, shade(PAL.green, 0.3));
-  g.circle(cx - dir * 0.5, bodyCy + bodyR * 0.5, bodyR * 0.4, PAL.lime);
+  g.circle(cx - dir * 1.8, bodyCy - 1.8, bodyR * 0.56, shade(PAL.green, 0.3));
+  g.circle(cx - dir * 0.6, bodyCy + bodyR * 0.46, bodyR * 0.5, PAL.lime);
   g.circle(headX, headY, headR, PAL.green);
-  g.circle(headX - dir * 1.5, headY - 1.5, headR * 0.5, shade(PAL.green, 0.32));
+  g.circle(headX - dir * 1.8, headY - 1.8, headR * 0.5, shade(PAL.green, 0.32));
   crownSpikes(g, headX, headY - headR - 1, headR * 0.85, PAL.orange);
 
+  // puffed cheek when blowing, drawn under the eye so it peeks out from behind it
+  if (hero.blowT > 0) g.circle(headX + dir * headR * 0.55, headY + headR * 0.35, 2.6, shade(PAL.green, 0.22));
+
   // one big friendly eye, like every buddy in the park
-  bigEye(g, headX + dir * 2.4, headY - 0.6, 3, dir * 0.6);
+  bigEye(g, headX + dir * 2.9, headY - 0.7, 3.6, dir * 0.6);
 
   if (hero.blowT > 0) {
     const k = 1 - hero.blowT / 14;
-    const bubR = 1.5 + k * 5;
+    const bubR = 1.8 + k * 6;
     const bx = headX + dir * (headR + 2 + bubR);
     g.alpha(0.55);
     g.circle(bx, headY + 2, bubR, PAL.cyan);
     g.alpha(1);
-    g.circle(bx - dir * 1.5, headY + 0.5, 1, PAL.white);
+    g.circle(bx - dir * 1.8, headY + 0.5, 1.2, PAL.white);
   }
 }
 
@@ -533,6 +890,7 @@ function create(seed: number): GameInstance {
   let projectiles: Projectile[] = [];
   let parts: Part[] = [];
   let pops: Pop[] = [];
+  let rings: { x: number; y: number; t: number }[] = [];
 
   const burst = (x: number, y: number, color: string, n: number) => {
     for (let i = 0; i < n; i++) {
@@ -541,6 +899,7 @@ function create(seed: number): GameInstance {
     }
   };
   const popText = (x: number, y: number, text: string) => pops.push({ x, y, t: 0, text });
+  const popRing = (x: number, y: number) => rings.push({ x, y, t: 0 });
   const trapLifetime = () => (hurried ? 340 : 560);
 
   const setupRound = (n: number) => {
@@ -776,6 +1135,8 @@ function create(seed: number): GameInstance {
       const landed = landOn(f, f.vy, grid);
       if (landed === 1) f.vy = 0;
       wrapYBox(f);
+      // a little shine sparkle while it bobs, waiting to be collected
+      if (f.t % 47 === 0) parts.push({ x: f.x + 5, y: f.y + 3, vx: 0, vy: -0.35, life: 16, color: PAL.white });
     }
     fruits = fruits.filter((f) => !f.dead && f.t < FRUIT_LIFE);
   };
@@ -799,6 +1160,8 @@ function create(seed: number): GameInstance {
         chain = tick - lastPop < CHAIN_WINDOW ? Math.min(chain + 1, 8) : 1;
         if (chain > 1) io.sfx.slide?.(380 + chain * 70, 820 + chain * 70, 0.14, "square", 0.35);
         fruits.push(spawnFruit(b.x, b.y));
+        popRing(b.x, b.y);
+        burst(b.x, b.y, PAL.cyan, 7);
         lastPop = tick;
         io.score(10 * chain);
         popText(b.x, b.y - 10, `+${10 * chain}`);
@@ -845,6 +1208,8 @@ function create(seed: number): GameInstance {
       parts = parts.filter((p) => p.life > 0);
       for (const p of pops) p.t++;
       pops = pops.filter((p) => p.t < 36);
+      for (const r of rings) r.t++;
+      rings = rings.filter((r) => r.t < 16);
       hurryBanner = Math.max(0, hurryBanner - 1);
 
       if (state === "ready") {
@@ -896,44 +1261,136 @@ function create(seed: number): GameInstance {
 
     draw(g: Gfx) {
       const a = art();
-      const skyIdx = (round - 1) % SKYS.length;
+      const themeIdx = (round - 1) % THEME_COUNT;
 
-      // sky: a dithered gradient (never a flat fill), tiled from a 4px strip
-      for (let x = 0; x < W; x += DITHER_W) g.sprite(a.skies[skyIdx], x, 0);
+      // sky: a 3-stop dithered gradient (never a flat fill), tiled from a 4px strip
+      for (let x = 0; x < W; x += DITHER_W) g.sprite(a.skies[themeIdx], x, 0);
 
-      // distant pale clouds drift slowly; nearer, whiter ones drift a touch faster — two depths
-      // of the same simple shape, not a wall of jungle the painting never had
-      for (let i = 0; i < 2; i++) {
-        const w = 38;
-        const x = mod(i * 150 + 40 - tick * 0.045, W + w) - w;
-        g.sprite(a.cloudFar, x, 16 + (i % 2) * 20);
+      // undersea/cave: soft sheared god-rays instead of a sun, drawn once at low alpha
+      if (themeIdx === 3) {
+        g.alpha(0.16);
+        g.sprite(a.godRay, 0, 0);
+        g.alpha(1);
       }
+
+      // the sun / moon / glow — a small disc, tucked in a top corner (just below the HUD bar) so
+      // it never competes with the playfield
+      const orbX = themeIdx === 3 ? 150 : themeIdx === 1 ? 188 : 22;
+      g.sprite(a.orbs[themeIdx], orbX - 13, 15);
+
+      // two rows of soft, rounded candy hills on the horizon — kept low (lower ~40% of the
+      // screen only) and blended toward the sky colour (atmospheric perspective), so they never
+      // compete with the saturated platforms sitting in front of them
+      drawStrip(g, a.ridgesFar[themeIdx], tick * 0.018, 150);
+      drawStrip(g, a.ridgesNear[themeIdx], tick * 0.05, 172);
+
+      // a floating island (with its own little waterfall) drifting at a fixed altitude every one
+      // of the four single-screen layouts keeps entirely free of platforms (row 7 of 14), so it
+      // never overlaps the playfield
+      for (let i = 0; i < 2; i++) {
+        const w = 34;
+        const x = mod(i * 170 + 60 - tick * (0.03 + i * 0.012), W + w) - w;
+        g.sprite(a.islands[themeIdx], x, 112);
+      }
+
+      // the ambient foreground layer: 2 depths of clouds (day/sunset/night-as-mist) or rising
+      // bubbles (undersea, 2 sizes/speeds) — every theme gets a small-far + big-near pair
+      if (themeIdx === 0 || themeIdx === 1) {
+        const warm = themeIdx === 1;
+        const far = warm ? a.cloudWarmB : a.cloudFar;
+        const nearA = warm ? a.cloudWarmA : a.cloudNearA;
+        const nearB = warm ? a.cloudWarmB : a.cloudNearB;
+        for (let i = 0; i < 2; i++) {
+          const w = 38;
+          const x = mod(i * 150 + 40 - tick * 0.045, W + w) - w;
+          g.sprite(far, x, 16 + (i % 2) * 20);
+        }
+        for (let i = 0; i < 3; i++) {
+          const cloud = i % 2 === 0 ? nearA : nearB;
+          const w = i % 2 === 0 ? 46 : 36;
+          const x = mod(i * 160 + 90 - tick * 0.1, W + w) - w;
+          g.sprite(cloud, x, 15 + (i % 2) * 18);
+        }
+      } else if (themeIdx === 2) {
+        drawStrip(g, a.stars, tick * 0.01, 14);
+        drawStrip(g, a.stars, tick * 0.022, 56);
+        g.alpha(0.5);
+        for (let i = 0; i < 2; i++) {
+          const w = 38;
+          const x = mod(i * 150 + 40 - tick * 0.03, W + w) - w;
+          g.sprite(a.mistFar, x, 20 + (i % 2) * 16);
+        }
+        for (let i = 0; i < 2; i++) {
+          const w = 46;
+          const x = mod(i * 170 + 90 - tick * 0.06, W + w) - w;
+          g.sprite(a.mistNear, x, 18 + (i % 2) * 20);
+        }
+        g.alpha(1);
+      } else {
+        for (let i = 0; i < 4; i++) {
+          const y = mod(H - 20 - (tick * 0.35 + i * 51), H - 40) + 20;
+          const x = 20 + i * 58 + Math.sin((tick + i * 23) * 0.025) * 7;
+          g.alpha(0.5);
+          g.sprite(a.ambBubbleSmall, x - 3, y - 3);
+          g.alpha(1);
+        }
+        for (let i = 0; i < 2; i++) {
+          const y = mod(H - 30 - (tick * 0.6 + i * 80), H - 40) + 20;
+          const x = 60 + i * 120 + Math.sin((tick + i * 40) * 0.02) * 9;
+          g.alpha(0.55);
+          g.sprite(a.ambBubbleBig, x - 5, y - 5);
+          g.alpha(1);
+        }
+      }
+
+      // a little life drifting through every sky: birds (day), balloons (sunset), bats (night),
+      // fish (undersea) — the same slow parallax loop as the clouds/bubbles above, re-themed
       for (let i = 0; i < 3; i++) {
-        const cloud = i % 2 === 0 ? a.cloudNearA : a.cloudNearB;
-        const w = i % 2 === 0 ? 46 : 36;
-        const x = mod(i * 160 + 90 - tick * 0.1, W + w) - w;
-        g.sprite(cloud, x, 15 + (i % 2) * 18);
+        const w = 10;
+        const x = mod(i * 95 + 30 - tick * (0.5 + i * 0.07), W + w) - w;
+        const y = 26 + i * 12 + Math.sin((tick + i * 33) * 0.05) * 4;
+        if (themeIdx === 0 || themeIdx === 2) {
+          // a bird (day) or bat (night) drawn as two flapping wing strokes
+          const flap = Math.floor(tick / 10 + i) % 2 === 0;
+          const col = themeIdx === 0 ? "#2a3a66" : "#15102e";
+          const wingY = flap ? y - 2 : y + 1;
+          g.line(x, y, x + 3, wingY, col);
+          g.line(x + 3, wingY, x + 6, y, col);
+          if (themeIdx === 2) {
+            g.line(x + 1, y - 1, x + 3, wingY - 1, col);
+            g.line(x + 3, wingY - 1, x + 5, y - 1, col);
+          }
+        } else if (themeIdx === 1) {
+          g.sprite(a.balloons[i % a.balloons.length], x - 3, y - 4);
+        } else {
+          g.sprite(a.fish[i % a.fish.length], x - 4, y - 2, { flipX: Math.sin(i) > 0 });
+        }
       }
 
       // the pale, shimmering horizon band
-      for (let x = 0; x < W; x += 32) g.sprite(a.grounds[skyIdx], x, H - 28);
+      for (let x = 0; x < W; x += 32) g.sprite(a.grounds[themeIdx], x, H - 28);
 
-      // platforms: a baked candy-pink tile per cell, glossy top + sprinkled underside
+      // platforms: a baked themed BLOCK per cell (candy brick / frosted biscuit / gem crystal /
+      // coral rock) — a dripping frosting cap, a patterned body, a dark outline and a soft cast
+      // shadow in the gap below, the most saturated and darkest-outlined things in the scene
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
           if (grid[r][c] !== "#") continue;
-          g.sprite(a.plat, c * T, r * T);
+          g.alpha(0.22);
+          g.rect(c * T + 1, r * T + 14, T - 2, 2, "#000000");
+          g.alpha(1);
+          g.sprite(a.plats[themeIdx], c * T, r * T);
         }
       }
 
       // fruit (a baked little candy fruit with a stem + leaf, bobbing gently)
       for (const f of fruits) {
         const bob = Math.sin((f.t + f.x) * 0.18) * 1.3;
-        g.sprite(a.fruit[f.kind], f.x - 1, f.y - 1 + bob);
+        g.sprite(a.fruit[f.kind], f.x - 2, f.y - 2 + bob);
       }
 
       // bubbles: a soft rim-lit soap bubble; empty ones carry the painting's white sparkle,
-      // trapped ones glow with the critter's own colour inside
+      // trapped ones glow with the critter's own colour inside, visibly struggling to get free
       for (const b of bubbles) {
         const wob = Math.sin((tick + b.sway) * 0.15);
         const rr = b.r + wob;
@@ -945,11 +1402,25 @@ function create(seed: number): GameInstance {
         g.alpha(1);
         if (b.state === "trapped" && b.kind) {
           const col = b.angry ? PAL.red : KIND_COLOR[b.kind];
-          g.circle(b.x, b.y, 4.4, col);
-          g.circle(b.x - 1, b.y - 1, 1.6, shade(col, 0.32));
+          const strugX = Math.sin((tick + b.t * 3) * 0.3) * 1.4;
+          const strugY = Math.cos((tick + b.t * 2) * 0.26) * 1.1;
+          g.circle(b.x + strugX, b.y + strugY, 4.4, col);
+          g.circle(b.x - 1 + strugX, b.y - 1 + strugY, 1.6, shade(col, 0.32));
+          if (tick % 10 < 2) {
+            g.line(b.x - rr + 1, b.y - 2, b.x - rr - 2, b.y - 4, "#ffffff");
+            g.line(b.x + rr - 1, b.y - 2, b.x + rr + 2, b.y - 4, "#ffffff");
+          }
         } else {
           g.sprite(a.sparkWhite, b.x - 4, b.y - 4);
         }
+      }
+
+      // pop rings: a soft fading ring where a bubble just burst
+      for (const r of rings) {
+        const k = r.t / 16;
+        g.alpha(Math.max(0, 0.55 * (1 - k)));
+        g.circle(r.x, r.y, 4 + k * 16, "#ffffff");
+        g.alpha(1);
       }
 
       for (const c of critters) drawCritter(g, c);
@@ -969,13 +1440,17 @@ function create(seed: number): GameInstance {
       for (const p of parts) g.rect(p.x, p.y, 2, 2, p.color);
       for (const p of pops) g.text(p.text, p.x, p.y - p.t * 0.5, PAL.white);
 
-      // HUD — a small framed instrument panel
+      // HUD — a small framed instrument panel with a lit top rim and corner studs
       g.rect(0, 0, W, 13, "#141233");
+      g.rect(0, 0, W, 1, shade("#141233", 0.3));
       g.rect(0, 13, W, 1, OUTLINE);
-      for (let i = 0; i < lives; i++) g.text("♥", 4 + i * 9, 3, PAL.red);
+      g.rect(0, 14, W, 1, "rgba(255,255,255,0.12)");
+      g.circle(3, 6, 1.2, PAL.cyan);
+      g.circle(W - 3, 6, 1.2, PAL.cyan);
+      for (let i = 0; i < lives; i++) g.text("♥", 8 + i * 9, 3, PAL.red);
       const left = critters.length + bubbles.filter((b) => b.state === "trapped").length;
-      g.text(`${left} LEFT`, 70, 3, PAL.cyan);
-      g.text(`ROUND ${round}/${TOTAL_ROUNDS}`, W - 4, 3, PAL.white, { align: "right" });
+      g.text(`${left} LEFT`, 74, 3, PAL.cyan);
+      g.text(`ROUND ${round}/${TOTAL_ROUNDS}`, W - 8, 3, PAL.white, { align: "right" });
 
       if (state === "ready") {
         g.rect(40, 94, W - 80, 30, "rgba(13,11,26,0.8)");

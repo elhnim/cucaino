@@ -7,7 +7,7 @@
 // stage's shielded boss to open its core, then move on; beat the last one to win the patrol.
 // (Original game in the spirit of 8-bit side-scrolling shooters.)
 import { H, PAL, W, clamp, overlap, rng, spriteH, spriteW, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type Rng, type Sprite } from "../engine";
-import { bake, bayer, drawStrip, hash2, mixHex, outlined, shade, tinted } from "../art";
+import { bake, bayer, drawStrip, fbm, hash2, mixHex, outlined, shade, tinted } from "../art";
 
 const T = 16;
 const PLAY_TOP = 10;
@@ -27,7 +27,7 @@ const HIT_H = 5;
 // size (HIT_DX/DY/W/H below), inset inside the bigger art, so the kid never takes a cheap hit.
 const SHIP_W = 20;
 const SHIP_H = 12;
-const SHIP_SCALE = 1.3;
+const SHIP_SCALE = 1.6;
 // outlined() grows the sprite by 1px on every side; these keep the bigger, scaled art centred
 // on the same small hitbox the ship has always had.
 const SHIP_DRAW_DX = ((SHIP_W + 2) * SHIP_SCALE - SHIP_W) / 2;
@@ -227,6 +227,16 @@ interface Part {
   life: number;
   color: string;
 }
+/** an expanding dithered shockwave ring (a big kill, a boss panel/core popping) — grows and fades,
+ *  drawn as a dotted circle rather than a filled disc so it never reads as a flat glow dome */
+interface Ring {
+  x: number;
+  y: number;
+  r: number;
+  life: number;
+  maxLife: number;
+  color: string;
+}
 interface Terrain {
   ceil: number[];
   floor: number[];
@@ -244,6 +254,10 @@ interface StageArt {
   terrain: Sprite | null;
   /** background planets/moons placed along the stage, parallax-scrolled */
   decor: Decor[];
+  /** a big painted nebula cloud, the farthest and slowest layer — every stage gets one */
+  nebula: Sprite | null;
+  /** a thin foreground strip (asteroid chunks / girders) kept to the top+bottom slivers */
+  fg: Sprite | null;
 }
 interface Ember {
   x: number;
@@ -430,12 +444,192 @@ function bakeTerrainArt(theme: StageTheme, terrain: Terrain, stageSeed: number):
     return null;
   });
 }
-/** background decor for the open (terrain-less) stages: the painting's big dusky planet + its
- *  small rust moon for Comet Fields, a tumbling rocky moon for the Asteroid Belt */
+/** the painting's big gas giant, upgraded with a thin dithered ring system: two dust bands that
+ *  pass BEHIND the globe on the far side (dim, broken up by dithering so they read as translucent)
+ *  and IN FRONT of it on the near side (brighter, occluding the sphere) — never a solid glow dome. */
+function bakePlanetRinged(d: number, base: string, ringColor: string, seed: number, craterN = 5): Sprite {
+  const r = d / 2;
+  const w = Math.round(d * 1.9);
+  const h = Math.round(d * 1.32);
+  const cx = w / 2 - 0.5;
+  const cy = h / 2 - 0.5;
+  const craters = Array.from({ length: craterN }, (_, i) => {
+    const a = hash2(i, 1, seed) * Math.PI * 2;
+    const rr = hash2(i, 2, seed) * r * 0.62;
+    return { x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr, r: r * (0.14 + hash2(i, 3, seed) * 0.16) };
+  });
+  const oa = r * 1.6;
+  const ob = r * 0.3;
+  const ia = r * 1.14;
+  const ib = r * 0.2;
+  const inBand = (dx: number, dy: number) => {
+    const to = (dx / oa) ** 2 + (dy / ob) ** 2;
+    const ti = (dx / ia) ** 2 + (dy / ib) ** 2;
+    return to <= 1 && ti >= 1;
+  };
+  return bake(w, h, (x, y) => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const distP = Math.hypot(dx, dy);
+    const band = inBand(dx, dy);
+    if (distP <= r) {
+      // the near arc of the ring passes in front of the lower half of the globe
+      if (dy > r * 0.08 && band) return shade(ringColor, dy > r * 0.3 ? 0.1 : -0.05);
+      const ndx = dx / r;
+      const ndy = dy / r;
+      const z = Math.sqrt(Math.max(0, 1 - ndx * ndx - ndy * ndy));
+      const light = ndx * -0.55 + ndy * -0.65 + z * 0.55;
+      const bandv = Math.round(clamp((light + 1) / 2, 0, 1) * 3) / 3;
+      let col = shade(base, (bandv - 0.5) * 0.3);
+      for (const c of craters) {
+        const cdx = x - c.x;
+        const cdy = y - c.y;
+        const cd2 = (cdx * cdx + cdy * cdy) / (c.r * c.r);
+        if (cd2 < 1) col = shade(col, cd2 < 0.55 ? -0.22 : -0.08);
+      }
+      if (distP / r > 0.88 && light > 0.3) col = shade(col, 0.12);
+      return col;
+    }
+    if (band) return 1 - bayer(x, y) < 0.55 ? shade(ringColor, dy < 0 ? -0.22 : -0.08) : null;
+    // a soft dithered atmosphere glow, ONLY on the sunlit side (same light direction as the globe's
+    // own shading) and only a thin band just outside the limb — never a solid dome
+    const edge = (distP - r) / (r * 0.26);
+    if (edge < 1) {
+      const ndx = dx / r;
+      const ndy = dy / r;
+      const litSide = clamp((ndx * -0.55 + ndy * -0.65 - 0.1) / 0.5, 0, 1);
+      const fall = (1 - edge) * litSide;
+      if (fall > 0.1 && fall > bayer(x, y) * 0.85) return shade(base, 0.3 + fall * 0.15);
+    }
+    return null;
+  });
+}
+/** a tiny, distant spiral galaxy: a tilted dust disc with two dithered arms round a bright core —
+ *  pure background flavour, baked once and reused */
+function bakeGalaxy(d: number, seed: number): Sprite {
+  const w = d;
+  const h = Math.round(d * 0.5);
+  const cx = w / 2 - 0.5;
+  const cy = h / 2 - 0.5;
+  return bake(w, h, (x, y) => {
+    const dx = (x - cx) / (w / 2);
+    const dy = (y - cy) / (h / 2);
+    const distN = Math.hypot(dx, dy);
+    if (distN > 1) return null;
+    if (distN < 0.16) return shade(PAL.white, distN < 0.07 ? 0.3 : 0);
+    const ang = Math.atan2(dy, dx);
+    const arm = Math.sin(ang * 2 + distN * 8 + seed) * 0.5 + 0.5;
+    if (arm > 0.52 && 1 - distN > bayer(x, y) * 0.75) return distN < 0.55 ? shade(PAL.sky, -0.1) : shade(PAL.purple, -0.2);
+    return null;
+  });
+}
+/** a big, SOFT dithered nebula: a few large gentle blobs (never thin wormy tendrils — the edge is
+ *  one smooth radial falloff, only gently warped by a very low-frequency wobble), each fading from
+ *  a slightly brighter core out to nothing through several dithered bands. Two hues blend across
+ *  the cloud (deep violet -> dusky teal, say), the whole thing kept darker and less saturated than
+ *  any play object, and a few small bright star-cluster flecks sit inside for interest. Covers
+ *  roughly a third of the screen — this is the fix for a sky that was mostly black with dots. */
+function bakeNebula(w: number, h: number, colorDeep: string, colorDusk: string, glow: string, seed: number): Sprite {
+  // horizontal distance wrapped round the strip's width, so a blob (and the low-freq wobble
+  // sampled relative to it) is continuous across the x=0/x=w seam — drawStrip tiles this
+  // sprite side by side, so without wraparound a blob near an edge gets hard-clipped there,
+  // which is exactly the straight seam/wedge artifact this fixes
+  const wrapDx = (x: number, bx: number) => {
+    let d = x - bx;
+    if (d > w / 2) d -= w;
+    else if (d < -w / 2) d += w;
+    return d;
+  };
+  // varied, overlapping blob sizes (not one repeated disc size) — some big soft bases, some
+  // smaller ones overlapping them for an irregular, cloud-like silhouette
+  const n = 5;
+  const blobs = Array.from({ length: n }, (_, i) => ({
+    x: hash2(i, 1, seed) * w,
+    y: (0.08 + hash2(i, 2, seed) * 0.84) * h,
+    r: h * (0.15 + hash2(i, 3, seed) * 0.28),
+    hue: hash2(i, 4, seed),
+  }));
+  const clusters = Array.from({ length: 3 }, (_, i) => {
+    const b = blobs[i];
+    const a = hash2(i, 5, seed) * Math.PI * 2;
+    const rr = hash2(i, 6, seed) * b.r * 0.35;
+    return { x: (b.x + Math.cos(a) * rr + w) % w, y: b.y + Math.sin(a) * rr };
+  });
+  return bake(w, h, (x, y) => {
+    for (const c of clusters) {
+      const cd = Math.hypot(wrapDx(x, c.x), y - c.y);
+      if (cd < 1.4) return shade(glow, 0.3);
+      if (cd < 2.6 && (x + y) % 2 === 0) return shade(glow, 0.05);
+    }
+    let density = 0;
+    let hue = 0;
+    for (const b of blobs) {
+      const dxw = wrapDx(x, b.x);
+      const dyw = y - b.y;
+      // a slow, low-frequency wobble on the radius (+-25%), sampled relative to the blob centre
+      // (using the wrapped dx) so it stays seamless across the tile edge — a lumpy, uneven cloud
+      // edge instead of a perfect disc
+      const wob = 1 + (fbm(dxw * 0.022 + 40, dyw * 0.022 + 40, 2, seed + b.hue * 97) - 0.5) * 0.5;
+      const d = Math.hypot(dxw, dyw) / (b.r * wob);
+      const soft = clamp(1 - d, 0, 1);
+      const v = soft * soft * (3 - 2 * soft); // smoothstep: no hard rim
+      if (v > density) {
+        density = v;
+        hue = b.hue;
+      }
+    }
+    if (density < 0.1) return null;
+    // a soft dithered fade over the outer ~15% of density, rather than a hard cutoff
+    const edgeFade = clamp((density - 0.1) / 0.15, 0, 1);
+    if (edgeFade < 1 && edgeFade < bayer(x, y)) return null;
+    const base = mixHex(colorDeep, colorDusk, hue);
+    const desat = mixHex(base, PAL.night, 0.3);
+    // a clearly brighter core fading out to a darker edge (then to nothing)
+    return shade(desat, (density - 0.55) * 0.3);
+  });
+}
+/** a thin foreground silhouette strip kept to the very top/bottom slivers of the screen (never the
+ *  ship's flight lane) — tumbling asteroid chunks for the Belt, girder struts for open space */
+function bakeForegroundAsteroids(w: number, bandH: number, seed: number): Sprite {
+  const n = 7;
+  const rocks = Array.from({ length: n }, (_, i) => ({ x: hash2(i, 1, seed) * w, y: hash2(i, 2, seed) * bandH, r: 2.5 + hash2(i, 3, seed) * 4 }));
+  return bake(w, bandH, (x, y) => {
+    for (const rk of rocks) {
+      const dxw = Math.min(Math.abs(x - rk.x), w - Math.abs(x - rk.x));
+      const dy = y - rk.y;
+      const dd = Math.hypot(dxw, dy) / rk.r;
+      if (dd < 1) return dd < 0.5 ? shade(PAL.dark, -0.12) : shade(PAL.dark, -0.34);
+    }
+    return null;
+  });
+}
+/** chunky lit station girders (never thin dashed ticks): wide riveted I-beams, spaced well apart,
+ *  with a bright lit face, a dark shadow face and a couple of bolt heads each */
+function bakeForegroundGirders(w: number, bandH: number, seed: number): Sprite {
+  const spacing = 56;
+  const beamW = 9;
+  return bake(w, bandH, (x, y) => {
+    const col = Math.floor(x / spacing);
+    const lx = x - col * spacing;
+    if (lx >= beamW) return null;
+    if (lx === 0 || lx === 1) return shade(PAL.grey, 0.3 - lx * 0.15);
+    if (lx === beamW - 1) return shade(PAL.black, -0.1);
+    if (lx === beamW - 2) return shade(PAL.dark, -0.25);
+    const boltRow = y % 7 === 3;
+    if (boltRow && (lx === 3 || lx === 6)) return shade(PAL.yellow, hash2(col, lx, seed) > 0.5 ? -0.1 : -0.3);
+    return (y + col) % 4 === 0 ? shade(PAL.dark, 0.08) : PAL.dark;
+  });
+}
+// baked once at module load — a single small sprite, well inside the 25ms budget
+const GALAXY = bakeGalaxy(34, 7);
+/** background decor for the open (terrain-less) stages: the painting's big dusky ringed planet +
+ *  its small rust moon for Comet Fields (plus a distant galaxy), a tumbling rocky moon for the
+ *  Asteroid Belt */
 function buildDecor(theme: StageTheme): Decor[] {
   if (theme.kind === "space") {
     return [
-      { wx: 60, y: 54, s: bakePlanet(70, PLANET_TEAL, 1, 5), par: 0.22 },
+      { wx: 760, y: 24, s: GALAXY, par: 0.12 },
+      { wx: 60, y: 40, s: bakePlanetRinged(70, PLANET_TEAL, shade(PLANET_TEAL, 0.45), 1, 5), par: 0.22 },
       { wx: 760, y: 150, s: bakePlanet(26, PLANET_BROWN, 2, 3), par: 0.3 },
       { wx: 1420, y: 60, s: bakePlanet(46, PAL.purple, 3, 4), par: 0.25 },
     ];
@@ -547,13 +741,25 @@ function buildStage(stageIdx: number, theme: StageTheme, r: Rng): StageData {
       }
     }
   }
+  // each stage's nebula blends two muted hues (never the bright saturated play-object colours):
+  // a deep violet/navy base into a dusky second tone that nods at the stage's own palette
+  const NEBULA_HUES: Record<StageKind, [string, string]> = {
+    space: ["#2a1f52", "#1f4a52"],
+    belt: ["#3a2a1a", "#4a3220"],
+    cave: ["#2a1f52", "#3a2050"],
+    volcano: ["#3a1424", "#44201a"],
+    ice: ["#1a2440", "#20384a"],
+  };
+  const [nebA, nebB] = NEBULA_HUES[theme.kind];
+  const nebula = bakeNebula(220, H, nebA, nebB, theme.glowColor, stageIdx * 53 + 9);
+  const fg = theme.kind === "belt" ? bakeForegroundAsteroids(180, 20, stageIdx * 71 + 3) : theme.kind === "space" ? bakeForegroundGirders(224, 18, stageIdx * 83 + 5) : null;
   let art: StageArt;
   if (terrain) {
-    art = { terrain: bakeTerrainArt(theme, terrain, stageIdx * 97 + 3), ambient: bakeAmbient(128, H, theme.glowColor, stageIdx * 31 + 7, 9), decor: [] };
+    art = { terrain: bakeTerrainArt(theme, terrain, stageIdx * 97 + 3), ambient: bakeAmbient(128, H, theme.glowColor, stageIdx * 31 + 7, 9), decor: [], nebula, fg };
   } else if (theme.kind === "belt") {
-    art = { terrain: null, ambient: bakeAsteroidField(170, 150, stageIdx * 41 + 11, theme.rockColor), decor: buildDecor(theme) };
+    art = { terrain: null, ambient: bakeAsteroidField(170, 150, stageIdx * 41 + 11, theme.rockColor), decor: buildDecor(theme), nebula, fg };
   } else {
-    art = { terrain: null, ambient: null, decor: buildDecor(theme) };
+    art = { terrain: null, ambient: null, decor: buildDecor(theme), nebula, fg };
   }
   const embers: Ember[] =
     theme.kind === "volcano" || theme.kind === "ice"
@@ -607,6 +813,7 @@ function create(seed: number): GameInstance {
   const eshots: EShot[] = [];
   const caps: Cap[] = [];
   const parts: Part[] = [];
+  const rings: Ring[] = [];
   const stars = Array.from({ length: 80 }, (_, i) => ({ x: r.range(0, W), y: r.range(0, H), layer: i % 3, tw: r.int(0, 140) }));
 
   const burst = (x: number, y: number, n: number, colors: string[]) => {
@@ -616,6 +823,9 @@ function create(seed: number): GameInstance {
       parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: r.int(12, 28), color: r.pick(colors) });
     }
   };
+  const addRing = (x: number, y: number, maxLife: number, color: string) => {
+    if (rings.length < 6) rings.push({ x, y, r: 2, life: maxLife, maxLife, color });
+  };
   const screenX = (f: Foe) => f.wx + f.drift - sx;
   const shipHit = () => ({ x: ship.x + HIT_DX, y: ship.y + HIT_DY, w: HIT_W, h: HIT_H });
 
@@ -623,7 +833,10 @@ function create(seed: number): GameInstance {
     if (f.hp <= 0) return;
     f.hp = 0;
     const sxp = screenX(f);
-    burst(sxp + f.w / 2, f.y + f.h / 2, 10, [PAL.yellow, PAL.orange, PAL.white]);
+    const cx = sxp + (f.kind === "rock" ? 0 : f.w / 2);
+    const cy = f.y + (f.kind === "rock" ? 0 : f.h / 2);
+    burst(cx, cy, 10, [PAL.yellow, PAL.orange, PAL.white]);
+    if (f.kind === "turret" || f.kind === "hatch" || f.kind === "rock") addRing(cx, cy, 16, PAL.orange);
     io.score(FOE_SCORE[f.kind]);
     io.sfx.play("explode");
     if (f.forceDrop || r.chance(DROP_CHANCE[f.kind])) caps.push({ wx: f.wx + f.drift, y: f.y, t: 0 });
@@ -740,6 +953,7 @@ function create(seed: number): GameInstance {
         io.sfx.play("hit");
         if (p.hp <= 0) {
           burst(b.x + p.dx + p.w / 2, b.y + p.dy + p.h / 2, 12, [PAL.orange, PAL.yellow, PAL.white]);
+          addRing(b.x + p.dx + p.w / 2, b.y + p.dy + p.h / 2, 18, PAL.yellow);
           io.score(300);
           if (r.chance(0.5)) caps.push({ wx: sx + b.x + p.dx, y: b.y + p.dy, t: 0 });
         }
@@ -760,6 +974,8 @@ function create(seed: number): GameInstance {
     shake = 26;
     flash = 16;
     for (let i = 0; i < 8; i++) burst(b.x + r.range(0, BOSS_W), b.y + r.range(0, BOSS_H), 14, [PAL.yellow, PAL.orange, PAL.white, PAL.purple]);
+    addRing(b.x + BOSS_W / 2, b.y + BOSS_H / 2, 26, PAL.white);
+    addRing(b.x + BOSS_W / 2, b.y + BOSS_H / 2, 20, PAL.orange);
     io.score(2000 + stageIdx * 500);
     io.sfx.play("win");
     io.sfx.slide?.(500, 1100, 350, "square", 0.22);
@@ -851,6 +1067,9 @@ function create(seed: number): GameInstance {
           boss = spawnBoss(stageIdx, r);
           io.sfx.noise?.(50, 0.3, 300, 900);
           io.sfx.play("hurt");
+          // a rising-falling warning siren (two quick slides) rather than one flat tone
+          io.sfx.slide?.(380, 760, 180, "square", 0.16);
+          io.sfx.slide?.(760, 380, 180, "square", 0.14);
         }
       } else if (phase === "bossIn") {
         const b = boss!;
@@ -1019,6 +1238,10 @@ function create(seed: number): GameInstance {
         p.vy *= 0.95;
         p.life--;
       }
+      for (const ring of rings) {
+        ring.r += 1.7;
+        ring.life--;
+      }
 
       // ── cleanup ──
       const keep = <X,>(arr: X[], ok: (x: X) => boolean) => {
@@ -1029,15 +1252,18 @@ function create(seed: number): GameInstance {
       keep(eshots, (s) => s.life > 0 && s.x > -20 && s.x < W + 20 && s.y > -20 && s.y < H + 20);
       keep(caps, (c) => c.t >= 0 && c.wx - sx > -30);
       keep(parts, (p) => p.life > 0);
+      keep(rings, (ring) => ring.life > 0);
       keep(stageData.foes, (f) => f.hp > 0);
     },
 
     draw(g: Gfx) {
       const theme = STAGES[stageIdx];
       g.clear(theme.bg);
-      // backdrop: planets / asteroid field / glow motes, parallax-scrolled slower than the
-      // foreground so the stage reads with real depth instead of one flat band of colour
+      // backdrop: a painted nebula (farthest, slowest), then planets / asteroid field / glow
+      // motes, parallax-scrolled slower than the foreground so the stage reads with real depth
+      // instead of one flat band of colour
       const art = stageData.art;
+      if (art.nebula) drawStrip(g, art.nebula, sx * 0.1, 0);
       if (art.ambient) drawStrip(g, art.ambient, sx * (stageData.terrain ? 0.4 : 0.3), stageData.terrain ? 0 : H / 2 - 75);
       for (const d of art.decor) {
         const dxp = d.wx - sx * d.par;
@@ -1077,15 +1303,23 @@ function create(seed: number): GameInstance {
         // rectangle, so bigger/jagged art still reads cleanly when it takes a hit
         const flashed = f.flash % 2 === 1;
         const frm2 = Math.floor(frame / 8) % 2;
-        if (f.kind === "drone") drawBig(g, (flashed ? DRONE_FLASH : DRONE)[frm2], sxp, f.y, f.w, f.h, 1.2);
+        if (f.kind === "drone") drawBig(g, (flashed ? DRONE_FLASH : DRONE)[frm2], sxp, f.y, f.w, f.h, 1.45);
         else if (f.kind === "snake") {
-          g.circle(sxp + 5, f.y + 5, 5, flashed ? PAL.white : shade(PAL.pink, -0.15));
-          g.circle(sxp + 4, f.y + 4, 2.2, flashed ? PAL.white : PAL.pink);
-        } else if (f.kind === "turret") drawBig(g, flashed ? TURRET_FLASH : TURRET, sxp, f.y, f.w, f.h, 1.15, f.mount === "ceil");
+          // a bigger, shaded, outlined bead: dark rim, mid body, a bright highlight dot
+          const cxp = sxp + 5;
+          const cyp = f.y + 5;
+          if (flashed) g.circle(cxp, cyp, 6.5, PAL.white);
+          else {
+            g.circle(cxp, cyp, 6.5, "#140c28");
+            g.circle(cxp, cyp, 5.5, shade(PAL.pink, -0.2));
+            g.circle(cxp - 1, cyp - 1, 3, PAL.pink);
+            g.circle(cxp - 2, cyp - 2, 1.2, PAL.white);
+          }
+        } else if (f.kind === "turret") drawBig(g, flashed ? TURRET_FLASH : TURRET, sxp, f.y, f.w, f.h, 1.4, f.mount === "ceil");
         else if (f.kind === "hatch") {
           g.sprite(flashed ? HATCH_PLATE_FLASH : HATCH_PLATE, sxp - 1, f.y - 1);
           g.rect(sxp + 2, f.y + (f.mount === "ceil" ? f.h - 3 : 0), f.w - 4, 3, frame % 10 < 5 ? PAL.orange : PAL.yellow);
-        } else if (f.kind === "walker") drawBig(g, (flashed ? WALKER_FLASH : WALKER)[Math.floor(f.t / 6) % 2], sxp, f.y, f.w, f.h, 1.2, f.mount === "ceil");
+        } else if (f.kind === "walker") drawBig(g, (flashed ? WALKER_FLASH : WALKER)[Math.floor(f.t / 6) % 2], sxp, f.y, f.w, f.h, 1.45, f.mount === "ceil");
         else if (f.kind === "rock") {
           const set = (flashed ? ASTEROID_FLASH : ASTEROIDS)[f.r] ?? ASTEROIDS[8];
           g.sprite(set[Math.floor(f.t / 10) % 2], sxp - f.r, f.y - f.r);
@@ -1174,6 +1408,21 @@ function create(seed: number): GameInstance {
         }
       }
       for (const p of parts) g.rect(p.x, p.y, 2, 2, p.color);
+      // shockwave rings: a dotted circle that expands and fades — never a filled glow disc
+      for (const ring of rings) {
+        const t = ring.life / ring.maxLife;
+        const step = 0.5 + (1 - t) * 0.3;
+        for (let a = 0; a < Math.PI * 2; a += step) g.rect(ring.x + Math.cos(a) * ring.r, ring.y + Math.sin(a) * ring.r * 0.85, 1, 1, ring.color);
+      }
+      // foreground parallax band: kept to the top/bottom slivers only, so it's pure decor that
+      // never crosses the ship's own flight lane
+      if (art.fg) {
+        const bandH = art.fg.rows.length;
+        g.alpha(0.8);
+        drawStrip(g, art.fg, sx * 1.5, PLAY_TOP);
+        drawStrip(g, art.fg, -sx * 1.5 + 40, PLAY_BOT - bandH);
+        g.alpha(1);
+      }
       g.camera(0, 0);
 
       if (flash) {
@@ -1217,10 +1466,12 @@ function create(seed: number): GameInstance {
           g.rect(cx - 1, barY - 2, cellW, 15, PAL.white);
           g.alpha(1);
           g.rect(cx + 1, barY, cellW - 2, 11, pulse ? PAL.white : BAR_COLORS[i]);
+          g.rect(cx + 2, barY + 1, cellW - 4, 2, shade(pulse ? PAL.white : BAR_COLORS[i], 0.35));
           g.box(cx, barY - 1, cellW - 1, 13, PAL.white);
           g.text(BAR_LABELS[i], cx + cellW / 2, barY + 2, pulse ? BAR_COLORS[i] : PAL.black, { align: "center" });
         } else {
           g.rect(cx + 1, barY, cellW - 2, 11, PAL.dark);
+          g.rect(cx + 2, barY + 1, cellW - 4, 1, shade(PAL.dark, 0.15));
           g.box(cx + 1, barY, cellW - 2, 11, PAL.black);
           g.text(BAR_LABELS[i], cx + cellW / 2, barY + 2, BAR_COLORS[i], { align: "center" });
         }

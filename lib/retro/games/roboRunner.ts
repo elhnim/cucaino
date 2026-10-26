@@ -6,8 +6,8 @@
 // Fortress unlocks: a tougher run, a rematch with all four bosses, then a final boss that cycles
 // through their attacks (and their weaknesses) as it fights. Enemies "fizz" into bolts and sparks
 // — no real-world violence. (Original game, original art, original characters.)
-import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type SfxName } from "../engine";
-import { hash2, shade, tinted } from "../art";
+import { H, PAL, W, clamp, overlap, rng, sprite, type GameInstance, type Gfx, type IO, type RetroGameDef, type SfxName, type Sprite } from "../engine";
+import { bake, bakeGradient, bakeRidge, drawStrip, hash2, outlined, shade, tinted } from "../art";
 
 const T = 16;
 const ROWS = 14; // chunks are 9 rows tall (7 content + 2 ground); top 5 rows are sky
@@ -136,74 +136,468 @@ const THEMES: Record<ThemeId, Theme> = {
   fortress: { id: "fortress", sky: ["#0d0b1a", "#2a1b3a"], ground: "#3a3a4e", groundDark: "#1a1a2a", block: "#5a4a6a", blockLight: "#9a5cff", detail: PAL.red },
 };
 function drawTile(g: Gfx, th: Theme, ch: string, x: number, y: number) {
+  const night = th.id === "factory" || th.id === "fortress";
   if (ch === "#") {
     g.rect(x, y, T, T, th.ground);
     g.rect(x, y, T, 3, th.groundDark === th.ground ? "#ffffff22" : th.groundDark);
     if (th.id === "coral") {
-      g.circle(x + 4, y + 10, 2, th.detail);
-      g.circle(x + 11, y + 7, 1, PAL.white);
-    } else if (th.id === "jungle") {
-      g.rect(x + 2, y + 4, 2, 11, th.groundDark);
-      g.rect(x + 9, y + 2, 2, 13, th.groundDark);
-    } else if (th.id === "factory") {
-      // runway lights with a soft glow halo, set into a seamed metal plate
-      for (const [lx, ly] of [[1, 1], [13, 1], [1, 13], [13, 13]] as const) {
-        g.alpha(0.35);
-        g.rect(x + lx - 1, y + ly - 1, 4, 4, th.detail);
-        g.alpha(1);
-        g.rect(x + lx, y + ly, 2, 2, th.detail);
+      // sand-and-rock reef floor: a rippled sandy top layer over rock plate with an irregular
+      // seam; most tiles are left PLAIN — only here and there (roughly every 4-6 tiles) a shell
+      // or a starfish, never a mark on every tile
+      const col = Math.round(x / T), row = Math.round(y / T);
+      const v = hash2(col, row, 41);
+      g.rect(x, y, T, 5, shade(th.ground, 0.14));
+      g.rect(x, y, T, 2, shade(th.ground, 0.24));
+      const rip = Math.sin(col * 1.7 + row) * 1.2;
+      g.line(x, y + 4 + rip, x + T, y + 4 - rip, shade(th.ground, 0.34));
+      const sj = Math.round(hash2(col, row, 45) * 3) - 1;
+      g.line(x, y + 9 + sj, x + T / 2, y + 7 + sj, th.groundDark);
+      g.line(x + T / 2, y + 7 + sj, x + T, y + 10 + sj, th.groundDark);
+      if (v > 0.86) {
+        // a shell: fanned ridges from one point
+        for (let i = -2; i <= 2; i++) g.line(x + 8, y + 13, x + 8 + i * 2, y + 9, i % 2 ? th.detail : shade(th.detail, 0.3));
+        g.rect(x + 7, y + 12, 3, 2, shade(th.detail, -0.15));
+      } else if (v > 0.74) {
+        // a small starfish
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+          g.line(x + 8, y + 10, x + 8 + Math.cos(a) * 4, y + 10 + Math.sin(a) * 4, shade(th.detail, 0.05));
+        }
+        g.rect(x + 7, y + 9, 2, 2, shade(th.detail, 0.25));
       }
+    } else if (th.id === "jungle") {
+      // packed dirt: bark-root grain, OR a surfaced root, OR a tiny mushroom — varied per tile
+      const col = Math.round(x / T), row = Math.round(y / T);
+      const v = hash2(col, row, 42);
+      if (v < 0.4) {
+        g.rect(x + 2, y + 4, 2, 11, th.groundDark);
+        g.rect(x + 9, y + 2, 2, 13, th.groundDark);
+      } else if (v < 0.7) {
+        g.line(x + 2, y + 3, x + 8, y + 13, th.groundDark);
+        g.line(x + 14, y + 4, x + 8, y + 13, th.groundDark);
+      } else {
+        g.rect(x + 7, y + 8, 2, 5, shade(th.groundDark, 0.1));
+        g.circle(x + 8, y + 7, 3, th.detail);
+        g.rect(x + 7, y + 6, 1, 1, shade(th.detail, 0.3));
+      }
+    } else if (night) {
+      // mostly a PLAIN riveted plate — a seam, small corner bolts, a crisp lit top edge so the
+      // hero's footing always reads — with a hazard strip or a vent only every few tiles, and a
+      // runway light only here and there (never every single tile, or it reads as a busy band)
+      const col = Math.round(x / T), row = Math.round(y / T);
+      g.rect(x, y, T, 1, shade(th.ground, 0.3));
       g.rect(x + T / 2, y + 2, 1, T - 4, th.groundDark);
+      g.rect(x + 2, y + 2, 1, 1, th.groundDark);
+      g.rect(x + T - 3, y + 2, 1, 1, th.groundDark);
+      g.rect(x + 2, y + T - 3, 1, 1, th.groundDark);
+      g.rect(x + T - 3, y + T - 3, 1, 1, th.groundDark);
+      if (hash2(col, row, 70) > 0.55) {
+        g.alpha(0.16);
+        g.rect(x + 3, y + 6, T - 6, 3, th.groundDark);
+        g.alpha(1);
+      }
+      if (col % 4 === 1) {
+        g.alpha(0.3);
+        g.rect(x + 6, y + 6, 4, 4, th.detail);
+        g.alpha(1);
+        g.rect(x + 7, y + 7, 2, 2, th.detail);
+      } else if (col % 8 === 3) {
+        for (let i = -4; i < T + 4; i += 4) g.line(x + i, y + T - 1, x + i + 4, y + T - 6, PAL.yellow);
+        g.alpha(0.5);
+        g.rect(x, y + T - 6, T, 1, PAL.black);
+        g.alpha(1);
+      } else if (col % 8 === 6) {
+        g.rect(x + 3, y + 7, T - 6, 2, th.groundDark);
+        g.rect(x + 3, y + 11, T - 6, 2, th.groundDark);
+        g.alpha(0.4);
+        g.rect(x + 3, y + 7, T - 6, 1, PAL.black);
+        g.alpha(1);
+      }
     } else if (th.id === "ice") {
-      g.line(x + 2, y + 2, x + 7, y + 9, "#ffffffaa");
-      g.line(x + 10, y + 3, x + 14, y + 10, "#ffffffaa");
+      // packed snow/ice: a crack pattern (two variants) or a drift of fresh snow, per tile
+      const col = Math.round(x / T), row = Math.round(y / T);
+      const v = hash2(col, row, 43);
+      if (v < 0.4) {
+        g.line(x + 2, y + 2, x + 7, y + 9, "#ffffffaa");
+        g.line(x + 10, y + 3, x + 14, y + 10, "#ffffffaa");
+      } else if (v < 0.7) {
+        g.line(x + 3, y + 11, x + 9, y + 3, "#ffffffaa");
+        g.line(x + 9, y + 3, x + 13, y + 7, "#ffffffaa");
+      } else {
+        g.alpha(0.55);
+        g.circle(x + 8, y + 4, 4, PAL.white);
+        g.alpha(1);
+        g.rect(x + 6, y + 2, 1, 1, PAL.white);
+      }
     } else {
       g.rect(x + 6, y + 2, 4, 2, th.detail);
       g.rect(x + 2, y + 9, 3, 3, th.groundDark);
     }
   } else if (ch === "=") {
+    // a heavy armoured crate: a stepped tonal gradient (not a flat fill), bevelled face, corner
+    // bolts, a hazard-painted corner, a dark diagonal reflection streak
     g.rect(x, y, T, T, th.block);
-    g.rect(x, y, T, 3, th.blockLight);
+    g.rect(x, y, T, 4, shade(th.block, 0.24));
+    g.rect(x, y + 4, T, 4, shade(th.block, 0.08));
+    g.rect(x, y + T - 6, T, 4, shade(th.block, -0.14));
     g.rect(x, y + T - 2, T, 2, th.groundDark);
     g.rect(x + 1, y + T / 2, T - 2, 1, th.groundDark);
-    // rivets — turns a flat slab into a riveted metal plate
     g.rect(x + 2, y + 2, 2, 2, th.groundDark);
     g.rect(x + T - 4, y + 2, 2, 2, th.groundDark);
     g.rect(x + 2, y + T - 6, 2, 2, th.groundDark);
     g.rect(x + T - 4, y + T - 6, 2, 2, th.groundDark);
+    g.alpha(0.5);
+    g.line(x + 3, y + T - 3, x + T - 3, y + 3, shade(th.block, -0.22));
+    g.alpha(1);
+    g.rect(x + 1, y + 1, 4, 2, PAL.yellow);
+    g.rect(x + 1, y + 1, 1, 4, PAL.yellow);
   }
 }
-function drawBG(g: Gfx, th: Theme, cam: number, t: number) {
-  g.clear(th.sky[0]);
-  g.rect(0, 90, W, 70, th.sky[1]);
+// ── baked backdrop art: a dithered sky gradient + a far parallax skyline/canopy strip, built
+// once per theme (lazily, first time that theme is drawn) and reused every frame as a cheap
+// sprite blit — never rebuilt inside the per-frame draw loop ──
+interface ThemeArt { sky: Sprite; skyline: Sprite; skylineW: number; skylineH: number }
+const THEME_ART: Partial<Record<ThemeId, ThemeArt>> = {};
+const SKY_H = 170;
+const STRIP_W = 220;
+function cityHeights(w: number, seed: number) {
+  const hs = new Array(w).fill(16);
+  let x = 0;
+  while (x < w) {
+    const bw = 9 + Math.floor(hash2(x, seed) * 15);
+    const bh = 26 + Math.floor(hash2(x, seed + 101) * 78);
+    for (let i = 0; i < bw && x + i < w; i++) hs[x + i] = bh;
+    x += bw;
+  }
+  return hs;
+}
+// a few smooth gaussian-ish bumps summed together (wrap-aware, so the baked strip tiles
+// seamlessly) — reef towers, canopy, mountain peaks: NEVER raw fbm noise, which reads as jittery
+// pixel static at this scale
+function bumpHeights(w: number, seed: number, bumps: number, base: number, ampLo: number, ampHi: number, wLo: number, wHi: number) {
+  const R = rng(seed);
+  const specs = Array.from({ length: bumps }, () => ({ cx: R.range(0, w), half: R.range(wLo, wHi), amp: R.range(ampLo, ampHi) }));
+  const hs = new Array(w).fill(base);
+  for (let x = 0; x < w; x++) {
+    let h = base;
+    for (const s of specs) {
+      const dx = Math.min(Math.abs(x - s.cx), w - Math.abs(x - s.cx));
+      const t = clamp(1 - dx / s.half, 0, 1);
+      h += t * t * (3 - 2 * t) * s.amp;
+    }
+    hs[x] = h;
+  }
+  return hs;
+}
+// round, overlapping half-ellipse mounds (reef boulders, not pointy bumps) — mounds combine with
+// MAX, not sum, so overlapping ones merge into one continuous rounded skyline
+function domeHeights(w: number, seed: number, domes: number, base: number, ampLo: number, ampHi: number, wLo: number, wHi: number) {
+  const R = rng(seed);
+  const specs = Array.from({ length: domes }, () => ({ cx: R.range(0, w), half: R.range(wLo, wHi), amp: R.range(ampLo, ampHi) }));
+  const hs = new Array(w).fill(base);
+  for (let x = 0; x < w; x++) {
+    let h = base;
+    for (const s of specs) {
+      const dx = Math.min(Math.abs(x - s.cx), w - Math.abs(x - s.cx));
+      if (dx < s.half) h = Math.max(h, base + s.amp * Math.sqrt(Math.max(0, 1 - (dx / s.half) ** 2)));
+    }
+    hs[x] = h;
+  }
+  return hs;
+}
+function buildThemeArt(th: Theme): ThemeArt {
   const night = th.id === "factory" || th.id === "fortress";
-  for (let i = 0; i < 6; i++) {
-    const x = (((i * 90 - cam * 0.22) % 540) + 540) % 540 - 60;
+  const sky = bakeGradient(
+    W,
+    SKY_H,
+    night ? [shade(th.sky[0], -0.12), th.sky[0], th.sky[1], shade(th.sky[1], 0.1)] : [th.sky[0], th.sky[0], th.sky[1], shade(th.sky[1], 0.12)]
+  );
+  let skyline: Sprite;
+  let skylineH: number;
+  if (night) {
+    const seed = th.id === "factory" ? 11 : 29;
+    const hs = cityHeights(STRIP_W, seed);
+    skylineH = 104;
+    const base = shade(th.block, -0.32);
+    skyline = bakeRidge(STRIP_W, skylineH, (x) => hs[x], base, {
+      rim: shade(base, 0.16),
+      tex: (x, y, depth) => {
+        if (depth < 4 || x % 5 !== 2) return null;
+        const wy = (skylineH - y) % 8;
+        if (wy < 2 || wy > 4) return null;
+        return hash2(Math.floor(x / 5), Math.floor(y / 8), seed) > 0.42 ? th.detail : shade(base, -0.22);
+      },
+    });
+  } else if (th.id === "coral") {
+    // ROUND overlapping reef mounds/boulders (half-ellipse domes, not spiky peaks): dark teal
+    // with a lit rim on top. No tex — bakeRidge's own slope shading already rounds them off.
+    const hs = domeHeights(STRIP_W, 103, 7, 14, 20, 42, 15, 35);
+    skylineH = 70;
+    const base = shade(th.block, -0.3);
+    skyline = bakeRidge(STRIP_W, skylineH, (x) => hs[x], base, { rim: th.blockLight });
+  } else if (th.id === "jungle") {
+    // a dense tree-top canopy: lots of small overlapping bumps, a regular leaf-cluster texture
+    // (a fixed grid, never scattered noise)
+    const hs = bumpHeights(STRIP_W, 205, 14, 44, 14, 34, 7, 15);
+    skylineH = 92;
+    const base = shade(th.ground, 0.04);
+    skyline = bakeRidge(STRIP_W, skylineH, (x) => hs[x], base, { rim: th.detail, tex: (x, y, d) => (d > 2 && x % 6 < 2 && y % 6 < 2 ? shade(base, 0.18) : null) });
+  } else {
+    // a few big, dramatic, smooth mountain peaks with a clean diagonal facet-line texture
+    const hs = bumpHeights(STRIP_W, 307, 5, 16, 40, 72, 20, 46);
+    skylineH = 112;
+    skyline = bakeRidge(STRIP_W, skylineH, (x) => hs[x], th.block, { rim: PAL.white, tex: (x, y, d) => (d > 1 && (x - y) % 10 === 0 ? PAL.white : null) });
+  }
+  return { sky, skyline, skylineW: STRIP_W, skylineH };
+}
+const themeArt = (th: Theme): ThemeArt => (THEME_ART[th.id] ??= buildThemeArt(th));
+
+// moon (night) / sunlight (day themes) — a small bright disc plus soft dithered-looking halo
+// rings, never one flat glow dome; shared by the run backdrop and the boss arena
+function drawSkyDecor(g: Gfx, th: Theme, night: boolean, t: number) {
+  if (night) {
+    const mx = 208, my = 24, mr = 11;
+    g.alpha(0.08);
+    g.circle(mx, my, mr * 2.3, "#dfe6ff");
+    g.alpha(0.16);
+    g.circle(mx, my, mr * 1.5, "#dfe6ff");
+    g.alpha(1);
+    g.circle(mx, my, mr, "#eef1ff");
+    g.circle(mx - 3, my - 2, 2.2, shade("#eef1ff", -0.14));
+    g.circle(mx + 4, my + 3, 1.6, shade("#eef1ff", -0.14));
+  } else if (th.id === "coral") {
+    // sunlight glows down from the surface: a bright wavy band plus a couple of soft, dithered
+    // light shafts fading down into the water — never a hard sun disc underwater
+    for (let b = 0; b < 4; b++) {
+      const wy = Math.sin(t * 0.02 + b * 1.6) * 2;
+      g.alpha(0.22 - b * 0.04);
+      g.rect(0, b * 3 + wy, W, 3, shade(th.sky[1], 0.35));
+    }
+    g.alpha(1);
+    // diagonal shafts: a few stacked, widening bands stepping sideways as they go down, so the
+    // whole shaft reads as a slanted cone of light rather than a vertical stripe
+    for (let i = 0; i < 2; i++) {
+      const sx = 50 + i * 130 + Math.sin(t * 0.012 + i) * 12;
+      const slant = 0.55;
+      for (let s = 0; s < 4; s++) {
+        const sy = s * 28;
+        g.alpha(0.1 - s * 0.018);
+        g.rect(sx + sy * slant - 9 - s, sy, 16 + s * 3, 29, shade(th.sky[1], 0.3));
+      }
+    }
+    g.alpha(1);
+  } else {
+    const sx = 208, sy = 28;
+    g.alpha(0.12);
+    g.circle(sx, sy, 24, th.detail);
+    g.alpha(1);
+    g.circle(sx, sy, 11, shade(th.detail, 0.18));
+  }
+}
+
+// a thick (>1px) outlined stroke: two dark edge lines plus a few filled interior lines, so a
+// branch or strut reads as a solid lit shape, never a 1px wireframe
+function thickLine(g: Gfx, x1: number, y1: number, x2: number, y2: number, w: number, color: string, lit: string, dark: string) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
+  const h = (w - 1) / 2;
+  g.line(x1 + nx * (-h - 1), y1 + ny * (-h - 1), x2 + nx * (-h - 1), y2 + ny * (-h - 1), dark);
+  g.line(x1 + nx * (h + 1), y1 + ny * (h + 1), x2 + nx * (h + 1), y2 + ny * (h + 1), dark);
+  for (let o = -h; o <= h + 0.01; o++) g.line(x1 + nx * o, y1 + ny * o, x2 + nx * o, y2 + ny * o, o < 0 ? lit : color);
+}
+// ── mid-ground props: SOLID filled coral, not wireframe lines — picked per slot by a small
+// variant index so neighbouring props never repeat the exact same shape. Warm pink/orange/purple
+// against the cool teal reef, each outlined, sitting right on the sand line (gy). ──
+function drawCoralProp(g: Gfx, x: number, gy: number, variant: number, th: Theme) {
+  if (variant === 0) {
+    // brain coral: a solid round dome with a dark outline ring and a few carved grooves
+    const r = 9;
+    const c = "#e0714a"; // warm orange
+    g.circle(x, gy - r + 1, r + 1, shade(c, -0.4));
+    g.circle(x, gy - r, r, c);
+    g.circle(x, gy - r - 2, r - 3, shade(c, 0.22));
+    for (let i = -1; i <= 1; i++) {
+      const gx = x + i * 5;
+      g.line(gx - 3, gy - r + 3, gx, gy - r - 3, shade(c, -0.3));
+      g.line(gx, gy - r - 3, gx + 3, gy - r + 3, shade(c, -0.3));
+    }
+  } else if (variant === 1) {
+    // tube/staghorn coral: thick filled branches with rounded, lit tips
+    const c = "#ff6fa8"; // warm pink
+    const branches: [number, number, number, number][] = [
+      [0, 0, -3, -14], [-3, -14, -12, -24], [-3, -14, -2, -30], [-12, -24, -16, -32],
+      [0, 0, 6, -12], [6, -12, 14, -22], [6, -12, 5, -26], [14, -22, 13, -34], [14, -22, 20, -28],
+    ];
+    for (const [x1, y1, x2, y2] of branches) {
+      thickLine(g, x + x1, gy + y1, x + x2, gy + y2, 3, c, shade(c, 0.22), shade(c, -0.35));
+      g.circle(x + x2, gy + y2, 2.2, shade(c, 0.18));
+    }
+    g.circle(x, gy - 2, 3, shade(c, -0.15));
+  } else {
+    // a sea fan: a solid filled wedge with a darker lattice on top
+    const c = "#b37bff"; // warm purple
+    for (let i = -2; i <= 2; i++) thickLine(g, x, gy, x + i * 9, gy - 32, 3, c, shade(c, 0.2), shade(c, -0.3));
+    g.line(x - 18, gy - 16, x + 18, gy - 16, shade(c, -0.3));
+    g.rect(x - 2, gy - 4, 4, 5, shade(th.block, -0.2));
+  }
+}
+function drawJungleTree(g: Gfx, x: number, gy: number, variant: number, th: Theme) {
+  const h = 66 + variant * 22;
+  g.rect(x - 4, gy - h, 8, h, th.groundDark);
+  g.rect(x - 4, gy - h, 3, h, shade(th.groundDark, 0.14));
+  for (let i = 0; i < 2; i++) g.rect(x - 2, gy - h + 12 + i * (h / 3), 1, 8, shade(th.groundDark, -0.18));
+  const cy = gy - h - 4;
+  g.circle(x - 11, cy + 6, 16, shade(th.ground, -0.08));
+  g.circle(x + 13, cy + 4, 18, shade(th.ground, -0.03));
+  g.circle(x, cy - 10, 20, th.ground);
+  g.alpha(0.55);
+  g.circle(x - 7, cy - 17, 7, th.detail);
+  g.alpha(1);
+  if (variant === 1) for (let i = 0; i < 4; i++) g.circle(x + 17 + Math.sin(i) * 2, gy - h + 16 + i * 11, 1.3, shade(th.ground, 0.12));
+}
+function drawIceProp(g: Gfx, x: number, gy: number, variant: number, th: Theme) {
+  if (variant === 0) {
+    // a faceted ice spire: angular lit-left / shadowed-right panels
+    const h = 62;
+    g.line(x, gy, x - 11, gy - h, shade(th.block, 0.22));
+    g.line(x - 11, gy - h, x - 2, gy - h - 15, PAL.white);
+    g.line(x, gy, x + 9, gy - h + 10, shade(th.block, -0.22));
+    g.line(x + 9, gy - h + 10, x - 2, gy - h - 15, shade(th.block, -0.1));
+    g.circle(x - 3, gy - 10, 10, shade(th.block, 0.1));
+    g.circle(x - 3, gy - 10, 5, th.blockLight);
+  } else {
+    // a frosted pine: snow-capped tiers
+    for (let i = 0; i < 3; i++) {
+      const w2 = 26 - i * 7, ty = gy - 12 - i * 16;
+      g.line(x - w2 / 2, ty + 11, x, ty, shade(th.ground, -0.08 * i));
+      g.line(x + w2 / 2, ty + 11, x, ty, shade(th.ground, -0.14 - 0.06 * i));
+      g.rect(x - w2 / 2, ty + 9, w2, 2, PAL.white);
+    }
+    g.rect(x - 2, gy - 4, 4, 10, th.groundDark);
+  }
+}
+// a tall kelp strand swaying from the reef floor, in short connected segments that sway more
+// toward the tip — animated, so it's drawn live each frame rather than baked into the ridge
+function drawKelp(g: Gfx, x: number, baseY: number, t: number, seed: number) {
+  const segs = 4, h = 40;
+  const col = "#1f8f6a";
+  let px = x, py = baseY;
+  for (let i = 1; i <= segs; i++) {
+    const amp = (i / segs) * 9;
+    const nx = x + Math.sin(t * 0.03 + seed + i * 0.6) * amp;
+    const ny = baseY - (h * i) / segs;
+    g.line(px, py, nx, ny, col);
+    g.line(px + 1, py, nx + 1, ny, shade(col, 0.2));
+    px = nx;
+    py = ny;
+  }
+}
+
+function drawBG(g: Gfx, th: Theme, cam: number, t: number) {
+  const night = th.id === "factory" || th.id === "fortress";
+  const art = themeArt(th);
+  g.clear(th.sky[0]);
+  g.sprite(art.sky, 0, 0);
+  drawSkyDecor(g, th, night, t);
+  // far parallax skyline / canopy ridge (one baked strip, tiled)
+  const horizon = 150;
+  drawStrip(g, art.skyline, cam * 0.16, horizon - art.skylineH, W);
+  // tall kelp strands swaying up from the reef mounds
+  if (th.id === "coral") {
+    const kw = 240;
+    for (let i = 0; i < 2; i++) {
+      const x = (((i * (kw / 2) + 50 - cam * 0.16) % kw) + kw) % kw - 20;
+      drawKelp(g, x, horizon - 6, t, i * 3);
+    }
+  }
+  // blinking antenna lights on the tallest towers (night only)
+  if (night) {
+    const sw = art.skylineW;
+    for (let i = 0; i < 4; i++) {
+      const x = (((i * (sw / 4) + 24 - cam * 0.16) % sw) + sw) % sw - 16;
+      const topY = horizon - art.skylineH + 16 + (i % 3) * 9;
+      g.rect(x, topY - 7, 1, 7, PAL.black);
+      if (Math.floor(t * 0.1 + i * 6) % 24 < 3) {
+        g.alpha(0.6);
+        g.circle(x, topY - 8, 2, PAL.red);
+        g.alpha(1);
+        g.circle(x, topY - 8, 1, PAL.red);
+      }
+    }
+  }
+  // mid-ground: factory smokestacks + pipe gantry (night), reef coral/sea-fans/anemones,
+  // multi-lobe jungle trees, or faceted ice spires/frosted pines — real shaded, outlined props,
+  // never a flat glow disc
+  const midCount = th.id === "coral" ? 3 : 5;
+  const midSpacing = th.id === "coral" ? 160 : 100;
+  for (let i = 0; i < midCount; i++) {
+    const x = (((i * midSpacing - cam * 0.3) % (midSpacing * midCount)) + midSpacing * midCount) % (midSpacing * midCount) - 60;
     if (th.id === "coral") {
-      g.circle(x + 20, 160, 26, th.block);
-      g.circle(x + 40, 150, 16, th.groundDark);
+      drawCoralProp(g, x + 24, 182, i % 3, th);
     } else if (th.id === "jungle") {
-      g.rect(x + 16, 60, 8, 100, th.groundDark);
-      g.circle(x + 20, 54, 26, th.ground);
+      drawJungleTree(g, x + 24, 172, i % 2, th);
     } else if (night) {
-      // a tall floodlight pylon: two-tone shaft + dark seam + dark cap + a small glowing
-      // lamp with soft dithered falloff (never a flat glow dome)
-      const px = x + 14;
-      g.rect(px - 5, 18, 10, 150, shade(th.block, -0.1));
-      g.rect(px - 5, 18, 4, 150, shade(th.block, 0.12));
-      g.rect(px - 1, 18, 1, 150, th.groundDark);
-      g.rect(px - 2, 11, 4, 7, th.groundDark);
-      g.alpha(0.22);
-      g.circle(px, 15, 10, th.detail);
+      // a smokestack: riveted shaft, dark cap, a slow puff of smoke drifting up
+      const sxp = x + 16;
+      g.rect(sxp - 4, 70, 8, 90, shade(th.block, -0.16));
+      g.rect(sxp - 4, 70, 3, 90, shade(th.block, 0.05));
+      g.rect(sxp - 5, 64, 10, 7, th.groundDark);
+      for (let py = 0; py < 3; py++) {
+        const pt = (t * 0.4 + i * 40 + py * 30) % 120;
+        const pr = 3 + pt * 0.06;
+        g.alpha(Math.max(0, 0.3 - pt * 0.0025));
+        g.circle(sxp + Math.sin(pt * 0.05 + i) * 4, 62 - pt * 0.7, pr, th.groundDark === th.ground ? PAL.grey : shade(th.sky[1], 0.15));
+      }
       g.alpha(1);
-      g.circle(px, 15, 4, th.detail);
-      g.circle(px - 1, 14, 1.3, PAL.white);
+      // a pipe truss linking two stacks, with a slow-sweeping searchlight beam
+      g.rect(sxp + 4, 96, 46, 3, th.groundDark);
+      g.rect(sxp + 4, 96, 46, 1, shade(th.block, 0.1));
+      const beamA = Math.sin(t * 0.02 + i) * 0.5;
+      g.alpha(0.1);
+      g.line(sxp + 20, 100, sxp + 20 + beamA * 60, 150, th.detail);
+      g.alpha(1);
     } else if (th.id === "ice") {
-      g.rect(x + 20, 90, 14, 70, th.block);
-      g.circle(x + 27, 86, 10, th.blockLight);
+      drawIceProp(g, x + 24, 172, i % 2, th);
     } else {
-      g.rect(x + 14, 46, 8, 114, th.groundDark);
-      g.circle(x + 18, 42, 4, th.detail);
+      g.rect(x + 14, 44, 8, 116, th.groundDark);
+      g.circle(x + 18, 40, 4, th.detail);
+    }
+  }
+  // drifting life: rising bubbles + fish (coral), fireflies (jungle), falling snow (ice)
+  if (th.id === "coral") {
+    for (let i = 0; i < 6; i++) {
+      const bx = (((i * 53 - cam * 0.15) % 280) + 280) % 280 - 10;
+      const by = 190 - ((t * 0.6 + i * 23) % 170);
+      g.alpha(0.35 + 0.25 * Math.sin(t * 0.1 + i));
+      g.circle(bx, by, 1.4 + (i % 3) * 0.5, shade(th.blockLight, 0.2));
+      g.alpha(1);
+    }
+    for (let i = 0; i < 2; i++) {
+      const dir = i % 2 ? 1 : -1;
+      const fx = ((((i * 150 + t * 0.4 * dir) - cam * 0.2) % 400) + 400) % 400 - 60;
+      const fy = 66 + i * 24 + Math.sin(t * 0.05 + i) * 4;
+      g.alpha(0.55);
+      g.circle(fx, fy, 3.4, shade(th.block, -0.3));
+      g.line(fx - dir * 5, fy, fx - dir * 9, fy - 3, shade(th.block, -0.3));
+      g.line(fx - dir * 5, fy, fx - dir * 9, fy + 3, shade(th.block, -0.3));
+      g.alpha(1);
+    }
+  } else if (th.id === "jungle") {
+    for (let i = 0; i < 6; i++) {
+      const fx = (((i * 61 - cam * 0.12) % 260) + 260) % 260 - 10;
+      const fy = 90 + ((i * 31) % 70) + Math.sin(t * 0.07 + i) * 6;
+      g.alpha(0.35 + 0.5 * Math.max(0, Math.sin(t * 0.15 + i * 2)));
+      g.circle(fx, fy, 1.2, th.detail);
+      g.alpha(1);
+    }
+  } else if (th.id === "ice") {
+    for (let i = 0; i < 10; i++) {
+      const fx = (((i * 41 - cam * 0.1) % 280) + 280) % 280 - 10;
+      const fy = ((t * 0.8 + i * 17) % 170) + 10;
+      g.alpha(0.6);
+      g.circle(fx, fy, 1, PAL.white);
+      g.alpha(1);
     }
   }
   if (night) {
@@ -222,6 +616,31 @@ function drawBG(g: Gfx, th: Theme, cam: number, t: number) {
       g.circle(tx + 18, 150, 3, th.groundDark);
       g.circle(tx + 19, 149, 1, th.detail);
     }
+    g.alpha(1);
+  }
+  // foreground floodlight pylons: a riveted steel lattice tower (diagonal cross-braces, bolts)
+  // topped with a small glowing lamp and a soft downward searchlight beam
+  for (let i = 0; i < 4; i++) {
+    const x = (((i * 130 - cam * 0.22) % 520) + 520) % 520 - 60;
+    if (th.id === "coral" || th.id === "jungle") continue; // these themes keep their own scenery clean
+    const px = x + 14;
+    g.rect(px - 5, 18, 10, 150, shade(th.block, -0.1));
+    g.rect(px - 5, 18, 4, 150, shade(th.block, 0.12));
+    g.rect(px - 1, 18, 1, 150, th.groundDark);
+    for (let ly = 30; ly < 160; ly += 18) {
+      g.line(px - 5, ly, px + 5, ly + 16, th.groundDark);
+      g.line(px + 5, ly, px - 5, ly + 16, th.groundDark);
+      g.rect(px - 5, ly, 1, 1, th.blockLight);
+      g.rect(px + 4, ly, 1, 1, th.blockLight);
+    }
+    g.rect(px - 2, 11, 4, 7, th.groundDark);
+    g.alpha(0.22);
+    g.circle(px, 15, 10, th.detail);
+    g.alpha(1);
+    g.circle(px, 15, 4, th.detail);
+    g.circle(px - 1, 14, 1.3, PAL.white);
+    g.alpha(0.07);
+    for (let b = 0; b < 4; b++) g.rect(px - 10 + b * 2, 24 + b * 10, 20 - b * 4, 9, th.detail);
     g.alpha(1);
   }
   for (let i = 0; i < 12; i++) {
@@ -258,45 +677,172 @@ const STAGES: StageDef[] = [
 ];
 const FORTRESS: StageDef = { name: "ROBO FORTRESS", boss: BOSS_DEFS[0], theme: "fortress", chunks: ["start", "turretTower", "shieldBridge", "stairsGap", "twoLevel", "checkpt", "flyerCanyon", "doorway"], hpMul: 1.4, spdMul: 1.3 };
 
-// ── hero sprite: ~2x the old build, built fresh each draw with the weapon colour as the chest core ──
+// ── hero sprite: a proper 27px-tall armoured robot boy (crest light, visor shine, a 3-tone
+// shaded chest plate with a lit left edge and a shadowed right edge, chunky booted legs). Drawn
+// a few px higher than the (unchanged) hitbox — see HERO_DRAW_DY — so the extra height never
+// moves the feet off their footing.
 const HERO_TOP = [
-  "....kkkkk....",
-  "...kwwwwwk...",
-  "..kwwwwwwwk..",
-  "..kw.vv.vwk..",
-  "..kwwwwwwwk..",
-  "...kkkkkkk...",
-  "....kbbbk....",
-  "...kbbbbbk...",
-  "..kbbbbbbbk..",
-  ".kbbbbcbbbkg.",
-  ".kbbbbbbbbkgg",
-  ".kbbbbbbbbkgg",
-  "..kbbbbbbbk..",
-  "..kbbbbbbbk..",
-  "...kbbbbbk...",
+  "........kk.......", // crest light nub
+  "........yy.......",
+  "......kkkkk......", // helmet dome
+  ".....kwwwwwk.....",
+  "....kwwwwwwwk....",
+  "....kw.hv.vwk....", // visor band + shine
+  "....kwwwwwwwk....",
+  ".....kkkkkkk.....", // chin
+  "......klbnk......", // neck/collar, shaded
+  "..klllbbbbbnnnk..", // broad shoulders — not a stick
+  "..klllbbbbbnnnk..", // shoulder band reinforced
+  "...kllbbbbbnnk...", // chest
+  "..kllbbcbbnnkg...", // chest plate core (weapon colour) + chunky cannon root
+  "..kllbbbbbnnkgg..", // cannon
+  "..kllbbbbbnnkgh..", // cannon + muzzle shine
+  "..kllbbbbbnnkg...", // cannon tapers back in
+  "....klbbbbbnk....",
+  ".....klbbbnk.....",
+  "......klbnk......", // hip taper into legs
 ];
-const LEGS_STAND = ["..kgg...ggk..", ".kgg.....ggk.", ".kgg.....ggk.", ".kgg.....ggk.", ".kyy.....yyk.", ".kyy.....yyk.", "..kk.....kk.."];
-const LEGS_RUN_A = ["..kgg........", ".kgg....k....", ".kgg....gk...", ".kg....ggk...", ".ky...yyk....", ".k...yyk.....", "....kk......."];
-const LEGS_RUN_B = ["...kgg.gk....", "..kgg...gk...", "..kgg...gk...", "..kyy...yk...", "..kyy...yk...", "...kk...kk...", ".............."];
-const LEGS_RUN_C = ["........ggk..", "....k....ggk.", "...kg....ggk.", "...kgg....k..", "....kyy...ky.", ".....kyy...k.", ".......kk...."];
-const LEGS_JUMP = ["...kgggggk...", "..kgg...ggk..", "..kgg...ggk..", "..kgg...ggk..", "..kyy...yyk..", "..kyy...yyk..", "...kk...kk..."];
-const LEGS_HURT = ["..kg.......gk", ".kgg.......gg", ".kg.........k", ".ky.........y", ".ky.........y", "..k.........k", ".............."];
+const LEGS_STAND = ["....kgg...ggk....", "...kgg.....ggk...", "...kgg.....ggk...", "...kgg.....ggk...", "...kyy.....yyk...", "...kyy.....yyk...", "....kk.....kk....", "....kkk...kkk...."];
+const LEGS_RUN_A = ["....kgg..........", "...kgg....k......", "...kgg....gk.....", "...kg....ggk.....", "...ky...yyk......", "...k...yyk.......", "......kk.........", ".....kkkk........"];
+const LEGS_RUN_B = [".....kgg.gk......", "....kgg...gk.....", "....kgg...gk.....", "....kyy...yk.....", "....kyy...yk.....", ".....kk...kk.....", ".................", "................."];
+const LEGS_RUN_C = ["..........ggk....", "......k....ggk...", ".....kg....ggk...", ".....kgg....k....", "......kyy...ky...", ".......kyy...k...", ".........kk......", "........kkkk....."];
+const LEGS_JUMP = [".....kgggggk.....", "....kgg...ggk....", "....kgg...ggk....", "....kgg...ggk....", "....kyy...yyk....", "....kyy...yyk....", ".....kk...kk.....", "....kkkk.kkkk...."];
+const LEGS_HURT = ["....kg.......gk..", "...kgg.......gg..", "...kg.........k..", "...ky.........y..", "...ky.........y..", "....k.........k..", ".................", "................."];
 const RUN_CYCLE = [LEGS_RUN_A, LEGS_RUN_B, LEGS_RUN_C, LEGS_RUN_B];
-const heroPal = (c: string) => ({ k: PAL.black, w: PAL.white, v: PAL.cyan, b: PAL.blue, g: PAL.grey, y: PAL.yellow, c });
-const heroSprite = (legs: string[], color: string) => spr([...HERO_TOP, ...legs], 13, heroPal(color));
+const heroPal = (c: string) => ({ k: PAL.black, w: PAL.white, v: PAL.cyan, b: PAL.blue, g: PAL.grey, y: PAL.yellow, c, h: PAL.white, r: shade(PAL.blue, 0.22), l: shade(PAL.blue, 0.26), n: shade(PAL.blue, -0.26) });
+const heroSprite = (legs: string[], color: string) => spr([...HERO_TOP, ...legs], 17, heroPal(color));
+// the sprite is drawn taller than the hitbox (HERO_H); this is how far above hero.y it starts so
+// the boots stay planted on the same footing — never change HERO_W/HERO_H (the hitbox) for this
+const HERO_DRAW_DY = HERO_TOP.length + LEGS_STAND.length - HERO_H;
 
-// ── enemy sprites ──
-const BOTC = { k: PAL.black, m: PAL.grey, e: PAL.red, d: PAL.dark };
-const HOPPER = [spr(["..kkkk..", ".kmmmmk.", "kmmeemmk", "kmmmmmmk", ".kmmmmk.", "kk....kk"], 8, BOTC), spr(["..kkkk..", ".kmmmmk.", "kmmeemmk", "kmmmmmmk", "k.mmmm.k", ".k....k."], 8, BOTC)];
-const FLYER = [spr(["kk......kk", ".kmmmmmmk.", "kmeemmeemk", ".kmmmmmmk.", "..kk..kk.."], 11, BOTC), spr([".kk....kk.", "kkmmmmmmkk", "kmeemmeemk", ".kmmmmmmk.", "...kkkk..."], 11, BOTC)];
-const TURRET = spr(["..kkkk..", ".kddddk.", "kddeeddk", "kddddddk", "mmmmmmmm", "kk....kk"], 8, BOTC);
-const SHIELD = [spr(["..kkkk....", ".kmmmmk...", "kmmeemmk..", "kmmmmmmk..", ".kg..gk...", ".kk..kk.."], 10, BOTC), spr(["..kkkk....", ".kmmmmk...", "kmmeemmk..", "kmmmmmmk..", "..kg.gk...", "..kk.kk.."], 10, BOTC)];
+// ── enemy sprites ── built procedurally (bake + a lit-from-upper-left shade + outlined) so a
+// round shaded body is easy to get right and scale up, rather than hand-counted ASCII art. Each
+// is drawn much bigger than its (unchanged) hitbox — see MOB_ANCHOR below for the offset that
+// keeps the hitbox centred/grounded under the bigger picture.
+const shadeAt = (nx: number, ny: number, mid: string, light: string, dark: string) => {
+  const l = -nx * 0.6 - ny * 0.8;
+  return l > 0.3 ? light : l < -0.3 ? dark : mid;
+};
+// a "Met"-style hard-hat walker: a riveted dome + flared brim over a red eye-slit, round body,
+// two stubby feet that tuck together mid-hop
+function bakeHopper(legsOut: boolean): Sprite {
+  const w = 16, h = 16, cx = 8;
+  return outlined(
+    bake(w, h, (x, y) => {
+      const dx = x + 0.5 - cx;
+      if (y >= 1 && y <= 5) {
+        const r = 3 + (y - 1) * 0.65;
+        if (Math.abs(dx) <= r) return shadeAt(dx / 5, (y - 3) / 4, PAL.grey, shade(PAL.grey, 0.32), shade(PAL.grey, -0.22));
+        return null;
+      }
+      if (y === 6) return Math.abs(dx) <= 7 ? (Math.abs(dx) > 5.3 ? shade(PAL.grey, -0.3) : shade(PAL.grey, 0.16)) : null;
+      if (y === 7) return Math.abs(dx) <= 6.4 ? shade(PAL.grey, -0.36) : null;
+      if (y >= 8 && y <= 9) {
+        if (Math.abs(dx) > 5) return null;
+        if (y === 8 && Math.abs(dx) <= 2.4) return PAL.red;
+        return shade(PAL.grey, -0.12);
+      }
+      if (y >= 10 && y <= 13) {
+        if (Math.abs(dx) <= 5.4) return shadeAt(dx / 5.4, (y - 11.5) / 2, PAL.grey, shade(PAL.grey, 0.26), shade(PAL.grey, -0.24));
+        return null;
+      }
+      if (y >= 14 && y <= 15) {
+        const off = legsOut ? 3.2 : 1.6;
+        return Math.abs(dx - off) <= 1.5 || Math.abs(dx + off) <= 1.5 ? shade(PAL.grey, -0.3) : null;
+      }
+      return null;
+    })
+  );
+}
+const HOPPER = [bakeHopper(true), bakeHopper(false)];
+// a hovering drone: a glassy dome sensor, a wide saucer body, and a propeller blade that visibly
+// sweeps between the two animation frames
+function bakeFlyer(spin: number): Sprite {
+  const w = 20, h = 14, cx = 10, cy = 8;
+  return outlined(
+    bake(w, h, (x, y) => {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+      // blurred propeller blade, rotating
+      if (y <= 2) {
+        const bx = cx + Math.cos(spin) * 7;
+        const by = cy - 6 + Math.sin(spin) * 2.2;
+        if (Math.hypot(x + 0.5 - bx, (y - 1) * 2 - by + cy - 6) < 1.6) return shade(PAL.dark, 0.1);
+      }
+      if (y >= 2 && y <= 3) {
+        if (Math.abs(dx) <= 2.6) return null;
+      }
+      if (y >= 3 && y <= 8) {
+        // saucer body: a wide flattened ellipse
+        const ny = (y - 5.5) / 3.2;
+        const r = 9 * Math.sqrt(Math.max(0, 1 - ny * ny));
+        if (Math.abs(dx) <= r) {
+          if (y <= 5 && Math.abs(dx) <= 4) return shade(PAL.cyan, 0.1); // sensor dome glass
+          return shadeAt(dx / 9, ny, PAL.grey, shade(PAL.grey, 0.3), shade(PAL.grey, -0.24));
+        }
+      }
+      if (y === 9 && Math.abs(dx) <= 6) return dx > -4 && dx < 4 ? PAL.red : null;
+      if (y >= 10 && y <= 11) return Math.abs(dx) <= 2 ? shade(PAL.yellow, dy > 0 ? -0.1 : 0.2) : null;
+      return null;
+    })
+  );
+}
+const FLYER = [bakeFlyer(0), bakeFlyer(Math.PI)];
+// a stationary cannon turret: a bolted base, a hazard collar, a domed sensor eye
+function bakeTurret(): Sprite {
+  const w = 16, h = 18, cx = 8;
+  return outlined(
+    bake(w, h, (x, y) => {
+      const dx = x + 0.5 - cx;
+      if (y >= 0 && y <= 3) {
+        const r = 2.5 + y * 0.6;
+        if (Math.abs(dx) <= r) return shadeAt(dx / 4, (y - 2) / 3, PAL.dark, shade(PAL.dark, 0.3), shade(PAL.dark, -0.2));
+        return null;
+      }
+      if (y >= 4 && y <= 5) return Math.abs(dx) <= 5 ? (Math.abs(dx) <= 2.4 ? PAL.red : shade(PAL.dark, -0.15)) : null;
+      if (y >= 6 && y <= 11) {
+        if (Math.abs(dx) <= 6) return shadeAt(dx / 6, (y - 8.5) / 3, PAL.dark, shade(PAL.dark, 0.26), shade(PAL.dark, -0.22));
+        return null;
+      }
+      if (y >= 12 && y <= 13) return Math.abs(dx) <= 7 ? (y === 12 ? PAL.yellow : shade(PAL.yellow, -0.3)) : null;
+      if (y >= 14 && y <= 16) return Math.abs(dx) <= 7.5 ? shadeAt(dx / 7.5, 0, PAL.grey, shade(PAL.grey, 0.2), shade(PAL.grey, -0.2)) : null;
+      if (y === 17) return Math.abs(dx - 4) <= 1.5 || Math.abs(dx + 4) <= 1.5 ? PAL.black : null;
+      return null;
+    })
+  );
+}
+const TURRET = bakeTurret();
+// a spiked roller ball; a directional energy shield bubble is still drawn separately beside it
+function bakeShield(roll: number): Sprite {
+  const w = 18, h = 16, cx = 9, cy = 8;
+  return outlined(
+    bake(w, h, (x, y) => {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+      const d = Math.hypot(dx, dy);
+      const a = Math.atan2(dy, dx);
+      const spikeR = 7 + (Math.cos(a * 6 + roll) > 0.6 ? 1.6 : 0);
+      if (d <= spikeR) {
+        if (d > 6.2) return shade(PAL.dark, -0.1);
+        if (Math.abs(dx) <= 4 && dy > -1 && dy < 3) return PAL.red;
+        return shadeAt(dx / 6, dy / 6, PAL.grey, shade(PAL.grey, 0.3), shade(PAL.grey, -0.24));
+      }
+      return null;
+    })
+  );
+}
+const SHIELD = [bakeShield(0), bakeShield(Math.PI / 6)];
 // a bright hit-flash twin of each frame — precomputed once, never rebuilt in draw
 const HOPPER_FLASH = HOPPER.map((s) => tinted(s, PAL.white));
 const FLYER_FLASH = FLYER.map((s) => tinted(s, PAL.white));
 const TURRET_FLASH = tinted(TURRET, PAL.white);
 const SHIELD_FLASH = SHIELD.map((s) => tinted(s, PAL.white));
+// visual size is bigger than the (unchanged) hitbox; anchor = where to draw relative to m.x/m.y
+// so the picture stays centred over / grounded on the real collision box
+const MOB_ANCHOR: Record<MobKind, { dx: number; dy: number }> = {
+  hopper: { dx: -4, dy: -8 },
+  flyer: { dx: -4.5, dy: -4 },
+  turret: { dx: -4, dy: -10 },
+  shield: { dx: -4, dy: -7 },
+};
 
 type MobKind = "hopper" | "flyer" | "turret" | "shield";
 interface Mob {
@@ -482,17 +1028,25 @@ function create(seed: number): GameInstance {
     const w = curWeapon();
     if (w.id === "buster") {
       if (inp.held.b) {
+        const wasBig = hero.chargeT >= 42;
+        const wasCharging = hero.chargeT > 18;
         hero.chargeT = Math.min(70, hero.chargeT + 1);
+        if (!wasCharging && hero.chargeT > 18) io.sfx.tone(560, 7, "square", 0.08);
+        if (!wasBig && hero.chargeT >= 42) io.sfx.tone(980, 9, "square", 0.1);
         if (hero.chargeT > 18 && tick % 4 === 0) {
           const a = hash2(tick, 3) * Math.PI * 2;
           const gx = hero.x + (hero.facing > 0 ? hero.w : 0);
-          parts.push({ x: gx + Math.cos(a) * 6, y: hero.y + 11 + Math.sin(a) * 6, vx: -Math.cos(a) * 0.5, vy: -Math.sin(a) * 0.5, life: 10, color: PAL.cyan });
+          const big = hero.chargeT >= 42;
+          parts.push({ x: gx + Math.cos(a) * (big ? 9 : 6), y: hero.y + 11 + Math.sin(a) * (big ? 9 : 6), vx: -Math.cos(a) * (big ? 0.8 : 0.5), vy: -Math.sin(a) * (big ? 0.8 : 0.5), life: 10, color: big ? PAL.white : PAL.cyan });
         }
       } else if (hero.chargeT > 0) {
         const big = hero.chargeT >= 42;
         const ox = hero.x + (hero.facing > 0 ? hero.w : -4);
         shots.push({ x: ox, y: hero.y + 11, vx: hero.facing * (big ? 4.2 : 3.4), vy: 0, life: 70, dmg: big ? 3 : 1, color: big ? PAL.cyan : PAL.yellow, size: big ? 6 : 4 });
+        // a short muzzle streak trailing the new shot — juice, not a hitbox
+        for (let i = 1; i <= 3; i++) parts.push({ x: ox - hero.facing * i * 2, y: hero.y + 11, vx: 0, vy: 0, life: 5, color: big ? PAL.cyan : PAL.yellow });
         io.sfx.play("shoot");
+        if (big) io.sfx.tone(1400, 10, "square", 0.12);
         hero.chargeT = 0;
         hero.shootFlash = 6;
       }
@@ -660,6 +1214,8 @@ function create(seed: number): GameInstance {
       }
     }
     if (hero.y > H + 20) hurtHero(io, MAXHP);
+    // a sparse factory-floor rumble so night stages feel alive without ever looping every frame
+    if ((lvl.def.theme === "factory" || lvl.def.theme === "fortress") && tick % 220 === 0) io.sfx.noise?.(45, 0.045, 70, 110);
     // door
     const nearDoor = Math.abs(hero.x + hero.w - lvl.doorX) < 12 && hero.onGround;
     doorTimer = nearDoor ? doorTimer + 1 : Math.max(0, doorTimer - 2);
@@ -798,6 +1354,7 @@ function create(seed: number): GameInstance {
 
     // boss move + fire (final boss swaps its attack pattern every 220 frames through the ring)
     bs.t++;
+    if (bs.t === 1) io.sfx.slide?.(240, 760, 45, "sawtooth", 0.07);
     bs.hitFlash = Math.max(0, bs.hitFlash - 1);
     if (finalBoss) bs.def = BOSS_DEFS[Math.floor(bs.t / 220) % 4];
     if (bs.t >= introT) {
@@ -997,9 +1554,16 @@ function create(seed: number): GameInstance {
           g.rect(x + 9, y, 2, T, PAL.grey);
           g.rect(x + 3, y + 7, 10, 2, PAL.grey);
         } else if (ch === "e") {
+          // an energy orb, not a flat square: a soft glow halo, a shaded shell and a bright shine
           const bob = Math.sin((tick + c * 9) * 0.1) * 2;
-          g.rect(x + 5, y + 5 + bob, 6, 6, PAL.lime);
-          g.rect(x + 7, y + 6 + bob, 2, 2, PAL.white);
+          const ex = x + 8, ey = y + 8 + bob;
+          g.alpha(0.22);
+          g.circle(ex, ey, 6.5, PAL.lime);
+          g.alpha(1);
+          g.circle(ex, ey, 4.4, shade(PAL.lime, -0.22));
+          g.circle(ex, ey, 3.5, PAL.lime);
+          g.circle(ex - 1.2, ey - 1.3, 1.5, PAL.white);
+          g.circle(ex + 1.4, ey + 1.2, 0.9, shade(PAL.lime, 0.3));
         } else if (ch === "C") {
           g.rect(x + 7, y - 20, 2, 20, PAL.grey);
           g.circle(x + 8, y - 24, 6, run.checkpoint ? PAL.lime : PAL.dark);
@@ -1019,12 +1583,13 @@ function create(seed: number): GameInstance {
         continue;
       }
       const flashOn = m.flash > 0 && Math.floor(m.flash / 2) % 2 === 1;
-      if (m.kind === "hopper") g.sprite(flashOn ? HOPPER_FLASH[f] : HOPPER[f], m.x, m.y, { flipX: m.vx > 0 });
-      else if (m.kind === "flyer") g.sprite(flashOn ? FLYER_FLASH[f] : FLYER[f], m.x, m.y);
-      else if (m.kind === "turret") g.sprite(flashOn ? TURRET_FLASH : TURRET, m.x, m.y);
+      const an = MOB_ANCHOR[m.kind];
+      if (m.kind === "hopper") g.sprite(flashOn ? HOPPER_FLASH[f] : HOPPER[f], m.x + an.dx, m.y + an.dy, { flipX: m.vx > 0 });
+      else if (m.kind === "flyer") g.sprite(flashOn ? FLYER_FLASH[f] : FLYER[f], m.x + an.dx, m.y + an.dy);
+      else if (m.kind === "turret") g.sprite(flashOn ? TURRET_FLASH : TURRET, m.x + an.dx, m.y + an.dy);
       else {
-        g.sprite(flashOn ? SHIELD_FLASH[f] : SHIELD[f], m.x, m.y, { flipX: m.vx > 0 });
-        g.circle(m.x + (m.vx >= 0 ? m.w + 2 : -2), m.y + m.h / 2, 5, m.shieldUp ? PAL.cyan : "#3a3f5a");
+        g.sprite(flashOn ? SHIELD_FLASH[f] : SHIELD[f], m.x + an.dx, m.y + an.dy, { flipX: m.vx > 0 });
+        g.circle(m.x + (m.vx >= 0 ? m.w + 3 : -3), m.y + m.h / 2, 5, m.shieldUp ? PAL.cyan : "#3a3f5a");
       }
     }
     for (const s of shots) g.rect(s.x - s.size / 2, s.y - s.size / 2, s.size, s.size, s.color);
@@ -1043,13 +1608,25 @@ function create(seed: number): GameInstance {
     if (!boss) return;
     const bs = boss;
     const th = THEMES[runCtx === "stage" ? STAGES[stageIdx].theme : "fortress"];
+    const night = th.id === "factory" || th.id === "fortress";
+    const art = themeArt(th);
     const introT = 55;
-    // arena: floor, side walls, shutter door behind the hero
+    // arena: a baked sky + a slow-drifting skyline behind riveted side walls, a hazard-striped
+    // floor and the shutter door the hero came in through (never a flat colour box)
     g.clear(th.sky[0]);
+    g.sprite(art.sky, 0, 0);
+    drawSkyDecor(g, th, night, tick);
+    drawStrip(g, art.skyline, tick * 0.03, 150 - art.skylineH, W);
+    g.alpha(0.5);
     g.rect(0, 20, W, H - 52, th.sky[1]);
+    g.alpha(1);
     for (let x = 0; x < W; x += T) drawTile(g, th, "#", x, H - 32);
     g.rect(0, 20, 10, H - 52, th.groundDark);
     g.rect(W - 10, 20, 10, H - 52, th.groundDark);
+    for (let ry = 24; ry < H - 36; ry += 14) {
+      g.rect(2, ry, 2, 2, th.blockLight);
+      g.rect(W - 8, ry, 2, 2, th.blockLight);
+    }
     g.rect(2, H - 62, 14, 30, "#8a3a3a");
     g.rect(4, H - 60, 10, 26, "#c45a5a");
     // vertical health bar, classic style
@@ -1097,18 +1674,27 @@ function create(seed: number): GameInstance {
     else if (Math.abs(hero.vx) > 0.1) legs = RUN_CYCLE[Math.floor(hero.anim) % RUN_CYCLE.length];
     else legs = LEGS_STAND;
     const color = curWeapon().color;
-    g.sprite(heroSprite(legs, color), hero.x - 1, hero.y, { flipX: hero.facing < 0 });
+    g.sprite(heroSprite(legs, color), hero.x - 2, hero.y - HERO_DRAW_DY, { flipX: hero.facing < 0 });
+    // muzzle flash + charge glow track the cannon tip on the taller sprite, not the hitbox
+    const cannonY = hero.y - HERO_DRAW_DY + 14;
     if (hero.shootFlash > 0) {
       const fx = hero.x + (hero.facing > 0 ? hero.w + 1 : -6);
-      g.rect(fx, hero.y + 9, 5, 5, PAL.yellow);
-      g.rect(fx + 1, hero.y + 10, 3, 3, PAL.white);
+      g.rect(fx, cannonY - 2, 5, 5, PAL.yellow);
+      g.rect(fx + 1, cannonY - 1, 3, 3, PAL.white);
     }
-    if (hero.chargeT >= 42) g.circle(hero.x + (hero.facing > 0 ? hero.w + 2 : -2), hero.y + 11, 4, PAL.cyan);
+    if (hero.chargeT >= 42) g.circle(hero.x + (hero.facing > 0 ? hero.w + 2 : -2), cannonY, 4, PAL.cyan);
   }
 
   function drawHUD(g: Gfx) {
-    g.rect(0, 0, W, 13, "rgba(13,11,26,0.7)");
+    // a framed metal console panel, not a flat bar: a seamed plate with corner bolts and a
+    // bright accent edge
+    g.rect(0, 0, W, 13, "rgba(13,11,26,0.82)");
+    g.rect(0, 11, W, 1, PAL.cyan);
+    g.alpha(0.5);
+    g.rect(0, 11, W, 1, "rgba(0,0,0,0.5)");
+    g.alpha(1);
     g.rect(0, 12, W, 1, PAL.black);
+    for (let bx = 4; bx < W; bx += 40) g.rect(bx, 1, 1, 1, "#ffffff33");
     g.rect(2, 2, 9, 9, PAL.navy);
     g.box(2, 2, 9, 9, PAL.black);
     g.circle(6, 6, 2, PAL.cyan);
